@@ -1,0 +1,115 @@
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="{{ url_for('va_main.va_index') }}">
+      <i class="fa-solid fa-laptop-medical me-2"></i>DigitVA
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+
+        
+
+        {% if current_user.is_authenticated and current_user.is_site_pi() %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('va_main.va_dashboard', va_role='sitepi') }}">
+              <i class="fa-solid fa-gauge-high me-1"></i>
+              Dashboard
+            </a>
+          </li>
+        {% endif %}
+
+        {% if current_user.is_authenticated and current_user.is_coder() %}
+    <li class="nav-item">
+      <a class="nav-link" href="{{ url_for('va_main.va_dashboard', va_role='coder') }}">
+        <i class="fa-solid fa-user-check me-1"></i>
+        VA Coding
+      </a>
+    </li>
+  {% endif %}
+
+  {% if current_user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="datatrainingDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <i class="fa-solid fa-graduation-cap me-1"></i>
+              Data & Training
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="datatrainingDropdown">
+              <li>
+                <a class="dropdown-item" href="https://minerva.causeofdeathindia.com/">
+                  <i class="fa-solid fa-database me-2"></i>
+                  VA Data Collection
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="https://causeofdeathindia.com/">
+                  <i class="fa-solid fa-chalkboard-teacher me-2"></i>
+                  VA CoDA Training
+                </a>
+              </li>
+            </ul>
+          </li>
+        {% endif %}
+{#
+        <!-- {% if current_user.is_authenticated and (current_user.is_coder() or current_user.is_reviewer()) %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="vaDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <i class="fa-solid fa-file-medical me-1"></i>
+              Verbal Autopsy
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="vaDropdown">
+              {% if current_user.is_coder() %}
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('va_main.va_dashboard', va_role='coder') }}">
+                    <i class="fa-solid fa-code me-2"></i>
+                    VA CoDA
+                  </a>
+                </li>
+              {% endif %}
+              {% if current_user.is_reviewer() %}
+                <li>
+                  <a class="dropdown-item" href="{{ url_for('va_main.va_dashboard', va_role='reviewer') }}">
+                    <i class="fa-solid fa-user-check me-2"></i>
+                    VA QA
+                  </a>
+                </li>
+              {% endif %}
+            </ul>
+          </li>
+        {% endif %} -->
+#}
+
+        {% if current_user.is_authenticated %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <i class="fa-solid fa-user-circle me-1"></i>
+              {{ current_user.name }}
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+              <li>
+                <a class="dropdown-item" href="{{ url_for('va_main.va_profile') }}">
+                  <i class="fa-solid fa-user me-2"></i>
+                  My Profile
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="{{ url_for('va_auth.va_logout') }}">
+                  <i class="fa-solid fa-right-from-bracket me-2"></i>
+                  Logout
+                </a>
+              </li>
+            </ul>
+          </li>
+        {% else %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('va_auth.va_login') }}">
+              <i class="fa-solid fa-right-to-bracket me-1"></i>
+              Login
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>

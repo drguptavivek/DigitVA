@@ -1,0 +1,319 @@
+<div class="card-header bg-primary text-white">
+  <h5 class="mb-0 d-flex align-items-center">
+    <i class="fas fa-thermometer me-2"></i>
+    <span style="font-size: 1rem; font-weight: 600; letter-spacing: 0.5px">GENERAL SYMPTOMS</span>
+  </h5>
+</div>
+
+<div class="card-body">
+  {% if category_data and category_data is mapping and not category_data.get('error') %}
+
+    {# duration of illness #}
+    {% if category_data.get("duration_of_illness") %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-clock"></i>
+        Illness Duration
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("duration_of_illness").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# display fever #}
+    {% if category_data.get("fever") %}
+      <div class="content-section-title">
+        <i class="fas fa-thermometer-half"></i>
+        Fever
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("fever").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# display skin rash #}
+    {% if category_data.get("skin_rash") %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-allergies"></i>
+        Skin Rash
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("skin_rash").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# display yellow_discoloration #}
+    {% if category_data.get("yellow_discoloration") %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-exclamation-triangle"></i>
+        Yellow Discoloration
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("yellow_discoloration").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# display nutrition #}
+    {% if category_data.get("nutrition") %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-utensils"></i>
+        Nutrition
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("nutrition").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# display puffiness #}
+    {% if category_data.get("puffiness") %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-user-injured"></i>
+        Puffiness
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("puffiness").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# display swelling #}
+    {% if category_data.get("swelling") %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-exclamation-triangle"></i>
+        Swelling
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("swelling").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+  {% elif category_data and category_data.get('error') %}
+    <div class="alert alert-warning">
+      {{ category_data.get('error') }}
+    </div>
+  {% else %}
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i>
+      <strong>Instance Name:</strong>
+      {{ instance_name }}<br>
+      <span class="mt-2 d-block">No general symptom data available for this submission.</span>
+    </div>
+  {% endif %}
+  <div class="card-footer d-flex justify-content-between">
+    <button class="btn btn-secondary" hx-get="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = va_previouscategory) }}"
+      hx-target="#form-content"
+      hx-swap="innerHTML"
+      hx-indicator="#loading-s-respiratory-cardiac">
+      <i class="fas fa-arrow-left me-2"></i>Previous Category
+    </button>
+    <button class="btn btn-primary" id="next-category-btn" hx-get="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = va_nextcategory) }}"
+      hx-target="#form-content"
+      hx-swap="innerHTML"
+      hx-indicator="#loading-s-urogenital">
+      <span>Next Category</span>
+      <i class="fas fa-arrow-right ms-2"></i>
+    </button>
+  </div>
+  </div>
+</div>

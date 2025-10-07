@@ -1,0 +1,194 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}DigitVA{% endblock %}
+{% block content %}
+
+
+
+  {% with messages = get_flashed_messages(with_categories = true) %}
+  {% if messages %}
+    <div class="container mt-4">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
+  <!-- Header Section with Modern Design -->
+  <section class="hero-section py-4">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-2 text-center">
+          <div class="logo-container">
+            <img src="/static/aiims_logo.png" alt="AIIMS Logo" class="img-fluid header-logo shadow-sm"/>
+          </div>
+        </div>
+        <div class="col-md-8 text-center">
+          <h1 class="display-5 fw-bold text-primary mb-3">
+            Digital Solutions for Verbal Autopsy and Cause of Death in India
+          </h1>
+          <p class="lead text-secondary">
+            Empowering health systems to use digital solutions for conduct of verbal autopsy and cause of death ascertainment.
+          </p>
+        </div>
+        <div class="col-md-2 text-center">
+          <div class="logo-container">
+            <img src="/static/minerva_logo_2.gif" alt="Minerva Logo" class="img-fluid header-logo shadow-sm"/>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Us Section with Card Design -->
+  <section class="py-4">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-md-5">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon-container bg-primary text-white rounded-circle p-3 me-3">
+                <i class="fas fa-info-circle fa-2x"></i>
+              </div>
+              <h2 class="card-title fw-bold text-primary mb-0">About Us</h2>
+            </div>
+            <p class="card-text">
+              <b>MINErVA Cause of Death India (DigitVA)</b>
+              web platform is an open-access digital platform designed to host
+              <b>e-Verbal Autopsy (VA) tools and algorithms</b>
+              for cause of death ascertainment. Built for researchers, public health professionals, and health systems, the platform provides a centralized,
+              <b>user-friendly space to collect, process, and interpret cause of death data using standardized digital methods.</b>
+            </p>
+            <p class="card-text">
+              At its core, the platform is committed to making current, high-quality cause of death data accessible and usable. By offering free access to tools and automated algorithm, the platform supports real-time surveillance, research collaboration, and evidence-based health planning.
+            </p>
+            <p class="card-text mb-0">
+              Whether you're working in the field, analyzing trends, or shaping policy to improve cause of death data—the platform helps you turn data into action.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- What is Verbal Autopsy Section with Icon -->
+  <section class="py-4">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-md-5">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon-container bg-primary text-white rounded-circle p-3 me-3">
+                <i class="fas fa-clipboard-list fa-2x"></i>
+              </div>
+              <h2 class="card-title fw-bold text-primary mb-0">Verbal Autopsy</h2>
+            </div>
+            <p class="card-text">
+              <b>Verbal Autopsy (VA)</b>
+              is a
+              <b>structured interview process</b>
+              conducted with
+              <b>family members or caregivers of deceased individuals</b>
+              to determine probable
+              <b>cause of death</b>
+              in regions where deaths often occur outside medical facilities. This systematic method collects vital information about
+              <b>symptoms and circumstances</b>
+              preceding death, providing crucial
+              <b>mortality data</b>
+              where traditional medical certification is unavailable.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Cause of Death Analysis Section with Icon -->
+  <section class="py-4">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-4 p-md-5">
+            <div class="d-flex align-items-center mb-4">
+              <div class="icon-container bg-primary text-white rounded-circle p-3 me-3">
+                <i class="fas fa-chart-pie fa-2x"></i>
+              </div>
+              <h2 class="card-title fw-bold text-primary mb-0">
+                Cause of Death Analysis
+              </h2>
+            </div>
+            <p class="card-text">
+              <b>Cause of death information</b>
+              is fundamental to effective public health planning and policy development. By understanding
+              <b>mortality patterns and trends, health authorities</b>
+              can allocate
+              <b>resources efficiently, develop targeted interventions, and monitor health program impacts</b>. Our digital solutions standardize and improve cause of death data quality, particularly in settings where traditional medical certification is limited.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Digital Solutions Section with Modern Cards -->
+  <section class="py-4">
+    <div class="container">
+      <h1 class="text-center fw-bold text-primary mb-5">
+        <i class="fas fa-laptop-medical me-2"></i>Digital Solutions
+      </h1>
+      <div class="row g-4">
+        <div class="col-md-6">
+          <div class="card h-100 border-0 shadow-sm hover-card">
+            <div class="card-body p-4">
+              <div class="d-flex align-items-center mb-4">
+                <div class="icon-container bg-primary text-white rounded-circle p-3 me-3">
+                  <i class="fas fa-mobile-alt fa-2x"></i>
+                </div>
+                <h2 class="card-title fw-bold text-primary mb-0">
+                  Conducting Verbal Autopsy
+                </h2>
+              </div>
+              <h3 class="card-title fw-bold">ODK Central & WHO VA 2022 Tool</h3>
+              <p class="card-text">
+                Standardized verbal autopsy tools are available in digital formats to enhance efficiency and data quality. These digital tools replicate the structured
+                <b>WHO Verbal Autopsy 2022</b>
+                questionnaires and are
+                <b>administered using mobile devices or tablets</b>.
+              </p>
+              <p class="card-text">
+                Digital VA tools include built-in logic checks, skip patterns, and can be integration with automated cause of death assignment algorithms. The digital format
+                <b>streamlines data collection, reduces manual errors, and enables faster transmission and analysis</b>, making it particularly useful in expanding cause of death ascertainment system in India.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card h-100 border-0 shadow-sm hover-card">
+            <div class="card-body p-4">
+              <div class="d-flex align-items-center mb-4">
+                <div class="icon-container bg-primary text-white rounded-circle p-3 me-3">
+                  <i class="fas fa-brain fa-2x"></i>
+                </div>
+                <h2 class="card-title fw-bold text-primary mb-0">
+                  Cause of Death Ascertainment
+                </h2>
+              </div>
+              <h3 class="card-title fw-bold">SmartVA</h3>
+              <p class="card-text">
+                Digital algorithms are increasingly being used to analyze verbal autopsy data. These algorithms process the structured responses from verbal autopsy interviews to
+                <b>generate probable causes of death based on standardized diagnostic logic and statistical models</b>.
+              </p>
+              <p class="card-text">
+                They offer a cost-effective, scalable, and objective alternative to physician review,
+                <b>reducing delays and inter-rater variability</b>. Integrated into digital VA platforms, these algorithms can provide near real-time estimates of
+                <b>cause-specific mortality</b>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

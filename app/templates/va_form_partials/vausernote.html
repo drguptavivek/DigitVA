@@ -1,0 +1,13 @@
+<form 
+  hx-post="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vausernote') }}"
+  hx-swap="none"
+  hx-target="this"
+>
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.va_note_content(class="form-control", rows="8", placeholder="Add your notes here...") }}
+  </div>
+  <div class="d-flex justify-content-center mb-3">  
+  {{ form.va_note_submit(class="btn btn-primary px-4") }}  
+</div>
+</form>

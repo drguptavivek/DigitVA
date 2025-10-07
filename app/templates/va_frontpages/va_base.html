@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>
+      {% block title %}DigitVA{% endblock %}
+    </title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendors/fontawesome/css/all.min.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='vendors/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='vendors/select2/css/select2.min.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='vendors/cropperjs/css/cropper.min.css') }}" rel="stylesheet"/>
+    <link href="{{ url_for('static', filename='css/base.css') }}" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="{{ url_for('static', filename='vendors/jquery/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendors/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendors/select2/js/select2.full.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendors/cropperjs/js/cropper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendors/htmx/htmx.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/base.js') }}"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='favicon/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon/favicon-16x16.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='favicon/site.webmanifest') }}">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon/favicon.ico') }}">
+    <meta name="theme-color" content="#ffffff">
+  </head>
+
+  <body>
+    {% include "va_intermediate_partials/va_navbar.html" %}
+    <main id="main-content" class="container py-4">
+      {% block content %}{% endblock %}
+    </main>
+    <footer class="py-2">
+      <div class="container text-center">
+        <p class="mb-0">&copy; 2025 DigitVA - All Rights Reserved</p>
+      </div>
+    </footer>
+    
+  </body>
+
+</html>

@@ -1,0 +1,43 @@
+services:
+  minerva_app_service:
+    build: .
+    container_name: minerva_app
+    command: ./boot.sh
+    volumes:
+      - .:/app
+    ports:
+      - "8050:5000"
+    environment:
+      - SECRET_KEY=5Ag92#2g]oLIHEk
+      - DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva
+    depends_on:
+      - minerva_db_service
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  minerva_db_service:
+    image: postgres:17
+    container_name: minerva_db
+    environment:
+      POSTGRES_USER: minerva
+      POSTGRES_PASSWORD: minerva
+      POSTGRES_DB: minerva
+    volumes:
+      - pgdata_minerva:/var/lib/postgresql/data
+    ports:
+      - "8450:5432"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U minerva"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  pgdata_minerva:

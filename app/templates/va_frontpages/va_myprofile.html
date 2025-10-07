@@ -1,0 +1,75 @@
+{% extends "va_frontpages/va_base.html" %}
+{% block title %}DigitVA | My Profile{% endblock %}
+{% block content %}
+<div class="container">
+    {% with messages = get_flashed_messages(with_categories = true) %}
+  {% if messages %}
+    <div class="container mt-4">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
+  <h4 class="content-section-title"><i class="fas fa-user-circle me-2"></i>My Profile</h4>
+  <form method="POST">
+    {{ form.hidden_tag() }}
+    <div class="content-section mb-4">
+  <h4 class="content-section-title"><i class="fa fa-key me-2"></i>Change Password</h4>
+
+  <div class="mb-3">
+    {{ form.va_current_password.label(class="form-label") }}
+    {{ form.va_current_password(class="form-control") }}
+    {% for error in form.va_current_password.errors %}
+      <div class="text-danger small mt-1">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="mb-3">
+    {{ form.va_new_password.label(class="form-label") }}
+    {{ form.va_new_password(class="form-control") }}
+    {% for error in form.va_new_password.errors %}
+      <div class="text-danger small mt-1">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  <div class="mb-3">
+    {{ form.va_confirm_password.label(class="form-label") }}
+    {{ form.va_confirm_password(class="form-control") }}
+    {% for error in form.va_confirm_password.errors %}
+      <div class="text-danger small mt-1">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  {{ form.va_update_password(class="btn btn-primary") }}
+</div>
+
+<div class="content-section mb-4">
+  <h4 class="content-section-title"><i class="fa fa-language me-2"></i>VA Languages</h4>
+
+  <div class="mb-3">
+    {{ form.va_languages.label(class="form-label") }}
+    {{ form.va_languages(class="form-select", multiple=True, id="vaLangSelect") }}
+    {% for error in form.va_languages.errors %}
+      <div class="text-danger small mt-1">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  {{ form.va_update_languages(class="btn btn-primary") }}
+</div>
+
+  </form>
+</div>
+
+<script>
+  $(document).ready(function () {
+    $('#vaLangSelect').select2({
+      placeholder: "Select VA Languages",
+      width: '100%'
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | Method Failure{% endblock %}
+
+{% block content %}
+  <div class="container mt-5 pt-5">
+    <h1 class="display-4 text-primary fw-bold">405 - Method Not Allowed / Crash</h1>
+    <p class="lead">
+      We're sorry, the method used for this VA request isn't allowed on this route.
+    </p>
+    <ul class="list-unstyled text-muted">
+      <li>• This could be due to an action that isn't supported here.</li>
+      <li>• Please check the way you're trying to access this feature.</li>
+      <li>• Please inform the central administrative team (@ AIIMS, New Delhi) about the same.</li>
+    </ul>
+    {% if current_user.is_authenticated %}
+      <a href="{{ url_for('va_main.va_dashboard', va_role=current_user.landing_page) }}" class="btn btn-primary mt-2">Return to Dashboard</a>
+    {% else %}
+      <a href="{{ url_for('va_main.va_index') }}" class="btn btn-primary mt-2">Return to Home</a>
+    {% endif %}
+  </div>
+{% endblock %}

@@ -1,0 +1,257 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | VA Code{% endblock %}
+
+{% block content %}
+  {% with messages = get_flashed_messages(with_categories = true) %}
+  {% if messages %}
+    <div class="container mt-4">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
+<h2 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
+      Welcome,
+      {{ current_user.name }}
+    </h2>
+  <!-- Welcome and Instructions -->
+  <div class="content-section mb-4">
+  <h4 class="content-section-title">
+    <i class="fas fa-info-circle"></i>
+    Verbal Autopsy - Cause of Death Ascertainment
+  </h4>
+  <p>
+    <b>Welcome to the Verbal Autopsy Coding Dashboard</b>
+  </p>
+  <ol class="mb-0">
+    <li>The stats below reflect the <b>total VA forms awaiting to be coded</b> and <b>those you've already coded</b>.</li>
+    <li>
+      Click
+      <b>"Start VA Coding"</b>
+      to start coding a VA form. Once assigned, you are expected to complete its coding before picking another. If some VA Coding is already in progress and assigned to you, you'll see a
+      <b>"Continue Pending VA Coding"</b>
+      option instead. Please note that any assigned VA form will be
+      <b>revoked after an hour</b>
+      if the VA Coding is not completed.
+    </li>
+    <li>
+      Use the
+      <b>"View"</b>
+      button to open any completed VA form.
+    </li>
+    <li>
+      Use the <b>"Recode"</b> button to update the coded VA form if necessary. Please note that a coded <b>VA form can only be recoded once</b>, and <b>only within 24 hours of its initial coding</b>.
+    </li>
+    <li>
+      For any assistance, kindly reach out to the
+      <b>Central Admin Team at AIIMS, New Delhi</b>.
+    </li>
+  </ol>
+</div>
+
+
+<!-- KPI cards -->
+<div class="row mb-4 g-3">
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 rounded-3 h-100">
+      <div class="card-body p-4">
+        <div class="d-flex flex-column align-items-center">
+          <div class="mb-3">
+            <i class="fas fa-clipboard-list text-primary fa-2x"></i>
+          </div>
+          <h5 class="text-primary fw-semibold mb-3">Active VA Forms Available to {{ current_user.name }} for Coding</h5>
+          <div class="d-flex align-items-baseline">
+            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_total_forms }}</h2>
+            <span class="ms-2 text-secondary small">forms</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm border-0 rounded-3 h-100">
+      <div class="card-body p-4">
+        <div class="d-flex flex-column align-items-center">
+          <div class="mb-3">
+            <i class="fas fa-check-circle text-primary fa-2x"></i>
+          </div>
+          <h5 class="text-primary fw-semibold mb-3">Cumulative VA Forms Coded by {{ current_user.name }}</h5>
+          <div class="d-flex align-items-baseline">
+            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_forms_completed }}</h2>
+            <span class="ms-2 text-secondary small">forms</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+  {% if va_has_allocation %}
+  <!-- Continue Pending QA -->
+  <div class="text-center mb-4">
+    <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='varesumecoding', va_sid='varesumecoding') }}" class="btn btn-primary">
+      <i class="fas fa-edit me-2"></i>Continue Pending VA Coding
+    </a>
+  </div>
+  {% endif %}
+  {% if not va_has_allocation %}
+  <!-- Continue Pending QA -->
+  <div class="text-center mb-4">
+    <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vastartcoding', va_sid='vastartcoding') }}" class="btn btn-primary">
+      <i class="fas fa-edit me-2"></i>Start VA Coding
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Filters + Table Tools -->
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="dropdown">
+      <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        Toggle Columns
+      </button>
+      <div class="dropdown-menu p-3" id="columnToggles" style="min-width: 250px;"></div>
+    </div>
+    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#filterPanel">
+      Filter Options
+    </button>
+  </div>
+
+  <!-- Filters -->
+  <div class="collapse mb-3" id="filterPanel">
+    <div class="card card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Submission Date:</label>
+          <select id="filterSubmissionDate" class="form-select" multiple></select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Site ID:</label>
+          <select id="filterFormID" class="form-select" multiple></select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Data Collector:</label>
+          <select id="filterDataCollector" class="form-select" multiple></select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Age:</label>
+          <select id="filterAge" class="form-select" multiple></select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Gender:</label>
+          <select id="filterGender" class="form-select" multiple></select>
+        </div>
+      </div>
+    </div>
+  </div>
+  <h3 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
+      VA Coding History
+    </h3>
+  <!-- Table -->
+  <div class="table-responsive">
+    <table id="vaTable" class="table table-hover align-middle table-striped nowrap" style="min-width: 1200px;"></table>
+  </div>
+
+  <script id="table-data" type="application/json">
+    {{ va_forms | tojson }}
+  </script>
+
+  <style>
+    .select2-container .select2-selection--multiple {
+      min-height: 38px;
+    }
+  </style>
+
+  <script id="va-context" type="application/json">
+  {{ {
+    "hasAllocation": va_has_allocation
+  } | tojson }}
+</script>
+
+<script id="va-recodeable" type="application/json">
+  {{ va_recodeable | tojson }}
+</script>
+
+  <script>
+    $(document).ready(function () {
+      const tableData = JSON.parse(document.getElementById("table-data").textContent);
+      const context = JSON.parse(document.getElementById('va-context').textContent);
+
+      let table = $('#vaTable').DataTable({
+        data: tableData,
+        columns: [
+          { data: 'va_submission_date', title: 'Submission Date', visible: false }, // 0
+          { data: 'va_form_id', title: 'Site ID', visible: false },                                 // 1
+          { data: 'va_sid', title: 'SID', visible: false },                                       // 2
+          { data: 'va_uniqueid_masked', title: 'VA Form ID' },                  // 3
+          { data: 'va_data_collector', title: 'DataCollector' },                            // 4
+          { data: 'va_deceased_age', title:"H1", visible: false },    
+          { data: 'va_deceased_gender', title:"H2", visible: false },                          
+          { data: null, title: 'Age / Gender', render: row => `${row.va_deceased_age || '-'} / ${row.va_deceased_gender || '-'}` },  // 7
+          { data: 'va_code_status', title: 'VA Code Status', render: data => data === 'VA Coding Completed' ? '<span class="badge bg-success">VA Coding Completed</span>' : '<span class="badge bg-danger">Not Codeable</span>'}, 
+          { data: 'va_coding_date', title: 'VA Coding Date' },
+          {
+            data: null,
+            title: 'Action',
+            orderable: false,
+            render: row => {
+                const recodeableList = JSON.parse(document.getElementById("va-recodeable").textContent);
+                const context = JSON.parse(document.getElementById("va-context").textContent);
+                let html = `<a href="/vacta/vacode/vaview/${row.va_sid}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
+                const noAllocation = !context.hasAllocation;
+                if (noAllocation && recodeableList.includes(row.va_sid)) {
+                  html += `<a href="/vacta/vacode/varecode/${row.va_sid}" class="btn btn-sm btn-outline-danger">Recode</a>`;
+                }
+                return html;
+            }
+          }
+        ],
+        initComplete: function () {
+          const api = this.api();
+
+          $('#filterSubmissionDate, #filterFormID, #filterDataCollector, #filterAge, #filterGender').select2({ width: '100%' });
+
+          api.columns().every(function () {
+            const column = this;
+            const idx = column.index();
+            const title = column.header().textContent;
+            if (title === 'Action' || title === 'H1' || title === 'H2') return;
+
+            $('#columnToggles').append(`
+              <div class="form-check form-check-inline">
+                <input type="checkbox" class="form-check-input me-1" data-col="${idx}" ${column.visible() ? 'checked' : ''}>
+                <label class="form-check-label me-3">${title}</label>
+              </div>
+            `);
+          });
+
+          $('#columnToggles input[type=checkbox]').on('change', function () {
+            table.column($(this).data('col')).visible($(this).is(':checked'));
+          });
+
+          const filters = [
+            { idx: 0, selector: '#filterSubmissionDate' },
+            { idx: 1, selector: '#filterFormID' },
+            { idx: 4, selector: '#filterDataCollector' },
+            { idx: 5, selector: '#filterAge' },
+            { idx: 6, selector: '#filterGender' }
+          ];
+
+          filters.forEach(f => {
+            const column = api.column(f.idx);
+            const $select = $(f.selector);
+            column.data().unique().sort().each(d => { if (d) $select.append(`<option value="${d}">${d}</option>`); });
+            $select.on('change', function () {
+              const val = $(this).val();
+              const regex = val && val.length ? `^(${val.join('|')})$` : '';
+              column.search(regex, true, false).draw();
+            });
+          });
+        }
+      });
+    });
+  </script>
+{% endblock %}

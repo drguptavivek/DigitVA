@@ -1,0 +1,183 @@
+<div class="card-header bg-primary text-white">
+  <h5 class="mb-0 d-flex align-items-center">
+    <i class="fas fa-history me-2"></i>
+    <span style="font-size: 1rem; font-weight: 600; letter-spacing: 0.5px">DISEASE / CO-MORBITITY</span>
+  </h5>
+</div>
+
+<div class="card-body">
+  {% if category_data and category_data is mapping and not category_data.get('error') %}
+
+    {% set affirmative_responses = {} %}
+    {% set negative_responses = {} %}
+
+    {# categorize fields based on yes/no responses #}
+    {% if category_data.get("medical_history") %}
+      {% for label, value in category_data.get("medical_history").items() %}
+        {% if value == "Yes" %}
+          {% set _ = affirmative_responses.update({label: value}) %}
+        {% elif value == "No" %}
+          {% set _ = negative_responses.update({label: value}) %}
+        {% else %}
+          {% set _ = affirmative_responses.update({label: value}) %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+
+    {# extract just the labels for positive and negative diagnoses #}
+    {% set positive_labels = [] %}
+    {% set negative_labels = [] %}
+    {% set other_affirmative = {} %}
+
+    {% for label, value in affirmative_responses.items() %}
+      {% if value == "Yes" %}
+        {% set _ = positive_labels.append(label) %}
+      {% else %}
+        {% set _ = other_affirmative.update({label: value}) %}
+      {% endif %}
+    {% endfor %}
+
+    {% for label, value in negative_responses.items() %}
+      {% if value == "No" %}
+        {% set _ = negative_labels.append(label) %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="row">
+      {# positive diagnosis card #}
+      <div class="col-md-6 mb-3">
+        <div class="content-section-title">
+          <i class="fas fa-clipboard-check"></i>
+          Diagnosed by Health Professional
+        </div>
+        <div class="card text-white shadow-sm" style="background-color: rgba(220, 53, 69, 0.85);">
+          <div class="card-body">
+            {% if positive_labels|length > 0 %}
+              <p class="mb-0">
+                {% for label in positive_labels %}
+                  {{ label }} <br/> {% if not loop.last %}{% endif %}
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="mb-0 fst-italic">No positive diagnoses found.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      
+      {# negative diagnosis card #}
+      <div class="col-md-6 mb-3">
+        <div class="content-section-title">
+          <i class="fas fa-clipboard"></i>
+          Absent 
+        </div>
+        <div class="card text-white shadow-sm" style="background-color: rgba(25, 135, 84, 0.85);">
+          <div class="card-body">
+            {% if negative_labels|length > 0 %}
+              <p class="mb-0">
+                {% for label in negative_labels %}
+                  {{ label }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="mb-0 fst-italic">No negative diagnoses found.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    {# show other affirmative data that isn't Yes/No #}
+    {% if other_affirmative|length > 0 %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-clipboard-list"></i>
+        Medical History (Responses)
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in other_affirmative.items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">{{ value }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# neonate specifics #}
+    {% if category_data.get("neonate") %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-file-medical"></i>
+        Neonate Specific
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr>
+              <th width="60%" class="border-bottom">Query</th>
+              <th class="border-bottom">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for label, value in category_data.get("neonate").items() %}
+              <tr>
+                <td class="align-middle">{{ label }}</td>
+                <td class="align-middle">
+                  {% if label in info_list %}
+                    <span class="badge bg-info px-3 py-2">{{ value }}</span>
+                  {% elif value == "Yes" and label in flip_list %}
+                    <span class="badge bg-success px-3 py-2">Yes</span>
+                  {% elif value == "Yes" %}
+                    <span class="badge bg-danger px-3 py-2">Yes</span>
+                  {% elif value == "No" and label in flip_list %}
+                    <span class="badge bg-danger px-3 py-2">No</span>
+                  {% elif value == "No" %}
+                    <span class="badge bg-success px-3 py-2">No</span>
+                  {% else %}
+                    {{ value }}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+  {% elif category_data and category_data.get('error') %}
+    <div class="alert alert-warning">
+      {{ category_data.get('error') }}
+    </div>
+  {% else %}
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i>
+      <strong>Instance Name:</strong>
+      {{ instance_name }}<br>
+      <span class="mt-2 d-block">No health history available for this submission.</span>
+    </div>
+  {% endif %}
+  <div class="card-footer d-flex justify-content-between">
+    <button class="btn btn-secondary" hx-get="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = va_previouscategory) }}"
+      hx-target="#form-content"
+      hx-swap="innerHTML"
+      hx-indicator="#loading-s-respiratory-cardiac">
+      <i class="fas fa-arrow-left me-2"></i>Previous Category
+    </button>
+    <button class="btn btn-primary" id="next-category-btn" hx-get="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = va_nextcategory) }}"
+      hx-target="#form-content"
+      hx-swap="innerHTML"
+      hx-indicator="#loading-s-urogenital">
+      <span>Next Category</span>
+      <i class="fas fa-arrow-right ms-2"></i>
+    </button>
+  </div>
+</div>

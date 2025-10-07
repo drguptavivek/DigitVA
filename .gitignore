@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.vscode/
+backup/*
+!backup/.gitkeep
+data/*
+!data/.gitkeep
+logs/*
+!logs/.gitkeep
+resource/depreciated/*
+resource/other/*
+resource/pyodk/*
+!resource/pyodk/.gitkeep

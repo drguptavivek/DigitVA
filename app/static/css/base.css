@@ -46,6 +46,11 @@ h6 {
   font-weight: 500;
 }
 
+.navbar-brand-logo {
+  max-height: 35px;
+  border-radius: 4px;
+}
+
 .container {
   max-width: 1300px;
   margin: 0 auto;
@@ -100,7 +105,7 @@ footer {
   background-color: var(--color-accent-primary);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   padding: 0rem 1rem;
-  min-height: 35px;
+  min-height: 44px;
   position: fixed;
   top: 0;
   left: 0;

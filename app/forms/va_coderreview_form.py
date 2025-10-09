@@ -38,4 +38,3 @@ class VaCoderReviewForm(FlaskForm):
             return False
         return True
     va_report_issue = SubmitField("Report Issue")
-    print("okkk")

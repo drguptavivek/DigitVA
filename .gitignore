@@ -14,3 +14,4 @@ resource/depreciated/*
 resource/other/*
 resource/pyodk/*
 !resource/pyodk/.gitkeep
+updates/

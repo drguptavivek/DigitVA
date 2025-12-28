@@ -15,8 +15,8 @@
         {% if current_user.is_authenticated and current_user.is_site_pi() %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('va_main.va_dashboard', va_role='sitepi') }}">
-              <i class="fa-solid fa-gauge-high me-1"></i>
-              Dashboard
+              <i class="fa-solid fa-chart-line"></i>
+              VA Dashboard
             </a>
           </li>
         {% endif %}

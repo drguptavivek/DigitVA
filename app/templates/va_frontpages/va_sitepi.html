@@ -1,0 +1,274 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | VA Dashboard{% endblock %}
+
+{% block content %}
+  {% with messages = get_flashed_messages(with_categories = true) %}
+  {% if messages %}
+    <div class="container mt-4">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
+  
+<h2 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
+      Welcome,
+      {{ current_user.name }}
+    </h2>
+    
+  <!-- Welcome and Instructions -->
+  <div class="content-section mb-4">
+  <h4 class="content-section-title">
+    <i class="fas fa-chart-bar"></i>
+    Site Supervisor Dashboard - KPIs and VA Monitoring
+  </h4>
+  <p>
+    <b>Welcome to the Site Supervisor Dashboard</b>
+  </p>
+  <ol class="mb-0">
+    <li>This dashboard provides <b>site-wise monitoring of VA forms</b>.</li>
+    <li>
+      Select a site-specific VA Form from the dropdown below to view <b>submission statistics</b> and <b>coding progress</b> for that particular site.
+    </li>
+    <li>
+      The KPI cards show the <b>total VA submissions</b>, <b>total VA submissions that have been coded</b> and <b> total VA submissions reported not-codeable by the VA Coders</b> for the selected site-specific form.
+    </li>
+    <li>
+      For any assistance, kindly reach out to the
+      <b>Central Admin Team at AIIMS, New Delhi</b>.
+    </li>
+  </ol>
+</div>
+
+<!-- Site Selection Dropdown -->
+<div class="row mb-4">
+  <div class="col-md-6">
+    <label for="siteSelect" class="form-label"><strong>Select Site-Specific VA Form:</strong></label>
+    <select id="siteSelect" name="siteSelect" class="form-select"
+            hx-get="{{ url_for('va_main.va_sitepi_data') }}"
+            hx-target="#siteContent"
+            hx-trigger="change"
+            hx-indicator="#loading">
+      {% for site in sitepi_sites %}
+        <option value="{{ site }}" {% if loop.first %}selected{% endif %}>{{ site }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-6 d-flex align-items-end">
+    <div id="loading" class="htmx-indicator">
+      <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+      Loading...
+    </div>
+  </div>
+</div>
+
+<!-- Dynamic Content Area -->
+<div id="siteContent">
+  {% if default_site_data %}
+    <h3 class="text-primary mb-3 mt-4" style="font-size: 24px; font-weight: 600;">
+       <i class="fas fa-hospital me-2"></i> Site & VA Form: AIIMS, ND (ICMR - Telephonic WHO VA 2022)
+    </h3>
+    <!-- KPI cards -->
+    <div class="row mb-4 g-3">
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+          <div class="card-body p-4">
+            <div class="d-flex flex-column align-items-center">
+              <div class="mb-3">
+                <i class="fas fa-file-alt text-primary fa-2x"></i>
+              </div>
+              <h5 class="text-primary fw-semibold mb-3">Total VA Submissions ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})</h5>
+              <div class="d-flex align-items-baseline">
+                <h2 class="display-4 fw-bold text-primary mb-0">{{ default_site_data.total_submissions if default_site_data else 0 }}</h2>
+                <span class="ms-2 text-secondary small">submissions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+          <div class="card-body p-4">
+            <div class="d-flex flex-column align-items-center">
+              <div class="mb-3">
+                <i class="fas fa-check-circle text-success fa-2x"></i>
+              </div>
+              <h5 class="text-success fw-semibold mb-3">Total VA Submissions Coded ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})</h5>
+              <div class="d-flex align-items-baseline">
+                <h2 class="display-4 fw-bold text-success mb-0">{{ default_site_data.total_coded if default_site_data else 0 }}</h2>
+                <span class="ms-2 text-secondary small">submissions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card shadow-sm border-0 rounded-3 h-100">
+          <div class="card-body p-4">
+            <div class="d-flex flex-column align-items-center">
+              <div class="mb-3">
+                <i class="fas fa-times-circle text-danger fa-2x"></i>
+              </div>
+              <h5 class="text-danger fw-semibold mb-3">Total VA Submissions Not Codeable ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})</h5>
+              <div class="d-flex align-items-baseline">
+                <h2 class="display-4 fw-bold text-danger mb-0">{{ default_site_data.total_not_codeable if default_site_data else 0 }}</h2>
+                <span class="ms-2 text-secondary small">submissions</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!--
+    <h3 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
+        VA Forms Marked as Not Codeable ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})
+    </h3>
+    -->
+
+    <!-- Table -->
+     <!--
+    <div class="table-responsive">
+      <table id="sitepiTable" class="table table-hover align-middle table-striped nowrap" style="min-width: 800px;">
+        <thead>
+          <tr>
+            <th>VA SID</th>
+            <th>Review Reason</th>
+            <th>Review Date</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in default_site_data.review_records %}
+          <tr>
+            <td>{{ record.va_sid }}</td>
+            <td>{{ record.va_creview_reason }}</td>
+            <td>{{ record.va_creview_created_at.strftime('%Y-%m-%d %H:%M') if record.va_creview_created_at else 'N/A' }}</td>
+            <td>
+              <a href="#" class="btn btn-sm btn-outline-primary">Review</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="text-center py-5">
+      <p class="text-muted">No data available for the selected site.</p>
+    </div>
+  {% endif %}
+</div>
+-->
+<h3 class="text-primary mb-3 mt-4" style="font-size: 24px; font-weight: 600;">
+   <i class="fas fa-users-cog me-2"></i> VA Coder Participation
+</h3>
+
+<div class="card shadow-sm border-0 rounded-3 mb-4">
+  <div class="card-body"> 
+    <div class="table-responsive">
+      <table id="sitepiTable" class="table table-hover align-middle table-striped nowrap" style="width: 100%; min-width: 800px;">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3 py-3">VA Coder</th>
+            <th class="py-3">VA Coder Onboarded DigitVA</th>
+            <th class="py-3 text-center">VA Submissions Coded</th>
+            <th class="py-3 text-center">VA Submissions Marked as Not-Codeable</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in default_site_data.coder_kpis %}
+          <tr>
+            <td class="ps-3 fw-bold text-secondary">
+              <div class="d-flex align-items-center">
+                <div class="bg-primary text-white me-2 rounded-circle d-flex justify-content-center align-items-center" style="width: 32px; height: 32px; font-size: 14px;">
+                  {{ row[0][0] | upper if row[0] else 'U' }}
+                </div>
+                {{ row[0] }}
+              </div>
+            </td>
+            
+            <td>
+              {% if row[1] %}
+                <span class="badge bg-success text-white px-3 py-2 rounded-pill shadow-sm">
+                  <i class="fas fa-check me-1"></i> Onboarded
+                </span>
+              {% else %}
+                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm">
+                  <i class="fas fa-clock me-1"></i> Pending
+                </span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              <span class="fw-bold text-dark">{{ row[2] }}</span>
+            </td>
+            
+            <td class="text-center">
+              {% if row[3] > 0 %}
+                <span class="fw-bold text-danger">{{ row[3] }}</span>
+              {% else %}
+                <span class="fw-bold text-muted">{{ row[3] }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<style>
+  .htmx-indicator {
+    opacity: 0;
+    transition: opacity 300ms ease-in;
+  }
+  .htmx-request .htmx-indicator {
+    opacity: 1;
+  }
+  .htmx-request.htmx-indicator {
+    opacity: 1;
+  }
+</style>
+
+<script>
+  $(document).ready(function () {
+    // Initialize DataTable if there's data
+    if ($('#sitepiTable tbody tr').length > 0) {
+      $('#sitepiTable').DataTable({
+        pageLength: 10,
+        order: [[2, 'desc']], // Sort by review date descending
+        columnDefs: [
+          { orderable: false, targets: [3] } // Action column not sortable
+        ]
+      });
+    }
+  });
+
+  // Re-initialize DataTable when HTMX updates content
+  document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.target.id === 'siteContent') {
+      // Destroy existing DataTable if it exists
+      if ($.fn.DataTable.isDataTable('#sitepiTable')) {
+        $('#sitepiTable').DataTable().destroy();
+      }
+      
+      // Re-initialize DataTable if there's data
+      if ($('#sitepiTable tbody tr').length > 0) {
+        $('#sitepiTable').DataTable({
+          pageLength: 10,
+          order: [[2, 'desc']], // Sort by review date descending
+          columnDefs: [
+            { orderable: false, targets: [3] } // Action column not sortable
+          ]
+        });
+      }
+    }
+  });
+</script>
+
+{% endblock %}

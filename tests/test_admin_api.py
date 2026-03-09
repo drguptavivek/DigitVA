@@ -393,3 +393,43 @@ class AdminApiTests(BaseTestCase):
         project_ids = [row["project_id"] for row in response.get_json()["projects"]]
         self.assertIn(self.project_id, project_ids)
         self.assertIn(self.other_project_id, project_ids)
+
+    def test_admin_can_create_and_edit_site_master(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        # Create site
+        create_resp = self.client.post(
+            "/admin/api/sites",
+            json={
+                "site_id": "XX99",
+                "site_name": "Test Master Site",
+                "site_abbr": "TX99"
+            },
+            headers=headers
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        
+        # Verify it shows up in master list
+        list_resp = self.client.get("/admin/api/sites?master=1")
+        self.assertEqual(list_resp.status_code, 200)
+        site_ids = [s["site_id"] for s in list_resp.get_json()["sites"]]
+        self.assertIn("XX99", site_ids)
+        
+        # Edit site
+        edit_resp = self.client.put(
+            "/admin/api/sites/XX99",
+            json={
+                "site_name": "Updated Master Site",
+                "status": "deactive"
+            },
+            headers=headers
+        )
+        self.assertEqual(edit_resp.status_code, 200)
+        self.assertEqual(edit_resp.get_json()["site"]["site_name"], "Updated Master Site")
+        self.assertEqual(edit_resp.get_json()["site"]["status"], "deactive")
+        
+        # Ensure non-admin cannot access master list
+        self._login(self.manager_id)
+        forbidden_resp = self.client.get("/admin/api/sites?master=1")
+        self.assertEqual(forbidden_resp.status_code, 403)

@@ -232,9 +232,9 @@
   }
 
   function userCell(email, name) {
-    return '<td class="small align-middle py-2 text-nowrap" style="min-width:170px;max-width:220px;overflow:hidden;text-overflow:ellipsis;">'
-      + '<span title="' + esc(email) + '">' + esc(email) + '</span><br>'
-      + '<span class="text-muted" style="font-size:0.75rem;">' + esc(name) + '</span>'
+    return '<td class="align-middle py-2" style="min-width:170px;max-width:220px;">'
+      + '<span class="fw-semibold small d-block">' + esc(name) + '</span>'
+      + '<span class="text-muted d-block" style="font-size:0.75rem;">' + esc(email) + '</span>'
       + '</td>';
   }
 

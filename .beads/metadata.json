@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "DigitVA",
+  "project_id": "e363b5a1-70f0-4569-8ef7-49252f30a356"
+}

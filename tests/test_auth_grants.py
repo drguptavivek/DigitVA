@@ -134,30 +134,11 @@ class AuthGrantResolutionTests(BaseTestCase):
         )
         db.session.commit()
 
-    def tearDown(self):
-        db.session.query(VaUserAccessGrants).filter(
-            VaUserAccessGrants.notes.in_(
-                [
-                    "test coder grant",
-                    "test reviewer grant",
-                    "test site pi grant",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.query(VaUsers).filter(
-            VaUsers.email.in_(
-                [
-                    "test.auth.coder@example.com",
-                    "test.auth.reviewer@example.com",
-                    "test.auth.sitepi@example.com",
-                    "test.auth.legacy@example.com",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.commit()
-        super().tearDown()
+    # tearDown not needed: BaseTestCase savepoint rollback cleans up automatically.
 
     def _create_user(self, email, permission=None):
+        sfx = uuid.uuid4().hex[:8]
+        email = f"{email.split('@')[0]}.{sfx}@{email.split('@')[1]}"
         user = VaUsers(
             user_id=uuid.uuid4(),
             name=email,
@@ -171,7 +152,7 @@ class AuthGrantResolutionTests(BaseTestCase):
         )
         user.set_password("AuthGrantTest123")
         db.session.add(user)
-        db.session.commit()
+        db.session.flush()
         return user
 
     def _project_site_id(self, site_id):
@@ -193,7 +174,7 @@ class AuthGrantResolutionTests(BaseTestCase):
             grant_status=VaStatuses.active,
         )
         db.session.add(grant)
-        db.session.commit()
+        db.session.flush()
         return grant
 
     def test_coder_project_site_grant_resolves_only_matching_form(self):
@@ -298,7 +279,7 @@ class AuthGrantResolutionTests(BaseTestCase):
         user = self._create_user("test.auth.coder@example.com")
         project_site = db.session.get(VaProjectSites, self._project_site_id(self.site_a))
         project_site.project_site_status = VaStatuses.deactive
-        db.session.commit()
+        db.session.flush()
         self._grant(
             user,
             VaAccessRoles.coder,
@@ -312,9 +293,6 @@ class AuthGrantResolutionTests(BaseTestCase):
         self.assertFalse(user.is_coder())
         self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
 
-        project_site.project_site_status = VaStatuses.active
-        db.session.commit()
-
     def test_inactive_grant_does_not_authorize_access(self):
         user = self._create_user("test.auth.reviewer@example.com")
         grant = VaUserAccessGrants(
@@ -326,7 +304,7 @@ class AuthGrantResolutionTests(BaseTestCase):
             grant_status=VaStatuses.deactive,
         )
         db.session.add(grant)
-        db.session.commit()
+        db.session.flush()
         db.session.refresh(user)
 
         self.assertEqual(user.get_reviewer_va_forms(), set())

@@ -8,14 +8,23 @@ Schema lifecycle (per test class):
   - setUpClass: create app context, create all tables, seed standard fixtures
   - tearDownClass: drop all tables, pop context
 
+Per-test isolation (savepoint rollback):
+  - setUp: open a PostgreSQL SAVEPOINT via db.session.begin_nested()
+  - tearDown: ROLLBACK TO SAVEPOINT — removes all test data automatically
+  No manual DELETE queries are needed in test setUp/tearDown methods.
+
+  This works because in our pushed-app-context test environment, Flask test
+  client requests share the same scoped db.session as the test body, so the
+  savepoint covers both direct ORM writes and data created through HTTP routes.
+
 Standard fixtures available on every test class (via class attributes):
   - base_admin_user / base_admin_id         — global admin
   - base_project_pi_user / base_project_pi_id — project PI for BASE_PROJECT_ID
   - base_coder_user / base_coder_id         — coder for BASE_SITE_ID
   - BASE_PROJECT_ID / BASE_SITE_ID          — project + site + mapping
 
-Subclasses may create additional fixtures in their own setUpClass (call
-super().setUpClass() first).  Per-test data goes in setUp/tearDown as usual.
+Subclasses may add class-level fixtures in their own setUpClass (call
+super().setUpClass() first).
 
 Provisioning the test database (one-time, already done):
   docker exec minerva_db psql -U minerva -c "CREATE DATABASE minerva_test;"
@@ -171,19 +180,25 @@ class BaseTestCase(unittest.TestCase):
         return user
 
     # ------------------------------------------------------------------
-    # Per-test setup / teardown
+    # Per-test isolation via savepoint rollback
     # ------------------------------------------------------------------
 
     def setUp(self):
-        # Each test gets a fresh HTTP client (no cookies / session state).
-        # We do NOT call db.session.remove() here: that would detach class-level
-        # fixtures and break Flask-Login's lazy current_user loading during
-        # template rendering.  Per-test data cleanup is the responsibility of
-        # each test's tearDown (explicit DELETEs + commit).
+        # Begin a nested transaction (SAVEPOINT).  Any commit() inside this
+        # test — whether from test code or from an HTTP route — only releases
+        # the savepoint back to the outer transaction; nothing is permanently
+        # written to the DB until that outer transaction commits (which it
+        # never does in tests).  tearDown rolls back the outer transaction.
+        db.session.begin_nested()
         self.client = self.app.test_client()
 
     def tearDown(self):
-        pass
+        # Roll back the outer transaction.  This undoes all writes made during
+        # this test regardless of whether they came from direct ORM calls or
+        # from HTTP routes that called db.session.commit() (which only released
+        # the savepoint, not the outer transaction).
+        db.session.rollback()
+        db.session.expire_all()
 
     # ------------------------------------------------------------------
     # Shared helpers available to all test classes

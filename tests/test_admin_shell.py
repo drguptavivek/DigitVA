@@ -43,15 +43,10 @@ class AdminShellAccessTests(BaseTestCase):
         )
         user.set_password("Test123")
         db.session.add(user)
-        db.session.commit()
+        db.session.flush()
         return user
 
-    def tearDown(self):
-        db.session.query(VaUsers).filter(
-            VaUsers.email == "shell.plain@example.com"
-        ).delete(synchronize_session=False)
-        db.session.commit()
-        super().tearDown()
+    # tearDown not needed: BaseTestCase savepoint rollback cleans up automatically.
 
     def test_admin_page_redirects_unauthenticated(self):
         response = self.client.get("/admin/")

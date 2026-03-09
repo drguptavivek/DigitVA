@@ -117,6 +117,7 @@
         return;
       }
       adminState = await resp.json();
+      window._adminState = adminState;
       window._adminCsrf = adminState.csrf_token;
 
       // Wire CSRF token into every HTMX state-changing request

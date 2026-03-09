@@ -103,10 +103,11 @@ class AdminApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
-        self.manager = self._create_user("admin.api.manager@example.com")
-        self.target = self._create_user("admin.api.target@example.com")
-        self.viewer = self._create_user("admin.api.viewer@example.com")
-        self.admin_user = self._create_user("admin.api.root@example.com")
+        sfx = uuid.uuid4().hex[:8]
+        self.manager = self._create_user(f"admin.api.manager.{sfx}@example.com")
+        self.target = self._create_user(f"admin.api.target.{sfx}@example.com")
+        self.viewer = self._create_user(f"admin.api.viewer.{sfx}@example.com")
+        self.admin_user = self._create_user(f"admin.api.root.{sfx}@example.com")
         self._grant(
             self.manager,
             VaAccessRoles.project_pi,
@@ -124,31 +125,6 @@ class AdminApiTests(BaseTestCase):
         self.target_id = str(self.target.user_id)
         self.viewer_id = str(self.viewer.user_id)
         self.admin_user_id = str(self.admin_user.user_id)
-        db.session.remove()
-
-    def tearDown(self):
-        db.session.query(VaUserAccessGrants).filter(
-            VaUserAccessGrants.notes.in_(
-                [
-                    "admin api project pi grant",
-                    "admin api admin grant",
-                    "admin api reviewer grant",
-                    "admin api existing reviewer grant",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.query(VaUsers).filter(
-            VaUsers.email.in_(
-                [
-                    "admin.api.manager@example.com",
-                    "admin.api.target@example.com",
-                    "admin.api.viewer@example.com",
-                    "admin.api.root@example.com",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.commit()
-        super().tearDown()
 
     def _create_user(self, email):
         user = VaUsers(
@@ -164,7 +140,7 @@ class AdminApiTests(BaseTestCase):
         )
         user.set_password("AdminApiTest123")
         db.session.add(user)
-        db.session.commit()
+        db.session.flush()
         return user
 
     def _grant(
@@ -186,7 +162,7 @@ class AdminApiTests(BaseTestCase):
             grant_status=VaStatuses.active,
         )
         db.session.add(grant)
-        db.session.commit()
+        db.session.flush()
         return grant
 
     def _project_site_id(self, project_id, site_id):
@@ -341,7 +317,7 @@ class AdminApiTests(BaseTestCase):
             project_site_id=self._project_site_id(self.project_id, self.site_a),
         )
         grant_id = str(grant.grant_id)
-        db.session.remove()
+        db.session.expire_all()
         headers = self._csrf_headers()
 
         response = self.client.post(

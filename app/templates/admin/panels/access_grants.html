@@ -1,28 +1,349 @@
 {#
-  Access Grants panel — placeholder shell for DigitVA-vgz.2.
-  Full grant management UI will be implemented in that issue.
+  Access Grants panel — DigitVA-vgz.2.
+  Lists, creates, and deactivates access grants for the selected project.
+  All mutations go through JSON API calls with X-CSRFToken.
 #}
 <div id="panel-access-grants">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+
+  {# Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">
       <i class="fa-solid fa-key me-2 text-secondary"></i>Access Grants
+      {% if project_id %}
+        <span class="badge bg-secondary ms-2 fw-normal" style="font-size:0.75rem;">{{ project_id }}</span>
+      {% endif %}
     </h5>
-    {% if project_id %}
-      <span class="badge bg-secondary">{{ project_id }}</span>
-    {% endif %}
+    <button class="btn btn-sm btn-primary" id="ag-show-form-btn">
+      <i class="fa-solid fa-plus me-1"></i>Grant Access
+    </button>
   </div>
 
-  <div class="text-center text-muted py-5">
-    <i class="fa-solid fa-hammer fa-2x mb-3 d-block text-secondary"></i>
-    <p class="mb-1">Access grant management is coming in the next release.</p>
-    <small>Use the Admin API directly in the meantime.</small>
+  {% if not project_id %}
+  <div class="alert alert-info py-2 px-3 small">
+    Select a project from the sidebar to manage grants.
   </div>
+  {% endif %}
+
+  {# Inline grant form (hidden by default) #}
+  <div id="ag-form-container" class="card mb-4 d-none">
+    <div class="card-body">
+      <h6 class="card-title mb-3">New Grant</h6>
+      <div class="row g-2">
+
+        <div class="col-12">
+          <label class="form-label small mb-1">User <span class="text-danger">*</span></label>
+          <div class="input-group input-group-sm">
+            <input type="text" id="ag-user-search" class="form-control"
+                   placeholder="Search by email or name…" autocomplete="off">
+            <button class="btn btn-outline-secondary" type="button" id="ag-user-search-btn">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+          </div>
+          <div id="ag-user-results" class="list-group mt-1 d-none" style="max-height:160px;overflow-y:auto;position:relative;z-index:10;"></div>
+          <input type="hidden" id="ag-user-id">
+          <div id="ag-selected-user" class="mt-1 small text-success d-none">
+            <i class="fa-solid fa-circle-check me-1"></i><span id="ag-selected-user-label"></span>
+            <a href="#" id="ag-clear-user" class="ms-2 text-secondary small">change</a>
+          </div>
+        </div>
+
+        <div class="col-sm-4">
+          <label class="form-label small mb-1">Role <span class="text-danger">*</span></label>
+          <select id="ag-role" class="form-select form-select-sm">
+            <option value="">— select —</option>
+            <option value="coder">Coder</option>
+            <option value="reviewer">Reviewer</option>
+            <option value="site_pi">Site PI</option>
+            <option value="collaborator">Collaborator</option>
+            <option value="project_pi" class="ag-admin-only d-none">Project PI</option>
+          </select>
+        </div>
+
+        <div class="col-sm-4">
+          <label class="form-label small mb-1">Scope <span class="text-danger">*</span></label>
+          <select id="ag-scope" class="form-select form-select-sm">
+            <option value="">— select —</option>
+            <option value="project_site">Site-level</option>
+            <option value="project">Project-level</option>
+          </select>
+        </div>
+
+        <div class="col-sm-4" id="ag-site-field" style="visibility:hidden;">
+          <label class="form-label small mb-1">Site <span class="text-danger">*</span></label>
+          <select id="ag-site" class="form-select form-select-sm">
+            <option value="">— select project first —</option>
+          </select>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label small mb-1">Notes</label>
+          <input type="text" id="ag-notes" class="form-control form-control-sm"
+                 placeholder="Optional reason or context">
+        </div>
+
+        <div class="col-12 d-flex gap-2 mt-1">
+          <button class="btn btn-sm btn-success" id="ag-submit-btn">
+            <i class="fa-solid fa-check me-1"></i>Create Grant
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="ag-cancel-btn">Cancel</button>
+          <span id="ag-form-error" class="text-danger small align-self-center ms-2"></span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  {# Grants table — filled by JS #}
+  <div id="ag-table-wrap"></div>
+
 </div>
 
 <script>
-  // Register panel URL with the project selector so project context changes reload this panel
-  (function () {
-    var sel = document.getElementById('admin-project-select');
-    if (sel) sel.setAttribute('data-current-panel', '/admin/panels/access-grants');
-  }());
+(function () {
+  'use strict';
+
+  var PROJECT_ID = {{ project_id | tojson }};
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    return fetch(url, {
+      method: method || 'GET',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── load & render grants ──────────────────────────────────────────────────
+
+  function loadGrants() {
+    var wrap = document.getElementById('ag-table-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+    var url = '/admin/api/access-grants' + (PROJECT_ID ? '?project_id=' + encodeURIComponent(PROJECT_ID) : '');
+    apiJson(url).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load grants.') + '</div>';
+        return;
+      }
+      renderTable(res.data.grants || []);
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error loading grants.</div>';
+    });
+  }
+
+  var ROLE_LABEL = { coder:'Coder', reviewer:'Reviewer', site_pi:'Site PI', collaborator:'Collaborator', project_pi:'Project PI', admin:'Admin' };
+
+  function renderTable(grants) {
+    var wrap = document.getElementById('ag-table-wrap');
+    if (!grants.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No active grants' + (PROJECT_ID ? ' for this project.' : '.') + '</p>';
+      return;
+    }
+
+    var rows = grants.map(function (g) {
+      var scopeCell = g.site_id
+        ? '<span class="badge bg-light text-dark border">' + esc(g.site_id) + '</span>'
+        : (g.scope_type === 'project' ? '<span class="text-muted small">project level</span>' : '<span class="text-muted small">global</span>');
+      return '<tr>'
+        + '<td class="small">' + esc(g.user_email) + '<br><span class="text-muted" style="font-size:0.78rem;">' + esc(g.user_name) + '</span></td>'
+        + '<td><span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle">' + esc(ROLE_LABEL[g.role] || g.role) + '</span></td>'
+        + '<td>' + scopeCell + '</td>'
+        + '<td class="text-end">'
+        + '<button class="btn btn-sm btn-outline-danger py-0 px-2 ag-revoke-btn" data-grant-id="' + esc(g.grant_id) + '" title="Revoke"><i class="fa-solid fa-ban"></i></button>'
+        + '</td></tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-semibold small">User</th>'
+      + '<th class="fw-semibold small">Role</th>'
+      + '<th class="fw-semibold small">Scope / Site</th>'
+      + '<th></th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
+
+    wrap.querySelectorAll('.ag-revoke-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { revokeGrant(this.dataset.grantId); });
+    });
+  }
+
+  function revokeGrant(grantId) {
+    if (!confirm('Revoke this grant?')) return;
+    apiJson('/admin/api/access-grants/' + grantId + '/deactivate', 'POST').then(function (res) {
+      if (!res.ok) { alert(res.data.error || 'Failed to revoke grant.'); return; }
+      loadGrants();
+    });
+  }
+
+  // ── form show/hide ────────────────────────────────────────────────────────
+
+  document.getElementById('ag-show-form-btn').addEventListener('click', function () {
+    var fc = document.getElementById('ag-form-container');
+    fc.classList.toggle('d-none');
+    if (!fc.classList.contains('d-none')) loadProjectSites();
+  });
+
+  document.getElementById('ag-cancel-btn').addEventListener('click', function () {
+    document.getElementById('ag-form-container').classList.add('d-none');
+    resetForm();
+  });
+
+  // ── scope visibility ──────────────────────────────────────────────────────
+
+  document.getElementById('ag-scope').addEventListener('change', function () {
+    document.getElementById('ag-site-field').style.visibility =
+      this.value === 'project_site' ? 'visible' : 'hidden';
+  });
+
+  // ── user search ───────────────────────────────────────────────────────────
+
+  var searchTimer = null;
+
+  document.getElementById('ag-user-search').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    var q = this.value.trim();
+    if (q.length < 2) { hideUserResults(); return; }
+    searchTimer = setTimeout(function () { doUserSearch(q); }, 300);
+  });
+
+  document.getElementById('ag-user-search-btn').addEventListener('click', function () {
+    var q = document.getElementById('ag-user-search').value.trim();
+    if (q) doUserSearch(q);
+  });
+
+  function doUserSearch(q) {
+    apiJson('/admin/api/users?query=' + encodeURIComponent(q)).then(function (res) {
+      var users = (res.data && res.data.users) || [];
+      var list = document.getElementById('ag-user-results');
+      if (!users.length) {
+        list.innerHTML = '<div class="list-group-item disabled small text-muted">No users found.</div>';
+        list.classList.remove('d-none');
+        return;
+      }
+      list.innerHTML = users.map(function (u) {
+        return '<button type="button" class="list-group-item list-group-item-action py-1 small"'
+          + ' data-uid="' + esc(u.user_id) + '" data-label="' + esc(u.email + ' (' + u.name + ')') + '">'
+          + esc(u.email) + ' <span class="text-muted">— ' + esc(u.name) + '</span></button>';
+      }).join('');
+      list.classList.remove('d-none');
+      list.querySelectorAll('button').forEach(function (btn) {
+        btn.addEventListener('click', function () { selectUser(this.dataset.uid, this.dataset.label); });
+      });
+    });
+  }
+
+  function selectUser(uid, label) {
+    document.getElementById('ag-user-id').value = uid;
+    document.getElementById('ag-selected-user-label').textContent = label;
+    document.getElementById('ag-selected-user').classList.remove('d-none');
+    document.getElementById('ag-user-search').value = '';
+    hideUserResults();
+  }
+
+  document.getElementById('ag-clear-user').addEventListener('click', function (e) {
+    e.preventDefault();
+    document.getElementById('ag-user-id').value = '';
+    document.getElementById('ag-selected-user').classList.add('d-none');
+  });
+
+  function hideUserResults() {
+    var list = document.getElementById('ag-user-results');
+    list.innerHTML = '';
+    list.classList.add('d-none');
+  }
+
+  document.addEventListener('click', function (e) {
+    if (!document.getElementById('ag-user-results').contains(e.target)
+        && e.target.id !== 'ag-user-search' && e.target.id !== 'ag-user-search-btn') {
+      hideUserResults();
+    }
+  });
+
+  // ── site dropdown ─────────────────────────────────────────────────────────
+
+  function loadProjectSites() {
+    if (!PROJECT_ID) return;
+    var sel = document.getElementById('ag-site');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    apiJson('/admin/api/project-sites?project_id=' + encodeURIComponent(PROJECT_ID)).then(function (res) {
+      var ps = (res.data && res.data.project_sites) || [];
+      sel.innerHTML = '<option value="">— select site —</option>'
+        + ps.map(function (s) {
+          return '<option value="' + esc(s.project_site_id) + '">' + esc(s.site_id) + ' — ' + esc(s.site_name) + '</option>';
+        }).join('');
+    });
+  }
+
+  // ── form submit ───────────────────────────────────────────────────────────
+
+  document.getElementById('ag-submit-btn').addEventListener('click', function () {
+    var errEl = document.getElementById('ag-form-error');
+    errEl.textContent = '';
+
+    var userId = document.getElementById('ag-user-id').value;
+    var role   = document.getElementById('ag-role').value;
+    var scope  = document.getElementById('ag-scope').value;
+    var notes  = document.getElementById('ag-notes').value.trim();
+
+    if (!userId) { errEl.textContent = 'Select a user.'; return; }
+    if (!role)   { errEl.textContent = 'Select a role.'; return; }
+    if (!scope)  { errEl.textContent = 'Select a scope.'; return; }
+
+    var body = { user_id: userId, role: role, scope_type: scope };
+    if (notes) body.notes = notes;
+
+    if (scope === 'project_site') {
+      var siteVal = document.getElementById('ag-site').value;
+      if (!siteVal) { errEl.textContent = 'Select a site.'; return; }
+      body.project_site_id = siteVal;
+    } else if (scope === 'project') {
+      if (!PROJECT_ID) { errEl.textContent = 'Select a project from the sidebar first.'; return; }
+      body.project_id = PROJECT_ID;
+    }
+
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/admin/api/access-grants', 'POST', body).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed to create grant.'; return; }
+      document.getElementById('ag-form-container').classList.add('d-none');
+      resetForm();
+      loadGrants();
+    }).catch(function () {
+      btn.disabled = false;
+      errEl.textContent = 'Network error.';
+    });
+  });
+
+  function resetForm() {
+    document.getElementById('ag-user-id').value = '';
+    document.getElementById('ag-selected-user').classList.add('d-none');
+    document.getElementById('ag-user-search').value = '';
+    document.getElementById('ag-role').value = '';
+    document.getElementById('ag-scope').value = '';
+    document.getElementById('ag-notes').value = '';
+    document.getElementById('ag-site-field').style.visibility = 'hidden';
+    document.getElementById('ag-form-error').textContent = '';
+    hideUserResults();
+  }
+
+  // ── admin-only role options ───────────────────────────────────────────────
+  var adminState = window._adminState;
+  if (adminState && adminState.user && adminState.user.is_admin) {
+    document.querySelectorAll('.ag-admin-only').forEach(function (el) { el.classList.remove('d-none'); });
+  }
+
+  // ── init ──────────────────────────────────────────────────────────────────
+  if (PROJECT_ID) {
+    loadGrants();
+  }
+
+}());
 </script>

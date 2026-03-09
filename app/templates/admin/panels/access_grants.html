@@ -176,6 +176,22 @@
   var ROLE_LABEL = { coder:'Coder', reviewer:'Reviewer', site_pi:'Site PI', collaborator:'Collaborator', project_pi:'Project PI', admin:'Admin' };
   var ROLE_COLOR = { coder:'primary', reviewer:'success', site_pi:'warning', collaborator:'info', project_pi:'danger', admin:'dark' };
 
+  function roleBadge(g) {
+    var color = ROLE_COLOR[g.role] || 'secondary';
+    return '<span class="badge text-bg-' + color + ' d-inline-flex align-items-center gap-1">'
+      + esc(ROLE_LABEL[g.role] || g.role)
+      + '<button type="button" class="btn-close btn-close-white ag-revoke-btn" style="font-size:0.5rem;"'
+      + ' data-grant-id="' + esc(g.grant_id) + '" aria-label="Revoke"></button>'
+      + '</span>';
+  }
+
+  function userCell(email, name) {
+    return '<td class="small align-middle py-2 text-nowrap" style="min-width:170px;max-width:220px;overflow:hidden;text-overflow:ellipsis;">'
+      + '<span title="' + esc(email) + '">' + esc(email) + '</span><br>'
+      + '<span class="text-muted" style="font-size:0.75rem;">' + esc(name) + '</span>'
+      + '</td>';
+  }
+
   function renderTable(grants) {
     var wrap = document.getElementById('ag-table-wrap');
     if (!grants.length) {
@@ -183,57 +199,77 @@
       return;
     }
 
-    // Group grants by user_email, then by scope label (site_id or "Project level")
-    var byUser = {};
-    var userOrder = [];
-    grants.forEach(function (g) {
-      if (!byUser[g.user_email]) {
-        byUser[g.user_email] = { name: g.user_name, scopes: {} };
-        userOrder.push(g.user_email);
-      }
-      var scopeKey = g.site_id || (g.scope_type === 'project' ? '\x00project' : '\x00global');
-      var scopeLabel = g.site_id || (g.scope_type === 'project' ? 'Project level' : 'Global');
-      if (!byUser[g.user_email].scopes[scopeKey]) {
-        byUser[g.user_email].scopes[scopeKey] = { label: scopeLabel, grants: [] };
-      }
-      byUser[g.user_email].scopes[scopeKey].grants.push(g);
-    });
+    // Split into project-level and site-level
+    var projectGrants = grants.filter(function (g) { return !g.site_id; });
+    var siteGrants    = grants.filter(function (g) { return !!g.site_id; });
 
-    var rows = userOrder.map(function (email) {
-      var u = byUser[email];
-      var scopeChunks = Object.keys(u.scopes).sort().map(function (sk) {
-        var sc = u.scopes[sk];
-        var badges = sc.grants.map(function (g) {
-          var color = ROLE_COLOR[g.role] || 'secondary';
-          return '<span class="badge text-bg-' + color + ' d-inline-flex align-items-center gap-1 me-1">'
-            + esc(ROLE_LABEL[g.role] || g.role)
-            + '<button type="button" class="btn-close btn-close-white ag-revoke-btn" style="font-size:0.55rem;" '
-            + 'data-grant-id="' + esc(g.grant_id) + '" aria-label="Revoke"></button>'
-            + '</span>';
-        }).join('');
-        var isProject = sk.startsWith('\x00');
-        var scopeHtml = isProject
-          ? '<span class="text-muted small me-1">' + esc(sc.label) + ':</span>'
-          : '<span class="badge bg-light text-dark border me-1">' + esc(sc.label) + '</span>';
-        return '<div class="d-flex align-items-center flex-wrap gap-1 mb-1">' + scopeHtml + badges + '</div>';
+    var html = '';
+
+    // ── Section 1: Project-level grants ──────────────────────────────────────
+    if (projectGrants.length) {
+      // Group by user
+      var projByUser = {}, projOrder = [];
+      projectGrants.forEach(function (g) {
+        if (!projByUser[g.user_email]) { projByUser[g.user_email] = { name: g.user_name, grants: [] }; projOrder.push(g.user_email); }
+        projByUser[g.user_email].grants.push(g);
+      });
+      var projRows = projOrder.map(function (email) {
+        var u = projByUser[email];
+        var badges = u.grants.map(roleBadge).join(' ');
+        return '<tr>' + userCell(email, u.name) + '<td class="align-middle py-2">' + badges + '</td></tr>';
       }).join('');
 
-      return '<tr>'
-        + '<td class="small align-top py-2">'
-        + esc(email) + '<br>'
-        + '<span class="text-muted" style="font-size:0.78rem;">' + esc(u.name) + '</span>'
-        + '</td>'
-        + '<td class="py-2">' + scopeChunks + '</td>'
-        + '</tr>';
-    }).join('');
+      html += '<p class="text-muted small fw-semibold text-uppercase mb-1 mt-2" style="letter-spacing:.05em;">Project-level grants</p>'
+        + '<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle mb-0">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="fw-semibold small">User</th>'
+        + '<th class="fw-semibold small">Roles</th>'
+        + '</tr></thead>'
+        + '<tbody>' + projRows + '</tbody></table></div>';
+    }
 
-    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-top mb-0">'
-      + '<thead class="table-light"><tr>'
-      + '<th class="fw-semibold small" style="width:220px;">User</th>'
-      + '<th class="fw-semibold small">Grants</th>'
-      + '</tr></thead>'
-      + '<tbody>' + rows + '</tbody></table></div>';
+    // ── Section 2: Site matrix ────────────────────────────────────────────────
+    if (siteGrants.length) {
+      // Collect unique sites (columns) and users (rows)
+      var sites = [], siteSet = {};
+      var matrixByUser = {}, matrixUserOrder = [];
+      siteGrants.forEach(function (g) {
+        if (!siteSet[g.site_id]) { siteSet[g.site_id] = true; sites.push(g.site_id); }
+        if (!matrixByUser[g.user_email]) {
+          matrixByUser[g.user_email] = { name: g.user_name, bySite: {} };
+          matrixUserOrder.push(g.user_email);
+        }
+        if (!matrixByUser[g.user_email].bySite[g.site_id]) matrixByUser[g.user_email].bySite[g.site_id] = [];
+        matrixByUser[g.user_email].bySite[g.site_id].push(g);
+      });
+      sites.sort();
 
+      var headerCols = sites.map(function (s) {
+        return '<th class="fw-semibold small text-center">' + esc(s) + '</th>';
+      }).join('');
+
+      var matrixRows = matrixUserOrder.map(function (email) {
+        var u = matrixByUser[email];
+        var siteCols = sites.map(function (s) {
+          var cellGrants = u.bySite[s] || [];
+          if (!cellGrants.length) return '<td></td>';
+          return '<td class="align-middle py-1"><div class="d-flex flex-column gap-1">'
+            + cellGrants.map(roleBadge).join('')
+            + '</div></td>';
+        }).join('');
+        return '<tr>' + userCell(email, u.name) + siteCols + '</tr>';
+      }).join('');
+
+      html += '<p class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em;">Site-level grants</p>'
+        + '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="fw-semibold small">User</th>'
+        + headerCols
+        + '</tr></thead>'
+        + '<tbody>' + matrixRows + '</tbody></table></div>';
+    }
+
+    wrap.innerHTML = html;
     wrap.querySelectorAll('.ag-revoke-btn').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();

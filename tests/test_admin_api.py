@@ -3,9 +3,8 @@ import unittest
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
-from itsdangerous import URLSafeTimedSerializer
 
-from app import create_app, db
+from app import db
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -17,8 +16,10 @@ from app.models import (
     VaUsers,
 )
 
+from tests.base import BaseTestCase
 
-class AdminApiTests(unittest.TestCase):
+
+class AdminApiTests(BaseTestCase):
     project_id = "ADM001"
     other_project_id = "ADM002"
     site_a = "AA01"
@@ -27,17 +28,8 @@ class AdminApiTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.app = create_app()
-        cls.ctx = cls.app.app_context()
-        cls.ctx.push()
-        cls._delete_fixture_rows()
+        super().setUpClass()
         cls._create_fixture_rows()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._delete_fixture_rows()
-        db.session.remove()
-        cls.ctx.pop()
 
     @classmethod
     def _create_fixture_rows(cls):
@@ -109,42 +101,8 @@ class AdminApiTests(unittest.TestCase):
         )
         db.session.commit()
 
-    @classmethod
-    def _delete_fixture_rows(cls):
-        db.session.query(VaUserAccessGrants).filter(
-            VaUserAccessGrants.notes.in_(
-                [
-                    "admin api project pi grant",
-                    "admin api admin grant",
-                    "admin api reviewer grant",
-                    "admin api existing reviewer grant",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.query(VaUsers).filter(
-            VaUsers.email.in_(
-                [
-                    "admin.api.manager@example.com",
-                    "admin.api.target@example.com",
-                    "admin.api.viewer@example.com",
-                    "admin.api.root@example.com",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.query(VaProjectSites).filter(
-            VaProjectSites.project_id.in_([cls.project_id, cls.other_project_id])
-        ).delete(synchronize_session=False)
-        db.session.query(VaSiteMaster).filter(
-            VaSiteMaster.site_id.in_([cls.site_a, cls.site_b, cls.other_site])
-        ).delete(synchronize_session=False)
-        db.session.query(VaProjectMaster).filter(
-            VaProjectMaster.project_id.in_([cls.project_id, cls.other_project_id])
-        ).delete(synchronize_session=False)
-        db.session.commit()
-
     def setUp(self):
-        db.session.remove()
-        self.client = self.app.test_client()
+        super().setUp()
         self.manager = self._create_user("admin.api.manager@example.com")
         self.target = self._create_user("admin.api.target@example.com")
         self.viewer = self._create_user("admin.api.viewer@example.com")
@@ -190,7 +148,7 @@ class AdminApiTests(unittest.TestCase):
             )
         ).delete(synchronize_session=False)
         db.session.commit()
-        db.session.remove()
+        super().tearDown()
 
     def _create_user(self, email):
         user = VaUsers(
@@ -230,21 +188,6 @@ class AdminApiTests(unittest.TestCase):
         db.session.add(grant)
         db.session.commit()
         return grant
-
-    def _login(self, user_id):
-        db.session.remove()
-        with self.client.session_transaction() as session:
-            session["_user_id"] = user_id
-            session["_fresh"] = True
-
-    def _csrf_headers(self):
-        with self.client.session_transaction() as client_session:
-            raw_token = client_session.get("csrf_token") or uuid.uuid4().hex
-            client_session["csrf_token"] = raw_token
-        secret_key = self.app.config.get("WTF_CSRF_SECRET_KEY") or self.app.secret_key
-        serializer = URLSafeTimedSerializer(secret_key, salt="wtf-csrf-token")
-        token = serializer.dumps(raw_token)
-        return {"X-CSRFToken": token}
 
     def _project_site_id(self, project_id, site_id):
         return db.session.scalar(

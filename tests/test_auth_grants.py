@@ -2,7 +2,7 @@ import uuid
 import unittest
 from datetime import datetime, timezone
 
-from app import create_app, db
+from app import db
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -17,8 +17,10 @@ from app.models import (
     VaUsers,
 )
 
+from tests.base import BaseTestCase
 
-class AuthGrantResolutionTests(unittest.TestCase):
+
+class AuthGrantResolutionTests(BaseTestCase):
     project_id = "TST001"
     site_a = "TA01"
     site_b = "TB01"
@@ -27,17 +29,8 @@ class AuthGrantResolutionTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.app = create_app()
-        cls.ctx = cls.app.app_context()
-        cls.ctx.push()
-        cls._delete_fixture_rows()
+        super().setUpClass()
         cls._create_fixture_rows()
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._delete_fixture_rows()
-        db.session.remove()
-        cls.ctx.pop()
 
     @classmethod
     def _create_fixture_rows(cls):
@@ -141,47 +134,6 @@ class AuthGrantResolutionTests(unittest.TestCase):
         )
         db.session.commit()
 
-    @classmethod
-    def _delete_fixture_rows(cls):
-        db.session.query(VaUserAccessGrants).filter(
-            VaUserAccessGrants.notes.in_(
-                [
-                    "test coder grant",
-                    "test reviewer grant",
-                    "test site pi grant",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.query(VaUsers).filter(
-            VaUsers.email.in_(
-                [
-                    "test.auth.coder@example.com",
-                    "test.auth.reviewer@example.com",
-                    "test.auth.sitepi@example.com",
-                    "test.auth.legacy@example.com",
-                ]
-            )
-        ).delete(synchronize_session=False)
-        db.session.query(VaForms).filter(
-            VaForms.form_id.in_([cls.form_a, cls.form_b])
-        ).delete(synchronize_session=False)
-        db.session.query(VaProjectSites).filter(
-            VaProjectSites.project_id == cls.project_id
-        ).delete(synchronize_session=False)
-        db.session.query(VaSiteMaster).filter(
-            VaSiteMaster.site_id.in_([cls.site_a, cls.site_b])
-        ).delete(synchronize_session=False)
-        db.session.query(VaSites).filter(
-            VaSites.site_id.in_([cls.site_a, cls.site_b])
-        ).delete(synchronize_session=False)
-        db.session.query(VaProjectMaster).filter(
-            VaProjectMaster.project_id == cls.project_id
-        ).delete(synchronize_session=False)
-        db.session.query(VaResearchProjects).filter(
-            VaResearchProjects.project_id == cls.project_id
-        ).delete(synchronize_session=False)
-        db.session.commit()
-
     def tearDown(self):
         db.session.query(VaUserAccessGrants).filter(
             VaUserAccessGrants.notes.in_(
@@ -203,6 +155,7 @@ class AuthGrantResolutionTests(unittest.TestCase):
             )
         ).delete(synchronize_session=False)
         db.session.commit()
+        super().tearDown()
 
     def _create_user(self, email, permission=None):
         user = VaUsers(

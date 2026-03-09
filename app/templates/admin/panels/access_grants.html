@@ -1,0 +1,28 @@
+{#
+  Access Grants panel — placeholder shell for DigitVA-vgz.2.
+  Full grant management UI will be implemented in that issue.
+#}
+<div id="panel-access-grants">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-key me-2 text-secondary"></i>Access Grants
+    </h5>
+    {% if project_id %}
+      <span class="badge bg-secondary">{{ project_id }}</span>
+    {% endif %}
+  </div>
+
+  <div class="text-center text-muted py-5">
+    <i class="fa-solid fa-hammer fa-2x mb-3 d-block text-secondary"></i>
+    <p class="mb-1">Access grant management is coming in the next release.</p>
+    <small>Use the Admin API directly in the meantime.</small>
+  </div>
+</div>
+
+<script>
+  // Register panel URL with the project selector so project context changes reload this panel
+  (function () {
+    var sel = document.getElementById('admin-project-select');
+    if (sel) sel.setAttribute('data-current-panel', '/admin/panels/access-grants');
+  }());
+</script>

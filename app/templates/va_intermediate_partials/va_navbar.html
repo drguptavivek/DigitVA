@@ -12,6 +12,15 @@
 
         
 
+        {% if current_user.is_authenticated and (current_user.is_admin() or current_user.get_project_pi_projects()) %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('admin.admin_index') }}">
+              <i class="fa-solid fa-gear me-1"></i>
+              Admin
+            </a>
+          </li>
+        {% endif %}
+
         {% if current_user.is_authenticated and current_user.is_site_pi() %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('va_main.va_dashboard', va_role='sitepi') }}">

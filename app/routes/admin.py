@@ -2,7 +2,7 @@ import uuid
 from secrets import token_hex
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import generate_csrf
 
 from app import db
@@ -551,3 +551,44 @@ def admin_deactivate_access_grant(grant_id):
         db.session.commit()
 
     return jsonify({"grant_id": str(grant.grant_id), "status": grant.grant_status.value})
+
+
+# ---------------------------------------------------------------------------
+# Admin UI shell and panel routes
+# ---------------------------------------------------------------------------
+
+def _require_admin_ui_access():
+    """Return a response to short-circuit if the user cannot access /admin UI,
+    or None if access is allowed."""
+    user = _request_user()
+    if not user or user.user_status != VaStatuses.active:
+        return redirect(url_for("va_auth.va_login"))
+    if user.is_admin() or user.get_project_pi_projects():
+        return None
+    return render_template("va_errors/va_403.html"), 403
+
+
+@admin.get("/", strict_slashes=False)
+def admin_index():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    return render_template("admin/admin_index.html")
+
+
+@admin.get("/panels/access-grants")
+def admin_panel_access_grants():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    project_id = request.args.get("project_id") or ""
+    return render_template("admin/panels/access_grants.html", project_id=project_id)
+
+
+@admin.get("/panels/project-sites")
+def admin_panel_project_sites():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    project_id = request.args.get("project_id") or ""
+    return render_template("admin/panels/project_sites.html", project_id=project_id)

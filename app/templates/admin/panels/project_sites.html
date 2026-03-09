@@ -1,0 +1,28 @@
+{#
+  Project-Site Mappings panel — placeholder shell for DigitVA-vgz.5.
+  Full project-site management UI will be implemented in that issue.
+#}
+<div id="panel-project-sites">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-diagram-project me-2 text-secondary"></i>Project Sites
+    </h5>
+    {% if project_id %}
+      <span class="badge bg-secondary">{{ project_id }}</span>
+    {% endif %}
+  </div>
+
+  <div class="text-center text-muted py-5">
+    <i class="fa-solid fa-hammer fa-2x mb-3 d-block text-secondary"></i>
+    <p class="mb-1">Project-site mapping management is coming in the next release.</p>
+    <small>Use the Admin API directly in the meantime.</small>
+  </div>
+</div>
+
+<script>
+  // Register panel URL with the project selector so project context changes reload this panel
+  (function () {
+    var sel = document.getElementById('admin-project-select');
+    if (sel) sel.setAttribute('data-current-panel', '/admin/panels/project-sites');
+  }());
+</script>

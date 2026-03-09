@@ -1,0 +1,189 @@
+{% extends "va_frontpages/va_base.html" %}
+
+{% block title %}Admin Console — DigitVA{% endblock %}
+
+{% block content %}
+<div class="row g-0" id="admin-console" style="min-height: calc(100vh - 120px);">
+
+  {# Left sidebar #}
+  <div class="col-auto border-end bg-light" id="admin-sidebar" style="width: 220px; min-height: 100%;">
+    <div class="p-3">
+
+      <div class="mb-4">
+        <label for="admin-project-select" class="form-label text-muted small text-uppercase fw-semibold mb-1">Project</label>
+        <select id="admin-project-select" name="project_id" class="form-select form-select-sm">
+          <option value="">All projects</option>
+        </select>
+      </div>
+
+      <p class="text-muted small text-uppercase fw-semibold mb-2">Manage</p>
+      <nav class="nav flex-column gap-1">
+
+        <a class="nav-link admin-nav-link rounded px-2 py-1"
+           href="#"
+           data-panel="/admin/panels/access-grants"
+           hx-get="/admin/panels/access-grants"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML"
+           hx-include="#admin-project-select">
+          <i class="fa-solid fa-key me-2"></i>Access Grants
+        </a>
+
+        <a class="nav-link admin-nav-link rounded px-2 py-1"
+           href="#"
+           data-panel="/admin/panels/project-sites"
+           hx-get="/admin/panels/project-sites"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML"
+           hx-include="#admin-project-select">
+          <i class="fa-solid fa-diagram-project me-2"></i>Project Sites
+        </a>
+
+        {# Admin-only items — revealed by JS after bootstrap fetch #}
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
+           data-panel="/admin/panels/project-pi"
+           hx-get="/admin/panels/project-pi"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-user-tie me-2"></i>Project PIs
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
+           data-panel="/admin/panels/projects"
+           hx-get="/admin/panels/projects"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-folder me-2"></i>Projects
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
+           data-panel="/admin/panels/sites"
+           hx-get="/admin/panels/sites"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-location-dot me-2"></i>Sites
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
+           data-panel="/admin/panels/users"
+           hx-get="/admin/panels/users"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-users me-2"></i>Users
+        </a>
+
+      </nav>
+    </div>
+  </div>
+
+  {# Panel content area #}
+  <div class="col">
+    <div id="admin-panel" class="p-4">
+      <div class="text-center text-muted py-5">
+        <i class="fa-solid fa-arrow-left fa-2x mb-3 d-block"></i>
+        <p>Select a section from the left to get started.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# Error banner, shown on bootstrap failure #}
+<div id="admin-error-banner" class="alert alert-danger d-none mx-3 mt-2" role="alert"></div>
+
+<style>
+  #admin-console { margin-top: -1rem; }
+  #main-content { padding-top: 0 !important; }
+  .admin-nav-link { color: #555; font-size: 0.9rem; text-decoration: none; }
+  .admin-nav-link:hover { background-color: #e9ecef; color: #333; }
+  .admin-nav-link.active { background-color: #0d6efd1a; color: #0d6efd; font-weight: 500; }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  var adminState = null;
+
+  async function initAdmin() {
+    try {
+      var resp = await fetch('/admin/api/bootstrap');
+      if (!resp.ok) {
+        window.location.href = '/vaauth/valogin';
+        return;
+      }
+      adminState = await resp.json();
+      window._adminCsrf = adminState.csrf_token;
+
+      // Wire CSRF token into every HTMX state-changing request
+      document.body.addEventListener('htmx:configRequest', function (evt) {
+        evt.detail.headers['X-CSRFToken'] = window._adminCsrf;
+      });
+
+      // Refresh stored CSRF token if server rotates it
+      document.body.addEventListener('htmx:afterRequest', function (evt) {
+        var newToken = evt.detail.xhr && evt.detail.xhr.getResponseHeader('X-CSRFToken');
+        if (newToken) window._adminCsrf = newToken;
+      });
+
+      populateProjectSelector(adminState.accessible_projects);
+
+      if (adminState.user.is_admin) {
+        document.querySelectorAll('.admin-only').forEach(function (el) {
+          el.classList.remove('d-none');
+        });
+      }
+
+    } catch (e) {
+      showError('Failed to initialise admin console. Please refresh the page.');
+    }
+  }
+
+  function populateProjectSelector(projects) {
+    var sel = document.getElementById('admin-project-select');
+    projects.forEach(function (pid) {
+      var opt = document.createElement('option');
+      opt.value = pid;
+      opt.textContent = pid;
+      sel.appendChild(opt);
+    });
+    if (projects.length === 1) {
+      sel.value = projects[0];
+    }
+  }
+
+  // Project selector: reload the currently active panel with the new project context
+  document.getElementById('admin-project-select').addEventListener('change', function () {
+    var activeLink = document.querySelector('.admin-nav-link.active');
+    if (!activeLink) return;
+    var panelUrl = activeLink.getAttribute('data-panel');
+    var projectId = this.value;
+    var url = panelUrl + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
+    htmx.ajax('GET', url, { target: '#admin-panel', swap: 'innerHTML' });
+  });
+
+  // Track which nav link is active
+  document.querySelectorAll('.admin-nav-link').forEach(function (link) {
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      document.querySelectorAll('.admin-nav-link').forEach(function (l) {
+        l.classList.remove('active');
+      });
+      this.classList.add('active');
+    });
+  });
+
+  function showError(msg) {
+    var banner = document.getElementById('admin-error-banner');
+    banner.textContent = msg;
+    banner.classList.remove('d-none');
+  }
+
+  document.addEventListener('DOMContentLoaded', initAdmin);
+}());
+</script>
+{% endblock %}

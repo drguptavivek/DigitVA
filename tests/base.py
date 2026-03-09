@@ -175,11 +175,15 @@ class BaseTestCase(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def setUp(self):
-        db.session.remove()
+        # Each test gets a fresh HTTP client (no cookies / session state).
+        # We do NOT call db.session.remove() here: that would detach class-level
+        # fixtures and break Flask-Login's lazy current_user loading during
+        # template rendering.  Per-test data cleanup is the responsibility of
+        # each test's tearDown (explicit DELETEs + commit).
         self.client = self.app.test_client()
 
     def tearDown(self):
-        db.session.remove()
+        pass
 
     # ------------------------------------------------------------------
     # Shared helpers available to all test classes

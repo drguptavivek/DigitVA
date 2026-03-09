@@ -1,6 +1,6 @@
 {#
-  Site Master Management panel — DigitVA-vgz.6.
-  Lists all sites with edit and create capabilities.
+  Site Master Management panel
+  Lists all sites with edit, create, and toggle capabilities.
 #}
 <div id="panel-sites">
 
@@ -54,6 +54,23 @@
         </div>
       </div>
       <div id="site-form-error" class="text-danger small mt-2"></div>
+    </div>
+  </div>
+
+  {# Toggle confirmation modal #}
+  <div class="modal fade" id="site-toggle-modal" tabindex="-1" aria-labelledby="site-toggle-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="site-toggle-modal-label"></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body small py-3" id="site-toggle-modal-body"></div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="site-toggle-confirm-btn">Confirm</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -114,6 +131,14 @@
     
     var rows = visible.map(function (s) {
       var isActive = s.status === 'active';
+      var toggleBtn = '<button class="btn btn-sm py-0 px-2 site-toggle-btn '
+        + (isActive ? 'btn-outline-danger' : 'btn-outline-success') + '"'
+        + ' data-id="' + esc(s.site_id) + '"'
+        + ' data-name="' + esc(s.site_name) + '"'
+        + ' data-active="' + (isActive ? '1' : '0') + '"'
+        + ' title="' + (isActive ? 'Deactivate' : 'Activate') + '">'
+        + '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
+        + '</button>';
       var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary site-edit-btn" '
         + ' data-id="' + esc(s.site_id) + '" title="Edit">'
         + '<i class="fa-solid fa-pen"></i></button>';
@@ -127,7 +152,7 @@
             ? '<span class="badge text-bg-success">Active</span>'
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
-        + '<td class="align-middle py-2 text-end">' + editBtn + '</td>'
+        + '<td class="align-middle py-2 text-end">' + toggleBtn + ' ' + editBtn + '</td>'
         + '</tr>';
     }).join('');
     
@@ -150,10 +175,64 @@
         openEditForm(id);
       });
     }
+
+    // Bind toggle buttons
+    var toggleBtns = wrap.querySelectorAll('.site-toggle-btn');
+    for (var j = 0; j < toggleBtns.length; j++) {
+      toggleBtns[j].addEventListener('click', function() {
+        promptToggle(this.getAttribute('data-id'), this.getAttribute('data-name'), this.getAttribute('data-active') === '1');
+      });
+    }
   }
 
   document.getElementById('site-show-inactive').addEventListener('change', function () {
     renderTable(this.checked);
+  });
+
+  // ── toggle modal ──────────────────────────────────────────────────────────
+
+  var _pendingToggleId = null;
+  var _toggleModal = null;
+
+  function promptToggle(siteId, siteName, isActive) {
+    var action = isActive ? 'Deactivate' : 'Activate';
+    var color  = isActive ? 'text-danger' : 'text-success';
+    document.getElementById('site-toggle-modal-label').innerHTML =
+      '<i class="fa-solid fa-toggle-' + (isActive ? 'off' : 'on') + ' ' + color + ' me-2"></i>' + action + ' Site';
+    var body = action + ' <strong>' + esc(siteId) + ' — ' + esc(siteName) + '</strong>?';
+    if (isActive) {
+      body += '<div class="text-danger small mt-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>'
+        + 'Grants and mappings scoped to this site will stop resolving.</div>';
+    }
+    document.getElementById('site-toggle-modal-body').innerHTML = body;
+    var confirmBtn = document.getElementById('site-toggle-confirm-btn');
+    confirmBtn.className = 'btn btn-sm ' + (isActive ? 'btn-danger' : 'btn-success');
+    confirmBtn.textContent = action;
+    _pendingToggleId = siteId;
+    if (!_toggleModal) _toggleModal = new bootstrap.Modal(document.getElementById('site-toggle-modal'));
+    _toggleModal.show();
+  }
+
+  document.getElementById('site-toggle-confirm-btn').addEventListener('click', function () {
+    if (!_pendingToggleId) return;
+    var siteId = _pendingToggleId;
+    _pendingToggleId = null;
+    _toggleModal.hide();
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/admin/api/sites/' + encodeURIComponent(siteId) + '/toggle', 'POST').then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { 
+        var wrap = document.getElementById('site-table-wrap');
+        wrap.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger small py-2 mt-2">' + esc(res.data.error || 'Failed.') + '</div>');
+        return; 
+      }
+      var newStatus = res.data.status;
+      _sites = _sites.map(function (s) {
+        return s.site_id === siteId ? Object.assign({}, s, { status: newStatus }) : s;
+      });
+      renderTable(document.getElementById('site-show-inactive').checked);
+    }).catch(function () { btn.disabled = false; });
   });
 
   // ── form handling ─────────────────────────────────────────────────────────

@@ -310,6 +310,28 @@ def admin_update_project(project_id):
     return jsonify({"project": _serialize_project(project)})
 
 
+@admin.post("/api/projects/<project_id>/toggle")
+def admin_toggle_project(project_id):
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+        
+    project = db.session.get(VaProjectMaster, project_id)
+    if not project:
+        return _json_error("Project not found.", 404)
+        
+    project.project_status = (
+        VaStatuses.deactive
+        if project.project_status == VaStatuses.active
+        else VaStatuses.active
+    )
+    db.session.commit()
+    return jsonify({
+        "project_id": project.project_id,
+        "status": project.project_status.value,
+    })
+
+
 @admin.get("/api/sites")
 def admin_sites():
     user = _request_user()
@@ -406,6 +428,28 @@ def admin_update_site(site_id):
             
     db.session.commit()
     return jsonify({"site": _serialize_site(site)})
+
+
+@admin.post("/api/sites/<site_id>/toggle")
+def admin_toggle_site(site_id):
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+        
+    site = db.session.get(VaSiteMaster, site_id)
+    if not site:
+        return _json_error("Site not found.", 404)
+        
+    site.site_status = (
+        VaStatuses.deactive
+        if site.site_status == VaStatuses.active
+        else VaStatuses.active
+    )
+    db.session.commit()
+    return jsonify({
+        "site_id": site.site_id,
+        "status": site.site_status.value,
+    })
 
 
 @admin.get("/api/project-sites")

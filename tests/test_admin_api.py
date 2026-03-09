@@ -431,6 +431,14 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(edit_resp.get_json()["project"]["project_code"], "UPD999")
         self.assertEqual(edit_resp.get_json()["project"]["status"], "deactive")
         
+        # Toggle project status
+        toggle_resp = self.client.post(
+            "/admin/api/projects/PRJ999/toggle",
+            headers=headers
+        )
+        self.assertEqual(toggle_resp.status_code, 200)
+        self.assertEqual(toggle_resp.get_json()["status"], "active")
+        
         # Ensure non-admin cannot access master list
         self._login(self.manager_id)
         forbidden_resp = self.client.get("/admin/api/projects?master=1")
@@ -470,6 +478,14 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(edit_resp.status_code, 200)
         self.assertEqual(edit_resp.get_json()["site"]["site_name"], "Updated Master Site")
         self.assertEqual(edit_resp.get_json()["site"]["status"], "deactive")
+        
+        # Toggle site status
+        toggle_resp = self.client.post(
+            "/admin/api/sites/XX99/toggle",
+            headers=headers
+        )
+        self.assertEqual(toggle_resp.status_code, 200)
+        self.assertEqual(toggle_resp.get_json()["status"], "active")
         
         # Ensure non-admin cannot access master list
         self._login(self.manager_id)

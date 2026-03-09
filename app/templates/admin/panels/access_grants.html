@@ -105,6 +105,9 @@
       <option value="collaborator">Collaborator</option>
       <option value="project_pi">Project PI</option>
     </select>
+    <select id="ag-filter-site" class="form-select form-select-sm" style="max-width:130px;">
+      <option value="">All sites</option>
+    </select>
   </div>
 
   {# Grants table — filled by JS #}
@@ -153,17 +156,34 @@
         return;
       }
       _allGrants = res.data.grants || [];
+      populateSiteFilter(_allGrants);
       applyFilters();
     }).catch(function () {
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error loading grants.</div>';
     });
   }
 
+  function populateSiteFilter(grants) {
+    var sel = document.getElementById('ag-filter-site');
+    var current = sel.value;
+    var sites = [];
+    var seen = {};
+    grants.forEach(function (g) {
+      if (g.site_id && !seen[g.site_id]) { seen[g.site_id] = true; sites.push(g.site_id); }
+    });
+    sites.sort();
+    sel.innerHTML = '<option value="">All sites</option>'
+      + sites.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('');
+    if (current) sel.value = current;
+  }
+
   function applyFilters() {
     var text = (document.getElementById('ag-filter-text').value || '').toLowerCase();
     var role = document.getElementById('ag-filter-role').value;
+    var site = document.getElementById('ag-filter-site').value;
     var filtered = _allGrants.filter(function (g) {
       if (role && g.role !== role) return false;
+      if (site && g.site_id !== site) return false;
       if (text && !g.user_email.toLowerCase().includes(text) && !g.user_name.toLowerCase().includes(text)) return false;
       return true;
     });
@@ -172,6 +192,7 @@
 
   document.getElementById('ag-filter-text').addEventListener('input', applyFilters);
   document.getElementById('ag-filter-role').addEventListener('change', applyFilters);
+  document.getElementById('ag-filter-site').addEventListener('change', applyFilters);
 
   var ROLE_LABEL = { coder:'Coder', reviewer:'Reviewer', site_pi:'Site PI', collaborator:'Collaborator', project_pi:'Project PI', admin:'Admin' };
   var ROLE_COLOR = { coder:'primary', reviewer:'success', site_pi:'warning', collaborator:'info', project_pi:'danger', admin:'dark' };

@@ -592,3 +592,21 @@ def admin_panel_project_sites():
         return denied
     project_id = request.args.get("project_id") or ""
     return render_template("admin/panels/project_sites.html", project_id=project_id)
+
+
+@admin.get("/panels/project-pi")
+@admin.get("/panels/projects")
+@admin.get("/panels/sites")
+@admin.get("/panels/users")
+def admin_panel_stub():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    panel = request.path.rstrip("/").split("/")[-1]
+    labels = {
+        "project-pi": "Project PIs",
+        "projects": "Projects",
+        "sites": "Sites",
+        "users": "Users",
+    }
+    return render_template("admin/panels/stub.html", panel=panel, label=labels.get(panel, panel))

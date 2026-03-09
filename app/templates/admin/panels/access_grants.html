@@ -93,6 +93,20 @@
     </div>
   </div>
 
+  {# Search / filter bar #}
+  <div class="d-flex gap-2 mb-3" id="ag-filter-bar">
+    <input type="search" id="ag-filter-text" class="form-control form-control-sm"
+           placeholder="Search by name or email…" style="max-width:240px;">
+    <select id="ag-filter-role" class="form-select form-select-sm" style="max-width:150px;">
+      <option value="">All roles</option>
+      <option value="coder">Coder</option>
+      <option value="reviewer">Reviewer</option>
+      <option value="site_pi">Site PI</option>
+      <option value="collaborator">Collaborator</option>
+      <option value="project_pi">Project PI</option>
+    </select>
+  </div>
+
   {# Grants table — filled by JS #}
   <div id="ag-table-wrap"></div>
 
@@ -109,9 +123,12 @@
   function csrf() { return window._adminCsrf || ''; }
 
   function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
     return fetch(url, {
-      method: method || 'GET',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+      method: m,
+      headers: headers,
       body: body ? JSON.stringify(body) : undefined,
     }).then(function (r) {
       return r.json().then(function (d) { return { ok: r.ok, data: d }; });
@@ -124,6 +141,8 @@
 
   // ── load & render grants ──────────────────────────────────────────────────
 
+  var _allGrants = [];
+
   function loadGrants() {
     var wrap = document.getElementById('ag-table-wrap');
     wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
@@ -133,13 +152,29 @@
         wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load grants.') + '</div>';
         return;
       }
-      renderTable(res.data.grants || []);
+      _allGrants = res.data.grants || [];
+      applyFilters();
     }).catch(function () {
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error loading grants.</div>';
     });
   }
 
+  function applyFilters() {
+    var text = (document.getElementById('ag-filter-text').value || '').toLowerCase();
+    var role = document.getElementById('ag-filter-role').value;
+    var filtered = _allGrants.filter(function (g) {
+      if (role && g.role !== role) return false;
+      if (text && !g.user_email.toLowerCase().includes(text) && !g.user_name.toLowerCase().includes(text)) return false;
+      return true;
+    });
+    renderTable(filtered);
+  }
+
+  document.getElementById('ag-filter-text').addEventListener('input', applyFilters);
+  document.getElementById('ag-filter-role').addEventListener('change', applyFilters);
+
   var ROLE_LABEL = { coder:'Coder', reviewer:'Reviewer', site_pi:'Site PI', collaborator:'Collaborator', project_pi:'Project PI', admin:'Admin' };
+  var ROLE_COLOR = { coder:'primary', reviewer:'success', site_pi:'warning', collaborator:'info', project_pi:'danger', admin:'dark' };
 
   function renderTable(grants) {
     var wrap = document.getElementById('ag-table-wrap');
@@ -148,29 +183,62 @@
       return;
     }
 
-    var rows = grants.map(function (g) {
-      var scopeCell = g.site_id
-        ? '<span class="badge bg-light text-dark border">' + esc(g.site_id) + '</span>'
-        : (g.scope_type === 'project' ? '<span class="text-muted small">project level</span>' : '<span class="text-muted small">global</span>');
+    // Group grants by user_email, then by scope label (site_id or "Project level")
+    var byUser = {};
+    var userOrder = [];
+    grants.forEach(function (g) {
+      if (!byUser[g.user_email]) {
+        byUser[g.user_email] = { name: g.user_name, scopes: {} };
+        userOrder.push(g.user_email);
+      }
+      var scopeKey = g.site_id || (g.scope_type === 'project' ? '\x00project' : '\x00global');
+      var scopeLabel = g.site_id || (g.scope_type === 'project' ? 'Project level' : 'Global');
+      if (!byUser[g.user_email].scopes[scopeKey]) {
+        byUser[g.user_email].scopes[scopeKey] = { label: scopeLabel, grants: [] };
+      }
+      byUser[g.user_email].scopes[scopeKey].grants.push(g);
+    });
+
+    var rows = userOrder.map(function (email) {
+      var u = byUser[email];
+      var scopeChunks = Object.keys(u.scopes).sort().map(function (sk) {
+        var sc = u.scopes[sk];
+        var badges = sc.grants.map(function (g) {
+          var color = ROLE_COLOR[g.role] || 'secondary';
+          return '<span class="badge text-bg-' + color + ' d-inline-flex align-items-center gap-1 me-1">'
+            + esc(ROLE_LABEL[g.role] || g.role)
+            + '<button type="button" class="btn-close btn-close-white ag-revoke-btn" style="font-size:0.55rem;" '
+            + 'data-grant-id="' + esc(g.grant_id) + '" aria-label="Revoke"></button>'
+            + '</span>';
+        }).join('');
+        var isProject = sk.startsWith('\x00');
+        var scopeHtml = isProject
+          ? '<span class="text-muted small me-1">' + esc(sc.label) + ':</span>'
+          : '<span class="badge bg-light text-dark border me-1">' + esc(sc.label) + '</span>';
+        return '<div class="d-flex align-items-center flex-wrap gap-1 mb-1">' + scopeHtml + badges + '</div>';
+      }).join('');
+
       return '<tr>'
-        + '<td class="small">' + esc(g.user_email) + '<br><span class="text-muted" style="font-size:0.78rem;">' + esc(g.user_name) + '</span></td>'
-        + '<td><span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border border-primary-subtle">' + esc(ROLE_LABEL[g.role] || g.role) + '</span></td>'
-        + '<td>' + scopeCell + '</td>'
-        + '<td class="text-end">'
-        + '<button class="btn btn-sm btn-outline-danger py-0 px-2 ag-revoke-btn" data-grant-id="' + esc(g.grant_id) + '" title="Revoke"><i class="fa-solid fa-ban"></i></button>'
-        + '</td></tr>';
+        + '<td class="small align-top py-2">'
+        + esc(email) + '<br>'
+        + '<span class="text-muted" style="font-size:0.78rem;">' + esc(u.name) + '</span>'
+        + '</td>'
+        + '<td class="py-2">' + scopeChunks + '</td>'
+        + '</tr>';
     }).join('');
 
-    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-top mb-0">'
       + '<thead class="table-light"><tr>'
-      + '<th class="fw-semibold small">User</th>'
-      + '<th class="fw-semibold small">Role</th>'
-      + '<th class="fw-semibold small">Scope / Site</th>'
-      + '<th></th></tr></thead>'
+      + '<th class="fw-semibold small" style="width:220px;">User</th>'
+      + '<th class="fw-semibold small">Grants</th>'
+      + '</tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
 
     wrap.querySelectorAll('.ag-revoke-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () { revokeGrant(this.dataset.grantId); });
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        revokeGrant(this.dataset.grantId);
+      });
     });
   }
 
@@ -178,7 +246,9 @@
     if (!confirm('Revoke this grant?')) return;
     apiJson('/admin/api/access-grants/' + grantId + '/deactivate', 'POST').then(function (res) {
       if (!res.ok) { alert(res.data.error || 'Failed to revoke grant.'); return; }
-      loadGrants();
+      // Remove from local cache and re-render (preserves current filter)
+      _allGrants = _allGrants.filter(function (g) { return g.grant_id !== grantId; });
+      applyFilters();
     });
   }
 
@@ -260,7 +330,9 @@
   }
 
   document.addEventListener('click', function (e) {
-    if (!document.getElementById('ag-user-results').contains(e.target)
+    var results = document.getElementById('ag-user-results');
+    if (!results) return;
+    if (!results.contains(e.target)
         && e.target.id !== 'ag-user-search' && e.target.id !== 'ag-user-search-btn') {
       hideUserResults();
     }

@@ -66,8 +66,8 @@ def va_logging(app):
         user_info = _safe_current_user_email()
         # Safely handle request data  
         request_data = None  
-        if request.content_type == 'application/json':  
-            request_data = request.get_json()  
+        if request.content_type == 'application/json':
+            request_data = request.get_json(silent=True)
         elif request.form:  
             request_data = request.form.to_dict()
         if request_data:  

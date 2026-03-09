@@ -67,43 +67,93 @@ class VaUsers(UserMixin, db.Model):
         return check_password_hash(self.password, password)
 
     def is_coder(self, va_form=None):
-        if "coder" not in self.permission:
-            return False
-        coder_va_form = set(self.permission["coder"])
+        coder_va_form = self.get_coder_va_forms()
         if va_form:
             return va_form in coder_va_form
         return bool(coder_va_form)
 
     def is_site_pi(self, va_form=None):
-        if "sitepi" not in self.permission:
-            return False
-        site_pi_va_form = set(self.permission["sitepi"])
+        site_pi_va_form = self.get_site_pi_va_forms()
         if va_form:
             return va_form in site_pi_va_form
         return bool(site_pi_va_form)
 
     def is_reviewer(self, va_form=None):
-        if "reviewer" not in self.permission:
-            return False
-        reviewer_va_form = set(self.permission["reviewer"])
+        reviewer_va_form = self.get_reviewer_va_forms()
         if va_form:
             return va_form in reviewer_va_form
         return bool(reviewer_va_form)
 
+    def is_admin(self):
+        from app.models import (
+            VaAccessRoles,
+            VaAccessScopeTypes,
+            VaUserAccessGrants,
+            VaStatuses,
+        )
+
+        stmt = sa.select(sa.exists().where(
+            VaUserAccessGrants.user_id == self.user_id,
+            VaUserAccessGrants.role == VaAccessRoles.admin,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.global_scope,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+        ))
+        return bool(db.session.scalar(stmt))
+
+    def get_project_pi_projects(self):
+        from app.models import (
+            VaAccessRoles,
+            VaAccessScopeTypes,
+            VaUserAccessGrants,
+            VaStatuses,
+        )
+
+        stmt = sa.select(VaUserAccessGrants.project_id).where(
+            VaUserAccessGrants.user_id == self.user_id,
+            VaUserAccessGrants.role == VaAccessRoles.project_pi,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+        )
+        return set(db.session.scalars(stmt).all())
+
+    def can_manage_project(self, project_id):
+        return project_id in self.get_project_pi_projects()
+
     def get_coder_va_forms(self):
-        if "coder" not in self.permission:
-            return set()
-        return set(self.permission["coder"])
+        return self._get_granted_va_forms("coder")
 
     def get_site_pi_va_forms(self):
-        if "sitepi" not in self.permission:
-            return set()
-        return set(self.permission["sitepi"])
+        return self._get_granted_va_forms("site_pi")
+
+    def get_site_pi_sites(self, project_id=None):
+        from app.models import (
+            VaProjectSites,
+            VaUserAccessGrants,
+            VaAccessRoles,
+            VaAccessScopeTypes,
+            VaStatuses,
+        )
+
+        stmt = (
+            sa.select(VaProjectSites.site_id)
+            .join(
+                VaUserAccessGrants,
+                VaUserAccessGrants.project_site_id == VaProjectSites.project_site_id,
+            )
+            .where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.site_pi,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+                VaProjectSites.project_site_status == VaStatuses.active,
+            )
+        )
+        if project_id:
+            stmt = stmt.where(VaProjectSites.project_id == project_id)
+        return set(db.session.scalars(stmt).all())
 
     def get_reviewer_va_forms(self):
-        if "reviewer" not in self.permission:
-            return set()
-        return set(self.permission["reviewer"])
+        return self._get_granted_va_forms("reviewer")
 
     def get_all_accessible_va_forms(self):
         all_va_forms = set()
@@ -113,12 +163,71 @@ class VaUsers(UserMixin, db.Model):
         return all_va_forms
 
     def has_va_form_access(self, va_form, role=None):
+        if role == "coder":
+            return va_form in self.get_coder_va_forms()
+        if role == "reviewer":
+            return va_form in self.get_reviewer_va_forms()
+        if role == "sitepi":
+            return va_form in self.get_site_pi_va_forms()
         if role:
             return role in self.permission and va_form in self.permission[role]
-        for va_forms in self.permission.values():
+        if va_form in self.get_coder_va_forms():
+            return True
+        if va_form in self.get_reviewer_va_forms():
+            return True
+        if va_form in self.get_site_pi_va_forms():
+            return True
+        for legacy_role, va_forms in self.permission.items():
+            if legacy_role in {"coder", "reviewer", "sitepi"}:
+                continue
             if va_form in va_forms:
                 return True
         return False
+
+    def _get_granted_va_forms(self, role: str) -> set[str]:
+        from app.models import (
+            VaForms,
+            VaProjectSites,
+            VaUserAccessGrants,
+            VaAccessRoles,
+            VaAccessScopeTypes,
+            VaStatuses,
+        )
+
+        role_enum = VaAccessRoles(role)
+        active_status = VaStatuses.active
+        project_scope_exists = sa.exists(
+            sa.select(1).where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == role_enum,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                VaUserAccessGrants.grant_status == active_status,
+                VaUserAccessGrants.project_id == VaForms.project_id,
+            )
+        )
+        project_site_scope_exists = sa.exists(
+            sa.select(1)
+            .select_from(VaUserAccessGrants)
+            .join(
+                VaProjectSites,
+                VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
+            )
+            .where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == role_enum,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.grant_status == active_status,
+                VaProjectSites.project_site_status == active_status,
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+            )
+        )
+        stmt = (
+            sa.select(VaForms.form_id)
+            .where(VaForms.form_status == active_status)
+            .where(sa.or_(project_scope_exists, project_site_scope_exists))
+        )
+        return set(db.session.scalars(stmt).all())
 
 
 @login.user_loader

@@ -1,12 +1,16 @@
-from flask import Flask, request, redirect, url_for
+import uuid
+
+from flask import Flask, request, redirect, session, url_for
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf.csrf import CSRFProtect
 from config import Config
 
 db = SQLAlchemy()
 migrate = Migrate()
 login = LoginManager()
+csrf = CSRFProtect()
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -15,8 +19,10 @@ def create_app(config_class=Config):
     db.init_app(app)
     migrate.init_app(app, db)
     login.init_app(app)
+    csrf.init_app(app)
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'
+    app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])
 
     from app.routes import register_blueprints  
     register_blueprints(app)
@@ -37,15 +43,27 @@ def create_app(config_class=Config):
     
     @app.before_request
     def force_password_update():
-        if not current_user.is_authenticated:
+        current_user_id = session.get("_user_id")
+        if not current_user_id:
             return
+        try:
+            current_user_id = uuid.UUID(current_user_id)
+        except (TypeError, ValueError):
+            return
+
+        from app.models import VaUsers
+
+        fresh_user = db.session.get(VaUsers, current_user_id)
+        if fresh_user is None:
+            return
+
         allowed_endpoints = {
             'static',
             'va_main.force_password_change',
             'va_auth.va_logout',
             'va_auth.va_login',
         }
-        if current_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
+        if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
             return redirect(url_for('va_main.force_password_change'))
 
     return app

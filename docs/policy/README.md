@@ -10,6 +10,11 @@ last_updated: 2026-03-09
 
 This folder contains policy baselines for application behavior.
 
+Current policy docs:
+
+- [Access Control Model](access-control-model.md)
+- [Admin API Access Policy](admin-api-access.md)
+
 Use `docs/policy` when a change affects:
 
 - access policy

@@ -205,6 +205,10 @@ Key fields:
 Other important tables:
 
 - `va_users`
+- `va_project_master`
+- `va_site_master`
+- `va_project_sites`
+- `va_user_access_grants`
 - `va_usernotes`
 - `va_smartva_results`
 - `va_submissions_auditlog`
@@ -218,5 +222,7 @@ Other important tables:
 - sites are modeled as project-owned
 - forms are overloaded with multiple responsibilities
 - submissions are keyed to synthetic app form identity
+- legacy runtime permissions still center on `va_users.permission`
+- explicit auth foundation tables now exist additively in `va_project_master`, `va_site_master`, `va_project_sites`, and `va_user_access_grants`, but runtime authorization has not cut over yet
 - ODK identifiers are stored per app form
 - the current schema is suitable for one-project-first operation, not generalized multi-project reuse

@@ -16,3 +16,18 @@ class VaUsernotesFor(enum.Enum):
 class VaAllocation(enum.Enum):
     coding = "coding"
     reviewing = "reviewing"
+
+
+class VaAccessRoles(enum.Enum):
+    admin = "admin"
+    project_pi = "project_pi"
+    site_pi = "site_pi"
+    collaborator = "collaborator"
+    coder = "coder"
+    reviewer = "reviewer"
+
+
+class VaAccessScopeTypes(enum.Enum):
+    global_scope = "global"
+    project = "project"
+    project_site = "project_site"

@@ -10,13 +10,17 @@ last_updated: 2026-03-09
 
 ## Summary
 
-The current application does not expose a real web-admin interface for managing master data.
+The current application does not expose a full server-rendered web-admin interface for managing master data.
 
 Operational setup is done mainly through:
 
 - Flask shell functions
 - initialization services
 - mapping refresh services
+
+An additive JSON admin API now also exists under:
+
+- `/admin/api/...`
 
 The frontend is focused on workflow execution, not system administration.
 
@@ -39,6 +43,8 @@ What is not present in the current frontend:
 - add coder/user UI
 - ODK connection management UI
 - mapping file management UI
+
+The current `/admin/api` work is API-first for future HTMX or React clients rather than a complete built-in admin frontend.
 
 ## Current Setup Path
 
@@ -102,6 +108,16 @@ Examples:
 - `va_researchproject_addproject`
 
 These are intended to be invoked from Flask shell or internal admin workflows, not from current templates.
+
+The current additive `/admin/api` layer now exposes a narrower runtime surface for:
+
+- listing projects, sites, and project-site mappings
+- listing users for grant assignment
+- listing active access grants
+- creating or reactivating project-site mappings
+- creating or deactivating access grants
+
+This admin API is protected by authentication, role checks, project scoping, and application-wide CSRF protection.
 
 ## Operational Consequences
 

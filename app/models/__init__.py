@@ -1,9 +1,12 @@
 from app.models.va_sites import VaSites
+from app.models.va_project_master import VaProjectMaster
+from app.models.va_site_master import VaSiteMaster
 from app.models.va_forms import VaForms
 from app.models.va_users import VaUsers
 from app.models.va_usernotes import VaUsernotes
 from app.models.va_submissions import VaSubmissions
 from app.models.va_research_projects import VaResearchProjects
+from app.models.va_project_sites import VaProjectSites
 from app.models.va_initial_assessments import VaInitialAssessments
 from app.models.va_final_assessments import VaFinalAssessments
 from app.models.va_icd_codes import VaIcdCodes
@@ -12,16 +15,21 @@ from app.models.va_coder_review import VaCoderReview
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_reviewer_review import VaReviewerReview
 from app.models.va_submissions_auditlog import VaSubmissionsAuditlog
+from app.models.va_user_access_grants import VaUserAccessGrants
 from app.models.va_selectives import (
     VaStatuses,
     VaUsernotesFor,
     VaAllocation,
+    VaAccessRoles,
+    VaAccessScopeTypes,
 )
 
 __all__ = [
     "VaStatuses",
     "VaResearchProjects",
+    "VaProjectMaster",
     "VaSites",
+    "VaSiteMaster",
     "VaForms",
     "VaUsers",
     "VaSubmissions",
@@ -36,4 +44,8 @@ __all__ = [
     "VaSmartvaResults",
     "VaReviewerReview",
     "VaSubmissionsAuditlog",
+    "VaProjectSites",
+    "VaUserAccessGrants",
+    "VaAccessRoles",
+    "VaAccessScopeTypes",
 ]

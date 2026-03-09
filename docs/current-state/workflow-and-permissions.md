@@ -95,6 +95,19 @@ Permissions are stored on the user record in:
 
 This is a JSONB structure.
 
+An additive grants table also now exists in schema:
+
+- `va_project_master`
+- `va_site_master`
+- `va_project_sites`
+- `va_user_access_grants`
+
+Important:
+
+- coder authorization in the current dev environment now resolves from `va_user_access_grants`
+- site PI authorization in the current dev environment now resolves from `va_user_access_grants`
+- reviewer authorization in the current dev environment now resolves from `va_user_access_grants`
+
 ### Current permission helpers
 
 The user model provides helpers such as:
@@ -108,12 +121,13 @@ The user model provides helpers such as:
 
 ### Current effective model
 
-Permissions are currently form-centric.
+Permissions are currently mixed during transition.
 
 For example:
 
-- `permission["coder"]` contains the app form ids the coder can access
-- direct route access also checks the submission's `va_form_id` against user access
+- coder access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
+- site PI access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
+- reviewer access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 
 ### Language as second filter
 
@@ -134,6 +148,18 @@ It validates:
 - dashboard access by role
 - coding and review action URLs
 - submission access based on current user's form permissions and workflow state
+
+## Admin Runtime Access
+
+An additive admin JSON API now exists under:
+
+- `/admin/api/...`
+
+Current baseline:
+
+- `admin` may manage all admin API resources
+- `project_pi` may manage project-site mappings and non-global access grants only inside explicitly granted projects
+- browser-originated mutating admin API requests require the `X-CSRFToken` header
 
 ## Important Current-State Limitation
 

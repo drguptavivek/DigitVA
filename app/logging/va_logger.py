@@ -1,7 +1,8 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
-from flask import request
+import uuid
+from flask import request, session
 from flask_login import current_user
 from app.logging.va_queryfilter import SQLWriteFilter
 
@@ -36,15 +37,33 @@ request_logger = va_setup_logger('REQUEST_LOG', f'{va_log}/requests.log', loggin
 error_logger = va_setup_logger('ERROR_LOG', f'{va_log}/errors.log', logging.ERROR, va_detailed_formatter)  
 sql_logger = va_setup_logger('SQL_LOG', f'{va_log}/sql.log', logging.INFO, va_detailed_formatter)
 
+
+def _safe_current_user_email():
+    user_id = session.get("_user_id")
+    if user_id:
+        try:
+            from app import db
+            from app.models import VaUsers
+
+            user = db.session.get(VaUsers, uuid.UUID(user_id))
+            if user is not None:
+                return user.email
+        except Exception:
+            return "anonymous"
+    try:
+        if current_user.is_authenticated:
+            return current_user.email
+    except Exception:
+        return "anonymous"
+    return "anonymous"
+
 # Middleware for logging
 def va_logging(app):
     @app.before_request
     def log_request_info():
         if request.path.startswith('/static'):
             return
-        user_info = "anonymous"
-        if current_user.is_authenticated:
-            user_info = current_user.email
+        user_info = _safe_current_user_email()
         # Safely handle request data  
         request_data = None  
         if request.content_type == 'application/json':  
@@ -62,9 +81,7 @@ def va_logging(app):
     def log_response_info(response):
         if request.path.startswith('/static'):
             return response
-        user_info = "anonymous"
-        if current_user.is_authenticated:
-            user_info = current_user.email
+        user_info = _safe_current_user_email()
         content_type = response.headers.get('Content-Type', '')
         if content_type.startswith(('text/', 'application/json')):
             try:

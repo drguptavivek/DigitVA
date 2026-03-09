@@ -345,7 +345,7 @@ def va_dashboard(va_role):
             va_has_allocation=va_has_allocation,
         )
     elif va_role == "sitepi":
-        sitepi_sites = current_user.permission.get("sitepi", [])
+        sitepi_sites = sorted(current_user.get_site_pi_sites())
         if not sitepi_sites:
             va_permission_abortwithflash("No sites assigned for supervision.", 403)
 
@@ -449,7 +449,7 @@ def va_sitepi_data():
     if not site_id:
         return "<div class='text-center py-5'><p class='text-muted'>No site selected.</p></div>"
 
-    sitepi_sites = current_user.permission.get("sitepi", [])
+    sitepi_sites = sorted(current_user.get_site_pi_sites())
     if site_id not in sitepi_sites:
         return "<div class='text-center py-5'><p class='text-danger'>Access denied for this site.</p></div>"
 

@@ -1,3 +1,11 @@
+---
+title: Workflow And Permissions
+doc_type: current-state
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # Workflow And Permissions
 
 ## Summary
@@ -119,7 +127,7 @@ So a coder may have form access but still not see a submission if the narration 
 
 The main route guard is:
 
-- [`va_validate_permissions`](C:\workspace\DigitVA\app\decorators\va_validate_permissions.py)
+- [`va_validate_permissions`](../../app/decorators/va_validate_permissions.py)
 
 It validates:
 

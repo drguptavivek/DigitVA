@@ -1,3 +1,11 @@
+---
+title: Current State Index
+doc_type: index
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # Current State Index
 
 This folder documents the current implementation of DigitVA.
@@ -13,13 +21,13 @@ The current system should be understood as:
 
 Read these documents in this order:
 
-1. [Architecture Overview](C:\workspace\DigitVA\docs\current-state\architecture-overview.md)
-2. [Current Data Model](C:\workspace\DigitVA\docs\current-state\data-model.md)
-3. [ODK Sync And Attachments](C:\workspace\DigitVA\docs\current-state\odk-sync.md)
-4. [Workflow And Permissions](C:\workspace\DigitVA\docs\current-state\workflow-and-permissions.md)
-5. [Admin And Setup Model](C:\workspace\DigitVA\docs\current-state\admin-and-setup.md)
-6. [Runtime And Operations](C:\workspace\DigitVA\docs\current-state\runtime-and-operations.md)
+1. [Architecture Overview](architecture-overview.md)
+2. [Current Data Model](data-model.md)
+3. [ODK Sync And Attachments](odk-sync.md)
+4. [Workflow And Permissions](workflow-and-permissions.md)
+5. [Admin And Setup Model](admin-and-setup.md)
+6. [Runtime And Operations](runtime-and-operations.md)
 
 Related planning:
 
-- [Project Sites Forms Refactor Plan](C:\workspace\DigitVA\docs\planning\project-sites-forms-refactor.md)
+- [Project Sites Forms Refactor Plan](../planning/project-sites-forms-refactor.md)

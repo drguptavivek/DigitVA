@@ -1,3 +1,11 @@
+---
+title: Runtime And Operations
+doc_type: current-state
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # Runtime And Operations
 
 ## Summary
@@ -8,9 +16,9 @@ This document captures the current Python runtime, container setup, migrations, 
 
 Current Python/runtime characteristics:
 
-- Python `3.11` base image in [`Dockerfile`](C:\workspace\DigitVA\Dockerfile)
+- Python `3.11` base image in [`Dockerfile`](../../Dockerfile)
 - Flask application entrypoint via `FLASK_APP=run.py`
-- primary dependency list in [`requirements.txt`](C:\workspace\DigitVA\requirements.txt)
+- primary dependency list in [`requirements.txt`](../../requirements.txt)
 
 Key current libraries:
 
@@ -36,7 +44,7 @@ Operational implication:
 
 ### Application container
 
-The app container is defined in [`Dockerfile`](C:\workspace\DigitVA\Dockerfile).
+The app container is defined in [`Dockerfile`](../../Dockerfile).
 
 Current behavior:
 
@@ -54,7 +62,7 @@ Why the extra system packages exist:
 
 ### Compose setup
 
-The local/container runtime is defined in [`docker-compose.yml`](C:\workspace\DigitVA\docker-compose.yml).
+The local/container runtime is defined in [`docker-compose.yml`](../../docker-compose.yml).
 
 Current services:
 
@@ -75,7 +83,7 @@ Current health checks:
 
 ## Boot And Startup
 
-Startup behavior is controlled by [`boot.sh`](C:\workspace\DigitVA\boot.sh).
+Startup behavior is controlled by [`boot.sh`](../../boot.sh).
 
 Current startup sequence:
 
@@ -98,13 +106,13 @@ The app uses:
 
 Current migration files live under:
 
-- [`migrations`](C:\workspace\DigitVA\migrations)
+- [`migrations`](../../migrations)
 
 Current migration posture:
 
 - single-database configuration
 - one checked-in initial migration file:
-  - [`a395774fa312_new_initial_migration.py`](C:\workspace\DigitVA\migrations\versions\a395774fa312_new_initial_migration.py)
+  - [`a395774fa312_new_initial_migration.py`](../../migrations/versions/a395774fa312_new_initial_migration.py)
 
 ### Current migration behavior
 
@@ -162,11 +170,11 @@ will currently rely on manual verification unless a test harness is introduced.
 
 Logging is configured in:
 
-- [`app/logging/va_logger.py`](C:\workspace\DigitVA\app\logging\va_logger.py)
+- [`app/logging/va_logger.py`](../../app/logging/va_logger.py)
 
 Logging is wired into the app in:
 
-- [`app/__init__.py`](C:\workspace\DigitVA\app\__init__.py)
+- [`app/__init__.py`](../../app/__init__.py)
 
 Current log outputs:
 
@@ -204,7 +212,7 @@ SQLAlchemy engine logging is enabled and routed to `logs/sql.log`.
 
 Current filter behavior:
 
-- only statements containing `INSERT`, `UPDATE`, or `DELETE` are logged by the custom [`SQLWriteFilter`](C:\workspace\DigitVA\app\logging\va_queryfilter.py)
+- only statements containing `INSERT`, `UPDATE`, or `DELETE` are logged by the custom [`SQLWriteFilter`](../../app/logging/va_queryfilter.py)
 
 Current implication:
 
@@ -226,7 +234,7 @@ No evidence found for:
 
 What does exist:
 
-- `email_validator` dependency in [`requirements.txt`](C:\workspace\DigitVA\requirements.txt)
+- `email_validator` dependency in [`requirements.txt`](../../requirements.txt)
 - user model fields like `email` and `email_verified`
 
 Current implication:

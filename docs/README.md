@@ -1,17 +1,25 @@
+---
+title: Docs Index
+doc_type: index
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # DigitVA Docs
 
 ## Current State
 
 These documents describe the current implementation as it exists today.
 
-- [Current State Index](C:\workspace\DigitVA\docs\current-state\README.md)
-- [Architecture Overview](C:\workspace\DigitVA\docs\current-state\architecture-overview.md)
-- [Current Data Model](C:\workspace\DigitVA\docs\current-state\data-model.md)
-- [ODK Sync And Attachments](C:\workspace\DigitVA\docs\current-state\odk-sync.md)
-- [Workflow And Permissions](C:\workspace\DigitVA\docs\current-state\workflow-and-permissions.md)
-- [Admin And Setup Model](C:\workspace\DigitVA\docs\current-state\admin-and-setup.md)
-- [Runtime And Operations](C:\workspace\DigitVA\docs\current-state\runtime-and-operations.md)
+- [Current State Index](current-state/README.md)
+- [Architecture Overview](current-state/architecture-overview.md)
+- [Current Data Model](current-state/data-model.md)
+- [ODK Sync And Attachments](current-state/odk-sync.md)
+- [Workflow And Permissions](current-state/workflow-and-permissions.md)
+- [Admin And Setup Model](current-state/admin-and-setup.md)
+- [Runtime And Operations](current-state/runtime-and-operations.md)
 
 ## Planning
 
-- [Project Sites Forms Refactor Plan](C:\workspace\DigitVA\docs\planning\project-sites-forms-refactor.md)
+- [Project Sites Forms Refactor Plan](planning/project-sites-forms-refactor.md)

@@ -2,7 +2,7 @@
 
 ## Rules
 
-1. Read [`docs/current-state/README.md`](C:\workspace\DigitVA\docs\current-state\README.md) before making structural changes.
+1. Read [`docs/current-state/README.md`](docs/current-state/README.md) before making structural changes.
 2. Treat the current application as a single-project-first Flask system unless a task explicitly changes that behavior.
 3. Preserve backward compatibility by default. Do not silently change domain semantics, identifiers, or workflow behavior.
 4. Prefer explicit, simple code over clever abstractions.
@@ -36,24 +36,30 @@
 32. Do not hand-edit generated mapping modules unless the task specifically requires it. Prefer changing the source spreadsheet or generator.
 33. Keep migration, sync, and mapping code repeatable and safe to rerun.
 34. Prefer additive migrations and staged cutovers over one-step destructive redesigns.
-35. Update docs in `docs/current-state` whenever architecture, data model, workflow, setup, or runtime behavior changes.
-36. Update planning docs when implementation changes affect the target-state direction or migration strategy.
-37. Follow this delivery workflow for non-trivial changes: Plan -> Discuss -> Optimize -> Implement -> Test -> Verify -> Commit.
-38. In the Plan step, identify scope, risks, affected files, migration impact, data-loss risk, and verification approach before coding.
-39. In the Discuss step, align on assumptions, target behavior, and tradeoffs before irreversible or structural work.
-40. In the Optimize step, simplify the design, remove avoidable complexity, and prefer the smallest change that satisfies the requirement.
-41. In the Implement step, make changes in small, traceable increments.
-42. In the Test step, run automated tests when available and add focused tests for changed critical logic when practical.
-43. In the Verify step, confirm actual runtime behavior, migration behavior, logging impact, security impact, and backward compatibility as applicable.
-44. Do not commit before implementation and verification are complete.
-45. Write memory-safe code. Avoid loading unnecessarily large datasets, files, or payloads into memory when streaming, batching, pagination, or incremental processing is possible.
-46. Be especially careful in sync, CSV processing, attachment handling, and reporting code to avoid avoidable high-memory behavior.
-47. Use safe database operations. Scope writes narrowly, keep transactions intentional, and avoid broad destructive updates or deletes without explicit guards.
-48. Handle database sessions and connections cleanly. Do not introduce leaked connections, hanging transactions, or long-lived unnecessary session state.
-49. Close or release external resources promptly, including file handles, DB cursors, network clients, subprocess resources, and temporary artifacts.
-50. Prevent N+1 query patterns. When loading related data repeatedly, use appropriate query shaping, joins, eager loading, batching, or aggregation.
-51. Avoid unbounded table scans and repeated per-row queries in request paths, dashboard code, and sync loops when a single shaped query can do the work.
-52. Prefer indexed filters, targeted selects, and explicit query intent over fetching full rows or full tables by default.
-53. Do not introduce repeated expensive filesystem work, repeated ODK calls, or repeated SmartVA preparation steps when results can be reused safely.
-54. Optimize only after understanding the hot path, but do not knowingly add obviously inefficient patterns.
-55. When changing query-heavy or sync-heavy code, consider performance, memory use, transaction size, and operational safety as first-class requirements.
+35. Use repo-relative paths in documentation. Do not use machine-specific absolute paths in files under `docs` or in repository guidance files unless explicitly required.
+36. Every document under `docs` must include YAML front matter.
+37. At minimum, each `docs` file must include: `title`, `doc_type`, `status`, `owner`, and `last_updated`.
+38. Whenever a doc is created or materially updated, refresh its `last_updated` value to the current date.
+39. For any app behavior or policy-related matter, create or update a document under `docs/policy` that becomes the baseline for implementation, tests, and future behavior decisions.
+40. Do not implement or change policy-sensitive behavior without documenting the intended baseline in `docs/policy`.
+41. Update docs in `docs/current-state` whenever architecture, data model, workflow, setup, or runtime behavior changes.
+42. Update planning docs when implementation changes affect the target-state direction or migration strategy.
+43. Follow this delivery workflow for non-trivial changes: Plan -> Discuss -> Optimize -> Implement -> Test -> Verify -> Commit.
+44. In the Plan step, identify scope, risks, affected files, migration impact, data-loss risk, and verification approach before coding.
+45. In the Discuss step, align on assumptions, target behavior, and tradeoffs before irreversible or structural work.
+46. In the Optimize step, simplify the design, remove avoidable complexity, and prefer the smallest change that satisfies the requirement.
+47. In the Implement step, make changes in small, traceable increments.
+48. In the Test step, run automated tests when available and add focused tests for changed critical logic when practical.
+49. In the Verify step, confirm actual runtime behavior, migration behavior, logging impact, security impact, and backward compatibility as applicable.
+50. Do not commit before implementation and verification are complete.
+51. Write memory-safe code. Avoid loading unnecessarily large datasets, files, or payloads into memory when streaming, batching, pagination, or incremental processing is possible.
+52. Be especially careful in sync, CSV processing, attachment handling, and reporting code to avoid avoidable high-memory behavior.
+53. Use safe database operations. Scope writes narrowly, keep transactions intentional, and avoid broad destructive updates or deletes without explicit guards.
+54. Handle database sessions and connections cleanly. Do not introduce leaked connections, hanging transactions, or long-lived unnecessary session state.
+55. Close or release external resources promptly, including file handles, DB cursors, network clients, subprocess resources, and temporary artifacts.
+56. Prevent N+1 query patterns. When loading related data repeatedly, use appropriate query shaping, joins, eager loading, batching, or aggregation.
+57. Avoid unbounded table scans and repeated per-row queries in request paths, dashboard code, and sync loops when a single shaped query can do the work.
+58. Prefer indexed filters, targeted selects, and explicit query intent over fetching full rows or full tables by default.
+59. Do not introduce repeated expensive filesystem work, repeated ODK calls, or repeated SmartVA preparation steps when results can be reused safely.
+60. Optimize only after understanding the hot path, but do not knowingly add obviously inefficient patterns.
+61. When changing query-heavy or sync-heavy code, consider performance, memory use, transaction size, and operational safety as first-class requirements.

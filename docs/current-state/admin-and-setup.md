@@ -1,3 +1,11 @@
+---
+title: Admin And Setup Model
+doc_type: current-state
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # Admin And Setup Model
 
 ## Summary
@@ -36,7 +44,7 @@ What is not present in the current frontend:
 
 The main operational shell helpers are exposed in:
 
-- [`run.py`](C:\workspace\DigitVA\run.py)
+- [`run.py`](../../run.py)
 
 Important shell operations include:
 

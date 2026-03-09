@@ -1,3 +1,11 @@
+---
+title: Project Sites Forms Refactor Plan
+doc_type: planning
+status: draft
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # Project, Sites, Forms Refactor Plan
 
 ## Purpose

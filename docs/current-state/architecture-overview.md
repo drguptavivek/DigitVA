@@ -1,3 +1,11 @@
+---
+title: Architecture Overview
+doc_type: current-state
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # Architecture Overview
 
 ## Summary
@@ -8,7 +16,7 @@ The current implementation is single-project-first. It is not yet modeled as a g
 
 ## Runtime Stack
 
-- Flask application factory in [`app/__init__.py`](C:\workspace\DigitVA\app\__init__.py)
+- Flask application factory in [`app/__init__.py`](../../app/__init__.py)
 - SQLAlchemy ORM and Flask-Migrate
 - Flask-Login for authentication and session-based user access
 - PostgreSQL as the primary database
@@ -56,8 +64,8 @@ The app is HTML-first.
 
 Current config is split between:
 
-- Flask config in [`config.py`](C:\workspace\DigitVA\config.py)
-- Docker environment variables in [`docker-compose.yml`](C:\workspace\DigitVA\docker-compose.yml)
+- Flask config in [`config.py`](../../config.py)
+- Docker environment variables in [`docker-compose.yml`](../../docker-compose.yml)
 - pyODK file-based config under `resource/pyodk`
 
 Important current-state limitation:

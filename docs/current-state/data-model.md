@@ -1,3 +1,11 @@
+---
+title: Current Data Model
+doc_type: current-state
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # Current Data Model
 
 ## Summary

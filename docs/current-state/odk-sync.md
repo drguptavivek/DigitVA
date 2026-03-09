@@ -1,3 +1,11 @@
+---
+title: ODK Sync And Attachments
+doc_type: current-state
+status: active
+owner: engineering
+last_updated: 2026-03-09
+---
+
 # ODK Sync And Attachments
 
 ## Summary
@@ -29,7 +37,7 @@ Current implication:
 
 Main service:
 
-- [`va_data_sync_odkcentral()`](C:\workspace\DigitVA\app\services\va_data_sync\va_data_sync_01_odkcentral.py)
+- [`va_data_sync_odkcentral()`](../../app/services/va_data_sync/va_data_sync_01_odkcentral.py)
 
 Current behavior:
 
@@ -45,7 +53,7 @@ For each active form, the app calls the ODK endpoint:
 
 This is done in:
 
-- [`va_odk_downloadformdata()`](C:\workspace\DigitVA\app\utils\va_odk\va_odk_02_downloadformdata.py)
+- [`va_odk_downloadformdata()`](../../app/utils/va_odk/va_odk_02_downloadformdata.py)
 
 The response zip is stored temporarily and extracted under:
 
@@ -71,14 +79,14 @@ Audio post-processing:
 
 Media serving:
 
-- media is served later through the Flask route in [`va_api.py`](C:\workspace\DigitVA\app\routes\va_api.py)
+- media is served later through the Flask route in [`va_api.py`](../../app/routes/va_api.py)
 - access is checked against the current user's form access
 
 ## Submission Preprocessing
 
 The extracted CSV is processed in:
 
-- [`va_preprocess_prepdata()`](C:\workspace\DigitVA\app\utils\va_preprocess\va_preprocess_01_prepdata.py)
+- [`va_preprocess_prepdata()`](../../app/utils/va_preprocess/va_preprocess_01_prepdata.py)
 
 Current normalization steps include:
 
@@ -94,7 +102,7 @@ This means `va_submissions` is not a raw mirror of ODK rows. It is a managed app
 
 The app fetches `__system/updatedAt` from ODK using:
 
-- [`va_odk_submissionupdatedate()`](C:\workspace\DigitVA\app\utils\va_odk\va_odk_03_submissionupdatedate.py)
+- [`va_odk_submissionupdatedate()`](../../app/utils/va_odk/va_odk_03_submissionupdatedate.py)
 
 During sync:
 

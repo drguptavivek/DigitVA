@@ -1,0 +1,263 @@
+{#
+  Project Master Management panel — DigitVA-vgz.3.
+  Lists all projects with edit and create capabilities.
+#}
+<div id="panel-projects">
+
+  {# Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-folder me-2 text-secondary"></i>Projects
+    </h5>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="project-show-inactive" role="switch">
+        <label class="form-check-label small text-muted" for="project-show-inactive">Show inactive</label>
+      </div>
+      <button class="btn btn-sm btn-primary" id="project-show-form-btn">
+        <i class="fa-solid fa-plus me-1"></i>New Project
+      </button>
+    </div>
+  </div>
+
+  {# Inline form for create / edit #}
+  <div id="project-form-container" class="card mb-4 d-none">
+    <div class="card-body">
+      <h6 class="card-title mb-3" id="project-form-title">Create Project</h6>
+      <div class="row g-2 align-items-start">
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Project ID <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm" id="project-id-input" placeholder="e.g. PRJ001" maxlength="6" style="text-transform: uppercase;">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Code</label>
+          <input type="text" class="form-control form-control-sm" id="project-code-input" placeholder="(Optional)" maxlength="6" style="text-transform: uppercase;">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm" id="project-name-input" placeholder="e.g. Test Project">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Nickname <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm" id="project-nickname-input" placeholder="e.g. TST">
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Status</label>
+          <select class="form-select form-select-sm" id="project-status-input">
+            <option value="active">Active</option>
+            <option value="deactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-12 d-flex justify-content-end gap-2">
+          <button class="btn btn-sm btn-outline-secondary" id="project-cancel-btn">Cancel</button>
+          <button class="btn btn-sm btn-success" id="project-submit-btn">
+            <i class="fa-solid fa-check me-1"></i>Save
+          </button>
+        </div>
+      </div>
+      <div id="project-form-error" class="text-danger small mt-2"></div>
+    </div>
+  </div>
+
+  {# Table — filled by JS #}
+  <div id="project-table-wrap"></div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── state & render ────────────────────────────────────────────────────────
+
+  var _projects = [];
+  var _editingId = null;
+
+  function loadProjects() {
+    var wrap = document.getElementById('project-table-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+    
+    var showInactive = document.getElementById('project-show-inactive').checked;
+    apiJson('/admin/api/projects?master=1&include_inactive=1').then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      _projects = res.data.projects || [];
+      renderTable(showInactive);
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function renderTable(showInactive) {
+    var wrap = document.getElementById('project-table-wrap');
+    var visible = showInactive ? _projects : _projects.filter(function (p) { return p.status === 'active'; });
+    if (!visible.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No projects found.</p>';
+      return;
+    }
+    
+    var rows = visible.map(function (p) {
+      var isActive = p.status === 'active';
+      var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary project-edit-btn" '
+        + ' data-id="' + esc(p.project_id) + '" title="Edit">'
+        + '<i class="fa-solid fa-pen"></i></button>';
+        
+      return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
+        + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(p.project_id) + '</span></td>'
+        + '<td class="align-middle py-2 small">' + esc(p.project_code || '') + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(p.project_name) + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(p.project_nickname) + '</td>'
+        + '<td class="align-middle py-2">'
+        + (isActive
+            ? '<span class="badge text-bg-success">Active</span>'
+            : '<span class="badge text-bg-secondary">Inactive</span>')
+        + '</td>'
+        + '<td class="align-middle py-2 text-end">' + editBtn + '</td>'
+        + '</tr>';
+    }).join('');
+    
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted" style="width:15%;">Project ID</th>'
+      + '<th class="fw-medium small text-muted" style="width:10%;">Code</th>'
+      + '<th class="fw-medium small text-muted">Name</th>'
+      + '<th class="fw-medium small text-muted" style="width:15%;">Nickname</th>'
+      + '<th class="fw-medium small text-muted" style="width:10%;">Status</th>'
+      + '<th class="fw-medium small text-muted text-end" style="width:10%;">Actions</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table></div>';
+      
+    // Bind edit buttons
+    var editBtns = wrap.querySelectorAll('.project-edit-btn');
+    for (var i = 0; i < editBtns.length; i++) {
+      editBtns[i].addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        openEditForm(id);
+      });
+    }
+  }
+
+  document.getElementById('project-show-inactive').addEventListener('change', function () {
+    renderTable(this.checked);
+  });
+
+  // ── form handling ─────────────────────────────────────────────────────────
+
+  var formContainer = document.getElementById('project-form-container');
+  var formTitle = document.getElementById('project-form-title');
+  var idInput = document.getElementById('project-id-input');
+  var codeInput = document.getElementById('project-code-input');
+  var nameInput = document.getElementById('project-name-input');
+  var nicknameInput = document.getElementById('project-nickname-input');
+  var statusInput = document.getElementById('project-status-input');
+  var errEl = document.getElementById('project-form-error');
+
+  function resetForm() {
+    _editingId = null;
+    formTitle.textContent = 'Create Project';
+    idInput.value = '';
+    idInput.disabled = false;
+    codeInput.value = '';
+    nameInput.value = '';
+    nicknameInput.value = '';
+    statusInput.value = 'active';
+    statusInput.disabled = true; // New projects are always active
+    errEl.textContent = '';
+  }
+
+  function openEditForm(projectId) {
+    var project = _projects.find(function(p) { return p.project_id === projectId; });
+    if (!project) return;
+    
+    _editingId = projectId;
+    formTitle.textContent = 'Edit Project: ' + projectId;
+    idInput.value = project.project_id;
+    idInput.disabled = true;
+    codeInput.value = project.project_code || '';
+    nameInput.value = project.project_name;
+    nicknameInput.value = project.project_nickname;
+    statusInput.value = project.status;
+    statusInput.disabled = false; // Existing projects can change status
+    errEl.textContent = '';
+    
+    formContainer.classList.remove('d-none');
+    nameInput.focus();
+  }
+
+  document.getElementById('project-show-form-btn').addEventListener('click', function () {
+    resetForm();
+    formContainer.classList.remove('d-none');
+    idInput.focus();
+  });
+
+  document.getElementById('project-cancel-btn').addEventListener('click', function () {
+    formContainer.classList.add('d-none');
+    resetForm();
+  });
+
+  document.getElementById('project-submit-btn').addEventListener('click', function () {
+    errEl.textContent = '';
+    
+    var data = {
+      project_code: codeInput.value.trim().toUpperCase(),
+      project_name: nameInput.value.trim(),
+      project_nickname: nicknameInput.value.trim()
+    };
+    
+    var url, method;
+    
+    if (_editingId) {
+      url = '/admin/api/projects/' + encodeURIComponent(_editingId);
+      method = 'PUT';
+      data.status = statusInput.value;
+    } else {
+      url = '/admin/api/projects';
+      method = 'POST';
+      data.project_id = idInput.value.trim().toUpperCase();
+      if (!data.project_id) { errEl.textContent = 'Project ID is required.'; return; }
+      if (data.project_id.length !== 6) { errEl.textContent = 'Project ID must be 6 characters.'; return; }
+    }
+    
+    if (!data.project_name) { errEl.textContent = 'Name is required.'; return; }
+    if (!data.project_nickname) { errEl.textContent = 'Nickname is required.'; return; }
+
+    var btn = this;
+    btn.disabled = true;
+    apiJson(url, method, data).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; return; }
+      formContainer.classList.add('d-none');
+      loadProjects();
+    }).catch(function () { 
+      btn.disabled = false; 
+      errEl.textContent = 'Network error.'; 
+    });
+  });
+
+  // ── init ──────────────────────────────────────────────────────────────────
+
+  loadProjects();
+
+}());
+</script>

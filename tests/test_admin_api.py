@@ -394,6 +394,48 @@ class AdminApiTests(BaseTestCase):
         self.assertIn(self.project_id, project_ids)
         self.assertIn(self.other_project_id, project_ids)
 
+    def test_admin_can_create_and_edit_project_master(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        # Create project
+        create_resp = self.client.post(
+            "/admin/api/projects",
+            json={
+                "project_id": "PRJ999",
+                "project_name": "Test Master Project",
+                "project_nickname": "TMP"
+            },
+            headers=headers
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        
+        # Verify it shows up in master list
+        list_resp = self.client.get("/admin/api/projects?master=1")
+        self.assertEqual(list_resp.status_code, 200)
+        project_ids = [p["project_id"] for p in list_resp.get_json()["projects"]]
+        self.assertIn("PRJ999", project_ids)
+        
+        # Edit project
+        edit_resp = self.client.put(
+            "/admin/api/projects/PRJ999",
+            json={
+                "project_name": "Updated Master Project",
+                "project_code": "UPD999",
+                "status": "deactive"
+            },
+            headers=headers
+        )
+        self.assertEqual(edit_resp.status_code, 200)
+        self.assertEqual(edit_resp.get_json()["project"]["project_name"], "Updated Master Project")
+        self.assertEqual(edit_resp.get_json()["project"]["project_code"], "UPD999")
+        self.assertEqual(edit_resp.get_json()["project"]["status"], "deactive")
+        
+        # Ensure non-admin cannot access master list
+        self._login(self.manager_id)
+        forbidden_resp = self.client.get("/admin/api/projects?master=1")
+        self.assertEqual(forbidden_resp.status_code, 403)
+
     def test_admin_can_create_and_edit_site_master(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()

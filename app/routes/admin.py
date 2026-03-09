@@ -220,15 +220,94 @@ def admin_bootstrap():
 @admin.get("/api/projects")
 def admin_projects():
     user = _request_user()
-    stmt = sa.select(VaProjectMaster).where(
-        VaProjectMaster.project_status == VaStatuses.active
-    )
-    if not user.is_admin():
-        stmt = stmt.where(
-            VaProjectMaster.project_id.in_(list(user.get_project_pi_projects()))
+    master = request.args.get("master") == "1"
+    
+    if master:
+        if not user.is_admin():
+            return _json_error("Admin access required.", 403)
+        stmt = sa.select(VaProjectMaster)
+        if request.args.get("include_inactive") != "1":
+            stmt = stmt.where(VaProjectMaster.project_status == VaStatuses.active)
+    else:
+        stmt = sa.select(VaProjectMaster).where(
+            VaProjectMaster.project_status == VaStatuses.active
         )
+        if not user.is_admin():
+            stmt = stmt.where(
+                VaProjectMaster.project_id.in_(list(user.get_project_pi_projects()))
+            )
     projects = db.session.scalars(stmt.order_by(VaProjectMaster.project_id)).all()
     return jsonify({"projects": [_serialize_project(project) for project in projects]})
+
+
+@admin.post("/api/projects")
+def admin_create_project():
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+    payload = request.get_json(silent=True) or {}
+    project_id = (payload.get("project_id") or "").strip().upper()
+    project_code = (payload.get("project_code") or "").strip().upper() or project_id
+    project_name = (payload.get("project_name") or "").strip()
+    project_nickname = (payload.get("project_nickname") or "").strip()
+    
+    if not project_id or not project_name or not project_nickname:
+        return _json_error("project_id, project_name, and project_nickname are required.", 400)
+        
+    if len(project_id) != 6:
+        return _json_error("project_id must be exactly 6 characters.", 400)
+        
+    existing = db.session.get(VaProjectMaster, project_id)
+    if existing:
+        return _json_error("Project ID already exists.", 400)
+        
+    project = VaProjectMaster(
+        project_id=project_id,
+        project_code=project_code,
+        project_name=project_name,
+        project_nickname=project_nickname,
+        project_status=VaStatuses.active
+    )
+    db.session.add(project)
+    db.session.commit()
+    return jsonify({"project": _serialize_project(project)}), 201
+
+
+@admin.put("/api/projects/<project_id>")
+def admin_update_project(project_id):
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+        
+    project = db.session.get(VaProjectMaster, project_id)
+    if not project:
+        return _json_error("Project not found.", 404)
+        
+    payload = request.get_json(silent=True) or {}
+    
+    if "project_code" in payload:
+        project.project_code = (payload["project_code"] or "").strip().upper() or project.project_id
+        
+    if "project_name" in payload:
+        project_name = (payload["project_name"] or "").strip()
+        if not project_name:
+            return _json_error("project_name cannot be empty.", 400)
+        project.project_name = project_name
+        
+    if "project_nickname" in payload:
+        project_nickname = (payload["project_nickname"] or "").strip()
+        if not project_nickname:
+            return _json_error("project_nickname cannot be empty.", 400)
+        project.project_nickname = project_nickname
+        
+    if "status" in payload:
+        try:
+            project.project_status = VaStatuses(payload["status"])
+        except ValueError:
+            return _json_error("Invalid status.", 400)
+            
+    db.session.commit()
+    return jsonify({"project": _serialize_project(project)})
 
 
 @admin.get("/api/sites")
@@ -690,6 +769,17 @@ def admin_panel_project_sites():
     return render_template("admin/panels/project_sites.html", project_id=project_id)
 
 
+@admin.get("/panels/projects")
+def admin_panel_projects():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+    return render_template("admin/panels/projects.html")
+
+
 @admin.get("/panels/sites")
 def admin_panel_sites():
     denied = _require_admin_ui_access()
@@ -702,7 +792,6 @@ def admin_panel_sites():
 
 
 @admin.get("/panels/project-pi")
-@admin.get("/panels/projects")
 @admin.get("/panels/users")
 def admin_panel_stub():
     denied = _require_admin_ui_access()

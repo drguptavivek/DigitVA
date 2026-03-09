@@ -559,28 +559,137 @@ def admin_toggle_project_site(project_site_id):
     })
 
 
+def _serialize_user(user):
+    return {
+        "user_id": str(user.user_id),
+        "email": user.email,
+        "name": user.name,
+        "status": user.user_status.value,
+        "phone": user.phone,
+        "landing_page": user.landing_page,
+    }
+
+
 @admin.get("/api/users")
 def admin_users():
+    user = _request_user()
     query = (request.args.get("query") or "").strip()
-    stmt = sa.select(VaUsers).where(VaUsers.user_status == VaStatuses.active)
+    master = request.args.get("master") == "1"
+    
+    stmt = sa.select(VaUsers)
+    
+    if master:
+        if not user.is_admin():
+            return _json_error("Admin access required.", 403)
+        if request.args.get("include_inactive") != "1":
+            stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
+    else:
+        stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
+        
     if query:
         pattern = f"%{query}%"
         stmt = stmt.where(
             sa.or_(VaUsers.email.ilike(pattern), VaUsers.name.ilike(pattern))
         )
-    users = db.session.scalars(stmt.order_by(VaUsers.email).limit(25)).all()
-    return jsonify(
-        {
-            "users": [
-                {
-                    "user_id": str(user.user_id),
-                    "email": user.email,
-                    "name": user.name,
-                }
-                for user in users
-            ]
-        }
+        
+    users = db.session.scalars(stmt.order_by(VaUsers.email).limit(25 if not master else None)).all()
+    return jsonify({"users": [_serialize_user(u) for u in users]})
+
+
+@admin.post("/api/users")
+def admin_create_user():
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+        
+    payload = request.get_json(silent=True) or {}
+    email = (payload.get("email") or "").strip().lower()
+    name = (payload.get("name") or "").strip()
+    phone = (payload.get("phone") or "").strip()
+    password = payload.get("password")
+    
+    if not email or not name or not password:
+        return _json_error("email, name, and password are required.", 400)
+        
+    existing = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
+    if existing:
+        return _json_error("Email already in use.", 400)
+        
+    new_user = VaUsers(
+        email=email,
+        name=name,
+        phone=phone or None,
+        user_status=VaStatuses.active,
+        vacode_language=["English"],
+        permission={},
+        landing_page="coder",
+        pw_reset_t_and_c=False,
+        email_verified=False
     )
+    new_user.set_password(password)
+    
+    db.session.add(new_user)
+    db.session.commit()
+    return jsonify({"user": _serialize_user(new_user)}), 201
+
+
+@admin.put("/api/users/<uuid:target_user_id>")
+def admin_update_user(target_user_id):
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+        
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+        
+    payload = request.get_json(silent=True) or {}
+    
+    if "name" in payload:
+        name = (payload["name"] or "").strip()
+        if not name:
+            return _json_error("Name cannot be empty.", 400)
+        target_user.name = name
+        
+    if "phone" in payload:
+        target_user.phone = (payload["phone"] or "").strip() or None
+        
+    if "status" in payload:
+        try:
+            target_user.user_status = VaStatuses(payload["status"])
+        except ValueError:
+            return _json_error("Invalid status.", 400)
+            
+    if payload.get("password"):
+        target_user.set_password(payload["password"])
+        
+    db.session.commit()
+    return jsonify({"user": _serialize_user(target_user)})
+
+
+@admin.post("/api/users/<uuid:target_user_id>/toggle")
+def admin_toggle_user(target_user_id):
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+        
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+        
+    if target_user.user_id == user.user_id:
+        return _json_error("You cannot deactivate yourself.", 400)
+        
+    target_user.user_status = (
+        VaStatuses.deactive
+        if target_user.user_status == VaStatuses.active
+        else VaStatuses.active
+    )
+    db.session.commit()
+    return jsonify({
+        "user_id": str(target_user.user_id),
+        "status": target_user.user_status.value,
+    })
 
 
 @admin.get("/api/access-grants")
@@ -835,8 +944,18 @@ def admin_panel_sites():
     return render_template("admin/panels/sites.html")
 
 
-@admin.get("/panels/project-pi")
 @admin.get("/panels/users")
+def admin_panel_users():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+    return render_template("admin/panels/users.html")
+
+
+@admin.get("/panels/project-pi")
 def admin_panel_stub():
     denied = _require_admin_ui_access()
     if denied:

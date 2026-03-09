@@ -491,3 +491,57 @@ class AdminApiTests(BaseTestCase):
         self._login(self.manager_id)
         forbidden_resp = self.client.get("/admin/api/sites?master=1")
         self.assertEqual(forbidden_resp.status_code, 403)
+
+    def test_admin_can_manage_users(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        # Create user
+        create_resp = self.client.post(
+            "/admin/api/users",
+            json={
+                "email": "new.admin.user@example.com",
+                "name": "New Admin User",
+                "password": "SecurePassword123!",
+                "phone": "1234567890"
+            },
+            headers=headers
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        new_user_id = create_resp.get_json()["user"]["user_id"]
+        
+        # Ensure non-admin cannot access master list
+        self._login(self.manager_id)
+        forbidden_resp = self.client.get("/admin/api/users?master=1")
+        self.assertEqual(forbidden_resp.status_code, 403)
+        
+        # Switch back to admin
+        self._login(self.admin_user_id)
+
+        # Edit user
+        edit_resp = self.client.put(
+            f"/admin/api/users/{new_user_id}",
+            json={
+                "name": "Updated Admin User",
+                "status": "deactive"
+            },
+            headers=headers
+        )
+        self.assertEqual(edit_resp.status_code, 200)
+        self.assertEqual(edit_resp.get_json()["user"]["name"], "Updated Admin User")
+        self.assertEqual(edit_resp.get_json()["user"]["status"], "deactive")
+        
+        # Toggle user status
+        toggle_resp = self.client.post(
+            f"/admin/api/users/{new_user_id}/toggle",
+            headers=headers
+        )
+        self.assertEqual(toggle_resp.status_code, 200)
+        self.assertEqual(toggle_resp.get_json()["status"], "active")
+        
+        # Cannot toggle self
+        self_toggle = self.client.post(
+            f"/admin/api/users/{self.admin_user_id}/toggle",
+            headers=headers
+        )
+        self.assertEqual(self_toggle.status_code, 400)

@@ -156,6 +156,7 @@
         return;
       }
       _allGrants = res.data.grants || [];
+      restoreFiltersFromUrl();
       populateSiteFilter(_allGrants);
       applyFilters();
     }).catch(function () {
@@ -163,9 +164,20 @@
     });
   }
 
+  // ── URL param helpers (shared with parent shell via window.location) ────────
+
+  function getParam(key) {
+    return new URLSearchParams(window.location.search).get(key) || '';
+  }
+
+  function setParam(key, value) {
+    var params = new URLSearchParams(window.location.search);
+    if (value) { params.set(key, value); } else { params.delete(key); }
+    history.replaceState(null, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+  }
+
   function populateSiteFilter(grants) {
     var sel = document.getElementById('ag-filter-site');
-    var current = sel.value;
     var sites = [];
     var seen = {};
     grants.forEach(function (g) {
@@ -174,13 +186,26 @@
     sites.sort();
     sel.innerHTML = '<option value="">All sites</option>'
       + sites.map(function (s) { return '<option value="' + esc(s) + '">' + esc(s) + '</option>'; }).join('');
-    if (current) sel.value = current;
+    // Restore from URL
+    var urlSite = getParam('ag_site');
+    if (urlSite) sel.value = urlSite;
+  }
+
+  function restoreFiltersFromUrl() {
+    var q = getParam('ag_q'), role = getParam('ag_role'), site = getParam('ag_site');
+    if (q)    document.getElementById('ag-filter-text').value = q;
+    if (role) document.getElementById('ag-filter-role').value = role;
+    // site is restored inside populateSiteFilter after options are built
   }
 
   function applyFilters() {
     var text = (document.getElementById('ag-filter-text').value || '').toLowerCase();
     var role = document.getElementById('ag-filter-role').value;
     var site = document.getElementById('ag-filter-site').value;
+    // Persist to URL
+    setParam('ag_q', text);
+    setParam('ag_role', role);
+    setParam('ag_site', site);
     var filtered = _allGrants.filter(function (g) {
       if (role && g.role !== role) return false;
       if (site && g.site_id !== site) return false;

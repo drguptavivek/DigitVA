@@ -144,6 +144,17 @@
     }
   }
 
+  function getUrlParams() {
+    return new URLSearchParams(window.location.search);
+  }
+
+  function setUrlParam(key, value) {
+    var params = getUrlParams();
+    if (value) { params.set(key, value); } else { params.delete(key); }
+    var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    history.replaceState(null, '', newUrl);
+  }
+
   function populateProjectSelector(projects) {
     var sel = document.getElementById('admin-project-select');
     projects.forEach(function (pid) {
@@ -152,29 +163,49 @@
       opt.textContent = pid;
       sel.appendChild(opt);
     });
-    if (projects.length === 1) {
+    // Restore from URL, then fall back to single-project auto-select
+    var urlProject = getUrlParams().get('project_id');
+    if (urlProject && projects.indexOf(urlProject) !== -1) {
+      sel.value = urlProject;
+    } else if (projects.length === 1) {
       sel.value = projects[0];
+      setUrlParam('project_id', projects[0]);
+    }
+    // Restore active panel from URL
+    var urlPanel = getUrlParams().get('panel');
+    if (urlPanel) {
+      var link = document.querySelector('.admin-nav-link[data-panel="' + urlPanel + '"]');
+      if (link) { link.click(); return; }
+    }
+    // Auto-load access-grants as default panel if project is set
+    if (sel.value) {
+      var defaultLink = document.querySelector('.admin-nav-link[data-panel="/admin/panels/access-grants"]');
+      if (defaultLink) defaultLink.click();
     }
   }
 
   // Project selector: reload the currently active panel with the new project context
   document.getElementById('admin-project-select').addEventListener('change', function () {
+    var projectId = this.value;
+    setUrlParam('project_id', projectId);
     var activeLink = document.querySelector('.admin-nav-link.active');
     if (!activeLink) return;
     var panelUrl = activeLink.getAttribute('data-panel');
-    var projectId = this.value;
     var url = panelUrl + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
     htmx.ajax('GET', url, { target: '#admin-panel', swap: 'innerHTML' });
   });
 
-  // Track which nav link is active
+  // Track which nav link is active and persist to URL
   document.querySelectorAll('.admin-nav-link').forEach(function (link) {
     link.addEventListener('click', function (e) {
       e.preventDefault();
-      document.querySelectorAll('.admin-nav-link').forEach(function (l) {
-        l.classList.remove('active');
-      });
+      document.querySelectorAll('.admin-nav-link').forEach(function (l) { l.classList.remove('active'); });
       this.classList.add('active');
+      setUrlParam('panel', this.getAttribute('data-panel'));
+      var projectId = document.getElementById('admin-project-select').value;
+      var panelUrl = this.getAttribute('data-panel');
+      var url = panelUrl + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
+      htmx.ajax('GET', url, { target: '#admin-panel', swap: 'innerHTML' });
     });
   });
 

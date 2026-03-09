@@ -330,6 +330,60 @@ class AdminApiTests(BaseTestCase):
         refreshed_grant = db.session.get(VaUserAccessGrants, uuid.UUID(grant_id))
         self.assertEqual(refreshed_grant.grant_status, VaStatuses.deactive)
 
+    def test_project_site_toggle_deactivates_then_activates(self):
+        self._login(self.manager_id)
+        headers = self._csrf_headers()
+
+        # Create a mapping first
+        create = self.client.post(
+            "/admin/api/project-sites",
+            json={"project_id": self.project_id, "site_id": self.site_b},
+            headers=headers,
+        )
+        self.assertIn(create.status_code, [200, 201])
+        ps_id = create.get_json()["project_site"]["project_site_id"]
+
+        # Ensure active before toggling (re-activate if previous test left it deactive)
+        self.client.post(f"/admin/api/project-sites/{ps_id}/toggle", headers=headers)
+        # Now status is unknown — do two toggles and verify the cycle
+        r1 = self.client.post(f"/admin/api/project-sites/{ps_id}/toggle", headers=headers)
+        self.assertEqual(r1.status_code, 200)
+        status_after_first = r1.get_json()["status"]
+
+        r2 = self.client.post(f"/admin/api/project-sites/{ps_id}/toggle", headers=headers)
+        self.assertEqual(r2.status_code, 200)
+        status_after_second = r2.get_json()["status"]
+        self.assertNotEqual(status_after_first, status_after_second)
+
+        # Toggle again → reactivate
+        r2 = self.client.post(f"/admin/api/project-sites/{ps_id}/toggle", headers=headers)
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.get_json()["status"], "active")
+
+    def test_project_sites_include_inactive_returns_all(self):
+        self._login(self.manager_id)
+        headers = self._csrf_headers()
+
+        # Create and deactivate a mapping
+        create = self.client.post(
+            "/admin/api/project-sites",
+            json={"project_id": self.project_id, "site_id": self.site_b},
+            headers=headers,
+        )
+        ps_id = create.get_json()["project_site"]["project_site_id"]
+        self.client.post(f"/admin/api/project-sites/{ps_id}/toggle", headers=headers)
+
+        active_only = self.client.get(
+            f"/admin/api/project-sites?project_id={self.project_id}"
+        )
+        all_sites = self.client.get(
+            f"/admin/api/project-sites?project_id={self.project_id}&include_inactive=1"
+        )
+        active_ids = {r["project_site_id"] for r in active_only.get_json()["project_sites"]}
+        all_ids    = {r["project_site_id"] for r in all_sites.get_json()["project_sites"]}
+        self.assertNotIn(ps_id, active_ids)
+        self.assertIn(ps_id, all_ids)
+
     def test_admin_sees_all_projects(self):
         self._login(self.admin_user_id)
 

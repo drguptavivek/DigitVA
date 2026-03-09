@@ -270,7 +270,6 @@ def admin_project_sites():
         )
         .join(VaProjectMaster, VaProjectMaster.project_id == VaProjectSites.project_id)
         .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
-        .where(VaProjectSites.project_site_status == VaStatuses.active)
     )
     if project_id:
         if not _current_user_can_manage_project(user, project_id):
@@ -280,6 +279,9 @@ def admin_project_sites():
         stmt = stmt.where(
             VaProjectSites.project_id.in_(list(user.get_project_pi_projects()))
         )
+    include_inactive = request.args.get("include_inactive") == "1"
+    if not include_inactive:
+        stmt = stmt.where(VaProjectSites.project_site_status == VaStatuses.active)
     rows = db.session.execute(
         stmt.order_by(VaProjectSites.project_id, VaProjectSites.site_id)
     ).all()
@@ -338,6 +340,26 @@ def admin_create_project_site():
         .where(VaProjectSites.project_site_id == mapping.project_site_id)
     ).one()
     return jsonify({"project_site": _serialize_project_site(row)}), status_code
+
+
+@admin.post("/api/project-sites/<uuid:project_site_id>/toggle")
+def admin_toggle_project_site(project_site_id):
+    user = _request_user()
+    mapping = db.session.get(VaProjectSites, project_site_id)
+    if not mapping:
+        return _json_error("Project-site mapping not found.", 404)
+    if not _current_user_can_manage_project(user, mapping.project_id):
+        return _json_error("You do not have access to that project.", 403)
+    mapping.project_site_status = (
+        VaStatuses.deactive
+        if mapping.project_site_status == VaStatuses.active
+        else VaStatuses.active
+    )
+    db.session.commit()
+    return jsonify({
+        "project_site_id": str(mapping.project_site_id),
+        "status": mapping.project_site_status.value,
+    })
 
 
 @admin.get("/api/users")

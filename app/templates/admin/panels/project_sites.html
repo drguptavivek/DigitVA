@@ -1,28 +1,274 @@
 {#
-  Project-Site Mappings panel — placeholder shell for DigitVA-vgz.5.
-  Full project-site management UI will be implemented in that issue.
+  Project-Site Mappings panel — DigitVA-vgz.5.
+  Lists all mappings for the selected project with active/inactive toggle.
 #}
 <div id="panel-project-sites">
-  <div class="d-flex justify-content-between align-items-center mb-4">
+
+  {# Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
     <h5 class="mb-0">
       <i class="fa-solid fa-diagram-project me-2 text-secondary"></i>Project Sites
+      {% if project_id %}
+        <span class="badge bg-secondary ms-2 fw-normal" style="font-size:0.75rem;">{{ project_id }}</span>
+      {% endif %}
     </h5>
-    {% if project_id %}
-      <span class="badge bg-secondary">{{ project_id }}</span>
-    {% endif %}
+    <div class="d-flex gap-2 align-items-center">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="ps-show-inactive" role="switch">
+        <label class="form-check-label small text-muted" for="ps-show-inactive">Show inactive</label>
+      </div>
+      <button class="btn btn-sm btn-primary" id="ps-show-form-btn">
+        <i class="fa-solid fa-plus me-1"></i>Add Site
+      </button>
+    </div>
   </div>
 
-  <div class="text-center text-muted py-5">
-    <i class="fa-solid fa-hammer fa-2x mb-3 d-block text-secondary"></i>
-    <p class="mb-1">Project-site mapping management is coming in the next release.</p>
-    <small>Use the Admin API directly in the meantime.</small>
+  {% if not project_id %}
+  <div class="alert alert-info py-2 px-3 small">
+    Select a project from the sidebar to manage site mappings.
   </div>
+  {% endif %}
+
+  {# Toggle confirmation modal #}
+  <div class="modal fade" id="ps-toggle-modal" tabindex="-1" aria-labelledby="ps-toggle-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="ps-toggle-modal-label"></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body small py-3" id="ps-toggle-modal-body"></div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="ps-toggle-confirm-btn">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Inline add form #}
+  <div id="ps-form-container" class="card mb-4 d-none">
+    <div class="card-body">
+      <h6 class="card-title mb-3">Add Site to Project</h6>
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-5">
+          <label class="form-label small mb-1">Site <span class="text-danger">*</span></label>
+          <select id="ps-site-select" class="form-select form-select-sm">
+            <option value="">Loading…</option>
+          </select>
+        </div>
+        <div class="col-auto d-flex gap-2">
+          <button class="btn btn-sm btn-success" id="ps-submit-btn">
+            <i class="fa-solid fa-check me-1"></i>Add
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="ps-cancel-btn">Cancel</button>
+          <span id="ps-form-error" class="text-danger small align-self-center ms-1"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Mappings table — filled by JS #}
+  <div id="ps-table-wrap"></div>
+
 </div>
 
 <script>
-  // Register panel URL with the project selector so project context changes reload this panel
-  (function () {
-    var sel = document.getElementById('admin-project-select');
-    if (sel) sel.setAttribute('data-current-panel', '/admin/panels/project-sites');
-  }());
+(function () {
+  'use strict';
+
+  var PROJECT_ID = {{ project_id | tojson }};
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── load & render ─────────────────────────────────────────────────────────
+
+  var _mappings = [];
+
+  function loadMappings() {
+    var wrap = document.getElementById('ps-table-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+    var showInactive = document.getElementById('ps-show-inactive').checked;
+    var url = '/admin/api/project-sites?include_inactive=1'
+      + (PROJECT_ID ? '&project_id=' + encodeURIComponent(PROJECT_ID) : '');
+    apiJson(url).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      _mappings = res.data.project_sites || [];
+      renderTable(showInactive);
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function renderTable(showInactive) {
+    var wrap = document.getElementById('ps-table-wrap');
+    var visible = showInactive ? _mappings : _mappings.filter(function (m) { return m.status === 'active'; });
+    if (!visible.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No site mappings' + (PROJECT_ID ? ' for this project.' : '.') + '</p>';
+      return;
+    }
+    var rows = visible.map(function (m) {
+      var isActive = m.status === 'active';
+      var toggleBtn = '<button class="btn btn-sm py-0 px-2 ps-toggle-btn '
+        + (isActive ? 'btn-outline-danger' : 'btn-outline-success') + '"'
+        + ' data-ps-id="' + esc(m.project_site_id) + '"'
+        + ' data-site-id="' + esc(m.site_id) + '"'
+        + ' data-site-name="' + esc(m.site_name) + '"'
+        + ' data-active="' + (isActive ? '1' : '0') + '"'
+        + ' title="' + (isActive ? 'Deactivate' : 'Activate') + '">'
+        + '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
+        + '</button>';
+      return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
+        + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(m.site_id) + '</span></td>'
+        + '<td class="align-middle py-2 small">' + esc(m.site_name) + '</td>'
+        + '<td class="align-middle py-2">'
+        + (isActive
+            ? '<span class="badge text-bg-success">Active</span>'
+            : '<span class="badge text-bg-secondary">Inactive</span>')
+        + '</td>'
+        + '<td class="align-middle py-2 text-end">' + toggleBtn + '</td>'
+        + '</tr>';
+    }).join('');
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-semibold small">Site ID</th>'
+      + '<th class="fw-semibold small">Site Name</th>'
+      + '<th class="fw-semibold small">Status</th>'
+      + '<th></th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
+    wrap.querySelectorAll('.ps-toggle-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        promptToggle(this.dataset.psId, this.dataset.siteId, this.dataset.siteName, this.dataset.active === '1');
+      });
+    });
+  }
+
+  // ── toggle modal ──────────────────────────────────────────────────────────
+
+  var _pendingToggleId = null;
+  var _toggleModal = null;
+
+  function promptToggle(psId, siteId, siteName, isActive) {
+    var action = isActive ? 'Deactivate' : 'Activate';
+    var color  = isActive ? 'text-danger' : 'text-success';
+    document.getElementById('ps-toggle-modal-label').innerHTML =
+      '<i class="fa-solid fa-toggle-' + (isActive ? 'off' : 'on') + ' ' + color + ' me-2"></i>' + action + ' Site';
+    var body = action + ' <strong>' + esc(siteId) + ' — ' + esc(siteName) + '</strong>?';
+    if (isActive) {
+      body += '<div class="text-danger small mt-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>'
+        + 'Grants scoped to this site will stop resolving.</div>';
+    }
+    document.getElementById('ps-toggle-modal-body').innerHTML = body;
+    var confirmBtn = document.getElementById('ps-toggle-confirm-btn');
+    confirmBtn.className = 'btn btn-sm ' + (isActive ? 'btn-danger' : 'btn-success');
+    confirmBtn.textContent = action;
+    _pendingToggleId = psId;
+    if (!_toggleModal) _toggleModal = new bootstrap.Modal(document.getElementById('ps-toggle-modal'));
+    _toggleModal.show();
+  }
+
+  document.getElementById('ps-toggle-confirm-btn').addEventListener('click', function () {
+    if (!_pendingToggleId) return;
+    var psId = _pendingToggleId;
+    _pendingToggleId = null;
+    _toggleModal.hide();
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/admin/api/project-sites/' + psId + '/toggle', 'POST').then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { showError(res.data.error || 'Failed.'); return; }
+      var newStatus = res.data.status;
+      _mappings = _mappings.map(function (m) {
+        return m.project_site_id === psId ? Object.assign({}, m, { status: newStatus }) : m;
+      });
+      renderTable(document.getElementById('ps-show-inactive').checked);
+    }).catch(function () { btn.disabled = false; });
+  });
+
+  document.getElementById('ps-show-inactive').addEventListener('change', function () {
+    renderTable(this.checked);
+  });
+
+  // ── add form ──────────────────────────────────────────────────────────────
+
+  document.getElementById('ps-show-form-btn').addEventListener('click', function () {
+    var fc = document.getElementById('ps-form-container');
+    fc.classList.toggle('d-none');
+    if (!fc.classList.contains('d-none')) loadAllSites();
+  });
+
+  document.getElementById('ps-cancel-btn').addEventListener('click', function () {
+    document.getElementById('ps-form-container').classList.add('d-none');
+    document.getElementById('ps-form-error').textContent = '';
+  });
+
+  function loadAllSites() {
+    var sel = document.getElementById('ps-site-select');
+    sel.innerHTML = '<option value="">Loading…</option>';
+    apiJson('/admin/api/sites').then(function (res) {
+      var all = (res.data && res.data.sites) || [];
+      var mapped = {};
+      _mappings.filter(function (m) { return m.status === 'active'; })
+               .forEach(function (m) { mapped[m.site_id] = true; });
+      var available = all.filter(function (s) { return !mapped[s.site_id]; });
+      if (!available.length) {
+        sel.innerHTML = '<option value="">All active sites already mapped</option>';
+        return;
+      }
+      sel.innerHTML = '<option value="">— select site —</option>'
+        + available.map(function (s) {
+            return '<option value="' + esc(s.site_id) + '">' + esc(s.site_id) + ' — ' + esc(s.site_name) + '</option>';
+          }).join('');
+    });
+  }
+
+  document.getElementById('ps-submit-btn').addEventListener('click', function () {
+    var errEl = document.getElementById('ps-form-error');
+    errEl.textContent = '';
+    var siteId = document.getElementById('ps-site-select').value;
+    if (!siteId)    { errEl.textContent = 'Select a site.'; return; }
+    if (!PROJECT_ID){ errEl.textContent = 'Select a project first.'; return; }
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/admin/api/project-sites', 'POST', { project_id: PROJECT_ID, site_id: siteId }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; return; }
+      document.getElementById('ps-form-container').classList.add('d-none');
+      loadMappings();
+    }).catch(function () { btn.disabled = false; errEl.textContent = 'Network error.'; });
+  });
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  function showError(msg) {
+    var el = document.createElement('div');
+    el.className = 'alert alert-danger small py-2 mt-2';
+    el.textContent = msg;
+    document.getElementById('ps-table-wrap').prepend(el);
+    setTimeout(function () { el.remove(); }, 4000);
+  }
+
+  // ── init ──────────────────────────────────────────────────────────────────
+
+  if (PROJECT_ID) loadMappings();
+
+}());
 </script>

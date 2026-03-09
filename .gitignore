@@ -15,3 +15,5 @@ resource/other/*
 resource/pyodk/*
 !resource/pyodk/.gitkeep
 updates/
+private/
+.DS_Store

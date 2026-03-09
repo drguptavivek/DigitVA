@@ -1,0 +1,17 @@
+services:
+  minerva_app_service:
+    ports:
+      - "5005:5005"
+    environment:
+      - FLASK_DEBUG=1
+      - FLASK_ENV=development
+    entrypoint: []
+    command: >
+      bash -c "
+        echo 'Waiting for database...' &&
+        until flask db upgrade; do
+          echo 'DB not ready, retrying in 5s...'
+          sleep 5
+        done &&
+        flask run --host=0.0.0.0 --port=5005
+      "

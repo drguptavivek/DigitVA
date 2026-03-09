@@ -63,3 +63,38 @@
 59. Do not introduce repeated expensive filesystem work, repeated ODK calls, or repeated SmartVA preparation steps when results can be reused safely.
 60. Optimize only after understanding the hot path, but do not knowingly add obviously inefficient patterns.
 61. When changing query-heavy or sync-heavy code, consider performance, memory use, transaction size, and operational safety as first-class requirements.
+
+
+## TEST DATA
+
+Saved baseline  test data to private/test_data.sql (15,195 lines). To restore it anytime
+
+  docker compose up -d minerva_db_service
+  docker exec minerva_db psql -U minerva -d minerva -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+  docker cp private/test_data.sql minerva_db:/tmp/test_data.sql
+  docker exec minerva_db psql -U minerva -d minerva -f /tmp/test_data.sql
+
+  ⎿       site     | total_forms | coded | remaining
+     --------------+-------------+-------+-----------
+      ICMR01NC0201 |         116 |     1 |       115
+      UNSW01KA0101 |         256 |   123 |       133
+      UNSW01KL0101 |         255 |   125 |       130
+      UNSW01NC0101 |         227 |   113 |       114
+      UNSW01TR0101 |         227 |   112 |       115
+
+5 test coder users                                                                                                       
+  ┌──────┬─────────────────┬────────────────────────────┬───────────┐                                                 
+  │ Site │      Name       │           Email            │ Password  │
+  ├──────┼─────────────────┼────────────────────────────┼───────────┤                                                 
+  │ NC01 │ Test Coder NC01 │ test.coder.nc01@gmail.com  │ Aiims@123 │                                               
+  ├──────┼─────────────────┼────────────────────────────┼───────────┤
+  │ NC02 │ Test Coder NC02 │ test.coder.nc02@gmail.com  │ Aiims@123 │
+  ├──────┼─────────────────┼────────────────────────────┼───────────┤
+  │ KA01 │ Test Coder KA01 │ test.coder.ka01@gmail.com  │ Aiims@123 │
+  ├──────┼─────────────────┼────────────────────────────┼───────────┤
+  │ KL01 │ Test Coder KL01 │ test.coder.kl01@gmail.com  │ Aiims@123 │
+  ├──────┼─────────────────┼────────────────────────────┼───────────┤
+  │ TR01 │ Test Coder TR01 │ test.coder.tr01@gmail.com  │ Aiims@123 │
+  └──────┴─────────────────┴────────────────────────────┴───────────┘
+
+

@@ -850,8 +850,8 @@ def admin_create_access_grant():
     return jsonify({"grant": _serialize_grant(row)}), status_code
 
 
-@admin.post("/api/access-grants/<uuid:grant_id>/deactivate")
-def admin_deactivate_access_grant(grant_id):
+@admin.post("/api/access-grants/<uuid:grant_id>/toggle")
+def admin_toggle_access_grant(grant_id):
     user = _request_user()
     grant = db.session.get(VaUserAccessGrants, grant_id)
     if not grant:
@@ -874,9 +874,12 @@ def admin_deactivate_access_grant(grant_id):
         ):
             return _json_error("You do not have access to that project.", 403)
 
-    if grant.grant_status != VaStatuses.deactive:
-        grant.grant_status = VaStatuses.deactive
-        db.session.commit()
+    grant.grant_status = (
+        VaStatuses.deactive
+        if grant.grant_status == VaStatuses.active
+        else VaStatuses.active
+    )
+    db.session.commit()
 
     return jsonify({"grant_id": str(grant.grant_id), "status": grant.grant_status.value})
 
@@ -956,15 +959,11 @@ def admin_panel_users():
 
 
 @admin.get("/panels/project-pi")
-def admin_panel_stub():
+def admin_panel_project_pi():
     denied = _require_admin_ui_access()
     if denied:
         return denied
-    panel = request.path.rstrip("/").split("/")[-1]
-    labels = {
-        "project-pi": "Project PIs",
-        "projects": "Projects",
-        "sites": "Sites",
-        "users": "Users",
-    }
-    return render_template("admin/panels/stub.html", panel=panel, label=labels.get(panel, panel))
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+    return render_template("admin/panels/project_pi.html")

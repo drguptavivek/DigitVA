@@ -321,7 +321,7 @@ class AdminApiTests(BaseTestCase):
         headers = self._csrf_headers()
 
         response = self.client.post(
-            f"/admin/api/access-grants/{grant_id}/deactivate",
+            f"/admin/api/access-grants/{grant_id}/toggle",
             headers=headers,
         )
 

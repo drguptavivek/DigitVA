@@ -371,7 +371,7 @@
     _revokeModal.hide();
     var btn = this;
     btn.disabled = true;
-    apiJson('/admin/api/access-grants/' + grantId + '/deactivate', 'POST').then(function (res) {
+    apiJson('/admin/api/access-grants/' + grantId + '/toggle', 'POST').then(function (res) {
       btn.disabled = false;
       if (!res.ok) {
         var errEl = document.createElement('div');

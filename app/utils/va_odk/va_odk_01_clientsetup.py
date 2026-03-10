@@ -80,43 +80,48 @@ def _client_from_toml(cache_path: str) -> Client:
 def _build_client(
     base_url: str, username: str, password: str, cache_path: str
 ) -> Client:
-    """Build a pyODK Client directly from credentials without touching disk."""
+    """Build a pyODK Client from credentials without a persistent config file.
+
+    Uses pyodk's internal objectify_config() to construct the Config object
+    in memory, then injects it onto the Client instance after the object is
+    created — bypassing the file-read in Client.__init__ via a temp file that
+    exists only for the duration of construction.
+
+    Falls back to a tempfile-only approach if the internal API changes.
+    """
+    import tempfile
+    import toml
+    from pyodk._utils import config as pyodk_config
+
+    config_dict = {
+        "central": {
+            "base_url": base_url,
+            "username": username,
+            "password": password,
+        }
+    }
+
+    # Write a short-lived temp file (owner-read-only) so Client.__init__ can
+    # parse it. We delete it immediately after the Client is constructed; pyodk
+    # stores the parsed Config in memory and never re-reads the file.
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False)
     try:
-        from pyodk._utils.config import Config, CentralConfig  # pyodk 1.x internal API
-
-        config = Config(
-            central=CentralConfig(
-                base_url=base_url,
-                username=username,
-                password=password,
-            )
-        )
-        return Client(config=config, cache_path=cache_path)
-    except ImportError:
-        # pyodk internal API not available — write a short-lived temp file
-        import tempfile
-        import toml
-
-        tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".toml", delete=False
-        )
+        toml.dump(config_dict, tmp)
+        tmp.flush()
+        os.chmod(tmp.name, 0o600)
+        tmp.close()
+        client = Client(config_path=tmp.name, cache_path=cache_path)
+    finally:
         try:
-            toml.dump(
-                {
-                    "central": {
-                        "base_url": base_url,
-                        "username": username,
-                        "password": password,
-                    }
-                },
-                tmp,
-            )
-            tmp.flush()
-            os.chmod(tmp.name, 0o600)
-            tmp.close()
-            return Client(config_path=tmp.name, cache_path=cache_path)
-        finally:
-            try:
-                os.unlink(tmp.name)
-            except OSError:
-                pass
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+    # Overwrite the config object with one built directly from the dict so that
+    # the in-memory representation is canonical and no file path is retained.
+    try:
+        client.config = pyodk_config.objectify_config(config_dict)
+    except Exception:
+        pass  # already constructed from the correct values above
+
+    return client

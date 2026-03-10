@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-10
 ---
 
 # Current Data Model
@@ -217,6 +217,71 @@ Other important tables:
 - `va_sites`
 - `va_research_projects`
 
+## ODK Connection Tables
+
+### `mas_odk_connections`
+
+Purpose:
+
+- ODK Central connection master; one row per ODK server
+
+Key fields:
+
+- `connection_id` — UUID primary key
+- `connection_name` — unique human-readable name for the connection
+- `base_url` — base URL of the ODK Central server
+- `username_enc` — Fernet-encrypted ciphertext of the username
+- `username_salt` — per-row salt used when deriving the encryption key for the username
+- `password_enc` — Fernet-encrypted ciphertext of the password
+- `password_salt` — per-row salt used when deriving the encryption key for the password
+- `status` — active/inactive status (`VaStatuses`)
+- `notes` — optional free-text notes
+- `created_at`, `updated_at` — timestamps
+
+Credential storage:
+
+- credentials are encrypted using Fernet AES-128
+- each credential field has its own per-row salt stored alongside it
+- a shared pepper is read from the environment at runtime; it is not stored in the database
+- multiple projects may share one connection
+
+### `map_project_odk`
+
+Purpose:
+
+- maps one app project to one ODK connection
+
+Key fields:
+
+- `id` — UUID primary key
+- `project_id` — String(6) foreign key to the project master, unique constraint enforced
+- `connection_id` — UUID foreign key to `mas_odk_connections`
+
+Behavior:
+
+- unique on `project_id` — one project has at most one ODK connection
+- a project without a row here falls back to the legacy `odk_config.toml` connection during sync
+
+### `map_project_site_odk`
+
+Purpose:
+
+- maps a project-site pair to a specific ODK Central project ID and form ID
+
+Key fields:
+
+- `id` — UUID primary key
+- `project_id` — String(6) foreign key
+- `site_id` — String(4) foreign key
+- `odk_project_id` — Integer; the numeric project ID on the ODK Central server
+- `odk_form_id` — Text; the xmlFormId of the form on ODK Central
+- `created_at`, `updated_at` — timestamps
+
+Behavior:
+
+- unique on `(project_id, site_id)` — one ODK form per project-site combination
+- the ODK connection used for this mapping is derived via `map_project_odk` and is not stored here directly
+
 ## Key Current-State Observations
 
 - sites are modeled as project-owned
@@ -225,4 +290,6 @@ Other important tables:
 - legacy runtime permissions still center on `va_users.permission`
 - explicit auth foundation tables now exist additively in `va_project_master`, `va_site_master`, `va_project_sites`, and `va_user_access_grants`, but runtime authorization has not cut over yet
 - ODK identifiers are stored per app form
+- ODK connection credentials are now stored encrypted in `mas_odk_connections` rather than in a flat TOML file
+- per-site ODK project and form mapping is now managed via `map_project_site_odk`
 - the current schema is suitable for one-project-first operation, not generalized multi-project reuse

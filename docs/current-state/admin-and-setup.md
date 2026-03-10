@@ -3,48 +3,78 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-10
 ---
 
 # Admin And Setup Model
 
 ## Summary
 
-The current application does not expose a full server-rendered web-admin interface for managing master data.
+The application includes a complete HTMX-driven admin UI under `/admin` for managing master data, users, access grants, ODK connections, and project configuration.
 
-Operational setup is done mainly through:
+The admin panel is accessible to authenticated users with the appropriate role. Some panels are admin-only; others are accessible to project PIs for their own project scope.
 
-- Flask shell functions
-- initialization services
-- mapping refresh services
+Shell helpers and initialization services remain available for initial bootstrap and bulk operations, but day-to-day operational setup is now self-service through the web UI.
 
-An additive JSON admin API now also exists under:
+## Admin Panel Overview
 
-- `/admin/api/...`
+The `/admin` interface provides the following management panels:
 
-The frontend is focused on workflow execution, not system administration.
+- **Access Grants** — manage user-to-project/site role assignments
+- **Project Sites** — manage which sites are associated with a project
+- **Project Forms** — per-site ODK form mapping (ODK project ID and xmlFormId), with live dropdowns populated from ODK Central via pyODK
+- **Project PIs** — manage PI assignments scoped to a project
+- **Projects** — project master management (create, activate, deactivate)
+- **Sites** — site master management (create, activate, deactivate)
+- **Users** — user account management (create, reset password, toggle active status)
+- **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
 
-## What Exists In The Web UI
+All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
-Current frontend pages cover:
+### Admin-Only Panels
 
-- login
-- coder dashboard
-- reviewer dashboard
-- site PI dashboard
-- profile and password update
-- coding and review forms
+The following panels are restricted to application-level admins:
 
-What is not present in the current frontend:
+- ODK Connections
+- Users
+- Sites
+- Projects
 
-- add project UI
-- add site UI
-- add form UI
-- add coder/user UI
-- ODK connection management UI
-- mapping file management UI
+### Project-PI-Accessible Panels
 
-The current `/admin/api` work is API-first for future HTMX or React clients rather than a complete built-in admin frontend.
+Project PIs can access the following panels, scoped to their own project:
+
+- Access Grants
+- Project Sites
+- Project Forms
+- Project PIs
+
+## Project Forms Panel
+
+The Project Forms panel manages the mapping between an app project-site pair and a specific ODK Central project and form.
+
+Key behavior:
+
+- dropdowns for available ODK projects and forms are populated live from ODK Central via pyODK using the connection assigned to the project
+- each project-site pair maps to at most one ODK form
+- the mapping is stored in `map_project_site_odk`
+
+## ODK Connections Panel
+
+The ODK Connections panel allows administrators to:
+
+- create a new ODK Central connection (name, base URL, username, password)
+- edit or delete existing connections
+- test a connection against ODK Central
+- assign a connection to one or more projects
+
+Credentials (username and password) are stored encrypted in `mas_odk_connections`:
+
+- encrypted using Fernet AES-128
+- each credential field has its own per-row salt
+- a shared pepper is read from the environment at runtime
+
+Plaintext credentials are never persisted to the database.
 
 ## Current Setup Path
 
@@ -98,32 +128,26 @@ This is currently an operational/admin task, not a user-facing feature.
 
 ## User And Access Administration
 
-Current user, form, site, and project CRUD-like operations exist as service functions only.
+The admin UI supports:
 
-Examples:
+- creating and deactivating user accounts
+- resetting user passwords
+- assigning and revoking user access grants scoped to projects and sites
+
+Underlying service functions remain available for shell-based operations:
 
 - `va_user_create`
 - `va_form_addform`
 - `va_site_addsite`
 - `va_researchproject_addproject`
 
-These are intended to be invoked from Flask shell or internal admin workflows, not from current templates.
-
-The current additive `/admin/api` layer now exposes a narrower runtime surface for:
-
-- listing projects, sites, and project-site mappings
-- listing users for grant assignment
-- listing active access grants
-- creating or reactivating project-site mappings
-- creating or deactivating access grants
-
-This admin API is protected by authentication, role checks, project scoping, and application-wide CSRF protection.
-
 ## Operational Consequences
 
-Current setup and admin behavior implies:
+The admin UI makes the platform self-service for:
 
-- platform changes require operator/developer involvement
-- onboarding new forms or users is not self-service through the app
-- ODK connection details are not managed in the UI
-- the app behaves more like a configured workflow system than a self-administered multi-tenant platform
+- adding and managing users
+- assigning access grants
+- configuring ODK connections and project-site form mappings
+- managing project and site master records
+
+Mapping spreadsheet regeneration and full platform initialization remain developer/operator tasks performed through the Flask shell.

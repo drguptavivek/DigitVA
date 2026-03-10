@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-10
 ---
 
 # ODK Sync And Attachments
@@ -22,16 +22,14 @@ ODK sync is a batch process that:
 
 ## Connection Model
 
-Current ODK connection setup is global, not project-specific.
+**Connection Model (current)**:
 
-The app creates a pyODK client from files under `resource/pyodk`:
-
-- `odk_config.toml`
-- `odk_cache.toml`
-
-Current implication:
-
-- there is one configured ODK connection context for the application runtime
+- ODK connection details are stored in `mas_odk_connections` (DB) with encrypted credentials
+- Each project is linked to a connection via `map_project_odk`
+- `va_odk_clientsetup(project_id)` resolves the connection from DB first, falls back to legacy `odk_config.toml` if no DB mapping exists
+- pyODK `Client` is built using an explicit `Session` (base_url, username, password) passed at construction; a shared stub config file (`odk_stub_config.toml`) satisfies the file-read requirement without storing credentials
+- Each connection uses its own cache file (`odk_cache_<connection_id>.toml`) so concurrent calls to different ODK servers do not share or overwrite auth tokens
+- The legacy `odk_config.toml` fallback remains for projects not yet migrated to DB-managed connections
 
 ## Sync Entry Point
 

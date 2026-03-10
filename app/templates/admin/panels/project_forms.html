@@ -19,6 +19,25 @@
   </div>
   <hr class="my-3">
 
+  {# Confirmation modal for Remove mapping #}
+  <div class="modal fade" id="pf-remove-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title">
+            <i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>Remove Mapping
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body small py-3" id="pf-remove-modal-body"></div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="pf-remove-confirm-btn">Remove</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {# Connection info bar — shown when project is selected #}
   <div id="pf-connection-bar" class="d-none mb-3"></div>
 
@@ -58,6 +77,15 @@
   var _odkFormsCache   = {};     // "odkProjectId" → [{ xmlFormId, name }]
   var _siteMappings    = [];     // [{ site_id, odk_project_id, odk_form_id }]
   var _expandedSite    = null;   // site_id of currently open config row
+  var _removeModal     = null;
+  var _pendingRemoveSid = null;
+
+  document.getElementById('pf-remove-confirm-btn').addEventListener('click', function () {
+    var sid = _pendingRemoveSid;
+    _pendingRemoveSid = null;
+    _removeModal.hide();
+    clearMapping(sid);
+  });
 
   // ── project selector ──────────────────────────────────────────────────────
 
@@ -234,8 +262,8 @@
 
     bindTableEvents();
 
-    // Re-open expanded row if any
-    if (_expandedSite) openConfigRow(_expandedSite, false);
+    // Re-open expanded row if any (loadForms=true so the form select repopulates)
+    if (_expandedSite) openConfigRow(_expandedSite, true);
   }
 
   function renderConfigForm(site, saved) {
@@ -256,13 +284,13 @@
         + '<i class="fa-solid fa-xmark me-1"></i>Remove</button>'
       : '';
 
-    return '<div class="d-flex flex-wrap gap-3 align-items-end">'
+    return '<div class="d-flex flex-column gap-2">'
 
       // ODK Project select
       + '<div>'
       + '<label class="form-label small mb-1 text-muted">ODK Project</label>'
       + '<select class="form-select form-select-sm pf-opid-sel" data-sid="' + esc(site.site_id) + '" '
-      + 'id="pf-opid-' + esc(site.site_id) + '" style="min-width:200px;">'
+      + 'id="pf-opid-' + esc(site.site_id) + '" style="max-width:720px;width:100%;">'
       + projOptions
       + '</select>'
       + '</div>'
@@ -274,7 +302,7 @@
       + 'id="pf-form-' + esc(site.site_id) + '" '
       + 'data-saved-fid="' + esc(savedFid) + '" '
       + 'data-saved-opid="' + esc(savedOpid) + '" '
-      + 'style="min-width:220px;">'
+      + 'style="max-width:720px;width:100%;">'
       + '<option value="">— select form —</option>'
       + '</select>'
       + '</div>'
@@ -312,11 +340,19 @@
     row.classList.remove('d-none');
 
     if (loadForms) {
-      // Load forms for the currently selected ODK project (if pre-selected)
       var opidSel = document.getElementById('pf-opid-' + sid);
       var formSel = document.getElementById('pf-form-' + sid);
-      if (opidSel && opidSel.value) {
-        populateFormSelect(sid, opidSel.value, formSel ? formSel.dataset.savedFid : '');
+      // Use the select's current value; fall back to data-saved-opid in case
+      // the browser doesn't reflect the `selected` attribute on a hidden element.
+      var odkProjectId = (opidSel && opidSel.value)
+        || (formSel && formSel.dataset.savedOpid)
+        || '';
+      if (odkProjectId) {
+        // Sync the select visually in case value came from fallback
+        if (opidSel && !opidSel.value) opidSel.value = odkProjectId;
+        // Show loading state immediately before the async fetch
+        if (formSel) formSel.innerHTML = '<option value="">Loading…</option>';
+        populateFormSelect(sid, odkProjectId, formSel ? formSel.dataset.savedFid : '');
       }
     }
 
@@ -338,7 +374,7 @@
     var clearBtn = row.querySelector('.pf-clear-btn');
     if (clearBtn && !clearBtn._bound) {
       clearBtn._bound = true;
-      clearBtn.addEventListener('click', function () { clearMapping(sid); });
+      clearBtn.addEventListener('click', function () { promptRemove(sid); });
     }
 
     var closeBtn = row.querySelector('.pf-close-btn');
@@ -424,6 +460,18 @@
       });
       renderTable();  // re-render to show updated mapping info
     }).catch(function () { showError('Network error.'); });
+  }
+
+  function promptRemove(sid) {
+    var site = _sites.find(function (s) { return s.site_id === sid; });
+    var saved = _siteMappings.find(function (m) { return m.site_id === sid; });
+    document.getElementById('pf-remove-modal-body').innerHTML =
+      'Remove the ODK form mapping for <strong>' + esc(sid)
+      + (site ? ' — ' + esc(site.site_name) : '') + '</strong>?'
+      + (saved ? '<div class="text-muted mt-2"><code>' + esc(saved.odk_form_id) + '</code> will be unlinked.</div>' : '');
+    _pendingRemoveSid = sid;
+    if (!_removeModal) _removeModal = new bootstrap.Modal(document.getElementById('pf-remove-modal'));
+    _removeModal.show();
   }
 
   function clearMapping(sid) {

@@ -65,6 +65,9 @@ def create_app(config_class=Config):
 
     from app.commands.odk_sync import init_app as init_odk_sync_commands
     init_odk_sync_commands(app)
+
+    from app.commands.form_types import init_app as init_form_types_commands
+    init_form_types_commands(app)
     
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

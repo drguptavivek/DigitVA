@@ -89,6 +89,10 @@ class FieldMappingService:
             self._cache[cache_key] = self._build_labels_list(form_type_code, "is_info")
         return self._cache[cache_key]
 
+    def get_default_form_type(self) -> str:
+        """Return the default form type code (backward compatibility)."""
+        return "WHO_2022_VA"
+
     def get_form_type(self, form_type_code: str):
         """Get active form type record by code, or None."""
         return db.session.scalar(

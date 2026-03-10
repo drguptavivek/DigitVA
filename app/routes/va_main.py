@@ -695,6 +695,7 @@ def va_profile():
     result = db.session.execute(stmt).scalars().all()
     lang_choices = sorted([lang for lang in result if lang])
     form.va_languages.choices = [(lang, lang) for lang in lang_choices]
+
     if form.va_update_password.data and form.validate_on_submit():
         if not form.va_current_password.data or not form.va_new_password.data:
             flash("Please fill all password fields to update.", "warning")
@@ -711,7 +712,7 @@ def va_profile():
         flash("VA Languages updated successfully.", "success")
         return render_template("va_frontpages/va_myprofile.html", form=form)
     elif form.va_update_timezone.data:
-        current_user.timezone = form.va_timezone.data
+        current_user.timezone = request.form.get('va_timezone')
         db.session.commit()
         flash("Time Zone updated successfully.", "success")
         return render_template("va_frontpages/va_myprofile.html", form=form)

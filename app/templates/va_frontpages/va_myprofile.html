@@ -1,80 +1,110 @@
 {% extends "va_frontpages/va_base.html" %}
 {% block title %}DigitVA | My Profile{% endblock %}
 {% block content %}
-<div class="container">
-    {% with messages = get_flashed_messages(with_categories = true) %}
-  {% if messages %}
-    <div class="container mt-4">
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
+<div class="container py-4">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-4">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
   {% endwith %}
-  <h4 class="content-section-title"><i class="fas fa-user-circle me-2"></i>My Profile</h4>
+
+  <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
+    <i class="fas fa-user-circle fa-2x text-primary me-3"></i>
+    <h3 class="mb-0">My Profile</h3>
+  </div>
+
   <form method="POST">
     {{ form.hidden_tag() }}
-    <div class="content-section mb-4">
-  <h4 class="content-section-title"><i class="fa fa-key me-2"></i>Change Password</h4>
+    
+    <div class="row g-4 d-flex align-items-stretch">
+      
+      <!-- Password Card -->
+      <div class="col-md-4 d-flex">
+        <div class="card shadow-sm w-100 border-0 h-100">
+          <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+            <h5 class="card-title text-primary"><i class="fa fa-key me-2"></i>Change Password</h5>
+          </div>
+          <div class="card-body d-flex flex-column">
+            <div class="mb-3">
+              {{ form.va_current_password.label(class="form-label text-muted small fw-bold") }}
+              {{ form.va_current_password(class="form-control form-control-sm") }}
+              {% for error in form.va_current_password.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+              {% endfor %}
+            </div>
+            <div class="mb-3">
+              {{ form.va_new_password.label(class="form-label text-muted small fw-bold") }}
+              {{ form.va_new_password(class="form-control form-control-sm") }}
+              {% for error in form.va_new_password.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+              {% endfor %}
+            </div>
+            <div class="mb-4 flex-grow-1">
+              {{ form.va_confirm_password.label(class="form-label text-muted small fw-bold") }}
+              {{ form.va_confirm_password(class="form-control form-control-sm") }}
+              {% for error in form.va_confirm_password.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+              {% endfor %}
+            </div>
+            <div class="mt-auto">
+              {{ form.va_update_password(class="btn btn-primary btn-sm w-100") }}
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <div class="mb-3">
-    {{ form.va_current_password.label(class="form-label") }}
-    {{ form.va_current_password(class="form-control") }}
-    {% for error in form.va_current_password.errors %}
-      <div class="text-danger small mt-1">{{ error }}</div>
-    {% endfor %}
-  </div>
+      <!-- Languages Card -->
+      <div class="col-md-4 d-flex">
+        <div class="card shadow-sm w-100 border-0 h-100">
+          <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+            <h5 class="card-title text-primary"><i class="fa fa-language me-2"></i>VA Languages</h5>
+          </div>
+          <div class="card-body d-flex flex-column">
+            <div class="mb-4 flex-grow-1">
+              {{ form.va_languages.label(class="form-label text-muted small fw-bold") }}
+              {{ form.va_languages(class="form-select form-select-sm", multiple=True, id="vaLangSelect") }}
+              {% for error in form.va_languages.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+              {% endfor %}
+              <div class="form-text small mt-2">Select the languages you are comfortable coding in.</div>
+            </div>
+            <div class="mt-auto">
+              {{ form.va_update_languages(class="btn btn-primary btn-sm w-100") }}
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <div class="mb-3">
-    {{ form.va_new_password.label(class="form-label") }}
-    {{ form.va_new_password(class="form-control") }}
-    {% for error in form.va_new_password.errors %}
-      <div class="text-danger small mt-1">{{ error }}</div>
-    {% endfor %}
-  </div>
+      <!-- Timezone Card -->
+      <div class="col-md-4 d-flex">
+        <div class="card shadow-sm w-100 border-0 h-100">
+          <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+            <h5 class="card-title text-primary"><i class="fa fa-clock me-2"></i>Time Zone</h5>
+          </div>
+          <div class="card-body d-flex flex-column">
+            <div class="mb-4 flex-grow-1">
+              {{ form.va_timezone.label(class="form-label text-muted small fw-bold") }}
+              {{ form.va_timezone(class="form-select form-select-sm", id="vaTimezoneSelect") }}
+              {% for error in form.va_timezone.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+              {% endfor %}
+              <div class="form-text small mt-2">All times in the system will be displayed in this time zone.</div>
+            </div>
+            <div class="mt-auto">
+              {{ form.va_update_timezone(class="btn btn-primary btn-sm w-100") }}
+            </div>
+          </div>
+        </div>
+      </div>
 
-  <div class="mb-3">
-    {{ form.va_confirm_password.label(class="form-label") }}
-    {{ form.va_confirm_password(class="form-control") }}
-    {% for error in form.va_confirm_password.errors %}
-      <div class="text-danger small mt-1">{{ error }}</div>
-    {% endfor %}
-  </div>
-
-  {{ form.va_update_password(class="btn btn-primary") }}
-</div>
-
-<div class="content-section mb-4">
-  <h4 class="content-section-title"><i class="fa fa-language me-2"></i>VA Languages</h4>
-
-  <div class="mb-3">
-    {{ form.va_languages.label(class="form-label") }}
-    {{ form.va_languages(class="form-select", multiple=True, id="vaLangSelect") }}
-    {% for error in form.va_languages.errors %}
-      <div class="text-danger small mt-1">{{ error }}</div>
-    {% endfor %}
-  </div>
-
-  {{ form.va_update_languages(class="btn btn-primary") }}
-</div>
-
-<div class="content-section mb-4">
-  <h4 class="content-section-title"><i class="fa fa-clock me-2"></i>Time Zone</h4>
-
-  <div class="mb-3">
-    {{ form.va_timezone.label(class="form-label") }}
-    {{ form.va_timezone(class="form-select", id="vaTimezoneSelect") }}
-    {% for error in form.va_timezone.errors %}
-      <div class="text-danger small mt-1">{{ error }}</div>
-    {% endfor %}
-  </div>
-
-  {{ form.va_update_timezone(class="btn btn-primary") }}
-</div>
-
+    </div>
   </form>
 </div>
 
@@ -82,11 +112,13 @@
   $(document).ready(function () {
     $('#vaLangSelect').select2({
       placeholder: "Select VA Languages",
-      width: '100%'
+      width: '100%',
+      theme: 'bootstrap-5'
     });
     $('#vaTimezoneSelect').select2({
       placeholder: "Select Time Zone",
-      width: '100%'
+      width: '100%',
+      theme: 'bootstrap-5'
     });
   });
 </script>

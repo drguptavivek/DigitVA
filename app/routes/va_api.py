@@ -6,9 +6,9 @@ from app.models import VaSubmissions, VaReviewerReview, VaAllocations, VaAllocat
 from app.utils import va_render_categoryneighbours
 from app.decorators import va_validate_permissions
 from flask_login import current_user, login_required
-from app.utils import va_mapping_flip, va_mapping_info
 from flask import Blueprint, render_template, current_app, send_from_directory, flash, redirect, url_for, jsonify, request
-from app.utils import va_mapping_fieldcoder, va_mapping_fieldsitepi, va_mapping_choice, va_render_processcategorydata, va_permission_abortwithflash
+from app.utils import va_mapping_fieldcoder, va_render_processcategorydata, va_permission_abortwithflash
+from app.services.field_mapping_service import get_mapping_service
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
@@ -113,6 +113,13 @@ children = [
 @va_validate_permissions()
 def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
     if va_partial in va_renderforall:
+        _mapping_svc = get_mapping_service()
+        _form_type_code = "WHO_2022_VA"
+        va_mapping_fieldsitepi = _mapping_svc.get_fieldsitepi(_form_type_code)
+        va_mapping_choice = _mapping_svc.get_choices(_form_type_code)
+        va_mapping_flip = _mapping_svc.get_flip_labels(_form_type_code)
+        va_mapping_info = _mapping_svc.get_info_labels(_form_type_code)
+
         va_datalevel = va_mapping_fieldcoder if va_action in ["vacode", "vareview"] else va_mapping_fieldsitepi
         va_submission = db.session.get(VaSubmissions, va_sid)
         va_processedcategorydata = va_render_processcategorydata(va_submission.va_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial)

@@ -16,14 +16,11 @@ from app.models import (
     VaUsernotes,
 )
 from app.utils import (
-    va_mapping_choice,
     va_mapping_fieldcoder,
-    va_mapping_fieldsitepi,
-    va_mapping_flip,
-    va_mapping_info,
     va_render_categoryneighbours,
     va_render_processcategorydata,
 )
+from app.services.field_mapping_service import get_mapping_service
 
 
 VA_RENDER_FOR_ALL = set(
@@ -68,11 +65,21 @@ def va_get_category_context(va_sid, va_action, va_partial):
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         return None
+
+    # Determine form type code for this submission (default WHO_2022_VA)
+    form_type_code = "WHO_2022_VA"
+
+    mapping_svc = get_mapping_service()
+
     datalevel = (
         va_mapping_fieldcoder
         if va_action in {"vacode", "vareview"}
-        else va_mapping_fieldsitepi
+        else mapping_svc.get_fieldsitepi(form_type_code)
     )
+    va_mapping_choice = mapping_svc.get_choices(form_type_code)
+    va_mapping_flip = mapping_svc.get_flip_labels(form_type_code)
+    va_mapping_info = mapping_svc.get_info_labels(form_type_code)
+
     processed = va_render_processcategorydata(
         submission.va_data,
         submission.va_form_id,

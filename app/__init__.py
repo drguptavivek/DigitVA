@@ -62,6 +62,9 @@ def create_app(config_class=Config):
     from app import models #noqa
     from app import services #noqa
     from app import utils #noqa
+
+    from app.commands.odk_sync import init_app as init_odk_sync_commands
+    init_odk_sync_commands(app)
     
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

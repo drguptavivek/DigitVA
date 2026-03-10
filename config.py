@@ -31,6 +31,14 @@ class Config:
     # Validated at runtime when first used — see app/utils/credential_crypto.py
     ODK_CREDENTIAL_PEPPER: str = os.environ.get("ODK_CREDENTIAL_PEPPER", "")
 
+    REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
+    
+    CELERY = {
+        "broker_url": os.environ.get("CELERY_BROKER_URL") or REDIS_URL,
+        "result_backend": os.environ.get("CELERY_RESULT_BACKEND") or REDIS_URL,
+        "task_ignore_result": True,
+    }
+
 
 class TestConfig(Config):
     TESTING = True

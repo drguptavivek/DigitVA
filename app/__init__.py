@@ -6,11 +6,24 @@ from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 from config import Config
+from celery import Celery, Task
 
 db = SQLAlchemy()
 migrate = Migrate()
 login = LoginManager()
 csrf = CSRFProtect()
+
+def celery_init_app(app: Flask) -> Celery:
+    class FlaskTask(Task):
+        def __call__(self, *args: object, **kwargs: object) -> object:
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery_app = Celery(app.name, task_cls=FlaskTask)
+    celery_app.config_from_object(app.config.get("CELERY", {}))
+    celery_app.set_default()
+    app.extensions["celery"] = celery_app
+    return celery_app
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -23,6 +36,16 @@ def create_app(config_class=Config):
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'
     app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])
+    
+    # Initialize Celery
+    app.config.from_mapping(
+        CELERY=dict(
+            broker_url=app.config.get("REDIS_URL"),
+            result_backend=app.config.get("REDIS_URL"),
+            task_ignore_result=True,
+        ),
+    )
+    celery_init_app(app)
 
     from app.routes import register_blueprints  
     register_blueprints(app)

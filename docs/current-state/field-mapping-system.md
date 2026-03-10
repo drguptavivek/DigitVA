@@ -16,8 +16,12 @@ The field mapping system controls how ODK submission data is:
 - Rendered with choice value translations
 - Styled with flip colors and info flags
 
-**Current State**: Hardcoded to a single form type (WHO VA Tool 2022).
-**Desired State**: Support multiple form types with form-specific mappings.
+**Current State**: Multi-form-type system fully implemented and operational.
+The database-backed field mapping supports multiple named form types, each with
+independent categories, subcategories, fields, and choice mappings. An admin UI
+allows managing form types, editing field display configuration, syncing labels
+and choices from ODK Central XLSForms, and exporting/importing form type
+definitions as portable JSON bundles.
 
 ---
 
@@ -1146,67 +1150,301 @@ def sync_form_schema(form_id):
 
 ---
 
+## Admin UI — Form Type Management
+
+The Field Mapping panel is accessible at `/admin/?panel=/admin/panels/field-mapping`
+(admin role required). It shows a card for each registered form type.
+
+### Form Type Card
+
+Each card displays:
+- **Form Type Code** — short uppercase identifier (e.g. `WHO_2022_VA`)
+- **Form Type Name** — human-readable name
+- **Description** — optional free text
+- **Stats** — count of categories, fields, and choices
+
+Card footer actions:
+
+| Button | Behaviour |
+|--------|-----------|
+| **Fields** | Opens the field list sub-panel for this form type |
+| **Sync ODK** | Opens the ODK sync sub-panel (choose connection → project → form) |
+| **Duplicate** | Opens a modal to copy the entire form type under a new code |
+| **Export** | Downloads a `form_type_<code>.json` bundle (direct link) |
+
+### Creating a New Form Type
+
+Click **New Form Type** in the panel header. A modal prompts for:
+
+| Field | Rules |
+|-------|-------|
+| **Form Type Code** | Uppercase, letters/digits/underscores, max 32 chars |
+| **Form Type Name** | Free text, max 128 chars |
+| **Description** | Optional free text |
+
+On submit → `POST /admin/api/form-types` → creates a blank `MasFormTypes` row.
+The panel reloads to show the new card.
+
+### Duplicating a Form Type
+
+Click **Duplicate** on any card. Provide a new code and name.
+
+On submit → `POST /admin/api/form-types/<source_code>/duplicate`
+
+The service copies:
+- All `MasCategoryOrder` rows (new UUIDs, same codes/names/order)
+- All `MasSubcategoryOrder` rows
+- All `MasFieldDisplayConfig` rows (all labels, PII flags, display settings)
+- All `MasChoiceMappings` rows
+
+The duplicated form type is independent — changes to it do not affect the source.
+
+### Exporting a Form Type
+
+Click **Export** on any card → browser downloads `form_type_<code>.json`.
+
+The file is a self-contained JSON bundle:
+
+```json
+{
+  "schema_version": 1,
+  "exported_at": "2026-03-10T12:00:00+00:00",
+  "form_type": {
+    "form_type_code": "WHO_2022_VA",
+    "form_type_name": "WHO 2022 VA",
+    "form_type_description": "...",
+    "base_template_path": null,
+    "mapping_version": 1
+  },
+  "categories": [ { "category_code": "A", "category_name": "...", "display_order": 1, "is_active": true } ],
+  "subcategories": [ { "category_code": "A", "subcategory_code": "A1", ... } ],
+  "fields": [ { "field_id": "Id10007", "short_label": "...", "odk_label": "...", ... } ],
+  "choices": [ { "field_id": "Id10007", "choice_value": "1", "choice_label": "Yes", ... } ]
+}
+```
+
+Route: `GET /admin/api/form-types/<code>/export`
+The file is safe to commit to version control and share between environments.
+
+### Importing a Form Type
+
+Click **Import** in the panel header. A modal prompts for a `.json` export file.
+
+On file selection, a preview strip shows the embedded code/name/counts before committing.
+
+If the code already exists in this database, the import will fail with a conflict error.
+Use the **"Import with a different code / name"** toggle to override the code, name,
+and description before submitting.
+
+On submit → `POST /admin/api/form-types/import` (multipart form, file + optional override fields)
+
+The response includes creation stats:
+
+```json
+{
+  "form_type_code": "WHO_2022_VA_COPY",
+  "form_type_name": "WHO 2022 VA Copy",
+  "categories_created": 14,
+  "subcategories_created": 42,
+  "fields_created": 410,
+  "choices_created": 1203
+}
+```
+
+Import always creates a new form type. It does **not** update or merge into an existing one.
+
+---
+
+## Admin UI — Field Management
+
+Click **Fields** on any form type card to open the field list sub-panel.
+
+### Field List
+
+Displays all fields for the selected form type in a table:
+
+| Column | Source |
+|--------|--------|
+| Field ID | ODK variable name (read-only) |
+| ODK Label | Synced from XLSForm `survey` sheet |
+| Short Label | App-level display label for coding screens |
+| Category / Sub-category | Display grouping |
+| Type | `select_one`, `integer`, `text`, etc. |
+| Flip | Inverts colour coding in the UI |
+| Info | Marks field as informational (no coding) |
+| Summary | Include in the case summary panel |
+| PII | Field contains personally identifiable information |
+| Source | `ODK` (from sync) or `App` (custom) |
+
+Route: `GET /admin/panels/field-mapping/fields?form_type=<code>`
+
+### Editing a Field
+
+Click the pencil icon on any row to open the edit modal. Editable fields:
+
+| Field | Notes |
+|-------|-------|
+| **Short Label** | Display label in coding screen |
+| **Full Label** | Expanded label (tooltips, detail views) |
+| **Summary Label** | Label used in the summary panel |
+| **Category** | Assigns the field to a display category |
+| **Sub-category** | Assigns the field to a display sub-category |
+| **Age Group** | `neonate`, `child`, `adult`, or blank |
+| **Field Type** | Override the ODK field type |
+| **Flip Color** | Toggle colour inversion |
+| **Is Info** | Toggle informational flag |
+| **Summary Include** | Toggle summary inclusion |
+| **Is PII** | Toggle PII flag |
+| **PII Type** | Type of PII (name, dob, address, etc.) |
+
+The modal also shows **ODK Label** and **Field ID** as read-only reference.
+
+Hover tooltips on each label explain the field's purpose.
+
+On submit → `POST /admin/panels/field-mapping/field/<form_type_code>/<field_id>`
+On success the table row updates in-place (HTMX `outerHTML` swap) and the modal closes.
+
+---
+
+## Admin UI — ODK Sync
+
+Click **Sync ODK** on any form type card to open the sync sub-panel.
+
+### Selecting the ODK Source
+
+Three cascading dropdowns:
+
+1. **ODK Connection** — lists active connections from `MasOdkConnections`
+   (auto-selects if only one active connection)
+2. **ODK Project** — populated via `GET /admin/api/odk-connections/<id>/odk-projects`
+3. **ODK Form** — populated via `GET /admin/api/odk-connections/<id>/odk-projects/<pid>/forms`
+
+Both **Preview Changes** and **Run Sync** buttons are disabled until a form is selected.
+
+### Preview Changes
+
+Click **Preview Changes** → `POST /admin/panels/field-mapping/sync/preview`
+
+Runs a dry-run (no DB writes). Shows colour-coded tables:
+
+| Colour | Meaning |
+|--------|---------|
+| Blue | Field ODK label updates |
+| Green | New choices to be added |
+| Yellow | Existing choices with changed labels |
+
+### Running a Sync
+
+Click **Run Sync** → `POST /admin/panels/field-mapping/sync`
+
+The sync service:
+1. Downloads the XLSForm XLSX from ODK Central via pyODK
+2. Parses the **`survey`** sheet: reads `name`, `type`, `label*` columns
+3. Parses the **`choices`** sheet: reads `list_name`, `name`, `label*` columns
+4. Joins on `list_name` extracted from `type` strings like `select_one <list_name>`
+5. For each field in the DB (`MasFieldDisplayConfig`): updates `odk_label` if changed
+6. For each choice in the XLSForm: upserts into `MasChoiceMappings`
+   - New choices are inserted
+   - Existing choices with changed labels are updated
+   - **No choices are deactivated** (sync is additive only — see below)
+
+**Result table** shows: fields processed, ODK labels updated, choices added, choices updated.
+
+### Why Sync is Additive-Only
+
+The WHO VA XLSForm is a universal template covering all deployment sites (India, Australia,
+Thailand, etc.). A site-specific ODK project only contains the choices relevant to that
+site. Deactivating against one site's form would silently remove choices used by other
+sites. Choices seeded from `resource/mapping/mapping_choices.xlsx` are the canonical
+source; ODK sync only augments them.
+
+### Label Column Discovery
+
+XLSForm label columns vary by form (`label`, `label::English (en)`, `label::English`, etc.).
+The sync service picks the first column whose name starts with `label`.
+
+---
+
 ## Implementation Checklist
 
-### Phase 0: ODK Schema Sync (Recommended First)
-- [ ] Add `va_form_schema_sync()` service function
-- [ ] Add admin API endpoint to trigger sync
-- [ ] Test with existing WHO VA form
-- [ ] Verify choice extraction works
-- [ ] Add Celery task for periodic sync
+### Phase 0: ODK Schema Sync
+- [x] Add `OdkSchemaSyncService` with `sync_form_choices` and `detect_schema_changes`
+- [x] Add `preview_sync` (dry-run mode)
+- [x] Switch from `/fields` API to XLSX as primary source
+- [x] Parse both `survey` and `choices` sheets
+- [x] Additive-only sync (no deactivation)
+- [x] `odk_label` stored in `MasFieldDisplayConfig`
+- [x] Admin UI with cascading Connection → Project → Form selectors
+- [x] Preview Changes before committing
 
 ### Phase 1: Database Setup
-- [ ] Create migration for `mas_form_types`
-- [ ] Create migration for `mas_category_order`
-- [ ] Create migration for `mas_subcategory_order`
-- [ ] Create migration for `mas_field_display_config` (includes `is_pii`, `pii_type`)
-- [ ] Create migration for `mas_choice_mappings`
-- [ ] Create migration for `mas_pii_access_log`
-- [ ] Add `form_type_id` column to `va_forms`
-- [ ] Create SQLAlchemy models
+- [x] Migration for `mas_form_types`
+- [x] Migration for `mas_category_order`
+- [x] Migration for `mas_subcategory_order`
+- [x] Migration for `mas_field_display_config` (includes `is_pii`, `pii_type`, `odk_label`)
+- [x] Migration for `mas_choice_mappings`
+- [x] Migration for `mas_pii_access_log`
+- [x] `form_type_id` column on `va_forms`
+- [x] SQLAlchemy models
 
 ### Phase 2: Data Migration
-- [ ] Create WHO VA 2022 form type
-- [ ] Run ODK schema sync to populate choices
-- [ ] Migrate display config from Excel (category, labels, flip, PII flags, etc.)
-- [ ] Mark PII fields (Id10010, Id10017, Id10018, Id10061, Id10062, etc.)
-- [ ] Link existing forms to form type
-- [ ] Update render functions to use DB
+- [x] WHO VA 2022 form type registered
+- [x] Display config migrated from Excel via `Who2022VaMigrator`
+- [x] Choices populated from `mapping_choices.xlsx`
+- [x] Existing forms linked to form type
 
 ### Phase 3: PII Handling
-- [ ] Add PII masking to display render functions
-- [ ] Add role-based PII access control
-- [ ] Add PII access logging
-- [ ] Add `include_pii` parameter to exports
-- [ ] Test PII masking for different roles
+- [x] PII flags on fields (`is_pii`, `pii_type`)
+- [ ] PII masking in display render functions
+- [ ] Role-based PII access control
+- [ ] PII access logging (`mas_pii_access_log`)
+- [ ] `include_pii` parameter for exports
 
 ### Phase 4: New Form Support
-- [ ] Create new form type record
-- [ ] Run ODK schema sync for new form
-- [ ] Configure display settings (category, labels, PII, etc.)
-- [ ] Test sync with new form type
-- [ ] Test display with new form type
+- [x] Create new form type via admin UI (blank or duplicate)
+- [x] Export / import form type bundles (JSON)
+- [x] ODK sync per form type
+- [ ] Render pipeline using form-type-specific mappings for non-WHO forms
 
-### Phase 5: Admin UI (Future)
-- [ ] Form type management page
-- [ ] Field display config CRUD interface
-- [ ] PII field marking interface
-- [ ] "Sync from ODK" button per form
+### Phase 5: Admin UI
+- [x] Form type management page (create, duplicate, export, import)
+- [x] Field display config edit interface (modal, inline row update)
+- [x] PII field marking in field editor
+- [x] ODK sync UI per form type (cascading selectors, preview, run)
 - [ ] Unmapped fields warning dashboard
-- [ ] Import/Export functionality
+- [ ] Celery task for periodic sync
 
 ---
 
 ## Related Files
 
-### Current Implementation
-- [`app/services/va_mapping/va_mapping_01_fieldsitepi.py`](../../app/services/va_mapping/va_mapping_01_fieldsitepi.py) - Generates field mapping
-- [`app/services/va_mapping/va_mapping_03_choice.py`](../../app/services/va_mapping/va_mapping_03_choice.py) - Generates choice mapping
-- [`app/utils/va_render/va_render_06_processcategorydata.py`](../../app/utils/va_render/va_render_06_processcategorydata.py) - Uses mappings for display
-- [`resource/mapping/mapping_labels.xlsx`](../../resource/mapping/mapping_labels.xlsx) - Field definitions
-- [`resource/mapping/mapping_choices.xlsx`](../../resource/mapping/mapping_choices.xlsx) - Choice definitions
+### Services
+- [`app/services/form_type_service.py`](../../app/services/form_type_service.py) — CRUD, duplicate, export, import
+- [`app/services/odk_schema_sync_service.py`](../../app/services/odk_schema_sync_service.py) — ODK XLSForm sync
+- [`app/services/field_mapping_service.py`](../../app/services/field_mapping_service.py) — runtime rendering service
+
+### Routes
+- [`app/routes/admin.py`](../../app/routes/admin.py) — all field mapping admin routes (lines ~1089–1360)
+
+### Templates
+- [`app/templates/admin/panels/field_mapping.html`](../../app/templates/admin/panels/field_mapping.html) — main panel (form cards, import/export modals)
+- [`app/templates/admin/panels/field_mapping_field_edit.html`](../../app/templates/admin/panels/field_mapping_field_edit.html) — field edit modal
+- [`app/templates/admin/panels/field_mapping_field_row.html`](../../app/templates/admin/panels/field_mapping_field_row.html) — table row partial (returned on save)
+- [`app/templates/admin/panels/field_mapping_fields.html`](../../app/templates/admin/panels/field_mapping_fields.html) — field list sub-panel
+- [`app/templates/admin/panels/field_mapping_sync.html`](../../app/templates/admin/panels/field_mapping_sync.html) — ODK sync sub-panel
+
+### Models
+- [`app/models/va_field_mapping.py`](../../app/models/va_field_mapping.py) — all field mapping models
+
+### Tests
+- [`tests/services/test_odk_schema_sync.py`](../../tests/services/test_odk_schema_sync.py) — 10 tests covering sync service
+
+### Seed / Migration Data
+- [`resource/mapping/mapping_labels.xlsx`](../../resource/mapping/mapping_labels.xlsx) — source field definitions
+- [`resource/mapping/mapping_choices.xlsx`](../../resource/mapping/mapping_choices.xlsx) — source choice definitions
 
 ### Related Documentation
-- [ODK Sync](odk-sync.md) - How submissions are downloaded
-- [Data Model](data-model.md) - Database schema
+- [ODK Sync](odk-sync.md) — how submissions are downloaded
+- [Data Model](data-model.md) — database schema
+- [Admin and Setup](admin-and-setup.md) — admin panel overview
 - [Architecture Overview](architecture-overview.md) - System architecture

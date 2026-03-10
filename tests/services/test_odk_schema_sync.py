@@ -67,9 +67,9 @@ class TestOdkSchemaSyncService(BaseTestCase):
             svc = OdkSchemaSyncService()
             stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
 
-        for key in ("fields_processed", "choices_added", "choices_updated",
-                    "choices_deactivated", "errors"):
+        for key in ("fields_processed", "choices_added", "choices_updated", "errors"):
             self.assertIn(key, stats, f"Missing key: {key}")
+        self.assertNotIn("choices_deactivated", stats)
 
     def test_03_sync_adds_new_choices(self):
         """Sync adds choices from ODK fields endpoint."""
@@ -140,8 +140,13 @@ class TestOdkSchemaSyncService(BaseTestCase):
         db.session.refresh(existing)
         self.assertEqual(existing.choice_label, "New Label")
 
-    def test_05_sync_deactivates_removed_choices(self):
-        """Sync deactivates choices no longer present in ODK."""
+    def test_05_sync_never_deactivates_choices(self):
+        """Sync does not deactivate choices absent from ODK (additive only).
+
+        Choices seeded from the WHO VA template cover all sites; a
+        site-specific ODK form only has a subset.  Deactivating against
+        one form would incorrectly remove other sites' choices.
+        """
         from unittest.mock import patch
         from app.services.odk_schema_sync_service import OdkSchemaSyncService
 
@@ -172,9 +177,10 @@ class TestOdkSchemaSyncService(BaseTestCase):
             svc = OdkSchemaSyncService()
             stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
 
-        self.assertEqual(stats["choices_deactivated"], 1, stats)
+        # choice was NOT deactivated — sync is additive only
         db.session.refresh(old_choice)
-        self.assertFalse(old_choice.is_active)
+        self.assertTrue(old_choice.is_active)
+        self.assertNotIn("choices_deactivated", stats)
 
     def test_06_sync_unchanged_choice_not_counted(self):
         """Sync does not count a choice as updated if label is unchanged."""
@@ -211,8 +217,8 @@ class TestOdkSchemaSyncService(BaseTestCase):
         self.assertEqual(stats["choices_updated"], 0, stats)
         self.assertEqual(stats["choices_added"], 0, stats)
 
-    def test_07_non_select_fields_skipped(self):
-        """Fields that are not select type are ignored."""
+    def test_07_non_select_fields_do_not_add_choices(self):
+        """Non-select fields never produce choice records."""
         from unittest.mock import patch
         from app.services.odk_schema_sync_service import OdkSchemaSyncService
 
@@ -227,16 +233,19 @@ class TestOdkSchemaSyncService(BaseTestCase):
             svc = OdkSchemaSyncService()
             stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
 
+        # Fields not in MasFieldDisplayConfig → fields_processed = 0
         self.assertEqual(stats["fields_processed"], 0)
         self.assertEqual(stats["choices_added"], 0)
 
-    def test_08_fields_processed_counts_select_fields(self):
-        """fields_processed counts only select-type fields with choices."""
+    def test_08_fields_processed_counts_db_matched_fields(self):
+        """fields_processed counts all ODK fields that exist in MasFieldDisplayConfig."""
         from unittest.mock import patch
         from app.services.odk_schema_sync_service import OdkSchemaSyncService
 
         with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
+            # These field names don't exist in MasFieldDisplayConfig in the test DB,
+            # so fields_processed stays 0 regardless of type.
             mock_client.get.return_value = _mock_odk_response([
                 {
                     "name": "Sel1",
@@ -255,7 +264,10 @@ class TestOdkSchemaSyncService(BaseTestCase):
             svc = OdkSchemaSyncService()
             stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
 
-        self.assertEqual(stats["fields_processed"], 2)
+        # None of Sel1/Sel2/TextF exist in the test MasFieldDisplayConfig
+        self.assertEqual(stats["fields_processed"], 0)
+        # Choices are still upserted even without a DB field_config match
+        self.assertEqual(stats["choices_added"], 2)
 
     def test_09_detect_changes_unknown_form_type(self):
         """detect_schema_changes returns error for unknown form type."""

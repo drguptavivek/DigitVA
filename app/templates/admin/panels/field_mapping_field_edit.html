@@ -17,55 +17,132 @@
   </div>
 
   <div class="modal-body">
+
+    {# Source legend #}
+    <div class="d-flex gap-3 mb-3 px-2 py-1 bg-light rounded border small text-muted">
+      <span><span class="badge bg-secondary">ODK</span> from XLSForm</span>
+      <span><span class="badge bg-primary">App</span> shown in coding screens</span>
+      <span class="ms-auto"><i class="fa-solid fa-circle-info me-1"></i>Hover <i class="fa-solid fa-circle-info fa-xs"></i> for details</span>
+    </div>
+
     <div class="row g-3">
-      <div class="col-12">
-        <label class="form-label small fw-semibold mb-1">Field ID</label>
+
+      {# Field ID #}
+      <div class="col-sm-5">
+        <label class="form-label small fw-semibold mb-1">
+          Field ID
+          <span class="badge bg-secondary ms-1 align-middle" style="font-size:0.65rem;">ODK</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="right"
+             data-bs-title="The raw variable name from the ODK XLSForm. Used to match submission answers — cannot be changed here."></i>
+        </label>
         <input type="text" class="form-control form-control-sm font-monospace"
                value="{{ field.field_id }}" disabled>
       </div>
 
-      <div class="col-sm-6">
-        <label class="form-label small fw-semibold mb-1">Short Label</label>
-        <input type="text" class="form-control form-control-sm" name="short_label"
-               value="{{ field.short_label or '' }}">
-        <div class="form-text">Displayed in the VA form view.</div>
+      {# ODK Label — synced from XLSForm, read-only #}
+      <div class="col-sm-7">
+        <label class="form-label small fw-semibold mb-1">
+          ODK Label
+          <span class="badge bg-secondary ms-1 align-middle" style="font-size:0.65rem;">ODK</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="The question label as it appears in the ODK XLSForm. Synced automatically — use this as a reference when writing your Short Label."></i>
+        </label>
+        <input type="text" class="form-control form-control-sm text-muted"
+               value="{{ field.odk_label or '—' }}" disabled>
       </div>
 
+      {# Short Label #}
       <div class="col-sm-6">
-        <label class="form-label small fw-semibold mb-1">Full Label</label>
+        <label class="form-label small fw-semibold mb-1">
+          Short Label
+          <span class="badge bg-primary ms-1 align-middle" style="font-size:0.65rem;">App</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="The concise heading coders see in coding screens. Keep it brief (≤ 40 chars) — this is read at a glance."></i>
+        </label>
+        <input type="text" class="form-control form-control-sm" name="short_label"
+               value="{{ field.short_label or '' }}">
+      </div>
+
+      {# Full Label #}
+      <div class="col-sm-6">
+        <label class="form-label small fw-semibold mb-1">
+          Full Label
+          <span class="badge bg-primary ms-1 align-middle" style="font-size:0.65rem;">App</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="The complete question wording. Shown as a tooltip or in detail views during coding to give coders context."></i>
+        </label>
         <input type="text" class="form-control form-control-sm" name="full_label"
                value="{{ field.full_label or '' }}">
       </div>
 
+      {# Display Options #}
       <div class="col-12">
-        <label class="form-label small fw-semibold mb-2">Display Options</label>
+        <label class="form-label small fw-semibold mb-2">
+          Display Options
+          <span class="badge bg-primary ms-1 align-middle" style="font-size:0.65rem;">App</span>
+        </label>
         <div class="d-flex flex-wrap gap-3">
+
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="flip_color"
                    id="fce-flip" {% if field.flip_color %}checked{% endif %}>
-            <label class="form-check-label small" for="fce-flip">Flip Colour</label>
+            <label class="form-check-label small" for="fce-flip">
+              Flip Colour
+              <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+                 data-bs-toggle="tooltip" data-bs-placement="top"
+                 data-bs-title="Normally a Yes answer is highlighted as notable. Check this when No is the concerning answer — e.g. 'Was a doctor present?' where No is significant."></i>
+            </label>
           </div>
+
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="is_info"
                    id="fce-info" {% if field.is_info %}checked{% endif %}>
-            <label class="form-check-label small" for="fce-info">Info Field</label>
+            <label class="form-check-label small" for="fce-info">
+              Info Field
+              <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+                 data-bs-toggle="tooltip" data-bs-placement="top"
+                 data-bs-title="Field is displayed in coding screens for context only — no coding decision expected. Use for fields like interview date, respondent name, or site ID."></i>
+            </label>
           </div>
+
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="summary_include"
                    id="fce-sum" {% if field.summary_include %}checked{% endif %}>
-            <label class="form-check-label small" for="fce-sum">Include in Summary</label>
+            <label class="form-check-label small" for="fce-sum">
+              Include in Summary
+              <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+                 data-bs-toggle="tooltip" data-bs-placement="top"
+                 data-bs-title="Field value appears in the case summary panel shown to coders during review. Use for key demographic or diagnostic fields."></i>
+            </label>
           </div>
+
           <div class="form-check">
             <input class="form-check-input" type="checkbox" name="is_pii"
                    id="fce-pii" {% if field.is_pii %}checked{% endif %}
                    onchange="document.getElementById('fce-pii-type').style.display=this.checked?'block':'none'">
-            <label class="form-check-label small" for="fce-pii">PII Field</label>
+            <label class="form-check-label small" for="fce-pii">
+              PII Field
+              <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+                 data-bs-toggle="tooltip" data-bs-placement="top"
+                 data-bs-title="Field contains personally identifiable information (name, location, ID number, etc.). PII fields may be masked in exports and restricted under data governance rules."></i>
+            </label>
           </div>
+
         </div>
       </div>
 
+      {# PII Type — conditional #}
       <div class="col-sm-4" id="fce-pii-type" style="{{ 'display:none' if not field.is_pii else '' }}">
-        <label class="form-label small fw-semibold mb-1">PII Type</label>
+        <label class="form-label small fw-semibold mb-1">
+          PII Type
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="right"
+             data-bs-title="Categorises what kind of PII this field holds — used for data classification and access control."></i>
+        </label>
         <select class="form-select form-select-sm" name="pii_type">
           <option value="">Select…</option>
           {% for t in ['name','location','identifier','date','contact','other'] %}
@@ -73,6 +150,7 @@
           {% endfor %}
         </select>
       </div>
+
     </div>
   </div>
 
@@ -84,3 +162,10 @@
     </button>
   </div>
 </form>
+
+<script>
+// Initialise Bootstrap tooltips for all .fme-tooltip elements injected by HTMX
+document.querySelectorAll('.fme-tooltip').forEach(function (el) {
+  new bootstrap.Tooltip(el, { trigger: 'hover focus' });
+});
+</script>

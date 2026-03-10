@@ -1232,6 +1232,43 @@ def admin_panel_field_mapping_sync():
     )
 
 
+@admin.post("/panels/field-mapping/sync/preview")
+def admin_panel_field_mapping_sync_preview():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.odk_schema_sync_service import get_sync_service
+    data = request.get_json(force=True)
+    form_type_code = data.get("form_type_code")
+    odk_project_id = data.get("odk_project_id")
+    odk_form_id = data.get("odk_form_id")
+    connection_id_str = data.get("connection_id")
+
+    if not all([form_type_code, odk_project_id, odk_form_id, connection_id_str]):
+        return _json_error("Missing required fields.", 400)
+
+    try:
+        conn_uuid = uuid.UUID(connection_id_str)
+    except (ValueError, AttributeError):
+        return _json_error("Invalid connection_id.", 400)
+
+    conn = db.session.get(MasOdkConnections, conn_uuid)
+    if not conn:
+        return _json_error("ODK connection not found.", 404)
+    if conn.status.value != "active":
+        return _json_error(f"ODK connection '{conn.connection_name}' is not active.", 400)
+
+    client = _get_odk_client_for_connection(conn)
+    result = get_sync_service().preview_sync(
+        form_type_code, int(odk_project_id), odk_form_id, client=client
+    )
+    return jsonify(result)
+
+
 @admin.post("/panels/field-mapping/sync")
 def admin_panel_field_mapping_sync_run():
     denied = _require_admin_ui_access()
@@ -1246,11 +1283,26 @@ def admin_panel_field_mapping_sync_run():
     form_type_code = data.get("form_type_code")
     odk_project_id = data.get("odk_project_id")
     odk_form_id = data.get("odk_form_id")
+    connection_id_str = data.get("connection_id")
 
-    if not all([form_type_code, odk_project_id, odk_form_id]):
-        return _json_error("Missing form_type_code, odk_project_id, or odk_form_id.", 400)
+    if not all([form_type_code, odk_project_id, odk_form_id, connection_id_str]):
+        return _json_error("Missing form_type_code, connection_id, odk_project_id, or odk_form_id.", 400)
 
-    stats = get_sync_service().sync_form_choices(form_type_code, int(odk_project_id), odk_form_id)
+    try:
+        conn_uuid = uuid.UUID(connection_id_str)
+    except (ValueError, AttributeError):
+        return _json_error("Invalid connection_id.", 400)
+
+    conn = db.session.get(MasOdkConnections, conn_uuid)
+    if not conn:
+        return _json_error("ODK connection not found.", 404)
+    if conn.status.value != "active":
+        return _json_error(f"ODK connection '{conn.connection_name}' is not active.", 400)
+
+    client = _get_odk_client_for_connection(conn)
+    stats = get_sync_service().sync_form_choices(
+        form_type_code, int(odk_project_id), odk_form_id, client=client
+    )
     return jsonify(stats)
 
 

@@ -128,6 +128,7 @@ class MasFieldDisplayConfig(db.Model):
     subcategory_code: so.Mapped[str | None] = so.mapped_column(sa.String(64))
 
     # Display labels
+    odk_label: so.Mapped[str | None] = so.mapped_column(sa.Text)  # synced from ODK XLSForm
     short_label: so.Mapped[str | None] = so.mapped_column(sa.String(256))
     full_label: so.Mapped[str | None] = so.mapped_column(sa.Text)
     summary_label: so.Mapped[str | None] = so.mapped_column(sa.String(256))

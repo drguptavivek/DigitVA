@@ -545,3 +545,120 @@ class AdminApiTests(BaseTestCase):
             headers=headers
         )
         self.assertEqual(self_toggle.status_code, 400)
+
+    def test_orphaned_grants_api(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        # Create a project and site
+        prj_resp = self.client.post("/admin/api/projects", json={
+            "project_id": "ORPH01", "project_name": "Orphan", "project_nickname": "ORPH"
+        }, headers=headers)
+        site_resp = self.client.post("/admin/api/sites", json={
+            "site_id": "OR01", "site_name": "Orphan Site", "site_abbr": "ORPH"
+        }, headers=headers)
+        
+        # Create a mapping
+        map_resp = self.client.post("/admin/api/project-sites", json={
+            "project_id": "ORPH01", "site_id": "OR01"
+        }, headers=headers)
+        ps_id = map_resp.get_json()["project_site"]["project_site_id"]
+        
+        # Create a grant
+        grant_resp = self.client.post("/admin/api/access-grants", json={
+            "user_id": self.target_id,
+            "role": "reviewer",
+            "scope_type": "project_site",
+            "project_site_id": ps_id
+        }, headers=headers)
+        
+        # Deactivate mapping
+        self.client.post(f"/admin/api/project-sites/{ps_id}/toggle", headers=headers)
+        
+        # Fetch orphaned
+        orphaned_resp = self.client.get("/admin/api/access-grants/orphaned")
+        self.assertEqual(orphaned_resp.status_code, 200)
+        grants = orphaned_resp.get_json()["grants"]
+        self.assertTrue(any(g["project_site_id"] == ps_id for g in grants))
+
+    def test_odk_connections_crud(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        
+        # Create
+        create_resp = self.client.post("/admin/api/odk-connections", json={
+            "connection_name": "Test ODK",
+            "base_url": "https://odk.example.com",
+            "username": "admin@example.com",
+            "password": "password123"
+        }, headers=headers)
+        self.assertEqual(create_resp.status_code, 201)
+        conn_id = create_resp.get_json()["connection"]["connection_id"]
+        
+        # List
+        list_resp = self.client.get("/admin/api/odk-connections")
+        self.assertEqual(list_resp.status_code, 200)
+        conns = list_resp.get_json()["connections"]
+        self.assertTrue(any(c["connection_id"] == conn_id for c in conns))
+        
+        # Update
+        update_resp = self.client.put(f"/admin/api/odk-connections/{conn_id}", json={
+            "connection_name": "Updated ODK"
+        }, headers=headers)
+        self.assertEqual(update_resp.status_code, 200)
+        self.assertEqual(update_resp.get_json()["connection"]["connection_name"], "Updated ODK")
+        
+        # Toggle
+        toggle_resp = self.client.post(f"/admin/api/odk-connections/{conn_id}/toggle", headers=headers)
+        self.assertEqual(toggle_resp.status_code, 200)
+        self.assertEqual(toggle_resp.get_json()["status"], "deactive")
+
+    def test_odk_project_assignment(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        
+        # Create a connection
+        create_resp = self.client.post("/admin/api/odk-connections", json={
+            "connection_name": "Assign ODK",
+            "base_url": "https://odk.example.com",
+            "username": "admin@example.com",
+            "password": "password123"
+        }, headers=headers)
+        conn_id = create_resp.get_json()["connection"]["connection_id"]
+        
+        # Assign project
+        assign_resp = self.client.post(f"/admin/api/odk-connections/{conn_id}/assign-project", json={
+            "project_id": self.project_id
+        }, headers=headers)
+        self.assertEqual(assign_resp.status_code, 201)
+        
+        # Fetch connection projects
+        conn_prj_resp = self.client.get(f"/admin/api/odk-connections/{conn_id}/projects")
+        self.assertEqual(conn_prj_resp.status_code, 200)
+        self.assertIn(self.project_id, conn_prj_resp.get_json()["project_ids"])
+        
+        # Unassign project
+        unassign_resp = self.client.delete(f"/admin/api/odk-connections/{conn_id}/assign-project/{self.project_id}", headers=headers)
+        self.assertEqual(unassign_resp.status_code, 200)
+
+    def test_odk_site_mappings(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        
+        # Save mapping
+        save_resp = self.client.post(f"/admin/api/projects/{self.project_id}/odk-site-mappings", json={
+            "site_id": self.site_a,
+            "odk_project_id": 10,
+            "odk_form_id": "test_form"
+        }, headers=headers)
+        self.assertEqual(save_resp.status_code, 201)
+        
+        # List mapping
+        list_resp = self.client.get(f"/admin/api/projects/{self.project_id}/odk-site-mappings")
+        self.assertEqual(list_resp.status_code, 200)
+        mappings = list_resp.get_json()["mappings"]
+        self.assertTrue(any(m["site_id"] == self.site_a and m["odk_project_id"] == 10 for m in mappings))
+        
+        # Delete mapping
+        del_resp = self.client.delete(f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}", headers=headers)
+        self.assertEqual(del_resp.status_code, 200)

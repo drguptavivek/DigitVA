@@ -1,3 +1,4 @@
+import re
 import uuid
 from secrets import token_hex
 
@@ -26,6 +27,41 @@ admin = Blueprint("admin", __name__)
 
 def _json_error(message, status_code):
     return jsonify({"error": message}), status_code
+
+
+def _validate_entity_id(entity_id, length, name="ID"):
+    if not entity_id or len(entity_id) != length:
+        return f"{name} must be exactly {length} characters."
+    if not re.match(r'^[A-Z0-9]+$', entity_id):
+        return f"{name} must contain only uppercase letters and digits."
+    return None
+
+from functools import wraps
+
+def require_api_role(*roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            user = _request_user()
+            if not user or user.user_status != VaStatuses.active:
+                return _json_error("Authentication required.", 401)
+                
+            if "any" in roles:
+                return f(*args, **kwargs)
+                
+            is_admin = user.is_admin()
+            is_pi = bool(user.get_project_pi_projects())
+            
+            if "admin" in roles and is_admin:
+                return f(*args, **kwargs)
+                
+            if "project_pi" in roles and is_pi:
+                return f(*args, **kwargs)
+                
+            return _json_error("Admin API access is not allowed for this user.", 403)
+        return decorated_function
+    return decorator
+
 
 
 def _request_user():
@@ -181,16 +217,8 @@ def _project_access_filter(project_id_expression):
     return sa.false()
 
 
-@admin.before_request
-def _enforce_admin_api_access():
-    if request.path.startswith("/admin/api/"):
-        denied = _require_admin_api_access(_request_user())
-        if denied:
-            return denied
-    return None
-
-
 @admin.get("/api/bootstrap")
+@require_api_role("admin", "project_pi")
 def admin_bootstrap():
     user = _request_user()
     if "csrf_token" not in session:
@@ -221,6 +249,7 @@ def admin_bootstrap():
 
 
 @admin.get("/api/projects")
+@require_api_role("admin", "project_pi")
 def admin_projects():
     user = _request_user()
     master = request.args.get("master") == "1"
@@ -244,6 +273,7 @@ def admin_projects():
 
 
 @admin.post("/api/projects")
+@require_api_role("admin")
 def admin_create_project():
     user = _request_user()
     if not user.is_admin():
@@ -257,8 +287,8 @@ def admin_create_project():
     if not project_id or not project_name or not project_nickname:
         return _json_error("project_id, project_name, and project_nickname are required.", 400)
         
-    if len(project_id) != 6:
-        return _json_error("project_id must be exactly 6 characters.", 400)
+    if err := _validate_entity_id(project_id, 6, "project_id"):
+        return _json_error(err, 400)
         
     existing = db.session.get(VaProjectMaster, project_id)
     if existing:
@@ -277,6 +307,7 @@ def admin_create_project():
 
 
 @admin.put("/api/projects/<project_id>")
+@require_api_role("admin")
 def admin_update_project(project_id):
     user = _request_user()
     if not user.is_admin():
@@ -314,6 +345,7 @@ def admin_update_project(project_id):
 
 
 @admin.post("/api/projects/<project_id>/toggle")
+@require_api_role("admin")
 def admin_toggle_project(project_id):
     user = _request_user()
     if not user.is_admin():
@@ -336,6 +368,7 @@ def admin_toggle_project(project_id):
 
 
 @admin.get("/api/sites")
+@require_api_role("admin", "project_pi")
 def admin_sites():
     user = _request_user()
     master = request.args.get("master") == "1"
@@ -370,6 +403,7 @@ def admin_sites():
 
 
 @admin.post("/api/sites")
+@require_api_role("admin")
 def admin_create_site():
     user = _request_user()
     if not user.is_admin():
@@ -382,8 +416,8 @@ def admin_create_site():
     if not site_id or not site_name or not site_abbr:
         return _json_error("site_id, site_name, and site_abbr are required.", 400)
         
-    if len(site_id) != 4:
-        return _json_error("site_id must be exactly 4 characters.", 400)
+    if err := _validate_entity_id(site_id, 4, "site_id"):
+        return _json_error(err, 400)
         
     existing = db.session.get(VaSiteMaster, site_id)
     if existing:
@@ -401,6 +435,7 @@ def admin_create_site():
 
 
 @admin.put("/api/sites/<site_id>")
+@require_api_role("admin")
 def admin_update_site(site_id):
     user = _request_user()
     if not user.is_admin():
@@ -434,6 +469,7 @@ def admin_update_site(site_id):
 
 
 @admin.post("/api/sites/<site_id>/toggle")
+@require_api_role("admin")
 def admin_toggle_site(site_id):
     user = _request_user()
     if not user.is_admin():
@@ -456,6 +492,7 @@ def admin_toggle_site(site_id):
 
 
 @admin.get("/api/project-sites")
+@require_api_role("admin", "project_pi")
 def admin_project_sites():
     user = _request_user()
     project_id = request.args.get("project_id")
@@ -489,6 +526,7 @@ def admin_project_sites():
 
 
 @admin.post("/api/project-sites")
+@require_api_role("admin", "project_pi")
 def admin_create_project_site():
     user = _request_user()
     payload = request.get_json(silent=True) or {}
@@ -543,6 +581,7 @@ def admin_create_project_site():
 
 
 @admin.post("/api/project-sites/<uuid:project_site_id>/toggle")
+@require_api_role("admin", "project_pi")
 def admin_toggle_project_site(project_site_id):
     user = _request_user()
     mapping = db.session.get(VaProjectSites, project_site_id)
@@ -574,6 +613,7 @@ def _serialize_user(user):
 
 
 @admin.get("/api/users")
+@require_api_role("admin", "project_pi")
 def admin_users():
     user = _request_user()
     query = (request.args.get("query") or "").strip()
@@ -600,6 +640,7 @@ def admin_users():
 
 
 @admin.post("/api/users")
+@require_api_role("admin")
 def admin_create_user():
     user = _request_user()
     if not user.is_admin():
@@ -637,6 +678,7 @@ def admin_create_user():
 
 
 @admin.put("/api/users/<uuid:target_user_id>")
+@require_api_role("admin")
 def admin_update_user(target_user_id):
     user = _request_user()
     if not user.is_admin():
@@ -671,6 +713,7 @@ def admin_update_user(target_user_id):
 
 
 @admin.post("/api/users/<uuid:target_user_id>/toggle")
+@require_api_role("admin")
 def admin_toggle_user(target_user_id):
     user = _request_user()
     if not user.is_admin():
@@ -696,6 +739,7 @@ def admin_toggle_user(target_user_id):
 
 
 @admin.get("/api/access-grants")
+@require_api_role("admin", "project_pi")
 def admin_access_grants():
     user = _request_user()
     project_id_expression = _grant_project_id_expression()
@@ -746,7 +790,57 @@ def admin_access_grants():
     return jsonify({"grants": [_serialize_grant(row) for row in rows]})
 
 
+@admin.get("/api/access-grants/orphaned")
+@require_api_role("admin", "project_pi")
+def admin_orphaned_grants():
+    user = _request_user()
+    project_id_expression = _grant_project_id_expression()
+    site_id_expression = _grant_site_id_expression()
+    
+    stmt = (
+        sa.select(
+            VaUserAccessGrants.grant_id,
+            VaUserAccessGrants.user_id,
+            VaUserAccessGrants.role,
+            VaUserAccessGrants.scope_type,
+            VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.grant_status,
+            VaUserAccessGrants.notes,
+            VaUsers.email,
+            VaUsers.name,
+            project_id_expression.label("resolved_project_id"),
+            site_id_expression.label("resolved_site_id"),
+        )
+        .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
+        .outerjoin(
+            VaProjectSites,
+            VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
+        )
+        .where(
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+            sa.or_(
+                VaProjectSites.project_site_id == None,
+                VaProjectSites.project_site_status == VaStatuses.deactive
+            ),
+            _project_access_filter(project_id_expression),
+        )
+    )
+    
+    project_id = request.args.get("project_id")
+    if project_id:
+        if not _current_user_can_manage_project(user, project_id):
+            return _json_error("You do not have access to that project.", 403)
+        stmt = stmt.where(project_id_expression == project_id)
+        
+    rows = db.session.execute(
+        stmt.order_by(project_id_expression, site_id_expression, VaUsers.email)
+    ).all()
+    return jsonify({"grants": [_serialize_grant(row) for row in rows]})
+
+
 @admin.post("/api/access-grants")
+@require_api_role("admin", "project_pi")
 def admin_create_access_grant():
     acting_user = _request_user()
     payload = request.get_json(silent=True) or {}
@@ -854,6 +948,7 @@ def admin_create_access_grant():
 
 
 @admin.post("/api/access-grants/<uuid:grant_id>/toggle")
+@require_api_role("admin", "project_pi")
 def admin_toggle_access_grant(grant_id):
     user = _request_user()
     grant = db.session.get(VaUserAccessGrants, grant_id)
@@ -875,7 +970,7 @@ def admin_toggle_access_grant(grant_id):
             user,
             resolved_project_id
         ):
-            return _json_error("You do not have access to that project.", 403)
+            return _json_error("This operation is not permitted for this resource.", 403)
 
     grant.grant_status = (
         VaStatuses.deactive
@@ -1019,6 +1114,7 @@ def _get_connection_project_ids(connection_id: uuid.UUID) -> list[str]:
 
 
 @admin.get("/api/odk-connections")
+@require_api_role("admin")
 def admin_odk_connections_list():
     user = _request_user()
     if not user.is_admin():
@@ -1035,6 +1131,7 @@ def admin_odk_connections_list():
 
 
 @admin.post("/api/odk-connections")
+@require_api_role("admin")
 def admin_odk_connections_create():
     user = _request_user()
     if not user.is_admin():
@@ -1090,6 +1187,7 @@ def admin_odk_connections_create():
 
 
 @admin.put("/api/odk-connections/<uuid:connection_id>")
+@require_api_role("admin")
 def admin_odk_connections_update(connection_id):
     user = _request_user()
     if not user.is_admin():
@@ -1155,6 +1253,7 @@ def admin_odk_connections_update(connection_id):
 
 
 @admin.post("/api/odk-connections/<uuid:connection_id>/toggle")
+@require_api_role("admin")
 def admin_odk_connections_toggle(connection_id):
     user = _request_user()
     if not user.is_admin():
@@ -1174,6 +1273,7 @@ def admin_odk_connections_toggle(connection_id):
 
 
 @admin.post("/api/odk-connections/<uuid:connection_id>/test")
+@require_api_role("admin")
 def admin_odk_connections_test(connection_id):
     """Attempt a live authentication check against the ODK server."""
     user = _request_user()
@@ -1213,6 +1313,7 @@ def admin_odk_connections_test(connection_id):
 # ---------------------------------------------------------------------------
 
 @admin.get("/api/odk-connections/<uuid:connection_id>/projects")
+@require_api_role("admin")
 def admin_odk_connection_projects(connection_id):
     user = _request_user()
     if not user.is_admin():
@@ -1226,6 +1327,7 @@ def admin_odk_connection_projects(connection_id):
 
 
 @admin.post("/api/odk-connections/<uuid:connection_id>/assign-project")
+@require_api_role("admin")
 def admin_odk_assign_project(connection_id):
     user = _request_user()
     if not user.is_admin():
@@ -1260,6 +1362,7 @@ def admin_odk_assign_project(connection_id):
 
 
 @admin.delete("/api/odk-connections/<uuid:connection_id>/assign-project/<project_id>")
+@require_api_role("admin")
 def admin_odk_unassign_project(connection_id, project_id):
     user = _request_user()
     if not user.is_admin():
@@ -1300,6 +1403,7 @@ def _get_odk_client_for_connection(conn: MasOdkConnections):
 
 
 @admin.get("/api/odk-connections/<uuid:connection_id>/odk-projects")
+@require_api_role("admin")
 def admin_odk_list_odk_projects(connection_id):
     """List ODK Central projects available on the connection."""
     user = _request_user()
@@ -1323,6 +1427,7 @@ def admin_odk_list_odk_projects(connection_id):
 
 
 @admin.get("/api/odk-connections/<uuid:connection_id>/odk-projects/<int:odk_project_id>/forms")
+@require_api_role("admin")
 def admin_odk_list_forms(connection_id, odk_project_id):
     """List forms in a specific ODK Central project."""
     user = _request_user()
@@ -1351,6 +1456,7 @@ def admin_odk_list_forms(connection_id, odk_project_id):
 # ---------------------------------------------------------------------------
 
 @admin.get("/api/projects/<project_id>/odk-connection")
+@require_api_role("admin")
 def admin_project_odk_connection(project_id):
     """Return the ODK connection linked to this project, or null."""
     user = _request_user()
@@ -1378,6 +1484,7 @@ def admin_project_odk_connection(project_id):
     })
 
 @admin.get("/api/projects/<project_id>/odk-site-mappings")
+@require_api_role("admin")
 def admin_odk_site_mappings_list(project_id):
     """Return ODK form mappings for all sites in a project."""
     user = _request_user()
@@ -1403,6 +1510,7 @@ def admin_odk_site_mappings_list(project_id):
 
 
 @admin.post("/api/projects/<project_id>/odk-site-mappings")
+@require_api_role("admin")
 def admin_odk_site_mappings_save(project_id):
     """Upsert the ODK form mapping for a single project-site.
 
@@ -1425,6 +1533,14 @@ def admin_odk_site_mappings_save(project_id):
         odk_project_id = int(odk_project_id)
     except (TypeError, ValueError):
         return _json_error("odk_project_id must be an integer.", 400)
+        
+    project = db.session.get(VaProjectMaster, project_id)
+    if not project:
+        return _json_error("Project not found.", 404)
+        
+    site = db.session.get(VaSiteMaster, site_id)
+    if not site:
+        return _json_error("Site not found.", 404)
 
     existing = db.session.scalar(
         sa.select(MapProjectSiteOdk).where(
@@ -1457,16 +1573,24 @@ def admin_odk_site_mappings_save(project_id):
 
 
 @admin.delete("/api/projects/<project_id>/odk-site-mappings/<site_id>")
+@require_api_role("admin")
 def admin_odk_site_mappings_delete(project_id, site_id):
     """Remove the ODK form mapping for a project-site."""
     user = _request_user()
     if not user.is_admin():
         return _json_error("Admin access required.", 403)
 
+    project_id = project_id.upper()
+    site_id = site_id.upper()
+    
+    project = db.session.get(VaProjectMaster, project_id)
+    if not project:
+        return _json_error("Project not found.", 404)
+
     mapping = db.session.scalar(
         sa.select(MapProjectSiteOdk).where(
-            MapProjectSiteOdk.project_id == project_id.upper(),
-            MapProjectSiteOdk.site_id == site_id.upper(),
+            MapProjectSiteOdk.project_id == project_id,
+            MapProjectSiteOdk.site_id == site_id,
         )
     )
     if not mapping:

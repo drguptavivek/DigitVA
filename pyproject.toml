@@ -45,13 +45,13 @@ build-backend = "hatchling.build"
 packages = ["app"]
 
 [tool.uv]
-dev-dependencies = [
+override-dependencies = ["pydantic>=2.12.5"]
+
+[dependency-groups]
+dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "ruff>=0.1.0",
-]
-override-dependencies = [
-    "pydantic>=2.12.5",
 ]
 
 [tool.ruff]

@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-10
 ---
 
 # Runtime And Operations
@@ -16,9 +16,9 @@ This document captures the current Python runtime, container setup, migrations, 
 
 Current Python/runtime characteristics:
 
-- Python `3.11` base image in [`Dockerfile`](../../Dockerfile)
+- Python `3.13` base image in [`Dockerfile`](../../Dockerfile)
 - Flask application entrypoint via `FLASK_APP=run.py`
-- primary dependency list in [`requirements.txt`](../../requirements.txt)
+- primary dependency management via `uv` (see [`pyproject.toml`](../../pyproject.toml) and [`uv.lock`](../../uv.lock))
 
 Key current libraries:
 
@@ -35,10 +35,13 @@ Key current libraries:
 - pyodk
 - pydub
 - python-dotenv
+- redis
+- celery
 
 Operational implication:
 
-- this is a conventional synchronous Flask application with ORM-backed DB access and file-based integration steps
+- this is a synchronous Flask application with ORM-backed DB access and file-based integration steps.
+- **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login.
 
 ## Container And Docker Setup
 
@@ -48,9 +51,9 @@ The app container is defined in [`Dockerfile`](../../Dockerfile).
 
 Current behavior:
 
-- starts from `python:3.11-slim`
+- starts from `astral/uv:python3.13-trixie`
 - installs `postgresql-client` and `ffmpeg`
-- installs Python dependencies plus `gunicorn`
+- installs Python dependencies via `uv sync`
 - copies the repo into `/app`
 - marks `resource/smartva` and `boot.sh` executable
 - exposes port `5000`
@@ -68,11 +71,15 @@ Current services:
 
 - `minerva_app_service`
 - `minerva_db_service`
+- `minerva_redis_service`
+- `minerva_worker_service` (Celery worker)
+- `minerva_beat_service` (Celery beat)
 
 Current behavior:
 
 - app is bound to host port `8050`
 - postgres is bound to host port `8450`
+- redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`
 - postgres data is persisted in a named docker volume
 
@@ -139,30 +146,18 @@ So schema migration and data initialization are related but distinct concerns in
 
 ### Current state
 
-I did not find an actual test suite in the repository.
+The project has an automated test suite using `pytest`.
 
-No evidence found for:
-
-- `tests/` directory
-- `pytest` config or test files
-- `unittest` suites
-- CI-oriented test runners in the repo itself
+Key test files:
+- `tests/base.py`: Base test case with DB isolation (savepoints).
+- `tests/test_admin_api.py`: Tests for admin API security and access.
+- `tests/test_auth_grants.py`: Tests for access control and role-based permissions.
+- `tests/test_session.py`: Tests for session timeout and behavior.
+- `tests/test_profile.py`: Tests for user profile updates (e.g., timezone).
 
 Current implication:
-
-- the repository appears to have no committed automated test coverage
-- behavior validation is likely manual and workflow-driven
-
-### Practical consequence
-
-Any refactor of:
-
-- schema
-- sync
-- permissions
-- workflow transitions
-
-will currently rely on manual verification unless a test harness is introduced.
+- Test coverage is being actively built for critical areas like authentication, authorization, and session management.
+- Tests run inside the application container using `uv run python -m pytest tests/`.
 
 ## Logging
 
@@ -257,7 +252,6 @@ This is a simple deployment shape, not a cloud-native split-service architecture
 
 ## Operational Gaps Worth Noting
 
-- no committed automated test suite
 - no implemented email delivery subsystem
 - no UI for infrastructure/admin setup
 - ODK configuration is file-based and global

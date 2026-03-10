@@ -51,6 +51,32 @@ def create_app(config_class=Config):
     from app import services #noqa
     from app import utils #noqa
     
+    import pytz
+    from datetime import datetime
+
+    @app.template_filter('user_timezone')
+    def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):
+        if not dt:
+            return ""
+        if isinstance(dt, str):
+            try:
+                dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+            except ValueError:
+                return dt
+                
+        # If naive, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=pytz.UTC)
+            
+        tz_name = getattr(current_user, 'timezone', 'Asia/Kolkata')
+        try:
+            tz = pytz.timezone(tz_name)
+        except pytz.UnknownTimeZoneError:
+            tz = pytz.timezone('Asia/Kolkata')
+            
+        local_dt = dt.astimezone(tz)
+        return local_dt.strftime(format)
+    
     # @app.before_request
     # def force_password_update():
     #     if current_user.is_authenticated:

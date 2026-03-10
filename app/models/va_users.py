@@ -25,6 +25,9 @@ class VaUsers(UserMixin, db.Model):
     vacode_language: so.Mapped[list[str]] = so.mapped_column(
         ARRAY(sa.String), nullable=False
     )
+    timezone: so.Mapped[str] = so.mapped_column(
+        sa.String(64), default='Asia/Kolkata', nullable=False, server_default='Asia/Kolkata'
+    )
     vacode_formcount: so.Mapped[int] = so.mapped_column(
         sa.Integer, default=0, nullable=False
     )

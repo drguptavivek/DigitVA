@@ -61,6 +61,20 @@
   {{ form.va_update_languages(class="btn btn-primary") }}
 </div>
 
+<div class="content-section mb-4">
+  <h4 class="content-section-title"><i class="fa fa-clock me-2"></i>Time Zone</h4>
+
+  <div class="mb-3">
+    {{ form.va_timezone.label(class="form-label") }}
+    {{ form.va_timezone(class="form-select", id="vaTimezoneSelect") }}
+    {% for error in form.va_timezone.errors %}
+      <div class="text-danger small mt-1">{{ error }}</div>
+    {% endfor %}
+  </div>
+
+  {{ form.va_update_timezone(class="btn btn-primary") }}
+</div>
+
   </form>
 </div>
 
@@ -68,6 +82,10 @@
   $(document).ready(function () {
     $('#vaLangSelect').select2({
       placeholder: "Select VA Languages",
+      width: '100%'
+    });
+    $('#vaTimezoneSelect').select2({
+      placeholder: "Select Time Zone",
       width: '100%'
     });
   });

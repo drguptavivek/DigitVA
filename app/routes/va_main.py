@@ -710,7 +710,14 @@ def va_profile():
         db.session.commit()
         flash("VA Languages updated successfully.", "success")
         return render_template("va_frontpages/va_myprofile.html", form=form)
+    elif form.va_update_timezone.data:
+        current_user.timezone = form.va_timezone.data
+        db.session.commit()
+        flash("Time Zone updated successfully.", "success")
+        return render_template("va_frontpages/va_myprofile.html", form=form)
+        
     form.va_languages.data = current_user.vacode_language
+    form.va_timezone.data = current_user.timezone
     return render_template("va_frontpages/va_myprofile.html", form=form)
 
 

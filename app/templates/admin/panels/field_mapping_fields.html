@@ -1,6 +1,5 @@
 {#
   Field mapping fields list partial — loaded via HTMX into #fm-subpanel.
-  Supports search + category filter with live updates.
 #}
 <div class="card mt-3">
   <div class="card-header d-flex justify-content-between align-items-center">
@@ -40,7 +39,6 @@
                 hx-swap="innerHTML"
                 hx-include="[name='search']">
           <option value="">All Categories</option>
-          {# Unique categories derived from current field list #}
           {% set seen_cats = [] %}
           {% for f in fields %}
             {% if f.category_code and f.category_code not in seen_cats %}
@@ -70,34 +68,26 @@
           <th class="small"></th>
         </tr>
       </thead>
-      <tbody id="fm-fields-tbody">
+      <tbody>
         {% for f in fields %}
         <tr id="fm-field-row-{{ f.field_id }}">
-          <td class="small text-monospace">{{ f.field_id }}</td>
+          <td class="small font-monospace">{{ f.field_id }}</td>
           <td class="small">{{ f.short_label or '—' }}</td>
           <td class="small text-muted">{{ f.category_code or '—' }}</td>
-          <td class="small text-center">
-            {% if f.flip_color %}<i class="fa-solid fa-check text-success"></i>{% endif %}
-          </td>
-          <td class="small text-center">
-            {% if f.is_info %}<i class="fa-solid fa-check text-success"></i>{% endif %}
-          </td>
-          <td class="small text-center">
-            {% if f.is_pii %}<i class="fa-solid fa-shield-halved text-warning"></i>{% endif %}
-          </td>
+          <td class="small text-center">{% if f.flip_color %}<i class="fa-solid fa-check text-success"></i>{% endif %}</td>
+          <td class="small text-center">{% if f.is_info %}<i class="fa-solid fa-check text-success"></i>{% endif %}</td>
+          <td class="small text-center">{% if f.is_pii %}<i class="fa-solid fa-shield-halved text-warning"></i>{% endif %}</td>
           <td class="small text-end">
-            <button class="btn btn-xs btn-outline-secondary py-0 px-1"
+            <button class="btn btn-outline-secondary btn-sm py-0 px-1"
                     hx-get="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ f.field_id }}"
-                    hx-target="#fm-field-edit-{{ f.field_id }}"
+                    hx-target="#fm-edit-modal-body"
                     hx-swap="innerHTML"
+                    data-bs-toggle="modal"
+                    data-bs-target="#fm-edit-modal"
                     title="Edit">
               <i class="fa-solid fa-pen-to-square fa-xs"></i>
             </button>
           </td>
-        </tr>
-        {# Inline edit area (appears below this row on click) #}
-        <tr id="fm-field-edit-{{ f.field_id }}" class="d-none">
-          <td colspan="7" class="p-0"></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -108,14 +98,16 @@
   {% endif %}
 </div>
 
-<script>
-// Toggle the edit row when edit button is clicked
-(function() {
-  document.querySelectorAll('[hx-target^="#fm-field-edit-"]').forEach(function(btn) {
-    btn.addEventListener('htmx:afterSwap', function(evt) {
-      var target = document.querySelector(btn.getAttribute('hx-target'));
-      if (target) target.classList.remove('d-none');
-    });
-  });
-})();
-</script>
+{# Edit modal — shared, populated via HTMX #}
+<div class="modal fade" id="fm-edit-modal" tabindex="-1" aria-labelledby="fm-edit-modal-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div id="fm-edit-modal-body">
+        {# Populated by HTMX before modal opens #}
+        <div class="modal-body text-center py-4">
+          <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

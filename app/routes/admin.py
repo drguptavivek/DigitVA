@@ -1202,6 +1202,13 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         from app.services.field_mapping_service import get_mapping_service
         get_mapping_service().clear_cache()
 
+        # Return updated table row for hx-swap="outerHTML"
+        return render_template(
+            "admin/panels/field_mapping_field_row.html",
+            form_type_code=form_type_code,
+            field=field,
+        )
+
     return render_template(
         "admin/panels/field_mapping_field_edit.html",
         form_type_code=form_type_code,

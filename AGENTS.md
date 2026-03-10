@@ -93,6 +93,7 @@ Saved baseline  test data to private/test_data.sql (15,195 lines). To restore it
       UNSW01NC0101 |         227 |   113 |       114
       UNSW01TR0101 |         227 |   112 |       115
 
+1 test admin user -   - testadmin@digitva.com                                 Admin@123   
 5 test coder users                                                                                                       
   ┌──────┬─────────────────┬────────────────────────────┬───────────┐                                                 
   │ Site │      Name       │           Email            │ Password  │

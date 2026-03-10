@@ -1,79 +1,86 @@
 {#
-  Field edit form partial — loaded inline when user clicks the edit button.
-  Submits via HTMX POST and refreshes in-place.
+  Field edit modal content — loaded into #fm-edit-modal-body via HTMX.
+  On save, refreshes the table row in place.
 #}
-<td colspan="7" class="p-3 bg-light border">
-  <form hx-post="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}"
-        hx-target="#fm-field-edit-{{ field.field_id }}"
-        hx-swap="innerHTML">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<form hx-post="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}"
+      hx-target="#fm-field-row-{{ field.field_id }}"
+      hx-swap="outerHTML"
+      hx-on::after-request="bootstrap.Modal.getInstance(document.getElementById('fm-edit-modal')).hide()">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <div class="row g-2 mb-2">
-      <div class="col-sm-4">
-        <label class="form-label small mb-1">Field ID</label>
-        <input type="text" class="form-control form-control-sm" value="{{ field.field_id }}" disabled>
+  <div class="modal-header">
+    <h5 class="modal-title" id="fm-edit-modal-label">
+      <i class="fa-solid fa-pen-to-square me-2 text-secondary"></i>Edit Field
+    </h5>
+    <button type="button" class="btn-close" aria-label="Close"
+            onclick="bootstrap.Modal.getInstance(document.getElementById('fm-edit-modal')).hide()"></button>
+  </div>
+
+  <div class="modal-body">
+    <div class="row g-3">
+      <div class="col-12">
+        <label class="form-label small fw-semibold mb-1">Field ID</label>
+        <input type="text" class="form-control form-control-sm font-monospace"
+               value="{{ field.field_id }}" disabled>
       </div>
-      <div class="col-sm-4">
-        <label class="form-label small mb-1">Short Label</label>
+
+      <div class="col-sm-6">
+        <label class="form-label small fw-semibold mb-1">Short Label</label>
         <input type="text" class="form-control form-control-sm" name="short_label"
                value="{{ field.short_label or '' }}">
+        <div class="form-text">Displayed in the VA form view.</div>
       </div>
-      <div class="col-sm-4">
-        <label class="form-label small mb-1">Full Label</label>
+
+      <div class="col-sm-6">
+        <label class="form-label small fw-semibold mb-1">Full Label</label>
         <input type="text" class="form-control form-control-sm" name="full_label"
                value="{{ field.full_label or '' }}">
       </div>
-    </div>
 
-    <div class="row g-3 mb-2">
-      <div class="col-auto">
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="flip_color" id="fc-flip-{{ field.field_id }}"
-                 {% if field.flip_color %}checked{% endif %}>
-          <label class="form-check-label small" for="fc-flip-{{ field.field_id }}">Flip Color</label>
+      <div class="col-12">
+        <label class="form-label small fw-semibold mb-2">Display Options</label>
+        <div class="d-flex flex-wrap gap-3">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="flip_color"
+                   id="fce-flip" {% if field.flip_color %}checked{% endif %}>
+            <label class="form-check-label small" for="fce-flip">Flip Colour</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="is_info"
+                   id="fce-info" {% if field.is_info %}checked{% endif %}>
+            <label class="form-check-label small" for="fce-info">Info Field</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="summary_include"
+                   id="fce-sum" {% if field.summary_include %}checked{% endif %}>
+            <label class="form-check-label small" for="fce-sum">Include in Summary</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="is_pii"
+                   id="fce-pii" {% if field.is_pii %}checked{% endif %}
+                   onchange="document.getElementById('fce-pii-type').style.display=this.checked?'block':'none'">
+            <label class="form-check-label small" for="fce-pii">PII Field</label>
+          </div>
         </div>
       </div>
-      <div class="col-auto">
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="is_info" id="fc-info-{{ field.field_id }}"
-                 {% if field.is_info %}checked{% endif %}>
-          <label class="form-check-label small" for="fc-info-{{ field.field_id }}">Info Field</label>
-        </div>
-      </div>
-      <div class="col-auto">
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="summary_include" id="fc-sum-{{ field.field_id }}"
-                 {% if field.summary_include %}checked{% endif %}>
-          <label class="form-check-label small" for="fc-sum-{{ field.field_id }}">Summary</label>
-        </div>
-      </div>
-      <div class="col-auto">
-        <div class="form-check form-check-inline">
-          <input class="form-check-input" type="checkbox" name="is_pii" id="fc-pii-{{ field.field_id }}"
-                 {% if field.is_pii %}checked{% endif %}>
-          <label class="form-check-label small" for="fc-pii-{{ field.field_id }}">PII</label>
-        </div>
-      </div>
-      {% if field.is_pii %}
-      <div class="col-auto">
+
+      <div class="col-sm-4" id="fce-pii-type" style="{{ 'display:none' if not field.is_pii else '' }}">
+        <label class="form-label small fw-semibold mb-1">PII Type</label>
         <select class="form-select form-select-sm" name="pii_type">
-          <option value="">PII type…</option>
+          <option value="">Select…</option>
           {% for t in ['name','location','identifier','date','contact','other'] %}
-          <option value="{{ t }}" {% if field.pii_type == t %}selected{% endif %}>{{ t }}</option>
+          <option value="{{ t }}" {% if field.pii_type == t %}selected{% endif %}>{{ t|capitalize }}</option>
           {% endfor %}
         </select>
       </div>
-      {% endif %}
     </div>
+  </div>
 
-    <div class="d-flex gap-2">
-      <button type="submit" class="btn btn-sm btn-primary">
-        <i class="fa-solid fa-floppy-disk me-1"></i>Save
-      </button>
-      <button type="button" class="btn btn-sm btn-outline-secondary"
-              onclick="this.closest('td').closest('tr').classList.add('d-none')">
-        Cancel
-      </button>
-    </div>
-  </form>
-</td>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-secondary btn-sm"
+            onclick="bootstrap.Modal.getInstance(document.getElementById('fm-edit-modal')).hide()">Cancel</button>
+    <button type="submit" class="btn btn-primary btn-sm">
+      <i class="fa-solid fa-floppy-disk me-1"></i>Save Changes
+    </button>
+  </div>
+</form>

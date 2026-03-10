@@ -1,0 +1,23 @@
+{#
+  Single field table row — returned by POST after saving edits.
+  Replaces #fm-field-row-{{ field.field_id }} via hx-swap="outerHTML".
+#}
+<tr id="fm-field-row-{{ field.field_id }}">
+  <td class="small font-monospace">{{ field.field_id }}</td>
+  <td class="small">{{ field.short_label or '—' }}</td>
+  <td class="small text-muted">{{ field.category_code or '—' }}</td>
+  <td class="small text-center">{% if field.flip_color %}<i class="fa-solid fa-check text-success"></i>{% endif %}</td>
+  <td class="small text-center">{% if field.is_info %}<i class="fa-solid fa-check text-success"></i>{% endif %}</td>
+  <td class="small text-center">{% if field.is_pii %}<i class="fa-solid fa-shield-halved text-warning"></i>{% endif %}</td>
+  <td class="small text-end">
+    <button class="btn btn-outline-secondary btn-sm py-0 px-1"
+            hx-get="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}"
+            hx-target="#fm-edit-modal-body"
+            hx-swap="innerHTML"
+            data-bs-toggle="modal"
+            data-bs-target="#fm-edit-modal"
+            title="Edit">
+      <i class="fa-solid fa-pen-to-square fa-xs"></i>
+    </button>
+  </td>
+</tr>

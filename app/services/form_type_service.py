@@ -17,6 +17,8 @@ from app.models import (
     MasChoiceMappings,
 )
 
+EXPORT_SCHEMA_VERSION = 1
+
 
 class FormTypeService:
     """Service for managing VA form type registration and metadata."""
@@ -230,6 +232,221 @@ class FormTypeService:
 
         db.session.commit()
         return new_ft
+
+    def export_form_type(self, form_type_code: str) -> dict:
+        """
+        Serialize a form type and all its child records to a plain dict.
+
+        Raises ValueError if the form type is not found.
+        """
+        ft = db.session.scalar(
+            select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+        )
+        if not ft:
+            raise ValueError(f"Form type not found: {form_type_code}")
+
+        ft_id = ft.form_type_id
+
+        categories = [
+            {
+                "category_code": c.category_code,
+                "category_name": c.category_name,
+                "display_order": c.display_order,
+                "is_active": c.is_active,
+            }
+            for c in db.session.scalars(
+                select(MasCategoryOrder)
+                .where(MasCategoryOrder.form_type_id == ft_id)
+                .order_by(MasCategoryOrder.display_order)
+            ).all()
+        ]
+
+        subcategories = [
+            {
+                "category_code": s.category_code,
+                "subcategory_code": s.subcategory_code,
+                "subcategory_name": s.subcategory_name,
+                "display_order": s.display_order,
+                "is_active": s.is_active,
+            }
+            for s in db.session.scalars(
+                select(MasSubcategoryOrder)
+                .where(MasSubcategoryOrder.form_type_id == ft_id)
+                .order_by(MasSubcategoryOrder.display_order)
+            ).all()
+        ]
+
+        fields = [
+            {
+                "field_id": f.field_id,
+                "category_code": f.category_code,
+                "subcategory_code": f.subcategory_code,
+                "odk_label": f.odk_label,
+                "short_label": f.short_label,
+                "full_label": f.full_label,
+                "summary_label": f.summary_label,
+                "field_type": f.field_type,
+                "age_group": f.age_group,
+                "flip_color": f.flip_color,
+                "is_info": f.is_info,
+                "summary_include": f.summary_include,
+                "is_pii": f.is_pii,
+                "pii_type": f.pii_type,
+                "display_order": f.display_order,
+                "is_active": f.is_active,
+                "is_custom": f.is_custom,
+            }
+            for f in db.session.scalars(
+                select(MasFieldDisplayConfig)
+                .where(MasFieldDisplayConfig.form_type_id == ft_id)
+                .order_by(MasFieldDisplayConfig.display_order)
+            ).all()
+        ]
+
+        choices = [
+            {
+                "field_id": ch.field_id,
+                "choice_value": ch.choice_value,
+                "choice_label": ch.choice_label,
+                "display_order": ch.display_order,
+                "is_active": ch.is_active,
+            }
+            for ch in db.session.scalars(
+                select(MasChoiceMappings)
+                .where(MasChoiceMappings.form_type_id == ft_id)
+                .order_by(MasChoiceMappings.field_id, MasChoiceMappings.display_order)
+            ).all()
+        ]
+
+        return {
+            "schema_version": EXPORT_SCHEMA_VERSION,
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "form_type": {
+                "form_type_code": ft.form_type_code,
+                "form_type_name": ft.form_type_name,
+                "form_type_description": ft.form_type_description,
+                "base_template_path": ft.base_template_path,
+                "mapping_version": ft.mapping_version,
+            },
+            "categories": categories,
+            "subcategories": subcategories,
+            "fields": fields,
+            "choices": choices,
+        }
+
+    def import_form_type(
+        self,
+        data: dict,
+        override_code: str | None = None,
+        override_name: str | None = None,
+        override_description: str | None = None,
+    ) -> tuple["MasFormTypes", dict]:
+        """
+        Create a form type from an exported dict.
+
+        override_code / override_name let the caller rename on import
+        (useful when the code already exists in this database).
+
+        Returns (new_form_type, stats) where stats has:
+          categories_created, subcategories_created, fields_created, choices_created.
+
+        Raises ValueError on schema issues or code conflicts.
+        """
+        schema_version = data.get("schema_version")
+        if schema_version != EXPORT_SCHEMA_VERSION:
+            raise ValueError(
+                f"Unsupported schema_version: {schema_version!r}. "
+                f"Expected {EXPORT_SCHEMA_VERSION}."
+            )
+
+        ft_data = data.get("form_type") or {}
+        code = (override_code or ft_data.get("form_type_code") or "").strip().upper()
+        name = (override_name or ft_data.get("form_type_name") or "").strip()
+        description = override_description if override_description is not None else ft_data.get("form_type_description")
+
+        if not code or not name:
+            raise ValueError("form_type_code and form_type_name are required.")
+
+        if db.session.scalar(select(MasFormTypes).where(MasFormTypes.form_type_code == code)):
+            raise ValueError(f"Form type already exists: {code}")
+
+        now = datetime.now(timezone.utc)
+        new_ft = MasFormTypes(
+            form_type_id=uuid.uuid4(),
+            form_type_code=code,
+            form_type_name=name,
+            form_type_description=description,
+            base_template_path=ft_data.get("base_template_path"),
+            mapping_version=ft_data.get("mapping_version", 1),
+            is_active=True,
+        )
+        db.session.add(new_ft)
+        db.session.flush()
+
+        dst_id = new_ft.form_type_id
+        stats = {"categories_created": 0, "subcategories_created": 0, "fields_created": 0, "choices_created": 0}
+
+        for cat in data.get("categories") or []:
+            db.session.add(MasCategoryOrder(
+                category_order_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                category_code=cat["category_code"],
+                category_name=cat.get("category_name"),
+                display_order=cat.get("display_order", 0),
+                is_active=cat.get("is_active", True),
+            ))
+            stats["categories_created"] += 1
+
+        for sub in data.get("subcategories") or []:
+            db.session.add(MasSubcategoryOrder(
+                subcategory_order_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                category_code=sub["category_code"],
+                subcategory_code=sub["subcategory_code"],
+                subcategory_name=sub.get("subcategory_name"),
+                display_order=sub.get("display_order", 0),
+                is_active=sub.get("is_active", True),
+            ))
+            stats["subcategories_created"] += 1
+
+        for fld in data.get("fields") or []:
+            db.session.add(MasFieldDisplayConfig(
+                config_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                field_id=fld["field_id"],
+                category_code=fld.get("category_code"),
+                subcategory_code=fld.get("subcategory_code"),
+                odk_label=fld.get("odk_label"),
+                short_label=fld.get("short_label"),
+                full_label=fld.get("full_label"),
+                summary_label=fld.get("summary_label"),
+                field_type=fld.get("field_type"),
+                age_group=fld.get("age_group"),
+                flip_color=fld.get("flip_color", False),
+                is_info=fld.get("is_info", False),
+                summary_include=fld.get("summary_include", False),
+                is_pii=fld.get("is_pii", False),
+                pii_type=fld.get("pii_type"),
+                display_order=fld.get("display_order", 0),
+                is_active=fld.get("is_active", True),
+                is_custom=fld.get("is_custom", False),
+            ))
+            stats["fields_created"] += 1
+
+        for ch in data.get("choices") or []:
+            db.session.add(MasChoiceMappings(
+                form_type_id=dst_id,
+                field_id=ch["field_id"],
+                choice_value=ch["choice_value"],
+                choice_label=ch["choice_label"],
+                display_order=ch.get("display_order", 0),
+                is_active=ch.get("is_active", True),
+                synced_at=now,
+            ))
+            stats["choices_created"] += 1
+
+        db.session.commit()
+        return new_ft, stats
 
     def deactivate_form_type(self, form_type_code: str) -> bool:
         """

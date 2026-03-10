@@ -12,6 +12,10 @@
     </h5>
     <div class="d-flex gap-2 align-items-center">
       <span class="badge bg-secondary">{{ form_types|length }} form type(s)</span>
+      <button class="btn btn-sm btn-outline-success"
+              onclick="fmShowImportModal()">
+        <i class="fa-solid fa-file-import me-1"></i>Import
+      </button>
       <button class="btn btn-sm btn-primary"
               onclick="fmShowCreateModal(null)">
         <i class="fa-solid fa-plus me-1"></i>New Form Type
@@ -65,6 +69,11 @@
                   onclick="fmShowCreateModal('{{ stat.form_type_code }}', '{{ stat.form_type_name }}')">
             <i class="fa-solid fa-copy me-1"></i>Duplicate
           </button>
+          <a class="btn btn-sm btn-outline-success flex-fill"
+             href="/admin/api/form-types/{{ stat.form_type_code }}/export"
+             download>
+            <i class="fa-solid fa-file-export me-1"></i>Export
+          </a>
         </div>
       </div>
     </div>
@@ -79,6 +88,83 @@
   {# Sub-panel area #}
   <div id="fm-subpanel" class="mt-2"></div>
 
+</div>
+
+{# Import modal #}
+<div class="modal fade" id="fm-import-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fa-solid fa-file-import me-2 text-secondary"></i>Import Form Type
+        </h5>
+        <button type="button" class="btn-close"
+                onclick="bootstrap.Modal.getInstance(document.getElementById('fm-import-modal')).hide()"></button>
+      </div>
+      <div class="modal-body">
+
+        <div class="mb-3">
+          <label class="form-label small fw-semibold mb-1">
+            JSON Export File <span class="text-danger">*</span>
+          </label>
+          <input type="file" class="form-control form-control-sm" id="fm-import-file"
+                 accept=".json,application/json">
+          <div class="form-text">Select a <code>.json</code> file previously exported from this panel.</div>
+        </div>
+
+        {# Preview strip shown once a valid file is selected #}
+        <div id="fm-import-preview" class="d-none alert alert-secondary small py-2 mb-3">
+          <i class="fa-solid fa-circle-info me-1"></i>
+          <span id="fm-import-preview-text"></span>
+        </div>
+
+        {# Override section — shown if code conflicts or user wants to rename #}
+        <div id="fm-import-overrides" class="border rounded p-3 bg-light mb-2 d-none">
+          <p class="small fw-semibold mb-2 text-warning">
+            <i class="fa-solid fa-triangle-exclamation me-1"></i>
+            <span id="fm-import-conflict-msg">Override form type details before importing:</span>
+          </p>
+          <div class="row g-2">
+            <div class="col-12">
+              <label class="form-label small mb-1">New Form Type Code</label>
+              <input type="text" class="form-control form-control-sm font-monospace text-uppercase"
+                     id="fm-import-code" maxlength="32"
+                     oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'')">
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-1">New Form Type Name</label>
+              <input type="text" class="form-control form-control-sm" id="fm-import-name" maxlength="128">
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-1">Description <span class="text-muted fw-normal">(optional)</span></label>
+              <textarea class="form-control form-control-sm" id="fm-import-desc" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-check form-check-sm mb-2">
+          <input class="form-check-input" type="checkbox" id="fm-import-rename-toggle"
+                 onchange="fmToggleImportOverrides(this.checked)">
+          <label class="form-check-label small" for="fm-import-rename-toggle">
+            Import with a different code / name
+          </label>
+        </div>
+
+        <div id="fm-import-error" class="alert alert-danger small mt-3 d-none py-2"></div>
+        <div id="fm-import-success" class="alert alert-success small mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm"
+                onclick="bootstrap.Modal.getInstance(document.getElementById('fm-import-modal')).hide()">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-success btn-sm" id="fm-import-save-btn"
+                onclick="fmRunImport()" disabled>
+          <i class="fa-solid fa-file-import me-1"></i>Import
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 {# Create / Duplicate modal #}
@@ -230,6 +316,143 @@ function fmSaveFormType() {
     _fmModal.hide();
     // Reload the field-mapping panel to show the new card
     htmx.ajax('GET', '/admin/panels/field-mapping', { target: '#admin-panel', swap: 'innerHTML' });
+  })
+  .catch(function () {
+    btn.disabled = false;
+    errDiv.textContent = 'Network error. Please try again.';
+    errDiv.classList.remove('d-none');
+  });
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+
+var _fmImportModal = null;
+var _fmImportData  = null;  // parsed JSON from selected file
+
+function fmShowImportModal() {
+  _fmImportData = null;
+  document.getElementById('fm-import-file').value = '';
+  document.getElementById('fm-import-preview').classList.add('d-none');
+  document.getElementById('fm-import-overrides').classList.add('d-none');
+  document.getElementById('fm-import-rename-toggle').checked = false;
+  document.getElementById('fm-import-code').value = '';
+  document.getElementById('fm-import-name').value = '';
+  document.getElementById('fm-import-desc').value = '';
+  document.getElementById('fm-import-error').classList.add('d-none');
+  document.getElementById('fm-import-success').classList.add('d-none');
+  document.getElementById('fm-import-save-btn').disabled = true;
+
+  if (!_fmImportModal) _fmImportModal = new bootstrap.Modal(document.getElementById('fm-import-modal'));
+  _fmImportModal.show();
+}
+
+document.getElementById('fm-import-file').addEventListener('change', function () {
+  var file = this.files[0];
+  _fmImportData = null;
+  document.getElementById('fm-import-save-btn').disabled = true;
+  document.getElementById('fm-import-preview').classList.add('d-none');
+  document.getElementById('fm-import-error').classList.add('d-none');
+  document.getElementById('fm-import-success').classList.add('d-none');
+
+  if (!file) return;
+
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      var data = JSON.parse(e.target.result);
+      if (!data.form_type || !data.form_type.form_type_code) {
+        throw new Error('Missing form_type data');
+      }
+      _fmImportData = data;
+      var ft = data.form_type;
+      var cats = (data.categories || []).length;
+      var fields = (data.fields || []).length;
+      var choices = (data.choices || []).length;
+      document.getElementById('fm-import-preview-text').textContent =
+        ft.form_type_code + ' — ' + ft.form_type_name
+        + ' · ' + cats + ' categories · ' + fields + ' fields · ' + choices + ' choices';
+      document.getElementById('fm-import-preview').classList.remove('d-none');
+      document.getElementById('fm-import-save-btn').disabled = false;
+    } catch (err) {
+      var errDiv = document.getElementById('fm-import-error');
+      errDiv.textContent = 'Invalid file: ' + (err.message || 'could not parse JSON');
+      errDiv.classList.remove('d-none');
+    }
+  };
+  reader.readAsText(file);
+});
+
+function fmToggleImportOverrides(show) {
+  var div = document.getElementById('fm-import-overrides');
+  if (show) {
+    div.classList.remove('d-none');
+    // Pre-fill with values from the file
+    if (_fmImportData && _fmImportData.form_type) {
+      var ft = _fmImportData.form_type;
+      document.getElementById('fm-import-code').value = ft.form_type_code || '';
+      document.getElementById('fm-import-name').value = ft.form_type_name || '';
+      document.getElementById('fm-import-desc').value = ft.form_type_description || '';
+    }
+  } else {
+    div.classList.add('d-none');
+  }
+}
+
+function fmRunImport() {
+  if (!_fmImportData) return;
+
+  var errDiv = document.getElementById('fm-import-error');
+  var sucDiv = document.getElementById('fm-import-success');
+  errDiv.classList.add('d-none');
+  sucDiv.classList.add('d-none');
+
+  var btn = document.getElementById('fm-import-save-btn');
+  btn.disabled = true;
+
+  var useOverride = document.getElementById('fm-import-rename-toggle').checked;
+  var formData = new FormData();
+  formData.append('file', document.getElementById('fm-import-file').files[0]);
+  if (useOverride) {
+    var oc = document.getElementById('fm-import-code').value.trim();
+    var on = document.getElementById('fm-import-name').value.trim();
+    var od = document.getElementById('fm-import-desc').value.trim();
+    if (!oc || !on) {
+      errDiv.textContent = 'Code and Name are required when overriding.';
+      errDiv.classList.remove('d-none');
+      btn.disabled = false;
+      return;
+    }
+    formData.append('override_code', oc);
+    formData.append('override_name', on);
+    if (od) formData.append('override_description', od);
+  }
+
+  fetch('/admin/api/form-types/import', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': window._adminCsrf || '' },
+    body: formData,
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+  .then(function (res) {
+    btn.disabled = false;
+    if (!res.ok) {
+      errDiv.textContent = res.data.error || 'Import failed.';
+      errDiv.classList.remove('d-none');
+      return;
+    }
+    var d = res.data;
+    sucDiv.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>'
+      + '<strong>' + d.form_type_code + '</strong> imported — '
+      + d.categories_created + ' categories, '
+      + d.fields_created + ' fields, '
+      + d.choices_created + ' choices.';
+    sucDiv.classList.remove('d-none');
+    document.getElementById('fm-import-save-btn').disabled = true;
+    // Reload panel after short delay so user can read the success message
+    setTimeout(function () {
+      _fmImportModal.hide();
+      htmx.ajax('GET', '/admin/panels/field-mapping', { target: '#admin-panel', swap: 'innerHTML' });
+    }, 1800);
   })
   .catch(function () {
     btn.disabled = false;

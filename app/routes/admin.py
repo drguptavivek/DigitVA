@@ -1140,6 +1140,77 @@ def admin_form_types_duplicate(source_code):
         return _json_error(str(e), 409)
 
 
+@admin.get("/api/form-types/<form_type_code>/export")
+@require_api_role("admin")
+def admin_form_types_export(form_type_code):
+    """Download a form type configuration as a JSON file."""
+    from flask import Response
+    from app.services.form_type_service import get_form_type_service
+    import json
+
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    try:
+        data = get_form_type_service().export_form_type(form_type_code.upper())
+    except ValueError as e:
+        return _json_error(str(e), 404)
+
+    filename = f"form_type_{form_type_code.lower()}.json"
+    return Response(
+        json.dumps(data, indent=2, ensure_ascii=False),
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@admin.post("/api/form-types/import")
+@require_api_role("admin")
+def admin_form_types_import():
+    """Import a form type from an uploaded JSON file."""
+    import json
+
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    uploaded = request.files.get("file")
+    if not uploaded:
+        return _json_error("No file uploaded.", 400)
+
+    try:
+        raw = uploaded.read()
+        if len(raw) > 10 * 1024 * 1024:  # 10 MB safety cap
+            return _json_error("File too large (max 10 MB).", 400)
+        data = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        return _json_error("Invalid JSON file.", 400)
+
+    override_code = (request.form.get("override_code") or "").strip().upper() or None
+    override_name = (request.form.get("override_name") or "").strip() or None
+    override_description = request.form.get("override_description")
+    if override_description is not None:
+        override_description = override_description.strip() or None
+
+    from app.services.form_type_service import get_form_type_service
+    try:
+        ft, stats = get_form_type_service().import_form_type(
+            data,
+            override_code=override_code,
+            override_name=override_name,
+            override_description=override_description,
+        )
+    except ValueError as e:
+        return _json_error(str(e), 409)
+
+    return jsonify({
+        "form_type_code": ft.form_type_code,
+        "form_type_name": ft.form_type_name,
+        **stats,
+    }), 201
+
+
 @admin.get("/panels/field-mapping")
 def admin_panel_field_mapping():
     denied = _require_admin_ui_access()

@@ -38,6 +38,8 @@ class Config:
         "result_backend": os.environ.get("CELERY_RESULT_BACKEND") or REDIS_URL,
         "task_ignore_result": True,
         "beat_dburi": SQLALCHEMY_DATABASE_URI,
+        "timezone": "UTC",
+        "enable_utc": True,
     }
 
 

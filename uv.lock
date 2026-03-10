@@ -135,18 +135,6 @@ wheels = [
 ]
 
 [[package]]
-name = "celery-sqlalchemy-scheduler"
-version = "0.3.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "celery" },
-    { name = "sqlalchemy" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/aa/96/5e54772aad19b7005de1c80414cf82279df9d04b11259e87140c7a0d8583/celery_sqlalchemy_scheduler-0.3.0-py3-none-any.whl", hash = "sha256:116eecd30cdfec4c0bbb5c0285b49e7bdfbbf49e43d7402868177419484f48af", size = 12135, upload-time = "2021-04-19T02:04:43.888Z" },
-]
-
-[[package]]
 name = "certifi"
 version = "2025.1.31"
 source = { registry = "https://pypi.org/simple" }
@@ -411,7 +399,6 @@ dependencies = [
     { name = "audioop-lts" },
     { name = "blinker" },
     { name = "celery" },
-    { name = "celery-sqlalchemy-scheduler" },
     { name = "cryptography" },
     { name = "email-validator" },
     { name = "flask" },
@@ -456,7 +443,6 @@ requires-dist = [
     { name = "audioop-lts", marker = "python_full_version >= '3.13'", specifier = ">=0.2.1" },
     { name = "blinker", specifier = ">=1.9.0" },
     { name = "celery", specifier = ">=5.6.2" },
-    { name = "celery-sqlalchemy-scheduler", specifier = ">=0.3.0" },
     { name = "cryptography", specifier = ">=42.0.0" },
     { name = "email-validator", specifier = ">=2.2.0" },
     { name = "flask", specifier = ">=3.1.0" },

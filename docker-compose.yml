@@ -46,7 +46,7 @@ services:
     build: .
     container_name: minerva_celery_beat
     entrypoint: []
-    command: bash -c "sleep 10 && uv run celery -A make_celery:celery_app beat --loglevel=info -S celery_sqlalchemy_scheduler.schedulers:DatabaseScheduler"
+    command: bash -c "sleep 10 && uv run celery -A make_celery:celery_app beat --loglevel=info -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler"
     volumes:
       - .:/app
     environment:

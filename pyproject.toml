@@ -31,7 +31,6 @@ dependencies = [
     "celery>=5.6.2",
     "redis>=7.3.0",
     "sqlalchemy-celery-beat>=0.8.4",
-    "celery-sqlalchemy-scheduler>=0.3.0",
 ]
 
 [project.optional-dependencies]

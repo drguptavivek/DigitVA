@@ -73,6 +73,7 @@
 62. Do not introduce repeated expensive filesystem work, repeated ODK calls, or repeated SmartVA preparation steps when results can be reused safely.
 63. Optimize only after understanding the hot path, but do not knowingly add obviously inefficient patterns.
 64. When changing query-heavy or sync-heavy code, consider performance, memory use, transaction size, and operational safety as first-class requirements.
+65. Use Timezone aware date time.   <td>{{ submission.created_at | user_timezone }}</td>  <!-- Or optionally provide a custom strftime format: --> <td>{{ submission.created_at | user_timezone('%Y-%m-%d %H:%M') }}</td>
 
 
 ## TEST DATA

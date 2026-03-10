@@ -80,12 +80,17 @@ class OdkSchemaSyncService:
         client=None,
     ) -> dict:
         """
-        Sync field labels and choice mappings for a form from ODK Central.
+        Sync field labels, new fields, and choice mappings for a form from ODK Central.
+
+        New ODK fields not yet in MasFieldDisplayConfig are auto-registered with
+        their odk_label and field_type; all other display attributes are left blank
+        for the admin to configure.
 
         Returns dict with sync statistics.
         """
         stats = {
             "fields_processed": 0,
+            "fields_added": 0,
             "labels_updated": 0,
             "choices_added": 0,
             "choices_updated": 0,
@@ -123,14 +128,18 @@ class OdkSchemaSyncService:
             for field in fields:
                 field_name = field.get("name")
                 field_type = field.get("type", "")
-
-                # Count and label-update every field that exists in our DB
                 odk_label = _extract_label(field.get("label"))
+
+                # Register new fields that don't exist in DB yet
                 matched = self._update_field_odk_label(
                     form_type.form_type_id, field_name, odk_label, stats
                 )
                 if matched:
                     stats["fields_processed"] += 1
+                else:
+                    self._register_new_field(
+                        form_type.form_type_id, field_name, field_type, odk_label, stats
+                    )
 
                 # Choice processing only applies to select fields
                 if not field_type.startswith("select"):
@@ -195,6 +204,7 @@ class OdkSchemaSyncService:
           - errors: [str]
         """
         result = {
+            "new_fields": [],
             "label_changes": [],
             "new_choices": [],
             "updated_choices": [],
@@ -230,22 +240,27 @@ class OdkSchemaSyncService:
             for field in fields:
                 field_name = field.get("name")
                 field_type = field.get("type", "")
-
-                # Check label change
                 odk_label = _extract_label(field.get("label"))
-                if odk_label:
-                    cfg = db.session.scalar(
-                        select(MasFieldDisplayConfig).where(
-                            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
-                            MasFieldDisplayConfig.field_id == field_name,
-                        )
+
+                cfg = db.session.scalar(
+                    select(MasFieldDisplayConfig).where(
+                        MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+                        MasFieldDisplayConfig.field_id == field_name,
                     )
-                    if cfg and cfg.odk_label != odk_label:
-                        result["label_changes"].append({
-                            "field_id": field_name,
-                            "current_label": cfg.odk_label or "",
-                            "new_label": odk_label,
-                        })
+                )
+                if cfg is None:
+                    # Field exists in ODK but not registered in DB
+                    result["new_fields"].append({
+                        "field_id": field_name,
+                        "field_type": field_type,
+                        "odk_label": odk_label,
+                    })
+                elif odk_label and cfg.odk_label != odk_label:
+                    result["label_changes"].append({
+                        "field_id": field_name,
+                        "current_label": cfg.odk_label or "",
+                        "new_label": odk_label,
+                    })
 
                 if not field_type.startswith("select"):
                     continue
@@ -494,6 +509,35 @@ class OdkSchemaSyncService:
                 )
             )
             stats["choices_added"] += 1
+
+    def _register_new_field(
+        self,
+        form_type_id: uuid.UUID,
+        field_id: str,
+        field_type: str,
+        odk_label: str,
+        stats: dict,
+    ):
+        """
+        Register a new field from ODK into MasFieldDisplayConfig.
+
+        Only the field_id, field_type, and odk_label are populated.
+        All display configuration (short_label, category, flags, etc.) is left
+        blank for the admin to configure via the field management UI.
+        """
+        label = odk_label or None
+        db.session.add(MasFieldDisplayConfig(
+            config_id=uuid.uuid4(),
+            form_type_id=form_type_id,
+            field_id=field_id,
+            field_type=field_type or None,
+            odk_label=label,
+            short_label=label,
+            full_label=label,
+            is_active=True,
+            is_custom=False,
+        ))
+        stats["fields_added"] += 1
 
     def _deactivate_missing(
         self,

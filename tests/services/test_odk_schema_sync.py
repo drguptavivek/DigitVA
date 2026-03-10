@@ -67,7 +67,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             svc = OdkSchemaSyncService()
             stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
 
-        for key in ("fields_processed", "choices_added", "choices_updated", "errors"):
+        for key in ("fields_processed", "fields_added", "choices_added", "choices_updated", "errors"):
             self.assertIn(key, stats, f"Missing key: {key}")
         self.assertNotIn("choices_deactivated", stats)
 

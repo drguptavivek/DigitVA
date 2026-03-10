@@ -231,10 +231,11 @@ function fmPreview(formTypeCode) {
       return;
     }
 
+    var nf = data.new_fields || [];
     var lc = data.label_changes || [];
     var nc = data.new_choices || [];
     var uc = data.updated_choices || [];
-    var total = lc.length + nc.length + uc.length;
+    var total = nf.length + lc.length + nc.length + uc.length;
 
     if (total === 0) {
       resultDiv.innerHTML = '<div class="alert alert-success small"><i class="fa-solid fa-circle-check me-1"></i>Database is already up to date — no changes needed.</div>';
@@ -245,14 +246,26 @@ function fmPreview(formTypeCode) {
       + '<h6 class="mb-3"><i class="fa-solid fa-eye me-2 text-secondary"></i>Preview — '
       + total + ' change' + (total !== 1 ? 's' : '') + ' pending</h6>';
 
+    if (nf.length) {
+      html += '<p class="small fw-semibold mb-1 text-danger"><i class="fa-solid fa-file-circle-plus me-1"></i>New questions not yet in database (' + nf.length + ')</p>'
+        + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
+        + '<thead class="table-light"><tr><th>Field ID</th><th>Type</th><th>ODK Label</th></tr></thead><tbody>'
+        + nf.map(function (r) {
+            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td>'
+              + '<td class="text-muted font-monospace">' + esc(r.field_type) + '</td>'
+              + '<td>' + esc(r.odk_label || '') + '</td></tr>';
+          }).join('')
+        + '</tbody></table></div>';
+    }
+
     if (lc.length) {
       html += '<p class="small fw-semibold mb-1 text-primary"><i class="fa-solid fa-tag me-1"></i>Field label updates (' + lc.length + ')</p>'
         + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
         + '<thead class="table-light"><tr><th>Field ID</th><th>Current ODK Label</th><th>New ODK Label</th></tr></thead><tbody>'
         + lc.map(function (r) {
-            return '<tr><td class="font-monospace">' + r.field_id + '</td>'
-              + '<td class="text-muted">' + (r.current_label || '<em>empty</em>') + '</td>'
-              + '<td class="text-success fw-semibold">' + r.new_label + '</td></tr>';
+            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td>'
+              + '<td class="text-muted">' + (esc(r.current_label) || '<em>empty</em>') + '</td>'
+              + '<td class="text-success fw-semibold">' + esc(r.new_label) + '</td></tr>';
           }).join('')
         + '</tbody></table></div>';
     }
@@ -262,7 +275,7 @@ function fmPreview(formTypeCode) {
         + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
         + '<thead class="table-light"><tr><th>Field ID</th><th>Value</th><th>Label</th></tr></thead><tbody>'
         + nc.map(function (r) {
-            return '<tr><td class="font-monospace">' + r.field_id + '</td><td>' + r.value + '</td><td>' + r.label + '</td></tr>';
+            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td><td>' + esc(r.value) + '</td><td>' + esc(r.label) + '</td></tr>';
           }).join('')
         + '</tbody></table></div>';
     }
@@ -272,8 +285,8 @@ function fmPreview(formTypeCode) {
         + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
         + '<thead class="table-light"><tr><th>Field ID</th><th>Value</th><th>Current Label</th><th>New Label</th></tr></thead><tbody>'
         + uc.map(function (r) {
-            return '<tr><td class="font-monospace">' + r.field_id + '</td><td>' + r.value + '</td>'
-              + '<td class="text-muted">' + r.old_label + '</td><td class="fw-semibold">' + r.new_label + '</td></tr>';
+            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td><td>' + esc(r.value) + '</td>'
+              + '<td class="text-muted">' + esc(r.old_label) + '</td><td class="fw-semibold">' + esc(r.new_label) + '</td></tr>';
           }).join('')
         + '</tbody></table></div>';
     }
@@ -281,6 +294,7 @@ function fmPreview(formTypeCode) {
     html += '<div class="alert alert-info small mb-0 mt-2">'
       + '<i class="fa-solid fa-circle-info me-1"></i>'
       + 'Review the changes above, then click <strong>Run Sync</strong> to apply them.'
+      + (nf.length ? ' New questions will be registered with their ODK label — you can configure display settings in the Fields panel.' : '')
       + '</div></div>';
 
     resultDiv.innerHTML = html;
@@ -327,11 +341,14 @@ function fmRunSync(formTypeCode) {
       resultDiv.innerHTML = '<div class="alert alert-success small">'
         + '<i class="fa-solid fa-circle-check me-1"></i><strong>Sync complete</strong>'
         + '<table class="table table-sm mb-0 mt-2" style="font-size:0.85rem;">'
-        + '<tr><td>Fields processed</td><td class="fw-semibold">' + data.fields_processed + '</td></tr>'
+        + (data.fields_added ? '<tr class="table-warning"><td>New questions registered</td><td class="fw-semibold">' + data.fields_added + '</td></tr>' : '')
+        + '<tr><td>Existing fields processed</td><td class="fw-semibold">' + data.fields_processed + '</td></tr>'
         + '<tr><td>ODK labels updated</td><td class="fw-semibold">' + data.labels_updated + '</td></tr>'
         + '<tr><td>Choices added</td><td class="fw-semibold">' + data.choices_added + '</td></tr>'
         + '<tr><td>Choices updated</td><td class="fw-semibold">' + data.choices_updated + '</td></tr>'
-        + '</table></div>';
+        + '</table>'
+        + (data.fields_added ? '<div class="mt-2 small text-muted"><i class="fa-solid fa-circle-info me-1"></i>New questions were registered with ODK labels as Short/Full labels. Configure categories and display settings in the <strong>Fields</strong> panel.</div>' : '')
+        + '</div>';
     }
   })
   .catch(function (err) {

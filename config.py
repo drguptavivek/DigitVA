@@ -24,10 +24,10 @@ class Config:
     REMEMBER_COOKIE_DURATION = timedelta(minutes=30)
     
     # Session Configuration
-    SESSION_TYPE = "redis"
+    SESSION_TYPE = "sqlalchemy"
     SESSION_PERMANENT = True
     SESSION_USE_SIGNER = True
-    SESSION_REDIS = redis.from_url(os.environ.get("REDIS_URL") or "redis://localhost:6379/0")
+    SESSION_SQLALCHEMY_TABLE = "va_sessions"
     
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("DATABASE_URL")

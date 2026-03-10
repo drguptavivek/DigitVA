@@ -41,6 +41,8 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login.init_app(app)
     csrf.init_app(app)
+    
+    app.config['SESSION_SQLALCHEMY'] = db
     sess_manager.init_app(app)
     
     login.login_view = 'va_auth.va_login'

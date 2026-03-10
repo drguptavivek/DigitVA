@@ -1090,6 +1090,56 @@ def admin_panel_odk_connections():
 # Field Mapping Admin  (admin-only)
 # ---------------------------------------------------------------------------
 
+@admin.post("/api/form-types")
+@require_api_role("admin")
+def admin_form_types_create():
+    """Create a new blank form type."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.form_type_service import get_form_type_service
+    data = request.get_json(silent=True) or {}
+    code = (data.get("form_type_code") or "").strip().upper()
+    name = (data.get("form_type_name") or "").strip()
+    description = (data.get("description") or "").strip() or None
+
+    if not code or not name:
+        return _json_error("form_type_code and form_type_name are required.", 400)
+
+    try:
+        ft = get_form_type_service().register_form_type(code, name, description)
+        return jsonify({"form_type_code": ft.form_type_code, "form_type_name": ft.form_type_name}), 201
+    except ValueError as e:
+        return _json_error(str(e), 409)
+
+
+@admin.post("/api/form-types/<source_code>/duplicate")
+@require_api_role("admin")
+def admin_form_types_duplicate(source_code):
+    """Duplicate a form type — copies all fields, categories, and choices."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.form_type_service import get_form_type_service
+    data = request.get_json(silent=True) or {}
+    new_code = (data.get("new_code") or "").strip().upper()
+    new_name = (data.get("new_name") or "").strip()
+    description = (data.get("description") or "").strip() or None
+
+    if not new_code or not new_name:
+        return _json_error("new_code and new_name are required.", 400)
+
+    try:
+        ft = get_form_type_service().duplicate_form_type(
+            source_code.upper(), new_code, new_name, description
+        )
+        return jsonify({"form_type_code": ft.form_type_code, "form_type_name": ft.form_type_name}), 201
+    except ValueError as e:
+        return _json_error(str(e), 409)
+
+
 @admin.get("/panels/field-mapping")
 def admin_panel_field_mapping():
     denied = _require_admin_ui_access()

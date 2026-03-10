@@ -5,11 +5,14 @@ Manages registration and configuration of VA form types (e.g., WHO_2022_VA,
 BALLABGARH_VA, SMART_VA). Each form type has its own set of categories,
 field display configurations, and choice mappings.
 """
+import uuid
+from datetime import datetime, timezone
 from sqlalchemy import select, func
 from app import db
 from app.models import (
     MasFormTypes,
     MasCategoryOrder,
+    MasSubcategoryOrder,
     MasFieldDisplayConfig,
     MasChoiceMappings,
 )
@@ -115,6 +118,118 @@ class FormTypeService:
             "choice_count": choice_count,
             "is_active": form_type.is_active,
         }
+
+    def duplicate_form_type(
+        self,
+        source_code: str,
+        new_code: str,
+        new_name: str,
+        description: str | None = None,
+    ) -> MasFormTypes:
+        """
+        Duplicate an existing form type — copies all categories, subcategories,
+        fields, and choices into a new form type entry.
+
+        Raises ValueError if source not found or new_code already exists.
+        """
+        source = db.session.scalar(
+            select(MasFormTypes).where(MasFormTypes.form_type_code == source_code)
+        )
+        if not source:
+            raise ValueError(f"Source form type not found: {source_code}")
+
+        if db.session.scalar(
+            select(MasFormTypes).where(MasFormTypes.form_type_code == new_code)
+        ):
+            raise ValueError(f"Form type already exists: {new_code}")
+
+        now = datetime.now(timezone.utc)
+        new_ft = MasFormTypes(
+            form_type_id=uuid.uuid4(),
+            form_type_code=new_code,
+            form_type_name=new_name,
+            form_type_description=description,
+            base_template_path=source.base_template_path,
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(new_ft)
+        db.session.flush()  # get new_ft.form_type_id
+
+        src_id = source.form_type_id
+        dst_id = new_ft.form_type_id
+
+        # Categories
+        for cat in db.session.scalars(
+            select(MasCategoryOrder).where(MasCategoryOrder.form_type_id == src_id)
+        ).all():
+            db.session.add(MasCategoryOrder(
+                category_order_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                category_code=cat.category_code,
+                category_name=cat.category_name,
+                display_order=cat.display_order,
+                is_active=cat.is_active,
+            ))
+
+        # Subcategories
+        for sub in db.session.scalars(
+            select(MasSubcategoryOrder).where(MasSubcategoryOrder.form_type_id == src_id)
+        ).all():
+            db.session.add(MasSubcategoryOrder(
+                subcategory_order_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                category_code=sub.category_code,
+                subcategory_code=sub.subcategory_code,
+                subcategory_name=sub.subcategory_name,
+                display_order=sub.display_order,
+                is_active=sub.is_active,
+            ))
+
+        # Fields
+        for fld in db.session.scalars(
+            select(MasFieldDisplayConfig).where(
+                MasFieldDisplayConfig.form_type_id == src_id
+            )
+        ).all():
+            db.session.add(MasFieldDisplayConfig(
+                config_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                field_id=fld.field_id,
+                category_code=fld.category_code,
+                subcategory_code=fld.subcategory_code,
+                odk_label=fld.odk_label,
+                short_label=fld.short_label,
+                full_label=fld.full_label,
+                summary_label=fld.summary_label,
+                field_type=fld.field_type,
+                age_group=fld.age_group,
+                flip_color=fld.flip_color,
+                is_info=fld.is_info,
+                summary_include=fld.summary_include,
+                is_pii=fld.is_pii,
+                pii_type=fld.pii_type,
+                display_order=fld.display_order,
+                is_active=fld.is_active,
+                is_custom=fld.is_custom,
+            ))
+
+        # Choices
+        for ch in db.session.scalars(
+            select(MasChoiceMappings).where(MasChoiceMappings.form_type_id == src_id)
+        ).all():
+            db.session.add(MasChoiceMappings(
+                form_type_id=dst_id,
+                field_id=ch.field_id,
+                choice_value=ch.choice_value,
+                choice_label=ch.choice_label,
+                display_order=ch.display_order,
+                is_active=ch.is_active,
+                synced_at=ch.synced_at,
+            ))
+
+        db.session.commit()
+        return new_ft
 
     def deactivate_form_type(self, form_type_code: str) -> bool:
         """

@@ -1,6 +1,7 @@
 {#
   Field Mapping Administration panel — admin-only.
-  Shows all registered form types with their stats and quick-action links.
+  Shows all registered form types with stats and quick-action links.
+  Supports creating new blank form types and duplicating existing ones.
 #}
 <div id="panel-field-mapping">
 
@@ -9,19 +10,30 @@
     <h5 class="mb-0">
       <i class="fa-solid fa-table-list me-2 text-secondary"></i>Field Mapping
     </h5>
-    <span class="badge bg-secondary">{{ form_types|length }} form type(s)</span>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge bg-secondary">{{ form_types|length }} form type(s)</span>
+      <button class="btn btn-sm btn-primary"
+              onclick="fmShowCreateModal(null)">
+        <i class="fa-solid fa-plus me-1"></i>New Form Type
+      </button>
+    </div>
   </div>
 
   {# Form Type Cards #}
   {% if form_types %}
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-4" id="fm-cards">
     {% for stat in stats %}
     <div class="col-md-6 col-lg-4">
       <div class="card h-100 shadow-sm">
         <div class="card-body">
-          <h6 class="card-title fw-semibold mb-0">{{ stat.form_type_name }}</h6>
-          <p class="text-muted small mb-3">{{ stat.form_type_code }}</p>
-          <div class="row text-center g-0 border-top pt-2">
+          <div class="d-flex justify-content-between align-items-start mb-1">
+            <h6 class="card-title fw-semibold mb-0">{{ stat.form_type_name }}</h6>
+          </div>
+          <p class="text-muted small font-monospace mb-1">{{ stat.form_type_code }}</p>
+          {% if stat.form_type_description %}
+          <p class="text-muted small mb-2" style="font-size:0.78rem;">{{ stat.form_type_description }}</p>
+          {% endif %}
+          <div class="row text-center g-0 border-top pt-2 mt-2">
             <div class="col">
               <div class="fw-bold">{{ stat.category_count }}</div>
               <div class="text-muted small">Categories</div>
@@ -36,7 +48,7 @@
             </div>
           </div>
         </div>
-        <div class="card-footer bg-transparent d-flex gap-2">
+        <div class="card-footer bg-transparent d-flex gap-2 flex-wrap">
           <button class="btn btn-sm btn-outline-primary flex-fill"
                   hx-get="/admin/panels/field-mapping/fields?form_type={{ stat.form_type_code }}"
                   hx-target="#fm-subpanel"
@@ -49,6 +61,10 @@
                   hx-swap="innerHTML">
             <i class="fa-solid fa-rotate me-1"></i>Sync ODK
           </button>
+          <button class="btn btn-sm btn-outline-secondary flex-fill"
+                  onclick="fmShowCreateModal('{{ stat.form_type_code }}', '{{ stat.form_type_name }}')">
+            <i class="fa-solid fa-copy me-1"></i>Duplicate
+          </button>
         </div>
       </div>
     </div>
@@ -56,11 +72,169 @@
   </div>
   {% else %}
   <div class="alert alert-info">
-    No form types registered. Use <code>flask form-types register</code> to add one.
+    No form types registered yet. Click <strong>New Form Type</strong> to create one.
   </div>
   {% endif %}
 
-  {# Sub-panel area (fields list, edit form, sync, etc.) #}
+  {# Sub-panel area #}
   <div id="fm-subpanel" class="mt-2"></div>
 
 </div>
+
+{# Create / Duplicate modal #}
+<div class="modal fade" id="fm-form-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="fm-form-modal-title">
+          <i class="fa-solid fa-plus me-2 text-secondary"></i>New Form Type
+        </h5>
+        <button type="button" class="btn-close"
+                onclick="bootstrap.Modal.getInstance(document.getElementById('fm-form-modal')).hide()"></button>
+      </div>
+      <div class="modal-body">
+
+        {# Source info (shown only for duplicate) #}
+        <div id="fm-modal-source-info" class="d-none alert alert-info small mb-3 py-2">
+          <i class="fa-solid fa-copy me-1"></i>
+          Duplicating <strong id="fm-modal-source-name"></strong> —
+          all fields, categories, and choices will be copied.
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label small fw-semibold mb-1">
+              Form Type Code
+              <i class="fa-solid fa-circle-info text-muted ms-1" id="fm-code-tip"
+                 data-bs-toggle="tooltip"
+                 data-bs-title="Short uppercase identifier, e.g. WHO_2022_VA_V2. Letters, digits, underscores only. Max 32 chars."></i>
+            </label>
+            <input type="text" class="form-control form-control-sm font-monospace text-uppercase"
+                   id="fm-modal-code" maxlength="32"
+                   placeholder="e.g. WHO_2022_VA_V2"
+                   oninput="this.value=this.value.toUpperCase().replace(/[^A-Z0-9_]/g,'')">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold mb-1">Form Type Name</label>
+            <input type="text" class="form-control form-control-sm"
+                   id="fm-modal-name" maxlength="128"
+                   placeholder="e.g. WHO 2022 VA Version 2">
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold mb-1">
+              Description <span class="text-muted fw-normal">(optional)</span>
+            </label>
+            <textarea class="form-control form-control-sm" id="fm-modal-desc"
+                      rows="2" placeholder="Brief description of this form type…"></textarea>
+          </div>
+        </div>
+
+        <div id="fm-modal-error" class="alert alert-danger small mt-3 d-none py-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm"
+                onclick="bootstrap.Modal.getInstance(document.getElementById('fm-form-modal')).hide()">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" id="fm-modal-save-btn"
+                onclick="fmSaveFormType()">
+          <i class="fa-solid fa-floppy-disk me-1"></i>
+          <span id="fm-modal-save-label">Create</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // Initialise tooltip on the code field
+  var tipEl = document.getElementById('fm-code-tip');
+  if (tipEl) new bootstrap.Tooltip(tipEl, { trigger: 'hover focus' });
+
+}());
+
+var _fmSourceCode = null;
+var _fmModal = null;
+
+function fmShowCreateModal(sourceCode, sourceName) {
+  _fmSourceCode = sourceCode || null;
+
+  var titleEl   = document.getElementById('fm-form-modal-title');
+  var sourceDiv = document.getElementById('fm-modal-source-info');
+  var saveLabel = document.getElementById('fm-modal-save-label');
+  var errDiv    = document.getElementById('fm-modal-error');
+
+  document.getElementById('fm-modal-code').value = '';
+  document.getElementById('fm-modal-name').value = '';
+  document.getElementById('fm-modal-desc').value = '';
+  errDiv.classList.add('d-none');
+  errDiv.textContent = '';
+
+  if (sourceCode) {
+    titleEl.innerHTML = '<i class="fa-solid fa-copy me-2 text-secondary"></i>Duplicate Form Type';
+    saveLabel.textContent = 'Duplicate';
+    sourceDiv.classList.remove('d-none');
+    document.getElementById('fm-modal-source-name').textContent =
+      sourceName + ' (' + sourceCode + ')';
+  } else {
+    titleEl.innerHTML = '<i class="fa-solid fa-plus me-2 text-secondary"></i>New Form Type';
+    saveLabel.textContent = 'Create';
+    sourceDiv.classList.add('d-none');
+  }
+
+  if (!_fmModal) _fmModal = new bootstrap.Modal(document.getElementById('fm-form-modal'));
+  _fmModal.show();
+}
+
+function fmSaveFormType() {
+  var code = document.getElementById('fm-modal-code').value.trim();
+  var name = document.getElementById('fm-modal-name').value.trim();
+  var desc = document.getElementById('fm-modal-desc').value.trim();
+  var errDiv = document.getElementById('fm-modal-error');
+
+  errDiv.classList.add('d-none');
+
+  if (!code || !name) {
+    errDiv.textContent = 'Form Type Code and Name are required.';
+    errDiv.classList.remove('d-none');
+    return;
+  }
+
+  var btn = document.getElementById('fm-modal-save-btn');
+  btn.disabled = true;
+
+  var url = _fmSourceCode
+    ? '/admin/api/form-types/' + encodeURIComponent(_fmSourceCode) + '/duplicate'
+    : '/admin/api/form-types';
+
+  var body = _fmSourceCode
+    ? { new_code: code, new_name: name, description: desc || null }
+    : { form_type_code: code, form_type_name: name, description: desc || null };
+
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' },
+    body: JSON.stringify(body),
+  })
+  .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+  .then(function (res) {
+    btn.disabled = false;
+    if (!res.ok) {
+      errDiv.textContent = res.data.error || 'Failed to save.';
+      errDiv.classList.remove('d-none');
+      return;
+    }
+    _fmModal.hide();
+    // Reload the field-mapping panel to show the new card
+    htmx.ajax('GET', '/admin/panels/field-mapping', { target: '#admin-panel', swap: 'innerHTML' });
+  })
+  .catch(function () {
+    btn.disabled = false;
+    errDiv.textContent = 'Network error. Please try again.';
+    errDiv.classList.remove('d-none');
+  });
+}
+</script>

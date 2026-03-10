@@ -9,13 +9,6 @@
   <div class="col-auto border-end bg-light" id="admin-sidebar" style="width: 220px; min-height: 100%;">
     <div class="p-3">
 
-      <div class="mb-4">
-        <label for="admin-project-select" class="form-label text-muted small text-uppercase fw-semibold mb-1">Project</label>
-        <select id="admin-project-select" name="project_id" class="form-select form-select-sm">
-          <option value="">All projects</option>
-        </select>
-      </div>
-
       <p class="text-muted small text-uppercase fw-semibold mb-2">Manage</p>
       <nav class="nav flex-column gap-1">
 
@@ -24,8 +17,7 @@
            data-panel="/admin/panels/access-grants"
            hx-get="/admin/panels/access-grants"
            hx-target="#admin-panel"
-           hx-swap="innerHTML"
-           hx-include="#admin-project-select">
+           hx-swap="innerHTML">
           <i class="fa-solid fa-key me-2"></i>Access Grants
         </a>
 
@@ -34,8 +26,7 @@
            data-panel="/admin/panels/project-sites"
            hx-get="/admin/panels/project-sites"
            hx-target="#admin-panel"
-           hx-swap="innerHTML"
-           hx-include="#admin-project-select">
+           hx-swap="innerHTML">
           <i class="fa-solid fa-diagram-project me-2"></i>Project Sites
         </a>
 
@@ -131,12 +122,17 @@
         if (newToken) window._adminCsrf = newToken;
       });
 
-      populateProjectSelector(adminState.accessible_projects);
-
       if (adminState.user.is_admin) {
         document.querySelectorAll('.admin-only').forEach(function (el) {
           el.classList.remove('d-none');
         });
+      }
+
+      // Restore active panel from URL
+      var urlPanel = new URLSearchParams(window.location.search).get('panel');
+      if (urlPanel) {
+        var link = document.querySelector('.admin-nav-link[data-panel="' + urlPanel + '"]');
+        if (link) { link.click(); return; }
       }
 
     } catch (e) {
@@ -144,56 +140,12 @@
     }
   }
 
-  function getUrlParams() {
-    return new URLSearchParams(window.location.search);
-  }
-
   function setUrlParam(key, value) {
-    var params = getUrlParams();
+    var params = new URLSearchParams(window.location.search);
     if (value) { params.set(key, value); } else { params.delete(key); }
     var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
     history.replaceState(null, '', newUrl);
   }
-
-  function populateProjectSelector(projects) {
-    var sel = document.getElementById('admin-project-select');
-    projects.forEach(function (pid) {
-      var opt = document.createElement('option');
-      opt.value = pid;
-      opt.textContent = pid;
-      sel.appendChild(opt);
-    });
-    // Restore from URL, then fall back to single-project auto-select
-    var urlProject = getUrlParams().get('project_id');
-    if (urlProject && projects.indexOf(urlProject) !== -1) {
-      sel.value = urlProject;
-    } else if (projects.length === 1) {
-      sel.value = projects[0];
-      setUrlParam('project_id', projects[0]);
-    }
-    // Restore active panel from URL
-    var urlPanel = getUrlParams().get('panel');
-    if (urlPanel) {
-      var link = document.querySelector('.admin-nav-link[data-panel="' + urlPanel + '"]');
-      if (link) { link.click(); return; }
-    }
-    // Auto-load access-grants as default panel if project is set
-    if (sel.value) {
-      var defaultLink = document.querySelector('.admin-nav-link[data-panel="/admin/panels/access-grants"]');
-      if (defaultLink) defaultLink.click();
-    }
-  }
-
-  // Project selector: reload the currently active panel with the new project context
-  document.getElementById('admin-project-select').addEventListener('change', function () {
-    var projectId = this.value;
-    setUrlParam('project_id', projectId);
-    var activeLink = document.querySelector('.admin-nav-link.active');
-    if (!activeLink) return;
-    var panelUrl = activeLink.getAttribute('data-panel');
-    var url = panelUrl + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
-    htmx.ajax('GET', url, { target: '#admin-panel', swap: 'innerHTML' });
-  });
 
   // Track which nav link is active and persist to URL
   document.querySelectorAll('.admin-nav-link').forEach(function (link) {
@@ -201,11 +153,9 @@
       e.preventDefault();
       document.querySelectorAll('.admin-nav-link').forEach(function (l) { l.classList.remove('active'); });
       this.classList.add('active');
-      setUrlParam('panel', this.getAttribute('data-panel'));
-      var projectId = document.getElementById('admin-project-select').value;
       var panelUrl = this.getAttribute('data-panel');
-      var url = panelUrl + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
-      htmx.ajax('GET', url, { target: '#admin-panel', swap: 'innerHTML' });
+      setUrlParam('panel', panelUrl);
+      htmx.ajax('GET', panelUrl, { target: '#admin-panel', swap: 'innerHTML' });
     });
   });
 

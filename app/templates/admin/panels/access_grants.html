@@ -7,22 +7,21 @@
 
   {# Header #}
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0">
-      <i class="fa-solid fa-key me-2 text-secondary"></i>Access Grants
-      {% if project_id %}
-        <span class="badge bg-secondary ms-2 fw-normal" style="font-size:0.75rem;">{{ project_id }}</span>
-      {% endif %}
-    </h5>
+    <div class="d-flex align-items-center gap-3">
+      <h5 class="mb-0">
+        <i class="fa-solid fa-key me-2 text-secondary"></i>Access Grants
+      </h5>
+      <div class="d-flex align-items-center gap-2">
+        <label for="ag-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
+        <select id="ag-project-select" class="form-select form-select-sm" style="min-width:140px;">
+          <option value="">All projects</option>
+        </select>
+      </div>
+    </div>
     <button class="btn btn-sm btn-primary" id="ag-show-form-btn">
       <i class="fa-solid fa-plus me-1"></i>Grant Access
     </button>
   </div>
-
-  {% if not project_id %}
-  <div class="alert alert-info py-2 px-3 small">
-    Select a project from the sidebar to manage grants.
-  </div>
-  {% endif %}
 
   {# Inline grant form (hidden by default) #}
   <div id="ag-form-container" class="card mb-4 d-none">
@@ -140,7 +139,32 @@
 (function () {
   'use strict';
 
-  var PROJECT_ID = {{ project_id | tojson }};
+  var PROJECT_ID = new URLSearchParams(window.location.search).get('project_id') || '';
+
+  // Populate project selector from bootstrap state
+  (function () {
+    var sel = document.getElementById('ag-project-select');
+    var projects = (window._adminState && window._adminState.accessible_projects) || [];
+    projects.forEach(function (pid) {
+      var opt = document.createElement('option');
+      opt.value = pid;
+      opt.textContent = pid;
+      sel.appendChild(opt);
+    });
+    // Auto-select: restore from URL or pick the only available project
+    if (PROJECT_ID && projects.indexOf(PROJECT_ID) !== -1) {
+      sel.value = PROJECT_ID;
+    } else if (projects.length === 1) {
+      sel.value = projects[0];
+      PROJECT_ID = projects[0];
+      setParam('project_id', PROJECT_ID);
+    }
+    sel.addEventListener('change', function () {
+      PROJECT_ID = this.value;
+      setParam('project_id', PROJECT_ID);
+      loadGrants();
+    });
+  }());
 
   // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -549,9 +573,7 @@
   }
 
   // ── init ──────────────────────────────────────────────────────────────────
-  if (PROJECT_ID) {
-    loadGrants();
-  }
+  loadGrants();
 
 }());
 </script>

@@ -6,9 +6,17 @@
 
   {# Header #}
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="mb-0">
-      <i class="fa-solid fa-user-tie me-2 text-secondary"></i>Project PIs
-    </h5>
+    <div class="d-flex align-items-center gap-3">
+      <h5 class="mb-0">
+        <i class="fa-solid fa-user-tie me-2 text-secondary"></i>Project PIs
+      </h5>
+      <div class="d-flex align-items-center gap-2">
+        <label for="ppi-project-filter" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
+        <select id="ppi-project-filter" class="form-select form-select-sm" style="min-width:140px;">
+          <option value="">All projects</option>
+        </select>
+      </div>
+    </div>
     <div class="d-flex gap-2 align-items-center">
       <div class="form-check form-switch mb-0">
         <input class="form-check-input" type="checkbox" id="ppi-show-inactive" role="switch">
@@ -85,6 +93,30 @@
 (function () {
   'use strict';
 
+  var PROJECT_ID = new URLSearchParams(window.location.search).get('project_id') || '';
+
+  // Populate header project filter from bootstrap state
+  (function () {
+    var sel = document.getElementById('ppi-project-filter');
+    var projects = (window._adminState && window._adminState.accessible_projects) || [];
+    projects.forEach(function (pid) {
+      var opt = document.createElement('option');
+      opt.value = pid;
+      opt.textContent = pid;
+      sel.appendChild(opt);
+    });
+    if (PROJECT_ID && projects.indexOf(PROJECT_ID) !== -1) {
+      sel.value = PROJECT_ID;
+    } else if (projects.length === 1) {
+      sel.value = projects[0];
+      PROJECT_ID = projects[0];
+    }
+    sel.addEventListener('change', function () {
+      PROJECT_ID = this.value;
+      loadGrants();
+    });
+  }());
+
   function csrf() { return window._adminCsrf || ''; }
 
   function apiJson(url, method, body) {
@@ -109,7 +141,8 @@
     var wrap = document.getElementById('ppi-table-wrap');
     wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
     
-    apiJson('/admin/api/access-grants?role=project_pi').then(function (res) {
+    var url = '/admin/api/access-grants?role=project_pi' + (PROJECT_ID ? '&project_id=' + encodeURIComponent(PROJECT_ID) : '');
+    apiJson(url).then(function (res) {
       if (!res.ok) {
         wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
         return;

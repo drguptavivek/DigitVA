@@ -7,6 +7,13 @@
 3. Preserve backward compatibility by default. Do not silently change domain semantics, identifiers, or workflow behavior.
 4. Prefer explicit, simple code over clever abstractions.
 5. Follow PEP 8 for Python code and keep naming consistent with existing repo conventions.
+65. Use **uv** for all Python dependency management. Do NOT use pip, pip-tools, or requirements.txt directly.
+66. Use **Python 3.13** as the target version. The project requires `>=3.13`.
+67. Use **pyproject.toml** for project configuration and dependencies. Do NOT use setup.py or requirements.txt.
+68. **Run all Python commands inside Docker**. Use `docker compose exec minerva_app_service` to run commands (e.g., `docker compose exec minerva_app_service uv run flask shell`,).
+69. **Inside Docker**: Commands run via `uv run` in boot.sh and docker-compose (e.g., `uv run flask db upgrade`, `uv run gunicorn`).
+70. Add dependencies with `uv add <package>`, remove with `uv remove <package>`.
+71. Sync dependencies with `uv sync`. The lock file (`uv.lock`) is committed for reproducibility.
 6. Keep functions and modules focused. Do not increase coupling between sync, workflow, permissions, and rendering without clear necessity.
 7. Use idempotent patterns for sync, setup, seed, and migration-related code whenever feasible.
 8. Assume ODK is the source of truth for synced submission content. Do not introduce local mutations that conflict with that model without explicit design changes.

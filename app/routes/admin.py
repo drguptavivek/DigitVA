@@ -1390,6 +1390,28 @@ def admin_panel_field_mapping_sync_preview():
     return jsonify(result)
 
 
+@admin.post("/panels/field-mapping/sync/apply")
+def admin_panel_field_mapping_sync_apply():
+    """Apply a user-selected subset of previewed sync changes."""
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.odk_schema_sync_service import get_sync_service
+    data = request.get_json(force=True)
+    form_type_code = data.get("form_type_code")
+    selected = data.get("selected") or {}
+
+    if not form_type_code:
+        return _json_error("form_type_code is required.", 400)
+
+    stats = get_sync_service().sync_selected(form_type_code, selected)
+    return jsonify(stats)
+
+
 @admin.post("/panels/field-mapping/sync")
 def admin_panel_field_mapping_sync_run():
     denied = _require_admin_ui_access()

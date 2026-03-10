@@ -183,6 +183,146 @@ class OdkSchemaSyncService:
         return stats
 
     # -----------------------------------------------------------------------
+    # Public: apply selected changes (no re-fetch from ODK)
+    # -----------------------------------------------------------------------
+
+    def sync_selected(self, form_type_code: str, selected: dict) -> dict:
+        """
+        Apply a user-selected subset of previewed changes to the database.
+
+        `selected` dict keys (all optional):
+          new_fields:       [{field_id, field_type, odk_label, choices:[{value,label}]}]
+          label_changes:    [{field_id, new_label}]
+          new_choices:      [{field_id, value, label}]
+          updated_choices:  [{field_id, value, new_label}]
+        """
+        stats = {
+            "fields_added": 0,
+            "labels_updated": 0,
+            "choices_added": 0,
+            "choices_updated": 0,
+            "errors": [],
+        }
+
+        form_type = db.session.scalar(
+            select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+        )
+        if not form_type:
+            stats["errors"].append(f"Form type not found: {form_type_code}")
+            return stats
+
+        try:
+            ft_id = form_type.form_type_id
+            now = datetime.now(timezone.utc)
+
+            for f in selected.get("new_fields") or []:
+                field_id = f.get("field_id")
+                if not field_id:
+                    continue
+                # Skip if already registered (race condition guard)
+                if db.session.scalar(
+                    select(MasFieldDisplayConfig).where(
+                        MasFieldDisplayConfig.form_type_id == ft_id,
+                        MasFieldDisplayConfig.field_id == field_id,
+                    )
+                ):
+                    continue
+                label = f.get("odk_label") or None
+                db.session.add(MasFieldDisplayConfig(
+                    config_id=uuid.uuid4(),
+                    form_type_id=ft_id,
+                    field_id=field_id,
+                    field_type=f.get("field_type") or None,
+                    odk_label=label,
+                    short_label=label,
+                    full_label=label,
+                    is_active=True,
+                    is_custom=False,
+                ))
+                stats["fields_added"] += 1
+                # Also upsert choices that came with this new field
+                for order, ch in enumerate((f.get("choices") or []), start=1):
+                    cv = ch.get("value")
+                    cl = ch.get("label") or str(cv)
+                    if not cv:
+                        continue
+                    db.session.add(MasChoiceMappings(
+                        form_type_id=ft_id,
+                        field_id=field_id,
+                        choice_value=str(cv),
+                        choice_label=cl,
+                        display_order=order,
+                        is_active=True,
+                        synced_at=now,
+                    ))
+                    stats["choices_added"] += 1
+
+            for lc in selected.get("label_changes") or []:
+                field_id = lc.get("field_id")
+                new_label = lc.get("new_label")
+                if not field_id or not new_label:
+                    continue
+                cfg = db.session.scalar(
+                    select(MasFieldDisplayConfig).where(
+                        MasFieldDisplayConfig.form_type_id == ft_id,
+                        MasFieldDisplayConfig.field_id == field_id,
+                    )
+                )
+                if cfg and cfg.odk_label != new_label:
+                    cfg.odk_label = new_label
+                    stats["labels_updated"] += 1
+
+            for nc in selected.get("new_choices") or []:
+                field_id = nc.get("field_id")
+                value = nc.get("value")
+                label = nc.get("label") or str(value)
+                if not field_id or not value:
+                    continue
+                existing = db.session.scalar(
+                    select(MasChoiceMappings).where(
+                        MasChoiceMappings.form_type_id == ft_id,
+                        MasChoiceMappings.field_id == field_id,
+                        MasChoiceMappings.choice_value == str(value),
+                    )
+                )
+                if not existing:
+                    db.session.add(MasChoiceMappings(
+                        form_type_id=ft_id,
+                        field_id=field_id,
+                        choice_value=str(value),
+                        choice_label=label,
+                        display_order=0,
+                        is_active=True,
+                        synced_at=now,
+                    ))
+                    stats["choices_added"] += 1
+
+            for uc in selected.get("updated_choices") or []:
+                field_id = uc.get("field_id")
+                value = uc.get("value")
+                new_label = uc.get("new_label")
+                if not field_id or not value or not new_label:
+                    continue
+                existing = db.session.scalar(
+                    select(MasChoiceMappings).where(
+                        MasChoiceMappings.form_type_id == ft_id,
+                        MasChoiceMappings.field_id == field_id,
+                        MasChoiceMappings.choice_value == str(value),
+                    )
+                )
+                if existing and existing.choice_label != new_label:
+                    existing.choice_label = new_label
+                    existing.synced_at = now
+                    stats["choices_updated"] += 1
+
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            stats["errors"].append(str(exc))
+
+        return stats
+
+    # -----------------------------------------------------------------------
     # Public: preview (dry-run — no DB writes)
     # -----------------------------------------------------------------------
 

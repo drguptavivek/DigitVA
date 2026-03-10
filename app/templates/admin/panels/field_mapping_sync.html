@@ -1,7 +1,7 @@
 {#
   ODK Sync panel partial — loaded into #fm-subpanel.
   Cascading selectors: Connection → ODK Project → ODK Form.
-  Preview before commit.
+  Preview with checkboxes; selective Run Sync at bottom of preview.
 #}
 <div class="card mt-3" id="fm-sync-panel">
   <div class="card-header d-flex justify-content-between align-items-center">
@@ -21,7 +21,7 @@
     <p class="text-muted small mb-4">
       Downloads the XLSForm from ODK Central, reads the <strong>survey</strong> sheet for
       field labels and the <strong>choices</strong> sheet for choice mappings, then updates
-      the database. Only fields already registered in the database will be updated.
+      the database.
     </p>
 
     {# Step selectors #}
@@ -52,15 +52,11 @@
       </div>
     </div>
 
-    {# Action buttons #}
+    {# Preview button only — Run Sync moves to bottom of preview #}
     <div class="d-flex gap-2 mb-3">
       <button type="button" class="btn btn-outline-primary btn-sm" id="fm-preview-btn" disabled
               onclick="fmPreview('{{ form_type_code }}')">
         <i class="fa-solid fa-eye me-1"></i>Preview Changes
-      </button>
-      <button type="button" class="btn btn-primary btn-sm" id="fm-sync-run-btn" disabled
-              onclick="fmRunSync('{{ form_type_code }}')">
-        <i class="fa-solid fa-rotate me-1"></i>Run Sync
       </button>
     </div>
 
@@ -86,22 +82,17 @@
     s.innerHTML = '<option value="">' + msg + '</option>';
     s.disabled = true;
     resetFormSelect();
-    setButtons(false);
+    document.getElementById('fm-preview-btn').disabled = true;
   }
 
   function resetFormSelect() {
     var s = document.getElementById('fm-sync-form');
     s.innerHTML = '<option value="">— select project first —</option>';
     s.disabled = true;
-    setButtons(false);
+    document.getElementById('fm-preview-btn').disabled = true;
   }
 
-  function setButtons(enabled) {
-    document.getElementById('fm-preview-btn').disabled = !enabled;
-    document.getElementById('fm-sync-run-btn').disabled = !enabled;
-  }
-
-  // ── Step 1: load connections ──────────────────────────────────────────────
+  // ── Step 1: load connections ───────────────────────────────────────────────
 
   apiGet('/admin/api/odk-connections').then(function (data) {
     var connSel = document.getElementById('fm-sync-conn');
@@ -163,7 +154,7 @@
     var sel = document.getElementById('fm-sync-form');
     sel.innerHTML = '<option value="">Loading…</option>';
     sel.disabled = true;
-    setButtons(false);
+    document.getElementById('fm-preview-btn').disabled = true;
 
     apiGet('/admin/api/odk-connections/' + encodeURIComponent(_connId)
       + '/odk-projects/' + encodeURIComponent(odkProjectId) + '/forms')
@@ -188,9 +179,9 @@
   });
 
   document.getElementById('fm-sync-form').addEventListener('change', function () {
-    setButtons(!!this.value);
-    // Clear preview when selection changes
+    document.getElementById('fm-preview-btn').disabled = !this.value;
     document.getElementById('fm-sync-result').innerHTML = '';
+    _previewData = null;
   });
 
 }());
@@ -199,16 +190,40 @@ function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Preview data store ────────────────────────────────────────────────────────
+
+var _previewData = null;   // full preview response — used by fmApplySelected
+var _formTypeCode = null;
+
+// ── Section checkbox helpers ──────────────────────────────────────────────────
+
+function fmToggleSection(sectionId, masterCb) {
+  var boxes = document.querySelectorAll('[data-section="' + sectionId + '"]');
+  boxes.forEach(function (cb) { cb.checked = masterCb.checked; });
+  fmUpdateRunBtn();
+}
+
+function fmUpdateRunBtn() {
+  var btn = document.getElementById('fm-apply-btn');
+  if (!btn) return;
+  var checked = document.querySelectorAll('.fm-row-cb:checked').length;
+  var total   = document.querySelectorAll('.fm-row-cb').length;
+  btn.disabled = checked === 0;
+  btn.textContent = checked === total
+    ? 'Apply All Changes (' + total + ')'
+    : 'Apply Selected (' + checked + ' of ' + total + ')';
+}
+
 // ── Preview ───────────────────────────────────────────────────────────────────
 
 function fmPreview(formTypeCode) {
+  _formTypeCode = formTypeCode;
   var connId    = document.getElementById('fm-sync-conn').value;
   var projectId = document.getElementById('fm-sync-project').value;
   var formId    = document.getElementById('fm-sync-form').value;
   var resultDiv = document.getElementById('fm-sync-result');
 
   document.getElementById('fm-preview-btn').disabled = true;
-  document.getElementById('fm-sync-run-btn').disabled = true;
   resultDiv.innerHTML = '<div class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching XLSForm from ODK Central…</div>';
 
   fetch('/admin/panels/field-mapping/sync/preview', {
@@ -224,16 +239,17 @@ function fmPreview(formTypeCode) {
   .then(function (r) { return r.json(); })
   .then(function (data) {
     document.getElementById('fm-preview-btn').disabled = false;
-    document.getElementById('fm-sync-run-btn').disabled = false;
 
     if (data.errors && data.errors.length) {
       resultDiv.innerHTML = '<div class="alert alert-danger small"><strong>Error:</strong> ' + data.errors.join('<br>') + '</div>';
       return;
     }
 
-    var nf = data.new_fields || [];
+    _previewData = data;
+
+    var nf = data.new_fields    || [];
     var lc = data.label_changes || [];
-    var nc = data.new_choices || [];
+    var nc = data.new_choices   || [];
     var uc = data.updated_choices || [];
     var total = nf.length + lc.length + nc.length + uc.length;
 
@@ -242,15 +258,23 @@ function fmPreview(formTypeCode) {
       return;
     }
 
+    // ── build HTML ──────────────────────────────────────────────────────────
+
     var html = '<div class="border rounded p-3 bg-light">'
       + '<h6 class="mb-3"><i class="fa-solid fa-eye me-2 text-secondary"></i>Preview — '
-      + total + ' change' + (total !== 1 ? 's' : '') + ' pending</h6>';
+      + total + ' change' + (total !== 1 ? 's' : '') + ' found</h6>';
 
+    // New fields
     if (nf.length) {
-      html += '<p class="small fw-semibold mb-1 text-danger"><i class="fa-solid fa-file-circle-plus me-1"></i>New questions not yet in database (' + nf.length + ')</p>'
-        + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
-        + '<thead class="table-light"><tr><th>Field ID</th><th>Type</th><th>ODK Label</th><th>Choices</th></tr></thead><tbody>'
-        + nf.map(function (r) {
+      html += fmSectionHeader('nf', 'text-danger', 'fa-file-circle-plus',
+        'New questions not yet in database', nf.length);
+      html += '<div class="table-responsive mb-3">'
+        + '<table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
+        + '<thead class="table-light"><tr>'
+        + '<th style="width:32px;"><input type="checkbox" class="form-check-input" onchange="fmToggleSection(\'nf\',this)" checked></th>'
+        + '<th>Field ID</th><th>Type</th><th>ODK Label</th><th>Choices</th>'
+        + '</tr></thead><tbody>'
+        + nf.map(function (r, i) {
             var choiceHtml = '';
             if (r.choices && r.choices.length) {
               choiceHtml = '<details><summary class="text-muted" style="cursor:pointer;">'
@@ -258,14 +282,15 @@ function fmPreview(formTypeCode) {
                 + '</summary><div class="mt-1" style="max-height:160px;overflow-y:auto;">'
                 + r.choices.map(function (c) {
                     return '<div class="font-monospace text-nowrap">'
-                      + esc(c.value) + ' <span class="text-muted">→</span> ' + esc(c.label)
-                      + '</div>';
+                      + esc(c.value) + ' <span class="text-muted">→</span> ' + esc(c.label) + '</div>';
                   }).join('')
                 + '</div></details>';
             }
             var typeCell = esc(r.field_type)
               + (r.list_name ? ' <span class="text-secondary">(' + esc(r.list_name) + ')</span>' : '');
-            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td>'
+            return '<tr>'
+              + '<td><input type="checkbox" class="form-check-input fm-row-cb" data-section="nf" data-idx="' + i + '" checked onchange="fmUpdateRunBtn()"></td>'
+              + '<td class="font-monospace">' + esc(r.field_id) + '</td>'
               + '<td class="font-monospace" style="white-space:nowrap;">' + typeCell + '</td>'
               + '<td>' + esc(r.odk_label || '') + '</td>'
               + '<td>' + choiceHtml + '</td></tr>';
@@ -273,102 +298,155 @@ function fmPreview(formTypeCode) {
         + '</tbody></table></div>';
     }
 
+    // Label changes
     if (lc.length) {
-      html += '<p class="small fw-semibold mb-1 text-primary"><i class="fa-solid fa-tag me-1"></i>Field label updates (' + lc.length + ')</p>'
-        + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
-        + '<thead class="table-light"><tr><th>Field ID</th><th>Current ODK Label</th><th>New ODK Label</th></tr></thead><tbody>'
-        + lc.map(function (r) {
-            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td>'
+      html += fmSectionHeader('lc', 'text-primary', 'fa-tag',
+        'Field label updates', lc.length);
+      html += '<div class="table-responsive mb-3">'
+        + '<table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
+        + '<thead class="table-light"><tr>'
+        + '<th style="width:32px;"><input type="checkbox" class="form-check-input" onchange="fmToggleSection(\'lc\',this)" checked></th>'
+        + '<th>Field ID</th><th>Current ODK Label</th><th>New ODK Label</th>'
+        + '</tr></thead><tbody>'
+        + lc.map(function (r, i) {
+            return '<tr>'
+              + '<td><input type="checkbox" class="form-check-input fm-row-cb" data-section="lc" data-idx="' + i + '" checked onchange="fmUpdateRunBtn()"></td>'
+              + '<td class="font-monospace">' + esc(r.field_id) + '</td>'
               + '<td class="text-muted">' + (esc(r.current_label) || '<em>empty</em>') + '</td>'
               + '<td class="text-success fw-semibold">' + esc(r.new_label) + '</td></tr>';
           }).join('')
         + '</tbody></table></div>';
     }
 
+    // New choices
     if (nc.length) {
-      html += '<p class="small fw-semibold mb-1 text-success"><i class="fa-solid fa-plus me-1"></i>New choices (' + nc.length + ')</p>'
-        + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
-        + '<thead class="table-light"><tr><th>Field ID</th><th>Value</th><th>Label</th></tr></thead><tbody>'
-        + nc.map(function (r) {
-            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td><td>' + esc(r.value) + '</td><td>' + esc(r.label) + '</td></tr>';
+      html += fmSectionHeader('nc', 'text-success', 'fa-plus',
+        'New choices', nc.length);
+      html += '<div class="table-responsive mb-3">'
+        + '<table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
+        + '<thead class="table-light"><tr>'
+        + '<th style="width:32px;"><input type="checkbox" class="form-check-input" onchange="fmToggleSection(\'nc\',this)" checked></th>'
+        + '<th>Field ID</th><th>Value</th><th>Label</th>'
+        + '</tr></thead><tbody>'
+        + nc.map(function (r, i) {
+            return '<tr>'
+              + '<td><input type="checkbox" class="form-check-input fm-row-cb" data-section="nc" data-idx="' + i + '" checked onchange="fmUpdateRunBtn()"></td>'
+              + '<td class="font-monospace">' + esc(r.field_id) + '</td>'
+              + '<td>' + esc(r.value) + '</td>'
+              + '<td>' + esc(r.label) + '</td></tr>';
           }).join('')
         + '</tbody></table></div>';
     }
 
+    // Updated choices
     if (uc.length) {
-      html += '<p class="small fw-semibold mb-1 text-warning"><i class="fa-solid fa-pen me-1"></i>Updated choice labels (' + uc.length + ')</p>'
-        + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
-        + '<thead class="table-light"><tr><th>Field ID</th><th>Value</th><th>Current Label</th><th>New Label</th></tr></thead><tbody>'
-        + uc.map(function (r) {
-            return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td><td>' + esc(r.value) + '</td>'
-              + '<td class="text-muted">' + esc(r.old_label) + '</td><td class="fw-semibold">' + esc(r.new_label) + '</td></tr>';
+      html += fmSectionHeader('uc', 'text-warning', 'fa-pen',
+        'Updated choice labels', uc.length);
+      html += '<div class="table-responsive mb-3">'
+        + '<table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
+        + '<thead class="table-light"><tr>'
+        + '<th style="width:32px;"><input type="checkbox" class="form-check-input" onchange="fmToggleSection(\'uc\',this)" checked></th>'
+        + '<th>Field ID</th><th>Value</th><th>Current Label</th><th>New Label</th>'
+        + '</tr></thead><tbody>'
+        + uc.map(function (r, i) {
+            return '<tr>'
+              + '<td><input type="checkbox" class="form-check-input fm-row-cb" data-section="uc" data-idx="' + i + '" checked onchange="fmUpdateRunBtn()"></td>'
+              + '<td class="font-monospace">' + esc(r.field_id) + '</td>'
+              + '<td>' + esc(r.value) + '</td>'
+              + '<td class="text-muted">' + esc(r.old_label) + '</td>'
+              + '<td class="fw-semibold">' + esc(r.new_label) + '</td></tr>';
           }).join('')
         + '</tbody></table></div>';
     }
 
-    html += '<div class="alert alert-info small mb-0 mt-2">'
-      + '<i class="fa-solid fa-circle-info me-1"></i>'
-      + 'Review the changes above, then click <strong>Run Sync</strong> to apply them.'
-      + (nf.length ? ' New questions will be registered with their ODK label — you can configure display settings in the Fields panel.' : '')
+    // Bottom Run Sync button
+    html += '<div class="d-flex align-items-center gap-3 mt-3 pt-3 border-top">'
+      + '<button type="button" class="btn btn-primary btn-sm" id="fm-apply-btn"'
+      + '        onclick="fmApplySelected()">'
+      + 'Apply All Changes (' + total + ')'
+      + '</button>'
+      + '<span class="text-muted small">Check/uncheck rows above to apply selectively.</span>'
       + '</div></div>';
 
     resultDiv.innerHTML = html;
   })
   .catch(function (err) {
     document.getElementById('fm-preview-btn').disabled = false;
-    document.getElementById('fm-sync-run-btn').disabled = false;
     resultDiv.innerHTML = '<div class="alert alert-danger small">Request failed: ' + err + '</div>';
   });
 }
 
-// ── Run sync ──────────────────────────────────────────────────────────────────
+function fmSectionHeader(section, colorClass, icon, label, count) {
+  return '<p class="small fw-semibold mb-1 ' + colorClass + '">'
+    + '<i class="fa-solid ' + icon + ' me-1"></i>' + label + ' (' + count + ')'
+    + '</p>';
+}
 
-function fmRunSync(formTypeCode) {
-  var connId    = document.getElementById('fm-sync-conn').value;
-  var projectId = document.getElementById('fm-sync-project').value;
-  var formId    = document.getElementById('fm-sync-form').value;
+// ── Apply selected ────────────────────────────────────────────────────────────
+
+function fmApplySelected() {
+  if (!_previewData || !_formTypeCode) return;
+
+  var nf = _previewData.new_fields    || [];
+  var lc = _previewData.label_changes || [];
+  var nc = _previewData.new_choices   || [];
+  var uc = _previewData.updated_choices || [];
+
+  // Collect checked rows per section
+  function collect(section, source) {
+    var result = [];
+    document.querySelectorAll('.fm-row-cb[data-section="' + section + '"]:checked').forEach(function (cb) {
+      var idx = parseInt(cb.getAttribute('data-idx'), 10);
+      if (source[idx]) result.push(source[idx]);
+    });
+    return result;
+  }
+
+  var selected = {
+    new_fields:      collect('nf', nf),
+    label_changes:   collect('lc', lc).map(function (r) { return { field_id: r.field_id, new_label: r.new_label }; }),
+    new_choices:     collect('nc', nc),
+    updated_choices: collect('uc', uc).map(function (r) { return { field_id: r.field_id, value: r.value, new_label: r.new_label }; }),
+  };
+
+  var total = selected.new_fields.length + selected.label_changes.length
+            + selected.new_choices.length + selected.updated_choices.length;
+  if (total === 0) return;
+
+  var btn = document.getElementById('fm-apply-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Applying…';
+
   var resultDiv = document.getElementById('fm-sync-result');
 
-  document.getElementById('fm-preview-btn').disabled = true;
-  document.getElementById('fm-sync-run-btn').disabled = true;
-  resultDiv.innerHTML = '<div class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Syncing from ODK Central…</div>';
-
-  fetch('/admin/panels/field-mapping/sync', {
+  fetch('/admin/panels/field-mapping/sync/apply', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' },
-    body: JSON.stringify({
-      form_type_code: formTypeCode,
-      connection_id: connId,
-      odk_project_id: parseInt(projectId, 10),
-      odk_form_id: formId,
-    }),
+    body: JSON.stringify({ form_type_code: _formTypeCode, selected: selected }),
   })
   .then(function (r) { return r.json(); })
   .then(function (data) {
-    document.getElementById('fm-preview-btn').disabled = false;
-    document.getElementById('fm-sync-run-btn').disabled = false;
-
     if (data.errors && data.errors.length) {
       resultDiv.innerHTML = '<div class="alert alert-danger small"><strong>Sync errors:</strong><ul class="mb-0">'
         + data.errors.map(function (e) { return '<li>' + e + '</li>'; }).join('')
         + '</ul></div>';
-    } else {
-      resultDiv.innerHTML = '<div class="alert alert-success small">'
-        + '<i class="fa-solid fa-circle-check me-1"></i><strong>Sync complete</strong>'
-        + '<table class="table table-sm mb-0 mt-2" style="font-size:0.85rem;">'
-        + (data.fields_added ? '<tr class="table-warning"><td>New questions registered</td><td class="fw-semibold">' + data.fields_added + '</td></tr>' : '')
-        + '<tr><td>Existing fields processed</td><td class="fw-semibold">' + data.fields_processed + '</td></tr>'
-        + '<tr><td>ODK labels updated</td><td class="fw-semibold">' + data.labels_updated + '</td></tr>'
-        + '<tr><td>Choices added</td><td class="fw-semibold">' + data.choices_added + '</td></tr>'
-        + '<tr><td>Choices updated</td><td class="fw-semibold">' + data.choices_updated + '</td></tr>'
-        + '</table>'
-        + (data.fields_added ? '<div class="mt-2 small text-muted"><i class="fa-solid fa-circle-info me-1"></i>New questions were registered with ODK labels as Short/Full labels. Configure categories and display settings in the <strong>Fields</strong> panel.</div>' : '')
-        + '</div>';
+      return;
     }
+    resultDiv.innerHTML = '<div class="alert alert-success small">'
+      + '<i class="fa-solid fa-circle-check me-1"></i><strong>Sync applied</strong>'
+      + '<table class="table table-sm mb-0 mt-2" style="font-size:0.85rem;">'
+      + (data.fields_added   ? '<tr class="table-warning"><td>New questions registered</td><td class="fw-semibold">' + data.fields_added   + '</td></tr>' : '')
+      + (data.labels_updated ? '<tr><td>ODK labels updated</td><td class="fw-semibold">'                            + data.labels_updated + '</td></tr>' : '')
+      + (data.choices_added  ? '<tr><td>Choices added</td><td class="fw-semibold">'                                + data.choices_added  + '</td></tr>' : '')
+      + (data.choices_updated? '<tr><td>Choices updated</td><td class="fw-semibold">'                              + data.choices_updated+ '</td></tr>' : '')
+      + '</table>'
+      + (data.fields_added ? '<div class="mt-2 small text-muted"><i class="fa-solid fa-circle-info me-1"></i>New questions registered. Configure categories in the <strong>Fields</strong> panel.</div>' : '')
+      + '</div>'
+      + '<button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="fmPreview(\'' + _formTypeCode + '\')">'
+      + '<i class="fa-solid fa-eye me-1"></i>Re-preview</button>';
+    _previewData = null;
   })
   .catch(function (err) {
-    document.getElementById('fm-preview-btn').disabled = false;
-    document.getElementById('fm-sync-run-btn').disabled = false;
     resultDiv.innerHTML = '<div class="alert alert-danger small">Request failed: ' + err + '</div>';
   });
 }

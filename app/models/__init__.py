@@ -26,6 +26,14 @@ from app.models.va_selectives import (
     VaAccessRoles,
     VaAccessScopeTypes,
 )
+from app.models.va_field_mapping import (
+    MasFormTypes,
+    MasCategoryOrder,
+    MasSubcategoryOrder,
+    MasFieldDisplayConfig,
+    MasChoiceMappings,
+    MasPiiAccessLog,
+)
 
 __all__ = [
     "VaStatuses",
@@ -54,4 +62,10 @@ __all__ = [
     "MasOdkConnections",
     "MapProjectOdk",
     "MapProjectSiteOdk",
+    "MasFormTypes",
+    "MasCategoryOrder",
+    "MasSubcategoryOrder",
+    "MasFieldDisplayConfig",
+    "MasChoiceMappings",
+    "MasPiiAccessLog",
 ]

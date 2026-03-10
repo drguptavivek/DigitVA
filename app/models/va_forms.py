@@ -1,3 +1,4 @@
+import uuid
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from app import db
@@ -40,6 +41,13 @@ class VaForms(db.Model):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+    # FK to field mapping system (nullable - populated after Phase 2 migration)
+    form_type_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_form_types.form_type_id"),
+        nullable=True,
+        index=True,
     )
 
     def __repr__(self) -> str:

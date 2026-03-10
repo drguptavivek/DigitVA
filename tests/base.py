@@ -35,7 +35,11 @@ Running tests (inside Docker):
 
 import unittest
 import uuid
+import warnings
 from datetime import datetime, timezone
+
+# Suppress deprecation warnings from libraries in tests
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from itsdangerous import URLSafeTimedSerializer
 

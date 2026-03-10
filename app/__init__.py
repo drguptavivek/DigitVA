@@ -1,10 +1,17 @@
 import uuid
+from datetime import datetime
+import pytz
+import warnings
+
+# Suppress deprecation warnings from libraries until they update to modern datetime APIs
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from flask import Flask, request, redirect, session, url_for
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
+from flask_session import Session
 from config import Config
 from celery import Celery, Task
 
@@ -12,6 +19,7 @@ db = SQLAlchemy()
 migrate = Migrate()
 login = LoginManager()
 csrf = CSRFProtect()
+sess_manager = Session()
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -33,6 +41,8 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login.init_app(app)
     csrf.init_app(app)
+    sess_manager.init_app(app)
+    
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'
     app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])
@@ -51,9 +61,6 @@ def create_app(config_class=Config):
     from app import services #noqa
     from app import utils #noqa
     
-    import pytz
-    from datetime import datetime
-
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):
         if not dt:
@@ -76,12 +83,6 @@ def create_app(config_class=Config):
             
         local_dt = dt.astimezone(tz)
         return local_dt.strftime(format)
-    
-    # @app.before_request
-    # def force_password_update():
-    #     if current_user.is_authenticated:
-    #         if not current_user.pw_reset_t_and_c and request.endpoint != 'va_main.force_password_change':
-    #             return redirect(url_for('va_main.force_password_change'))
     
     @app.before_request
     def force_password_update():

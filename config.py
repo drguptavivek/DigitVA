@@ -1,4 +1,5 @@
 import os
+import redis
 from datetime import timedelta
 from dotenv import load_dotenv
 
@@ -21,6 +22,13 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "5Ag92#2g]oLIHEk"
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     REMEMBER_COOKIE_DURATION = timedelta(minutes=30)
+    
+    # Session Configuration
+    SESSION_TYPE = "redis"
+    SESSION_PERMANENT = True
+    SESSION_USE_SIGNER = True
+    SESSION_REDIS = redis.from_url(os.environ.get("REDIS_URL") or "redis://localhost:6379/0")
+    
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("DATABASE_URL")
         or "postgresql://minerva:minerva@localhost:5432/minerva"

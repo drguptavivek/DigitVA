@@ -23,4 +23,4 @@ private/
 *.db
 .beads/dolt-config.log
 .beads/metadata.json
-
+.beads/dolt-monitor.pid.lock

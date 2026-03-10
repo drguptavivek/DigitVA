@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-10
 ---
 
 # Current State Index
@@ -24,9 +24,10 @@ Read these documents in this order:
 1. [Architecture Overview](architecture-overview.md)
 2. [Current Data Model](data-model.md)
 3. [ODK Sync And Attachments](odk-sync.md)
-4. [Workflow And Permissions](workflow-and-permissions.md)
-5. [Admin And Setup Model](admin-and-setup.md)
-6. [Runtime And Operations](runtime-and-operations.md)
+4. [Field Mapping System](field-mapping-system.md)
+5. [Workflow And Permissions](workflow-and-permissions.md)
+6. [Admin And Setup Model](admin-and-setup.md)
+7. [Runtime And Operations](runtime-and-operations.md)
 
 Related planning:
 

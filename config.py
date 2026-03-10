@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,6 +19,8 @@ def _require_env(key: str) -> str:
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "5Ag92#2g]oLIHEk"
+    PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
+    REMEMBER_COOKIE_DURATION = timedelta(minutes=30)
     SQLALCHEMY_DATABASE_URI = (
         os.environ.get("DATABASE_URL")
         or "postgresql://minerva:minerva@localhost:5432/minerva"

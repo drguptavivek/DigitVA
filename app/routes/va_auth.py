@@ -2,7 +2,7 @@ from app import db
 from app.models import VaUsers
 from app.forms import LoginForm
 import sqlalchemy as sa
-from flask import Blueprint, render_template, redirect, url_for, flash
+from flask import Blueprint, render_template, redirect, url_for, flash, session
 from flask_login import login_user, logout_user, current_user
 
 va_auth = Blueprint("va_auth", __name__)
@@ -27,6 +27,8 @@ def va_login():
                 "primary",
             )
             return redirect(url_for("va_auth.va_login"))
+        
+        session.permanent = True
         login_user(user, remember=form.remember_me.data)
         return redirect(
             url_for("va_main.va_dashboard", va_role=current_user.landing_page)

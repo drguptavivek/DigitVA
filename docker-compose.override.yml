@@ -9,9 +9,9 @@ services:
     command: >
       bash -c "
         echo 'Waiting for database...' &&
-        until flask db upgrade; do
+        until uv run flask db upgrade; do
           echo 'DB not ready, retrying in 5s...'
           sleep 5
         done &&
-        flask run --host=0.0.0.0 --port=5005
+        uv run flask run --host=0.0.0.0 --port=5005
       "

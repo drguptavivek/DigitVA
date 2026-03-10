@@ -249,11 +249,24 @@ function fmPreview(formTypeCode) {
     if (nf.length) {
       html += '<p class="small fw-semibold mb-1 text-danger"><i class="fa-solid fa-file-circle-plus me-1"></i>New questions not yet in database (' + nf.length + ')</p>'
         + '<div class="table-responsive mb-3"><table class="table table-sm table-bordered mb-0" style="font-size:0.8rem;">'
-        + '<thead class="table-light"><tr><th>Field ID</th><th>Type</th><th>ODK Label</th></tr></thead><tbody>'
+        + '<thead class="table-light"><tr><th>Field ID</th><th>Type</th><th>ODK Label</th><th>Choices</th></tr></thead><tbody>'
         + nf.map(function (r) {
+            var choiceHtml = '';
+            if (r.choices && r.choices.length) {
+              choiceHtml = '<details><summary class="text-muted" style="cursor:pointer;">'
+                + r.choices.length + ' choice' + (r.choices.length !== 1 ? 's' : '')
+                + '</summary><div class="mt-1" style="max-height:160px;overflow-y:auto;">'
+                + r.choices.map(function (c) {
+                    return '<div class="font-monospace text-nowrap">'
+                      + esc(c.value) + ' <span class="text-muted">→</span> ' + esc(c.label)
+                      + '</div>';
+                  }).join('')
+                + '</div></details>';
+            }
             return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td>'
               + '<td class="text-muted font-monospace">' + esc(r.field_type) + '</td>'
-              + '<td>' + esc(r.odk_label || '') + '</td></tr>';
+              + '<td>' + esc(r.odk_label || '') + '</td>'
+              + '<td>' + choiceHtml + '</td></tr>';
           }).join('')
         + '</tbody></table></div>';
     }

@@ -250,11 +250,19 @@ class OdkSchemaSyncService:
                 )
                 if cfg is None:
                     # Field exists in ODK but not registered in DB
-                    result["new_fields"].append({
+                    entry: dict = {
                         "field_id": field_name,
                         "field_type": field_type,
                         "odk_label": odk_label,
-                    })
+                        "choices": [],
+                    }
+                    if field_type.startswith("select"):
+                        for ch in field.get("choices") or []:
+                            cv = ch.get("name") or ch.get("value")
+                            cl = _extract_label(ch.get("label")) or str(cv)
+                            if cv:
+                                entry["choices"].append({"value": str(cv), "label": cl})
+                    result["new_fields"].append(entry)
                 elif odk_label and cfg.odk_label != odk_label:
                     result["label_changes"].append({
                         "field_id": field_name,

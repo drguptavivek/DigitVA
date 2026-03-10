@@ -1,7 +1,7 @@
 import sqlalchemy as sa
 from app import db
 from functools import wraps
-from flask import redirect, url_for
+from flask import redirect, url_for, request
 from flask_login import current_user
 from app.models import VaSubmissions
 from app.utils import (
@@ -23,7 +23,7 @@ def va_validate_permissions():
         @wraps(func)
         def wrapper(*args, **kwargs):
             if current_user.is_anonymous:
-                return redirect(url_for("va_auth.va_login"))
+                return redirect(url_for("va_auth.va_login", next=request.url))
             va_role = kwargs.get("va_role")
             va_action = kwargs.get("va_action")
             va_actiontype = kwargs.get("va_actiontype")

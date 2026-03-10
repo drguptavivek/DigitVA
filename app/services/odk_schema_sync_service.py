@@ -253,6 +253,7 @@ class OdkSchemaSyncService:
                     entry: dict = {
                         "field_id": field_name,
                         "field_type": field_type,
+                        "list_name": field.get("list_name", ""),
                         "odk_label": odk_label,
                         "choices": [],
                     }
@@ -432,6 +433,7 @@ class OdkSchemaSyncService:
                     }
                     if field_type in ("select_one", "select_multiple") and len(parts) > 1:
                         list_name = parts[1].strip()
+                        entry["list_name"] = list_name
                         entry["choices"] = choice_map.get(list_name, [])
 
                     fields.append(entry)

@@ -263,8 +263,10 @@ function fmPreview(formTypeCode) {
                   }).join('')
                 + '</div></details>';
             }
+            var typeCell = esc(r.field_type)
+              + (r.list_name ? ' <span class="text-secondary">(' + esc(r.list_name) + ')</span>' : '');
             return '<tr><td class="font-monospace">' + esc(r.field_id) + '</td>'
-              + '<td class="text-muted font-monospace">' + esc(r.field_type) + '</td>'
+              + '<td class="font-monospace" style="white-space:nowrap;">' + typeCell + '</td>'
               + '<td>' + esc(r.odk_label || '') + '</td>'
               + '<td>' + choiceHtml + '</td></tr>';
           }).join('')

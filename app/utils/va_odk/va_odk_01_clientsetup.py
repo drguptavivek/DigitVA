@@ -42,7 +42,6 @@ def _client_from_db(project_id: str, pyodk_dir: str) -> Client | None:
         from app.models.map_project_odk import MapProjectOdk
         from app.models.mas_odk_connections import MasOdkConnections
         from app.models.va_selectives import VaStatuses
-        from app.utils.credential_crypto import decrypt_credential, get_odk_pepper
 
         row = db.session.scalar(
             sa.select(MapProjectOdk).where(MapProjectOdk.project_id == project_id)
@@ -54,21 +53,27 @@ def _client_from_db(project_id: str, pyodk_dir: str) -> Client | None:
         if conn is None or conn.status != VaStatuses.active:
             return None
 
-        pepper = get_odk_pepper()
-        username = decrypt_credential(conn.username_enc, conn.username_salt, pepper)
-        password = decrypt_credential(conn.password_enc, conn.password_salt, pepper)
-
-        # Each connection gets its own cache file so concurrent calls to
-        # different ODK servers never overwrite each other's auth token.
-        cache_path = os.path.join(
-            pyodk_dir, f"odk_cache_{conn.connection_id}.toml"
-        )
-        return _build_client(conn.base_url, username, password, pyodk_dir, cache_path)
+        return client_from_connection(conn, pyodk_dir)
 
     except Exception as exc:
         raise Exception(
             f"pyODK DB client setup failed for project '{project_id}': {exc}"
         ) from exc
+
+
+def client_from_connection(conn, pyodk_dir: str) -> Client:
+    """Return a Client built from a MasOdkConnections object."""
+    from app.utils.credential_crypto import decrypt_credential, get_odk_pepper
+    pepper = get_odk_pepper()
+    username = decrypt_credential(conn.username_enc, conn.username_salt, pepper)
+    password = decrypt_credential(conn.password_enc, conn.password_salt, pepper)
+
+    # Each connection gets its own cache file so concurrent calls to
+    # different ODK servers never overwrite each other's auth token.
+    cache_path = os.path.join(
+        pyodk_dir, f"odk_cache_{conn.connection_id}.toml"
+    )
+    return _build_client(conn.base_url, username, password, pyodk_dir, cache_path)
 
 
 def _client_from_toml(cache_path: str) -> Client:
@@ -103,11 +108,14 @@ def _build_client(
     stub_path = os.path.join(pyodk_dir, "odk_stub_config.toml")
     if not os.path.exists(stub_path):
         os.makedirs(pyodk_dir, exist_ok=True)
-        with open(stub_path, "w") as f:
+        import tempfile
+        fd, temp_path = tempfile.mkstemp(dir=pyodk_dir, prefix="stub_", suffix=".toml")
+        with os.fdopen(fd, "w") as f:
             toml.dump(
                 {"central": {"base_url": "https://stub", "username": "stub", "password": "stub"}},
                 f,
             )
+        os.replace(temp_path, stub_path)
         os.chmod(stub_path, 0o600)
 
     session = PyOdkSession(

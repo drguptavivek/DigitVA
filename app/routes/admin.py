@@ -1390,16 +1390,9 @@ def _get_odk_client_for_connection(conn: MasOdkConnections):
     """Return a ready pyODK Client for the given connection row."""
     import os
     from flask import current_app
-    from app.utils.va_odk.va_odk_01_clientsetup import _build_client
-    from app.utils.credential_crypto import decrypt_credential, get_odk_pepper
-
-    pepper = get_odk_pepper()
-    username = decrypt_credential(conn.username_enc, conn.username_salt, pepper)
-    password = decrypt_credential(conn.password_enc, conn.password_salt, pepper)
-
+    from app.utils.va_odk.va_odk_01_clientsetup import client_from_connection
     pyodk_dir = os.path.join(current_app.config.get("APP_RESOURCE"), "pyodk")
-    cache_path = os.path.join(pyodk_dir, f"odk_cache_{conn.connection_id}.toml")
-    return _build_client(conn.base_url, username, password, pyodk_dir, cache_path)
+    return client_from_connection(conn, pyodk_dir)
 
 
 @admin.get("/api/odk-connections/<uuid:connection_id>/odk-projects")

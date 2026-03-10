@@ -298,22 +298,44 @@
 
     // ── Section 1: Project-level grants ──────────────────────────────────────
     if (projectGrants.length) {
-      // Group by user
-      var projByUser = {}, projOrder = [];
-      projectGrants.forEach(function (g) {
-        if (!projByUser[g.user_email]) { projByUser[g.user_email] = { name: g.user_name, grants: [] }; projOrder.push(g.user_email); }
-        projByUser[g.user_email].grants.push(g);
-      });
-      var projRows = projOrder.map(function (email) {
-        var u = projByUser[email];
-        var badges = u.grants.map(roleBadge).join(' ');
-        return '<tr>' + userCell(email, u.name) + '<td class="align-middle py-2">' + badges + '</td></tr>';
-      }).join('');
+      var projRows;
+      if (PROJECT_ID) {
+        // Single project: group by user, collapse roles into one row
+        var projByUser = {}, projOrder = [];
+        projectGrants.forEach(function (g) {
+          if (!projByUser[g.user_email]) { projByUser[g.user_email] = { name: g.user_name, grants: [] }; projOrder.push(g.user_email); }
+          projByUser[g.user_email].grants.push(g);
+        });
+        projRows = projOrder.map(function (email) {
+          var u = projByUser[email];
+          return '<tr>' + userCell(email, u.name) + '<td class="align-middle py-2">' + u.grants.map(roleBadge).join(' ') + '</td></tr>';
+        }).join('');
+      } else {
+        // All projects: show a Project column; group by project+user
+        var projByProject = {}, projProjectOrder = [];
+        projectGrants.forEach(function (g) {
+          var pid = g.project_id || '—';
+          if (!projByProject[pid]) { projByProject[pid] = {}; projProjectOrder.push(pid); }
+          if (!projByProject[pid][g.user_email]) projByProject[pid][g.user_email] = { name: g.user_name, grants: [] };
+          projByProject[pid][g.user_email].grants.push(g);
+        });
+        projRows = projProjectOrder.map(function (pid) {
+          return Object.keys(projByProject[pid]).map(function (email) {
+            var u = projByProject[pid][email];
+            return '<tr>'
+              + userCell(email, u.name)
+              + '<td class="align-middle py-2"><span class="badge bg-secondary fw-normal">' + esc(pid) + '</span></td>'
+              + '<td class="align-middle py-2">' + u.grants.map(roleBadge).join(' ') + '</td>'
+              + '</tr>';
+          }).join('');
+        }).join('');
+      }
 
       html += '<p class="text-muted small fw-semibold text-uppercase mb-1 mt-2" style="letter-spacing:.05em;">Project-level grants</p>'
         + '<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle mb-0">'
         + '<thead class="table-light"><tr>'
         + '<th class="fw-semibold small">User</th>'
+        + (PROJECT_ID ? '' : '<th class="fw-semibold small">Project</th>')
         + '<th class="fw-semibold small">Roles</th>'
         + '</tr></thead>'
         + '<tbody>' + projRows + '</tbody></table></div>';
@@ -321,43 +343,60 @@
 
     // ── Section 2: Site matrix ────────────────────────────────────────────────
     if (siteGrants.length) {
-      // Collect unique sites (columns) and users (rows)
-      var sites = [], siteSet = {};
-      var matrixByUser = {}, matrixUserOrder = [];
-      siteGrants.forEach(function (g) {
-        if (!siteSet[g.site_id]) { siteSet[g.site_id] = true; sites.push(g.site_id); }
-        if (!matrixByUser[g.user_email]) {
-          matrixByUser[g.user_email] = { name: g.user_name, bySite: {} };
-          matrixUserOrder.push(g.user_email);
-        }
-        if (!matrixByUser[g.user_email].bySite[g.site_id]) matrixByUser[g.user_email].bySite[g.site_id] = [];
-        matrixByUser[g.user_email].bySite[g.site_id].push(g);
-      });
-      sites.sort();
+      function buildSiteMatrix(grants, label) {
+        var sites = [], siteSet = {};
+        var matrixByUser = {}, matrixUserOrder = [];
+        grants.forEach(function (g) {
+          if (!siteSet[g.site_id]) { siteSet[g.site_id] = true; sites.push(g.site_id); }
+          if (!matrixByUser[g.user_email]) {
+            matrixByUser[g.user_email] = { name: g.user_name, bySite: {} };
+            matrixUserOrder.push(g.user_email);
+          }
+          if (!matrixByUser[g.user_email].bySite[g.site_id]) matrixByUser[g.user_email].bySite[g.site_id] = [];
+          matrixByUser[g.user_email].bySite[g.site_id].push(g);
+        });
+        sites.sort();
 
-      var headerCols = sites.map(function (s) {
-        return '<th class="fw-semibold small text-center">' + esc(s) + '</th>';
-      }).join('');
-
-      var matrixRows = matrixUserOrder.map(function (email) {
-        var u = matrixByUser[email];
-        var siteCols = sites.map(function (s) {
-          var cellGrants = u.bySite[s] || [];
-          if (!cellGrants.length) return '<td></td>';
-          return '<td class="align-middle py-1"><div class="d-flex flex-column gap-1">'
-            + cellGrants.map(roleBadge).join('')
-            + '</div></td>';
+        var headerCols = sites.map(function (s) {
+          return '<th class="fw-semibold small text-center">' + esc(s) + '</th>';
         }).join('');
-        return '<tr>' + userCell(email, u.name) + siteCols + '</tr>';
-      }).join('');
 
-      html += '<p class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em;">Site-level grants</p>'
-        + '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
-        + '<thead class="table-light"><tr>'
-        + '<th class="fw-semibold small">User</th>'
-        + headerCols
-        + '</tr></thead>'
-        + '<tbody>' + matrixRows + '</tbody></table></div>';
+        var matrixRows = matrixUserOrder.map(function (email) {
+          var u = matrixByUser[email];
+          var siteCols = sites.map(function (s) {
+            var cellGrants = u.bySite[s] || [];
+            if (!cellGrants.length) return '<td></td>';
+            return '<td class="align-middle py-1"><div class="d-flex flex-column gap-1">'
+              + cellGrants.map(roleBadge).join('')
+              + '</div></td>';
+          }).join('');
+          return '<tr>' + userCell(email, u.name) + siteCols + '</tr>';
+        }).join('');
+
+        return '<p class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em;">' + esc(label) + '</p>'
+          + '<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle mb-0">'
+          + '<thead class="table-light"><tr>'
+          + '<th class="fw-semibold small">User</th>'
+          + headerCols
+          + '</tr></thead>'
+          + '<tbody>' + matrixRows + '</tbody></table></div>';
+      }
+
+      if (PROJECT_ID) {
+        html += buildSiteMatrix(siteGrants, 'Site-level grants');
+      } else {
+        // Group by project, render a matrix per project
+        var byProject = {}, projectOrder = [];
+        siteGrants.forEach(function (g) {
+          var pid = g.project_id || '—';
+          if (!byProject[pid]) { byProject[pid] = []; projectOrder.push(pid); }
+          byProject[pid].push(g);
+        });
+        projectOrder.sort();
+        projectOrder.forEach(function (pid) {
+          html += buildSiteMatrix(byProject[pid], 'Site-level grants — ' + pid);
+        });
+      }
     }
 
     wrap.innerHTML = html;

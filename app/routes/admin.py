@@ -11,6 +11,7 @@ from app.models import (
     VaAccessScopeTypes,
     MasOdkConnections,
     MapProjectOdk,
+    MapProjectSiteOdk,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
@@ -927,6 +928,14 @@ def admin_panel_project_sites():
     return render_template("admin/panels/project_sites.html", project_id=project_id)
 
 
+@admin.get("/panels/project-forms")
+def admin_panel_project_forms():
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+    return render_template("admin/panels/project_forms.html")
+
+
 @admin.get("/panels/projects")
 def admin_panel_projects():
     denied = _require_admin_ui_access()
@@ -1268,3 +1277,201 @@ def admin_odk_unassign_project(connection_id, project_id):
     db.session.delete(mapping)
     db.session.commit()
     return jsonify({"message": "Project unassigned."})
+
+
+# ---------------------------------------------------------------------------
+# ODK Central live data (projects / forms) fetched via pyODK
+# ---------------------------------------------------------------------------
+
+def _get_odk_client_for_connection(conn: MasOdkConnections):
+    """Return a ready pyODK Client for the given connection row."""
+    import os
+    from flask import current_app
+    from app.utils.va_odk.va_odk_01_clientsetup import _build_client
+    from app.utils.credential_crypto import decrypt_credential, get_odk_pepper
+
+    pepper = get_odk_pepper()
+    username = decrypt_credential(conn.username_enc, conn.username_salt, pepper)
+    password = decrypt_credential(conn.password_enc, conn.password_salt, pepper)
+
+    pyodk_dir = os.path.join(current_app.config.get("APP_RESOURCE"), "pyodk")
+    cache_path = os.path.join(pyodk_dir, f"odk_cache_{conn.connection_id}.toml")
+    return _build_client(conn.base_url, username, password, pyodk_dir, cache_path)
+
+
+@admin.get("/api/odk-connections/<uuid:connection_id>/odk-projects")
+def admin_odk_list_odk_projects(connection_id):
+    """List ODK Central projects available on the connection."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    conn = db.session.get(MasOdkConnections, connection_id)
+    if not conn:
+        return _json_error("Connection not found.", 404)
+
+    try:
+        client = _get_odk_client_for_connection(conn)
+        projects = client.projects.list()
+        return jsonify({
+            "odk_projects": [
+                {"id": p.id, "name": p.name} for p in projects
+            ]
+        })
+    except Exception as exc:
+        return _json_error(f"Failed to fetch ODK projects: {exc}", 502)
+
+
+@admin.get("/api/odk-connections/<uuid:connection_id>/odk-projects/<int:odk_project_id>/forms")
+def admin_odk_list_forms(connection_id, odk_project_id):
+    """List forms in a specific ODK Central project."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    conn = db.session.get(MasOdkConnections, connection_id)
+    if not conn:
+        return _json_error("Connection not found.", 404)
+
+    try:
+        client = _get_odk_client_for_connection(conn)
+        forms = client.forms.list(project_id=odk_project_id)
+        return jsonify({
+            "forms": [
+                {"xmlFormId": f.xmlFormId, "name": f.name, "version": f.version}
+                for f in forms
+            ]
+        })
+    except Exception as exc:
+        return _json_error(f"Failed to fetch ODK forms: {exc}", 502)
+
+
+# ---------------------------------------------------------------------------
+# Project-site → ODK form mappings
+# ---------------------------------------------------------------------------
+
+@admin.get("/api/projects/<project_id>/odk-connection")
+def admin_project_odk_connection(project_id):
+    """Return the ODK connection linked to this project, or null."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    mapping = db.session.scalar(
+        sa.select(MapProjectOdk).where(
+            MapProjectOdk.project_id == project_id.upper()
+        )
+    )
+    if not mapping:
+        return jsonify({"connection": None})
+
+    conn = db.session.get(MasOdkConnections, mapping.connection_id)
+    if not conn:
+        return jsonify({"connection": None})
+
+    return jsonify({
+        "connection": {
+            "connection_id": str(conn.connection_id),
+            "connection_name": conn.connection_name,
+            "status": conn.status.value,
+        }
+    })
+
+@admin.get("/api/projects/<project_id>/odk-site-mappings")
+def admin_odk_site_mappings_list(project_id):
+    """Return ODK form mappings for all sites in a project."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    project_id = project_id.upper()
+    rows = db.session.scalars(
+        sa.select(MapProjectSiteOdk).where(
+            MapProjectSiteOdk.project_id == project_id
+        )
+    ).all()
+    return jsonify({
+        "mappings": [
+            {
+                "site_id": r.site_id,
+                "odk_project_id": r.odk_project_id,
+                "odk_form_id": r.odk_form_id,
+            }
+            for r in rows
+        ]
+    })
+
+
+@admin.post("/api/projects/<project_id>/odk-site-mappings")
+def admin_odk_site_mappings_save(project_id):
+    """Upsert the ODK form mapping for a single project-site.
+
+    Body: { "site_id": "XX01", "odk_project_id": 3, "odk_form_id": "va_form" }
+    """
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    data = request.get_json(silent=True) or {}
+    project_id = project_id.upper()
+    site_id = (data.get("site_id") or "").upper()
+    odk_project_id = data.get("odk_project_id")
+    odk_form_id = (data.get("odk_form_id") or "").strip()
+
+    if not site_id or odk_project_id is None or not odk_form_id:
+        return _json_error("site_id, odk_project_id, and odk_form_id are required.", 400)
+
+    try:
+        odk_project_id = int(odk_project_id)
+    except (TypeError, ValueError):
+        return _json_error("odk_project_id must be an integer.", 400)
+
+    existing = db.session.scalar(
+        sa.select(MapProjectSiteOdk).where(
+            MapProjectSiteOdk.project_id == project_id,
+            MapProjectSiteOdk.site_id == site_id,
+        )
+    )
+    if existing:
+        existing.odk_project_id = odk_project_id
+        existing.odk_form_id = odk_form_id
+        status_code = 200
+    else:
+        existing = MapProjectSiteOdk(
+            project_id=project_id,
+            site_id=site_id,
+            odk_project_id=odk_project_id,
+            odk_form_id=odk_form_id,
+        )
+        db.session.add(existing)
+        status_code = 201
+
+    db.session.commit()
+    return jsonify({
+        "mapping": {
+            "site_id": existing.site_id,
+            "odk_project_id": existing.odk_project_id,
+            "odk_form_id": existing.odk_form_id,
+        }
+    }), status_code
+
+
+@admin.delete("/api/projects/<project_id>/odk-site-mappings/<site_id>")
+def admin_odk_site_mappings_delete(project_id, site_id):
+    """Remove the ODK form mapping for a project-site."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    mapping = db.session.scalar(
+        sa.select(MapProjectSiteOdk).where(
+            MapProjectSiteOdk.project_id == project_id.upper(),
+            MapProjectSiteOdk.site_id == site_id.upper(),
+        )
+    )
+    if not mapping:
+        return _json_error("Mapping not found.", 404)
+
+    db.session.delete(mapping)
+    db.session.commit()
+    return jsonify({"message": "Mapping removed."})

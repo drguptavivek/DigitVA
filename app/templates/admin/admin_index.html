@@ -33,6 +33,15 @@
         {# Admin-only items — revealed by JS after bootstrap fetch #}
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           data-panel="/admin/panels/project-forms"
+           hx-get="/admin/panels/project-forms"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-file-waveform me-2"></i>Project Forms
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
            data-panel="/admin/panels/project-pi"
            hx-get="/admin/panels/project-pi"
            hx-target="#admin-panel"

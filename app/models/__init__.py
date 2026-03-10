@@ -18,6 +18,7 @@ from app.models.va_submissions_auditlog import VaSubmissionsAuditlog
 from app.models.va_user_access_grants import VaUserAccessGrants
 from app.models.mas_odk_connections import MasOdkConnections
 from app.models.map_project_odk import MapProjectOdk
+from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.va_selectives import (
     VaStatuses,
     VaUsernotesFor,
@@ -52,4 +53,5 @@ __all__ = [
     "VaAccessScopeTypes",
     "MasOdkConnections",
     "MapProjectOdk",
+    "MapProjectSiteOdk",
 ]

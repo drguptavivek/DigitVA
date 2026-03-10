@@ -1,6 +1,7 @@
 {#
   ODK Connections panel — admin-only.
   Manage ODK Central connection records and project assignments.
+  Form-level config (ODK project/form mapping) is in the Project Forms panel.
   Credentials are never returned to the browser after save.
 #}
 <div id="panel-odk-connections">
@@ -103,7 +104,7 @@
   // ── state ─────────────────────────────────────────────────────────────────
 
   var _connections = [];
-  var _editingId = null;
+  var _editingId   = null;
   var _allProjects = [];
 
   // ── load & render ──────────────────────────────────────────────────────────
@@ -137,16 +138,20 @@
     }
 
     var cards = _connections.map(function (c) {
+      var cid = c.connection_id;
+
       var projectPills = c.project_ids.length
-        ? c.project_ids.map(function (p) {
-            return '<span class="badge bg-secondary fw-normal me-1 odc-project-pill" data-cid="' + esc(c.connection_id) + '" data-pid="' + esc(p) + '">'
-              + esc(p)
-              + '<button type="button" class="btn-close btn-close-white ms-1 odc-unassign-btn" style="font-size:0.45rem;" aria-label="Unassign"></button>'
+        ? c.project_ids.map(function (pid) {
+            return '<span class="badge bg-secondary fw-normal me-1 odc-project-pill" '
+              + 'data-cid="' + esc(cid) + '" data-pid="' + esc(pid) + '">'
+              + esc(pid)
+              + '<button type="button" class="btn-close btn-close-white ms-1 odc-unassign-btn" '
+              + 'style="font-size:0.45rem;" aria-label="Unassign"></button>'
               + '</span>';
           }).join('')
         : '<span class="text-muted small">No projects assigned</span>';
 
-      return '<div class="card mb-3" id="odc-card-' + esc(c.connection_id) + '">'
+      return '<div class="card mb-3" id="odc-card-' + esc(cid) + '">'
         + '<div class="card-body py-3">'
         + '<div class="d-flex justify-content-between align-items-start">'
         +   '<div>'
@@ -155,13 +160,13 @@
         +     (c.notes ? '<div class="small text-muted mt-1">' + esc(c.notes) + '</div>' : '')
         +   '</div>'
         +   '<div class="d-flex gap-1 flex-wrap justify-content-end">'
-        +     '<button class="btn btn-sm btn-outline-secondary odc-test-btn" data-cid="' + esc(c.connection_id) + '" title="Test connection">'
+        +     '<button class="btn btn-sm btn-outline-secondary odc-test-btn" data-cid="' + esc(cid) + '" title="Test connection">'
         +       '<i class="fa-solid fa-vial"></i>'
         +     '</button>'
-        +     '<button class="btn btn-sm btn-outline-primary odc-edit-btn" data-cid="' + esc(c.connection_id) + '">'
+        +     '<button class="btn btn-sm btn-outline-primary odc-edit-btn" data-cid="' + esc(cid) + '">'
         +       '<i class="fa-solid fa-pen-to-square"></i>'
         +     '</button>'
-        +     '<button class="btn btn-sm odc-toggle-btn ' + (c.status === 'active' ? 'btn-outline-danger' : 'btn-outline-success') + '" data-cid="' + esc(c.connection_id) + '">'
+        +     '<button class="btn btn-sm odc-toggle-btn ' + (c.status === 'active' ? 'btn-outline-danger' : 'btn-outline-success') + '" data-cid="' + esc(cid) + '">'
         +       '<i class="fa-solid ' + (c.status === 'active' ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
         +     '</button>'
         +   '</div>'
@@ -169,12 +174,12 @@
         + '<hr class="my-2">'
         + '<div class="d-flex align-items-center gap-2 flex-wrap">'
         +   '<span class="small text-muted fw-semibold">Projects:</span>'
-        +   '<div class="d-inline-flex flex-wrap gap-1 align-items-center" id="odc-projects-' + esc(c.connection_id) + '">' + projectPills + '</div>'
+        +   '<div class="d-inline-flex flex-wrap gap-1 align-items-center" id="odc-projects-' + esc(cid) + '">' + projectPills + '</div>'
         +   '<div class="d-flex gap-1 align-items-center ms-1">'
-        +     '<select class="form-select form-select-sm odc-project-add-sel" data-cid="' + esc(c.connection_id) + '" style="min-width:120px;max-width:160px;">'
+        +     '<select class="form-select form-select-sm odc-project-add-sel" data-cid="' + esc(cid) + '" style="min-width:120px;max-width:180px;">'
         +       '<option value="">Add project…</option>'
         +     '</select>'
-        +     '<button class="btn btn-sm btn-outline-secondary odc-assign-btn" data-cid="' + esc(c.connection_id) + '">'
+        +     '<button class="btn btn-sm btn-outline-secondary odc-assign-btn" data-cid="' + esc(cid) + '">'
         +       '<i class="fa-solid fa-plus"></i>'
         +     '</button>'
         +   '</div>'
@@ -190,24 +195,19 @@
   }
 
   function populateProjectDropdowns() {
-    // Collect every project already assigned to any connection — a project can
-    // only belong to one connection at a time, so hide it from all other dropdowns.
     var globallyAssigned = {};
     _connections.forEach(function (c) {
       (c.project_ids || []).forEach(function (p) { globallyAssigned[p] = true; });
     });
 
-    var sels = document.querySelectorAll('.odc-project-add-sel');
-    sels.forEach(function (sel) {
+    document.querySelectorAll('.odc-project-add-sel').forEach(function (sel) {
       var cid = sel.dataset.cid;
       var conn = _connections.find(function (c) { return c.connection_id === cid; });
       var ownAssigned = (conn && conn.project_ids) || [];
-      // A project is available if it is not assigned to any connection at all
-      var available = _allProjects.filter(function (p) {
-        return !globallyAssigned[p.project_id] || ownAssigned.indexOf(p.project_id) !== -1;
-      });
-      // Remove projects already shown as pills on this card
-      available = available.filter(function (p) { return ownAssigned.indexOf(p.project_id) === -1; });
+      var available = _allProjects
+        .filter(function (p) { return !globallyAssigned[p.project_id] || ownAssigned.indexOf(p.project_id) !== -1; })
+        .filter(function (p) { return ownAssigned.indexOf(p.project_id) === -1; });
+
       sel.innerHTML = available.length
         ? '<option value="">Add project…</option>'
           + available.map(function (p) {
@@ -218,26 +218,21 @@
   }
 
   function bindCardEvents() {
-    // Test
     document.querySelectorAll('.odc-test-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { testConnection(this.dataset.cid); });
     });
-    // Edit
     document.querySelectorAll('.odc-edit-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { openEditForm(this.dataset.cid); });
     });
-    // Toggle
     document.querySelectorAll('.odc-toggle-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { toggleConnection(this.dataset.cid); });
     });
-    // Assign project
     document.querySelectorAll('.odc-assign-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var sel = document.querySelector('.odc-project-add-sel[data-cid="' + this.dataset.cid + '"]');
         if (sel && sel.value) assignProject(this.dataset.cid, sel.value);
       });
     });
-    // Unassign project
     document.querySelectorAll('.odc-unassign-btn').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -249,10 +244,7 @@
 
   // ── form open/close ────────────────────────────────────────────────────────
 
-  document.getElementById('odc-show-form-btn').addEventListener('click', function () {
-    openAddForm();
-  });
-
+  document.getElementById('odc-show-form-btn').addEventListener('click', openAddForm);
   document.getElementById('odc-cancel-btn').addEventListener('click', closeForm);
 
   function openAddForm() {
@@ -323,7 +315,6 @@
 
     if (!name) { errEl.textContent = 'Name is required.'; return; }
     if (!url)  { errEl.textContent = 'Base URL is required.'; return; }
-
     if (!_editingId) {
       if (!username) { errEl.textContent = 'Username is required.'; return; }
       if (!password) { errEl.textContent = 'Password is required.'; return; }
@@ -387,9 +378,6 @@
     apiJson('/admin/api/odk-connections/' + cid + '/assign-project', 'POST', { project_id: projectId })
       .then(function (res) {
         if (!res.ok) { showError(res.data.error || 'Failed to assign project.'); return; }
-        // Update local state and re-render the projects area inline
-        var conn = _connections.find(function (c) { return c.connection_id === cid; });
-        if (conn && conn.project_ids.indexOf(projectId) === -1) conn.project_ids.push(projectId);
         loadConnections();
       });
   }
@@ -398,8 +386,6 @@
     apiJson('/admin/api/odk-connections/' + cid + '/assign-project/' + encodeURIComponent(projectId), 'DELETE')
       .then(function (res) {
         if (!res.ok) { showError(res.data.error || 'Failed to unassign project.'); return; }
-        var conn = _connections.find(function (c) { return c.connection_id === cid; });
-        if (conn) conn.project_ids = conn.project_ids.filter(function (p) { return p !== projectId; });
         loadConnections();
       });
   }
@@ -416,7 +402,6 @@
 
   // ── init ───────────────────────────────────────────────────────────────────
 
-  // Pre-load projects for the assign dropdowns
   fetch('/admin/api/projects?master=1').then(function (r) { return r.json(); }).then(function (d) {
     _allProjects = (d.projects || []).filter(function (p) { return p.status === 'active'; });
   }).catch(function () {}).finally(function () {

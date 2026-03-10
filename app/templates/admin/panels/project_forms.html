@@ -1,0 +1,455 @@
+{#
+  Project Forms panel — admin-only.
+  Per-project, per-site configuration of ODK form mappings.
+  Extensible for future form-level config (sync settings, field mappings, etc.)
+#}
+<div id="panel-project-forms">
+
+  {# Header #}
+  <div class="mb-1">
+    <h5 class="mb-2">
+      <i class="fa-solid fa-file-waveform me-2 text-secondary"></i>Project Forms
+    </h5>
+    <div class="d-flex align-items-center gap-2">
+      <label for="pf-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
+      <select id="pf-project-select" class="form-select form-select-sm" style="min-width:220px;">
+        <option value="">— select project —</option>
+      </select>
+    </div>
+  </div>
+  <hr class="my-3">
+
+  {# Connection info bar — shown when project is selected #}
+  <div id="pf-connection-bar" class="d-none mb-3"></div>
+
+  {# Main content area #}
+  <div id="pf-content">
+    <p class="text-muted small text-center py-4">Select a project to configure its form mappings.</p>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── state ─────────────────────────────────────────────────────────────────
+
+  var PROJECT_ID       = new URLSearchParams(window.location.search).get('project_id') || '';
+  var _connection      = null;   // { connection_id, connection_name, status }
+  var _sites           = [];     // [{ site_id, site_name }]
+  var _odkProjects     = [];     // [{ id, name }] from ODK Central
+  var _odkFormsCache   = {};     // "odkProjectId" → [{ xmlFormId, name }]
+  var _siteMappings    = [];     // [{ site_id, odk_project_id, odk_form_id }]
+  var _expandedSite    = null;   // site_id of currently open config row
+
+  // ── project selector ──────────────────────────────────────────────────────
+
+  (function initProjectSelector() {
+    apiJson('/admin/api/projects?master=1').then(function (res) {
+      var projects = (res.data.projects || []).filter(function (p) { return p.status === 'active'; });
+      var sel = document.getElementById('pf-project-select');
+      sel.innerHTML = '<option value="">— select project —</option>';
+      projects.forEach(function (p) {
+        var opt = document.createElement('option');
+        opt.value = p.project_id;
+        opt.textContent = p.project_id + ' — ' + p.project_name;
+        sel.appendChild(opt);
+      });
+      // Pre-select from URL, or auto-select if only one project
+      if (PROJECT_ID && projects.some(function (p) { return p.project_id === PROJECT_ID; })) {
+        sel.value = PROJECT_ID;
+        loadProjectContext();
+      } else if (projects.length === 1) {
+        PROJECT_ID = projects[0].project_id;
+        sel.value = PROJECT_ID;
+        loadProjectContext();
+      }
+    });
+  }());
+
+  document.getElementById('pf-project-select').addEventListener('change', function () {
+    PROJECT_ID = this.value;
+    _connection = null;
+    _sites = [];
+    _odkProjects = [];
+    _odkFormsCache = {};
+    _siteMappings = [];
+    _expandedSite = null;
+    if (PROJECT_ID) loadProjectContext();
+    else resetContent();
+  });
+
+  function resetContent() {
+    document.getElementById('pf-connection-bar').classList.add('d-none');
+    document.getElementById('pf-content').innerHTML =
+      '<p class="text-muted small text-center py-4">Select a project to configure its form mappings.</p>';
+  }
+
+  // ── load project context ──────────────────────────────────────────────────
+
+  function loadProjectContext() {
+    setContent('<div class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>');
+
+    Promise.all([
+      apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-connection'),
+      fetch('/admin/api/project-sites?project_id=' + encodeURIComponent(PROJECT_ID)).then(function (r) { return r.json(); }),
+      apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings'),
+    ]).then(function (results) {
+      var connRes     = results[0];
+      var sitesData   = results[1];
+      var mappingsRes = results[2];
+
+      _connection   = connRes.data.connection || null;
+      _sites        = (sitesData.project_sites || [])
+                        .filter(function (s) { return s.status === 'active'; })
+                        .map(function (s) { return { site_id: s.site_id, site_name: s.site_name }; })
+                        .sort(function (a, b) { return a.site_id.localeCompare(b.site_id); });
+      _siteMappings = mappingsRes.data.mappings || [];
+
+      renderConnectionBar();
+
+      if (!_connection) {
+        setContent(
+          '<div class="alert alert-warning small py-2">'
+          + '<i class="fa-solid fa-triangle-exclamation me-2"></i>'
+          + 'This project has no ODK connection assigned. '
+          + 'Go to <strong>ODK Connections</strong> to link one first.'
+          + '</div>'
+        );
+        return;
+      }
+
+      if (_connection.status !== 'active') {
+        setContent(
+          '<div class="alert alert-warning small py-2">'
+          + '<i class="fa-solid fa-triangle-exclamation me-2"></i>'
+          + 'The ODK connection <strong>' + esc(_connection.connection_name) + '</strong> is inactive.'
+          + '</div>'
+        );
+        return;
+      }
+
+      // Fetch ODK projects from the linked connection
+      apiJson('/admin/api/odk-connections/' + _connection.connection_id + '/odk-projects')
+        .then(function (res) {
+          if (!res.ok) throw new Error(res.data.error || 'Failed to fetch ODK projects.');
+          _odkProjects = res.data.odk_projects || [];
+          renderTable();
+        }).catch(function (err) {
+          setContent('<div class="alert alert-danger small py-2">' + esc(String(err)) + '</div>');
+        });
+
+    }).catch(function () {
+      setContent('<div class="alert alert-danger small py-2">Failed to load project data.</div>');
+    });
+  }
+
+  function renderConnectionBar() {
+    var bar = document.getElementById('pf-connection-bar');
+    if (!_connection) {
+      bar.classList.add('d-none');
+      return;
+    }
+    var statusBadge = _connection.status === 'active'
+      ? '<span class="badge text-bg-success ms-2">Active</span>'
+      : '<span class="badge text-bg-secondary ms-2">Inactive</span>';
+    bar.innerHTML = '<div class="d-flex align-items-center gap-2 p-2 bg-light border rounded small">'
+      + '<i class="fa-solid fa-plug text-secondary"></i>'
+      + '<span class="text-muted">ODK Connection:</span>'
+      + '<strong>' + esc(_connection.connection_name) + '</strong>'
+      + statusBadge
+      + '</div>';
+    bar.classList.remove('d-none');
+  }
+
+  // ── sites table ───────────────────────────────────────────────────────────
+
+  function renderTable() {
+    if (!_sites.length) {
+      setContent('<p class="text-muted small text-center py-3">No active sites in this project.</p>');
+      return;
+    }
+
+    var rows = _sites.map(function (site) {
+      var saved = _siteMappings.find(function (m) { return m.site_id === site.site_id; });
+      var isMapped = !!saved;
+
+      var odkInfo = isMapped
+        ? '<span class="text-success small">'
+          + '<i class="fa-solid fa-circle-check me-1"></i>'
+          + 'ODK project #' + esc(saved.odk_project_id) + ' / <code>' + esc(saved.odk_form_id) + '</code>'
+          + '</span>'
+        : '<span class="text-muted small"><i class="fa-regular fa-circle me-1"></i>Not mapped</span>';
+
+      var configBtn = '<button class="btn btn-sm btn-outline-secondary pf-config-btn py-0 px-2" '
+        + 'data-sid="' + esc(site.site_id) + '" title="Configure ODK form">'
+        + '<i class="fa-solid fa-sliders me-1"></i>Configure'
+        + '</button>';
+
+      var mainRow = '<tr id="pf-row-' + esc(site.site_id) + '">'
+        + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(site.site_id) + '</span></td>'
+        + '<td class="align-middle py-2 small text-muted">' + esc(site.site_name) + '</td>'
+        + '<td class="align-middle py-2">' + odkInfo + '</td>'
+        + '<td class="align-middle py-2 text-end">' + configBtn + '</td>'
+        + '</tr>';
+
+      var configRow = '<tr id="pf-config-row-' + esc(site.site_id) + '" class="d-none bg-light">'
+        + '<td colspan="4" class="py-3 px-3">'
+        + renderConfigForm(site, saved)
+        + '</td>'
+        + '</tr>';
+
+      return mainRow + configRow;
+    }).join('');
+
+    setContent(
+      '<div class="table-responsive">'
+      + '<table class="table table-sm table-hover align-middle mb-0" id="pf-table">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-semibold small" style="width:12%;">Site ID</th>'
+      + '<th class="fw-semibold small" style="width:28%;">Site Name</th>'
+      + '<th class="fw-semibold small">ODK Form Mapping</th>'
+      + '<th style="width:12%;"></th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table></div>'
+    );
+
+    bindTableEvents();
+
+    // Re-open expanded row if any
+    if (_expandedSite) openConfigRow(_expandedSite, false);
+  }
+
+  function renderConfigForm(site, saved) {
+    var savedOpid = saved ? String(saved.odk_project_id) : '';
+    var savedFid  = saved ? saved.odk_form_id : '';
+
+    var projOptions = _odkProjects.length
+      ? (!savedOpid ? '<option value="">— ODK project —</option>' : '')
+        + _odkProjects.map(function (op) {
+            var sel = (String(op.id) === savedOpid) ? ' selected' : '';
+            return '<option value="' + esc(op.id) + '"' + sel + '>'
+              + esc(op.name) + ' (#' + esc(op.id) + ')</option>';
+          }).join('')
+      : '<option value="">No ODK projects found</option>';
+
+    var clearBtn = saved
+      ? '<button class="btn btn-sm btn-outline-danger pf-clear-btn" data-sid="' + esc(site.site_id) + '">'
+        + '<i class="fa-solid fa-xmark me-1"></i>Remove</button>'
+      : '';
+
+    return '<div class="d-flex flex-wrap gap-3 align-items-end">'
+
+      // ODK Project select
+      + '<div>'
+      + '<label class="form-label small mb-1 text-muted">ODK Project</label>'
+      + '<select class="form-select form-select-sm pf-opid-sel" data-sid="' + esc(site.site_id) + '" '
+      + 'id="pf-opid-' + esc(site.site_id) + '" style="min-width:200px;">'
+      + projOptions
+      + '</select>'
+      + '</div>'
+
+      // ODK Form select
+      + '<div>'
+      + '<label class="form-label small mb-1 text-muted">ODK Form</label>'
+      + '<select class="form-select form-select-sm pf-form-sel" data-sid="' + esc(site.site_id) + '" '
+      + 'id="pf-form-' + esc(site.site_id) + '" '
+      + 'data-saved-fid="' + esc(savedFid) + '" '
+      + 'data-saved-opid="' + esc(savedOpid) + '" '
+      + 'style="min-width:220px;">'
+      + '<option value="">— select form —</option>'
+      + '</select>'
+      + '</div>'
+
+      // Actions
+      + '<div class="d-flex gap-2">'
+      + '<button class="btn btn-sm btn-success pf-save-btn" data-sid="' + esc(site.site_id) + '">'
+      + '<i class="fa-solid fa-floppy-disk me-1"></i>Save</button>'
+      + clearBtn
+      + '<button class="btn btn-sm btn-outline-secondary pf-close-btn" data-sid="' + esc(site.site_id) + '">Close</button>'
+      + '</div>'
+
+      + '</div>';
+  }
+
+  function bindTableEvents() {
+    document.querySelectorAll('.pf-config-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { toggleConfigRow(this.dataset.sid); });
+    });
+  }
+
+  function toggleConfigRow(sid) {
+    if (_expandedSite === sid) {
+      closeConfigRow(sid);
+    } else {
+      if (_expandedSite) closeConfigRow(_expandedSite);
+      openConfigRow(sid, true);
+    }
+  }
+
+  function openConfigRow(sid, loadForms) {
+    _expandedSite = sid;
+    var row = document.getElementById('pf-config-row-' + sid);
+    if (!row) return;
+    row.classList.remove('d-none');
+
+    if (loadForms) {
+      // Load forms for the currently selected ODK project (if pre-selected)
+      var opidSel = document.getElementById('pf-opid-' + sid);
+      var formSel = document.getElementById('pf-form-' + sid);
+      if (opidSel && opidSel.value) {
+        populateFormSelect(sid, opidSel.value, formSel ? formSel.dataset.savedFid : '');
+      }
+    }
+
+    // Bind events on the config form
+    var opidSel = document.getElementById('pf-opid-' + sid);
+    if (opidSel && !opidSel._bound) {
+      opidSel._bound = true;
+      opidSel.addEventListener('change', function () {
+        populateFormSelect(sid, this.value, null);
+      });
+    }
+
+    var saveBtn = row.querySelector('.pf-save-btn');
+    if (saveBtn && !saveBtn._bound) {
+      saveBtn._bound = true;
+      saveBtn.addEventListener('click', function () { saveMapping(sid); });
+    }
+
+    var clearBtn = row.querySelector('.pf-clear-btn');
+    if (clearBtn && !clearBtn._bound) {
+      clearBtn._bound = true;
+      clearBtn.addEventListener('click', function () { clearMapping(sid); });
+    }
+
+    var closeBtn = row.querySelector('.pf-close-btn');
+    if (closeBtn && !closeBtn._bound) {
+      closeBtn._bound = true;
+      closeBtn.addEventListener('click', function () { closeConfigRow(sid); });
+    }
+  }
+
+  function closeConfigRow(sid) {
+    if (_expandedSite === sid) _expandedSite = null;
+    var row = document.getElementById('pf-config-row-' + sid);
+    if (row) row.classList.add('d-none');
+  }
+
+  // ── form select population ─────────────────────────────────────────────────
+
+  function populateFormSelect(sid, odkProjectId, preselectFid) {
+    var formSel = document.getElementById('pf-form-' + sid);
+    if (!formSel) return;
+    if (!odkProjectId) {
+      formSel.innerHTML = '<option value="">— select form —</option>';
+      return;
+    }
+
+    var cacheKey = String(odkProjectId);
+    if (_odkFormsCache[cacheKey]) {
+      renderFormOptions(formSel, _odkFormsCache[cacheKey], preselectFid);
+      return;
+    }
+
+    formSel.innerHTML = '<option value="">Loading…</option>';
+    formSel.disabled = true;
+
+    apiJson('/admin/api/odk-connections/' + _connection.connection_id
+      + '/odk-projects/' + encodeURIComponent(odkProjectId) + '/forms')
+      .then(function (res) {
+        formSel.disabled = false;
+        if (!res.ok) {
+          formSel.innerHTML = '<option value="">Error loading forms</option>';
+          return;
+        }
+        _odkFormsCache[cacheKey] = res.data.forms || [];
+        renderFormOptions(formSel, _odkFormsCache[cacheKey], preselectFid);
+      }).catch(function () {
+        formSel.disabled = false;
+        formSel.innerHTML = '<option value="">Network error</option>';
+      });
+  }
+
+  function renderFormOptions(sel, forms, preselectFid) {
+    sel.innerHTML = '<option value="">— select form —</option>'
+      + forms.map(function (f) {
+          var s = (preselectFid && f.xmlFormId === preselectFid) ? ' selected' : '';
+          var label = f.name ? f.name + ' (' + f.xmlFormId + ')' : f.xmlFormId;
+          return '<option value="' + esc(f.xmlFormId) + '"' + s + '>' + esc(label) + '</option>';
+        }).join('');
+  }
+
+  // ── save / clear mapping ──────────────────────────────────────────────────
+
+  function saveMapping(sid) {
+    var odkProjectId = (document.getElementById('pf-opid-' + sid) || {}).value;
+    var odkFormId    = (document.getElementById('pf-form-' + sid) || {}).value;
+
+    if (!odkProjectId || !odkFormId) {
+      showError('Select both an ODK project and a form before saving.');
+      return;
+    }
+
+    apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings', 'POST', {
+      site_id: sid,
+      odk_project_id: parseInt(odkProjectId, 10),
+      odk_form_id: odkFormId,
+    }).then(function (res) {
+      if (!res.ok) { showError(res.data.error || 'Failed to save.'); return; }
+      // Update local state
+      _siteMappings = _siteMappings.filter(function (m) { return m.site_id !== sid; });
+      _siteMappings.push({
+        site_id: sid,
+        odk_project_id: parseInt(odkProjectId, 10),
+        odk_form_id: odkFormId,
+      });
+      renderTable();  // re-render to show updated mapping info
+    }).catch(function () { showError('Network error.'); });
+  }
+
+  function clearMapping(sid) {
+    apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID)
+      + '/odk-site-mappings/' + encodeURIComponent(sid), 'DELETE')
+      .then(function (res) {
+        if (!res.ok) { showError(res.data.error || 'Failed to remove.'); return; }
+        _siteMappings = _siteMappings.filter(function (m) { return m.site_id !== sid; });
+        _expandedSite = null;
+        renderTable();
+      }).catch(function () { showError('Network error.'); });
+  }
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  function setContent(html) {
+    document.getElementById('pf-content').innerHTML = html;
+  }
+
+  function showError(msg) {
+    var el = document.createElement('div');
+    el.className = 'alert alert-danger small py-2 mb-2';
+    el.textContent = msg;
+    document.getElementById('pf-content').prepend(el);
+    setTimeout(function () { el.remove(); }, 5000);
+  }
+
+}());
+</script>

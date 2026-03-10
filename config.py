@@ -37,6 +37,7 @@ class Config:
         "broker_url": os.environ.get("CELERY_BROKER_URL") or REDIS_URL,
         "result_backend": os.environ.get("CELERY_RESULT_BACKEND") or REDIS_URL,
         "task_ignore_result": True,
+        "beat_dburi": SQLALCHEMY_DATABASE_URI,
     }
 
 
@@ -57,3 +58,6 @@ class TestConfig(Config):
     # Use a fixed secret key so CSRF tokens are reproducible within a test session
     SECRET_KEY = "test-secret-key-not-for-production"
     WTF_CSRF_SECRET_KEY = "test-csrf-secret-key-not-for-production"
+    
+    CELERY = Config.CELERY.copy()
+    CELERY["beat_dburi"] = SQLALCHEMY_DATABASE_URI

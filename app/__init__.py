@@ -38,13 +38,6 @@ def create_app(config_class=Config):
     app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])
     
     # Initialize Celery
-    app.config.from_mapping(
-        CELERY=dict(
-            broker_url=app.config.get("REDIS_URL"),
-            result_backend=app.config.get("REDIS_URL"),
-            task_ignore_result=True,
-        ),
-    )
     celery_init_app(app)
 
     from app.routes import register_blueprints  

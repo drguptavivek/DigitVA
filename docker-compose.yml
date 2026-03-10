@@ -42,6 +42,25 @@ services:
       - minerva_redis_service
     restart: always
 
+  minerva_celery_beat:
+    build: .
+    container_name: minerva_celery_beat
+    entrypoint: []
+    command: bash -c "sleep 10 && uv run celery -A make_celery:celery_app beat --loglevel=info -S celery_sqlalchemy_scheduler.schedulers:DatabaseScheduler"
+    volumes:
+      - .:/app
+    environment:
+      - SECRET_KEY=5Ag92#2g]oLIHEk
+      - DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva
+      - REDIS_URL=redis://minerva_redis_service:6379/0
+      - CELERY_BROKER_URL=redis://minerva_redis_service:6379/0
+      - CELERY_RESULT_BACKEND=redis://minerva_redis_service:6379/0
+    depends_on:
+      - minerva_db_service
+      - minerva_redis_service
+      - minerva_app_service
+    restart: always
+
   minerva_redis_service:
     image: redis:7
     container_name: minerva_redis

@@ -1,0 +1,121 @@
+{#
+  Field mapping fields list partial — loaded via HTMX into #fm-subpanel.
+  Supports search + category filter with live updates.
+#}
+<div class="card mt-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0">
+      <i class="fa-solid fa-list-ul me-1 text-secondary"></i>
+      Fields — <code>{{ form_type_code }}</code>
+    </h6>
+    <span class="badge bg-secondary">{{ fields|length }} shown</span>
+  </div>
+
+  {# Search + filter bar #}
+  <div class="card-body border-bottom pb-2">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-6">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+          <input type="text"
+                 class="form-control form-control-sm"
+                 placeholder="Search field ID or label…"
+                 name="search"
+                 value="{{ search }}"
+                 hx-get="/admin/panels/field-mapping/fields"
+                 hx-vals='{"form_type": "{{ form_type_code }}"}'
+                 hx-trigger="keyup changed delay:300ms"
+                 hx-target="#fm-subpanel"
+                 hx-swap="innerHTML"
+                 hx-include="[name='category']">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <select class="form-select form-select-sm"
+                name="category"
+                hx-get="/admin/panels/field-mapping/fields"
+                hx-vals='{"form_type": "{{ form_type_code }}"}'
+                hx-trigger="change"
+                hx-target="#fm-subpanel"
+                hx-swap="innerHTML"
+                hx-include="[name='search']">
+          <option value="">All Categories</option>
+          {# Unique categories derived from current field list #}
+          {% set seen_cats = [] %}
+          {% for f in fields %}
+            {% if f.category_code and f.category_code not in seen_cats %}
+              {% set _ = seen_cats.append(f.category_code) %}
+            {% endif %}
+          {% endfor %}
+          {% for cat in seen_cats|sort %}
+          <option value="{{ cat }}" {% if cat == category_filter %}selected{% endif %}>{{ cat }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {# Field table #}
+  {% if fields %}
+  <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light sticky-top">
+        <tr>
+          <th class="small">Field ID</th>
+          <th class="small">Label</th>
+          <th class="small">Category</th>
+          <th class="small text-center">Flip</th>
+          <th class="small text-center">Info</th>
+          <th class="small text-center">PII</th>
+          <th class="small"></th>
+        </tr>
+      </thead>
+      <tbody id="fm-fields-tbody">
+        {% for f in fields %}
+        <tr id="fm-field-row-{{ f.field_id }}">
+          <td class="small text-monospace">{{ f.field_id }}</td>
+          <td class="small">{{ f.short_label or '—' }}</td>
+          <td class="small text-muted">{{ f.category_code or '—' }}</td>
+          <td class="small text-center">
+            {% if f.flip_color %}<i class="fa-solid fa-check text-success"></i>{% endif %}
+          </td>
+          <td class="small text-center">
+            {% if f.is_info %}<i class="fa-solid fa-check text-success"></i>{% endif %}
+          </td>
+          <td class="small text-center">
+            {% if f.is_pii %}<i class="fa-solid fa-shield-halved text-warning"></i>{% endif %}
+          </td>
+          <td class="small text-end">
+            <button class="btn btn-xs btn-outline-secondary py-0 px-1"
+                    hx-get="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ f.field_id }}"
+                    hx-target="#fm-field-edit-{{ f.field_id }}"
+                    hx-swap="innerHTML"
+                    title="Edit">
+              <i class="fa-solid fa-pen-to-square fa-xs"></i>
+            </button>
+          </td>
+        </tr>
+        {# Inline edit area (appears below this row on click) #}
+        <tr id="fm-field-edit-{{ f.field_id }}" class="d-none">
+          <td colspan="7" class="p-0"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-muted small">No fields match your search.</div>
+  {% endif %}
+</div>
+
+<script>
+// Toggle the edit row when edit button is clicked
+(function() {
+  document.querySelectorAll('[hx-target^="#fm-field-edit-"]').forEach(function(btn) {
+    btn.addEventListener('htmx:afterSwap', function(evt) {
+      var target = document.querySelector(btn.getAttribute('hx-target'));
+      if (target) target.classList.remove('d-none');
+    });
+  });
+})();
+</script>

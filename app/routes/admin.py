@@ -1087,6 +1087,167 @@ def admin_panel_odk_connections():
 
 
 # ---------------------------------------------------------------------------
+# Field Mapping Admin  (admin-only)
+# ---------------------------------------------------------------------------
+
+@admin.get("/panels/field-mapping")
+def admin_panel_field_mapping():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    from app.services.form_type_service import get_form_type_service
+    svc = get_form_type_service()
+    form_types = svc.list_form_types()
+    stats = [svc.get_form_type_stats(ft.form_type_code) for ft in form_types]
+    return render_template(
+        "admin/panels/field_mapping.html",
+        form_types=form_types,
+        stats=stats,
+    )
+
+
+@admin.get("/panels/field-mapping/fields")
+def admin_panel_field_mapping_fields():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    from sqlalchemy import select as sa_select
+    from app.models import MasFieldDisplayConfig, MasFormTypes
+
+    form_type_code = request.args.get("form_type", "WHO_2022_VA")
+    category_filter = request.args.get("category", "")
+    search = request.args.get("search", "").strip()
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return "Form type not found", 404
+
+    query = (
+        sa_select(MasFieldDisplayConfig)
+        .where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.is_active == True,
+        )
+        .order_by(MasFieldDisplayConfig.category_code, MasFieldDisplayConfig.display_order)
+    )
+    if category_filter:
+        query = query.where(MasFieldDisplayConfig.category_code == category_filter)
+    if search:
+        query = query.where(
+            sa.or_(
+                MasFieldDisplayConfig.field_id.ilike(f"%{search}%"),
+                MasFieldDisplayConfig.short_label.ilike(f"%{search}%"),
+            )
+        )
+
+    fields = db.session.scalars(query).all()
+    return render_template(
+        "admin/panels/field_mapping_fields.html",
+        form_type_code=form_type_code,
+        fields=fields,
+        category_filter=category_filter,
+        search=search,
+    )
+
+
+@admin.route("/panels/field-mapping/field/<form_type_code>/<field_id>",
+             methods=["GET", "POST"])
+def admin_panel_field_mapping_field_edit(form_type_code, field_id):
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    from sqlalchemy import select as sa_select
+    from app.models import MasFieldDisplayConfig, MasFormTypes
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return "Form type not found", 404
+
+    field = db.session.scalar(
+        sa_select(MasFieldDisplayConfig).where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.field_id == field_id,
+        )
+    )
+    if not field:
+        return "Field not found", 404
+
+    if request.method == "POST":
+        field.short_label = request.form.get("short_label") or field.short_label
+        field.full_label = request.form.get("full_label") or None
+        field.flip_color = request.form.get("flip_color") == "on"
+        field.is_info = request.form.get("is_info") == "on"
+        field.summary_include = request.form.get("summary_include") == "on"
+        field.is_pii = request.form.get("is_pii") == "on"
+        field.pii_type = request.form.get("pii_type") or None
+        db.session.commit()
+
+        # Clear service cache so updated label is reflected immediately
+        from app.services.field_mapping_service import get_mapping_service
+        get_mapping_service().clear_cache()
+
+    return render_template(
+        "admin/panels/field_mapping_field_edit.html",
+        form_type_code=form_type_code,
+        field=field,
+    )
+
+
+@admin.get("/panels/field-mapping/sync")
+def admin_panel_field_mapping_sync():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    form_type_code = request.args.get("form_type", "WHO_2022_VA")
+    return render_template(
+        "admin/panels/field_mapping_sync.html",
+        form_type_code=form_type_code,
+    )
+
+
+@admin.post("/panels/field-mapping/sync")
+def admin_panel_field_mapping_sync_run():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.odk_schema_sync_service import get_sync_service
+    data = request.get_json(force=True)
+    form_type_code = data.get("form_type_code")
+    odk_project_id = data.get("odk_project_id")
+    odk_form_id = data.get("odk_form_id")
+
+    if not all([form_type_code, odk_project_id, odk_form_id]):
+        return _json_error("Missing form_type_code, odk_project_id, or odk_form_id.", 400)
+
+    stats = get_sync_service().sync_form_choices(form_type_code, int(odk_project_id), odk_form_id)
+    return jsonify(stats)
+
+
+# ---------------------------------------------------------------------------
 # ODK Connections API  (admin-only)
 # ---------------------------------------------------------------------------
 

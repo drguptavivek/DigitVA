@@ -1,0 +1,94 @@
+{#
+  ODK Sync panel partial — loaded into #fm-subpanel.
+  Allows admin to trigger a choice sync from ODK Central.
+#}
+<div class="card mt-3">
+  <div class="card-header">
+    <h6 class="mb-0">
+      <i class="fa-solid fa-rotate me-1 text-secondary"></i>
+      Sync from ODK Central — <code>{{ form_type_code }}</code>
+    </h6>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      Fetch choice mappings directly from ODK Central and update the database.
+      Only choices for fields already in the database will be updated.
+    </p>
+
+    <div class="row g-3 mb-3">
+      <div class="col-sm-4">
+        <label class="form-label small">ODK Project ID <span class="text-danger">*</span></label>
+        <input type="number" class="form-control form-control-sm" id="fm-sync-project-id"
+               placeholder="e.g. 1">
+      </div>
+      <div class="col-sm-4">
+        <label class="form-label small">ODK Form ID <span class="text-danger">*</span></label>
+        <input type="text" class="form-control form-control-sm" id="fm-sync-form-id"
+               placeholder="e.g. WHO_2022_VA">
+      </div>
+    </div>
+
+    <button type="button" class="btn btn-primary btn-sm" id="fm-sync-run-btn"
+            onclick="fmRunSync('{{ form_type_code }}')">
+      <i class="fa-solid fa-rotate me-1"></i>Run Sync
+    </button>
+    <button type="button" class="btn btn-outline-secondary btn-sm ms-2" id="fm-sync-back-btn"
+            hx-get="/admin/panels/field-mapping"
+            hx-target="#admin-panel"
+            hx-swap="innerHTML">
+      <i class="fa-solid fa-arrow-left me-1"></i>Back
+    </button>
+
+    <div id="fm-sync-result" class="mt-3"></div>
+  </div>
+</div>
+
+<script>
+function fmRunSync(formTypeCode) {
+  var projectId = document.getElementById('fm-sync-project-id').value;
+  var formId    = document.getElementById('fm-sync-form-id').value;
+  var resultDiv = document.getElementById('fm-sync-result');
+
+  if (!projectId || !formId) {
+    resultDiv.innerHTML = '<div class="alert alert-warning small">Please fill in both ODK Project ID and Form ID.</div>';
+    return;
+  }
+
+  resultDiv.innerHTML = '<div class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Syncing…</div>';
+
+  var csrfToken = document.cookie.match(/csrf_token=([^;]+)/)?.[1] || '';
+
+  fetch('/admin/panels/field-mapping/sync', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+    },
+    body: JSON.stringify({
+      form_type_code: formTypeCode,
+      odk_project_id: parseInt(projectId),
+      odk_form_id: formId,
+    }),
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.errors && data.errors.length > 0) {
+      resultDiv.innerHTML = '<div class="alert alert-danger small">'
+        + '<strong>Sync errors:</strong><ul class="mb-0">'
+        + data.errors.map(function(e) { return '<li>' + e + '</li>'; }).join('')
+        + '</ul></div>';
+    } else {
+      resultDiv.innerHTML = '<div class="alert alert-success small">'
+        + '<strong>Sync complete</strong><br>'
+        + 'Fields processed: ' + data.fields_processed + '<br>'
+        + 'Choices added: ' + data.choices_added + '<br>'
+        + 'Choices updated: ' + data.choices_updated + '<br>'
+        + 'Choices deactivated: ' + data.choices_deactivated
+        + '</div>';
+    }
+  })
+  .catch(function(err) {
+    resultDiv.innerHTML = '<div class="alert alert-danger small">Request failed: ' + err + '</div>';
+  });
+}
+</script>

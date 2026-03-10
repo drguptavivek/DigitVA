@@ -65,14 +65,17 @@ def va_logging(app):
             return
         user_info = _safe_current_user_email()
         # Safely handle request data  
-        request_data = None  
+        request_data = None
         if request.content_type == 'application/json':
-            request_data = request.get_json(silent=True)
-        elif request.form:  
+            raw = request.get_json(silent=True)
+            # Copy before masking — get_json() returns Flask's cached dict and
+            # mutating it in-place would corrupt the data seen by route handlers.
+            request_data = dict(raw) if raw else None
+        elif request.form:
             request_data = request.form.to_dict()
-        if request_data:  
-            for field in SENSITIVE_FIELDS:  
-                if field in request_data:  
+        if request_data:
+            for field in SENSITIVE_FIELDS:
+                if field in request_data:
                     request_data[field] = '***'
         request_logger.info(
             f"User: {user_info} - Request from {request.remote_addr} - {request.method} {request.url} - Data: {request_data}"

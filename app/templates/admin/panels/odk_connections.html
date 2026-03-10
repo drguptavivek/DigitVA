@@ -1,0 +1,427 @@
+{#
+  ODK Connections panel — admin-only.
+  Manage ODK Central connection records and project assignments.
+  Credentials are never returned to the browser after save.
+#}
+<div id="panel-odk-connections">
+
+  {# Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-plug me-2 text-secondary"></i>ODK Connections
+    </h5>
+    <button class="btn btn-sm btn-primary" id="odc-show-form-btn">
+      <i class="fa-solid fa-plus me-1"></i>Add Connection
+    </button>
+  </div>
+
+  {# Add / Edit form #}
+  <div id="odc-form-container" class="card mb-4 d-none">
+    <div class="card-body">
+      <h6 class="card-title mb-3" id="odc-form-title">New ODK Connection</h6>
+      <div class="row g-2">
+
+        <div class="col-sm-6">
+          <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
+          <input type="text" id="odc-name" class="form-control form-control-sm"
+                 placeholder="e.g. UNSW ODK Central">
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label small mb-1">Base URL <span class="text-danger">*</span></label>
+          <input type="url" id="odc-url" class="form-control form-control-sm"
+                 placeholder="https://odk.example.com">
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label small mb-1">
+            Username (email) <span class="text-danger">*</span>
+            <span id="odc-username-hint" class="text-muted fw-normal d-none"> — leave blank to keep existing</span>
+          </label>
+          <input type="email" id="odc-username" class="form-control form-control-sm"
+                 placeholder="admin@odk.example.com" autocomplete="off">
+        </div>
+
+        <div class="col-sm-6">
+          <label class="form-label small mb-1">
+            Password <span class="text-danger" id="odc-password-required">*</span>
+            <span id="odc-password-hint" class="text-muted fw-normal d-none"> — leave blank to keep existing</span>
+          </label>
+          <div class="input-group input-group-sm">
+            <input type="password" id="odc-password" class="form-control"
+                   placeholder="••••••••" autocomplete="new-password">
+            <button class="btn btn-outline-secondary" type="button" id="odc-toggle-password"
+                    title="Show / hide">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <label class="form-label small mb-1">Notes</label>
+          <input type="text" id="odc-notes" class="form-control form-control-sm"
+                 placeholder="Optional description">
+        </div>
+
+        <div class="col-12 d-flex gap-2 mt-1 align-items-center">
+          <button class="btn btn-sm btn-success" id="odc-submit-btn">
+            <i class="fa-solid fa-check me-1"></i>Save
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="odc-cancel-btn">Cancel</button>
+          <span id="odc-form-error" class="text-danger small ms-2"></span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  {# Connections list #}
+  <div id="odc-list-wrap"></div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── state ─────────────────────────────────────────────────────────────────
+
+  var _connections = [];
+  var _editingId = null;
+  var _allProjects = [];
+
+  // ── load & render ──────────────────────────────────────────────────────────
+
+  function loadConnections() {
+    var wrap = document.getElementById('odc-list-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+    apiJson('/admin/api/odk-connections').then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      _connections = res.data.connections || [];
+      renderConnections();
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function statusBadge(status) {
+    return status === 'active'
+      ? '<span class="badge text-bg-success">Active</span>'
+      : '<span class="badge text-bg-secondary">Inactive</span>';
+  }
+
+  function renderConnections() {
+    var wrap = document.getElementById('odc-list-wrap');
+    if (!_connections.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No ODK connections configured yet.</p>';
+      return;
+    }
+
+    var cards = _connections.map(function (c) {
+      var projectPills = c.project_ids.length
+        ? c.project_ids.map(function (p) {
+            return '<span class="badge bg-secondary fw-normal me-1 odc-project-pill" data-cid="' + esc(c.connection_id) + '" data-pid="' + esc(p) + '">'
+              + esc(p)
+              + '<button type="button" class="btn-close btn-close-white ms-1 odc-unassign-btn" style="font-size:0.45rem;" aria-label="Unassign"></button>'
+              + '</span>';
+          }).join('')
+        : '<span class="text-muted small">No projects assigned</span>';
+
+      return '<div class="card mb-3" id="odc-card-' + esc(c.connection_id) + '">'
+        + '<div class="card-body py-3">'
+        + '<div class="d-flex justify-content-between align-items-start">'
+        +   '<div>'
+        +     '<div class="fw-semibold">' + esc(c.connection_name) + ' ' + statusBadge(c.status) + '</div>'
+        +     '<div class="small text-muted mt-1"><i class="fa-solid fa-link me-1"></i>' + esc(c.base_url) + '</div>'
+        +     (c.notes ? '<div class="small text-muted mt-1">' + esc(c.notes) + '</div>' : '')
+        +   '</div>'
+        +   '<div class="d-flex gap-1 flex-wrap justify-content-end">'
+        +     '<button class="btn btn-sm btn-outline-secondary odc-test-btn" data-cid="' + esc(c.connection_id) + '" title="Test connection">'
+        +       '<i class="fa-solid fa-vial"></i>'
+        +     '</button>'
+        +     '<button class="btn btn-sm btn-outline-primary odc-edit-btn" data-cid="' + esc(c.connection_id) + '">'
+        +       '<i class="fa-solid fa-pen-to-square"></i>'
+        +     '</button>'
+        +     '<button class="btn btn-sm odc-toggle-btn ' + (c.status === 'active' ? 'btn-outline-danger' : 'btn-outline-success') + '" data-cid="' + esc(c.connection_id) + '">'
+        +       '<i class="fa-solid ' + (c.status === 'active' ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
+        +     '</button>'
+        +   '</div>'
+        + '</div>'
+        + '<hr class="my-2">'
+        + '<div class="d-flex align-items-center gap-2 flex-wrap">'
+        +   '<span class="small text-muted fw-semibold">Projects:</span>'
+        +   '<div class="d-inline-flex flex-wrap gap-1 align-items-center" id="odc-projects-' + esc(c.connection_id) + '">' + projectPills + '</div>'
+        +   '<div class="d-flex gap-1 align-items-center ms-1">'
+        +     '<select class="form-select form-select-sm odc-project-add-sel" data-cid="' + esc(c.connection_id) + '" style="min-width:120px;max-width:160px;">'
+        +       '<option value="">Add project…</option>'
+        +     '</select>'
+        +     '<button class="btn btn-sm btn-outline-secondary odc-assign-btn" data-cid="' + esc(c.connection_id) + '">'
+        +       '<i class="fa-solid fa-plus"></i>'
+        +     '</button>'
+        +   '</div>'
+        + '</div>'
+        + '<div class="odc-test-result mt-2 d-none small"></div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    wrap.innerHTML = cards;
+    populateProjectDropdowns();
+    bindCardEvents();
+  }
+
+  function populateProjectDropdowns() {
+    // Collect every project already assigned to any connection — a project can
+    // only belong to one connection at a time, so hide it from all other dropdowns.
+    var globallyAssigned = {};
+    _connections.forEach(function (c) {
+      (c.project_ids || []).forEach(function (p) { globallyAssigned[p] = true; });
+    });
+
+    var sels = document.querySelectorAll('.odc-project-add-sel');
+    sels.forEach(function (sel) {
+      var cid = sel.dataset.cid;
+      var conn = _connections.find(function (c) { return c.connection_id === cid; });
+      var ownAssigned = (conn && conn.project_ids) || [];
+      // A project is available if it is not assigned to any connection at all
+      var available = _allProjects.filter(function (p) {
+        return !globallyAssigned[p.project_id] || ownAssigned.indexOf(p.project_id) !== -1;
+      });
+      // Remove projects already shown as pills on this card
+      available = available.filter(function (p) { return ownAssigned.indexOf(p.project_id) === -1; });
+      sel.innerHTML = available.length
+        ? '<option value="">Add project…</option>'
+          + available.map(function (p) {
+              return '<option value="' + esc(p.project_id) + '">' + esc(p.project_id) + ' — ' + esc(p.project_name) + '</option>';
+            }).join('')
+        : '<option value="">All projects assigned</option>';
+    });
+  }
+
+  function bindCardEvents() {
+    // Test
+    document.querySelectorAll('.odc-test-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { testConnection(this.dataset.cid); });
+    });
+    // Edit
+    document.querySelectorAll('.odc-edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { openEditForm(this.dataset.cid); });
+    });
+    // Toggle
+    document.querySelectorAll('.odc-toggle-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { toggleConnection(this.dataset.cid); });
+    });
+    // Assign project
+    document.querySelectorAll('.odc-assign-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var sel = document.querySelector('.odc-project-add-sel[data-cid="' + this.dataset.cid + '"]');
+        if (sel && sel.value) assignProject(this.dataset.cid, sel.value);
+      });
+    });
+    // Unassign project
+    document.querySelectorAll('.odc-unassign-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var pill = this.closest('.odc-project-pill');
+        unassignProject(pill.dataset.cid, pill.dataset.pid);
+      });
+    });
+  }
+
+  // ── form open/close ────────────────────────────────────────────────────────
+
+  document.getElementById('odc-show-form-btn').addEventListener('click', function () {
+    openAddForm();
+  });
+
+  document.getElementById('odc-cancel-btn').addEventListener('click', closeForm);
+
+  function openAddForm() {
+    _editingId = null;
+    document.getElementById('odc-form-title').textContent = 'New ODK Connection';
+    document.getElementById('odc-name').value = '';
+    document.getElementById('odc-url').value = '';
+    document.getElementById('odc-username').value = '';
+    document.getElementById('odc-password').value = '';
+    document.getElementById('odc-notes').value = '';
+    document.getElementById('odc-username-hint').classList.add('d-none');
+    document.getElementById('odc-password-hint').classList.add('d-none');
+    document.getElementById('odc-password-required').classList.remove('d-none');
+    document.getElementById('odc-form-error').textContent = '';
+    document.getElementById('odc-form-container').classList.remove('d-none');
+    document.getElementById('odc-name').focus();
+  }
+
+  function openEditForm(cid) {
+    var conn = _connections.find(function (c) { return c.connection_id === cid; });
+    if (!conn) return;
+    _editingId = cid;
+    document.getElementById('odc-form-title').textContent = 'Edit: ' + conn.connection_name;
+    document.getElementById('odc-name').value = conn.connection_name;
+    document.getElementById('odc-url').value = conn.base_url;
+    document.getElementById('odc-username').value = '';
+    document.getElementById('odc-password').value = '';
+    document.getElementById('odc-notes').value = conn.notes || '';
+    document.getElementById('odc-username-hint').classList.remove('d-none');
+    document.getElementById('odc-password-hint').classList.remove('d-none');
+    document.getElementById('odc-password-required').classList.add('d-none');
+    document.getElementById('odc-form-error').textContent = '';
+    document.getElementById('odc-form-container').classList.remove('d-none');
+    document.getElementById('odc-name').focus();
+    document.getElementById('odc-form-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeForm() {
+    document.getElementById('odc-form-container').classList.add('d-none');
+    _editingId = null;
+  }
+
+  // ── password show/hide ─────────────────────────────────────────────────────
+
+  document.getElementById('odc-toggle-password').addEventListener('click', function () {
+    var inp = document.getElementById('odc-password');
+    var icon = this.querySelector('i');
+    if (inp.type === 'password') {
+      inp.type = 'text';
+      icon.className = 'fa-solid fa-eye-slash';
+    } else {
+      inp.type = 'password';
+      icon.className = 'fa-solid fa-eye';
+    }
+  });
+
+  // ── form submit ────────────────────────────────────────────────────────────
+
+  document.getElementById('odc-submit-btn').addEventListener('click', function () {
+    var errEl = document.getElementById('odc-form-error');
+    errEl.textContent = '';
+
+    var name     = document.getElementById('odc-name').value.trim();
+    var url      = document.getElementById('odc-url').value.trim();
+    var username = document.getElementById('odc-username').value.trim();
+    var password = document.getElementById('odc-password').value;
+    var notes    = document.getElementById('odc-notes').value.trim();
+
+    if (!name) { errEl.textContent = 'Name is required.'; return; }
+    if (!url)  { errEl.textContent = 'Base URL is required.'; return; }
+
+    if (!_editingId) {
+      if (!username) { errEl.textContent = 'Username is required.'; return; }
+      if (!password) { errEl.textContent = 'Password is required.'; return; }
+    }
+
+    var body = { connection_name: name, base_url: url, notes: notes };
+    if (username) body.username = username;
+    if (password) body.password = password;
+
+    var btn = this;
+    btn.disabled = true;
+
+    var req = _editingId
+      ? apiJson('/admin/api/odk-connections/' + _editingId, 'PUT', body)
+      : apiJson('/admin/api/odk-connections', 'POST', body);
+
+    req.then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed to save.'; return; }
+      closeForm();
+      loadConnections();
+    }).catch(function () {
+      btn.disabled = false;
+      errEl.textContent = 'Network error.';
+    });
+  });
+
+  // ── connection actions ─────────────────────────────────────────────────────
+
+  function toggleConnection(cid) {
+    apiJson('/admin/api/odk-connections/' + cid + '/toggle', 'POST').then(function (res) {
+      if (!res.ok) { showError(res.data.error || 'Failed.'); return; }
+      loadConnections();
+    });
+  }
+
+  function testConnection(cid) {
+    var card = document.getElementById('odc-card-' + cid);
+    var resultEl = card ? card.querySelector('.odc-test-result') : null;
+    if (resultEl) {
+      resultEl.className = 'odc-test-result mt-2 small text-muted';
+      resultEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Testing…';
+    }
+    apiJson('/admin/api/odk-connections/' + cid + '/test', 'POST').then(function (res) {
+      if (!resultEl) return;
+      if (res.data.ok) {
+        resultEl.className = 'odc-test-result mt-2 small text-success';
+        resultEl.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>' + esc(res.data.message);
+      } else {
+        resultEl.className = 'odc-test-result mt-2 small text-danger';
+        resultEl.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i>' + esc(res.data.message);
+      }
+    }).catch(function () {
+      if (resultEl) resultEl.innerHTML = '<span class="text-danger">Network error.</span>';
+    });
+  }
+
+  // ── project assignment ─────────────────────────────────────────────────────
+
+  function assignProject(cid, projectId) {
+    apiJson('/admin/api/odk-connections/' + cid + '/assign-project', 'POST', { project_id: projectId })
+      .then(function (res) {
+        if (!res.ok) { showError(res.data.error || 'Failed to assign project.'); return; }
+        // Update local state and re-render the projects area inline
+        var conn = _connections.find(function (c) { return c.connection_id === cid; });
+        if (conn && conn.project_ids.indexOf(projectId) === -1) conn.project_ids.push(projectId);
+        loadConnections();
+      });
+  }
+
+  function unassignProject(cid, projectId) {
+    apiJson('/admin/api/odk-connections/' + cid + '/assign-project/' + encodeURIComponent(projectId), 'DELETE')
+      .then(function (res) {
+        if (!res.ok) { showError(res.data.error || 'Failed to unassign project.'); return; }
+        var conn = _connections.find(function (c) { return c.connection_id === cid; });
+        if (conn) conn.project_ids = conn.project_ids.filter(function (p) { return p !== projectId; });
+        loadConnections();
+      });
+  }
+
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  function showError(msg) {
+    var el = document.createElement('div');
+    el.className = 'alert alert-danger small py-2 mb-2';
+    el.textContent = msg;
+    document.getElementById('odc-list-wrap').prepend(el);
+    setTimeout(function () { el.remove(); }, 5000);
+  }
+
+  // ── init ───────────────────────────────────────────────────────────────────
+
+  // Pre-load projects for the assign dropdowns
+  fetch('/admin/api/projects?master=1').then(function (r) { return r.json(); }).then(function (d) {
+    _allProjects = (d.projects || []).filter(function (p) { return p.status === 'active'; });
+  }).catch(function () {}).finally(function () {
+    loadConnections();
+  });
+
+}());
+</script>

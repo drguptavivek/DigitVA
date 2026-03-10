@@ -1,18 +1,122 @@
+"""
+pyODK client setup.
+
+Looks up the ODK connection for the given project from the database,
+decrypts the credentials, and returns a ready-to-use pyodk Client.
+
+Falls back to the legacy TOML file if no database connection is configured
+for the project (backward compatibility during migration).
+"""
+
 import os
 from flask import current_app
 from pyodk.client import Client
 
 
-def va_odk_clientsetup():
+def va_odk_clientsetup(project_id: str | None = None) -> Client:
+    """Return an authenticated pyODK Client for *project_id*.
+
+    Resolution order:
+    1. DB-configured connection mapped to project_id (preferred).
+    2. Legacy odk_config.toml (fallback for unmapped projects).
+
+    Raises Exception on failure.
+    """
+    cache_path = os.path.join(
+        current_app.config.get("APP_RESOURCE"), "pyodk", "odk_cache.toml"
+    )
+
+    if project_id:
+        client = _client_from_db(project_id, cache_path)
+        if client is not None:
+            return client
+
+    return _client_from_toml(cache_path)
+
+
+def _client_from_db(project_id: str, cache_path: str) -> Client | None:
+    """Return a Client built from the DB-stored connection, or None if not found."""
     try:
-        client = Client(
-            config_path=os.path.join(
-                current_app.config.get("APP_RESOURCE"), "pyodk", "odk_config.toml"
-            ),
-            cache_path=os.path.join(
-                current_app.config.get("APP_RESOURCE"), "pyodk", "odk_cache.toml"
-            ),
+        import sqlalchemy as sa
+        from app import db
+        from app.models.map_project_odk import MapProjectOdk
+        from app.models.mas_odk_connections import MasOdkConnections
+        from app.models.va_selectives import VaStatuses
+        from app.utils.credential_crypto import decrypt_credential, get_odk_pepper
+
+        row = db.session.scalar(
+            sa.select(MapProjectOdk).where(MapProjectOdk.project_id == project_id)
         )
-        return client
-    except Exception as e:
-        raise Exception(f"pyODK Client initialization failed: {str(e)}")
+        if row is None:
+            return None
+
+        conn = db.session.get(MasOdkConnections, row.connection_id)
+        if conn is None or conn.status != VaStatuses.active:
+            return None
+
+        pepper = get_odk_pepper()
+        username = decrypt_credential(conn.username_enc, conn.username_salt, pepper)
+        password = decrypt_credential(conn.password_enc, conn.password_salt, pepper)
+
+        return _build_client(conn.base_url, username, password, cache_path)
+
+    except Exception as exc:
+        raise Exception(
+            f"pyODK DB client setup failed for project '{project_id}': {exc}"
+        ) from exc
+
+
+def _client_from_toml(cache_path: str) -> Client:
+    """Return a Client built from the legacy TOML config file."""
+    config_path = os.path.join(
+        current_app.config.get("APP_RESOURCE"), "pyodk", "odk_config.toml"
+    )
+    try:
+        return Client(config_path=config_path, cache_path=cache_path)
+    except Exception as exc:
+        raise Exception(f"pyODK TOML client setup failed: {exc}") from exc
+
+
+def _build_client(
+    base_url: str, username: str, password: str, cache_path: str
+) -> Client:
+    """Build a pyODK Client directly from credentials without touching disk."""
+    try:
+        from pyodk._utils.config import Config, CentralConfig  # pyodk 1.x internal API
+
+        config = Config(
+            central=CentralConfig(
+                base_url=base_url,
+                username=username,
+                password=password,
+            )
+        )
+        return Client(config=config, cache_path=cache_path)
+    except ImportError:
+        # pyodk internal API not available — write a short-lived temp file
+        import tempfile
+        import toml
+
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".toml", delete=False
+        )
+        try:
+            toml.dump(
+                {
+                    "central": {
+                        "base_url": base_url,
+                        "username": username,
+                        "password": password,
+                    }
+                },
+                tmp,
+            )
+            tmp.flush()
+            os.chmod(tmp.name, 0o600)
+            tmp.close()
+            return Client(config_path=tmp.name, cache_path=cache_path)
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass

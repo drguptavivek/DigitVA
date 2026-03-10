@@ -16,6 +16,8 @@ from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_reviewer_review import VaReviewerReview
 from app.models.va_submissions_auditlog import VaSubmissionsAuditlog
 from app.models.va_user_access_grants import VaUserAccessGrants
+from app.models.mas_odk_connections import MasOdkConnections
+from app.models.map_project_odk import MapProjectOdk
 from app.models.va_selectives import (
     VaStatuses,
     VaUsernotesFor,
@@ -48,4 +50,6 @@ __all__ = [
     "VaUserAccessGrants",
     "VaAccessRoles",
     "VaAccessScopeTypes",
+    "MasOdkConnections",
+    "MapProjectOdk",
 ]

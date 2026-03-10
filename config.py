@@ -1,6 +1,20 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+
+
+def _require_env(key: str) -> str:
+    value = os.environ.get(key)
+    if not value:
+        raise RuntimeError(
+            f"Required environment variable '{key}' is not set. "
+            f"Add it to your .env file or container environment."
+        )
+    return value
+
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "5Ag92#2g]oLIHEk"
@@ -14,9 +28,13 @@ class Config:
     APP_BACKUP = os.path.join(basedir, "backup")
     APP_LOG = os.path.join(basedir, "logs")
 
+    # Validated at runtime when first used — see app/utils/credential_crypto.py
+    ODK_CREDENTIAL_PEPPER: str = os.environ.get("ODK_CREDENTIAL_PEPPER", "")
+
 
 class TestConfig(Config):
     TESTING = True
+    ODK_CREDENTIAL_PEPPER = "test-pepper-do-not-use-in-production"
     # Derive test DB URL from DATABASE_URL (swap db name to minerva_test) so
     # this works both inside Docker (minerva_db_service:5432) and locally
     # (localhost:8450).  TEST_DATABASE_URL overrides everything.

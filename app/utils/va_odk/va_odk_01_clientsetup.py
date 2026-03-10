@@ -82,46 +82,17 @@ def _build_client(
 ) -> Client:
     """Build a pyODK Client from credentials without a persistent config file.
 
-    Uses pyodk's internal objectify_config() to construct the Config object
-    in memory, then injects it onto the Client instance after the object is
-    created — bypassing the file-read in Client.__init__ via a temp file that
-    exists only for the duration of construction.
-
-    Falls back to a tempfile-only approach if the internal API changes.
+    Constructs a pyodk Session directly with the supplied credentials and
+    passes it to Client(session=...), bypassing the config-file read entirely.
+    No temporary files are written to disk.
     """
-    import tempfile
-    import toml
-    from pyodk._utils import config as pyodk_config
+    from pyodk._utils.session import Session as PyOdkSession
 
-    config_dict = {
-        "central": {
-            "base_url": base_url,
-            "username": username,
-            "password": password,
-        }
-    }
-
-    # Write a short-lived temp file (owner-read-only) so Client.__init__ can
-    # parse it. We delete it immediately after the Client is constructed; pyodk
-    # stores the parsed Config in memory and never re-reads the file.
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False)
-    try:
-        toml.dump(config_dict, tmp)
-        tmp.flush()
-        os.chmod(tmp.name, 0o600)
-        tmp.close()
-        client = Client(config_path=tmp.name, cache_path=cache_path)
-    finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
-
-    # Overwrite the config object with one built directly from the dict so that
-    # the in-memory representation is canonical and no file path is retained.
-    try:
-        client.config = pyodk_config.objectify_config(config_dict)
-    except Exception:
-        pass  # already constructed from the correct values above
-
-    return client
+    session = PyOdkSession(
+        base_url=base_url,
+        api_version="v1",
+        username=username,
+        password=password,
+        cache_path=cache_path,
+    )
+    return Client(session=session)

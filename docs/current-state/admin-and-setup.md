@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-03-11
 ---
 
 # Admin And Setup Model
@@ -51,13 +51,15 @@ Project PIs can access the following panels, scoped to their own project:
 
 ## Project Forms Panel
 
-The Project Forms panel manages the mapping between an app project-site pair and a specific ODK Central project and form.
+The Project Forms panel manages the mapping between an app project-site pair, a specific ODK Central project and form, and the VA form type used for rendering.
 
 Key behavior:
 
 - dropdowns for available ODK projects and forms are populated live from ODK Central via pyODK using the connection assigned to the project
-- each project-site pair maps to at most one ODK form
-- the mapping is stored in `map_project_site_odk`
+- a **Form Type** dropdown lists all active form types from `mas_form_types` (e.g. `WHO_2022_VA`, `WHO_2022_VA_SOCIAL`); selecting one links that form type to the site mapping
+- each project-site pair maps to at most one ODK form and at most one form type
+- the mapping is stored in `map_project_site_odk` (columns: `odk_project_id`, `odk_form_id`, `form_type_id`)
+- the table summary shows the configured form type as a badge next to the ODK form info; a warning badge is shown if no form type is selected
 
 ## ODK Connections Panel
 

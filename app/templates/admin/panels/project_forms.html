@@ -75,7 +75,8 @@
   var _sites           = [];     // [{ site_id, site_name }]
   var _odkProjects     = [];     // [{ id, name }] from ODK Central
   var _odkFormsCache   = {};     // "odkProjectId" → [{ xmlFormId, name }]
-  var _siteMappings    = [];     // [{ site_id, odk_project_id, odk_form_id }]
+  var _siteMappings    = [];     // [{ site_id, odk_project_id, odk_form_id, form_type_id, form_type_code }]
+  var _formTypes       = [];     // [{ form_type_id, form_type_code, form_type_name }]
   var _expandedSite    = null;   // site_id of currently open config row
   var _removeModal     = null;
   var _pendingRemoveSid = null;
@@ -119,6 +120,7 @@
     _odkProjects = [];
     _odkFormsCache = {};
     _siteMappings = [];
+    _formTypes = [];
     _expandedSite = null;
     if (PROJECT_ID) loadProjectContext();
     else resetContent();
@@ -139,10 +141,12 @@
       apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-connection'),
       fetch('/admin/api/project-sites?project_id=' + encodeURIComponent(PROJECT_ID)).then(function (r) { return r.json(); }),
       apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings'),
+      apiJson('/admin/api/form-types'),
     ]).then(function (results) {
       var connRes     = results[0];
       var sitesData   = results[1];
       var mappingsRes = results[2];
+      var ftRes       = results[3];
 
       _connection   = connRes.data.connection || null;
       _sites        = (sitesData.project_sites || [])
@@ -150,6 +154,7 @@
                         .map(function (s) { return { site_id: s.site_id, site_name: s.site_name }; })
                         .sort(function (a, b) { return a.site_id.localeCompare(b.site_id); });
       _siteMappings = mappingsRes.data.mappings || [];
+      _formTypes    = ftRes.data.form_types || [];
 
       renderConnectionBar();
 
@@ -223,6 +228,9 @@
         ? '<span class="text-success small">'
           + '<i class="fa-solid fa-circle-check me-1"></i>'
           + 'ODK project #' + esc(saved.odk_project_id) + ' / <code>' + esc(saved.odk_form_id) + '</code>'
+          + (saved.form_type_code
+              ? ' &nbsp;<span class="badge text-bg-secondary fw-normal">' + esc(saved.form_type_code) + '</span>'
+              : ' &nbsp;<span class="badge text-bg-warning text-dark fw-normal">No form type</span>')
           + '</span>'
         : '<span class="text-muted small"><i class="fa-regular fa-circle me-1"></i>Not mapped</span>';
 
@@ -267,8 +275,9 @@
   }
 
   function renderConfigForm(site, saved) {
-    var savedOpid = saved ? String(saved.odk_project_id) : '';
-    var savedFid  = saved ? saved.odk_form_id : '';
+    var savedOpid   = saved ? String(saved.odk_project_id) : '';
+    var savedFid    = saved ? saved.odk_form_id : '';
+    var savedFtId   = saved ? (saved.form_type_id || '') : '';
 
     var projOptions = _odkProjects.length
       ? (!savedOpid ? '<option value="">— ODK project —</option>' : '')
@@ -278,6 +287,13 @@
               + esc(op.name) + ' (#' + esc(op.id) + ')</option>';
           }).join('')
       : '<option value="">No ODK projects found</option>';
+
+    var ftOptions = '<option value="">— select form type —</option>'
+      + _formTypes.map(function (ft) {
+          var sel = (ft.form_type_id === savedFtId) ? ' selected' : '';
+          return '<option value="' + esc(ft.form_type_id) + '"' + sel + '>'
+            + esc(ft.form_type_code) + ' — ' + esc(ft.form_type_name) + '</option>';
+        }).join('');
 
     var clearBtn = saved
       ? '<button class="btn btn-sm btn-outline-danger pf-clear-btn" data-sid="' + esc(site.site_id) + '">'
@@ -305,6 +321,19 @@
       + 'style="max-width:720px;width:100%;">'
       + '<option value="">— select form —</option>'
       + '</select>'
+      + '</div>'
+
+      // Form Type select
+      + '<div>'
+      + '<label class="form-label small mb-1 text-muted">Form Type</label>'
+      + '<select class="form-select form-select-sm pf-ft-sel" data-sid="' + esc(site.site_id) + '" '
+      + 'id="pf-ft-' + esc(site.site_id) + '" style="max-width:720px;width:100%;">'
+      + ftOptions
+      + '</select>'
+      + (!_formTypes.length
+          ? '<div class="text-warning small mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>'
+            + 'No form types registered. Create one in Field Mapping.</div>'
+          : '')
       + '</div>'
 
       // Actions
@@ -439,27 +468,35 @@
   function saveMapping(sid) {
     var odkProjectId = (document.getElementById('pf-opid-' + sid) || {}).value;
     var odkFormId    = (document.getElementById('pf-form-' + sid) || {}).value;
+    var formTypeId   = (document.getElementById('pf-ft-' + sid) || {}).value;
 
     if (!odkProjectId || !odkFormId) {
       showError('Select both an ODK project and a form before saving.');
       return;
     }
 
-    apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings', 'POST', {
+    var payload = {
       site_id: sid,
       odk_project_id: parseInt(odkProjectId, 10),
       odk_form_id: odkFormId,
-    }).then(function (res) {
-      if (!res.ok) { showError(res.data.error || 'Failed to save.'); return; }
-      // Update local state
-      _siteMappings = _siteMappings.filter(function (m) { return m.site_id !== sid; });
-      _siteMappings.push({
-        site_id: sid,
-        odk_project_id: parseInt(odkProjectId, 10),
-        odk_form_id: odkFormId,
-      });
-      renderTable();  // re-render to show updated mapping info
-    }).catch(function () { showError('Network error.'); });
+      form_type_id: formTypeId || null,
+    };
+
+    apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings', 'POST', payload)
+      .then(function (res) {
+        if (!res.ok) { showError(res.data.error || 'Failed to save.'); return; }
+        var m = res.data.mapping;
+        // Update local state
+        _siteMappings = _siteMappings.filter(function (x) { return x.site_id !== sid; });
+        _siteMappings.push({
+          site_id: m.site_id,
+          odk_project_id: m.odk_project_id,
+          odk_form_id: m.odk_form_id,
+          form_type_id: m.form_type_id || null,
+          form_type_code: m.form_type_code || null,
+        });
+        renderTable();  // re-render to show updated mapping info
+      }).catch(function () { showError('Network error.'); });
   }
 
   function promptRemove(sid) {

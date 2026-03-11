@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-03-11
 ---
 
 # Current Data Model
@@ -266,7 +266,7 @@ Behavior:
 
 Purpose:
 
-- maps a project-site pair to a specific ODK Central project ID and form ID
+- maps a project-site pair to a specific ODK Central project ID, form ID, and VA form type
 
 Key fields:
 
@@ -275,12 +275,14 @@ Key fields:
 - `site_id` — String(4) foreign key
 - `odk_project_id` — Integer; the numeric project ID on the ODK Central server
 - `odk_form_id` — Text; the xmlFormId of the form on ODK Central
+- `form_type_id` — UUID nullable foreign key to `mas_form_types`; identifies which VA form type (e.g. `WHO_2022_VA`, `WHO_2022_VA_SOCIAL`) this site uses for field display and rendering
 - `created_at`, `updated_at` — timestamps
 
 Behavior:
 
 - unique on `(project_id, site_id)` — one ODK form per project-site combination
 - the ODK connection used for this mapping is derived via `map_project_odk` and is not stored here directly
+- `form_type_id` is optional but strongly recommended; if absent, rendering falls back to the hardcoded default `WHO_2022_VA`
 
 ## Key Current-State Observations
 
@@ -291,5 +293,5 @@ Behavior:
 - explicit auth foundation tables now exist additively in `va_project_master`, `va_site_master`, `va_project_sites`, and `va_user_access_grants`, but runtime authorization has not cut over yet
 - ODK identifiers are stored per app form
 - ODK connection credentials are now stored encrypted in `mas_odk_connections` rather than in a flat TOML file
-- per-site ODK project and form mapping is now managed via `map_project_site_odk`
+- per-site ODK project, form, and VA form type mapping is now managed via `map_project_site_odk`
 - the current schema is suitable for one-project-first operation, not generalized multi-project reuse

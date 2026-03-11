@@ -36,6 +36,12 @@ class MapProjectSiteOdk(db.Model):
     )
     odk_project_id: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False)
     odk_form_id: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
+    form_type_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_form_types.form_type_id"),
+        nullable=True,
+        index=True,
+    )
 
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
@@ -45,6 +51,11 @@ class MapProjectSiteOdk(db.Model):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+
+    # Relationship to form type (lazy load — used when resolving rendering config)
+    form_type: so.Mapped["MasFormTypes | None"] = so.relationship(
+        "MasFormTypes", foreign_keys=[form_type_id], lazy="select"
     )
 
     def __repr__(self) -> str:

@@ -1090,6 +1090,24 @@ def admin_panel_odk_connections():
 # Field Mapping Admin  (admin-only)
 # ---------------------------------------------------------------------------
 
+@admin.get("/api/form-types")
+@require_api_role("admin")
+def admin_form_types_list():
+    """Return all active form types (code + name)."""
+    from app.services.form_type_service import get_form_type_service
+    svc = get_form_type_service()
+    return jsonify({
+        "form_types": [
+            {
+                "form_type_id": str(ft.form_type_id),
+                "form_type_code": ft.form_type_code,
+                "form_type_name": ft.form_type_name,
+            }
+            for ft in svc.list_form_types()
+        ]
+    })
+
+
 @admin.post("/api/form-types")
 @require_api_role("admin")
 def admin_form_types_create():
@@ -1859,6 +1877,8 @@ def admin_odk_site_mappings_list(project_id):
                 "site_id": r.site_id,
                 "odk_project_id": r.odk_project_id,
                 "odk_form_id": r.odk_form_id,
+                "form_type_id": str(r.form_type_id) if r.form_type_id else None,
+                "form_type_code": r.form_type.form_type_code if r.form_type else None,
             }
             for r in rows
         ]
@@ -1870,17 +1890,23 @@ def admin_odk_site_mappings_list(project_id):
 def admin_odk_site_mappings_save(project_id):
     """Upsert the ODK form mapping for a single project-site.
 
-    Body: { "site_id": "XX01", "odk_project_id": 3, "odk_form_id": "va_form" }
+    Body: { "site_id": "XX01", "odk_project_id": 3, "odk_form_id": "va_form",
+            "form_type_id": "<uuid>" }
+    form_type_id is optional but strongly recommended.
     """
     user = _request_user()
     if not user.is_admin():
         return _json_error("Admin access required.", 403)
+
+    from app.models.va_field_mapping import MasFormTypes
+    import uuid as _uuid
 
     data = request.get_json(silent=True) or {}
     project_id = project_id.upper()
     site_id = (data.get("site_id") or "").upper()
     odk_project_id = data.get("odk_project_id")
     odk_form_id = (data.get("odk_form_id") or "").strip()
+    form_type_id_raw = (data.get("form_type_id") or "").strip()
 
     if not site_id or odk_project_id is None or not odk_form_id:
         return _json_error("site_id, odk_project_id, and odk_form_id are required.", 400)
@@ -1889,11 +1915,23 @@ def admin_odk_site_mappings_save(project_id):
         odk_project_id = int(odk_project_id)
     except (TypeError, ValueError):
         return _json_error("odk_project_id must be an integer.", 400)
-        
+
+    # Resolve form_type_id if provided
+    form_type_id = None
+    if form_type_id_raw:
+        try:
+            parsed_uuid = _uuid.UUID(form_type_id_raw)
+        except ValueError:
+            return _json_error("form_type_id must be a valid UUID.", 400)
+        ft = db.session.get(MasFormTypes, parsed_uuid)
+        if not ft:
+            return _json_error("form_type_id not found.", 404)
+        form_type_id = parsed_uuid
+
     project = db.session.get(VaProjectMaster, project_id)
     if not project:
         return _json_error("Project not found.", 404)
-        
+
     site = db.session.get(VaSiteMaster, site_id)
     if not site:
         return _json_error("Site not found.", 404)
@@ -1907,6 +1945,7 @@ def admin_odk_site_mappings_save(project_id):
     if existing:
         existing.odk_project_id = odk_project_id
         existing.odk_form_id = odk_form_id
+        existing.form_type_id = form_type_id
         status_code = 200
     else:
         existing = MapProjectSiteOdk(
@@ -1914,16 +1953,21 @@ def admin_odk_site_mappings_save(project_id):
             site_id=site_id,
             odk_project_id=odk_project_id,
             odk_form_id=odk_form_id,
+            form_type_id=form_type_id,
         )
         db.session.add(existing)
         status_code = 201
 
     db.session.commit()
+    # Refresh to load the relationship
+    db.session.refresh(existing)
     return jsonify({
         "mapping": {
             "site_id": existing.site_id,
             "odk_project_id": existing.odk_project_id,
             "odk_form_id": existing.odk_form_id,
+            "form_type_id": str(existing.form_type_id) if existing.form_type_id else None,
+            "form_type_code": existing.form_type.form_type_code if existing.form_type else None,
         }
     }), status_code
 

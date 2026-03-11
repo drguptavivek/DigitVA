@@ -21,37 +21,6 @@
             <i class="fa-solid fa-plus me-1"></i>Add
           </button>
         </div>
-
-        {# Inline add form #}
-        <div id="fmc-add-cat-form" class="p-2 border-bottom bg-light d-none">
-          <div class="row g-1 align-items-end">
-            <div class="col-4">
-              <label class="form-label small mb-1">Code</label>
-              <input type="text" class="form-control form-control-sm font-monospace"
-                     id="fmc-new-cat-code" placeholder="e.g. vasymptoms" maxlength="64">
-            </div>
-            <div class="col-4">
-              <label class="form-label small mb-1">Name</label>
-              <input type="text" class="form-control form-control-sm"
-                     id="fmc-new-cat-name" placeholder="Display name">
-            </div>
-            <div class="col-2">
-              <label class="form-label small mb-1">Order</label>
-              <input type="number" class="form-control form-control-sm text-center"
-                     id="fmc-new-cat-order" placeholder="auto" min="0">
-            </div>
-            <div class="col-2 d-flex gap-1 align-self-end">
-              <button class="btn btn-sm btn-success py-0 px-1" id="fmc-add-cat-save">
-                <i class="fa-solid fa-check"></i>
-              </button>
-              <button class="btn btn-sm btn-outline-secondary py-0 px-1" id="fmc-add-cat-cancel">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-          </div>
-          <div id="fmc-add-cat-error" class="text-danger small mt-1 d-none"></div>
-        </div>
-
         <div id="fmc-cat-list" style="overflow-y:auto; max-height:400px;"></div>
       </div>
 
@@ -65,37 +34,6 @@
             <i class="fa-solid fa-plus me-1"></i>Add
           </button>
         </div>
-
-        {# Inline add subcategory form #}
-        <div id="fmc-add-sub-form" class="p-2 border-bottom bg-light d-none">
-          <div class="row g-1 align-items-end">
-            <div class="col-4">
-              <label class="form-label small mb-1">Code</label>
-              <input type="text" class="form-control form-control-sm font-monospace"
-                     id="fmc-new-sub-code" placeholder="e.g. general" maxlength="64">
-            </div>
-            <div class="col-4">
-              <label class="form-label small mb-1">Name</label>
-              <input type="text" class="form-control form-control-sm"
-                     id="fmc-new-sub-name" placeholder="Display name">
-            </div>
-            <div class="col-2">
-              <label class="form-label small mb-1">Order</label>
-              <input type="number" class="form-control form-control-sm text-center"
-                     id="fmc-new-sub-order" placeholder="auto" min="0">
-            </div>
-            <div class="col-2 d-flex gap-1 align-self-end">
-              <button class="btn btn-sm btn-success py-0 px-1" id="fmc-add-sub-save">
-                <i class="fa-solid fa-check"></i>
-              </button>
-              <button class="btn btn-sm btn-outline-secondary py-0 px-1" id="fmc-add-sub-cancel">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-          </div>
-          <div id="fmc-add-sub-error" class="text-danger small mt-1 d-none"></div>
-        </div>
-
         <div id="fmc-sub-list" style="overflow-y:auto; max-height:400px;">
           <p class="text-muted small text-center py-5">Select a category on the left.</p>
         </div>
@@ -105,7 +43,43 @@
   </div>
 </div>
 
-{# ── Edit Category modal ────────────────────────────────────────────────────── #}
+{# ── Add Category modal ─────────────────────────────────────────────────────── #}
+<div class="modal fade" id="fmc-cat-add-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="fa-solid fa-plus me-2 text-success"></i>Add Category</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Code <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm font-monospace"
+                 id="fmc-add-modal-cat-code" placeholder="e.g. vasymptoms" maxlength="64">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Name</label>
+          <input type="text" class="form-control form-control-sm"
+                 id="fmc-add-modal-cat-name" placeholder="Display name">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Display Order</label>
+          <input type="number" class="form-control form-control-sm"
+                 id="fmc-add-modal-cat-order" placeholder="auto" min="0">
+        </div>
+        <div id="fmc-add-modal-cat-error" class="text-danger small mt-1 d-none"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-success" id="fmc-add-modal-cat-save">
+          <i class="fa-solid fa-plus me-1"></i>Add
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Edit Category modal ─────────────────────────────────────────────────────── #}
 <div class="modal fade" id="fmc-cat-edit-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content">
@@ -136,6 +110,42 @@
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-sm btn-primary" id="fmc-modal-cat-save">
           <i class="fa-solid fa-floppy-disk me-1"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Add Subcategory modal ──────────────────────────────────────────────────── #}
+<div class="modal fade" id="fmc-sub-add-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="fa-solid fa-plus me-2 text-success"></i>Add Subcategory</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Code <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm font-monospace"
+                 id="fmc-add-modal-sub-code" placeholder="e.g. general" maxlength="64">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Name</label>
+          <input type="text" class="form-control form-control-sm"
+                 id="fmc-add-modal-sub-name" placeholder="Display name">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Display Order</label>
+          <input type="number" class="form-control form-control-sm"
+                 id="fmc-add-modal-sub-order" placeholder="auto" min="0">
+        </div>
+        <div id="fmc-add-modal-sub-error" class="text-danger small mt-1 d-none"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-success" id="fmc-add-modal-sub-save">
+          <i class="fa-solid fa-plus me-1"></i>Add
         </button>
       </div>
     </div>
@@ -215,11 +225,13 @@
 
   // ── state ──────────────────────────────────────────────────────────────────
 
-  var _cats        = [];
-  var _subs        = [];
-  var _selectedCat = null;
-  var _catModal    = null;
-  var _subModal    = null;
+  var _cats          = [];
+  var _subs          = [];
+  var _selectedCat   = null;
+  var _catAddModal   = null;
+  var _catEditModal  = null;
+  var _subAddModal   = null;
+  var _subEditModal  = null;
 
   // ── init ───────────────────────────────────────────────────────────────────
 
@@ -323,7 +335,38 @@
       });
   }
 
-  // ── category edit modal ────────────────────────────────────────────────────
+  // ── add category modal ─────────────────────────────────────────────────────
+
+  document.getElementById('fmc-add-cat-btn').addEventListener('click', function () {
+    document.getElementById('fmc-add-modal-cat-code').value  = '';
+    document.getElementById('fmc-add-modal-cat-name').value  = '';
+    document.getElementById('fmc-add-modal-cat-order').value = '';
+    document.getElementById('fmc-add-modal-cat-error').classList.add('d-none');
+    if (!_catAddModal) _catAddModal = new bootstrap.Modal(document.getElementById('fmc-cat-add-modal'));
+    _catAddModal.show();
+    setTimeout(function () { document.getElementById('fmc-add-modal-cat-code').focus(); }, 300);
+  });
+
+  document.getElementById('fmc-add-modal-cat-save').addEventListener('click', function () {
+    var code  = document.getElementById('fmc-add-modal-cat-code').value.trim();
+    var name  = document.getElementById('fmc-add-modal-cat-name').value.trim();
+    var order = document.getElementById('fmc-add-modal-cat-order').value.trim();
+    var errEl = document.getElementById('fmc-add-modal-cat-error');
+    errEl.classList.add('d-none');
+    if (!code) { errEl.textContent = 'Code is required.'; errEl.classList.remove('d-none'); return; }
+    var payload = { category_code: code, category_name: name || null };
+    if (order !== '') payload.display_order = parseInt(order, 10);
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE) + '/categories', 'POST', payload)
+      .then(function (res) {
+        if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
+        _cats.push(res.data.category);
+        _cats.sort(function (a, b) { return a.display_order - b.display_order; });
+        _catAddModal.hide();
+        renderCats();
+      });
+  });
+
+  // ── edit category modal ────────────────────────────────────────────────────
 
   window.openCatEditModal = function (code) {
     var cat = _cats.find(function (c) { return c.category_code === code; });
@@ -333,8 +376,8 @@
     document.getElementById('fmc-modal-cat-name').value        = cat.category_name || '';
     document.getElementById('fmc-modal-cat-order').value       = cat.display_order;
     document.getElementById('fmc-modal-cat-error').classList.add('d-none');
-    if (!_catModal) _catModal = new bootstrap.Modal(document.getElementById('fmc-cat-edit-modal'));
-    _catModal.show();
+    if (!_catEditModal) _catEditModal = new bootstrap.Modal(document.getElementById('fmc-cat-edit-modal'));
+    _catEditModal.show();
     setTimeout(function () { document.getElementById('fmc-modal-cat-name').select(); }, 300);
   };
 
@@ -344,7 +387,6 @@
     var order = document.getElementById('fmc-modal-cat-order').value;
     var errEl = document.getElementById('fmc-modal-cat-error');
     errEl.classList.add('d-none');
-
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
       + '/categories/' + encodeURIComponent(code), 'PUT',
       { category_name: name || null, display_order: parseInt(order, 10) || 0 })
@@ -354,7 +396,7 @@
         var idx = _cats.findIndex(function (x) { return x.category_code === code; });
         if (idx !== -1) { _cats[idx].category_name = c.category_name; _cats[idx].display_order = c.display_order; }
         _cats.sort(function (a, b) { return a.display_order - b.display_order; });
-        _catModal.hide();
+        _catEditModal.hide();
         renderCats();
         if (_selectedCat === code) renderSubs();
       });
@@ -375,45 +417,40 @@
       });
   };
 
-  // ── add category ───────────────────────────────────────────────────────────
+  // ── add subcategory modal ──────────────────────────────────────────────────
 
-  document.getElementById('fmc-add-cat-btn').addEventListener('click', function () {
-    var form = document.getElementById('fmc-add-cat-form');
-    form.classList.toggle('d-none');
-    if (!form.classList.contains('d-none')) document.getElementById('fmc-new-cat-code').focus();
+  document.getElementById('fmc-add-sub-btn').addEventListener('click', function () {
+    document.getElementById('fmc-add-modal-sub-code').value  = '';
+    document.getElementById('fmc-add-modal-sub-name').value  = '';
+    document.getElementById('fmc-add-modal-sub-order').value = '';
+    document.getElementById('fmc-add-modal-sub-error').classList.add('d-none');
+    if (!_subAddModal) _subAddModal = new bootstrap.Modal(document.getElementById('fmc-sub-add-modal'));
+    _subAddModal.show();
+    setTimeout(function () { document.getElementById('fmc-add-modal-sub-code').focus(); }, 300);
   });
 
-  document.getElementById('fmc-add-cat-cancel').addEventListener('click', function () {
-    document.getElementById('fmc-add-cat-form').classList.add('d-none');
-    document.getElementById('fmc-new-cat-code').value  = '';
-    document.getElementById('fmc-new-cat-name').value  = '';
-    document.getElementById('fmc-new-cat-order').value = '';
-    document.getElementById('fmc-add-cat-error').classList.add('d-none');
-  });
-
-  document.getElementById('fmc-add-cat-save').addEventListener('click', function () {
-    var code  = document.getElementById('fmc-new-cat-code').value.trim();
-    var name  = document.getElementById('fmc-new-cat-name').value.trim();
-    var order = document.getElementById('fmc-new-cat-order').value.trim();
-    var errEl = document.getElementById('fmc-add-cat-error');
+  document.getElementById('fmc-add-modal-sub-save').addEventListener('click', function () {
+    var code  = document.getElementById('fmc-add-modal-sub-code').value.trim();
+    var name  = document.getElementById('fmc-add-modal-sub-name').value.trim();
+    var order = document.getElementById('fmc-add-modal-sub-order').value.trim();
+    var errEl = document.getElementById('fmc-add-modal-sub-error');
     errEl.classList.add('d-none');
     if (!code) { errEl.textContent = 'Code is required.'; errEl.classList.remove('d-none'); return; }
-    var payload = { category_code: code, category_name: name || null };
+    if (!_selectedCat) return;
+    var payload = { subcategory_code: code, subcategory_name: name || null };
     if (order !== '') payload.display_order = parseInt(order, 10);
-    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE) + '/categories', 'POST', payload)
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(_selectedCat) + '/subcategories', 'POST', payload)
       .then(function (res) {
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
-        _cats.push(res.data.category);
-        _cats.sort(function (a, b) { return a.display_order - b.display_order; });
-        document.getElementById('fmc-new-cat-code').value  = '';
-        document.getElementById('fmc-new-cat-name').value  = '';
-        document.getElementById('fmc-new-cat-order').value = '';
-        document.getElementById('fmc-add-cat-form').classList.add('d-none');
-        renderCats();
+        _subs.push(res.data.subcategory);
+        _subs.sort(function (a, b) { return a.display_order - b.display_order; });
+        _subAddModal.hide();
+        renderSubs();
       });
   });
 
-  // ── subcategory edit modal ─────────────────────────────────────────────────
+  // ── edit subcategory modal ─────────────────────────────────────────────────
 
   window.openSubEditModal = function (code) {
     var sub = _subs.find(function (s) { return s.subcategory_code === code; });
@@ -423,8 +460,8 @@
     document.getElementById('fmc-modal-sub-name').value        = sub.subcategory_name || '';
     document.getElementById('fmc-modal-sub-order').value       = sub.display_order;
     document.getElementById('fmc-modal-sub-error').classList.add('d-none');
-    if (!_subModal) _subModal = new bootstrap.Modal(document.getElementById('fmc-sub-edit-modal'));
-    _subModal.show();
+    if (!_subEditModal) _subEditModal = new bootstrap.Modal(document.getElementById('fmc-sub-edit-modal'));
+    _subEditModal.show();
     setTimeout(function () { document.getElementById('fmc-modal-sub-name').select(); }, 300);
   };
 
@@ -434,7 +471,6 @@
     var order = document.getElementById('fmc-modal-sub-order').value;
     var errEl = document.getElementById('fmc-modal-sub-error');
     errEl.classList.add('d-none');
-
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
       + '/categories/' + encodeURIComponent(_selectedCat)
       + '/subcategories/' + encodeURIComponent(code), 'PUT',
@@ -445,7 +481,7 @@
         var idx = _subs.findIndex(function (x) { return x.subcategory_code === code; });
         if (idx !== -1) { _subs[idx].subcategory_name = s.subcategory_name; _subs[idx].display_order = s.display_order; }
         _subs.sort(function (a, b) { return a.display_order - b.display_order; });
-        _subModal.hide();
+        _subEditModal.hide();
         renderSubs();
       });
   });
@@ -463,46 +499,6 @@
         renderSubs();
       });
   };
-
-  // ── add subcategory ────────────────────────────────────────────────────────
-
-  document.getElementById('fmc-add-sub-btn').addEventListener('click', function () {
-    var form = document.getElementById('fmc-add-sub-form');
-    form.classList.toggle('d-none');
-    if (!form.classList.contains('d-none')) document.getElementById('fmc-new-sub-code').focus();
-  });
-
-  document.getElementById('fmc-add-sub-cancel').addEventListener('click', function () {
-    document.getElementById('fmc-add-sub-form').classList.add('d-none');
-    document.getElementById('fmc-new-sub-code').value  = '';
-    document.getElementById('fmc-new-sub-name').value  = '';
-    document.getElementById('fmc-new-sub-order').value = '';
-    document.getElementById('fmc-add-sub-error').classList.add('d-none');
-  });
-
-  document.getElementById('fmc-add-sub-save').addEventListener('click', function () {
-    var code  = document.getElementById('fmc-new-sub-code').value.trim();
-    var name  = document.getElementById('fmc-new-sub-name').value.trim();
-    var order = document.getElementById('fmc-new-sub-order').value.trim();
-    var errEl = document.getElementById('fmc-add-sub-error');
-    errEl.classList.add('d-none');
-    if (!code) { errEl.textContent = 'Code is required.'; errEl.classList.remove('d-none'); return; }
-    if (!_selectedCat) return;
-    var payload = { subcategory_code: code, subcategory_name: name || null };
-    if (order !== '') payload.display_order = parseInt(order, 10);
-    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
-      + '/categories/' + encodeURIComponent(_selectedCat) + '/subcategories', 'POST', payload)
-      .then(function (res) {
-        if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
-        _subs.push(res.data.subcategory);
-        _subs.sort(function (a, b) { return a.display_order - b.display_order; });
-        document.getElementById('fmc-new-sub-code').value  = '';
-        document.getElementById('fmc-new-sub-name').value  = '';
-        document.getElementById('fmc-new-sub-order').value = '';
-        document.getElementById('fmc-add-sub-form').classList.add('d-none');
-        renderSubs();
-      });
-  });
 
 }());
 </script>

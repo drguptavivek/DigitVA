@@ -13,7 +13,7 @@
   <div class="card-body p-0">
     <div class="row g-0" style="min-height: 360px;">
 
-      {# Left: category list #}
+      {# ── Left: category list ────────────────────────────────────────────── #}
       <div class="col-md-5 border-end" id="fmc-cat-col">
         <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
           <span class="small fw-semibold text-muted">Categories</span>
@@ -22,7 +22,7 @@
           </button>
         </div>
 
-        {# Add form (hidden initially) #}
+        {# Inline add form #}
         <div id="fmc-add-cat-form" class="p-2 border-bottom bg-light d-none">
           <div class="row g-1 align-items-end">
             <div class="col-4">
@@ -52,12 +52,10 @@
           <div id="fmc-add-cat-error" class="text-danger small mt-1 d-none"></div>
         </div>
 
-        <div id="fmc-cat-list" style="overflow-y:auto; max-height:400px;">
-          {# Populated by JS #}
-        </div>
+        <div id="fmc-cat-list" style="overflow-y:auto; max-height:400px;"></div>
       </div>
 
-      {# Right: subcategory list #}
+      {# ── Right: subcategory list ─────────────────────────────────────────── #}
       <div class="col-md-7" id="fmc-sub-col">
         <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
           <span class="small fw-semibold text-muted" id="fmc-sub-header">
@@ -68,7 +66,7 @@
           </button>
         </div>
 
-        {# Add subcategory form (hidden initially) #}
+        {# Inline add subcategory form #}
         <div id="fmc-add-sub-form" class="p-2 border-bottom bg-light d-none">
           <div class="row g-1 align-items-end">
             <div class="col-4">
@@ -107,6 +105,91 @@
   </div>
 </div>
 
+{# ── Edit Category modal ────────────────────────────────────────────────────── #}
+<div class="modal fade" id="fmc-cat-edit-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="fa-solid fa-pen me-2 text-secondary"></i>Edit Category</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fmc-modal-cat-code-hidden">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Code</label>
+          <input type="text" class="form-control form-control-sm font-monospace"
+                 id="fmc-modal-cat-code" disabled>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Name</label>
+          <input type="text" class="form-control form-control-sm"
+                 id="fmc-modal-cat-name" placeholder="Display name">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Display Order</label>
+          <input type="number" class="form-control form-control-sm"
+                 id="fmc-modal-cat-order" min="0">
+        </div>
+        <div id="fmc-modal-cat-error" class="text-danger small mt-1 d-none"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="fmc-modal-cat-save">
+          <i class="fa-solid fa-floppy-disk me-1"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Edit Subcategory modal ─────────────────────────────────────────────────── #}
+<div class="modal fade" id="fmc-sub-edit-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="fa-solid fa-pen me-2 text-secondary"></i>Edit Subcategory</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fmc-modal-sub-code-hidden">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Code</label>
+          <input type="text" class="form-control form-control-sm font-monospace"
+                 id="fmc-modal-sub-code" disabled>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Name</label>
+          <input type="text" class="form-control form-control-sm"
+                 id="fmc-modal-sub-name" placeholder="Display name">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Display Order</label>
+          <input type="number" class="form-control form-control-sm"
+                 id="fmc-modal-sub-order" min="0">
+        </div>
+        <div id="fmc-modal-sub-error" class="text-danger small mt-1 d-none"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="fmc-modal-sub-save">
+          <i class="fa-solid fa-floppy-disk me-1"></i>Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .fmc-cat-selected { background-color: #0d6efd !important; color: #fff !important; }
+  .fmc-cat-selected .small, .fmc-cat-selected .text-muted { color: rgba(255,255,255,0.85) !important; }
+  .fmc-cat-selected .badge { background-color: rgba(255,255,255,0.25) !important; color: #fff !important; }
+  .fmc-cat-selected .btn-outline-secondary { border-color: rgba(255,255,255,0.5); color: #fff; }
+  .fmc-cat-selected .btn-outline-secondary:hover { background-color: rgba(255,255,255,0.15); }
+  .fmc-cat-selected .btn-outline-danger { border-color: rgba(255,200,200,0.7); color: #ffcccc; }
+  .fmc-cat-selected .btn-outline-danger:hover { background-color: rgba(255,255,255,0.1); }
+  .fmc-cat-row:hover:not(.fmc-cat-selected) { background-color: #f0f4ff; }
+</style>
+
 <script>
 (function () {
   'use strict';
@@ -132,20 +215,21 @@
 
   // ── state ──────────────────────────────────────────────────────────────────
 
-  var _cats = [];          // [{ category_code, category_name, display_order }]
-  var _subs = [];          // [{ subcategory_code, subcategory_name, display_order }]
-  var _selectedCat = null; // category_code
-  var _editingCat  = null; // category_code being inline-edited
-  var _editingSub  = null; // subcategory_code being inline-edited
+  var _cats        = [];
+  var _subs        = [];
+  var _selectedCat = null;
+  var _catModal    = null;
+  var _subModal    = null;
 
   // ── init ───────────────────────────────────────────────────────────────────
 
   _cats = {{ categories_json | tojson }}.map(function (c) {
     return { category_code: c.category_code, category_name: c.category_name, display_order: c.display_order };
   });
+  _cats.sort(function (a, b) { return a.display_order - b.display_order; });
   renderCats();
 
-  // ── category rendering ────────────────────────────────────────────────────
+  // ── category rendering ─────────────────────────────────────────────────────
 
   function renderCats() {
     var el = document.getElementById('fmc-cat-list');
@@ -159,49 +243,30 @@
 
     el.innerHTML = _cats.map(function (c) {
       var isSelected = (c.category_code === _selectedCat);
-      var isEditing  = (c.category_code === _editingCat);
-
-      if (isEditing) {
-        return '<div class="px-2 py-2 border-bottom bg-light">'
-          + '<div class="row g-1 align-items-center">'
-          + '<div class="col-4"><input type="text" class="form-control form-control-sm font-monospace" '
-          + 'id="fmc-edit-cat-code" value="' + esc(c.category_code) + '" disabled></div>'
-          + '<div class="col-4"><input type="text" class="form-control form-control-sm" '
-          + 'id="fmc-edit-cat-name" value="' + esc(c.category_name || '') + '" placeholder="Name"></div>'
-          + '<div class="col-2"><input type="number" class="form-control form-control-sm text-center" '
-          + 'id="fmc-edit-cat-order" value="' + esc(c.display_order) + '" min="0" style="width:60px;"></div>'
-          + '<div class="col-2 d-flex gap-1 justify-content-end">'
-          + '<button class="btn btn-sm btn-success py-0 px-1" onclick="saveCatEdit(\'' + esc(c.category_code) + '\')">'
-          + '<i class="fa-solid fa-check"></i></button>'
-          + '<button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="cancelCatEdit()">'
-          + '<i class="fa-solid fa-xmark"></i></button>'
-          + '</div></div>'
-          + '<div id="fmc-edit-cat-error" class="text-danger small mt-1 d-none"></div>'
-          + '</div>';
-      }
-
       return '<div class="d-flex align-items-center px-2 py-2 border-bottom fmc-cat-row'
-        + (isSelected ? ' bg-primary bg-opacity-10' : ' fmc-cat-hover') + '"'
+        + (isSelected ? ' fmc-cat-selected' : '') + '"'
         + ' style="cursor:pointer;" onclick="selectCat(\'' + esc(c.category_code) + '\')">'
-        + '<span class="badge bg-secondary me-2 text-white" style="min-width:28px;">' + esc(c.display_order) + '</span>'
+        + '<span class="badge bg-secondary me-2" style="min-width:32px;">' + esc(c.display_order) + '</span>'
         + '<div class="flex-fill">'
-        + '<div class="small fw-semibold' + (isSelected ? ' text-primary' : '') + '">' + esc(c.category_name || c.category_code) + '</div>'
-        + '<div class="text-muted" style="font-size:0.7rem;">' + esc(c.category_code) + '</div>'
+        + '<div class="small fw-semibold">' + esc(c.category_name || c.category_code) + '</div>'
+        + '<div class="small" style="font-size:0.7rem;opacity:0.7;">' + esc(c.category_code) + '</div>'
         + '</div>'
         + '<div class="d-flex gap-1 ms-1">'
-        + '<button class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="event.stopPropagation();startCatEdit(\'' + esc(c.category_code) + '\')" title="Edit">'
+        + '<button class="btn btn-outline-secondary btn-sm py-0 px-1"'
+        + ' onclick="event.stopPropagation();openCatEditModal(\'' + esc(c.category_code) + '\')" title="Edit">'
         + '<i class="fa-solid fa-pen fa-xs"></i></button>'
-        + '<button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="event.stopPropagation();deleteCat(\'' + esc(c.category_code) + '\')" title="Delete">'
+        + '<button class="btn btn-outline-danger btn-sm py-0 px-1"'
+        + ' onclick="event.stopPropagation();deleteCat(\'' + esc(c.category_code) + '\')" title="Delete">'
         + '<i class="fa-solid fa-trash fa-xs"></i></button>'
         + '</div></div>';
     }).join('');
   }
 
-  // ── subcategory rendering ─────────────────────────────────────────────────
+  // ── subcategory rendering ──────────────────────────────────────────────────
 
   function renderSubs() {
-    var el = document.getElementById('fmc-sub-list');
-    var hdr = document.getElementById('fmc-sub-header');
+    var el     = document.getElementById('fmc-sub-list');
+    var hdr    = document.getElementById('fmc-sub-header');
     var addBtn = document.getElementById('fmc-add-sub-btn');
 
     if (!_selectedCat) {
@@ -221,47 +286,26 @@
     }
 
     el.innerHTML = _subs.map(function (s) {
-      var isEditing = (s.subcategory_code === _editingSub);
-
-      if (isEditing) {
-        return '<div class="px-2 py-2 border-bottom bg-light">'
-          + '<div class="row g-1 align-items-center">'
-          + '<div class="col-4"><input type="text" class="form-control form-control-sm font-monospace" '
-          + 'id="fmc-edit-sub-code" value="' + esc(s.subcategory_code) + '" disabled></div>'
-          + '<div class="col-4"><input type="text" class="form-control form-control-sm" '
-          + 'id="fmc-edit-sub-name" value="' + esc(s.subcategory_name || '') + '" placeholder="Name"></div>'
-          + '<div class="col-2"><input type="number" class="form-control form-control-sm text-center" '
-          + 'id="fmc-edit-sub-order" value="' + esc(s.display_order) + '" min="0" style="width:60px;"></div>'
-          + '<div class="col-2 d-flex gap-1 justify-content-end">'
-          + '<button class="btn btn-sm btn-success py-0 px-1" onclick="saveSubEdit(\'' + esc(s.subcategory_code) + '\')">'
-          + '<i class="fa-solid fa-check"></i></button>'
-          + '<button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="cancelSubEdit()">'
-          + '<i class="fa-solid fa-xmark"></i></button>'
-          + '</div></div>'
-          + '<div id="fmc-edit-sub-error" class="text-danger small mt-1 d-none"></div>'
-          + '</div>';
-      }
-
       return '<div class="d-flex align-items-center px-3 py-2 border-bottom">'
-        + '<span class="badge bg-secondary me-2 text-white" style="min-width:28px;">' + esc(s.display_order) + '</span>'
+        + '<span class="badge bg-secondary me-2" style="min-width:32px;">' + esc(s.display_order) + '</span>'
         + '<div class="flex-fill">'
         + '<div class="small fw-semibold">' + esc(s.subcategory_name || s.subcategory_code) + '</div>'
         + '<div class="text-muted" style="font-size:0.7rem;">' + esc(s.subcategory_code) + '</div>'
         + '</div>'
         + '<div class="d-flex gap-1 ms-1">'
-        + '<button class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="startSubEdit(\'' + esc(s.subcategory_code) + '\')" title="Edit">'
+        + '<button class="btn btn-outline-secondary btn-sm py-0 px-1"'
+        + ' onclick="openSubEditModal(\'' + esc(s.subcategory_code) + '\')" title="Edit">'
         + '<i class="fa-solid fa-pen fa-xs"></i></button>'
-        + '<button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="deleteSub(\'' + esc(s.subcategory_code) + '\')" title="Delete">'
+        + '<button class="btn btn-outline-danger btn-sm py-0 px-1"'
+        + ' onclick="deleteSub(\'' + esc(s.subcategory_code) + '\')" title="Delete">'
         + '<i class="fa-solid fa-trash fa-xs"></i></button>'
         + '</div></div>';
     }).join('');
   }
 
-  // ── category actions ──────────────────────────────────────────────────────
+  // ── select category ────────────────────────────────────────────────────────
 
   window.selectCat = function (code) {
-    _editingCat = null;
-    _editingSub = null;
     _selectedCat = code;
     renderCats();
     loadSubs(code);
@@ -273,44 +317,50 @@
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
       + '/categories/' + encodeURIComponent(categoryCode) + '/subcategories')
       .then(function (res) {
-        _subs = res.data.subcategories || [];
+        _subs = (res.data.subcategories || []);
+        _subs.sort(function (a, b) { return a.display_order - b.display_order; });
         renderSubs();
       });
   }
 
-  window.startCatEdit = function (code) {
-    _editingCat = code;
-    renderCats();
-    var el = document.getElementById('fmc-edit-cat-name');
-    if (el) { el.focus(); el.select(); }
+  // ── category edit modal ────────────────────────────────────────────────────
+
+  window.openCatEditModal = function (code) {
+    var cat = _cats.find(function (c) { return c.category_code === code; });
+    if (!cat) return;
+    document.getElementById('fmc-modal-cat-code-hidden').value = code;
+    document.getElementById('fmc-modal-cat-code').value        = code;
+    document.getElementById('fmc-modal-cat-name').value        = cat.category_name || '';
+    document.getElementById('fmc-modal-cat-order').value       = cat.display_order;
+    document.getElementById('fmc-modal-cat-error').classList.add('d-none');
+    if (!_catModal) _catModal = new bootstrap.Modal(document.getElementById('fmc-cat-edit-modal'));
+    _catModal.show();
+    setTimeout(function () { document.getElementById('fmc-modal-cat-name').select(); }, 300);
   };
 
-  window.cancelCatEdit = function () {
-    _editingCat = null;
-    renderCats();
-  };
+  document.getElementById('fmc-modal-cat-save').addEventListener('click', function () {
+    var code  = document.getElementById('fmc-modal-cat-code-hidden').value;
+    var name  = document.getElementById('fmc-modal-cat-name').value.trim();
+    var order = document.getElementById('fmc-modal-cat-order').value;
+    var errEl = document.getElementById('fmc-modal-cat-error');
+    errEl.classList.add('d-none');
 
-  window.saveCatEdit = function (code) {
-    var name = (document.getElementById('fmc-edit-cat-name') || {}).value || '';
-    var order = (document.getElementById('fmc-edit-cat-order') || {}).value;
-    var errEl = document.getElementById('fmc-edit-cat-error');
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
       + '/categories/' + encodeURIComponent(code), 'PUT',
-      { category_name: name.trim() || null, display_order: parseInt(order, 10) || 0 })
+      { category_name: name || null, display_order: parseInt(order, 10) || 0 })
       .then(function (res) {
-        if (!res.ok) {
-          if (errEl) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); }
-          return;
-        }
+        if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
         var c = res.data.category;
         var idx = _cats.findIndex(function (x) { return x.category_code === code; });
         if (idx !== -1) { _cats[idx].category_name = c.category_name; _cats[idx].display_order = c.display_order; }
         _cats.sort(function (a, b) { return a.display_order - b.display_order; });
-        _editingCat = null;
+        _catModal.hide();
         renderCats();
         if (_selectedCat === code) renderSubs();
       });
-  };
+  });
+
+  // ── delete category ────────────────────────────────────────────────────────
 
   window.deleteCat = function (code) {
     if (!confirm('Delete category "' + code + '"? This will not delete fields assigned to it.')) return;
@@ -325,20 +375,18 @@
       });
   };
 
-  // ── add category ──────────────────────────────────────────────────────────
+  // ── add category ───────────────────────────────────────────────────────────
 
   document.getElementById('fmc-add-cat-btn').addEventListener('click', function () {
     var form = document.getElementById('fmc-add-cat-form');
     form.classList.toggle('d-none');
-    if (!form.classList.contains('d-none')) {
-      document.getElementById('fmc-new-cat-code').focus();
-    }
+    if (!form.classList.contains('d-none')) document.getElementById('fmc-new-cat-code').focus();
   });
 
   document.getElementById('fmc-add-cat-cancel').addEventListener('click', function () {
     document.getElementById('fmc-add-cat-form').classList.add('d-none');
-    document.getElementById('fmc-new-cat-code').value = '';
-    document.getElementById('fmc-new-cat-name').value = '';
+    document.getElementById('fmc-new-cat-code').value  = '';
+    document.getElementById('fmc-new-cat-name').value  = '';
     document.getElementById('fmc-new-cat-order').value = '';
     document.getElementById('fmc-add-cat-error').classList.add('d-none');
   });
@@ -357,49 +405,52 @@
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
         _cats.push(res.data.category);
         _cats.sort(function (a, b) { return a.display_order - b.display_order; });
-        document.getElementById('fmc-new-cat-code').value = '';
-        document.getElementById('fmc-new-cat-name').value = '';
+        document.getElementById('fmc-new-cat-code').value  = '';
+        document.getElementById('fmc-new-cat-name').value  = '';
         document.getElementById('fmc-new-cat-order').value = '';
         document.getElementById('fmc-add-cat-form').classList.add('d-none');
         renderCats();
       });
   });
 
-  // ── subcategory actions ───────────────────────────────────────────────────
+  // ── subcategory edit modal ─────────────────────────────────────────────────
 
-  window.startSubEdit = function (code) {
-    _editingSub = code;
-    renderSubs();
-    var el = document.getElementById('fmc-edit-sub-name');
-    if (el) { el.focus(); el.select(); }
+  window.openSubEditModal = function (code) {
+    var sub = _subs.find(function (s) { return s.subcategory_code === code; });
+    if (!sub) return;
+    document.getElementById('fmc-modal-sub-code-hidden').value = code;
+    document.getElementById('fmc-modal-sub-code').value        = code;
+    document.getElementById('fmc-modal-sub-name').value        = sub.subcategory_name || '';
+    document.getElementById('fmc-modal-sub-order').value       = sub.display_order;
+    document.getElementById('fmc-modal-sub-error').classList.add('d-none');
+    if (!_subModal) _subModal = new bootstrap.Modal(document.getElementById('fmc-sub-edit-modal'));
+    _subModal.show();
+    setTimeout(function () { document.getElementById('fmc-modal-sub-name').select(); }, 300);
   };
 
-  window.cancelSubEdit = function () {
-    _editingSub = null;
-    renderSubs();
-  };
+  document.getElementById('fmc-modal-sub-save').addEventListener('click', function () {
+    var code  = document.getElementById('fmc-modal-sub-code-hidden').value;
+    var name  = document.getElementById('fmc-modal-sub-name').value.trim();
+    var order = document.getElementById('fmc-modal-sub-order').value;
+    var errEl = document.getElementById('fmc-modal-sub-error');
+    errEl.classList.add('d-none');
 
-  window.saveSubEdit = function (code) {
-    var name  = (document.getElementById('fmc-edit-sub-name') || {}).value || '';
-    var order = (document.getElementById('fmc-edit-sub-order') || {}).value;
-    var errEl = document.getElementById('fmc-edit-sub-error');
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
       + '/categories/' + encodeURIComponent(_selectedCat)
       + '/subcategories/' + encodeURIComponent(code), 'PUT',
-      { subcategory_name: name.trim() || null, display_order: parseInt(order, 10) || 0 })
+      { subcategory_name: name || null, display_order: parseInt(order, 10) || 0 })
       .then(function (res) {
-        if (!res.ok) {
-          if (errEl) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); }
-          return;
-        }
+        if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
         var s = res.data.subcategory;
         var idx = _subs.findIndex(function (x) { return x.subcategory_code === code; });
         if (idx !== -1) { _subs[idx].subcategory_name = s.subcategory_name; _subs[idx].display_order = s.display_order; }
         _subs.sort(function (a, b) { return a.display_order - b.display_order; });
-        _editingSub = null;
+        _subModal.hide();
         renderSubs();
       });
-  };
+  });
+
+  // ── delete subcategory ─────────────────────────────────────────────────────
 
   window.deleteSub = function (code) {
     if (!confirm('Delete subcategory "' + code + '"?')) return;
@@ -413,20 +464,18 @@
       });
   };
 
-  // ── add subcategory ───────────────────────────────────────────────────────
+  // ── add subcategory ────────────────────────────────────────────────────────
 
   document.getElementById('fmc-add-sub-btn').addEventListener('click', function () {
     var form = document.getElementById('fmc-add-sub-form');
     form.classList.toggle('d-none');
-    if (!form.classList.contains('d-none')) {
-      document.getElementById('fmc-new-sub-code').focus();
-    }
+    if (!form.classList.contains('d-none')) document.getElementById('fmc-new-sub-code').focus();
   });
 
   document.getElementById('fmc-add-sub-cancel').addEventListener('click', function () {
     document.getElementById('fmc-add-sub-form').classList.add('d-none');
-    document.getElementById('fmc-new-sub-code').value = '';
-    document.getElementById('fmc-new-sub-name').value = '';
+    document.getElementById('fmc-new-sub-code').value  = '';
+    document.getElementById('fmc-new-sub-name').value  = '';
     document.getElementById('fmc-new-sub-order').value = '';
     document.getElementById('fmc-add-sub-error').classList.add('d-none');
   });
@@ -447,8 +496,8 @@
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
         _subs.push(res.data.subcategory);
         _subs.sort(function (a, b) { return a.display_order - b.display_order; });
-        document.getElementById('fmc-new-sub-code').value = '';
-        document.getElementById('fmc-new-sub-name').value = '';
+        document.getElementById('fmc-new-sub-code').value  = '';
+        document.getElementById('fmc-new-sub-name').value  = '';
         document.getElementById('fmc-new-sub-order').value = '';
         document.getElementById('fmc-add-sub-form').classList.add('d-none');
         renderSubs();

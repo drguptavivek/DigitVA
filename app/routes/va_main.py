@@ -252,7 +252,8 @@ def va_dashboard(va_role):
             va_forms_completed=va_forms_completed,
             va_forms=va_forms,
             va_has_allocation=va_has_allocation,
-            va_recodeable=list(set(recent_final + recent_review) - set(result_va))
+            va_recodeable=list(set(recent_final + recent_review) - set(result_va)),
+            is_admin=current_user.is_admin(),
         )
     elif va_role == "reviewer":
         va_form_access = current_user.get_reviewer_va_forms()

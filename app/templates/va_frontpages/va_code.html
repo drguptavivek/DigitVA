@@ -90,22 +90,22 @@
     </div>
   </div>
 </div>
-  {% if va_has_allocation %}
-  <!-- Continue Pending QA -->
   <div class="text-center mb-4">
+    {% if va_has_allocation %}
     <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='varesumecoding', va_sid='varesumecoding') }}" class="btn btn-primary">
       <i class="fas fa-edit me-2"></i>Continue Pending VA Coding
     </a>
-  </div>
-  {% endif %}
-  {% if not va_has_allocation %}
-  <!-- Continue Pending QA -->
-  <div class="text-center mb-4">
+    {% else %}
     <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vastartcoding', va_sid='vastartcoding') }}" class="btn btn-primary">
       <i class="fas fa-edit me-2"></i>Start VA Coding
     </a>
+    {% endif %}
+    {% if is_admin %}
+    <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vademo_start_coding', va_sid='vademo_start_coding') }}" class="btn btn-outline-secondary ms-2">
+      <i class="fas fa-flask me-2"></i>Start Demo Coding (Random Form)
+    </a>
+    {% endif %}
   </div>
-  {% endif %}
 
   <!-- Filters + Table Tools -->
   <div class="d-flex justify-content-between align-items-center mb-3">

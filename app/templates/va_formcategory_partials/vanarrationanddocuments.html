@@ -619,7 +619,7 @@
             </div>
           {% endif %}
 
-      {% if va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" %}
+      {% if va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" %}
         <div id="form-container2">
           {% if not vafinexists and not vaerrexists and not vainiexists %}
             <div hx-get="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vainitialasses') }}" hx-trigger="load" hx-swap="innerHTML" hx-target="this"></div>

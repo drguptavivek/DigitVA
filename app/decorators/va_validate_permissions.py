@@ -37,7 +37,7 @@ def va_validate_permissions():
                     )
             elif va_action:
                 validate_sid = db.session.scalar(sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_sid == va_sid))
-                if not validate_sid and va_actiontype not in ["vastartcoding", "varesumecoding", "varesumereviewing"]:
+                if not validate_sid and va_actiontype not in ["vastartcoding", "vademo_start_coding", "varesumecoding", "varesumereviewing"]:
                     va_permission_abortwithflash("Invalid va_sid in the URL. Please verify and try again.", 404)
                 validator = _ACTION_VALIDATORS.get(va_action)
                 if not validator:
@@ -56,6 +56,8 @@ def va_validate_permissions():
 
 
 def va_hasrole(role):
+    if current_user.is_admin():
+        return True
     mapping = {
         "coder": current_user.is_coder(),
         "reviewer": current_user.is_reviewer(),
@@ -97,6 +99,11 @@ def _validate_vacode(actiontype, sid, partial):
             va_permission_validaterecodelimits(sid)
         else:
             va_permission_ensureallocation(sid, "coding")
+    elif actiontype == "vademo_start_coding":
+        if not current_user.is_admin():
+            va_permission_abortwithflash(
+                "Only admin users can start a demo coding session.", 403
+            )
     elif actiontype == "vaview":
         if not current_user.has_va_form_access(form_id, "coder"):
             va_permission_abortwithflash(

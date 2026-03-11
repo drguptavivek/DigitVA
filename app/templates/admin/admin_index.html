@@ -167,12 +167,13 @@
     }
   }
 
-  function setUrlParam(key, value) {
+  window.setUrlParam = function setUrlParam(key, value) {
     var params = new URLSearchParams(window.location.search);
     if (value) { params.set(key, value); } else { params.delete(key); }
     var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
     history.replaceState(null, '', newUrl);
-  }
+  };
+  var setUrlParam = window.setUrlParam;
 
   // Track which nav link is active and persist to URL
   document.querySelectorAll('.admin-nav-link').forEach(function (link) {

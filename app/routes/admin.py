@@ -1090,6 +1090,304 @@ def admin_panel_odk_connections():
 # Field Mapping Admin  (admin-only)
 # ---------------------------------------------------------------------------
 
+@admin.get("/api/form-types/<form_type_code>/categories/<category_code>/subcategories")
+@require_api_role("admin")
+def admin_form_type_subcategories(form_type_code, category_code):
+    """Return subcategories for a given form type + category."""
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasSubcategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    rows = db.session.scalars(
+        sa_select(MasSubcategoryOrder)
+        .where(
+            MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+            MasSubcategoryOrder.category_code == category_code,
+        )
+        .order_by(MasSubcategoryOrder.display_order)
+    ).all()
+    return jsonify({
+        "subcategories": [
+            {
+                "subcategory_code": r.subcategory_code,
+                "subcategory_name": r.subcategory_name,
+                "display_order": r.display_order,
+            }
+            for r in rows
+        ]
+    })
+
+
+# --- Category CRUD ---
+
+@admin.post("/api/form-types/<form_type_code>/categories")
+@require_api_role("admin")
+def admin_category_create(form_type_code):
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    code = (data.get("category_code") or "").strip()
+    name = (data.get("category_name") or "").strip() or None
+    order = data.get("display_order")
+
+    if not code:
+        return _json_error("category_code is required.", 400)
+
+    existing = db.session.scalar(
+        sa_select(MasCategoryOrder).where(
+            MasCategoryOrder.form_type_id == form_type.form_type_id,
+            MasCategoryOrder.category_code == code,
+        )
+    )
+    if existing:
+        return _json_error("Category code already exists for this form type.", 409)
+
+    if order is None:
+        max_row = db.session.scalar(
+            sa.select(sa.func.max(MasCategoryOrder.display_order)).where(
+                MasCategoryOrder.form_type_id == form_type.form_type_id
+            )
+        )
+        order = (max_row or 0) + 10
+
+    cat = MasCategoryOrder(
+        form_type_id=form_type.form_type_id,
+        category_code=code,
+        category_name=name,
+        display_order=int(order),
+    )
+    db.session.add(cat)
+    db.session.commit()
+    return jsonify({
+        "category": {
+            "category_code": cat.category_code,
+            "category_name": cat.category_name,
+            "display_order": cat.display_order,
+        }
+    }), 201
+
+
+@admin.put("/api/form-types/<form_type_code>/categories/<category_code>")
+@require_api_role("admin")
+def admin_category_update(form_type_code, category_code):
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    cat = db.session.scalar(
+        sa_select(MasCategoryOrder).where(
+            MasCategoryOrder.form_type_id == form_type.form_type_id,
+            MasCategoryOrder.category_code == category_code,
+        )
+    )
+    if not cat:
+        return _json_error("Category not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    if "category_name" in data:
+        cat.category_name = (data["category_name"] or "").strip() or None
+    if "display_order" in data:
+        try:
+            cat.display_order = int(data["display_order"])
+        except (TypeError, ValueError):
+            return _json_error("display_order must be an integer.", 400)
+
+    db.session.commit()
+    return jsonify({
+        "category": {
+            "category_code": cat.category_code,
+            "category_name": cat.category_name,
+            "display_order": cat.display_order,
+        }
+    })
+
+
+@admin.delete("/api/form-types/<form_type_code>/categories/<category_code>")
+@require_api_role("admin")
+def admin_category_delete(form_type_code, category_code):
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    cat = db.session.scalar(
+        sa_select(MasCategoryOrder).where(
+            MasCategoryOrder.form_type_id == form_type.form_type_id,
+            MasCategoryOrder.category_code == category_code,
+        )
+    )
+    if not cat:
+        return _json_error("Category not found.", 404)
+
+    db.session.delete(cat)
+    db.session.commit()
+    return jsonify({"deleted": True})
+
+
+# --- Subcategory CRUD ---
+
+@admin.post("/api/form-types/<form_type_code>/categories/<category_code>/subcategories")
+@require_api_role("admin")
+def admin_subcategory_create(form_type_code, category_code):
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder, MasSubcategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    cat = db.session.scalar(
+        sa_select(MasCategoryOrder).where(
+            MasCategoryOrder.form_type_id == form_type.form_type_id,
+            MasCategoryOrder.category_code == category_code,
+        )
+    )
+    if not cat:
+        return _json_error("Category not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    code = (data.get("subcategory_code") or "").strip()
+    name = (data.get("subcategory_name") or "").strip() or None
+    order = data.get("display_order")
+
+    if not code:
+        return _json_error("subcategory_code is required.", 400)
+
+    existing = db.session.scalar(
+        sa_select(MasSubcategoryOrder).where(
+            MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+            MasSubcategoryOrder.category_code == category_code,
+            MasSubcategoryOrder.subcategory_code == code,
+        )
+    )
+    if existing:
+        return _json_error("Subcategory code already exists.", 409)
+
+    if order is None:
+        max_row = db.session.scalar(
+            sa.select(sa.func.max(MasSubcategoryOrder.display_order)).where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == category_code,
+            )
+        )
+        order = (max_row or 0) + 10
+
+    sub = MasSubcategoryOrder(
+        form_type_id=form_type.form_type_id,
+        category_code=category_code,
+        subcategory_code=code,
+        subcategory_name=name,
+        display_order=int(order),
+    )
+    db.session.add(sub)
+    db.session.commit()
+    return jsonify({
+        "subcategory": {
+            "subcategory_code": sub.subcategory_code,
+            "subcategory_name": sub.subcategory_name,
+            "display_order": sub.display_order,
+        }
+    }), 201
+
+
+@admin.put("/api/form-types/<form_type_code>/categories/<category_code>/subcategories/<subcategory_code>")
+@require_api_role("admin")
+def admin_subcategory_update(form_type_code, category_code, subcategory_code):
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasSubcategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    sub = db.session.scalar(
+        sa_select(MasSubcategoryOrder).where(
+            MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+            MasSubcategoryOrder.category_code == category_code,
+            MasSubcategoryOrder.subcategory_code == subcategory_code,
+        )
+    )
+    if not sub:
+        return _json_error("Subcategory not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    if "subcategory_name" in data:
+        sub.subcategory_name = (data["subcategory_name"] or "").strip() or None
+    if "display_order" in data:
+        try:
+            sub.display_order = int(data["display_order"])
+        except (TypeError, ValueError):
+            return _json_error("display_order must be an integer.", 400)
+
+    db.session.commit()
+    return jsonify({
+        "subcategory": {
+            "subcategory_code": sub.subcategory_code,
+            "subcategory_name": sub.subcategory_name,
+            "display_order": sub.display_order,
+        }
+    })
+
+
+@admin.delete("/api/form-types/<form_type_code>/categories/<category_code>/subcategories/<subcategory_code>")
+@require_api_role("admin")
+def admin_subcategory_delete(form_type_code, category_code, subcategory_code):
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasSubcategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    sub = db.session.scalar(
+        sa_select(MasSubcategoryOrder).where(
+            MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+            MasSubcategoryOrder.category_code == category_code,
+            MasSubcategoryOrder.subcategory_code == subcategory_code,
+        )
+    )
+    if not sub:
+        return _json_error("Subcategory not found.", 404)
+
+    db.session.delete(sub)
+    db.session.commit()
+    return jsonify({"deleted": True})
+
+
 @admin.get("/api/form-types")
 @require_api_role("admin")
 def admin_form_types_list():
@@ -1311,6 +1609,7 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
 
     from sqlalchemy import select as sa_select
     from app.models import MasFieldDisplayConfig, MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder, MasSubcategoryOrder
 
     form_type = db.session.scalar(
         sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
@@ -1327,9 +1626,30 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
     if not field:
         return "Field not found", 404
 
+    # Load categories for this form type
+    categories = db.session.scalars(
+        sa_select(MasCategoryOrder)
+        .where(MasCategoryOrder.form_type_id == form_type.form_type_id)
+        .order_by(MasCategoryOrder.display_order)
+    ).all()
+
+    # Load subcategories for the field's current category (if any)
+    subcategories = []
+    if field.category_code:
+        subcategories = db.session.scalars(
+            sa_select(MasSubcategoryOrder)
+            .where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == field.category_code,
+            )
+            .order_by(MasSubcategoryOrder.display_order)
+        ).all()
+
     if request.method == "POST":
         field.short_label = request.form.get("short_label") or field.short_label
         field.full_label = request.form.get("full_label") or None
+        field.category_code = request.form.get("category_code") or None
+        field.subcategory_code = request.form.get("subcategory_code") or None
         field.flip_color = request.form.get("flip_color") == "on"
         field.is_info = request.form.get("is_info") == "on"
         field.summary_include = request.form.get("summary_include") == "on"
@@ -1352,6 +1672,51 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         "admin/panels/field_mapping_field_edit.html",
         form_type_code=form_type_code,
         field=field,
+        categories=categories,
+        subcategories=subcategories,
+    )
+
+
+@admin.get("/panels/field-mapping/categories")
+def admin_panel_field_mapping_categories():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder
+
+    form_type_code = request.args.get("form_type", "").strip()
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return "Form type not found", 404
+
+    categories = db.session.scalars(
+        sa_select(MasCategoryOrder)
+        .where(MasCategoryOrder.form_type_id == form_type.form_type_id)
+        .order_by(MasCategoryOrder.display_order)
+    ).all()
+
+    categories_json = [
+        {
+            "category_code": c.category_code,
+            "category_name": c.category_name,
+            "display_order": c.display_order,
+        }
+        for c in categories
+    ]
+
+    return render_template(
+        "admin/panels/field_mapping_categories.html",
+        form_type_code=form_type_code,
+        form_type_name=form_type.form_type_name,
+        categories_json=categories_json,
     )
 
 

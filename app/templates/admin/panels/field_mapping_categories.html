@@ -1,0 +1,459 @@
+{#
+  Category and subcategory management subpanel — loaded via HTMX into #fm-subpanel.
+#}
+<div class="card mt-3" id="fmc-panel">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0">
+      <i class="fa-solid fa-folder-tree me-1 text-secondary"></i>
+      Categories — <code>{{ form_type_code }}</code>
+    </h6>
+    <span class="badge bg-secondary" id="fmc-cat-count">{{ categories_json|length }} categor{{ 'y' if categories_json|length == 1 else 'ies' }}</span>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="row g-0" style="min-height: 360px;">
+
+      {# Left: category list #}
+      <div class="col-md-5 border-end" id="fmc-cat-col">
+        <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
+          <span class="small fw-semibold text-muted">Categories</span>
+          <button class="btn btn-sm btn-outline-success py-0 px-2" id="fmc-add-cat-btn">
+            <i class="fa-solid fa-plus me-1"></i>Add
+          </button>
+        </div>
+
+        {# Add form (hidden initially) #}
+        <div id="fmc-add-cat-form" class="p-2 border-bottom bg-light d-none">
+          <div class="row g-1 align-items-end">
+            <div class="col-4">
+              <label class="form-label small mb-1">Code</label>
+              <input type="text" class="form-control form-control-sm font-monospace"
+                     id="fmc-new-cat-code" placeholder="e.g. vasymptoms" maxlength="64">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">Name</label>
+              <input type="text" class="form-control form-control-sm"
+                     id="fmc-new-cat-name" placeholder="Display name">
+            </div>
+            <div class="col-2">
+              <label class="form-label small mb-1">Order</label>
+              <input type="number" class="form-control form-control-sm text-center"
+                     id="fmc-new-cat-order" placeholder="auto" min="0">
+            </div>
+            <div class="col-2 d-flex gap-1 align-self-end">
+              <button class="btn btn-sm btn-success py-0 px-1" id="fmc-add-cat-save">
+                <i class="fa-solid fa-check"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary py-0 px-1" id="fmc-add-cat-cancel">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+          <div id="fmc-add-cat-error" class="text-danger small mt-1 d-none"></div>
+        </div>
+
+        <div id="fmc-cat-list" style="overflow-y:auto; max-height:400px;">
+          {# Populated by JS #}
+        </div>
+      </div>
+
+      {# Right: subcategory list #}
+      <div class="col-md-7" id="fmc-sub-col">
+        <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
+          <span class="small fw-semibold text-muted" id="fmc-sub-header">
+            Select a category to manage subcategories
+          </span>
+          <button class="btn btn-sm btn-outline-success py-0 px-2 d-none" id="fmc-add-sub-btn">
+            <i class="fa-solid fa-plus me-1"></i>Add
+          </button>
+        </div>
+
+        {# Add subcategory form (hidden initially) #}
+        <div id="fmc-add-sub-form" class="p-2 border-bottom bg-light d-none">
+          <div class="row g-1 align-items-end">
+            <div class="col-4">
+              <label class="form-label small mb-1">Code</label>
+              <input type="text" class="form-control form-control-sm font-monospace"
+                     id="fmc-new-sub-code" placeholder="e.g. general" maxlength="64">
+            </div>
+            <div class="col-4">
+              <label class="form-label small mb-1">Name</label>
+              <input type="text" class="form-control form-control-sm"
+                     id="fmc-new-sub-name" placeholder="Display name">
+            </div>
+            <div class="col-2">
+              <label class="form-label small mb-1">Order</label>
+              <input type="number" class="form-control form-control-sm text-center"
+                     id="fmc-new-sub-order" placeholder="auto" min="0">
+            </div>
+            <div class="col-2 d-flex gap-1 align-self-end">
+              <button class="btn btn-sm btn-success py-0 px-1" id="fmc-add-sub-save">
+                <i class="fa-solid fa-check"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary py-0 px-1" id="fmc-add-sub-cancel">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+          </div>
+          <div id="fmc-add-sub-error" class="text-danger small mt-1 d-none"></div>
+        </div>
+
+        <div id="fmc-sub-list" style="overflow-y:auto; max-height:400px;">
+          <p class="text-muted small text-center py-5">Select a category on the left.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var FORM_TYPE = {{ form_type_code | tojson }};
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function apiJson(url, method, body) {
+    var opts = { method: method || 'GET', headers: { 'X-CSRFToken': csrf() } };
+    if (body !== undefined) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    return fetch(url, opts).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    });
+  }
+
+  // ── state ──────────────────────────────────────────────────────────────────
+
+  var _cats = [];          // [{ category_code, category_name, display_order }]
+  var _subs = [];          // [{ subcategory_code, subcategory_name, display_order }]
+  var _selectedCat = null; // category_code
+  var _editingCat  = null; // category_code being inline-edited
+  var _editingSub  = null; // subcategory_code being inline-edited
+
+  // ── init ───────────────────────────────────────────────────────────────────
+
+  _cats = {{ categories_json | tojson }}.map(function (c) {
+    return { category_code: c.category_code, category_name: c.category_name, display_order: c.display_order };
+  });
+  renderCats();
+
+  // ── category rendering ────────────────────────────────────────────────────
+
+  function renderCats() {
+    var el = document.getElementById('fmc-cat-list');
+    var countEl = document.getElementById('fmc-cat-count');
+    if (countEl) countEl.textContent = _cats.length + ' categor' + (_cats.length === 1 ? 'y' : 'ies');
+
+    if (!_cats.length) {
+      el.innerHTML = '<p class="text-muted small text-center py-4">No categories yet. Click Add.</p>';
+      return;
+    }
+
+    el.innerHTML = _cats.map(function (c) {
+      var isSelected = (c.category_code === _selectedCat);
+      var isEditing  = (c.category_code === _editingCat);
+
+      if (isEditing) {
+        return '<div class="px-2 py-2 border-bottom bg-light">'
+          + '<div class="row g-1 align-items-center">'
+          + '<div class="col-4"><input type="text" class="form-control form-control-sm font-monospace" '
+          + 'id="fmc-edit-cat-code" value="' + esc(c.category_code) + '" disabled></div>'
+          + '<div class="col-4"><input type="text" class="form-control form-control-sm" '
+          + 'id="fmc-edit-cat-name" value="' + esc(c.category_name || '') + '" placeholder="Name"></div>'
+          + '<div class="col-2"><input type="number" class="form-control form-control-sm text-center" '
+          + 'id="fmc-edit-cat-order" value="' + esc(c.display_order) + '" min="0" style="width:60px;"></div>'
+          + '<div class="col-2 d-flex gap-1 justify-content-end">'
+          + '<button class="btn btn-sm btn-success py-0 px-1" onclick="saveCatEdit(\'' + esc(c.category_code) + '\')">'
+          + '<i class="fa-solid fa-check"></i></button>'
+          + '<button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="cancelCatEdit()">'
+          + '<i class="fa-solid fa-xmark"></i></button>'
+          + '</div></div>'
+          + '<div id="fmc-edit-cat-error" class="text-danger small mt-1 d-none"></div>'
+          + '</div>';
+      }
+
+      return '<div class="d-flex align-items-center px-2 py-2 border-bottom fmc-cat-row'
+        + (isSelected ? ' bg-primary bg-opacity-10' : ' fmc-cat-hover') + '"'
+        + ' style="cursor:pointer;" onclick="selectCat(\'' + esc(c.category_code) + '\')">'
+        + '<span class="badge bg-secondary me-2 text-white" style="min-width:28px;">' + esc(c.display_order) + '</span>'
+        + '<div class="flex-fill">'
+        + '<div class="small fw-semibold' + (isSelected ? ' text-primary' : '') + '">' + esc(c.category_name || c.category_code) + '</div>'
+        + '<div class="text-muted" style="font-size:0.7rem;">' + esc(c.category_code) + '</div>'
+        + '</div>'
+        + '<div class="d-flex gap-1 ms-1">'
+        + '<button class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="event.stopPropagation();startCatEdit(\'' + esc(c.category_code) + '\')" title="Edit">'
+        + '<i class="fa-solid fa-pen fa-xs"></i></button>'
+        + '<button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="event.stopPropagation();deleteCat(\'' + esc(c.category_code) + '\')" title="Delete">'
+        + '<i class="fa-solid fa-trash fa-xs"></i></button>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  // ── subcategory rendering ─────────────────────────────────────────────────
+
+  function renderSubs() {
+    var el = document.getElementById('fmc-sub-list');
+    var hdr = document.getElementById('fmc-sub-header');
+    var addBtn = document.getElementById('fmc-add-sub-btn');
+
+    if (!_selectedCat) {
+      el.innerHTML = '<p class="text-muted small text-center py-5">Select a category on the left.</p>';
+      hdr.textContent = 'Select a category to manage subcategories';
+      addBtn.classList.add('d-none');
+      return;
+    }
+
+    var cat = _cats.find(function (c) { return c.category_code === _selectedCat; });
+    hdr.textContent = (cat ? (cat.category_name || cat.category_code) : _selectedCat) + ' — subcategories';
+    addBtn.classList.remove('d-none');
+
+    if (!_subs.length) {
+      el.innerHTML = '<p class="text-muted small text-center py-4">No subcategories yet. Click Add.</p>';
+      return;
+    }
+
+    el.innerHTML = _subs.map(function (s) {
+      var isEditing = (s.subcategory_code === _editingSub);
+
+      if (isEditing) {
+        return '<div class="px-2 py-2 border-bottom bg-light">'
+          + '<div class="row g-1 align-items-center">'
+          + '<div class="col-4"><input type="text" class="form-control form-control-sm font-monospace" '
+          + 'id="fmc-edit-sub-code" value="' + esc(s.subcategory_code) + '" disabled></div>'
+          + '<div class="col-4"><input type="text" class="form-control form-control-sm" '
+          + 'id="fmc-edit-sub-name" value="' + esc(s.subcategory_name || '') + '" placeholder="Name"></div>'
+          + '<div class="col-2"><input type="number" class="form-control form-control-sm text-center" '
+          + 'id="fmc-edit-sub-order" value="' + esc(s.display_order) + '" min="0" style="width:60px;"></div>'
+          + '<div class="col-2 d-flex gap-1 justify-content-end">'
+          + '<button class="btn btn-sm btn-success py-0 px-1" onclick="saveSubEdit(\'' + esc(s.subcategory_code) + '\')">'
+          + '<i class="fa-solid fa-check"></i></button>'
+          + '<button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="cancelSubEdit()">'
+          + '<i class="fa-solid fa-xmark"></i></button>'
+          + '</div></div>'
+          + '<div id="fmc-edit-sub-error" class="text-danger small mt-1 d-none"></div>'
+          + '</div>';
+      }
+
+      return '<div class="d-flex align-items-center px-3 py-2 border-bottom">'
+        + '<span class="badge bg-secondary me-2 text-white" style="min-width:28px;">' + esc(s.display_order) + '</span>'
+        + '<div class="flex-fill">'
+        + '<div class="small fw-semibold">' + esc(s.subcategory_name || s.subcategory_code) + '</div>'
+        + '<div class="text-muted" style="font-size:0.7rem;">' + esc(s.subcategory_code) + '</div>'
+        + '</div>'
+        + '<div class="d-flex gap-1 ms-1">'
+        + '<button class="btn btn-outline-secondary btn-sm py-0 px-1" onclick="startSubEdit(\'' + esc(s.subcategory_code) + '\')" title="Edit">'
+        + '<i class="fa-solid fa-pen fa-xs"></i></button>'
+        + '<button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="deleteSub(\'' + esc(s.subcategory_code) + '\')" title="Delete">'
+        + '<i class="fa-solid fa-trash fa-xs"></i></button>'
+        + '</div></div>';
+    }).join('');
+  }
+
+  // ── category actions ──────────────────────────────────────────────────────
+
+  window.selectCat = function (code) {
+    _editingCat = null;
+    _editingSub = null;
+    _selectedCat = code;
+    renderCats();
+    loadSubs(code);
+  };
+
+  function loadSubs(categoryCode) {
+    document.getElementById('fmc-sub-list').innerHTML =
+      '<p class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading\u2026</p>';
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(categoryCode) + '/subcategories')
+      .then(function (res) {
+        _subs = res.data.subcategories || [];
+        renderSubs();
+      });
+  }
+
+  window.startCatEdit = function (code) {
+    _editingCat = code;
+    renderCats();
+    var el = document.getElementById('fmc-edit-cat-name');
+    if (el) { el.focus(); el.select(); }
+  };
+
+  window.cancelCatEdit = function () {
+    _editingCat = null;
+    renderCats();
+  };
+
+  window.saveCatEdit = function (code) {
+    var name = (document.getElementById('fmc-edit-cat-name') || {}).value || '';
+    var order = (document.getElementById('fmc-edit-cat-order') || {}).value;
+    var errEl = document.getElementById('fmc-edit-cat-error');
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(code), 'PUT',
+      { category_name: name.trim() || null, display_order: parseInt(order, 10) || 0 })
+      .then(function (res) {
+        if (!res.ok) {
+          if (errEl) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); }
+          return;
+        }
+        var c = res.data.category;
+        var idx = _cats.findIndex(function (x) { return x.category_code === code; });
+        if (idx !== -1) { _cats[idx].category_name = c.category_name; _cats[idx].display_order = c.display_order; }
+        _cats.sort(function (a, b) { return a.display_order - b.display_order; });
+        _editingCat = null;
+        renderCats();
+        if (_selectedCat === code) renderSubs();
+      });
+  };
+
+  window.deleteCat = function (code) {
+    if (!confirm('Delete category "' + code + '"? This will not delete fields assigned to it.')) return;
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(code), 'DELETE')
+      .then(function (res) {
+        if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
+        _cats = _cats.filter(function (c) { return c.category_code !== code; });
+        if (_selectedCat === code) { _selectedCat = null; _subs = []; }
+        renderCats();
+        renderSubs();
+      });
+  };
+
+  // ── add category ──────────────────────────────────────────────────────────
+
+  document.getElementById('fmc-add-cat-btn').addEventListener('click', function () {
+    var form = document.getElementById('fmc-add-cat-form');
+    form.classList.toggle('d-none');
+    if (!form.classList.contains('d-none')) {
+      document.getElementById('fmc-new-cat-code').focus();
+    }
+  });
+
+  document.getElementById('fmc-add-cat-cancel').addEventListener('click', function () {
+    document.getElementById('fmc-add-cat-form').classList.add('d-none');
+    document.getElementById('fmc-new-cat-code').value = '';
+    document.getElementById('fmc-new-cat-name').value = '';
+    document.getElementById('fmc-new-cat-order').value = '';
+    document.getElementById('fmc-add-cat-error').classList.add('d-none');
+  });
+
+  document.getElementById('fmc-add-cat-save').addEventListener('click', function () {
+    var code  = document.getElementById('fmc-new-cat-code').value.trim();
+    var name  = document.getElementById('fmc-new-cat-name').value.trim();
+    var order = document.getElementById('fmc-new-cat-order').value.trim();
+    var errEl = document.getElementById('fmc-add-cat-error');
+    errEl.classList.add('d-none');
+    if (!code) { errEl.textContent = 'Code is required.'; errEl.classList.remove('d-none'); return; }
+    var payload = { category_code: code, category_name: name || null };
+    if (order !== '') payload.display_order = parseInt(order, 10);
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE) + '/categories', 'POST', payload)
+      .then(function (res) {
+        if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
+        _cats.push(res.data.category);
+        _cats.sort(function (a, b) { return a.display_order - b.display_order; });
+        document.getElementById('fmc-new-cat-code').value = '';
+        document.getElementById('fmc-new-cat-name').value = '';
+        document.getElementById('fmc-new-cat-order').value = '';
+        document.getElementById('fmc-add-cat-form').classList.add('d-none');
+        renderCats();
+      });
+  });
+
+  // ── subcategory actions ───────────────────────────────────────────────────
+
+  window.startSubEdit = function (code) {
+    _editingSub = code;
+    renderSubs();
+    var el = document.getElementById('fmc-edit-sub-name');
+    if (el) { el.focus(); el.select(); }
+  };
+
+  window.cancelSubEdit = function () {
+    _editingSub = null;
+    renderSubs();
+  };
+
+  window.saveSubEdit = function (code) {
+    var name  = (document.getElementById('fmc-edit-sub-name') || {}).value || '';
+    var order = (document.getElementById('fmc-edit-sub-order') || {}).value;
+    var errEl = document.getElementById('fmc-edit-sub-error');
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(_selectedCat)
+      + '/subcategories/' + encodeURIComponent(code), 'PUT',
+      { subcategory_name: name.trim() || null, display_order: parseInt(order, 10) || 0 })
+      .then(function (res) {
+        if (!res.ok) {
+          if (errEl) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); }
+          return;
+        }
+        var s = res.data.subcategory;
+        var idx = _subs.findIndex(function (x) { return x.subcategory_code === code; });
+        if (idx !== -1) { _subs[idx].subcategory_name = s.subcategory_name; _subs[idx].display_order = s.display_order; }
+        _subs.sort(function (a, b) { return a.display_order - b.display_order; });
+        _editingSub = null;
+        renderSubs();
+      });
+  };
+
+  window.deleteSub = function (code) {
+    if (!confirm('Delete subcategory "' + code + '"?')) return;
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(_selectedCat)
+      + '/subcategories/' + encodeURIComponent(code), 'DELETE')
+      .then(function (res) {
+        if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
+        _subs = _subs.filter(function (s) { return s.subcategory_code !== code; });
+        renderSubs();
+      });
+  };
+
+  // ── add subcategory ───────────────────────────────────────────────────────
+
+  document.getElementById('fmc-add-sub-btn').addEventListener('click', function () {
+    var form = document.getElementById('fmc-add-sub-form');
+    form.classList.toggle('d-none');
+    if (!form.classList.contains('d-none')) {
+      document.getElementById('fmc-new-sub-code').focus();
+    }
+  });
+
+  document.getElementById('fmc-add-sub-cancel').addEventListener('click', function () {
+    document.getElementById('fmc-add-sub-form').classList.add('d-none');
+    document.getElementById('fmc-new-sub-code').value = '';
+    document.getElementById('fmc-new-sub-name').value = '';
+    document.getElementById('fmc-new-sub-order').value = '';
+    document.getElementById('fmc-add-sub-error').classList.add('d-none');
+  });
+
+  document.getElementById('fmc-add-sub-save').addEventListener('click', function () {
+    var code  = document.getElementById('fmc-new-sub-code').value.trim();
+    var name  = document.getElementById('fmc-new-sub-name').value.trim();
+    var order = document.getElementById('fmc-new-sub-order').value.trim();
+    var errEl = document.getElementById('fmc-add-sub-error');
+    errEl.classList.add('d-none');
+    if (!code) { errEl.textContent = 'Code is required.'; errEl.classList.remove('d-none'); return; }
+    if (!_selectedCat) return;
+    var payload = { subcategory_code: code, subcategory_name: name || null };
+    if (order !== '') payload.display_order = parseInt(order, 10);
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(_selectedCat) + '/subcategories', 'POST', payload)
+      .then(function (res) {
+        if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
+        _subs.push(res.data.subcategory);
+        _subs.sort(function (a, b) { return a.display_order - b.display_order; });
+        document.getElementById('fmc-new-sub-code').value = '';
+        document.getElementById('fmc-new-sub-name').value = '';
+        document.getElementById('fmc-new-sub-order').value = '';
+        document.getElementById('fmc-add-sub-form').classList.add('d-none');
+        renderSubs();
+      });
+  });
+
+}());
+</script>

@@ -41,16 +41,18 @@ def va_odk_submissioncount(
         )
         return int(count or 0)
 
-    with ThreadPoolExecutor(max_workers=1) as ex:
-        future = ex.submit(_fetch)
-        try:
-            return future.result(timeout=_TIMEOUT_SECONDS)
-        except FuturesTimeout:
-            raise Exception(
-                f"ODK server did not respond within {_TIMEOUT_SECONDS}s "
-                f"(project {odk_project_id}, form {odk_form_id})"
-            )
-        except Exception as e:
-            raise Exception(
-                f"ODK error (project {odk_project_id}, form {odk_form_id}): {str(e)}"
-            )
+    ex = ThreadPoolExecutor(max_workers=1)
+    future = ex.submit(_fetch)
+    try:
+        return future.result(timeout=_TIMEOUT_SECONDS)
+    except FuturesTimeout:
+        raise Exception(
+            f"ODK server did not respond within {_TIMEOUT_SECONDS}s "
+            f"(project {odk_project_id}, form {odk_form_id})"
+        )
+    except Exception as e:
+        raise Exception(
+            f"ODK error (project {odk_project_id}, form {odk_form_id}): {str(e)}"
+        )
+    finally:
+        ex.shutdown(wait=False)  # Don't block — let the network thread die on its own

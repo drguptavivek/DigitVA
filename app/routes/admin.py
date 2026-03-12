@@ -4,7 +4,7 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from secrets import token_hex
 
-log = logging.getLogger("ERROR_LOG")
+log = logging.getLogger(__name__)
 
 import sqlalchemy as sa
 from flask import Blueprint, abort, jsonify, redirect, render_template, request, session, url_for

@@ -85,7 +85,8 @@
 
   function apiJson(url, method, body) {
     var m = method || 'GET';
-    var headers = { 'X-CSRFToken': csrf() };
+    var headers = {};
+    if (m !== 'GET') headers['X-CSRFToken'] = csrf();
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     return fetch(url, {
       method: m, headers: headers,

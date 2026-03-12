@@ -1430,6 +1430,34 @@ def admin_form_types_create():
         return _json_error(str(e), 409)
 
 
+@admin.patch("/api/form-types/<form_type_code>")
+@require_api_role("admin")
+def admin_form_types_update(form_type_code):
+    """Update a form type's name and description."""
+    user = _request_user()
+    if not user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.models import MasFormTypes
+    ft = db.session.scalar(
+        sa.select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not ft:
+        return _json_error("Form type not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get("form_type_name") or "").strip()
+    description = (data.get("description") or "").strip() or None
+
+    if not name:
+        return _json_error("form_type_name is required.", 400)
+
+    ft.form_type_name = name
+    ft.form_type_description = description
+    db.session.commit()
+    return jsonify({"form_type_code": ft.form_type_code, "form_type_name": ft.form_type_name})
+
+
 @admin.post("/api/form-types/<source_code>/duplicate")
 @require_api_role("admin")
 def admin_form_types_duplicate(source_code):

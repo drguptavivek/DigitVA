@@ -1,0 +1,26 @@
+{% if section_data %}
+  <div class="content-section-title{% if section_index > 0 %} mt-4{% endif %}">
+    <i class="fas fa-list-ul"></i>
+    {{ section_title }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover border">
+      <thead class="table-light">
+        <tr>
+          <th width="60%" class="border-bottom">Query</th>
+          <th class="border-bottom">Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, value in section_data.items() %}
+          <tr>
+            <td class="align-middle">{{ label }}</td>
+            <td class="align-middle">
+              {% include 'va_formcategory_partials/_field_value.html' %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}

@@ -38,6 +38,9 @@ class MasFormTypes(db.Model):
     categories: so.Mapped[list["MasCategoryOrder"]] = so.relationship(
         "MasCategoryOrder", back_populates="form_type", lazy="dynamic"
     )
+    category_display_configs: so.Mapped[list["MasCategoryDisplayConfig"]] = so.relationship(
+        "MasCategoryDisplayConfig", back_populates="form_type", lazy="dynamic"
+    )
     field_configs: so.Mapped[list["MasFieldDisplayConfig"]] = so.relationship(
         "MasFieldDisplayConfig", back_populates="form_type", lazy="dynamic"
     )
@@ -76,6 +79,61 @@ class MasCategoryOrder(db.Model):
 
     def __repr__(self):
         return f"<Category: {self.category_code} (order={self.display_order})>"
+
+
+class MasCategoryDisplayConfig(db.Model):
+    """Category-level display metadata per form type."""
+    __tablename__ = "mas_category_display_config"
+
+    category_display_config_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    form_type_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("mas_form_types.form_type_id"), nullable=False
+    )
+    category_code: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
+    display_label: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=False)
+    nav_label: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=False)
+    icon_name: so.Mapped[str | None] = so.mapped_column(sa.String(64))
+    display_order: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False)
+    render_mode: so.Mapped[str] = so.mapped_column(
+        sa.String(32), nullable=False, default="table_sections"
+    )
+    show_to_coder: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
+    show_to_reviewer: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
+    show_to_site_pi: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
+    always_include: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=False)
+    is_default_start: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=False)
+    is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime, default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime, default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    form_type: so.Mapped["MasFormTypes"] = so.relationship(
+        "MasFormTypes", back_populates="category_display_configs"
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "form_type_id",
+            "category_code",
+            name="uq_category_display_config_form_type",
+        ),
+        sa.Index(
+            "idx_mas_category_display_config_form_type",
+            "form_type_id",
+        ),
+    )
+
+    def __repr__(self):
+        return (
+            f"<CategoryDisplayConfig: {self.category_code} "
+            f"(mode={self.render_mode}, order={self.display_order})>"
+        )
 
 
 class MasSubcategoryOrder(db.Model):

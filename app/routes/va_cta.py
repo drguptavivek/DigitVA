@@ -8,9 +8,26 @@ from app import db
 from datetime import datetime
 from app.decorators import va_validate_permissions
 from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissions, VaReviewerReview, VaInitialAssessments, VaFinalAssessments, VaCoderReview, VaSubmissionsAuditlog
-from app.utils import va_permission_abortwithflash
+from app.services.category_rendering_service import get_category_rendering_service
+from app.utils import va_get_form_type_code_for_form, va_permission_abortwithflash
 
 va_cta = Blueprint("va_cta", __name__)
+
+
+def _get_category_render_context(va_form, va_action: str) -> tuple[list, str | None]:
+    form_type_code = va_get_form_type_code_for_form(va_form.va_form_id)
+    category_service = get_category_rendering_service()
+    category_nav = category_service.get_category_nav(
+        form_type_code,
+        va_action,
+        va_form.va_category_list,
+    )
+    default_category_code = category_service.get_default_category_code(
+        form_type_code,
+        va_action,
+        va_form.va_category_list,
+    )
+    return category_nav, default_category_code
 
 @va_cta.route("/<va_action>/<va_actiontype>/<va_sid>")
 @login_required
@@ -42,13 +59,20 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
             va_has_allocation = db.session.scalar(sa.select(VaAllocations.va_sid).where((VaAllocations.va_allocated_to == current_user.user_id)&(VaAllocations.va_allocation_for == VaAllocation.reviewing)&(VaAllocations.va_allocation_status == VaStatuses.active)))
         if va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing" or va_actiontype == "vaview":
             va_form = db.session.get(VaSubmissions, va_has_allocation if va_actiontype == "varesumereviewing" else va_sid)
+            category_nav, default_category_code = _get_category_render_context(
+                va_form,
+                va_action,
+            )
             return render_template(
                 "va_frontpages/va_coding.html",
                 va_sid = va_has_allocation if va_actiontype == "varesumereviewing" else va_sid,
                 va_action = va_action,
                 va_actiontype= va_actiontype,
                 catlist = va_form.va_category_list,
+                category_nav = category_nav,
+                default_category_code = default_category_code,
                 catcount = va_form.va_catcount,
+                form_type_code = va_get_form_type_code_for_form(va_form.va_form_id),
                 va_uniqueid = va_form.va_uniqueid_masked,
                 va_age = va_form.va_deceased_age,
                 va_gender = va_form.va_deceased_gender,
@@ -333,13 +357,20 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
             return redirect(url_for('va_cta.va_calltoaction', va_action = "vacode", va_actiontype = "varesumecoding", va_sid = "varesumecoding"))
         if va_actiontype in ("vastartcoding", "vademo_start_coding", "varesumecoding", "vaview"):
             va_form = db.session.get(VaSubmissions, va_sid if va_actiontype == "vaview" else va_new_sid)
+            category_nav, default_category_code = _get_category_render_context(
+                va_form,
+                va_action,
+            )
             return render_template(
                 "va_frontpages/va_coding.html",
                 va_sid = va_sid if va_actiontype == "vaview" else va_new_sid,
                 va_action = va_action,
                 va_actiontype= va_actiontype,
                 catlist = va_form.va_category_list,
+                category_nav = category_nav,
+                default_category_code = default_category_code,
                 catcount = va_form.va_catcount,
+                form_type_code = va_get_form_type_code_for_form(va_form.va_form_id),
                 va_uniqueid = va_form.va_uniqueid_masked,
                 va_age = va_form.va_deceased_age,
                 va_gender = va_form.va_deceased_gender,

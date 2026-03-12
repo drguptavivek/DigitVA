@@ -17,12 +17,13 @@ and managed through the admin UI at `/admin/?panel=/admin/panels/field-mapping`.
 
 ## Data Model
 
-Five tables form the core of the system. All are scoped to a `form_type_id` so
+Six tables form the core of the system. All are scoped to a `form_type_id` so
 multiple form types can coexist independently.
 
 ```
 mas_form_types
   └─► mas_category_order          (display groupings)
+  └─► mas_category_display_config (category labels, icons, render mode, role visibility)
   └─► mas_subcategory_order       (sub-groupings within categories)
   └─► mas_field_display_config    (per-field labels and flags)
   └─► mas_choice_mappings         (choice value → label translations)
@@ -55,6 +56,32 @@ Controls the display order of categories within a form type.
 | `category_name` | VARCHAR(128) | Display label |
 | `display_order` | INTEGER | Ascending sort |
 | `is_active` | BOOLEAN | |
+
+Unique constraint: `(form_type_id, category_code)`.
+
+### `mas_category_display_config`
+
+Category-level display metadata per form type. This is additive to
+`mas_category_order`: order remains structural there, while labels, icons, render
+mode, and role visibility live here.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `category_display_config_id` | UUID PK | |
+| `form_type_id` | UUID FK | |
+| `category_code` | VARCHAR(64) | Must match a category row for the same form type |
+| `display_label` | VARCHAR(128) | Full heading used in the content panel |
+| `nav_label` | VARCHAR(128) | Left-nav label |
+| `icon_name` | VARCHAR(64) | Font Awesome icon class suffix |
+| `display_order` | INTEGER | Mirrored from `mas_category_order.display_order` for render-time use |
+| `render_mode` | VARCHAR(32) | e.g. `table_sections`, `health_history_summary`, `attachments` |
+| `show_to_coder` | BOOLEAN | Role visibility flag |
+| `show_to_reviewer` | BOOLEAN | Role visibility flag |
+| `show_to_site_pi` | BOOLEAN | Role visibility flag |
+| `always_include` | BOOLEAN | Category is present even when no mapped field survives |
+| `is_default_start` | BOOLEAN | Preferred initial category for the coding screen |
+| `is_active` | BOOLEAN | |
+| `created_at` / `updated_at` | TIMESTAMP | UTC |
 
 Unique constraint: `(form_type_id, category_code)`.
 
@@ -169,6 +196,12 @@ The service copies all child records under a new `form_type_id` with fresh UUIDs
 
 The duplicate is fully independent. Changes to it do not affect the source.
 
+Category display metadata is duplicated as well:
+
+- `MasCategoryDisplayConfig` rows are copied with fresh UUIDs
+- current `display_order`, `render_mode`, labels, icons, role visibility, and
+  always-include flags are preserved
+
 #### Export a form type
 
 **Export** button on any card → browser downloads `form_type_<code>.json`.
@@ -191,6 +224,22 @@ Export bundle format:
   },
   "categories": [
     { "category_code": "A", "category_name": "Identification", "display_order": 1, "is_active": true }
+  ],
+  "category_display_configs": [
+    {
+      "category_code": "vademographicdetails",
+      "display_label": "Demographic / Risk Factors",
+      "nav_label": "Demographic / Risk Factors",
+      "icon_name": "fa-user",
+      "display_order": 2,
+      "render_mode": "table_sections",
+      "show_to_coder": true,
+      "show_to_reviewer": true,
+      "show_to_site_pi": true,
+      "always_include": false,
+      "is_default_start": true,
+      "is_active": true
+    }
   ],
   "subcategories": [
     { "category_code": "A", "subcategory_code": "A1", "subcategory_name": "...", "display_order": 1, "is_active": true }
@@ -247,6 +296,52 @@ Response `201`:
 ```
 
 Import **always creates** a new form type. It does not update or merge into an existing one.
+
+### Deterministic Category Display Seed
+
+Migration `c7f1d2e3a4b5` adds `mas_category_display_config` and seeds the current
+display metadata deterministically for:
+
+- `WHO_2022_VA`
+- `WHO_2022_VA_SOCIAL`
+
+The seeded snapshot is intentionally checked into the migration rather than derived
+from whatever happens to be in the target DB at runtime. As of March 12, 2026:
+
+- `WHO_2022_VA` seeds 14 category display rows
+- `WHO_2022_VA_SOCIAL` seeds 15 category display rows
+- `social_autopsy` is seeded at display order `15` for `WHO_2022_VA_SOCIAL`
+- `vahealthhistorydetails` seeds `render_mode = health_history_summary`
+- `vanarrationanddocuments` seeds `render_mode = attachments` and `always_include = true`
+
+The WHO Excel migrator now also upserts `MasCategoryDisplayConfig` rows from the same
+deterministic defaults when `Who2022VaMigrator().run()` is used in seed/test paths.
+
+Current runtime use:
+
+- `CategoryRenderingService` now reads `mas_category_display_config` for:
+  - left-nav category order
+  - role visibility
+  - always-include behavior
+  - default initial category selection
+  - previous/next traversal
+- coder/reviewer render data still starts from the legacy static coder mapping, but
+  now bridges in DB-backed category mappings for role-visible categories that the
+  static dict does not define, such as `social_autopsy`
+- `table_sections` categories now render through the generic template stack:
+  - [`category_table_sections.html`](../../app/templates/va_formcategory_partials/category_table_sections.html)
+  - [`_table_section.html`](../../app/templates/va_formcategory_partials/_table_section.html)
+  - [`_field_value.html`](../../app/templates/va_formcategory_partials/_field_value.html)
+- `health_history_summary` categories now render through
+  [`category_health_history_summary.html`](../../app/templates/va_formcategory_partials/category_health_history_summary.html)
+- `attachments` categories now render through
+  [`category_attachments.html`](../../app/templates/va_formcategory_partials/category_attachments.html)
+  plus attachment-specific includes:
+  - [`_attachments_section.html`](../../app/templates/va_formcategory_partials/_attachments_section.html)
+  - [`_attachments_workflow_panels.html`](../../app/templates/va_formcategory_partials/_attachments_workflow_panels.html)
+- the attachments render mode is intentionally hybrid:
+  submission-data sections are generic, while SmartVA / QA / assessment workflow
+  panels remain explicit inside the workflow include
 
 ---
 

@@ -1,0 +1,99 @@
+{% set gallery_sections = ['medical_documents', 'death_documents'] %}
+{% set image_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'] %}
+
+{% if section_code in gallery_sections %}
+  <div class="content-section-title{% if section_index > 0 %} mt-4{% endif %}">
+    <i class="fas fa-images"></i>
+    {{ section_title }}
+  </div>
+  <div class="card shadow-sm">
+    <div class="card-body p-3">
+      <div id="{{ section_code }}Carousel" class="carousel slide" data-bs-ride="false" data-bs-interval="false">
+        <div class="carousel-indicators">
+          {% for label, value in section_data.items() %}
+            <button type="button" data-bs-target="#{{ section_code }}Carousel" data-bs-slide-to="{{ loop.index0 }}" {% if loop.first %}class="active" aria-current="true"{% endif %} aria-label="{{ label }}"></button>
+          {% endfor %}
+        </div>
+        <div class="carousel-inner">
+          {% for label, value in section_data.items() %}
+            <div class="carousel-item {% if loop.first %}active{% endif %}">
+              <div class="d-flex flex-column align-items-center">
+                <div class="text-center mb-2">
+                  <span class="badge bg-primary px-3 py-2 rounded-pill fs-6">{{ label }}</span>
+                </div>
+                <div class="text-center" style="max-height: 500px; display: flex; align-items: center; justify-content: center;">
+                  <a href="{{ value }}" data-lightbox="{{ section_code }}">
+                    <img src="{{ value }}" class="d-block img-fluid rounded" alt="{{ label }}" style="max-height: 500px; object-fit: contain; cursor: zoom-in;">
+                  </a>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#{{ section_code }}Carousel" data-bs-slide="prev">
+          <span class="carousel-control-prev-icon bg-primary rounded-circle p-2" aria-hidden="true"></span>
+          <span class="visually-hidden">Previous</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#{{ section_code }}Carousel" data-bs-slide="next">
+          <span class="carousel-control-next-icon bg-primary rounded-circle p-2" aria-hidden="true"></span>
+          <span class="visually-hidden">Next</span>
+        </button>
+      </div>
+      <div class="mt-3 text-center">
+        <div class="mt-2 image-thumbnails d-flex overflow-auto py-2">
+          {% for label, value in section_data.items() %}
+            <div class="thumbnail-container mx-1" style="min-width: 80px; max-width: 80px;">
+              <img src="{{ value }}" class="img-thumbnail carousel-selector" data-bs-target="#{{ section_code }}Carousel" data-bs-slide-to="{{ loop.index0 }}" alt="Thumbnail {{ loop.index }}" style="cursor: pointer; height: 60px; object-fit: cover;">
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% else %}
+  <div class="content-section-title{% if section_index > 0 %} mt-4{% endif %}">
+    <i class="fas fa-paperclip"></i>
+    {{ section_title }}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover border">
+      <thead class="table-light">
+        <tr>
+          <th width="{% if section_code == 'narration' or section_code == 'iv_final' %}20%{% else %}60%{% endif %}" class="border-bottom">Query</th>
+          <th class="border-bottom">Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, value in section_data.items() %}
+          {% set value_str = value|string %}
+          {% set value_lower = value_str|lower %}
+          {% set is_audio = value_lower.endswith('.mp3') or value_lower.endswith('.wav') or value_lower.endswith('.amr') %}
+          {% set is_image = image_extensions | select('in', value_lower) | list | length > 0 %}
+          <tr>
+            <td class="align-middle">{{ label }}</td>
+            <td class="align-middle">
+              {% if section_code == 'narration' and is_audio %}
+                <div class="card shadow-sm p-2 mb-0">
+                  <audio controls="controls" class="w-100">
+                    <source src="{{ value }}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              {% elif section_code == 'narration' and is_image %}
+                <div class="card shadow-sm p-2 mb-0">
+                  <a href="{{ value }}" data-lightbox="narration">
+                    <img src="{{ value }}" class="img-fluid rounded" alt="{{ label }}" style="max-height: 500px; object-fit: contain; cursor: zoom-in;">
+                  </a>
+                </div>
+              {% elif section_code == 'iv_final' %}
+                {{ value }}
+              {% else %}
+                {% include 'va_formcategory_partials/_field_value.html' %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}

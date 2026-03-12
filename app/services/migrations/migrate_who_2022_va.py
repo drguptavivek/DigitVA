@@ -23,10 +23,12 @@ from app import db
 from app.models import (
     MasFormTypes,
     MasCategoryOrder,
+    MasCategoryDisplayConfig,
     MasSubcategoryOrder,
     MasFieldDisplayConfig,
     MasChoiceMappings,
 )
+from app.services.category_display_defaults import CATEGORY_DISPLAY_DEFAULTS
 
 
 # Category display order from va_preprocess_03_categoriestodisplay.py
@@ -83,6 +85,7 @@ class Who2022VaMigrator:
         self.resource_path = Path("resource/mapping")
         self.stats = {
             "categories": 0,
+            "category_display_configs": 0,
             "subcategories": 0,
             "fields": 0,
             "choices": 0,
@@ -109,7 +112,11 @@ class Who2022VaMigrator:
             print(f"[OK] Sub-categories: {self.stats['subcategories']}")
             print(f"[OK] Field configs: {self.stats['fields']}")
 
-            # Step 4: Migrate choice mappings
+            # Step 4: Migrate category display configs
+            self._migrate_category_display_configs(form_type)
+            print(f"[OK] Category display configs: {self.stats['category_display_configs']}")
+
+            # Step 5: Migrate choice mappings
             self._migrate_choices(form_type)
             print(f"[OK] Choice mappings: {self.stats['choices']}")
 
@@ -273,6 +280,61 @@ class Who2022VaMigrator:
                 db.session.add(config)
 
             self.stats["fields"] += 1
+
+        db.session.flush()
+
+    def _migrate_category_display_configs(self, form_type: MasFormTypes):
+        """Create deterministic category-level display metadata."""
+        categories = db.session.scalars(
+            db.select(MasCategoryOrder)
+            .where(MasCategoryOrder.form_type_id == form_type.form_type_id)
+            .order_by(MasCategoryOrder.display_order)
+        ).all()
+
+        for category in categories:
+            defaults = CATEGORY_DISPLAY_DEFAULTS.get(category.category_code, {})
+            existing = db.session.scalar(
+                db.select(MasCategoryDisplayConfig).where(
+                    MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                    MasCategoryDisplayConfig.category_code == category.category_code,
+                )
+            )
+
+            values = {
+                "display_label": defaults.get(
+                    "display_label",
+                    category.category_name or category.category_code,
+                ),
+                "nav_label": defaults.get(
+                    "nav_label",
+                    category.category_name or category.category_code,
+                ),
+                "icon_name": defaults.get("icon_name"),
+                "display_order": category.display_order,
+                "render_mode": defaults.get("render_mode", "table_sections"),
+                "show_to_coder": defaults.get("show_to_coder", True),
+                "show_to_reviewer": defaults.get("show_to_reviewer", True),
+                "show_to_site_pi": defaults.get("show_to_site_pi", True),
+                "always_include": defaults.get("always_include", False),
+                "is_default_start": defaults.get("is_default_start", False),
+                "is_active": category.is_active,
+            }
+
+            if existing:
+                for key, value in values.items():
+                    setattr(existing, key, value)
+                existing.updated_at = datetime.now(timezone.utc)
+            else:
+                db.session.add(
+                    MasCategoryDisplayConfig(
+                        category_display_config_id=uuid.uuid4(),
+                        form_type_id=form_type.form_type_id,
+                        category_code=category.category_code,
+                        **values,
+                    )
+                )
+
+            self.stats["category_display_configs"] += 1
 
         db.session.flush()
 

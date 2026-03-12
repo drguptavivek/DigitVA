@@ -1,0 +1,13 @@
+{% if label in info_list %}
+  <span class="badge bg-info px-3 py-2">{{ value }}</span>
+{% elif value == "Yes" and label in flip_list %}
+  <span class="badge bg-success px-3 py-2">Yes</span>
+{% elif value == "Yes" %}
+  <span class="badge bg-danger px-3 py-2">Yes</span>
+{% elif value == "No" and label in flip_list %}
+  <span class="badge bg-danger px-3 py-2">No</span>
+{% elif value == "No" %}
+  <span class="badge bg-success px-3 py-2">No</span>
+{% else %}
+  {{ value }}
+{% endif %}

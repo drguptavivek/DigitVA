@@ -5,21 +5,17 @@ from app import db
 from app.models import VaSubmissions, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment
 from app.models.va_project_master import VaProjectMaster
 from app.models.va_forms import VaForms
-from app.utils import va_render_categoryneighbours
 from app.decorators import va_validate_permissions
 from flask_login import current_user, login_required
 from flask import Blueprint, render_template, current_app, send_from_directory, flash, redirect, url_for, jsonify, request
-from app.utils import va_mapping_fieldcoder, va_render_processcategorydata, va_permission_abortwithflash
+from app.utils import va_get_form_type_code_for_form, va_render_processcategorydata, va_permission_abortwithflash
+from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
+from app.services.category_rendering_service import get_category_rendering_service
 from app.services.field_mapping_service import get_mapping_service
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
 va_api = Blueprint("va_api", __name__)
-va_renderforall = ["vainterviewdetails", "vademographicdetails", "vaneonatalperioddetails", "vainjuriesdetails", "vahealthhistorydetails",
-                   "vageneralsymptoms", "varespiratorycardiacsymptoms", "vaabdominalsymptoms", "vaneurologicalsymptoms", "vaskinmucosalsymptoms",
-                   "vaneonatalfeedingsymptoms", "vamaternalsymptoms", "vahealthserviceutilisation", "vanarrationanddocuments"]
-
-
 adult = [
     "I10 - Essential Hypertension",
     "E11 - Type 2 Diabetes Mellitus",
@@ -114,18 +110,41 @@ children = [
 @login_required
 @va_validate_permissions()
 def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
-    if va_partial in va_renderforall:
+    va_submission = db.session.get(VaSubmissions, va_sid)
+    _form_type_code = va_get_form_type_code_for_form(
+        va_submission.va_form_id if va_submission else None
+    )
+    category_service = get_category_rendering_service()
+    if category_service.is_category_enabled(
+        _form_type_code,
+        va_action,
+        va_submission.va_category_list if va_submission else None,
+        va_partial,
+    ):
         _mapping_svc = get_mapping_service()
-        _form_type_code = "WHO_2022_VA"
+        category_config = category_service.get_category_config(
+            _form_type_code,
+            va_action,
+            va_partial,
+        )
         va_mapping_fieldsitepi = _mapping_svc.get_fieldsitepi(_form_type_code)
         va_mapping_choice = _mapping_svc.get_choices(_form_type_code)
         va_mapping_flip = _mapping_svc.get_flip_labels(_form_type_code)
         va_mapping_info = _mapping_svc.get_info_labels(_form_type_code)
+        subcategory_labels = _mapping_svc.get_subcategory_labels(_form_type_code, va_partial)
 
-        va_datalevel = va_mapping_fieldcoder if va_action in ["vacode", "vareview"] else va_mapping_fieldsitepi
-        va_submission = db.session.get(VaSubmissions, va_sid)
+        va_datalevel = va_get_render_datalevel(
+            va_action,
+            _form_type_code,
+            va_submission.va_category_list,
+        )
         va_processedcategorydata = va_render_processcategorydata(va_submission.va_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial)
-        va_previouscategory, va_nextcategory = va_render_categoryneighbours(va_submission.va_category_list, va_partial)
+        va_previouscategory, va_nextcategory = category_service.get_category_neighbours(
+            _form_type_code,
+            va_action,
+            va_submission.va_category_list,
+            va_partial,
+        )
         reviewobject = db.session.scalar(sa.select(VaReviewerReview).where((VaReviewerReview.va_rreview_status == VaStatuses.active)&(VaReviewerReview.va_sid == va_sid)))
         vafinexists = db.session.scalar(sa.select(VaFinalAssessments.va_sid).where((VaFinalAssessments.va_finassess_status == VaStatuses.active)&(VaFinalAssessments.va_sid == va_sid)))
         vaerrexists = db.session.scalar(sa.select(VaCoderReview.va_sid).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
@@ -158,10 +177,19 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
                 )
             )
+        template_name = f"va_formcategory_partials/{va_partial}.html"
+        if category_config and category_config.render_mode == "table_sections":
+            template_name = "va_formcategory_partials/category_table_sections.html"
+        elif category_config and category_config.render_mode == "health_history_summary":
+            template_name = "va_formcategory_partials/category_health_history_summary.html"
+        elif category_config and category_config.render_mode == "attachments":
+            template_name = "va_formcategory_partials/category_attachments.html"
         return render_template(
-            f"va_formcategory_partials/{va_partial}.html",
+            template_name,
             instance_name = va_submission.va_uniqueid_masked,
             category_data = va_processedcategorydata,
+            category_config = category_config,
+            subcategory_labels = subcategory_labels,
             va_previouscategory = va_previouscategory,
             va_nextcategory = va_nextcategory,
             flip_list = va_mapping_flip,

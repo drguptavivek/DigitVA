@@ -1,0 +1,124 @@
+<div class="card-header bg-primary text-white">
+  <h5 class="mb-0 d-flex align-items-center">
+    <i class="fas {{ category_config.icon_name or 'fa-history' }} me-2"></i>
+    <span style="font-size: 1rem; font-weight: 600; letter-spacing: 0.5px">
+      {{ category_config.display_label | upper }}
+    </span>
+  </h5>
+</div>
+
+<div class="card-body">
+  {% if category_data and category_data is mapping and not category_data.get('error') %}
+    {% set medical_history = category_data.get('medical_history', {}) %}
+    {% set positive_labels = [] %}
+    {% set negative_labels = [] %}
+    {% set other_affirmative = {} %}
+
+    {% for label, value in medical_history.items() %}
+      {% if value == "Yes" %}
+        {% set _ = positive_labels.append(label) %}
+      {% elif value == "No" %}
+        {% set _ = negative_labels.append(label) %}
+      {% else %}
+        {% set _ = other_affirmative.update({label: value}) %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <div class="content-section-title">
+          <i class="fas fa-clipboard-check"></i>
+          Diagnosed by Health Professional
+        </div>
+        <div class="card text-white shadow-sm" style="background-color: rgba(220, 53, 69, 0.85);">
+          <div class="card-body">
+            {% if positive_labels %}
+              <p class="mb-0">
+                {% for label in positive_labels %}
+                  {{ label }}<br>
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="mb-0 fst-italic">No positive diagnoses found.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6 mb-3">
+        <div class="content-section-title">
+          <i class="fas fa-clipboard"></i>
+          Absent
+        </div>
+        <div class="card text-white shadow-sm" style="background-color: rgba(25, 135, 84, 0.85);">
+          <div class="card-body">
+            {% if negative_labels %}
+              <p class="mb-0">
+                {% for label in negative_labels %}
+                  {{ label }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="mb-0 fst-italic">No negative diagnoses found.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if other_affirmative %}
+      {% set section_title = "Medical History (Responses)" %}
+      {% set section_data = other_affirmative %}
+      {% set section_index = 1 %}
+      {% include 'va_formcategory_partials/_table_section.html' %}
+    {% endif %}
+
+    {% for section_code, section_data in category_data.items() %}
+      {% if section_code != 'medical_history' %}
+        {% set section_title = subcategory_labels.get(section_code, section_code) %}
+        {% set section_index = loop.index0 + 1 %}
+        {% include 'va_formcategory_partials/_table_section.html' %}
+      {% endif %}
+    {% endfor %}
+
+  {% elif category_data and category_data.get('error') %}
+    <div class="alert alert-warning">
+      {{ category_data.get('error') }}
+    </div>
+  {% else %}
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i>
+      <strong>Instance Name:</strong>
+      {{ instance_name }}<br>
+      <span class="mt-2 d-block">No health history available for this submission.</span>
+    </div>
+  {% endif %}
+  <div class="card-footer d-flex justify-content-between">
+    {% if va_previouscategory %}
+      <button
+        class="btn btn-secondary"
+        hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_previouscategory) }}"
+        hx-target="#form-content"
+        hx-swap="innerHTML"
+      >
+        <i class="fas fa-arrow-left me-2"></i>Previous Category
+      </button>
+    {% else %}
+      <span></span>
+    {% endif %}
+    {% if va_nextcategory %}
+      <button
+        class="btn btn-primary"
+        id="next-category-btn"
+        hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_nextcategory) }}"
+        hx-target="#form-content"
+        hx-swap="innerHTML"
+      >
+        <span>Next Category</span>
+        <i class="fas fa-arrow-right ms-2"></i>
+      </button>
+    {% else %}
+      <span></span>
+    {% endif %}
+  </div>
+</div>

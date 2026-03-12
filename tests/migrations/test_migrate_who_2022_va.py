@@ -17,6 +17,7 @@ from app import db
 from app.models import (
     MasFormTypes,
     MasCategoryOrder,
+    MasCategoryDisplayConfig,
     MasSubcategoryOrder,
     MasFieldDisplayConfig,
     MasChoiceMappings,
@@ -112,6 +113,47 @@ class TestWho2022VaMigration(BaseTestCase):
                 f"Position {i+1}: expected {WHO_2022_CATEGORIES[i]}, got {cat.category_code}"
             )
             self.assertEqual(cat.display_order, i + 1)
+
+    def test_05b_category_display_configs_created(self):
+        """Migration creates one category display config per WHO category."""
+        form_type = self._run_migration()
+
+        count = db.session.scalar(
+            db.select(db.func.count())
+            .select_from(MasCategoryDisplayConfig)
+            .where(MasCategoryDisplayConfig.form_type_id == form_type.form_type_id)
+        )
+        self.assertEqual(count, 14)
+
+    def test_05c_category_display_config_preserves_special_modes(self):
+        """Seeded category display metadata captures current special behaviors."""
+        form_type = self._run_migration()
+
+        health_history = db.session.scalar(
+            db.select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                MasCategoryDisplayConfig.category_code == "vahealthhistorydetails",
+            )
+        )
+        narration = db.session.scalar(
+            db.select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                MasCategoryDisplayConfig.category_code == "vanarrationanddocuments",
+            )
+        )
+        interview = db.session.scalar(
+            db.select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                MasCategoryDisplayConfig.category_code == "vainterviewdetails",
+            )
+        )
+
+        self.assertEqual(health_history.render_mode, "health_history_summary")
+        self.assertEqual(narration.render_mode, "attachments")
+        self.assertTrue(narration.always_include)
+        self.assertFalse(interview.show_to_coder)
+        self.assertFalse(interview.show_to_reviewer)
+        self.assertTrue(interview.show_to_site_pi)
 
     def test_06_all_field_configs_migrated(self):
         """All unique field configs from Excel are migrated.

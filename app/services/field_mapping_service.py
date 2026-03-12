@@ -89,6 +89,20 @@ class FieldMappingService:
             self._cache[cache_key] = self._build_labels_list(form_type_code, "is_info")
         return self._cache[cache_key]
 
+    def get_subcategory_labels(self, form_type_code: str, category_code: str) -> dict[str, str]:
+        """
+        Return ordered subcategory display labels for a category.
+
+        Structure: {subcategory_code: subcategory_name}
+        """
+        cache_key = f"subcategory_labels_{form_type_code}_{category_code}"
+        if cache_key not in self._cache:
+            self._cache[cache_key] = self._build_subcategory_labels(
+                form_type_code,
+                category_code,
+            )
+        return self._cache[cache_key]
+
     def get_default_form_type(self) -> str:
         """Return the default form type code (backward compatibility)."""
         return "WHO_2022_VA"
@@ -226,6 +240,30 @@ class FieldMappingService:
         ).all()
 
         return [label for label in fields if label]
+
+    def _build_subcategory_labels(self, form_type_code: str, category_code: str) -> dict[str, str]:
+        """Build ordered {subcategory_code: subcategory_name} for one category."""
+        form_type = self.get_form_type(form_type_code)
+        if not form_type:
+            return {}
+
+        subcategories = db.session.scalars(
+            select(MasSubcategoryOrder)
+            .where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == category_code,
+                MasSubcategoryOrder.is_active == True,
+            )
+            .order_by(MasSubcategoryOrder.display_order)
+        ).all()
+
+        return OrderedDict(
+            (
+                subcategory.subcategory_code,
+                subcategory.subcategory_name or subcategory.subcategory_code,
+            )
+            for subcategory in subcategories
+        )
 
 
 # Module-level singleton - shared across requests in the same process

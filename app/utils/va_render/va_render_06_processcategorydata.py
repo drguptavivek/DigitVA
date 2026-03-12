@@ -24,8 +24,11 @@ def va_render_processcategorydata(
 ):
     if not va_data:
         return {}
+    category_mapping = va_datalevel.get(va_partial)
+    if not category_mapping:
+        return {}
     va_categoryresult = {}
-    for va_subcat, va_fieldmap in va_datalevel.get(va_partial).items():
+    for va_subcat, va_fieldmap in category_mapping.items():
         va_subcatresult = OrderedDict()
         for va_fieldid, va_label in va_fieldmap.items():
             if va_fieldid in va_data and va_data.get(va_fieldid) is not None:

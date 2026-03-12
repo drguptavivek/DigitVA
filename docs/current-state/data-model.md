@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-11
+last_updated: 2026-03-12
 ---
 
 # Current Data Model
@@ -237,6 +237,120 @@ Key fields:
 - `status` — active/inactive status (`VaStatuses`)
 - `notes` — optional free-text notes
 - `created_at`, `updated_at` — timestamps
+
+## Form-Type Mapping Tables
+
+The field-mapping system is scoped by form type under the `mas_*` table family.
+These tables are now the source of truth for structural display configuration.
+
+### `mas_form_types`
+
+Purpose:
+
+- registers supported form types such as `WHO_2022_VA` and `WHO_2022_VA_SOCIAL`
+
+Key fields:
+
+- `form_type_id`
+- `form_type_code`
+- `form_type_name`
+- `base_template_path`
+- `mapping_version`
+- `is_active`
+
+### `mas_category_order`
+
+Purpose:
+
+- stores category membership and base display order per form type
+
+Key fields:
+
+- `form_type_id`
+- `category_code`
+- `category_name`
+- `display_order`
+- `is_active`
+
+### `mas_category_display_config`
+
+Purpose:
+
+- stores category-level display metadata per form type
+
+Key fields:
+
+- `form_type_id`
+- `category_code`
+- `display_label`
+- `nav_label`
+- `icon_name`
+- `display_order`
+- `render_mode`
+- `show_to_coder`
+- `show_to_reviewer`
+- `show_to_site_pi`
+- `always_include`
+- `is_default_start`
+- `is_active`
+
+Current seeded behavior:
+
+- the schema is added by Alembic revision `c7f1d2e3a4b5`
+- the migration seeds deterministic rows for `WHO_2022_VA` and `WHO_2022_VA_SOCIAL`
+- the current seed count is 14 rows for `WHO_2022_VA` and 15 rows for `WHO_2022_VA_SOCIAL`
+
+### `mas_subcategory_order`
+
+Purpose:
+
+- stores subcategory order within a category for a form type
+
+Key fields:
+
+- `form_type_id`
+- `category_code`
+- `subcategory_code`
+- `subcategory_name`
+- `display_order`
+- `is_active`
+
+### `mas_field_display_config`
+
+Purpose:
+
+- stores field placement, labels, flags, and order per form type
+
+Key fields:
+
+- `form_type_id`
+- `field_id`
+- `category_code`
+- `subcategory_code`
+- `short_label`
+- `full_label`
+- `summary_label`
+- `flip_color`
+- `is_info`
+- `summary_include`
+- `is_pii`
+- `display_order`
+- `is_active`
+
+### `mas_choice_mappings`
+
+Purpose:
+
+- stores per-form-type choice-value to label translations
+
+Key fields:
+
+- `form_type_id`
+- `field_id`
+- `choice_value`
+- `choice_label`
+- `display_order`
+- `is_active`
 
 Credential storage:
 

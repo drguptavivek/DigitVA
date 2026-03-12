@@ -5,7 +5,7 @@ Run (inside Docker):
   docker compose exec minerva_app_service uv run pytest tests/services/test_form_type_service.py -v
 """
 from app import db
-from app.models import MasFormTypes
+from app.models import MasCategoryDisplayConfig, MasFormTypes
 from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
 from tests.base import BaseTestCase
 
@@ -103,3 +103,31 @@ class TestFormTypeService(BaseTestCase):
         from app.services.field_mapping_service import FieldMappingService
         svc = FieldMappingService()
         self.assertEqual(svc.get_default_form_type(), "WHO_2022_VA")
+
+    def test_11_duplicate_form_type_copies_category_display_configs(self):
+        """duplicate_form_type copies category display metadata to the new form type."""
+        svc = self._service()
+        duplicated = svc.duplicate_form_type(
+            "WHO_2022_VA",
+            "WHO_2022_VA_COPY",
+            "WHO 2022 VA Copy",
+        )
+
+        count = db.session.scalar(
+            db.select(db.func.count())
+            .select_from(MasCategoryDisplayConfig)
+            .where(MasCategoryDisplayConfig.form_type_id == duplicated.form_type_id)
+        )
+        self.assertEqual(count, 14)
+
+    def test_12_export_includes_category_display_configs(self):
+        """export_form_type serializes category display metadata."""
+        svc = self._service()
+        exported = svc.export_form_type("WHO_2022_VA")
+
+        configs = exported.get("category_display_configs", [])
+        self.assertEqual(len(configs), 14)
+        self.assertIn(
+            "vanarrationanddocuments",
+            {cfg["category_code"] for cfg in configs},
+        )

@@ -30,6 +30,7 @@ from app.models.va_selectives import (
 from app.models.va_field_mapping import (
     MasFormTypes,
     MasCategoryOrder,
+    MasCategoryDisplayConfig,
     MasSubcategoryOrder,
     MasFieldDisplayConfig,
     MasChoiceMappings,
@@ -66,6 +67,7 @@ __all__ = [
     "MapProjectSiteOdk",
     "MasFormTypes",
     "MasCategoryOrder",
+    "MasCategoryDisplayConfig",
     "MasSubcategoryOrder",
     "MasFieldDisplayConfig",
     "MasChoiceMappings",

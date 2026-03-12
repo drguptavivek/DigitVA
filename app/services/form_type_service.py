@@ -12,6 +12,7 @@ from app import db
 from app.models import (
     MasFormTypes,
     MasCategoryOrder,
+    MasCategoryDisplayConfig,
     MasSubcategoryOrder,
     MasFieldDisplayConfig,
     MasChoiceMappings,
@@ -175,6 +176,28 @@ class FormTypeService:
                 is_active=cat.is_active,
             ))
 
+        for category_display in db.session.scalars(
+            select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == src_id
+            )
+        ).all():
+            db.session.add(MasCategoryDisplayConfig(
+                category_display_config_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                category_code=category_display.category_code,
+                display_label=category_display.display_label,
+                nav_label=category_display.nav_label,
+                icon_name=category_display.icon_name,
+                display_order=category_display.display_order,
+                render_mode=category_display.render_mode,
+                show_to_coder=category_display.show_to_coder,
+                show_to_reviewer=category_display.show_to_reviewer,
+                show_to_site_pi=category_display.show_to_site_pi,
+                always_include=category_display.always_include,
+                is_default_start=category_display.is_default_start,
+                is_active=category_display.is_active,
+            ))
+
         # Subcategories
         for sub in db.session.scalars(
             select(MasSubcategoryOrder).where(MasSubcategoryOrder.form_type_id == src_id)
@@ -262,6 +285,28 @@ class FormTypeService:
             ).all()
         ]
 
+        category_display_configs = [
+            {
+                "category_code": c.category_code,
+                "display_label": c.display_label,
+                "nav_label": c.nav_label,
+                "icon_name": c.icon_name,
+                "display_order": c.display_order,
+                "render_mode": c.render_mode,
+                "show_to_coder": c.show_to_coder,
+                "show_to_reviewer": c.show_to_reviewer,
+                "show_to_site_pi": c.show_to_site_pi,
+                "always_include": c.always_include,
+                "is_default_start": c.is_default_start,
+                "is_active": c.is_active,
+            }
+            for c in db.session.scalars(
+                select(MasCategoryDisplayConfig)
+                .where(MasCategoryDisplayConfig.form_type_id == ft_id)
+                .order_by(MasCategoryDisplayConfig.display_order)
+            ).all()
+        ]
+
         subcategories = [
             {
                 "category_code": s.category_code,
@@ -330,6 +375,7 @@ class FormTypeService:
                 "mapping_version": ft.mapping_version,
             },
             "categories": categories,
+            "category_display_configs": category_display_configs,
             "subcategories": subcategories,
             "fields": fields,
             "choices": choices,
@@ -397,6 +443,28 @@ class FormTypeService:
                 is_active=cat.get("is_active", True),
             ))
             stats["categories_created"] += 1
+
+        for cat in data.get("category_display_configs") or []:
+            db.session.add(MasCategoryDisplayConfig(
+                category_display_config_id=uuid.uuid4(),
+                form_type_id=dst_id,
+                category_code=cat["category_code"],
+                display_label=cat.get("display_label") or cat["category_code"],
+                nav_label=(
+                    cat.get("nav_label")
+                    or cat.get("display_label")
+                    or cat["category_code"]
+                ),
+                icon_name=cat.get("icon_name"),
+                display_order=cat.get("display_order", 0),
+                render_mode=cat.get("render_mode", "table_sections"),
+                show_to_coder=cat.get("show_to_coder", True),
+                show_to_reviewer=cat.get("show_to_reviewer", True),
+                show_to_site_pi=cat.get("show_to_site_pi", True),
+                always_include=cat.get("always_include", False),
+                is_default_start=cat.get("is_default_start", False),
+                is_active=cat.get("is_active", True),
+            ))
 
         for sub in data.get("subcategories") or []:
             db.session.add(MasSubcategoryOrder(

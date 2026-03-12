@@ -127,326 +127,11 @@
 
           <div class="card-body p-0">
             <div class="list-group list-group-flush">
-              {% if va_action == "vasitepi" and "vainterviewdetails" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vainterviewdetails')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-interview-details"
-                >
-                  <i class="fas fa-info-circle me-2 text-primary"></i>
-                  <span>Interview Details</span>
-                </button>
+              {% if category_nav %}
+                {% include 'va_frontpages/_category_nav_items.html' %}
+              {% else %}
+                <div class="p-3 text-muted">No visible categories for this submission.</div>
               {% endif %}
-              {% if "vademographicdetails" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vademographicdetails')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-demographic"
-                >
-                  <div class="button-main-content">
-                    <i class="fas fa-user me-2 text-primary"></i>
-                    <span>Demographic / Risk Factors</span>
-                    
-                  </div>
-                  {% if catcount and catcount.get('vademographicdetails', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vademographicdetails', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vaneonatalperioddetails" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vaneonatalperioddetails')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-neonatal-period"
-                >
-                  <div class="button-main-content">
-                    <i class="fas fa-baby me-2 text-primary"></i>
-                    <span>Neonatal Period</span>
-                    
-                  </div>
-                  {% if catcount and catcount.get('vaneonatalperioddetails', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vaneonatalperioddetails', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vainjuriesdetails" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vainjuriesdetails')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-injuries"
-                >
-                  <div class="button-main-content">
-                    <i class="fas fa-first-aid me-2 text-primary"></i>
-                    <span>Injuries</span>
-                   
-                  </div>
-                  {% if catcount and catcount.get('vainjuriesdetails', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vainjuriesdetails', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vahealthhistorydetails" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vahealthhistorydetails')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-health-history"
-                >
-                  <div class="button-main-content">
-                    <i class="fas fa-history me-2 text-primary"></i>
-                    <span>Disease/Co-morbidity</span>
-                 
-                  </div>
-                  {% if catcount and catcount.get('vahealthhistorydetails', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vahealthhistorydetails', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vageneralsymptoms" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center position-relative"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vageneralsymptoms')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-s-general"
-                >
-                  <div class="symptom-tag"></div>
-                  <div class="button-main-content">
-                    <i class="fas fa-thermometer me-2 text-primary"></i>
-                    <span>General Symptoms</span>
-           
-                  </div>
-                  {% if catcount and catcount.get('vageneralsymptoms', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vageneralsymptoms', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "varespiratorycardiacsymptoms" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center position-relative"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'varespiratorycardiacsymptoms')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-s-respiratory-cardiac"
-                >
-                  <div class="symptom-tag"></div>
-                  <div class="button-main-content">
-                    <i class="fas fa-lungs me-2 text-primary"></i>
-                    <span>Respiratory / Cardiac</span>
-               
-                  </div>
-                  {% if catcount and catcount.get('varespiratorycardiacsymptoms', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('varespiratorycardiacsymptoms', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vaabdominalsymptoms" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center position-relative"
-                     hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vaabdominalsymptoms')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-s-abdominal"
-                >
-                  <div class="symptom-tag"></div>
-                  <div class="button-main-content">
-                    <i class="fas fa-solid fa-capsules me-2 text-primary"></i>
-                    <span>Abdominal</span>
-                  
-                  </div>
-                  {% if catcount and catcount.get('vaabdominalsymptoms', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vaabdominalsymptoms', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vaneurologicalsymptoms" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center position-relative"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vaneurologicalsymptoms')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-s-neurological"
-                >
-                  <div class="symptom-tag"></div>
-                  <div class="button-main-content">
-                    <i class="fas fa-brain me-2 text-primary"></i>
-                    <span>Neurological</span>
-            
-                  </div>
-                  {% if catcount and catcount.get('vaneurologicalsymptoms', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vaneurologicalsymptoms', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vaskinmucosalsymptoms" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center position-relative"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vaskinmucosalsymptoms')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-s-sml"
-                >
-                  <div class="symptom-tag"></div>
-                  <div class="button-main-content">
-                    <i class="fas fa-allergies me-2 text-primary"></i>
-                    <span>Skin / Mucosal / Others</span>
-            
-                  </div>
-                  {% if catcount and catcount.get('vaskinmucosalsymptoms', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vaskinmucosalsymptoms', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vaneonatalfeedingsymptoms" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center position-relative"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vaneonatalfeedingsymptoms')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-s-neonatal-feeding"
-                >
-                  <div class="symptom-tag"></div>
-                  <div class="button-main-content">
-                    <i class="fas fa-baby-carriage me-2 text-primary"></i>
-                    <span>Neonatal Specific</span>
-           
-                  </div>
-                  {% if catcount and catcount.get('vaneonatalfeedingsymptoms', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vaneonatalfeedingsymptoms', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vamaternalsymptoms" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center position-relative"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vamaternalsymptoms')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-s-maternal"
-                >
-                  <div class="symptom-tag"></div>
-                  <div class="button-main-content">
-                    <i class="fas fa-female me-2 text-primary"></i>
-                    <span>Maternal</span>
-            
-                  </div>
-                  {% if catcount and catcount.get('vamaternalsymptoms', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vamaternalsymptoms', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              {% if "vahealthserviceutilisation" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vahealthserviceutilisation')}}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-healthservice"
-                >
-                  <div class="button-main-content">
-                    <i class="fas fa-hospital-alt me-2 text-primary"></i>
-                    <span>Health Service Utilization</span>
-             
-                  </div>
-                  {% if catcount and catcount.get('vahealthserviceutilisation', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('vahealthserviceutilisation', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %}
-              <!-- {% if "get_medicalcertificate" in catlist %}
-                <button
-                  class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('api.get_medicalcertificate', sid=sid) }}"
-                  hx-target="#form-content"
-                  hx-swap="innerHTML"
-                  hx-indicator="#loading-medicalcertificate"
-                >
-                  <div class="button-main-content">
-                    <i class="fas fa-certificate me-2 text-primary"></i>
-                    <span>Medical Certificates</span>
-                    {{ loading_indicator(id="loading-medicalcertificate") }}
-                  </div>
-                  {% if catcount and catcount.get('medical_certificates', {}).get('count', 0) > 0 %}  
-                    <span class="highlight-badge">{{ catcount.get('medical_certificates', {}).get('count', 0) }}</span>  
-                  {% endif %}
-                </button>
-              {% endif %} -->
-              <button
-                class="list-group-item list-group-item-action d-flex align-items-center"
-                  hx-get="{{ url_for('va_api.va_renderpartial',
-                          va_action=va_action,
-                          va_actiontype=va_actiontype,
-                          va_sid = va_sid,
-                          va_partial = 'vanarrationanddocuments')}}"
-                hx-target="#form-content"
-                hx-swap="innerHTML"
-                hx-indicator="#loading-nmd"
-              >
-                <i class="fas fa-file-medical-alt me-2 text-primary"></i>
-                <span>Narration / Documents / COD</span>
-         
-              </button>
             </div>
           </div>
         </div>
@@ -455,19 +140,26 @@
 
     <!-- Content column -->
     <div class="col-md-9">
-      <div class="card" id="form-content" 
+      <div class="card" id="form-content"
+          {% if default_category_code %}
           hx-get="{{ url_for('va_api.va_renderpartial',
           va_action=va_action,
           va_actiontype=va_actiontype,
           va_sid = va_sid,
-          va_partial = 'vademographicdetails')}}"
+          va_partial = default_category_code)}}"
           hx-target="this"
           hx-trigger="load"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          {% endif %}>
         <div class="card-body text-center py-5">
           <i class="fas fa-clipboard-list text-primary mb-3" style="font-size: 3rem;"></i>
-          <h3 class="text-primary mb-3">Loading...</h3>
-          <p class="text-muted">Loading...</p>
+          {% if default_category_code %}
+            <h3 class="text-primary mb-3">Loading...</h3>
+            <p class="text-muted">Loading...</p>
+          {% else %}
+            <h3 class="text-primary mb-3">No Categories Available</h3>
+            <p class="text-muted">This submission has no visible category panels for the current role.</p>
+          {% endif %}
         </div>
       </div>
     </div>

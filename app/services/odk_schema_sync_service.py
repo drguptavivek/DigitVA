@@ -12,6 +12,7 @@ Fallback source: GET /projects/{id}/forms/{id}/fields API
 """
 import uuid
 import io
+import time
 import pandas as pd
 from datetime import datetime, timezone
 from sqlalchemy import select
@@ -97,34 +98,44 @@ class OdkSchemaSyncService:
             "errors": [],
         }
 
+        _t0 = time.monotonic()
+        print(f"[sync] START sync_form_choices  form={form_type_code}  project={odk_project_id}  form_id={odk_form_id}")
+
         form_type = db.session.scalar(
             select(MasFormTypes).where(
                 MasFormTypes.form_type_code == form_type_code
             )
         )
         if not form_type:
-            stats["errors"].append(f"Form type not found: {form_type_code}")
+            msg = f"Form type not found: {form_type_code}"
+            print(f"[sync] ERROR {msg}")
+            stats["errors"].append(msg)
             return stats
 
         try:
             if client is None:
                 client = va_odk_clientsetup()
 
+            _t_fetch = time.monotonic()
+            print(f"[sync] fetching schema from ODK (xlsx)…")
             fields = self._fetch_from_xlsx(client, odk_project_id, odk_form_id)
 
             if fields is None:
+                print(f"[sync] xlsx fetch returned None — falling back to fields API")
                 fields = self._fetch_fields(client, odk_project_id, odk_form_id)
 
             if fields is None:
-                stats["errors"].append(
-                    "Failed to fetch form schema from ODK. "
-                    "Check connection credentials and form ID."
-                )
+                msg = "Failed to fetch form schema from ODK. Check connection credentials and form ID."
+                print(f"[sync] ERROR {msg}")
+                stats["errors"].append(msg)
                 return stats
+
+            print(f"[sync] fetched {len(fields)} fields in {time.monotonic()-_t_fetch:.2f}s")
 
             seen_keys: set[tuple[str, str]] = set()
             processed_field_ids: set[str] = set()
 
+            _t_loop = time.monotonic()
             for field in fields:
                 field_name = field.get("name")
                 field_type = field.get("type", "")
@@ -137,6 +148,7 @@ class OdkSchemaSyncService:
                 if matched:
                     stats["fields_processed"] += 1
                 else:
+                    print(f"[sync]   NEW field  {field_name!r}  type={field_type!r}  label={odk_label!r}")
                     self._register_new_field(
                         form_type.form_type_id, field_name, field_type, odk_label, stats
                     )
@@ -169,17 +181,30 @@ class OdkSchemaSyncService:
                         stats,
                     )
 
+            print(f"[sync] field loop done in {time.monotonic()-_t_loop:.2f}s  "
+                  f"processed={stats['fields_processed']}  new={stats['fields_added']}  "
+                  f"label_updates={stats['labels_updated']}  "
+                  f"choices_added={stats['choices_added']}  choices_updated={stats['choices_updated']}")
+
             # NOTE: deactivation is intentionally skipped here.
             # Choices are seeded from the WHO VA template (mapping_choices.xlsx)
             # which covers ALL sites. Any given ODK project form only contains
             # choices for its own site, so deactivating against a single
             # site's form would incorrectly remove other sites' choices.
+            _t_commit = time.monotonic()
             db.session.commit()
+            print(f"[sync] commit done in {time.monotonic()-_t_commit:.2f}s")
 
         except Exception as exc:
             db.session.rollback()
+            print(f"[sync] ERROR (rolled back): {exc}")
             stats["errors"].append(str(exc))
 
+        elapsed = time.monotonic() - _t0
+        if stats["errors"]:
+            print(f"[sync] DONE with {len(stats['errors'])} error(s) in {elapsed:.2f}s — {stats}")
+        else:
+            print(f"[sync] DONE OK in {elapsed:.2f}s — {stats}")
         return stats
 
     # -----------------------------------------------------------------------
@@ -204,17 +229,30 @@ class OdkSchemaSyncService:
             "errors": [],
         }
 
+        _t0 = time.monotonic()
+        n_new_fields   = len(selected.get("new_fields")      or [])
+        n_label_chg    = len(selected.get("label_changes")   or [])
+        n_new_choices  = len(selected.get("new_choices")     or [])
+        n_upd_choices  = len(selected.get("updated_choices") or [])
+        print(f"[sync:apply] START  form={form_type_code}  "
+              f"new_fields={n_new_fields}  label_changes={n_label_chg}  "
+              f"new_choices={n_new_choices}  updated_choices={n_upd_choices}")
+
         form_type = db.session.scalar(
             select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
         )
         if not form_type:
-            stats["errors"].append(f"Form type not found: {form_type_code}")
+            msg = f"Form type not found: {form_type_code}"
+            print(f"[sync:apply] ERROR {msg}")
+            stats["errors"].append(msg)
             return stats
 
         try:
             ft_id = form_type.form_type_id
             now = datetime.now(timezone.utc)
 
+            # ── New fields ────────────────────────────────────────────────────
+            _t = time.monotonic()
             for f in selected.get("new_fields") or []:
                 field_id = f.get("field_id")
                 if not field_id:
@@ -226,8 +264,12 @@ class OdkSchemaSyncService:
                         MasFieldDisplayConfig.field_id == field_id,
                     )
                 ):
+                    print(f"[sync:apply]   SKIP new_field {field_id!r} — already in DB")
                     continue
                 label = f.get("odk_label") or None
+                n_choices = len(f.get("choices") or [])
+                print(f"[sync:apply]   ADD field {field_id!r}  type={f.get('field_type')!r}  "
+                      f"label={label!r}  choices={n_choices}")
                 db.session.add(MasFieldDisplayConfig(
                     config_id=uuid.uuid4(),
                     form_type_id=ft_id,
@@ -256,7 +298,11 @@ class OdkSchemaSyncService:
                         synced_at=now,
                     ))
                     stats["choices_added"] += 1
+            print(f"[sync:apply] new_fields done in {time.monotonic()-_t:.2f}s  "
+                  f"added={stats['fields_added']}  choices_with_fields={stats['choices_added']}")
 
+            # ── Label changes ─────────────────────────────────────────────────
+            _t = time.monotonic()
             for lc in selected.get("label_changes") or []:
                 field_id = lc.get("field_id")
                 new_label = lc.get("new_label")
@@ -269,14 +315,39 @@ class OdkSchemaSyncService:
                     )
                 )
                 if cfg and cfg.odk_label != new_label:
+                    print(f"[sync:apply]   LABEL {field_id!r}  {cfg.odk_label!r} → {new_label!r}")
                     cfg.odk_label = new_label
                     stats["labels_updated"] += 1
+            print(f"[sync:apply] label_changes done in {time.monotonic()-_t:.2f}s  "
+                  f"updated={stats['labels_updated']}")
 
+            # ── New choices ───────────────────────────────────────────────────
+            # Field IDs being added in this same operation (choices already inserted above)
+            new_field_ids = {f.get("field_id") for f in (selected.get("new_fields") or [])}
+
+            _t = time.monotonic()
+            choices_skipped_no_field = 0
             for nc in selected.get("new_choices") or []:
                 field_id = nc.get("field_id")
                 value = nc.get("value")
                 label = nc.get("label") or str(value)
                 if not field_id or not value:
+                    continue
+                if field_id in new_field_ids:
+                    continue  # choices already inserted with the new field above
+                # Guard: skip if the parent field config doesn't exist in DB
+                field_exists = db.session.scalar(
+                    select(MasFieldDisplayConfig).where(
+                        MasFieldDisplayConfig.form_type_id == ft_id,
+                        MasFieldDisplayConfig.field_id == field_id,
+                    )
+                )
+                if not field_exists:
+                    msg = (f"Skipped choice {field_id}/{value}: field not registered. "
+                           f"Add the field first.")
+                    print(f"[sync:apply]   WARN {msg}")
+                    stats["errors"].append(msg)
+                    choices_skipped_no_field += 1
                     continue
                 existing = db.session.scalar(
                     select(MasChoiceMappings).where(
@@ -286,6 +357,7 @@ class OdkSchemaSyncService:
                     )
                 )
                 if not existing:
+                    print(f"[sync:apply]   ADD choice {field_id!r}/{value!r}  label={label!r}")
                     db.session.add(MasChoiceMappings(
                         form_type_id=ft_id,
                         field_id=field_id,
@@ -296,7 +368,11 @@ class OdkSchemaSyncService:
                         synced_at=now,
                     ))
                     stats["choices_added"] += 1
+            print(f"[sync:apply] new_choices done in {time.monotonic()-_t:.2f}s  "
+                  f"added={stats['choices_added']}  skipped_no_field={choices_skipped_no_field}")
 
+            # ── Updated choices ───────────────────────────────────────────────
+            _t = time.monotonic()
             for uc in selected.get("updated_choices") or []:
                 field_id = uc.get("field_id")
                 value = uc.get("value")
@@ -311,15 +387,28 @@ class OdkSchemaSyncService:
                     )
                 )
                 if existing and existing.choice_label != new_label:
+                    print(f"[sync:apply]   UPDATE choice {field_id!r}/{value!r}  "
+                          f"{existing.choice_label!r} → {new_label!r}")
                     existing.choice_label = new_label
                     existing.synced_at = now
                     stats["choices_updated"] += 1
+            print(f"[sync:apply] updated_choices done in {time.monotonic()-_t:.2f}s  "
+                  f"updated={stats['choices_updated']}")
 
+            _t_commit = time.monotonic()
             db.session.commit()
+            print(f"[sync:apply] commit done in {time.monotonic()-_t_commit:.2f}s")
+
         except Exception as exc:
             db.session.rollback()
+            print(f"[sync:apply] ERROR (rolled back): {exc}")
             stats["errors"].append(str(exc))
 
+        elapsed = time.monotonic() - _t0
+        if stats["errors"]:
+            print(f"[sync:apply] DONE with {len(stats['errors'])} error(s) in {elapsed:.2f}s — {stats}")
+        else:
+            print(f"[sync:apply] DONE OK in {elapsed:.2f}s — {stats}")
         return stats
 
     # -----------------------------------------------------------------------
@@ -351,28 +440,36 @@ class OdkSchemaSyncService:
             "errors": [],
         }
 
+        _t0 = time.monotonic()
+        print(f"[sync:preview] START  form={form_type_code}  project={odk_project_id}  form_id={odk_form_id}")
+
         form_type = db.session.scalar(
             select(MasFormTypes).where(
                 MasFormTypes.form_type_code == form_type_code
             )
         )
         if not form_type:
-            result["errors"].append(f"Form type not found: {form_type_code}")
+            msg = f"Form type not found: {form_type_code}"
+            print(f"[sync:preview] ERROR {msg}")
+            result["errors"].append(msg)
             return result
 
         try:
             if client is None:
                 client = va_odk_clientsetup()
 
+            _t_fetch = time.monotonic()
+            print(f"[sync:preview] fetching schema from ODK (xlsx)…")
             fields = self._fetch_from_xlsx(client, odk_project_id, odk_form_id)
             if fields is None:
+                print(f"[sync:preview] xlsx fetch returned None — falling back to fields API")
                 fields = self._fetch_fields(client, odk_project_id, odk_form_id)
             if fields is None:
-                result["errors"].append(
-                    "Failed to fetch form schema from ODK. "
-                    "Check connection credentials and form ID."
-                )
+                msg = "Failed to fetch form schema from ODK. Check connection credentials and form ID."
+                print(f"[sync:preview] ERROR {msg}")
+                result["errors"].append(msg)
                 return result
+            print(f"[sync:preview] fetched {len(fields)} fields in {time.monotonic()-_t_fetch:.2f}s")
 
             seen_keys: set[tuple[str, str]] = set()
             processed_field_ids: set[str] = set()
@@ -380,6 +477,12 @@ class OdkSchemaSyncService:
             for field in fields:
                 field_name = field.get("name")
                 field_type = field.get("type", "")
+
+                # Skip structural/grouping types — not real data fields
+                _ft = field_type.lower().strip()
+                if _ft == "note" or _ft.startswith("begin") or _ft.startswith("end"):
+                    continue
+
                 odk_label = _extract_label(field.get("label"))
 
                 cfg = db.session.scalar(
@@ -403,8 +506,12 @@ class OdkSchemaSyncService:
                             cl = _extract_label(ch.get("label")) or str(cv)
                             if cv:
                                 entry["choices"].append({"value": str(cv), "label": cl})
+                    print(f"[sync:preview]   NEW field {field_name!r}  type={field_type!r}  "
+                          f"label={odk_label!r}  choices={len(entry['choices'])}")
                     result["new_fields"].append(entry)
+                    continue  # choices are embedded in new_fields entry; don't also add to new_choices
                 elif odk_label and cfg.odk_label != odk_label:
+                    print(f"[sync:preview]   LABEL {field_name!r}  {cfg.odk_label!r} → {odk_label!r}")
                     result["label_changes"].append({
                         "field_id": field_name,
                         "current_label": cfg.odk_label or "",
@@ -437,6 +544,8 @@ class OdkSchemaSyncService:
                     )
                     if existing:
                         if existing.choice_label != choice_label:
+                            print(f"[sync:preview]   UPDATE choice {field_name!r}/{choice_value!r}  "
+                                  f"{existing.choice_label!r} → {choice_label!r}")
                             result["updated_choices"].append({
                                 "field_id": field_name,
                                 "value": str(choice_value),
@@ -444,6 +553,7 @@ class OdkSchemaSyncService:
                                 "new_label": choice_label,
                             })
                     else:
+                        print(f"[sync:preview]   NEW choice {field_name!r}/{choice_value!r}  label={choice_label!r}")
                         result["new_choices"].append({
                             "field_id": field_name,
                             "value": str(choice_value),
@@ -453,8 +563,18 @@ class OdkSchemaSyncService:
             # Deactivation is intentionally skipped (see sync_form_choices)
 
         except Exception as exc:
+            print(f"[sync:preview] ERROR: {exc}")
             result["errors"].append(str(exc))
 
+        elapsed = time.monotonic() - _t0
+        summary = (f"new_fields={len(result['new_fields'])}  "
+                   f"label_changes={len(result['label_changes'])}  "
+                   f"new_choices={len(result['new_choices'])}  "
+                   f"updated_choices={len(result['updated_choices'])}")
+        if result["errors"]:
+            print(f"[sync:preview] DONE with {len(result['errors'])} error(s) in {elapsed:.2f}s — {summary}")
+        else:
+            print(f"[sync:preview] DONE OK in {elapsed:.2f}s — {summary}")
         return result
 
     # -----------------------------------------------------------------------

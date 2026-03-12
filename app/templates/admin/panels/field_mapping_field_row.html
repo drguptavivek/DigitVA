@@ -1,13 +1,67 @@
 {#
-  Single field table row — returned by POST after saving edits.
+  Single field table row — used both in the fields list and returned after inline/modal saves.
   Replaces #fm-field-row-{{ field.field_id }} via hx-swap="outerHTML".
+
+  Context required:
+    form_type_code, field, categories, cat_name_map, subcat_name_map, subcats_by_cat
 #}
 <tr id="fm-field-row-{{ field.field_id }}">
   <td class="small font-monospace">{{ field.field_id }}</td>
   <td class="small">{{ field.short_label or '—' }}</td>
-  <td class="small text-muted">{{ field.category_code or '—' }}</td>
-  <td class="small text-center">{% if field.flip_color %}<i class="fa-solid fa-check text-success"></i>{% endif %}</td>
-  <td class="small text-center">{% if field.is_info %}<i class="fa-solid fa-check text-success"></i>{% endif %}</td>
+
+  {# Category cell — inline select if unassigned #}
+  <td class="small">
+    {% if field.category_code %}
+      <span class="text-muted">{{ cat_name_map.get(field.category_code, field.category_code) }}</span>
+    {% else %}
+      <select class="form-select form-select-sm py-0 border-warning"
+              style="font-size:0.75rem; min-width:130px;"
+              name="category_code"
+              hx-patch="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}/category"
+              hx-target="#fm-field-row-{{ field.field_id }}"
+              hx-swap="outerHTML"
+              hx-include="this"
+              hx-trigger="change">
+        <option value="">— Category —</option>
+        {% for cat in categories %}
+        <option value="{{ cat.category_code }}">{{ cat.category_name or cat.category_code }}</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+  </td>
+
+  {# Subcategory cell — inline select if category is set but subcategory is not #}
+  <td class="small">
+    {% if field.category_code and not field.subcategory_code %}
+      {% set subcats = subcats_by_cat.get(field.category_code, []) %}
+      {% if subcats %}
+      <select class="form-select form-select-sm py-0 border-warning"
+              style="font-size:0.75rem; min-width:130px;"
+              name="subcategory_code"
+              hx-patch="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}/category"
+              hx-target="#fm-field-row-{{ field.field_id }}"
+              hx-swap="outerHTML"
+              hx-include="[name='subcategory_code']"
+              hx-vals='{"category_code": "{{ field.category_code }}"}'
+              hx-trigger="change">
+        <option value="">— Subcategory —</option>
+        {% for sub in subcats %}
+        <option value="{{ sub.subcategory_code }}">{{ sub.subcategory_name or sub.subcategory_code }}</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <span class="text-muted">—</span>
+      {% endif %}
+    {% elif field.subcategory_code %}
+      <span class="text-muted">{{ subcat_name_map.get((field.category_code, field.subcategory_code), field.subcategory_code) }}</span>
+    {% else %}
+      <span class="text-muted">—</span>
+    {% endif %}
+  </td>
+
+  <td class="small text-center">{% if field.flip_color %}<i class="fa-solid fa-rotate text-primary"></i>{% endif %}</td>
+  <td class="small text-center">{% if field.is_info %}<i class="fa-solid fa-circle-info text-info"></i>{% endif %}</td>
+  <td class="small text-center">{% if field.summary_include %}<i class="fa-solid fa-list-check text-success"></i>{% endif %}</td>
   <td class="small text-center">{% if field.is_pii %}<i class="fa-solid fa-shield-halved text-warning"></i>{% endif %}</td>
   <td class="small text-end">
     <button class="btn btn-outline-secondary btn-sm py-0 px-1"

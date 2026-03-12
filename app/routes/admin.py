@@ -1592,6 +1592,7 @@ def admin_panel_field_mapping_fields():
     subcategory_filter = request.args.get("subcategory", "")
     search = request.args.get("search", "").strip()
     flag_filters = set(request.args.getlist("flag")) & {"flip", "info", "summary", "pii"}
+    no_category = request.args.get("no_category", "") == "1"
 
     form_type = db.session.scalar(
         sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
@@ -1643,7 +1644,9 @@ def admin_panel_field_mapping_fields():
         )
         .order_by(MasFieldDisplayConfig.category_code, MasFieldDisplayConfig.display_order)
     )
-    if category_filter:
+    if no_category:
+        query = query.where(MasFieldDisplayConfig.category_code == None)
+    elif category_filter:
         query = query.where(MasFieldDisplayConfig.category_code == category_filter)
     if subcategory_filter:
         query = query.where(MasFieldDisplayConfig.subcategory_code == subcategory_filter)
@@ -1664,6 +1667,12 @@ def admin_panel_field_mapping_fields():
         )
 
     fields = db.session.scalars(query).all()
+
+    # Group subcategories by category_code for inline selects
+    subcats_by_cat = {}
+    for s in all_subcats:
+        subcats_by_cat.setdefault(s.category_code, []).append(s)
+
     return render_template(
         "admin/panels/field_mapping_fields.html",
         form_type_code=form_type_code,
@@ -1672,10 +1681,12 @@ def admin_panel_field_mapping_fields():
         subcategory_filter=subcategory_filter,
         search=search,
         flag_filters=flag_filters,
+        no_category=no_category,
         categories=cats,
         subcategories_for_filter=subcats_for_filter,
         cat_name_map=cat_name_map,
         subcat_name_map=subcat_name_map,
+        subcats_by_cat=subcats_by_cat,
     )
 
 
@@ -1744,10 +1755,26 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         get_mapping_service().clear_cache()
 
         # Return updated table row for hx-swap="outerHTML"
+        all_subcats_row = db.session.scalars(
+            sa_select(MasSubcategoryOrder)
+            .where(MasSubcategoryOrder.form_type_id == form_type.form_type_id)
+        ).all()
+        cat_name_map_row = {c.category_code: c.category_name or c.category_code for c in categories}
+        subcat_name_map_row = {
+            (s.category_code, s.subcategory_code): s.subcategory_name or s.subcategory_code
+            for s in all_subcats_row
+        }
+        subcats_by_cat_row = {}
+        for s in all_subcats_row:
+            subcats_by_cat_row.setdefault(s.category_code, []).append(s)
         return render_template(
             "admin/panels/field_mapping_field_row.html",
             form_type_code=form_type_code,
             field=field,
+            categories=categories,
+            cat_name_map=cat_name_map_row,
+            subcat_name_map=subcat_name_map_row,
+            subcats_by_cat=subcats_by_cat_row,
         )
 
     return render_template(
@@ -1756,6 +1783,79 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         field=field,
         categories=categories,
         subcategories=subcategories,
+    )
+
+
+@admin.patch("/panels/field-mapping/field/<form_type_code>/<field_id>/category")
+def admin_panel_field_mapping_field_quick_category(form_type_code, field_id):
+    """Quick inline update of category/subcategory only. Returns updated table row HTML."""
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    from sqlalchemy import select as sa_select
+    from app.models import MasFieldDisplayConfig, MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder, MasSubcategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return "Form type not found", 404
+
+    field = db.session.scalar(
+        sa_select(MasFieldDisplayConfig).where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.field_id == field_id,
+        )
+    )
+    if not field:
+        return "Field not found", 404
+
+    new_cat = request.form.get("category_code") or None
+    new_sub = request.form.get("subcategory_code") or None
+
+    # Clear subcategory if category changed
+    if new_cat != field.category_code:
+        new_sub = None
+
+    field.category_code = new_cat
+    field.subcategory_code = new_sub
+    db.session.commit()
+
+    from app.services.field_mapping_service import get_mapping_service
+    get_mapping_service().clear_cache()
+
+    # Build context needed to render the row with inline selects
+    cats = db.session.scalars(
+        sa_select(MasCategoryOrder)
+        .where(MasCategoryOrder.form_type_id == form_type.form_type_id)
+        .order_by(MasCategoryOrder.display_order)
+    ).all()
+    all_subcats = db.session.scalars(
+        sa_select(MasSubcategoryOrder)
+        .where(MasSubcategoryOrder.form_type_id == form_type.form_type_id)
+    ).all()
+    cat_name_map = {c.category_code: c.category_name or c.category_code for c in cats}
+    subcat_name_map = {
+        (s.category_code, s.subcategory_code): s.subcategory_name or s.subcategory_code
+        for s in all_subcats
+    }
+    subcats_by_cat = {}
+    for s in all_subcats:
+        subcats_by_cat.setdefault(s.category_code, []).append(s)
+
+    return render_template(
+        "admin/panels/field_mapping_field_row.html",
+        form_type_code=form_type_code,
+        field=field,
+        categories=cats,
+        cat_name_map=cat_name_map,
+        subcat_name_map=subcat_name_map,
+        subcats_by_cat=subcats_by_cat,
     )
 
 

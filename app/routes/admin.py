@@ -3095,7 +3095,9 @@ def admin_sync_coverage():
 
         try:
             odk_count = va_odk_submissioncount(
-                mapping.odk_project_id, mapping.odk_form_id
+                mapping.odk_project_id,
+                mapping.odk_form_id,
+                app_project_id=mapping.project_id,
             )
             odk_error = None
         except Exception as e:

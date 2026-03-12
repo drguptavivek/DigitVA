@@ -207,7 +207,8 @@
       var rows = d.mappings.map(function (m) {
         var missingBadge = '';
         if (m.error) {
-          missingBadge = '<span class="badge text-bg-secondary" title="' + esc(m.error) + '">ODK error</span>';
+          var errShort = m.error.indexOf('timed out') !== -1 ? 'Timeout' : 'ODK error';
+          missingBadge = '<span class="badge text-bg-secondary" title="' + esc(m.error) + '">' + errShort + '</span>';
         } else if (m.missing === 0) {
           missingBadge = '<span class="badge text-bg-success">In sync</span>';
         } else if (m.missing != null) {

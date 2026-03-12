@@ -1557,17 +1557,55 @@ def admin_panel_field_mapping_fields():
         return render_template("va_errors/va_403.html"), 403
 
     from sqlalchemy import select as sa_select
-    from app.models import MasFieldDisplayConfig, MasFormTypes
+    from app.models import MasFieldDisplayConfig, MasFormTypes, MasCategoryOrder, MasSubcategoryOrder
 
     form_type_code = request.args.get("form_type", "WHO_2022_VA")
     category_filter = request.args.get("category", "")
+    subcategory_filter = request.args.get("subcategory", "")
     search = request.args.get("search", "").strip()
+    flag_filter = request.args.get("flag", "")
 
     form_type = db.session.scalar(
         sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
     )
     if not form_type:
         return "Form type not found", 404
+
+    # Load ordered categories and subcategories for filter dropdowns
+    cats = db.session.scalars(
+        sa_select(MasCategoryOrder)
+        .where(
+            MasCategoryOrder.form_type_id == form_type.form_type_id,
+            MasCategoryOrder.is_active == True,
+        )
+        .order_by(MasCategoryOrder.display_order)
+    ).all()
+
+    subcats_for_filter = []
+    if category_filter:
+        subcats_for_filter = db.session.scalars(
+            sa_select(MasSubcategoryOrder)
+            .where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == category_filter,
+                MasSubcategoryOrder.is_active == True,
+            )
+            .order_by(MasSubcategoryOrder.display_order)
+        ).all()
+
+    # Build lookup maps for display in table
+    cat_name_map = {c.category_code: c.category_name or c.category_code for c in cats}
+    all_subcats = db.session.scalars(
+        sa_select(MasSubcategoryOrder)
+        .where(
+            MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+            MasSubcategoryOrder.is_active == True,
+        )
+    ).all()
+    subcat_name_map = {
+        (s.category_code, s.subcategory_code): s.subcategory_name or s.subcategory_code
+        for s in all_subcats
+    }
 
     query = (
         sa_select(MasFieldDisplayConfig)
@@ -1579,6 +1617,16 @@ def admin_panel_field_mapping_fields():
     )
     if category_filter:
         query = query.where(MasFieldDisplayConfig.category_code == category_filter)
+    if subcategory_filter:
+        query = query.where(MasFieldDisplayConfig.subcategory_code == subcategory_filter)
+    _FLAG_FILTERS = {
+        "flip":    MasFieldDisplayConfig.flip_color == True,
+        "info":    MasFieldDisplayConfig.is_info == True,
+        "summary": MasFieldDisplayConfig.summary_include == True,
+        "pii":     MasFieldDisplayConfig.is_pii == True,
+    }
+    if flag_filter in _FLAG_FILTERS:
+        query = query.where(_FLAG_FILTERS[flag_filter])
     if search:
         query = query.where(
             sa.or_(
@@ -1593,7 +1641,13 @@ def admin_panel_field_mapping_fields():
         form_type_code=form_type_code,
         fields=fields,
         category_filter=category_filter,
+        subcategory_filter=subcategory_filter,
         search=search,
+        flag_filter=flag_filter,
+        categories=cats,
+        subcategories_for_filter=subcats_for_filter,
+        cat_name_map=cat_name_map,
+        subcat_name_map=subcat_name_map,
     )
 
 

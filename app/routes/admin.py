@@ -1,7 +1,10 @@
+import logging
 import re
 import uuid
 from decimal import Decimal, InvalidOperation
 from secrets import token_hex
+
+log = logging.getLogger("ERROR_LOG")
 
 import sqlalchemy as sa
 from flask import Blueprint, abort, jsonify, redirect, render_template, request, session, url_for
@@ -2955,70 +2958,82 @@ def admin_panel_sync():
 @admin.get("/api/sync/status")
 @require_api_role("admin")
 def admin_sync_status():
-    from app.models.va_sync_runs import VaSyncRun
+    try:
+        from app.models.va_sync_runs import VaSyncRun
 
-    running = db.session.scalar(
-        sa.select(VaSyncRun)
-        .where(VaSyncRun.status == "running")
-        .order_by(VaSyncRun.started_at.desc())
-        .limit(1)
-    )
-    last_completed = db.session.scalar(
-        sa.select(VaSyncRun)
-        .where(VaSyncRun.status.in_(["success", "error"]))
-        .order_by(VaSyncRun.started_at.desc())
-        .limit(1)
-    )
+        running = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .order_by(VaSyncRun.started_at.desc())
+            .limit(1)
+        )
+        last_completed = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status.in_(["success", "error"]))
+            .order_by(VaSyncRun.started_at.desc())
+            .limit(1)
+        )
+        schedule_hours = _get_sync_schedule_hours()
 
-    schedule_hours = _get_sync_schedule_hours()
-
-    return jsonify({
-        "is_running": running is not None,
-        "current_run": _sync_run_dict(running) if running else None,
-        "last_completed": _sync_run_dict(last_completed) if last_completed else None,
-        "schedule_hours": schedule_hours,
-    })
+        return jsonify({
+            "is_running": running is not None,
+            "current_run": _sync_run_dict(running) if running else None,
+            "last_completed": _sync_run_dict(last_completed) if last_completed else None,
+            "schedule_hours": schedule_hours,
+        })
+    except Exception as e:
+        log.error("admin_sync_status failed", exc_info=True)
+        return _json_error(f"Failed to load sync status: {str(e)}", 500)
 
 
 @admin.get("/api/sync/history")
 @require_api_role("admin")
 def admin_sync_history():
-    from app.models.va_sync_runs import VaSyncRun
-
     try:
-        limit = min(int(request.args.get("limit", 20)), 100)
-    except (TypeError, ValueError):
-        limit = 20
+        from app.models.va_sync_runs import VaSyncRun
 
-    runs = db.session.scalars(
-        sa.select(VaSyncRun)
-        .order_by(VaSyncRun.started_at.desc())
-        .limit(limit)
-    ).all()
+        try:
+            limit = min(int(request.args.get("limit", 20)), 100)
+        except (TypeError, ValueError):
+            limit = 20
 
-    return jsonify({"runs": [_sync_run_dict(r) for r in runs]})
+        runs = db.session.scalars(
+            sa.select(VaSyncRun)
+            .order_by(VaSyncRun.started_at.desc())
+            .limit(limit)
+        ).all()
+
+        return jsonify({"runs": [_sync_run_dict(r) for r in runs]})
+    except Exception as e:
+        log.error("admin_sync_history failed", exc_info=True)
+        return _json_error(f"Failed to load sync history: {str(e)}", 500)
 
 
 @admin.post("/api/sync/trigger")
 @require_api_role("admin")
 def admin_sync_trigger():
-    from app.models.va_sync_runs import VaSyncRun
-    from app.tasks.sync_tasks import run_odk_sync
+    try:
+        from app.models.va_sync_runs import VaSyncRun
+        from app.tasks.sync_tasks import run_odk_sync
 
-    running = db.session.scalar(
-        sa.select(VaSyncRun)
-        .where(VaSyncRun.status == "running")
-        .limit(1)
-    )
-    if running:
-        return _json_error("A sync is already in progress.", 409)
+        running = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .limit(1)
+        )
+        if running:
+            return _json_error("A sync is already in progress.", 409)
 
-    user = _request_user()
-    task = run_odk_sync.delay(
-        triggered_by="manual",
-        user_id=str(user.user_id) if user else None,
-    )
-    return jsonify({"message": "Sync started.", "task_id": task.id}), 202
+        user = _request_user()
+        log.info("Manual sync triggered by user %s", user.user_id if user else "unknown")
+        task = run_odk_sync.delay(
+            triggered_by="manual",
+            user_id=str(user.user_id) if user else None,
+        )
+        return jsonify({"message": "Sync started.", "task_id": task.id}), 202
+    except Exception as e:
+        log.error("admin_sync_trigger failed", exc_info=True)
+        return _json_error(f"Failed to trigger sync: {str(e)}", 500)
 
 
 @admin.post("/api/sync/schedule")
@@ -3054,76 +3069,90 @@ def admin_sync_schedule():
                 WHERE name = :name
             """), {"sid": interval_id, "name": "ODK Sync — every 6 hours"})
 
-            # Signal beat to reload
             conn.execute(sa.text(
                 "INSERT INTO public.celery_periodictaskchanged (last_update) "
                 "VALUES (NOW()) ON CONFLICT DO NOTHING"
             ))
-    except Exception as e:
-        return _json_error(f"Could not update schedule: {str(e)}", 503)
 
-    return jsonify({"interval_hours": hours})
+        log.info("Sync schedule updated to every %sh", hours)
+        return jsonify({"interval_hours": hours})
+    except Exception as e:
+        log.error("admin_sync_schedule failed (hours=%s)", hours, exc_info=True)
+        return _json_error(f"Could not update schedule: {str(e)}", 503)
 
 
 @admin.get("/api/sync/coverage")
 @require_api_role("admin")
 def admin_sync_coverage():
-    from app.models.va_submissions import VaSubmissions
-    from app.models.va_forms import VaForms
-    from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
+    try:
+        from app.models.va_submissions import VaSubmissions
+        from app.models.va_forms import VaForms
+        from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
 
-    mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
+        mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
+        log.info("admin_sync_coverage: checking %d mappings", len(mappings))
 
-    rows = []
-    odk_total = 0
-    local_total = 0
+        rows = []
+        odk_total = 0
+        local_total = 0
 
-    for mapping in mappings:
-        form = db.session.scalar(
-            sa.select(VaForms).where(
-                VaForms.project_id == mapping.project_id,
-                VaForms.site_id == mapping.site_id,
-            )
-        )
-        local_count = 0
-        if form:
-            local_count = db.session.scalar(
-                sa.select(sa.func.count()).where(
-                    VaSubmissions.va_form_id == form.form_id
+        for mapping in mappings:
+            form = db.session.scalar(
+                sa.select(VaForms).where(
+                    VaForms.project_id == mapping.project_id,
+                    VaForms.site_id == mapping.site_id,
                 )
-            ) or 0
-
-        try:
-            odk_count = va_odk_submissioncount(
-                mapping.odk_project_id,
-                mapping.odk_form_id,
-                app_project_id=mapping.project_id,
             )
-            odk_error = None
-        except Exception as e:
-            odk_count = None
-            odk_error = str(e)
+            local_count = 0
+            if form:
+                local_count = db.session.scalar(
+                    sa.select(sa.func.count()).where(
+                        VaSubmissions.va_form_id == form.form_id
+                    )
+                ) or 0
 
-        rows.append({
-            "project_id": mapping.project_id,
-            "site_id": mapping.site_id,
-            "odk_project_id": mapping.odk_project_id,
-            "odk_form_id": mapping.odk_form_id,
-            "form_id": form.form_id if form else None,
-            "odk_total": odk_count,
-            "local_total": local_count,
-            "missing": (odk_count - local_count) if odk_count is not None else None,
-            "error": odk_error,
+            try:
+                odk_count = va_odk_submissioncount(
+                    mapping.odk_project_id,
+                    mapping.odk_form_id,
+                    app_project_id=mapping.project_id,
+                )
+                odk_error = None
+                log.info(
+                    "coverage %s/%s: odk=%d local=%d",
+                    mapping.project_id, mapping.site_id, odk_count, local_count,
+                )
+            except Exception as e:
+                odk_count = None
+                odk_error = str(e)
+                log.warning(
+                    "coverage ODK count failed for %s/%s: %s",
+                    mapping.project_id, mapping.site_id, e,
+                )
+
+            rows.append({
+                "project_id": mapping.project_id,
+                "site_id": mapping.site_id,
+                "odk_project_id": mapping.odk_project_id,
+                "odk_form_id": mapping.odk_form_id,
+                "form_id": form.form_id if form else None,
+                "odk_total": odk_count,
+                "local_total": local_count,
+                "missing": (odk_count - local_count) if odk_count is not None else None,
+                "error": odk_error,
+            })
+
+            if odk_count is not None:
+                odk_total += odk_count
+            local_total += local_count
+
+        return jsonify({
+            "mappings": rows,
+            "totals": {"odk_total": odk_total, "local_total": local_total},
         })
-
-        if odk_count is not None:
-            odk_total += odk_count
-        local_total += local_count
-
-    return jsonify({
-        "mappings": rows,
-        "totals": {"odk_total": odk_total, "local_total": local_total},
-    })
+    except Exception as e:
+        log.error("admin_sync_coverage failed", exc_info=True)
+        return _json_error(f"Failed to load coverage data: {str(e)}", 500)
 
 
 def _sync_run_dict(run) -> dict:

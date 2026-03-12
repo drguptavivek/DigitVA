@@ -75,18 +75,30 @@
 64. When changing query-heavy or sync-heavy code, consider performance, memory use, transaction size, and operational safety as first-class requirements.
 65. Use Timezone aware date time.   <td>{{ submission.created_at | user_timezone }}</td>  <!-- Or optionally provide a custom strftime format: --> <td>{{ submission.created_at | user_timezone('%Y-%m-%d %H:%M') }}</td>
 
+## SEED WHO_2022_VA form without TEST Data
+To seed only (e.g. after a fresh `docker compose up`):
+
+```bash
+docker compose up -d          # boot.sh runs migrations, creates all tables
+docker compose exec minerva_app_service uv run flask seed run
+```
+  This gives you:
+  - testadmin@digitva.com with admin grant
+  - WHO_2022_VA form type registered
+  - All 414 fields + 1196 choice mappings loaded from the Excel files
+
+  No test data, no users, no submissions — just a clean app with the form mapping ready to configure. You'd then use the
+  admin panel to set up ODK connections and project/site mappings manually.
+
+testadmin@digitva.com                                 Admin@123   
+
 
 ## TEST DATA
 
 Saved baseline test data to private/test_data.sql (17,447 lines). To restore it anytime:
-
-  ./scripts/restore-test-db.sh
+  `./scripts/restore-test-db.sh`
 
 This script: resets the DB schema → restores test_data.sql → runs migrations → seeds testadmin.
-
-To seed only (e.g. after a fresh `docker compose up`):
-
-  docker compose exec minerva_app_service uv run flask seed run
 
   ⎿       site     | total_forms | coded | remaining
      --------------+-------------+-------+-----------

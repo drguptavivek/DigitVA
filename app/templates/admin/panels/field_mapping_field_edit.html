@@ -79,6 +79,51 @@
                value="{{ field.full_label or '' }}">
       </div>
 
+      {# Category #}
+      <div class="col-sm-6">
+        <label class="form-label small fw-semibold mb-1">
+          Category
+          <span class="badge bg-primary ms-1 align-middle" style="font-size:0.65rem;">App</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="The section this field belongs to in the coding screen (e.g. Demographics, Symptoms)."></i>
+        </label>
+        <select class="form-select form-select-sm" name="category_code" id="fce-category">
+          <option value="">— none —</option>
+          {% for cat in categories %}
+          <option value="{{ cat.category_code }}"
+                  {% if field.category_code == cat.category_code %}selected{% endif %}>
+            {{ cat.category_name or cat.category_code }}
+          </option>
+          {% endfor %}
+        </select>
+        {% if not categories %}
+        <div class="text-warning small mt-1">
+          <i class="fa-solid fa-triangle-exclamation me-1"></i>No categories defined for this form type yet.
+        </div>
+        {% endif %}
+      </div>
+
+      {# Subcategory #}
+      <div class="col-sm-6">
+        <label class="form-label small fw-semibold mb-1">
+          Subcategory
+          <span class="badge bg-primary ms-1 align-middle" style="font-size:0.65rem;">App</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="The sub-section within the selected category."></i>
+        </label>
+        <select class="form-select form-select-sm" name="subcategory_code" id="fce-subcategory">
+          <option value="">— none —</option>
+          {% for sub in subcategories %}
+          <option value="{{ sub.subcategory_code }}"
+                  {% if field.subcategory_code == sub.subcategory_code %}selected{% endif %}>
+            {{ sub.subcategory_name or sub.subcategory_code }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
       {# Display Options #}
       <div class="col-12">
         <label class="form-label small fw-semibold mb-2">
@@ -168,4 +213,44 @@
 document.querySelectorAll('.fme-tooltip').forEach(function (el) {
   new bootstrap.Tooltip(el, { trigger: 'hover focus' });
 });
+
+// Cascade subcategory dropdown when category changes
+(function () {
+  var catSel = document.getElementById('fce-category');
+  var subSel = document.getElementById('fce-subcategory');
+  if (!catSel || !subSel) return;
+
+  catSel.addEventListener('change', function () {
+    var categoryCode = this.value;
+    var formTypeCode = {{ form_type_code | tojson }};
+
+    subSel.innerHTML = '<option value="">Loading…</option>';
+    subSel.disabled = true;
+
+    if (!categoryCode) {
+      subSel.innerHTML = '<option value="">— none —</option>';
+      subSel.disabled = false;
+      return;
+    }
+
+    fetch('/admin/api/form-types/' + encodeURIComponent(formTypeCode)
+      + '/categories/' + encodeURIComponent(categoryCode) + '/subcategories',
+      { headers: { 'X-CSRFToken': (window._adminCsrf || '') } }
+    )
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      subSel.disabled = false;
+      var opts = '<option value="">— none —</option>';
+      (data.subcategories || []).forEach(function (s) {
+        opts += '<option value="' + s.subcategory_code + '">'
+          + (s.subcategory_name || s.subcategory_code) + '</option>';
+      });
+      subSel.innerHTML = opts;
+    })
+    .catch(function () {
+      subSel.disabled = false;
+      subSel.innerHTML = '<option value="">Error loading</option>';
+    });
+  });
+}());
 </script>

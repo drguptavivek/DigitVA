@@ -23,6 +23,7 @@ def seed_run(test):
     """Seed bootstrap data. Safe to run repeatedly."""
     _seed_admin()
     _seed_form_types()
+    _seed_who_2022_va_fields()
     if test:
         _seed_test_users()
 
@@ -87,6 +88,35 @@ def _seed_form_types():
                 description=ft["description"],
             )
             click.echo(f"  [ok]   registered form type: {ft['code']}")
+
+
+def _seed_who_2022_va_fields():
+    """Populate field mapping tables for WHO_2022_VA from the Excel source files."""
+    from app.models import MasFieldDisplayConfig, MasFormTypes
+    import sqlalchemy as sa
+
+    # Check if fields already exist for WHO_2022_VA
+    form_type = db.session.scalar(
+        sa.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
+    )
+    if form_type:
+        count = db.session.scalar(
+            sa.select(sa.func.count()).where(
+                MasFieldDisplayConfig.form_type_id == form_type.form_type_id
+            )
+        )
+        if count and count > 0:
+            click.echo(f"  [skip] WHO_2022_VA fields already populated ({count} fields)")
+            return
+
+    from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
+    click.echo("  [run]  migrating WHO_2022_VA fields from Excel...")
+    migrator = Who2022VaMigrator()
+    success = migrator.run()
+    if success:
+        click.echo("  [ok]   WHO_2022_VA field mapping populated")
+    else:
+        click.echo("  [warn] WHO_2022_VA field migration reported errors — check logs")
 
 
 def _seed_test_users():

@@ -14,6 +14,7 @@ from app.models.va_allocations import VaAllocations
 from app.models.va_coder_review import VaCoderReview
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_reviewer_review import VaReviewerReview
+from app.models.va_narrative_assessments import VaNarrativeAssessment
 from app.models.va_submissions_auditlog import VaSubmissionsAuditlog
 from app.models.va_user_access_grants import VaUserAccessGrants
 from app.models.mas_odk_connections import MasOdkConnections
@@ -54,6 +55,7 @@ __all__ = [
     "VaIcdCodes",
     "VaSmartvaResults",
     "VaReviewerReview",
+    "VaNarrativeAssessment",
     "VaSubmissionsAuditlog",
     "VaProjectSites",
     "VaUserAccessGrants",

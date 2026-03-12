@@ -2,7 +2,9 @@ import os
 import uuid
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog
+from app.models import VaSubmissions, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment
+from app.models.va_project_master import VaProjectMaster
+from app.models.va_forms import VaForms
 from app.utils import va_render_categoryneighbours
 from app.decorators import va_validate_permissions
 from flask_login import current_user, login_required
@@ -144,6 +146,18 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         #     va_mappingflip = va_mapping_flip,
         #     va_mappinginfo = va_mapping_info,
         # )
+        # NQA context (only relevant for vanarrationanddocuments + vacode)
+        _nqa_project = _get_project_for_submission(va_sid) if va_partial == "vanarrationanddocuments" else None
+        narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)
+        va_narrative_assessment = None
+        if narrative_qa_enabled and va_action == "vacode":
+            va_narrative_assessment = db.session.scalar(
+                sa.select(VaNarrativeAssessment).where(
+                    VaNarrativeAssessment.va_sid == va_sid,
+                    VaNarrativeAssessment.va_nqa_by == current_user.user_id,
+                    VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+                )
+            )
         return render_template(
             f"va_formcategory_partials/{va_partial}.html",
             instance_name = va_submission.va_uniqueid_masked,
@@ -168,6 +182,8 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             da_va_final_assess = da_va_final_assess,
             da_va_initial_assess = da_va_initial_assess,
             da_va_coder_review = da_va_coder_review,
+            narrative_qa_enabled = narrative_qa_enabled,
+            va_narrative_assessment = va_narrative_assessment,
         )
     if va_partial == "vareviewform":
         form = VaReviewerReviewForm()
@@ -259,6 +275,21 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         form1 = VaFinalAssessmentForm()
         smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
         if form1.validate_on_submit():
+            # Enforce NQA completion if enabled for this project
+            _project = _get_project_for_submission(va_sid)
+            if _project and _project.narrative_qa_enabled:
+                _nqa_done = db.session.scalar(
+                    sa.select(VaNarrativeAssessment).where(
+                        VaNarrativeAssessment.va_sid == va_sid,
+                        VaNarrativeAssessment.va_nqa_by == current_user.user_id,
+                        VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+                    )
+                )
+                if not _nqa_done:
+                    if request.headers.get("HX-Request"):
+                        return jsonify({"error": "Narrative Quality Assessment must be completed before submitting the final COD."}), 400
+                    flash("Please complete the Narrative Quality Assessment before submitting.", "warning")
+                    return redirect(request.referrer or url_for("va_main.va_dashboard", va_role="coder"))
             gen_uuid = uuid.uuid4()
             new_review1 = VaFinalAssessments(
                 va_finassess_id=gen_uuid,
@@ -535,4 +566,107 @@ def icd_search():
 #             print(f"Field {field} errors:", errors)
 #             for error in errors:
 #                 flash(f'{field}: {error}', 'danger')
+
+
+# ---------------------------------------------------------------------------
+# Narrative Quality Assessment (NQA)
+# ---------------------------------------------------------------------------
+
+def _get_project_for_submission(va_sid: str):
+    """Return the VaProjectMaster for a submission, or None."""
+    form_id = db.session.scalar(
+        sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == va_sid)
+    )
+    if not form_id:
+        return None
+    project_id = db.session.scalar(
+        sa.select(VaForms.project_id).where(VaForms.form_id == form_id)
+    )
+    if not project_id:
+        return None
+    return db.session.get(VaProjectMaster, project_id)
+
+
+def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity) -> int:
+    return length + pos_symptoms + neg_symptoms + chronology + doc_review + comorbidity
+
+
+@va_api.route("/<va_action>/<va_actiontype>/<va_sid>/narrative-qa", methods=["POST"])
+@login_required
+@va_validate_permissions()
+def va_save_narrative_qa(va_action, va_actiontype, va_sid):
+    """Save or update the Narrative Quality Assessment for a coder on a submission."""
+    if va_action != "vacode":
+        return jsonify({"error": "NQA only available during coding."}), 403
+
+    project = _get_project_for_submission(va_sid)
+    if not project or not project.narrative_qa_enabled:
+        return jsonify({"error": "Narrative QA is not enabled for this project."}), 400
+
+    data = request.get_json(force=True) or {}
+
+    def _int(key, min_val, max_val):
+        try:
+            v = int(data[key])
+            if not (min_val <= v <= max_val):
+                raise ValueError
+            return v
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    length       = _int("length",       1, 3)
+    pos_symptoms = _int("pos_symptoms", 1, 3)
+    neg_symptoms = _int("neg_symptoms", 0, 1)
+    chronology   = _int("chronology",   0, 1)
+    doc_review   = _int("doc_review",   0, 1)
+    comorbidity  = _int("comorbidity",  0, 1)
+
+    missing = [k for k, v in {
+        "length": length, "pos_symptoms": pos_symptoms,
+        "neg_symptoms": neg_symptoms, "chronology": chronology,
+        "doc_review": doc_review, "comorbidity": comorbidity,
+    }.items() if v is None]
+    if missing:
+        return jsonify({"error": f"Invalid or missing fields: {', '.join(missing)}"}), 400
+
+    score = _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity)
+
+    existing = db.session.scalar(
+        sa.select(VaNarrativeAssessment).where(
+            VaNarrativeAssessment.va_sid == va_sid,
+            VaNarrativeAssessment.va_nqa_by == current_user.user_id,
+            VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+        )
+    )
+    if existing:
+        existing.va_nqa_length       = length
+        existing.va_nqa_pos_symptoms = pos_symptoms
+        existing.va_nqa_neg_symptoms = neg_symptoms
+        existing.va_nqa_chronology   = chronology
+        existing.va_nqa_doc_review   = doc_review
+        existing.va_nqa_comorbidity  = comorbidity
+        existing.va_nqa_score        = score
+        nqa = existing
+    else:
+        nqa = VaNarrativeAssessment(
+            va_sid=va_sid,
+            va_nqa_by=current_user.user_id,
+            va_nqa_length=length,
+            va_nqa_pos_symptoms=pos_symptoms,
+            va_nqa_neg_symptoms=neg_symptoms,
+            va_nqa_chronology=chronology,
+            va_nqa_doc_review=doc_review,
+            va_nqa_comorbidity=comorbidity,
+            va_nqa_score=score,
+            va_nqa_status=VaStatuses.active,
+        )
+        db.session.add(nqa)
+
+    db.session.commit()
+    return jsonify({
+        "saved": True,
+        "score": nqa.va_nqa_score,
+        "rating": nqa.rating,
+        "rating_class": nqa.rating_class,
+    })
 #         return redirect(url_for('main.vacoding', sid=sid))

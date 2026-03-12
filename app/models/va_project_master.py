@@ -31,6 +31,9 @@ class VaProjectMaster(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    narrative_qa_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
 
     def __repr__(self) -> str:
         return f"VA Project Master -> {self.project_id} ({self.project_status})"

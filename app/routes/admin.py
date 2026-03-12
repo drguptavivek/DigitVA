@@ -113,6 +113,7 @@ def _serialize_project(project):
         "project_name": project.project_name,
         "project_nickname": project.project_nickname,
         "status": project.project_status.value,
+        "narrative_qa_enabled": project.narrative_qa_enabled,
     }
 
 
@@ -339,7 +340,10 @@ def admin_update_project(project_id):
             project.project_status = VaStatuses(payload["status"])
         except ValueError:
             return _json_error("Invalid status.", 400)
-            
+
+    if "narrative_qa_enabled" in payload:
+        project.narrative_qa_enabled = bool(payload["narrative_qa_enabled"])
+
     db.session.commit()
     return jsonify({"project": _serialize_project(project)})
 

@@ -59,6 +59,19 @@
     {% endif %}
   </td>
 
+  <td class="small text-center">
+    <input type="number"
+           class="form-control form-control-sm py-0 text-center font-monospace"
+           style="width: 5rem; margin: 0 auto;"
+           name="display_order"
+           step="any"
+           value="{{ field.display_order }}"
+           hx-patch="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}/order"
+           hx-target="#fm-field-row-{{ field.field_id }}"
+           hx-swap="outerHTML"
+           hx-include="this"
+           hx-trigger="change">
+  </td>
   <td class="small text-center">{% if field.flip_color %}<i class="fa-solid fa-rotate text-primary"></i>{% endif %}</td>
   <td class="small text-center">{% if field.is_info %}<i class="fa-solid fa-circle-info text-info"></i>{% endif %}</td>
   <td class="small text-center">{% if field.summary_include %}<i class="fa-solid fa-list-check text-success"></i>{% endif %}</td>

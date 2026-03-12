@@ -1,5 +1,6 @@
 import re
 import uuid
+from decimal import Decimal, InvalidOperation
 from secrets import token_hex
 
 import sqlalchemy as sa
@@ -35,6 +36,118 @@ def _validate_entity_id(entity_id, length, name="ID"):
     if not re.match(r'^[A-Z0-9]+$', entity_id):
         return f"{name} must contain only uppercase letters and digits."
     return None
+
+
+def _ordered_field_lists_for_form_type(form_type_id):
+    """Return ordered field objects keyed by category and subcategory."""
+    from sqlalchemy import select as sa_select
+    from sqlalchemy.orm import aliased
+    from app.models import MasFieldDisplayConfig
+    from app.models.va_field_mapping import MasSubcategoryOrder
+
+    subcat_order = aliased(MasSubcategoryOrder)
+    rows = db.session.execute(
+        sa_select(
+            MasFieldDisplayConfig.category_code,
+            MasFieldDisplayConfig.subcategory_code,
+            MasFieldDisplayConfig.field_id,
+            MasFieldDisplayConfig.short_label,
+            MasFieldDisplayConfig.display_order,
+            MasFieldDisplayConfig.flip_color,
+            MasFieldDisplayConfig.is_info,
+            MasFieldDisplayConfig.is_pii,
+            MasFieldDisplayConfig.summary_include,
+            subcat_order.display_order.label("subcategory_display_order"),
+        )
+        .outerjoin(
+            subcat_order,
+            sa.and_(
+                subcat_order.form_type_id == MasFieldDisplayConfig.form_type_id,
+                subcat_order.category_code == MasFieldDisplayConfig.category_code,
+                subcat_order.subcategory_code == MasFieldDisplayConfig.subcategory_code,
+                subcat_order.is_active == True,
+            )
+        )
+        .where(
+            MasFieldDisplayConfig.form_type_id == form_type_id,
+            MasFieldDisplayConfig.is_active == True,
+            MasFieldDisplayConfig.category_code.is_not(None),
+        )
+        .order_by(
+            subcat_order.display_order.is_(None),
+            subcat_order.display_order,
+            MasFieldDisplayConfig.subcategory_code,
+            MasFieldDisplayConfig.display_order,
+            MasFieldDisplayConfig.field_id,
+        )
+    ).all()
+
+    by_category = {}
+    by_subcategory = {}
+    for row in rows:
+        field_data = {
+            "field_id": row.field_id,
+            "label": row.short_label or row.field_id,
+            "display_order": str(row.display_order),
+            "subcategory_code": row.subcategory_code,
+            "flip_color": bool(getattr(row, "flip_color", False)),
+            "is_info": bool(getattr(row, "is_info", False)),
+            "is_pii": bool(getattr(row, "is_pii", False)),
+            "summary_include": bool(getattr(row, "summary_include", False)),
+        }
+        by_category.setdefault(row.category_code, []).append(field_data)
+        if row.subcategory_code:
+            by_subcategory[(row.category_code, row.subcategory_code)] = (
+                by_subcategory.get((row.category_code, row.subcategory_code), []) + [field_data]
+            )
+    return by_category, by_subcategory
+
+
+def _serialize_category_browser_state(form_type, category_code):
+    """Return category + subcategory field-browser state for the 3-panel UI."""
+    from sqlalchemy import select as sa_select
+    from app.models.va_field_mapping import MasCategoryOrder, MasSubcategoryOrder
+
+    category = db.session.scalar(
+        sa_select(MasCategoryOrder).where(
+            MasCategoryOrder.form_type_id == form_type.form_type_id,
+            MasCategoryOrder.category_code == category_code,
+        )
+    )
+    if not category:
+        return None
+
+    fields_by_category, fields_by_subcategory = _ordered_field_lists_for_form_type(
+        form_type.form_type_id
+    )
+    subcategories = db.session.scalars(
+        sa_select(MasSubcategoryOrder)
+        .where(
+            MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+            MasSubcategoryOrder.category_code == category_code,
+        )
+        .order_by(MasSubcategoryOrder.display_order)
+    ).all()
+
+    return {
+        "category": {
+            "category_code": category.category_code,
+            "category_name": category.category_name,
+            "display_order": category.display_order,
+            "ordered_fields": fields_by_category.get(category_code, []),
+        },
+        "subcategories": [
+            {
+                "subcategory_code": sub.subcategory_code,
+                "subcategory_name": sub.subcategory_name,
+                "display_order": sub.display_order,
+                "ordered_fields": fields_by_subcategory.get(
+                    (category_code, sub.subcategory_code), []
+                ),
+            }
+            for sub in subcategories
+        ],
+    }
 
 from functools import wraps
 
@@ -1108,22 +1221,186 @@ def admin_form_type_subcategories(form_type_code, category_code):
     if not form_type:
         return _json_error("Form type not found.", 404)
 
-    rows = db.session.scalars(
-        sa_select(MasSubcategoryOrder)
-        .where(
-            MasSubcategoryOrder.form_type_id == form_type.form_type_id,
-            MasSubcategoryOrder.category_code == category_code,
+    state = _serialize_category_browser_state(form_type, category_code)
+    if not state:
+        return _json_error("Category not found.", 404)
+    return jsonify({"subcategories": state["subcategories"]})
+
+
+@admin.get("/api/form-types/<form_type_code>/categories/<category_code>/browser-state")
+@require_api_role("admin")
+def admin_form_type_category_browser_state(form_type_code, category_code):
+    """Return full browser state for one category in the 3-panel UI."""
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    state = _serialize_category_browser_state(form_type, category_code)
+    if not state:
+        return _json_error("Category not found.", 404)
+    return jsonify(state)
+
+
+@admin.post("/api/form-types/<form_type_code>/categories/<category_code>/fields/reorder")
+@require_api_role("admin")
+def admin_category_fields_reorder(form_type_code, category_code):
+    """Persist ordered field_ids for a category browser selection."""
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes, MasFieldDisplayConfig
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    field_ids = data.get("field_ids") or []
+    if not isinstance(field_ids, list) or not field_ids:
+        return _json_error("field_ids must be a non-empty list.", 400)
+
+    fields = db.session.scalars(
+        sa_select(MasFieldDisplayConfig).where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.field_id.in_(field_ids),
         )
-        .order_by(MasSubcategoryOrder.display_order)
     ).all()
+    field_by_id = {field.field_id: field for field in fields}
+    if len(field_by_id) != len(set(field_ids)):
+        return _json_error("One or more field_ids were not found.", 404)
+
+    for index, field_id in enumerate(field_ids, start=1):
+        field = field_by_id[field_id]
+        if field.category_code != category_code:
+            return _json_error("All field_ids must belong to the selected category.", 400)
+        field.display_order = Decimal(index * 10)
+
+    db.session.commit()
+
+    from app.services.field_mapping_service import get_mapping_service
+    get_mapping_service().clear_cache()
+
+    state = _serialize_category_browser_state(form_type, category_code)
+    return jsonify(state)
+
+
+@admin.post("/api/form-types/<form_type_code>/fields/<field_id>/move")
+@require_api_role("admin")
+def admin_field_move_to_subcategory(form_type_code, field_id):
+    """Move a field to a category/subcategory and append it to that target bucket."""
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes, MasFieldDisplayConfig
+    from app.models.va_field_mapping import MasCategoryOrder, MasSubcategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    field = db.session.scalar(
+        sa_select(MasFieldDisplayConfig).where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.field_id == field_id,
+        )
+    )
+    if not field:
+        return _json_error("Field not found.", 404)
+
+    data = request.get_json(silent=True) or {}
+    category_code = (data.get("category_code") or "").strip()
+    subcategory_code = data.get("subcategory_code")
+    if isinstance(subcategory_code, str):
+        subcategory_code = subcategory_code.strip() or None
+
+    if not category_code:
+        return _json_error("category_code is required.", 400)
+
+    category = db.session.scalar(
+        sa_select(MasCategoryOrder).where(
+            MasCategoryOrder.form_type_id == form_type.form_type_id,
+            MasCategoryOrder.category_code == category_code,
+        )
+    )
+    if not category:
+        return _json_error("Category not found.", 404)
+
+    if subcategory_code:
+        subcategory = db.session.scalar(
+            sa_select(MasSubcategoryOrder).where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == category_code,
+                MasSubcategoryOrder.subcategory_code == subcategory_code,
+            )
+        )
+        if not subcategory:
+            return _json_error("Subcategory not found.", 404)
+
+    max_order = db.session.scalar(
+        sa.select(sa.func.max(MasFieldDisplayConfig.display_order)).where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.category_code == category_code,
+            MasFieldDisplayConfig.subcategory_code == subcategory_code,
+        )
+    )
+
+    field.category_code = category_code
+    field.subcategory_code = subcategory_code
+    field.display_order = Decimal(max_order or 0) + Decimal("10")
+    db.session.commit()
+
+    from app.services.field_mapping_service import get_mapping_service
+    get_mapping_service().clear_cache()
+
+    state = _serialize_category_browser_state(form_type, category_code)
+    return jsonify(state)
+
+
+@admin.get("/api/form-types/<form_type_code>/fields/search")
+@require_api_role("admin")
+def admin_form_type_fields_search(form_type_code):
+    """Search available fields for assignment into the category browser."""
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes, MasFieldDisplayConfig
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return _json_error("Form type not found.", 404)
+
+    search = request.args.get("q", "").strip()
+    if len(search) < 2:
+        return jsonify({"fields": []})
+
+    fields = db.session.scalars(
+        sa_select(MasFieldDisplayConfig)
+        .where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.is_active == True,
+            sa.or_(
+                MasFieldDisplayConfig.field_id.ilike(f"%{search}%"),
+                MasFieldDisplayConfig.short_label.ilike(f"%{search}%"),
+            ),
+        )
+        .order_by(MasFieldDisplayConfig.field_id)
+        .limit(25)
+    ).all()
+
     return jsonify({
-        "subcategories": [
+        "fields": [
             {
-                "subcategory_code": r.subcategory_code,
-                "subcategory_name": r.subcategory_name,
-                "display_order": r.display_order,
+                "field_id": field.field_id,
+                "label": field.short_label or field.field_id,
+                "category_code": field.category_code,
+                "subcategory_code": field.subcategory_code,
             }
-            for r in rows
+            for field in fields
         ]
     })
 
@@ -1589,6 +1866,7 @@ def admin_panel_field_mapping_fields():
         return render_template("va_errors/va_403.html"), 403
 
     from sqlalchemy import select as sa_select
+    from sqlalchemy.orm import aliased
     from app.models import MasFieldDisplayConfig, MasFormTypes, MasCategoryOrder, MasSubcategoryOrder
 
     form_type_code = request.args.get("form_type", "WHO_2022_VA")
@@ -1640,13 +1918,42 @@ def admin_panel_field_mapping_fields():
         for s in all_subcats
     }
 
+    cat_order = aliased(MasCategoryOrder)
+    subcat_order = aliased(MasSubcategoryOrder)
+
     query = (
         sa_select(MasFieldDisplayConfig)
+        .outerjoin(
+            cat_order,
+            sa.and_(
+                cat_order.form_type_id == MasFieldDisplayConfig.form_type_id,
+                cat_order.category_code == MasFieldDisplayConfig.category_code,
+                cat_order.is_active == True,
+            )
+        )
+        .outerjoin(
+            subcat_order,
+            sa.and_(
+                subcat_order.form_type_id == MasFieldDisplayConfig.form_type_id,
+                subcat_order.category_code == MasFieldDisplayConfig.category_code,
+                subcat_order.subcategory_code == MasFieldDisplayConfig.subcategory_code,
+                subcat_order.is_active == True,
+            )
+        )
         .where(
             MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
             MasFieldDisplayConfig.is_active == True,
         )
-        .order_by(MasFieldDisplayConfig.category_code, MasFieldDisplayConfig.display_order)
+        .order_by(
+            cat_order.display_order.is_(None),
+            cat_order.display_order,
+            MasFieldDisplayConfig.category_code,
+            subcat_order.display_order.is_(None),
+            subcat_order.display_order,
+            MasFieldDisplayConfig.subcategory_code,
+            MasFieldDisplayConfig.display_order,
+            MasFieldDisplayConfig.field_id,
+        )
     )
     if no_category:
         query = query.where(MasFieldDisplayConfig.category_code == None)
@@ -1747,6 +2054,12 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         field.full_label = request.form.get("full_label") or None
         field.category_code = request.form.get("category_code") or None
         field.subcategory_code = request.form.get("subcategory_code") or None
+        raw_order = (request.form.get("display_order") or "").strip()
+        if raw_order:
+            try:
+                field.display_order = Decimal(raw_order)
+            except InvalidOperation:
+                return "display_order must be a number.", 400
         field.flip_color = request.form.get("flip_color") == "on"
         field.is_info = request.form.get("is_info") == "on"
         field.summary_include = request.form.get("summary_include") == "on"
@@ -1863,6 +2176,75 @@ def admin_panel_field_mapping_field_quick_category(form_type_code, field_id):
     )
 
 
+@admin.patch("/panels/field-mapping/field/<form_type_code>/<field_id>/order")
+def admin_panel_field_mapping_field_quick_order(form_type_code, field_id):
+    """Quick inline update of field display_order. Returns updated table row HTML."""
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    from sqlalchemy import select as sa_select
+    from app.models import MasFieldDisplayConfig, MasFormTypes
+    from app.models.va_field_mapping import MasCategoryOrder, MasSubcategoryOrder
+
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return "Form type not found", 404
+
+    field = db.session.scalar(
+        sa_select(MasFieldDisplayConfig).where(
+            MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+            MasFieldDisplayConfig.field_id == field_id,
+        )
+    )
+    if not field:
+        return "Field not found", 404
+
+    raw_order = (request.form.get("display_order") or "").strip()
+    try:
+        field.display_order = Decimal(raw_order)
+    except InvalidOperation:
+        return "display_order must be a number.", 400
+
+    db.session.commit()
+
+    from app.services.field_mapping_service import get_mapping_service
+    get_mapping_service().clear_cache()
+
+    cats = db.session.scalars(
+        sa_select(MasCategoryOrder)
+        .where(MasCategoryOrder.form_type_id == form_type.form_type_id)
+        .order_by(MasCategoryOrder.display_order)
+    ).all()
+    all_subcats = db.session.scalars(
+        sa_select(MasSubcategoryOrder)
+        .where(MasSubcategoryOrder.form_type_id == form_type.form_type_id)
+    ).all()
+    cat_name_map = {c.category_code: c.category_name or c.category_code for c in cats}
+    subcat_name_map = {
+        (s.category_code, s.subcategory_code): s.subcategory_name or s.subcategory_code
+        for s in all_subcats
+    }
+    subcats_by_cat = {}
+    for s in all_subcats:
+        subcats_by_cat.setdefault(s.category_code, []).append(s)
+
+    return render_template(
+        "admin/panels/field_mapping_field_row.html",
+        form_type_code=form_type_code,
+        field=field,
+        categories=cats,
+        cat_name_map=cat_name_map,
+        subcat_name_map=subcat_name_map,
+        subcats_by_cat=subcats_by_cat,
+    )
+
+
 @admin.get("/panels/field-mapping/categories")
 def admin_panel_field_mapping_categories():
     denied = _require_admin_ui_access()
@@ -1883,6 +2265,8 @@ def admin_panel_field_mapping_categories():
     if not form_type:
         return "Form type not found", 404
 
+    fields_by_category, _ = _ordered_field_lists_for_form_type(form_type.form_type_id)
+
     categories = db.session.scalars(
         sa_select(MasCategoryOrder)
         .where(MasCategoryOrder.form_type_id == form_type.form_type_id)
@@ -1894,6 +2278,7 @@ def admin_panel_field_mapping_categories():
             "category_code": c.category_code,
             "category_name": c.category_name,
             "display_order": c.display_order,
+            "ordered_fields": fields_by_category.get(c.category_code, []),
         }
         for c in categories
     ]

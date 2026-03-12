@@ -3,7 +3,7 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-03-12
 ---
 
 # Field Mapping System
@@ -96,7 +96,7 @@ One row per field per form type. Controls every display aspect of a field.
 | `summary_include` | BOOLEAN | Include in case summary panel |
 | `is_pii` | BOOLEAN | Field contains PII |
 | `pii_type` | VARCHAR(32) | `name`, `dob`, `address`, etc. |
-| `display_order` | INTEGER | Order within sub-category |
+| `display_order` | NUMERIC(10,2) | Order within sub-category; decimal values allowed for rapid inserts |
 | `is_active` | BOOLEAN | |
 | `is_custom` | BOOLEAN | True for app-added fields not in ODK |
 | `created_at` / `updated_at` | TIMESTAMP | UTC |
@@ -390,6 +390,15 @@ label = svc.get_choice_label(form_type_id, field_id, value)  # str | None
 ```
 
 The cache is invalidated after any field edit via `svc.clear_cache()`.
+
+Ordering behavior in `get_fieldsitepi(form_type_code)`:
+
+- categories are ordered by `MasCategoryOrder.display_order`
+- subcategories within a category are ordered by `MasSubcategoryOrder.display_order`
+- fields within a subcategory are ordered by `MasFieldDisplayConfig.display_order`
+
+If a field-bearing subcategory does not yet have a `MasSubcategoryOrder` row, it still
+renders after the explicitly ordered subcategories for that category.
 
 ---
 

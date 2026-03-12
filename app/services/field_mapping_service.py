@@ -12,7 +12,7 @@ Provides the same data structures consumed by va_render_processcategorydata:
 Results are cached per form_type_code to avoid repeated DB queries within
 the same process. Cache is invalidated by calling clear_cache().
 """
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from sqlalchemy import select
 from app import db
 from app.models import (
@@ -124,7 +124,17 @@ class FieldMappingService:
             .order_by(MasCategoryOrder.display_order)
         ).all()
 
-        # Load all field configs for this form type in one query
+        # Load explicit subcategory ordering for this form type.
+        subcategories = db.session.scalars(
+            select(MasSubcategoryOrder)
+            .where(
+                MasSubcategoryOrder.form_type_id == ft_id,
+                MasSubcategoryOrder.is_active == True,
+            )
+            .order_by(MasSubcategoryOrder.category_code, MasSubcategoryOrder.display_order)
+        ).all()
+
+        # Load all field configs for this form type in one query.
         fields = db.session.scalars(
             select(MasFieldDisplayConfig)
             .where(
@@ -135,21 +145,39 @@ class FieldMappingService:
             .order_by(MasFieldDisplayConfig.display_order)
         ).all()
 
-        # Build lookup: category_code → list of fields
-        cat_fields: dict[str, list] = {}
+        # Build lookups keyed by category/subcategory so category order,
+        # subcategory order, and field order can be applied independently.
+        cat_fields: dict[str, list] = defaultdict(list)
         for f in fields:
-            cat_fields.setdefault(f.category_code, []).append(f)
+            cat_fields[f.category_code].append(f)
+
+        ordered_subcats: dict[str, list[str]] = defaultdict(list)
+        for sub in subcategories:
+            ordered_subcats[sub.category_code].append(sub.subcategory_code)
 
         result = OrderedDict()
         for cat in categories:
             cat_code = cat.category_code
-            subcat_dict: dict[str, dict[str, str]] = OrderedDict()
+            subcat_fields: dict[str, dict[str, str]] = defaultdict(OrderedDict)
 
             for f in cat_fields.get(cat_code, []):
                 subcat = f.subcategory_code
-                if subcat not in subcat_dict:
-                    subcat_dict[subcat] = {}
-                subcat_dict[subcat][f.field_id] = f.short_label or f.field_id
+                subcat_fields[subcat][f.field_id] = f.short_label or f.field_id
+
+            if not subcat_fields:
+                continue
+
+            subcat_dict: dict[str, dict[str, str]] = OrderedDict()
+
+            for subcat_code in ordered_subcats.get(cat_code, []):
+                fields_for_subcat = subcat_fields.pop(subcat_code, None)
+                if fields_for_subcat:
+                    subcat_dict[subcat_code] = fields_for_subcat
+
+            # Keep a stable fallback for any field-bearing subcategory that
+            # does not yet have a MasSubcategoryOrder row.
+            for subcat_code, fields_for_subcat in subcat_fields.items():
+                subcat_dict[subcat_code] = fields_for_subcat
 
             if subcat_dict:
                 result[cat_code] = subcat_dict

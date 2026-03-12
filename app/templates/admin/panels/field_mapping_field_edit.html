@@ -124,6 +124,19 @@
         </select>
       </div>
 
+      {# Display Order #}
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1">
+          Display Order
+          <span class="badge bg-primary ms-1 align-middle" style="font-size:0.65rem;">App</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="Controls field order within the selected subcategory. Decimal values are allowed for quick inserts, for example 2.1 or 2.2."></i>
+        </label>
+        <input type="number" class="form-control form-control-sm" name="display_order"
+               value="{{ field.display_order }}" step="any">
+      </div>
+
       {# Display Options #}
       <div class="col-12">
         <label class="form-label small fw-semibold mb-2">

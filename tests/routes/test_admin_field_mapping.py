@@ -4,6 +4,8 @@ Tests for admin field mapping panel routes (Phase 7 TDD).
 Run (inside Docker):
   docker compose exec minerva_app_service uv run pytest tests/routes/test_admin_field_mapping.py -v
 """
+from decimal import Decimal
+
 from app import db
 from app.models import MasFormTypes, MasFieldDisplayConfig
 from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
@@ -122,3 +124,26 @@ class TestAdminFieldMappingRoutes(BaseTestCase):
         self.assertEqual(resp.status_code, 200)
         # WHO_2022_VA must appear
         self.assertIn(b"WHO_2022_VA", resp.data)
+
+    def test_11_quick_order_patch_accepts_decimal(self):
+        """Inline field order update accepts decimal values."""
+        self._login(self.base_admin_id)
+        csrf_headers = self._csrf_headers()
+
+        resp = self.client.patch(
+            "/admin/panels/field-mapping/field/WHO_2022_VA/Id10010/order",
+            data={"display_order": "2.1"},
+            headers={**csrf_headers, "HX-Request": "true"},
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
+        )
+        field = db.session.scalar(
+            db.select(MasFieldDisplayConfig).where(
+                MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+                MasFieldDisplayConfig.field_id == "Id10010",
+            )
+        )
+        self.assertEqual(field.display_order, Decimal("2.1"))

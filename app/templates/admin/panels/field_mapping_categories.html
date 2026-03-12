@@ -14,7 +14,7 @@
     <div class="row g-0" style="min-height: 360px;">
 
       {# ── Left: category list ────────────────────────────────────────────── #}
-      <div class="col-md-5 border-end" id="fmc-cat-col">
+      <div class="col-md-4 border-end" id="fmc-cat-col">
         <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
           <span class="small fw-semibold text-muted">Categories</span>
           <button class="btn btn-sm btn-outline-success py-0 px-2" id="fmc-add-cat-btn">
@@ -25,7 +25,7 @@
       </div>
 
       {# ── Right: subcategory list ─────────────────────────────────────────── #}
-      <div class="col-md-7" id="fmc-sub-col">
+      <div class="col-md-4 border-end" id="fmc-sub-col">
         <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
           <span class="small fw-semibold text-muted" id="fmc-sub-header">
             Select a category to manage subcategories
@@ -39,6 +39,57 @@
         </div>
       </div>
 
+      {# ── Right: field list ──────────────────────────────────────────────── #}
+      <div class="col-md-4" id="fmc-field-col">
+        <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center">
+          <span class="small fw-semibold text-muted" id="fmc-field-header">
+            Select a category to browse fields
+          </span>
+          <button class="btn btn-sm btn-outline-success py-0 px-2 d-none" id="fmc-add-field-btn">
+            <i class="fa-solid fa-plus me-1"></i>Add Field
+          </button>
+        </div>
+        <div id="fmc-field-list" style="overflow-y:auto; max-height:400px;">
+          <p class="text-muted small text-center py-5">Select a category on the left.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{# ── Shared Field Edit modal — same endpoint/content as Fields list ───────── #}
+<div class="modal fade" id="fm-edit-modal" tabindex="-1" aria-labelledby="fm-edit-modal-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div id="fm-edit-modal-body">
+        <div class="modal-body text-center py-4">
+          <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Add Field modal ──────────────────────────────────────────────────────── #}
+<div class="modal fade" id="fmc-field-add-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="fa-solid fa-plus me-2 text-success"></i>Add Existing Field</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Search fields</label>
+          <input type="text" class="form-control form-control-sm" id="fmc-field-search-input"
+                 placeholder="Search field ID or label">
+          <div class="form-text">Results show current category and subcategory.</div>
+        </div>
+        <div id="fmc-field-search-results" class="border rounded" style="max-height:320px; overflow-y:auto;">
+          <div class="text-muted small text-center py-4">Type at least 2 characters.</div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -198,6 +249,13 @@
   .fmc-cat-selected .btn-outline-danger { border-color: rgba(255,200,200,0.7); color: #ffcccc; }
   .fmc-cat-selected .btn-outline-danger:hover { background-color: rgba(255,255,255,0.1); }
   .fmc-cat-row:hover:not(.fmc-cat-selected) { background-color: #f0f4ff; }
+  .fmc-sub-selected { background-color: #eef6ff !important; }
+  .fmc-sub-row:hover:not(.fmc-sub-selected) { background-color: #f8fbff; }
+  .fmc-drop-target { background-color: #e6ffed !important; outline: 2px dashed #198754; }
+  .fmc-field-item { cursor: grab; }
+  .fmc-field-item:active { cursor: grabbing; }
+  .fmc-field-dropzone { height: 10px; }
+  .fmc-field-dropzone.fmc-drop-target { min-height: 10px; }
 </style>
 
 <script>
@@ -228,18 +286,67 @@
   var _cats          = [];
   var _subs          = [];
   var _selectedCat   = null;
+  var _selectedSub   = null;
+  var _dragFieldId   = null;
   var _catAddModal   = null;
   var _catEditModal  = null;
   var _subAddModal   = null;
   var _subEditModal  = null;
+  var _fieldAddModal = null;
 
   // ── init ───────────────────────────────────────────────────────────────────
 
   _cats = {{ categories_json | tojson }}.map(function (c) {
-    return { category_code: c.category_code, category_name: c.category_name, display_order: c.display_order };
+    return {
+      category_code: c.category_code,
+      category_name: c.category_name,
+      display_order: c.display_order,
+      ordered_fields: c.ordered_fields || []
+    };
   });
   _cats.sort(function (a, b) { return a.display_order - b.display_order; });
   renderCats();
+
+  function currentFields() {
+    if (!_selectedCat) return [];
+    var cat = _cats.find(function (c) { return c.category_code === _selectedCat; });
+    if (!cat) return [];
+    if (_selectedSub === null) return (cat.ordered_fields || []).slice();
+    var sub = _subs.find(function (s) { return s.subcategory_code === _selectedSub; });
+    return sub ? (sub.ordered_fields || []).slice() : [];
+  }
+
+  function currentCategory() {
+    return _cats.find(function (c) { return c.category_code === _selectedCat; }) || null;
+  }
+
+  function syncCategoryState(state, preserveSubSelection) {
+    if (!state || !state.category) return;
+    var idx = _cats.findIndex(function (c) { return c.category_code === state.category.category_code; });
+    if (idx !== -1) _cats[idx] = state.category;
+    _subs = state.subcategories || [];
+    if (preserveSubSelection !== undefined) {
+      _selectedSub = preserveSubSelection;
+    } else if (_selectedSub !== null) {
+      var exists = _subs.some(function (s) { return s.subcategory_code === _selectedSub; });
+      if (!exists) _selectedSub = null;
+    }
+    renderCats();
+    renderSubs();
+  }
+
+  function loadCategoryState(categoryCode, preserveSubSelection) {
+    document.getElementById('fmc-sub-list').innerHTML =
+      '<p class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading\u2026</p>';
+    document.getElementById('fmc-field-list').innerHTML =
+      '<p class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading\u2026</p>';
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/categories/' + encodeURIComponent(categoryCode) + '/browser-state')
+      .then(function (res) {
+        if (!res.ok) return;
+        syncCategoryState(res.data, preserveSubSelection);
+      });
+  }
 
   // ── category rendering ─────────────────────────────────────────────────────
 
@@ -280,25 +387,41 @@
     var el     = document.getElementById('fmc-sub-list');
     var hdr    = document.getElementById('fmc-sub-header');
     var addBtn = document.getElementById('fmc-add-sub-btn');
+    var addFieldBtn = document.getElementById('fmc-add-field-btn');
 
     if (!_selectedCat) {
       el.innerHTML = '<p class="text-muted small text-center py-5">Select a category on the left.</p>';
       hdr.textContent = 'Select a category to manage subcategories';
       addBtn.classList.add('d-none');
+      addFieldBtn.classList.add('d-none');
+      renderFields();
       return;
     }
 
     var cat = _cats.find(function (c) { return c.category_code === _selectedCat; });
     hdr.textContent = (cat ? (cat.category_name || cat.category_code) : _selectedCat) + ' — subcategories';
     addBtn.classList.remove('d-none');
+    addFieldBtn.classList.remove('d-none');
 
-    if (!_subs.length) {
-      el.innerHTML = '<p class="text-muted small text-center py-4">No subcategories yet. Click Add.</p>';
-      return;
-    }
+    var rows = [
+      '<div class="d-flex align-items-center px-3 py-2 border-bottom fmc-sub-row'
+      + (_selectedSub === null ? ' fmc-sub-selected' : '') + '"'
+      + ' style="cursor:pointer;" onclick="selectSub(null)"'
+      + ' ondragover="fieldDropOver(event,this)" ondragleave="fieldDropLeave(this)" ondrop="dropFieldOnSub(event,null)">'
+      + '<span class="badge bg-primary me-2" style="min-width:32px;">All</span>'
+      + '<div class="flex-fill">'
+      + '<div class="small fw-semibold">All Fields In Category</div>'
+      + '<div class="text-muted" style="font-size:0.7rem;">'
+      + esc(cat ? (cat.category_name || cat.category_code) : _selectedCat)
+      + '</div>'
+      + '</div></div>'
+    ];
 
-    el.innerHTML = _subs.map(function (s) {
-      return '<div class="d-flex align-items-center px-3 py-2 border-bottom">'
+    rows = rows.concat(_subs.map(function (s) {
+      return '<div class="d-flex align-items-center px-3 py-2 border-bottom fmc-sub-row'
+        + (_selectedSub === s.subcategory_code ? ' fmc-sub-selected' : '') + '"'
+        + ' style="cursor:pointer;" onclick="selectSub(\'' + esc(s.subcategory_code) + '\')"'
+        + ' ondragover="fieldDropOver(event,this)" ondragleave="fieldDropLeave(this)" ondrop="dropFieldOnSub(event,\'' + esc(s.subcategory_code) + '\')">'
         + '<span class="badge bg-secondary me-2" style="min-width:32px;">' + esc(s.display_order) + '</span>'
         + '<div class="flex-fill">'
         + '<div class="small fw-semibold">' + esc(s.subcategory_name || s.subcategory_code) + '</div>'
@@ -312,28 +435,206 @@
         + ' onclick="deleteSub(\'' + esc(s.subcategory_code) + '\')" title="Delete">'
         + '<i class="fa-solid fa-trash fa-xs"></i></button>'
         + '</div></div>';
-    }).join('');
+    }));
+
+    if (_subs.length) {
+      el.innerHTML = rows.join('');
+    } else {
+      el.innerHTML = rows.join('') + '<p class="text-muted small text-center py-4">No subcategories yet. Click Add.</p>';
+    }
+    renderFields();
+  }
+
+  function renderFields() {
+    var el = document.getElementById('fmc-field-list');
+    var hdr = document.getElementById('fmc-field-header');
+
+    if (!_selectedCat) {
+      hdr.textContent = 'Select a category to browse fields';
+      el.innerHTML = '<p class="text-muted small text-center py-5">Select a category on the left.</p>';
+      return;
+    }
+
+    var cat = _cats.find(function (c) { return c.category_code === _selectedCat; });
+    var title = cat ? (cat.category_name || cat.category_code) : _selectedCat;
+    var fields = currentFields();
+
+    if (_selectedSub === null) {
+      hdr.textContent = title + ' — all fields';
+    } else {
+      var sub = _subs.find(function (s) { return s.subcategory_code === _selectedSub; });
+      hdr.textContent = title + ' — ' + (sub ? (sub.subcategory_name || sub.subcategory_code) : _selectedSub);
+    }
+
+    if (!fields.length) {
+      el.innerHTML = '<p class="text-muted small text-center py-4">No fields in this selection.</p>';
+      return;
+    }
+
+    var parts = [];
+    fields.forEach(function (field, idx) {
+      parts.push(
+        '<div class="fmc-field-dropzone" ondragover="fieldDropOver(event,this)" ondragleave="fieldDropLeave(this)" ondrop="dropFieldAtIndex(event,' + idx + ')"></div>'
+      );
+      parts.push(
+        '<div class="px-3 py-2 border-bottom fmc-field-item" draggable="true" ondragstart="startFieldDrag(event,\'' + esc(field.field_id) + '\')" ondragend="endFieldDrag()">'
+        + '<div class="d-flex align-items-start gap-2">'
+        + '<span class="badge bg-secondary mt-1" style="min-width:32px;">' + esc(idx + 1) + '</span>'
+        + '<div class="small flex-fill"><span class="fw-semibold">' + esc(field.label) + '</span><span class="text-muted ms-2" style="font-size:0.72rem;">' + esc(field.field_id) + '</span></div>'
+        + '<div class="small text-nowrap">'
+        + (field.flip_color ? '<i class="fa-solid fa-rotate text-primary me-1" title="Flip"></i>' : '')
+        + (field.is_info ? '<i class="fa-solid fa-circle-info text-info me-1" title="Info"></i>' : '')
+        + (field.summary_include ? '<i class="fa-solid fa-list-check text-success me-1" title="Summary"></i>' : '')
+        + (field.is_pii ? '<i class="fa-solid fa-shield-halved text-warning" title="PII"></i>' : '')
+        + '</div>'
+        + '<button class="btn btn-outline-secondary btn-sm py-0 px-1 ms-2"'
+        + ' hx-get="/admin/panels/field-mapping/field/' + encodeURIComponent(FORM_TYPE) + '/' + encodeURIComponent(field.field_id) + '"'
+        + ' hx-target="#fm-edit-modal-body"'
+        + ' hx-swap="innerHTML"'
+        + ' data-bs-toggle="modal"'
+        + ' data-bs-target="#fm-edit-modal"'
+        + ' draggable="false"'
+        + ' title="Edit field">'
+        + '<i class="fa-solid fa-pen-to-square fa-xs"></i></button>'
+        + '</div></div>'
+      );
+    });
+    parts.push(
+      '<div class="fmc-field-dropzone" ondragover="fieldDropOver(event,this)" ondragleave="fieldDropLeave(this)" ondrop="dropFieldAtIndex(event,' + fields.length + ')"></div>'
+    );
+    el.innerHTML = parts.join('');
+    if (window.htmx) window.htmx.process(el);
   }
 
   // ── select category ────────────────────────────────────────────────────────
 
   window.selectCat = function (code) {
     _selectedCat = code;
+    _selectedSub = null;
     renderCats();
-    loadSubs(code);
+    loadCategoryState(code, null);
   };
 
-  function loadSubs(categoryCode) {
-    document.getElementById('fmc-sub-list').innerHTML =
-      '<p class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading\u2026</p>';
+  window.selectSub = function (code) {
+    _selectedSub = code;
+    renderSubs();
+  };
+
+  window.startFieldDrag = function (event, fieldId) {
+    _dragFieldId = fieldId;
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', fieldId);
+  };
+
+  window.endFieldDrag = function () {
+    _dragFieldId = null;
+    document.querySelectorAll('.fmc-drop-target').forEach(function (el) {
+      el.classList.remove('fmc-drop-target');
+    });
+  };
+
+  window.fieldDropOver = function (event, el) {
+    if (!_dragFieldId) return;
+    event.preventDefault();
+    el.classList.add('fmc-drop-target');
+  };
+
+  window.fieldDropLeave = function (el) {
+    el.classList.remove('fmc-drop-target');
+  };
+
+  window.dropFieldAtIndex = function (event, targetIndex) {
+    event.preventDefault();
+    if (!_dragFieldId || !_selectedCat) return;
+    var fields = currentFields();
+    var sourceIndex = fields.findIndex(function (field) { return field.field_id === _dragFieldId; });
+    if (sourceIndex === -1) return;
+    var moved = fields.splice(sourceIndex, 1)[0];
+    if (sourceIndex < targetIndex) targetIndex -= 1;
+    fields.splice(targetIndex, 0, moved);
+
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
-      + '/categories/' + encodeURIComponent(categoryCode) + '/subcategories')
-      .then(function (res) {
-        _subs = (res.data.subcategories || []);
-        _subs.sort(function (a, b) { return a.display_order - b.display_order; });
-        renderSubs();
+      + '/categories/' + encodeURIComponent(_selectedCat) + '/fields/reorder', 'POST', {
+        field_ids: fields.map(function (field) { return field.field_id; })
+      }).then(function (res) {
+        if (!res.ok) return;
+        syncCategoryState(res.data, _selectedSub);
       });
-  }
+  };
+
+  window.dropFieldOnSub = function (event, subcategoryCode) {
+    event.preventDefault();
+    if (!_dragFieldId || !_selectedCat) return;
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/fields/' + encodeURIComponent(_dragFieldId) + '/move', 'POST', {
+        category_code: _selectedCat,
+        subcategory_code: subcategoryCode
+      }).then(function (res) {
+        if (!res.ok) return;
+        syncCategoryState(res.data, subcategoryCode);
+      });
+  };
+
+  // ── add field modal ───────────────────────────────────────────────────────
+
+  document.getElementById('fmc-add-field-btn').addEventListener('click', function () {
+    if (!_selectedCat) return;
+    document.getElementById('fmc-field-search-input').value = '';
+    document.getElementById('fmc-field-search-results').innerHTML =
+      '<div class="text-muted small text-center py-4">Type at least 2 characters.</div>';
+    if (!_fieldAddModal) _fieldAddModal = new bootstrap.Modal(document.getElementById('fmc-field-add-modal'));
+    _fieldAddModal.show();
+    setTimeout(function () { document.getElementById('fmc-field-search-input').focus(); }, 300);
+  });
+
+  var _fieldSearchTimer = null;
+  document.getElementById('fmc-field-search-input').addEventListener('input', function () {
+    var query = this.value.trim();
+    var resultsEl = document.getElementById('fmc-field-search-results');
+    clearTimeout(_fieldSearchTimer);
+    if (query.length < 2) {
+      resultsEl.innerHTML = '<div class="text-muted small text-center py-4">Type at least 2 characters.</div>';
+      return;
+    }
+    resultsEl.innerHTML = '<div class="text-muted small text-center py-4"><i class="fa-solid fa-spinner fa-spin me-1"></i>Searching…</div>';
+    _fieldSearchTimer = setTimeout(function () {
+      apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+        + '/fields/search?q=' + encodeURIComponent(query))
+        .then(function (res) {
+          if (!res.ok) {
+            resultsEl.innerHTML = '<div class="text-danger small text-center py-4">Search failed.</div>';
+            return;
+          }
+          var fields = res.data.fields || [];
+          if (!fields.length) {
+            resultsEl.innerHTML = '<div class="text-muted small text-center py-4">No matching fields.</div>';
+            return;
+          }
+          resultsEl.innerHTML = fields.map(function (field) {
+            return '<button type="button" class="list-group-item list-group-item-action border-0 border-bottom text-start"'
+              + ' onclick="assignFieldToCurrentSelection(\'' + esc(field.field_id) + '\')">'
+              + '<div class="small fw-semibold">' + esc(field.label) + '</div>'
+              + '<div class="small text-muted">' + esc(field.field_id) + '</div>'
+              + '<div class="small text-muted mt-1">Current: '
+              + esc(field.category_code || '—') + ' / ' + esc(field.subcategory_code || '—')
+              + '</div></button>';
+          }).join('');
+        });
+    }, 250);
+  });
+
+  window.assignFieldToCurrentSelection = function (fieldId) {
+    if (!_selectedCat) return;
+    apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
+      + '/fields/' + encodeURIComponent(fieldId) + '/move', 'POST', {
+        category_code: _selectedCat,
+        subcategory_code: _selectedSub
+      }).then(function (res) {
+        if (!res.ok) return;
+        if (_fieldAddModal) _fieldAddModal.hide();
+        syncCategoryState(res.data, _selectedSub);
+      });
+  };
 
   // ── add category modal ─────────────────────────────────────────────────────
 
@@ -359,7 +660,9 @@
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE) + '/categories', 'POST', payload)
       .then(function (res) {
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
-        _cats.push(res.data.category);
+        var created = res.data.category;
+        created.ordered_fields = created.ordered_fields || [];
+        _cats.push(created);
         _cats.sort(function (a, b) { return a.display_order - b.display_order; });
         _catAddModal.hide();
         renderCats();
@@ -394,7 +697,10 @@
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
         var c = res.data.category;
         var idx = _cats.findIndex(function (x) { return x.category_code === code; });
-        if (idx !== -1) { _cats[idx].category_name = c.category_name; _cats[idx].display_order = c.display_order; }
+        if (idx !== -1) {
+          _cats[idx].category_name = c.category_name;
+          _cats[idx].display_order = c.display_order;
+        }
         _cats.sort(function (a, b) { return a.display_order - b.display_order; });
         _catEditModal.hide();
         renderCats();
@@ -411,7 +717,7 @@
       .then(function (res) {
         if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
         _cats = _cats.filter(function (c) { return c.category_code !== code; });
-        if (_selectedCat === code) { _selectedCat = null; _subs = []; }
+        if (_selectedCat === code) { _selectedCat = null; _selectedSub = null; _subs = []; }
         renderCats();
         renderSubs();
       });
@@ -443,7 +749,9 @@
       + '/categories/' + encodeURIComponent(_selectedCat) + '/subcategories', 'POST', payload)
       .then(function (res) {
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
-        _subs.push(res.data.subcategory);
+        var created = res.data.subcategory;
+        created.ordered_fields = created.ordered_fields || [];
+        _subs.push(created);
         _subs.sort(function (a, b) { return a.display_order - b.display_order; });
         _subAddModal.hide();
         renderSubs();
@@ -479,7 +787,11 @@
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
         var s = res.data.subcategory;
         var idx = _subs.findIndex(function (x) { return x.subcategory_code === code; });
-        if (idx !== -1) { _subs[idx].subcategory_name = s.subcategory_name; _subs[idx].display_order = s.display_order; }
+        if (idx !== -1) {
+          _subs[idx].subcategory_name = s.subcategory_name;
+          _subs[idx].display_order = s.display_order;
+          _subs[idx].ordered_fields = s.ordered_fields || _subs[idx].ordered_fields || [];
+        }
         _subs.sort(function (a, b) { return a.display_order - b.display_order; });
         _subEditModal.hide();
         renderSubs();
@@ -496,6 +808,7 @@
       .then(function (res) {
         if (!res.ok) { alert(res.data.error || 'Failed to delete.'); return; }
         _subs = _subs.filter(function (s) { return s.subcategory_code !== code; });
+        if (_selectedSub === code) _selectedSub = null;
         renderSubs();
       });
   };

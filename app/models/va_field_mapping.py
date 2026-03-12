@@ -146,8 +146,8 @@ class MasFieldDisplayConfig(db.Model):
     is_pii: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=False)
     pii_type: so.Mapped[str | None] = so.mapped_column(sa.String(32))
 
-    # Order within sub-category
-    display_order: so.Mapped[int] = so.mapped_column(sa.Integer, default=0)
+    # Order within sub-category. Decimal values allow quick inserts like 2.1, 2.2.
+    display_order: so.Mapped[float] = so.mapped_column(sa.Numeric(10, 2), default=0)
 
     # Status
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)

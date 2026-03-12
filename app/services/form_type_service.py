@@ -114,6 +114,7 @@ class FormTypeService:
         return {
             "form_type_code": form_type_code,
             "form_type_name": form_type.form_type_name,
+            "form_type_description": form_type.form_type_description,
             "form_count": form_count,
             "category_count": category_count,
             "field_count": field_count,

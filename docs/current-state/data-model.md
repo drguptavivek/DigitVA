@@ -426,6 +426,29 @@ Behavior:
 - the ODK connection used for this mapping is derived via `map_project_odk` and is not stored here directly
 - `form_type_id` is optional but strongly recommended; if absent, rendering falls back to the hardcoded default `WHO_2022_VA`
 
+### `va_sync_runs`
+
+Purpose:
+
+- records every ODK sync run — start time, outcome, and submission-level metrics
+
+Key fields:
+
+- `sync_run_id` — UUID primary key
+- `triggered_by` — `"scheduled"` or `"manual"`
+- `triggered_user_id` — nullable FK to `va_users.user_id` (set for manual runs)
+- `started_at` — indexed timestamp when the run began
+- `finished_at` — null while the run is in progress
+- `status` — `"running"` / `"success"` / `"error"`
+- `records_added`, `records_updated` — submission counts from the completed run
+- `error_message` — first 2000 chars of the exception on failure
+
+Current behavior:
+
+- written by the `run_odk_sync` Celery task in `app/tasks/sync_tasks.py`
+- a `"running"` row is committed before sync begins so the admin dashboard can display live status
+- stale `"running"` rows older than 2 hours are marked `"error"` on worker restart
+
 ## Key Current-State Observations
 
 - sites are modeled as project-owned

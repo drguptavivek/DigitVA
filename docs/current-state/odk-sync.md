@@ -147,6 +147,66 @@ If an ODK submission changes and sync updates the corresponding `va_submissions`
 
 This means ODK is treated as the source of truth for the submission content.
 
+## Sync Scheduling
+
+Sync is driven by Celery beat using the `celery-sqlalchemy-scheduler` DatabaseScheduler.
+
+Celery task:
+
+- [`run_odk_sync()`](../../app/tasks/sync_tasks.py) — wraps `va_data_sync_odkcentral()`, records outcome in `va_sync_runs`
+
+Default schedule:
+
+- every 6 hours (configurable via admin sync dashboard without a restart)
+- seeded on worker startup by `ensure_sync_scheduled()` in `sync_tasks.py`
+
+Manual trigger:
+
+- `POST /admin/api/sync/trigger` — dispatches `run_odk_sync.delay()` immediately
+- returns `409` if a run is already in progress
+
+Sync can also be invoked directly from the Flask shell context via `va_initiate_datasync()` or `va_data_sync_odkcentral()`.
+
+## Sync Run History
+
+Every sync run is recorded in `va_sync_runs`:
+
+| Field | Purpose |
+|-------|---------|
+| `sync_run_id` | UUID primary key |
+| `triggered_by` | `"scheduled"` or `"manual"` |
+| `triggered_user_id` | FK to `va_users` (manual runs only) |
+| `started_at` | When the run began |
+| `finished_at` | When the run ended (null while running) |
+| `status` | `"running"` / `"success"` / `"error"` |
+| `records_added` | New submissions inserted |
+| `records_updated` | Existing submissions updated |
+| `error_message` | First 2000 chars of exception if failed |
+
+Stale `running` rows (older than 2 hours) are marked `error` automatically on worker restart.
+
+## ODK Coverage Check
+
+A lightweight ODK count utility avoids downloading submission data:
+
+- [`va_odk_submissioncount()`](../../app/utils/va_odk/va_odk_04_submissioncount.py)
+- uses OData `$top=0&$count=true` against the submissions endpoint
+- returns the total submission count for a given ODK project + form
+
+Used by `GET /admin/api/sync/coverage` to compare ODK totals against local `va_submissions` counts per site mapping. This powers the coverage table in the admin sync dashboard.
+
+## Admin Sync Dashboard
+
+Available at Admin Console → Data Sync (admin-only).
+
+Sections:
+
+- **Status bar** — last run outcome, auto-refreshes every 30 s (5 s while running)
+- **Sync Now** — manual trigger with 409 guard against concurrent runs
+- **Schedule configurator** — change the beat interval (1–168 h) without restarting
+- **Coverage table** — ODK total vs local total per site mapping; loaded on demand
+- **Run history** — last 20 runs with duration, trigger source, status, and error detail
+
 ## Mapping Spreadsheets
 
 Current mapping spreadsheets under `resource/mapping`:

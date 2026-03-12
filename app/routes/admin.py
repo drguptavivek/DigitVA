@@ -3085,6 +3085,7 @@ def admin_sync_schedule():
 @require_api_role("admin")
 def admin_sync_coverage():
     try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         from app.models.va_submissions import VaSubmissions
         from app.models.va_forms import VaForms
         from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
@@ -3092,10 +3093,8 @@ def admin_sync_coverage():
         mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
         log.info("admin_sync_coverage: checking %d mappings", len(mappings))
 
-        rows = []
-        odk_total = 0
-        local_total = 0
-
+        # Resolve local counts (fast, DB-only) first
+        local_data = {}
         for mapping in mappings:
             form = db.session.scalar(
                 sa.select(VaForms).where(
@@ -3110,25 +3109,48 @@ def admin_sync_coverage():
                         VaSubmissions.va_form_id == form.form_id
                     )
                 ) or 0
+            local_data[(mapping.project_id, mapping.site_id)] = {
+                "form": form,
+                "local_count": local_count,
+            }
 
+        # Fetch ODK counts in parallel — one thread per mapping
+        def fetch_odk_count(mapping):
             try:
-                odk_count = va_odk_submissioncount(
+                count = va_odk_submissioncount(
                     mapping.odk_project_id,
                     mapping.odk_form_id,
                     app_project_id=mapping.project_id,
                 )
-                odk_error = None
                 log.info(
-                    "coverage %s/%s: odk=%d local=%d",
-                    mapping.project_id, mapping.site_id, odk_count, local_count,
+                    "coverage %s/%s: odk=%d",
+                    mapping.project_id, mapping.site_id, count,
                 )
+                return mapping, count, None
             except Exception as e:
-                odk_count = None
-                odk_error = str(e)
                 log.warning(
                     "coverage ODK count failed for %s/%s: %s",
                     mapping.project_id, mapping.site_id, e,
                 )
+                return mapping, None, str(e)
+
+        odk_results = {}
+        with ThreadPoolExecutor(max_workers=len(mappings) or 1) as ex:
+            futures = {ex.submit(fetch_odk_count, m): m for m in mappings}
+            for future in as_completed(futures):
+                mapping, odk_count, odk_error = future.result()
+                odk_results[(mapping.project_id, mapping.site_id)] = (odk_count, odk_error)
+
+        # Assemble response
+        rows = []
+        odk_total = 0
+        local_total = 0
+        for mapping in mappings:
+            key = (mapping.project_id, mapping.site_id)
+            ld = local_data[key]
+            odk_count, odk_error = odk_results.get(key, (None, "No result"))
+            local_count = ld["local_count"]
+            form = ld["form"]
 
             rows.append({
                 "project_id": mapping.project_id,
@@ -3141,11 +3163,14 @@ def admin_sync_coverage():
                 "missing": (odk_count - local_count) if odk_count is not None else None,
                 "error": odk_error,
             })
-
             if odk_count is not None:
                 odk_total += odk_count
             local_total += local_count
 
+        log.info(
+            "admin_sync_coverage complete: odk_total=%d local_total=%d",
+            odk_total, local_total,
+        )
         return jsonify({
             "mappings": rows,
             "totals": {"odk_total": odk_total, "local_total": local_total},

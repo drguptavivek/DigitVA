@@ -1563,7 +1563,7 @@ def admin_panel_field_mapping_fields():
     category_filter = request.args.get("category", "")
     subcategory_filter = request.args.get("subcategory", "")
     search = request.args.get("search", "").strip()
-    flag_filter = request.args.get("flag", "")
+    flag_filters = set(request.args.getlist("flag")) & {"flip", "info", "summary", "pii"}
 
     form_type = db.session.scalar(
         sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
@@ -1625,8 +1625,8 @@ def admin_panel_field_mapping_fields():
         "summary": MasFieldDisplayConfig.summary_include == True,
         "pii":     MasFieldDisplayConfig.is_pii == True,
     }
-    if flag_filter in _FLAG_FILTERS:
-        query = query.where(_FLAG_FILTERS[flag_filter])
+    for f in flag_filters:
+        query = query.where(_FLAG_FILTERS[f])
     if search:
         query = query.where(
             sa.or_(
@@ -1643,7 +1643,7 @@ def admin_panel_field_mapping_fields():
         category_filter=category_filter,
         subcategory_filter=subcategory_filter,
         search=search,
-        flag_filter=flag_filter,
+        flag_filters=flag_filters,
         categories=cats,
         subcategories_for_filter=subcats_for_filter,
         cat_name_map=cat_name_map,

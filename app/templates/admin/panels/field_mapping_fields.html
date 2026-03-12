@@ -7,11 +7,9 @@
       <i class="fa-solid fa-list-ul me-1 text-secondary"></i>
       Fields — <code>{{ form_type_code }}</code>
     </h6>
-    <span class="badge bg-secondary">{{ fields|length }} shown{% if flag_filter %} · {{ flag_filter }}{% endif %}</span>
+    <span class="badge bg-secondary">{{ fields|length }} shown{% if flag_filters %} · {{ flag_filters | join(', ') }}{% endif %}</span>
   </div>
 
-  {# Hidden input carries active flag filter through search/category HTMX requests #}
-  <input type="hidden" name="flag" id="fmf-flag" value="{{ flag_filter }}">
 
   {# Search + filter bar #}
   <div class="card-body border-bottom pb-2">
@@ -30,7 +28,7 @@
                  hx-trigger="keyup changed delay:300ms"
                  hx-target="#fm-subpanel"
                  hx-swap="innerHTML"
-                 hx-include="[name='category'],[name='subcategory'],[name='flag']">
+                 hx-include="[name='category'],[name='subcategory'],[name='flag']:checked">
         </div>
       </div>
       <div class="col-md-3">
@@ -42,7 +40,7 @@
                 hx-trigger="change"
                 hx-target="#fm-subpanel"
                 hx-swap="innerHTML"
-                hx-include="[name='search'],[name='flag']">
+                hx-include="[name='search'],[name='flag']:checked">
           <option value="">All Categories</option>
           {% for cat in categories %}
           <option value="{{ cat.category_code }}" {% if cat.category_code == category_filter %}selected{% endif %}>
@@ -60,7 +58,7 @@
                 hx-trigger="change"
                 hx-target="#fm-subpanel"
                 hx-swap="innerHTML"
-                hx-include="[name='search'],[name='category'],[name='flag']">
+                hx-include="[name='search'],[name='category'],[name='flag']:checked">
           <option value="">All Subcategories</option>
           {% for sub in subcategories_for_filter %}
           <option value="{{ sub.subcategory_code }}" {% if sub.subcategory_code == subcategory_filter %}selected{% endif %}>
@@ -71,7 +69,7 @@
       </div>
     </div>
 
-    {# Flag filter toggle buttons #}
+    {# Flag filter — checkbox toggle buttons, multiple can be active simultaneously #}
     <div class="row g-2 mt-1 align-items-center">
       <div class="col-auto">
         <span class="small text-muted me-1">Filter:</span>
@@ -81,17 +79,26 @@
           ("summary", "Summary", "text-success",  "fa-list-check"),
           ("pii",     "PII",     "text-warning",  "fa-shield-halved"),
         ] %}
-        {% for val, label, color, icon in flags %}
-        <button class="btn btn-sm me-1 {{ 'btn-secondary' if flag_filter == val else 'btn-outline-secondary' }}"
-                hx-get="/admin/panels/field-mapping/fields"
-                hx-vals='{"form_type": "{{ form_type_code }}", "flag": "{{ "" if flag_filter == val else val }}"}'
-                hx-target="#fm-subpanel"
-                hx-swap="innerHTML"
-                hx-include="[name='search'],[name='category'],[name='subcategory']"
-                title="Show only {{ label }} fields">
-          <i class="fa-solid {{ icon }} {{ color }} fa-xs me-1"></i>{{ label }}
-        </button>
-        {% endfor %}
+        <div class="btn-group btn-group-sm" role="group">
+          {% for val, label, color, icon in flags %}
+          <input type="checkbox"
+                 class="btn-check"
+                 name="flag"
+                 value="{{ val }}"
+                 id="fmf-flag-{{ val }}"
+                 autocomplete="off"
+                 {% if val in flag_filters %}checked{% endif %}
+                 hx-get="/admin/panels/field-mapping/fields"
+                 hx-vals='{"form_type": "{{ form_type_code }}"}'
+                 hx-trigger="change"
+                 hx-target="#fm-subpanel"
+                 hx-swap="innerHTML"
+                 hx-include="[name='search'],[name='category'],[name='subcategory'],[name='flag']">
+          <label class="btn btn-outline-secondary" for="fmf-flag-{{ val }}" title="Filter by {{ label }}">
+            <i class="fa-solid {{ icon }} {{ color }} fa-xs me-1"></i>{{ label }}
+          </label>
+          {% endfor %}
+        </div>
       </div>
     </div>
   </div>

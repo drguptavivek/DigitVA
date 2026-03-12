@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-03-12
 ---
 
 # ODK Sync And Attachments
@@ -12,13 +12,14 @@ last_updated: 2026-03-10
 
 ODK sync is a batch process that:
 
-1. loads active app forms from the database
-2. uses each form's `odk_project_id` and `odk_form_id`
-3. downloads `submissions.csv.zip` from ODK Central
-4. extracts CSV and attachments to local disk
-5. preprocesses submission rows
-6. writes or updates `va_submissions`
-7. refreshes SmartVA outputs
+1. resolves active site-level ODK mappings
+2. materializes compatibility `va_forms` rows for those mappings
+3. uses each form's `odk_project_id` and `odk_form_id`
+4. downloads `submissions.csv.zip` from ODK Central
+5. extracts CSV and attachments to local disk
+6. preprocesses submission rows
+7. writes or updates `va_submissions`
+8. refreshes SmartVA outputs
 
 ## Connection Model
 
@@ -39,9 +40,16 @@ Main service:
 
 Current behavior:
 
-- loads all active `va_forms`
-- loops over each form
+- loads active `map_project_site_odk` rows for active project-site assignments
+- upserts compatibility `va_forms` rows for those mappings
+- loops over the resulting runtime forms
 - downloads and preprocesses data for each form
+
+Important current-state detail:
+
+- `map_project_site_odk` is now the source of truth for what gets synced
+- `va_forms` still exists because submissions, media storage, permissions, and several legacy workflow paths still key off `va_form_id`
+- sync therefore materializes `va_forms` rows from the site mapping table rather than requiring admins to manage both tables separately
 
 ## How Downloads Work
 

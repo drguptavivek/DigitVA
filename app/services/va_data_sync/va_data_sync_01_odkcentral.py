@@ -3,6 +3,7 @@ import traceback
 import sqlalchemy as sa
 from app import db
 from dateutil import parser
+from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.models import (
     VaAllocations,
     VaCoderReview,
@@ -11,7 +12,6 @@ from app.models import (
     VaReviewerReview,
     VaSmartvaResults,
     VaUsernotes,
-    VaForms,
     VaSubmissions,
     VaStatuses,
     VaSubmissionsAuditlog,
@@ -32,12 +32,10 @@ def va_data_sync_odkcentral():
     try:
         print("DataSync Process [Initiated].")
 
-        print("DataSync Process [Getting VA forms from DB].")
-        va_forms = db.session.scalars(
-            sa.select(VaForms).where(VaForms.form_status == VaStatuses.active)
-        ).all()
+        print("DataSync Process [Resolving sync forms from site mappings].")
+        va_forms = sync_runtime_forms_from_site_mappings()
         if not va_forms:
-            print("DataSync Failed [Could not retrive any VA forms from DB].")
+            print("DataSync Failed [Could not retrieve any active mapped VA forms for sync].")
             return
 
         va_form_dirs = {}

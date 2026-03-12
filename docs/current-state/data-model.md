@@ -93,6 +93,13 @@ Current convention:
 - `form_id` is a synthetic internal key such as `UNSW01NC0101`
 - it effectively encodes project, site, and a sequence/version
 
+Current runtime role:
+
+- `va_forms` is still the compatibility registry used by submissions, media paths,
+  and permission queries
+- active sync scope now comes from `map_project_site_odk`, and sync materializes or
+  updates matching `va_forms` rows as needed
+
 ## Submission Table
 
 ### `va_submissions`
@@ -216,6 +223,27 @@ Other important tables:
 - `va_forms`
 - `va_sites`
 - `va_research_projects`
+
+### `map_project_site_odk`
+
+Purpose:
+
+- stores the source-of-truth mapping from a project-site pair to an ODK project and form
+- optionally links that mapping to a configured form type
+
+Key fields:
+
+- `project_id`
+- `site_id`
+- `odk_project_id`
+- `odk_form_id`
+- `form_type_id`
+
+Current behavior:
+
+- admin project form mapping writes here
+- ODK sync now enumerates this table, not `va_forms`, to decide what to sync
+- sync then materializes compatibility `va_forms` rows so the legacy workflow stack continues to function
 
 ## ODK Connection Tables
 

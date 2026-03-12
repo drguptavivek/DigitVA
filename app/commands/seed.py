@@ -22,6 +22,7 @@ def seed_group():
 def seed_run(test):
     """Seed bootstrap data. Safe to run repeatedly."""
     _seed_admin()
+    _seed_form_types()
     if test:
         _seed_test_users()
 
@@ -60,6 +61,32 @@ def _seed_admin():
     db.session.add(grant)
     db.session.commit()
     click.echo(f"  [ok]   created admin user: {email}")
+
+
+def _seed_form_types():
+    """Register built-in form types if not already present."""
+    from app.services.form_type_service import get_form_type_service
+    service = get_form_type_service()
+
+    FORM_TYPES = [
+        {
+            "code": "WHO_2022_VA",
+            "name": "WHO 2022 VA Form",
+            "description": "World Health Organization 2022 Verbal Autopsy Form",
+        },
+    ]
+
+    for ft in FORM_TYPES:
+        existing = service.get_form_type(ft["code"])
+        if existing:
+            click.echo(f"  [skip] form type already exists: {ft['code']}")
+        else:
+            service.register_form_type(
+                form_type_code=ft["code"],
+                form_type_name=ft["name"],
+                description=ft["description"],
+            )
+            click.echo(f"  [ok]   registered form type: {ft['code']}")
 
 
 def _seed_test_users():

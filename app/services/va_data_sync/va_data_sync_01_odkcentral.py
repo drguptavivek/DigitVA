@@ -410,7 +410,14 @@ def va_data_sync_odkcentral():
         print(
             f"DataSync Success [VA added: {va_submissions_added} | VA updated: {va_submissions_updated} | SmartVA updated: {va_smartva_updated} | Related records discarded: {va_discarded_relrecords}]"
         )
+        return {
+            "added": va_submissions_added,
+            "updated": va_submissions_updated,
+            "smartva_updated": va_smartva_updated,
+            "discarded": va_discarded_relrecords,
+        }
 
     except Exception as e:
         print(f"DataSync Failed [Error: {str(e)}].")
         print(traceback.format_exc())
+        raise

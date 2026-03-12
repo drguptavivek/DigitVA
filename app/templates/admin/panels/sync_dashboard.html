@@ -1,0 +1,365 @@
+{#
+  Sync Dashboard panel — admin-only.
+  Status, manual trigger, schedule configurator, coverage table, run history.
+  All data loaded asynchronously via JS fetch after panel renders.
+#}
+<div id="panel-sync">
+
+  {# Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-rotate me-2 text-secondary"></i>Data Sync
+    </h5>
+    <button class="btn btn-sm btn-primary" id="sync-trigger-btn">
+      <i class="fa-solid fa-play me-1"></i>Sync Now
+    </button>
+  </div>
+
+  {# Status bar #}
+  <div class="card mb-3" id="sync-status-card">
+    <div class="card-body py-3">
+      <div id="sync-status-wrap">
+        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading status…</span>
+      </div>
+    </div>
+  </div>
+
+  {# Schedule configurator #}
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span class="small fw-semibold text-secondary">
+          <i class="fa-solid fa-clock me-1"></i>Auto-sync every
+        </span>
+        <select class="form-select form-select-sm" id="sync-interval-sel" style="width:auto;">
+          <option value="1">1 hour</option>
+          <option value="2">2 hours</option>
+          <option value="4">4 hours</option>
+          <option value="6" selected>6 hours</option>
+          <option value="12">12 hours</option>
+          <option value="24">24 hours</option>
+          <option value="48">48 hours</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" id="sync-schedule-btn">Save</button>
+        <span id="sync-schedule-msg" class="small text-muted"></span>
+      </div>
+    </div>
+  </div>
+
+  {# Coverage table #}
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-secondary">
+          <i class="fa-solid fa-chart-bar me-1"></i>ODK vs Local Coverage
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" id="sync-coverage-refresh-btn">
+          <i class="fa-solid fa-rotate-right me-1"></i>Refresh
+        </button>
+      </div>
+      <div id="sync-coverage-wrap">
+        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching ODK counts…</span>
+      </div>
+    </div>
+  </div>
+
+  {# Run history #}
+  <div class="card">
+    <div class="card-body py-3">
+      <div class="small fw-semibold text-secondary mb-2">
+        <i class="fa-solid fa-list me-1"></i>Recent Runs
+      </div>
+      <div id="sync-history-wrap">
+        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function fmtDuration(secs) {
+    if (secs == null) return '—';
+    if (secs < 60) return secs + 's';
+    var m = Math.floor(secs / 60), s = secs % 60;
+    return m + 'm ' + s + 's';
+  }
+
+  function fmtRelTime(isoStr) {
+    if (!isoStr) return '—';
+    var diff = Math.floor((Date.now() - new Date(isoStr)) / 1000);
+    if (diff < 60) return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+  }
+
+  function statusBadge(status) {
+    var map = {
+      success: '<span class="badge text-bg-success">Success</span>',
+      error:   '<span class="badge text-bg-danger">Error</span>',
+      running: '<span class="badge text-bg-warning"><i class="fa-solid fa-spinner fa-spin me-1"></i>Running</span>',
+    };
+    return map[status] || '<span class="badge text-bg-secondary">' + esc(status) + '</span>';
+  }
+
+  // ── Status ─────────────────────────────────────────────────────────────────
+
+  var _statusInterval = null;
+
+  function loadStatus() {
+    apiJson('/admin/api/sync/status').then(function (res) {
+      var wrap = document.getElementById('sync-status-wrap');
+      if (!wrap) return;
+      if (!res.ok) {
+        wrap.innerHTML = '<span class="text-danger small">Failed to load status.</span>';
+        return;
+      }
+      var d = res.data;
+      var parts = [];
+
+      if (d.is_running && d.current_run) {
+        parts.push(
+          '<span class="me-3">' + statusBadge('running') + '</span>' +
+          '<span class="small text-muted">Started ' + fmtRelTime(d.current_run.started_at) + '</span>'
+        );
+      } else if (d.last_completed) {
+        var lc = d.last_completed;
+        parts.push(
+          '<span class="me-2">' + statusBadge(lc.status) + '</span>' +
+          '<span class="small text-muted me-3">Last sync ' + fmtRelTime(lc.started_at) + '</span>' +
+          '<span class="small text-muted">' +
+            (lc.records_added != null ? '+' + lc.records_added + ' added' : '') +
+            (lc.records_updated ? ' · ' + lc.records_updated + ' updated' : '') +
+          '</span>'
+        );
+      } else {
+        parts.push('<span class="small text-muted">No sync runs yet.</span>');
+      }
+
+      if (d.schedule_hours) {
+        parts.push('<span class="small text-muted ms-auto">Auto every ' + d.schedule_hours + 'h</span>');
+        // Sync the schedule select
+        var sel = document.getElementById('sync-interval-sel');
+        if (sel) sel.value = String(d.schedule_hours);
+      }
+
+      wrap.innerHTML = '<div class="d-flex align-items-center gap-2 flex-wrap">' + parts.join('') + '</div>';
+
+      // Poll while running; otherwise check every 30s
+      clearInterval(_statusInterval);
+      _statusInterval = setInterval(function () {
+        loadStatus();
+        if (d.is_running) loadHistory();
+      }, d.is_running ? 5000 : 30000);
+
+      // Update trigger button state
+      var btn = document.getElementById('sync-trigger-btn');
+      if (btn) {
+        btn.disabled = d.is_running;
+        btn.innerHTML = d.is_running
+          ? '<i class="fa-solid fa-spinner fa-spin me-1"></i>Running…'
+          : '<i class="fa-solid fa-play me-1"></i>Sync Now';
+      }
+    }).catch(function () {
+      var wrap = document.getElementById('sync-status-wrap');
+      if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
+    });
+  }
+
+  // ── Coverage ───────────────────────────────────────────────────────────────
+
+  function loadCoverage() {
+    var wrap = document.getElementById('sync-coverage-wrap');
+    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching ODK counts…</span>';
+
+    apiJson('/admin/api/sync/coverage').then(function (res) {
+      if (!wrap) return;
+      if (!res.ok) {
+        wrap.innerHTML = '<span class="text-danger small">Failed to load coverage: ' + esc(res.data.error || '') + '</span>';
+        return;
+      }
+      var d = res.data;
+      if (!d.mappings || !d.mappings.length) {
+        wrap.innerHTML = '<p class="text-muted small mb-0">No active site mappings found.</p>';
+        return;
+      }
+
+      var rows = d.mappings.map(function (m) {
+        var missingBadge = '';
+        if (m.error) {
+          missingBadge = '<span class="badge text-bg-secondary" title="' + esc(m.error) + '">ODK error</span>';
+        } else if (m.missing === 0) {
+          missingBadge = '<span class="badge text-bg-success">In sync</span>';
+        } else if (m.missing != null) {
+          missingBadge = '<span class="badge text-bg-warning">' + m.missing + ' missing</span>';
+        }
+        return '<tr>'
+          + '<td class="small">' + esc(m.project_id) + ' / ' + esc(m.site_id) + '</td>'
+          + '<td class="small text-center">' + (m.odk_total != null ? m.odk_total : '—') + '</td>'
+          + '<td class="small text-center">' + m.local_total + '</td>'
+          + '<td class="small text-center">' + missingBadge + '</td>'
+          + '</tr>';
+      }).join('');
+
+      var totals = d.totals;
+      wrap.innerHTML =
+        '<table class="table table-sm table-bordered mb-1">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="small">Site</th>'
+        + '<th class="small text-center">ODK</th>'
+        + '<th class="small text-center">Local</th>'
+        + '<th class="small text-center">Status</th>'
+        + '</tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '<tfoot class="table-light"><tr>'
+        + '<td class="small fw-semibold">Total</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.odk_total || 0) + '</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.local_total || 0) + '</td>'
+        + '<td></td>'
+        + '</tr></tfoot>'
+        + '</table>';
+    }).catch(function () {
+      if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error fetching coverage.</span>';
+    });
+  }
+
+  // ── History ────────────────────────────────────────────────────────────────
+
+  function loadHistory() {
+    apiJson('/admin/api/sync/history?limit=20').then(function (res) {
+      var wrap = document.getElementById('sync-history-wrap');
+      if (!wrap) return;
+      if (!res.ok) {
+        wrap.innerHTML = '<span class="text-danger small">Failed to load history.</span>';
+        return;
+      }
+      var runs = res.data.runs || [];
+      if (!runs.length) {
+        wrap.innerHTML = '<p class="text-muted small mb-0">No sync runs recorded yet.</p>';
+        return;
+      }
+      var rows = runs.map(function (r) {
+        return '<tr>'
+          + '<td class="small">' + esc(r.started_at ? r.started_at.replace('T', ' ').slice(0, 19) : '—') + '</td>'
+          + '<td class="small text-center">' + fmtDuration(r.duration_seconds) + '</td>'
+          + '<td class="small text-center">' + esc(r.triggered_by) + '</td>'
+          + '<td class="small text-center">' + statusBadge(r.status) + '</td>'
+          + '<td class="small text-center">' + (r.records_added != null ? '+' + r.records_added : '—') + '</td>'
+          + '<td class="small text-center">' + (r.records_updated != null ? r.records_updated : '—') + '</td>'
+          + '<td class="small text-danger" title="' + esc(r.error_message || '') + '">'
+          +   (r.error_message ? '<i class="fa-solid fa-circle-exclamation" title="' + esc(r.error_message.slice(0, 200)) + '"></i>' : '')
+          + '</td>'
+          + '</tr>';
+      }).join('');
+
+      wrap.innerHTML =
+        '<div class="table-responsive">'
+        + '<table class="table table-sm table-hover mb-0">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="small">Started (UTC)</th>'
+        + '<th class="small text-center">Duration</th>'
+        + '<th class="small text-center">Triggered by</th>'
+        + '<th class="small text-center">Status</th>'
+        + '<th class="small text-center">Added</th>'
+        + '<th class="small text-center">Updated</th>'
+        + '<th class="small text-center">Error</th>'
+        + '</tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '</table>'
+        + '</div>';
+    }).catch(function () {
+      var wrap = document.getElementById('sync-history-wrap');
+      if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
+    });
+  }
+
+  // ── Trigger ────────────────────────────────────────────────────────────────
+
+  document.getElementById('sync-trigger-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Starting…';
+
+    apiJson('/admin/api/sync/trigger', 'POST').then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-play me-1"></i>Sync Now';
+        showToast(res.data.error || 'Failed to start sync.', 'danger');
+        return;
+      }
+      loadStatus();
+      loadHistory();
+    }).catch(function () {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-play me-1"></i>Sync Now';
+      showToast('Network error.', 'danger');
+    });
+  });
+
+  // ── Schedule ───────────────────────────────────────────────────────────────
+
+  document.getElementById('sync-schedule-btn').addEventListener('click', function () {
+    var sel = document.getElementById('sync-interval-sel');
+    var msg = document.getElementById('sync-schedule-msg');
+    var hours = parseInt(sel.value, 10);
+    msg.textContent = 'Saving…';
+    msg.className = 'small text-muted';
+
+    apiJson('/admin/api/sync/schedule', 'POST', { interval_hours: hours }).then(function (res) {
+      if (!res.ok) {
+        msg.textContent = res.data.error || 'Failed to save.';
+        msg.className = 'small text-danger';
+        return;
+      }
+      msg.textContent = 'Saved.';
+      msg.className = 'small text-success';
+      setTimeout(function () { msg.textContent = ''; }, 3000);
+      loadStatus();
+    }).catch(function () {
+      msg.textContent = 'Network error.';
+      msg.className = 'small text-danger';
+    });
+  });
+
+  // ── Coverage refresh ───────────────────────────────────────────────────────
+
+  document.getElementById('sync-coverage-refresh-btn').addEventListener('click', loadCoverage);
+
+  // ── Toast helper ───────────────────────────────────────────────────────────
+
+  function showToast(msg, type) {
+    var el = document.createElement('div');
+    el.className = 'alert alert-' + (type || 'info') + ' small py-2 mb-2';
+    el.textContent = msg;
+    document.getElementById('panel-sync').prepend(el);
+    setTimeout(function () { el.remove(); }, 5000);
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+
+  loadStatus();
+  loadHistory();
+  loadCoverage();   // slow — ODK API call, fires independently
+
+}());
+</script>

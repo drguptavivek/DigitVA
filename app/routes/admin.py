@@ -2935,3 +2935,227 @@ def admin_odk_site_mappings_delete(project_id, site_id):
     db.session.delete(mapping)
     db.session.commit()
     return jsonify({"message": "Mapping removed."})
+
+
+# ---------------------------------------------------------------------------
+# Sync Dashboard  (admin-only)
+# ---------------------------------------------------------------------------
+
+@admin.get("/panels/sync")
+def admin_panel_sync():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+    return render_template("admin/panels/sync_dashboard.html")
+
+
+@admin.get("/api/sync/status")
+@require_api_role("admin")
+def admin_sync_status():
+    from app.models.va_sync_runs import VaSyncRun
+
+    running = db.session.scalar(
+        sa.select(VaSyncRun)
+        .where(VaSyncRun.status == "running")
+        .order_by(VaSyncRun.started_at.desc())
+        .limit(1)
+    )
+    last_completed = db.session.scalar(
+        sa.select(VaSyncRun)
+        .where(VaSyncRun.status.in_(["success", "error"]))
+        .order_by(VaSyncRun.started_at.desc())
+        .limit(1)
+    )
+
+    schedule_hours = _get_sync_schedule_hours()
+
+    return jsonify({
+        "is_running": running is not None,
+        "current_run": _sync_run_dict(running) if running else None,
+        "last_completed": _sync_run_dict(last_completed) if last_completed else None,
+        "schedule_hours": schedule_hours,
+    })
+
+
+@admin.get("/api/sync/history")
+@require_api_role("admin")
+def admin_sync_history():
+    from app.models.va_sync_runs import VaSyncRun
+
+    try:
+        limit = min(int(request.args.get("limit", 20)), 100)
+    except (TypeError, ValueError):
+        limit = 20
+
+    runs = db.session.scalars(
+        sa.select(VaSyncRun)
+        .order_by(VaSyncRun.started_at.desc())
+        .limit(limit)
+    ).all()
+
+    return jsonify({"runs": [_sync_run_dict(r) for r in runs]})
+
+
+@admin.post("/api/sync/trigger")
+@require_api_role("admin")
+def admin_sync_trigger():
+    from app.models.va_sync_runs import VaSyncRun
+    from app.tasks.sync_tasks import run_odk_sync
+
+    running = db.session.scalar(
+        sa.select(VaSyncRun)
+        .where(VaSyncRun.status == "running")
+        .limit(1)
+    )
+    if running:
+        return _json_error("A sync is already in progress.", 409)
+
+    user = _request_user()
+    task = run_odk_sync.delay(
+        triggered_by="manual",
+        user_id=str(user.user_id) if user else None,
+    )
+    return jsonify({"message": "Sync started.", "task_id": task.id}), 202
+
+
+@admin.post("/api/sync/schedule")
+@require_api_role("admin")
+def admin_sync_schedule():
+    import json as _json
+
+    data = request.get_json(silent=True) or {}
+    try:
+        hours = int(data.get("interval_hours", 0))
+    except (TypeError, ValueError):
+        return _json_error("interval_hours must be an integer.", 400)
+    if not (1 <= hours <= 168):
+        return _json_error("interval_hours must be between 1 and 168.", 400)
+
+    try:
+        with db.engine.begin() as conn:
+            interval_id = conn.execute(sa.text(
+                "SELECT id FROM public.celery_intervalschedule "
+                "WHERE every = :h AND period = 'hours' LIMIT 1"
+            ), {"h": hours}).scalar()
+            if interval_id is None:
+                interval_id = conn.execute(sa.text(
+                    "INSERT INTO public.celery_intervalschedule (every, period) "
+                    "VALUES (:h, 'hours') RETURNING id"
+                ), {"h": hours}).scalar()
+
+            conn.execute(sa.text("""
+                UPDATE public.celery_periodictask
+                SET schedule_id = :sid,
+                    discriminator = 'intervalschedule',
+                    date_changed = NOW()
+                WHERE name = :name
+            """), {"sid": interval_id, "name": "ODK Sync — every 6 hours"})
+
+            # Signal beat to reload
+            conn.execute(sa.text(
+                "INSERT INTO public.celery_periodictaskchanged (last_update) "
+                "VALUES (NOW()) ON CONFLICT DO NOTHING"
+            ))
+    except Exception as e:
+        return _json_error(f"Could not update schedule: {str(e)}", 503)
+
+    return jsonify({"interval_hours": hours})
+
+
+@admin.get("/api/sync/coverage")
+@require_api_role("admin")
+def admin_sync_coverage():
+    from app.models.va_submissions import VaSubmissions
+    from app.models.va_forms import VaForms
+    from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
+
+    mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
+
+    rows = []
+    odk_total = 0
+    local_total = 0
+
+    for mapping in mappings:
+        form = db.session.scalar(
+            sa.select(VaForms).where(
+                VaForms.project_id == mapping.project_id,
+                VaForms.site_id == mapping.site_id,
+            )
+        )
+        local_count = 0
+        if form:
+            local_count = db.session.scalar(
+                sa.select(sa.func.count()).where(
+                    VaSubmissions.va_form_id == form.form_id
+                )
+            ) or 0
+
+        try:
+            odk_count = va_odk_submissioncount(
+                mapping.odk_project_id, mapping.odk_form_id
+            )
+            odk_error = None
+        except Exception as e:
+            odk_count = None
+            odk_error = str(e)
+
+        rows.append({
+            "project_id": mapping.project_id,
+            "site_id": mapping.site_id,
+            "odk_project_id": mapping.odk_project_id,
+            "odk_form_id": mapping.odk_form_id,
+            "form_id": form.form_id if form else None,
+            "odk_total": odk_count,
+            "local_total": local_count,
+            "missing": (odk_count - local_count) if odk_count is not None else None,
+            "error": odk_error,
+        })
+
+        if odk_count is not None:
+            odk_total += odk_count
+        local_total += local_count
+
+    return jsonify({
+        "mappings": rows,
+        "totals": {"odk_total": odk_total, "local_total": local_total},
+    })
+
+
+def _sync_run_dict(run) -> dict:
+    """Serialise a VaSyncRun to a JSON-safe dict."""
+    if run is None:
+        return None
+    duration = None
+    if run.finished_at and run.started_at:
+        duration = int((run.finished_at - run.started_at).total_seconds())
+    return {
+        "sync_run_id": str(run.sync_run_id),
+        "triggered_by": run.triggered_by,
+        "started_at": run.started_at.isoformat() if run.started_at else None,
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "duration_seconds": duration,
+        "status": run.status,
+        "records_added": run.records_added,
+        "records_updated": run.records_updated,
+        "error_message": run.error_message,
+    }
+
+
+def _get_sync_schedule_hours() -> int | None:
+    """Return the configured sync interval in hours, or None if not set."""
+    try:
+        with db.engine.connect() as conn:
+            row = conn.execute(sa.text("""
+                SELECT i.every
+                FROM public.celery_periodictask t
+                JOIN public.celery_intervalschedule i ON i.id = t.schedule_id
+                WHERE t.name = 'ODK Sync — every 6 hours'
+                  AND t.discriminator = 'intervalschedule'
+                LIMIT 1
+            """)).fetchone()
+            return row[0] if row else None
+    except Exception:
+        return None

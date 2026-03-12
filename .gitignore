@@ -24,3 +24,9 @@ private/
 .beads/dolt-config.log
 .beads/metadata.json
 .beads/dolt-monitor.pid.lock
+.beads/hooks/prepare-commit-msg
+.beads/hooks/post-checkout
+.beads/hooks/prepare-commit-msg
+.beads/hooks/pre-push
+.beads/hooks/pre-commit
+.beads/hooks/post-merge

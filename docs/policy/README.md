@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-12
 ---
 
 # Policy Docs
@@ -14,6 +14,7 @@ Current policy docs:
 
 - [Access Control Model](access-control-model.md)
 - [Admin API Access Policy](admin-api-access.md)
+- [Category Navigation Visibility Policy](category-navigation-visibility.md)
 
 Use `docs/policy` when a change affects:
 

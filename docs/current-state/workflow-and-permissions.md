@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-12
 ---
 
 # Workflow And Permissions
@@ -55,6 +55,32 @@ Completion behavior:
 Recode:
 
 - the app can deactivate existing active coding artifacts and reopen a submission for fresh coding
+
+### Coding Screen Left Navigation
+
+The coder/reviewer left navigation in `va_coding.html` is currently driven by the
+stored `va_submissions.va_category_list` value, not by dynamic template inspection of
+raw submission data.
+
+Current flow:
+
+1. sync/preprocessing computes `va_category_list`
+2. `va_cta` passes that list to the coding page as `catlist`
+3. most category buttons render only if their hardcoded category code is present in `catlist`
+4. previous/next category navigation also uses the same stored list
+
+Current visibility patterns:
+
+- most categories are guarded by `"<category_code>" in catlist`
+- `vainterviewdetails` adds a second gate and only shows for `va_action == "vasitepi"`
+- `vanarrationanddocuments` is always shown in the left nav and is not guarded by `catlist`
+- `catcount` drives badge counts only; it does not control visibility
+
+Important limitation:
+
+- category visibility is determined at preprocess time and stored
+- category content is recalculated again at render time
+- this means nav visibility and actual rendered content can drift if mappings or filters change after sync
 
 ## Reviewer Workflow
 

@@ -33,6 +33,9 @@ from app.utils.va_form.va_form_01_variablevalidators import (
     validate_odk_form,
     validate_smartva_country,
 )
+from app.utils.va_form.va_form_02_formtyperesolution import (
+    va_get_form_type_code_for_form,
+)
 
 from app.utils.va_permission.va_permission_01_abortwithflash import va_permission_abortwithflash
 from app.utils.va_permission.va_permission_02_ensureallocation import va_permission_ensureallocation
@@ -86,6 +89,7 @@ __all__ = [
     "validate_site_id",
     "validate_boolean_string",
     "validate_odk_form",
+    "va_get_form_type_code_for_form",
     "smartva_allowed_countries",
     "validate_smartva_country",
     "validate_project_code",

@@ -813,7 +813,7 @@
               return;
             }
 
-            var csrfToken = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : '';
+            var csrfToken = '{{ csrf_token() }}';
             var btn = document.getElementById('nqa-save-btn');
             btn.disabled = true;
 

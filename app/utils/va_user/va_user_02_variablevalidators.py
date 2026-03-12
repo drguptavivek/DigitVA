@@ -33,6 +33,7 @@ def validate_permissions_exist(*roles):
 
 def validate_landing_page(landing_page):
     landing_pages = [
+        "admin",
         "coder",
         "reviewer",
         "sitepi",

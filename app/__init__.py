@@ -68,6 +68,9 @@ def create_app(config_class=Config):
 
     from app.commands.form_types import init_app as init_form_types_commands
     init_form_types_commands(app)
+
+    from app.commands.seed import init_app as init_seed_commands
+    init_seed_commands(app)
     
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

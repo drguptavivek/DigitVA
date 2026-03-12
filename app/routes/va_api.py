@@ -191,7 +191,7 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
 
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
-                response.headers["HX-Redirect"] = url_for('va_main.va_dashboard', va_role=current_user.landing_page)
+                response.headers["HX-Redirect"] = current_user.landing_url()
                 flash("Review submitted successfully!", "success")
                 return response
         return render_template(

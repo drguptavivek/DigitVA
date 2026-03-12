@@ -12,11 +12,7 @@ va_auth = Blueprint("va_auth", __name__)
 @va_auth.route("/valogin", methods=["GET", "POST"])
 def va_login():
     if current_user.is_authenticated:
-        return redirect(
-            url_for("va_main.va_dashboard", va_role=current_user.landing_page)
-            if current_user.landing_page
-            else url_for("va_main.va_index")
-        )
+        return redirect(current_user.landing_url())
     form = LoginForm()
     if form.validate_on_submit():
         user = db.session.scalar(
@@ -34,8 +30,7 @@ def va_login():
         
         next_page = request.args.get('next')
         if not next_page or urlparse(next_page).netloc != '':
-            next_page = url_for("va_main.va_dashboard", va_role=current_user.landing_page) \
-                if current_user.landing_page else url_for("va_main.va_index")
+            next_page = current_user.landing_url()
                 
         return redirect(next_page)
     return render_template("va_frontpages/va_login.html", form=form)

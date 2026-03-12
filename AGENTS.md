@@ -78,12 +78,15 @@
 
 ## TEST DATA
 
-Saved baseline  test data to private/test_data.sql (15,195 lines). To restore it anytime
+Saved baseline test data to private/test_data.sql (17,447 lines). To restore it anytime:
 
-  docker compose up -d minerva_db_service
-  docker exec minerva_db psql -U minerva -d minerva -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-  docker cp private/test_data.sql minerva_db:/tmp/test_data.sql
-  docker exec minerva_db psql -U minerva -d minerva -f /tmp/test_data.sql
+  ./scripts/restore-test-db.sh
+
+This script: resets the DB schema → restores test_data.sql → runs migrations → seeds testadmin.
+
+To seed only (e.g. after a fresh `docker compose up`):
+
+  docker compose exec minerva_app_service uv run flask seed run
 
   ⎿       site     | total_forms | coded | remaining
      --------------+-------------+-------+-----------

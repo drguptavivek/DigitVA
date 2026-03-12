@@ -14,7 +14,7 @@
       <li>• Please inform the central administrative team (@ AIIMS, New Delhi) about the same.</li>
     </ul>
     {% if current_user.is_authenticated %}
-      <a href="{{ url_for('va_main.va_dashboard', va_role=current_user.landing_page) }}" class="btn btn-primary mt-2">Return to Dashboard</a>
+      <a href="{{ current_user.landing_url() }}" class="btn btn-primary mt-2">Return to Dashboard</a>
     {% else %}
       <a href="{{ url_for('va_main.va_index') }}" class="btn btn-primary mt-2">Return to Home</a>
     {% endif %}

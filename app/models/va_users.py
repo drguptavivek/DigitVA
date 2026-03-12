@@ -63,6 +63,15 @@ class VaUsers(UserMixin, db.Model):
     def get_id(self) -> str:
         return str(self.user_id)
 
+    def landing_url(self) -> str:
+        """Return the correct post-login URL for this user's landing_page."""
+        from flask import url_for
+        if self.landing_page == "admin":
+            return url_for("admin.admin_index")
+        if self.landing_page:
+            return url_for("va_main.va_dashboard", va_role=self.landing_page)
+        return url_for("va_main.va_index")
+
     def set_password(self, password):
         self.password = generate_password_hash(password)
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Retry loop for DB to be ready
+# Wait for DB and run migrations
 echo "Waiting for database to be ready..."
 until uv run flask db upgrade; do
   echo "DB not ready, retrying in 5 secs..."

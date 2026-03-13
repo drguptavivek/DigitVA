@@ -53,10 +53,13 @@ def va_data_sync_odkcentral():
         va_svaoutput_dirs = {}
         for va_form in va_forms:
             print(f"DataSync Process [Initiating SmartVA analysis: {va_form.form_id}].")
-            va_svaoutput_dirs[va_form] = va_smartva_runsmartva(va_form)
+            try:
+                va_svaoutput_dirs[va_form] = va_smartva_runsmartva(va_form)
+            except Exception as e:
+                print(f"DataSync Warning [SmartVA skipped for {va_form.form_id}: {e}].")
 
         va_svaoutput_files = {}
-        for va_form in va_forms:
+        for va_form in va_svaoutput_dirs:
             print(
                 f"DataSync Process [Processing & formatting SmartVA result: {va_form.form_id}]."
             )

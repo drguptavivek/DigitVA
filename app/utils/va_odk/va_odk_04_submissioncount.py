@@ -15,8 +15,8 @@ def va_odk_submissioncount(
 ) -> int:
     """Return total submission count from ODK Central for a given project/form.
 
-    Uses the lightweight ODK Central form metadata endpoint with
-    X-Extended-Metadata: true, which returns submissionCount directly.
+    Uses the OData submissions endpoint with $count=true&$top=0, which returns
+    @odata.count without fetching any submission records.
 
     Pass app_project_id (e.g. "UNSW01") to resolve the DB-configured
     connection rather than falling back to the legacy TOML.
@@ -32,14 +32,14 @@ def va_odk_submissioncount(
 
     def _fetch():
         try:
-            url = f"v1/projects/{odk_project_id}/forms/{odk_form_id}"
-            response = client.session.get(url, headers={"X-Extended-Metadata": "true"})
+            url = f"projects/{odk_project_id}/forms/{odk_form_id}.svc/Submissions"
+            response = client.session.get(url, params={"$top": 0, "$count": "true"})
             if response.status_code != 200:
                 raise Exception(
                     f"ODK API returned HTTP {response.status_code}: {response.text[:200]}"
                 )
             data = response.json()
-            count = int(data.get("submissionCount") or 0)
+            count = int(data.get("@odata.count") or 0)
             log.info(
                 "ODK submissionCount project=%s form=%s: %d",
                 odk_project_id, odk_form_id, count,

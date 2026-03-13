@@ -3114,25 +3114,31 @@ def admin_sync_coverage():
                 "local_count": local_count,
             }
 
-        # Fetch ODK counts in parallel — one thread per mapping
+        # Fetch ODK counts in parallel — one thread per mapping.
+        # ThreadPoolExecutor threads don't inherit Flask's app context, so
+        # we capture the real app object and push a context inside each thread.
+        from flask import current_app as _current_app
+        flask_app = _current_app._get_current_object()
+
         def fetch_odk_count(mapping):
-            try:
-                count = va_odk_submissioncount(
-                    mapping.odk_project_id,
-                    mapping.odk_form_id,
-                    app_project_id=mapping.project_id,
-                )
-                log.info(
-                    "coverage %s/%s: odk=%d",
-                    mapping.project_id, mapping.site_id, count,
-                )
-                return mapping, count, None
-            except Exception as e:
-                log.warning(
-                    "coverage ODK count failed for %s/%s: %s",
-                    mapping.project_id, mapping.site_id, e,
-                )
-                return mapping, None, str(e)
+            with flask_app.app_context():
+                try:
+                    count = va_odk_submissioncount(
+                        mapping.odk_project_id,
+                        mapping.odk_form_id,
+                        app_project_id=mapping.project_id,
+                    )
+                    log.info(
+                        "coverage %s/%s: odk=%d",
+                        mapping.project_id, mapping.site_id, count,
+                    )
+                    return mapping, count, None
+                except Exception as e:
+                    log.warning(
+                        "coverage ODK count failed for %s/%s: %s",
+                        mapping.project_id, mapping.site_id, e,
+                    )
+                    return mapping, None, str(e)
 
         odk_results = {}
         with ThreadPoolExecutor(max_workers=len(mappings) or 1) as ex:

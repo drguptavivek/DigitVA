@@ -10,7 +10,10 @@ from flask_login import current_user, login_required
 from flask import Blueprint, render_template, current_app, send_from_directory, flash, redirect, url_for, jsonify, request
 from app.utils import va_get_form_type_code_for_form, va_render_processcategorydata, va_permission_abortwithflash
 from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
-from app.services.category_rendering_service import get_category_rendering_service
+from app.services.category_rendering_service import (
+    get_category_rendering_service,
+    get_visible_category_codes,
+)
 from app.services.field_mapping_service import get_mapping_service
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
@@ -114,11 +117,15 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
     _form_type_code = va_get_form_type_code_for_form(
         va_submission.va_form_id if va_submission else None
     )
+    visible_category_codes = get_visible_category_codes(
+        va_submission.va_data if va_submission else None,
+        va_submission.va_form_id if va_submission else None,
+    )
     category_service = get_category_rendering_service()
     if category_service.is_category_enabled(
         _form_type_code,
         va_action,
-        va_submission.va_category_list if va_submission else None,
+        visible_category_codes,
         va_partial,
     ):
         _mapping_svc = get_mapping_service()
@@ -136,13 +143,13 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         va_datalevel = va_get_render_datalevel(
             va_action,
             _form_type_code,
-            va_submission.va_category_list,
+            visible_category_codes,
         )
         va_processedcategorydata = va_render_processcategorydata(va_submission.va_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial)
         va_previouscategory, va_nextcategory = category_service.get_category_neighbours(
             _form_type_code,
             va_action,
-            va_submission.va_category_list,
+            visible_category_codes,
             va_partial,
         )
         reviewobject = db.session.scalar(sa.select(VaReviewerReview).where((VaReviewerReview.va_rreview_status == VaStatuses.active)&(VaReviewerReview.va_sid == va_sid)))

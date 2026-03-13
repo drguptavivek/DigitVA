@@ -18,10 +18,12 @@ from app.models import (
 from app.utils import (
     va_get_form_type_code_for_form,
     va_mapping_fieldcoder,
-    va_render_categoryneighbours,
     va_render_processcategorydata,
 )
-from app.services.category_rendering_service import get_category_rendering_service
+from app.services.category_rendering_service import (
+    get_category_rendering_service,
+    get_visible_category_codes,
+)
 from app.services.field_mapping_service import get_mapping_service
 
 
@@ -103,10 +105,14 @@ def va_get_category_context(va_sid, va_action, va_partial):
 
     mapping_svc = get_mapping_service()
 
+    visible_category_codes = get_visible_category_codes(
+        submission.va_data,
+        submission.va_form_id,
+    )
     datalevel = va_get_render_datalevel(
         va_action,
         form_type_code,
-        submission.va_category_list,
+        visible_category_codes,
     )
     va_mapping_choice = mapping_svc.get_choices(form_type_code)
     va_mapping_flip = mapping_svc.get_flip_labels(form_type_code)
@@ -119,8 +125,11 @@ def va_get_category_context(va_sid, va_action, va_partial):
         va_mapping_choice,
         va_partial,
     )
-    previous_category, next_category = va_render_categoryneighbours(
-        submission.va_category_list, va_partial
+    previous_category, next_category = category_service.get_category_neighbours(
+        form_type_code,
+        va_action,
+        visible_category_codes,
+        va_partial,
     )
     if va_partial == "vanarrationanddocuments":
         active = lambda model, status: _scalar(  # noqa: E731

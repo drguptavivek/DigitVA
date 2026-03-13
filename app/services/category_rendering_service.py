@@ -11,6 +11,9 @@ from sqlalchemy import select
 from app import db
 from app.models import MasCategoryDisplayConfig, MasFormTypes
 from app.services.field_mapping_service import get_mapping_service
+from app.utils.va_render.va_render_06_processcategorydata import (
+    va_render_processcategorydata,
+)
 
 
 @dataclass(frozen=True)
@@ -237,3 +240,34 @@ def clear_category_rendering_cache():
     if _service is not None:
         _service.clear_cache()
     get_mapping_service().clear_cache()
+
+
+def get_visible_category_codes(va_data: dict | None, va_form_id: str | None) -> list[str]:
+    """Compute visible categories live from submission data and form-type config."""
+    if not va_data or not va_form_id:
+        return []
+
+    from app.utils.va_form.va_form_02_formtyperesolution import (
+        va_get_form_type_code_for_form,
+    )
+
+    mapping_service = get_mapping_service()
+    category_service = get_category_rendering_service()
+    form_type_code = va_get_form_type_code_for_form(va_form_id)
+    datalevel = mapping_service.get_fieldsitepi(form_type_code)
+    choices = mapping_service.get_choices(form_type_code)
+
+    visible_codes: list[str] = []
+    for category in category_service.get_all_active_categories(form_type_code):
+        if category.always_include:
+            visible_codes.append(category.category_code)
+            continue
+        if va_render_processcategorydata(
+            va_data,
+            va_form_id,
+            datalevel,
+            choices,
+            category.category_code,
+        ):
+            visible_codes.append(category.category_code)
+    return visible_codes

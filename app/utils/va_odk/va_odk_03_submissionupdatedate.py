@@ -2,7 +2,7 @@ from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
 
 def va_odk_submissionupdatedate(va_form):
-    client = va_odk_clientsetup()
+    client = va_odk_clientsetup(project_id=va_form.project_id)
     try:
         submissions = client.submissions.get_table(
             project_id=va_form.odk_project_id,

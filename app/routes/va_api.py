@@ -139,6 +139,10 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         va_mapping_flip = _mapping_svc.get_flip_labels(_form_type_code)
         va_mapping_info = _mapping_svc.get_info_labels(_form_type_code)
         subcategory_labels = _mapping_svc.get_subcategory_labels(_form_type_code, va_partial)
+        subcategory_render_modes = _mapping_svc.get_subcategory_render_modes(
+            _form_type_code,
+            va_partial,
+        )
 
         va_datalevel = va_get_render_datalevel(
             va_action,
@@ -197,6 +201,7 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             category_data = va_processedcategorydata,
             category_config = category_config,
             subcategory_labels = subcategory_labels,
+            subcategory_render_modes = subcategory_render_modes,
             va_previouscategory = va_previouscategory,
             va_nextcategory = va_nextcategory,
             flip_list = va_mapping_flip,

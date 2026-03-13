@@ -41,8 +41,26 @@
   </div>
 </div>
 
+<div id="attachmentsLightbox"
+     class="position-fixed top-0 start-0 w-100 h-100 d-none align-items-center justify-content-center"
+     style="background: rgba(8, 13, 20, 0.92); z-index: 1080;">
+  <button type="button"
+          id="attachmentsLightboxClose"
+          class="btn btn-light btn-sm position-absolute top-0 end-0 m-3">
+    <i class="fas fa-times me-1"></i>Close
+  </button>
+  <div id="attachmentsLightboxViewport"
+       class="w-100 h-100 d-flex align-items-center justify-content-center overflow-hidden"
+       style="touch-action: none; cursor: grab;">
+    <img id="attachmentsLightboxImg"
+         src=""
+         alt="Expanded attachment"
+         style="max-width: 92vw; max-height: 92vh; object-fit: contain; transform-origin: center center; user-select: none; -webkit-user-drag: none;">
+  </div>
+</div>
+
 <script>
-  document.addEventListener('DOMContentLoaded', function () {
+  (function () {
     document.querySelectorAll('.carousel-selector').forEach(function (item) {
       item.addEventListener('click', function () {
         var slideIndex = item.getAttribute('data-bs-slide-to');
@@ -51,5 +69,146 @@
         carousel.to(parseInt(slideIndex));
       });
     });
-  });
+
+    var lightbox = document.getElementById('attachmentsLightbox');
+    var viewport = document.getElementById('attachmentsLightboxViewport');
+    var image = document.getElementById('attachmentsLightboxImg');
+    var closeBtn = document.getElementById('attachmentsLightboxClose');
+    if (!lightbox || !viewport || !image || !closeBtn) return;
+
+    var scale = 1;
+    var translateX = 0;
+    var translateY = 0;
+    var startX = 0;
+    var startY = 0;
+    var isDragging = false;
+    var lastTouchDistance = null;
+
+    function renderTransform() {
+      image.style.transform = 'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
+      viewport.style.cursor = scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default';
+    }
+
+    function resetTransform() {
+      scale = 1;
+      translateX = 0;
+      translateY = 0;
+      isDragging = false;
+      lastTouchDistance = null;
+      renderTransform();
+    }
+
+    function openLightbox(src, alt) {
+      image.src = src;
+      image.alt = alt || 'Expanded attachment';
+      resetTransform();
+      lightbox.classList.remove('d-none');
+      lightbox.classList.add('d-flex');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      lightbox.classList.add('d-none');
+      lightbox.classList.remove('d-flex');
+      image.src = '';
+      document.body.style.overflow = '';
+      resetTransform();
+    }
+
+    function zoomAt(factor) {
+      scale = Math.min(6, Math.max(1, scale * factor));
+      if (scale === 1) {
+        translateX = 0;
+        translateY = 0;
+      }
+      renderTransform();
+    }
+
+    function touchDistance(touches) {
+      var dx = touches[0].clientX - touches[1].clientX;
+      var dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    document.querySelectorAll('a[data-lightbox]').forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        var img = link.querySelector('img');
+        openLightbox(link.href, img ? img.alt : '');
+      });
+    });
+
+    closeBtn.addEventListener('click', closeLightbox);
+    lightbox.addEventListener('click', function (event) {
+      if (event.target === lightbox) closeLightbox();
+    });
+    document.addEventListener('keydown', function (event) {
+      if (!lightbox.classList.contains('d-flex')) return;
+      if (event.key === 'Escape') closeLightbox();
+    });
+
+    viewport.addEventListener('wheel', function (event) {
+      if (lightbox.classList.contains('d-none')) return;
+      event.preventDefault();
+      zoomAt(event.deltaY < 0 ? 1.12 : 0.9);
+    }, { passive: false });
+
+    viewport.addEventListener('mousedown', function (event) {
+      if (scale <= 1) return;
+      isDragging = true;
+      startX = event.clientX - translateX;
+      startY = event.clientY - translateY;
+      renderTransform();
+    });
+
+    window.addEventListener('mousemove', function (event) {
+      if (!isDragging) return;
+      translateX = event.clientX - startX;
+      translateY = event.clientY - startY;
+      renderTransform();
+    });
+
+    window.addEventListener('mouseup', function () {
+      if (!isDragging) return;
+      isDragging = false;
+      renderTransform();
+    });
+
+    viewport.addEventListener('touchstart', function (event) {
+      if (event.touches.length === 2) {
+        lastTouchDistance = touchDistance(event.touches);
+        return;
+      }
+      if (event.touches.length === 1 && scale > 1) {
+        isDragging = true;
+        startX = event.touches[0].clientX - translateX;
+        startY = event.touches[0].clientY - translateY;
+        renderTransform();
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', function (event) {
+      if (event.touches.length === 2) {
+        event.preventDefault();
+        var nextDistance = touchDistance(event.touches);
+        if (lastTouchDistance) {
+          zoomAt(nextDistance / lastTouchDistance);
+        }
+        lastTouchDistance = nextDistance;
+        return;
+      }
+      if (event.touches.length === 1 && isDragging) {
+        event.preventDefault();
+        translateX = event.touches[0].clientX - startX;
+        translateY = event.touches[0].clientY - startY;
+        renderTransform();
+      }
+    }, { passive: false });
+
+    viewport.addEventListener('touchend', function () {
+      isDragging = false;
+      lastTouchDistance = null;
+      renderTransform();
+    });
+  }());
 </script>

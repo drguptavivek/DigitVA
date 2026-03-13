@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-12
+last_updated: 2026-03-13
 ---
 
 # Category Rendering And Visibility
@@ -246,6 +246,9 @@ rules above.
 - Important partial behavior:
   - the partial groups many `medical_history` yes/no values into positive vs negative
     diagnosis summaries before rendering the detailed tables
+  - in the admin Categories browser, `vahealthhistorydetails / medical_history` should
+    be treated as a special subcategory because assigning a field there opts it into this
+    summary behavior, not a plain query/response section
 
 ### `vageneralsymptoms`
 

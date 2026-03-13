@@ -1,7 +1,7 @@
-{% set gallery_sections = ['medical_documents', 'death_documents'] %}
 {% set image_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'] %}
+{% set section_render_mode = (subcategory_render_modes or {}).get(section_code, 'default') %}
 
-{% if section_code in gallery_sections %}
+{% if section_render_mode == 'media_gallery' %}
   <div class="content-section-title{% if section_index > 0 %} mt-4{% endif %}">
     <i class="fas fa-images"></i>
     {{ section_title }}

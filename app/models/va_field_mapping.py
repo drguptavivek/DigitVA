@@ -150,6 +150,9 @@ class MasSubcategoryOrder(db.Model):
     subcategory_code: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
     subcategory_name: so.Mapped[str | None] = so.mapped_column(sa.String(128))
     display_order: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False)
+    render_mode: so.Mapped[str] = so.mapped_column(
+        sa.String(32), nullable=False, default="default"
+    )
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
 
     # Relationships
@@ -164,7 +167,10 @@ class MasSubcategoryOrder(db.Model):
     )
 
     def __repr__(self):
-        return f"<SubCategory: {self.category_code}/{self.subcategory_code}>"
+        return (
+            f"<SubCategory: {self.category_code}/{self.subcategory_code} "
+            f"(mode={self.render_mode})>"
+        )
 
 
 class MasFieldDisplayConfig(db.Model):

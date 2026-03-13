@@ -246,6 +246,38 @@ class TestFieldMappingServiceStructure(BaseTestCase):
         # Result should be a dict (may be empty if no matching fields in sample)
         self.assertIsInstance(result, dict)
 
+    def test_14b_render_processcategorydata_maps_numeric_choice_values(self):
+        """Numeric JSON select values still map to field choice labels."""
+        from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
+
+        datalevel = {
+            "social_autopsy": {
+                "social-autopsy": {
+                    "sa05": "5. If yes, type of first consultation",
+                }
+            }
+        }
+        choices = {
+            "sa05": {
+                "1": "Home visit by physician",
+                "2": "Individual Practitioner",
+                "3": "Small hospital",
+            }
+        }
+
+        result = va_render_processcategorydata(
+            va_data={"sa05": 3.0},
+            va_form_id="TEST001",
+            va_datalevel=datalevel,
+            va_mapping_choice=choices,
+            va_partial="social_autopsy",
+        )
+
+        self.assertEqual(
+            result["social-autopsy"]["5. If yes, type of first consultation"],
+            "Small hospital",
+        )
+
     def test_15_fieldsitepi_category_order_matches_source(self):
         """Categories in fieldsitepi are in the correct display order."""
         result = self.service.get_fieldsitepi(self.form_type_code)

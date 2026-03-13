@@ -209,6 +209,7 @@ class FormTypeService:
                 subcategory_code=sub.subcategory_code,
                 subcategory_name=sub.subcategory_name,
                 display_order=sub.display_order,
+                render_mode=sub.render_mode,
                 is_active=sub.is_active,
             ))
 
@@ -313,6 +314,7 @@ class FormTypeService:
                 "subcategory_code": s.subcategory_code,
                 "subcategory_name": s.subcategory_name,
                 "display_order": s.display_order,
+                "render_mode": s.render_mode,
                 "is_active": s.is_active,
             }
             for s in db.session.scalars(
@@ -474,6 +476,7 @@ class FormTypeService:
                 subcategory_code=sub["subcategory_code"],
                 subcategory_name=sub.get("subcategory_name"),
                 display_order=sub.get("display_order", 0),
+                render_mode=sub.get("render_mode", "default"),
                 is_active=sub.get("is_active", True),
             ))
             stats["subcategories_created"] += 1

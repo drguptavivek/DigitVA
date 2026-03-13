@@ -71,22 +71,37 @@
                value="{{ field.field_type or '—' }}" disabled>
       </div>
 
-      {# Associated Choices #}
+      {# Choice Labels #}
       <div class="col-sm-8">
         <label class="form-label small fw-semibold mb-1">
-          Associated Choices
-          <span class="badge bg-secondary ms-1 align-middle" style="font-size:0.65rem;">ODK</span>
+          Choice Labels
+          <span class="badge bg-secondary ms-1 align-middle" style="font-size:0.65rem;">ODK values</span>
+          <span class="badge bg-primary ms-1 align-middle" style="font-size:0.65rem;">App labels</span>
           <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
              data-bs-toggle="tooltip" data-bs-placement="top"
-             data-bs-title="The active choice mappings currently registered for this field in the selected form type."></i>
+             data-bs-title="DigitVA stores choices per field. The value comes from ODK, and the App Label is what coding templates render for this field."></i>
         </label>
-        <div class="form-control form-control-sm bg-light" style="min-height: 38px; height: auto;">
+        <div class="border rounded p-2 bg-light-subtle" style="min-height: 38px;">
           {% if choices %}
-          <div class="d-flex flex-wrap gap-1">
+          <div class="d-flex flex-column gap-2">
             {% for choice in choices %}
-            <span class="badge text-bg-light border font-monospace">
-              {{ choice.choice_value }}{% if choice.choice_label %} = {{ choice.choice_label }}{% endif %}
-            </span>
+            <div class="row g-2 align-items-center">
+              <div class="col-sm-4">
+                <label class="form-label small text-muted mb-1">ODK Value</label>
+                <input type="text"
+                       class="form-control form-control-sm font-monospace"
+                       value="{{ choice.choice_value }}"
+                       disabled>
+              </div>
+              <div class="col-sm-8">
+                <label class="form-label small text-muted mb-1">DigitVA App Label</label>
+                <input type="text"
+                       class="form-control form-control-sm"
+                       name="choice_label__{{ choice.choice_id }}"
+                       value="{{ choice.choice_label or '' }}"
+                       placeholder="Shown in coding templates">
+              </div>
+            </div>
             {% endfor %}
           </div>
           {% else %}

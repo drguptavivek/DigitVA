@@ -26,6 +26,7 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
             },
             flip_list=[],
             info_list=[],
+            subcategory_render_modes={},
         )
 
         self.assertIn("<audio controls", rendered)
@@ -45,8 +46,27 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
             },
             flip_list=[],
             info_list=[],
+            subcategory_render_modes={"medical_documents": "media_gallery"},
         )
 
         self.assertIn('id="medical_documentsCarousel"', rendered)
         self.assertIn('data-bs-target="#medical_documentsCarousel"', rendered)
         self.assertIn('src="/media/doc1.jpg"', rendered)
+
+    def test_non_gallery_section_with_images_renders_table_row(self):
+        rendered = self.env.get_template(
+            "va_formcategory_partials/_attachments_section.html"
+        ).render(
+            section_code="narration",
+            section_title="Narration",
+            section_index=0,
+            section_data={
+                "Narrative Image": "/media/image.jpg",
+            },
+            flip_list=[],
+            info_list=[],
+            subcategory_render_modes={"narration": "default"},
+        )
+
+        self.assertNotIn('id="narrationCarousel"', rendered)
+        self.assertIn('src="/media/image.jpg"', rendered)

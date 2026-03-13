@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from app import db
 from app.models import MasFormTypes, MasFieldDisplayConfig
+from app.models.va_field_mapping import MasChoiceMappings
 from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
 from tests.base import BaseTestCase
 
@@ -107,6 +108,53 @@ class TestAdminFieldMappingRoutes(BaseTestCase):
         )
         self.assertEqual(field.short_label, "Updated Label Test")
 
+    def test_08b_field_edit_post_updates_choice_labels(self):
+        """POST to field edit updates DigitVA choice labels for the field."""
+        self._login(self.base_admin_id)
+        csrf_headers = self._csrf_headers()
+
+        form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
+        )
+        choice = db.session.scalar(
+            db.select(MasChoiceMappings)
+            .join(
+                MasFieldDisplayConfig,
+                db.and_(
+                    MasFieldDisplayConfig.form_type_id == MasChoiceMappings.form_type_id,
+                    MasFieldDisplayConfig.field_id == MasChoiceMappings.field_id,
+                ),
+            )
+            .where(
+                MasChoiceMappings.form_type_id == form_type.form_type_id,
+                MasChoiceMappings.is_active == True,
+            )
+            .order_by(MasChoiceMappings.field_id, MasChoiceMappings.display_order)
+        )
+        self.assertIsNotNone(choice)
+
+        resp = self.client.post(
+            f"/admin/panels/field-mapping/field/WHO_2022_VA/{choice.field_id}",
+            data={
+                "short_label": "Date of birth known",
+                "full_label": "",
+                f"choice_label__{choice.choice_id}": "Affirmative",
+                "flip_color": "",
+                "is_info": "",
+                "summary_include": "",
+                "is_pii": "",
+            },
+            headers={**csrf_headers, "HX-Request": "true"},
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        refreshed = db.session.scalar(
+            db.select(MasChoiceMappings).where(
+                MasChoiceMappings.choice_id == choice.choice_id
+            )
+        )
+        self.assertEqual(refreshed.choice_label, "Affirmative")
+
     def test_09_sync_panel_loads(self):
         """ODK sync subpanel loads for admin."""
         self._login(self.base_admin_id)
@@ -147,3 +195,32 @@ class TestAdminFieldMappingRoutes(BaseTestCase):
             )
         )
         self.assertEqual(field.display_order, Decimal("2.1"))
+
+    def test_12_subcategory_update_persists_render_mode(self):
+        """Subcategory update stores render mode for special attachment sections."""
+        self._login(self.base_admin_id)
+        csrf_headers = self._csrf_headers()
+
+        resp = self.client.put(
+            "/admin/api/form-types/WHO_2022_VA/categories/vanarrationanddocuments/subcategories/medical_documents",
+            json={
+                "subcategory_name": "Medical Documents",
+                "display_order": 20,
+                "render_mode": "media_gallery",
+            },
+            headers=csrf_headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
+        )
+        from app.models.va_field_mapping import MasSubcategoryOrder
+        subcategory = db.session.scalar(
+            db.select(MasSubcategoryOrder).where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == "vanarrationanddocuments",
+                MasSubcategoryOrder.subcategory_code == "medical_documents",
+            )
+        )
+        self.assertEqual(subcategory.render_mode, "media_gallery")

@@ -3,7 +3,7 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-12
+last_updated: 2026-03-13
 ---
 
 # Field Mapping System
@@ -134,6 +134,17 @@ Unique constraint: `(form_type_id, field_id)`.
 
 One row per field-choice combination. Translates ODK coded values to human-readable labels.
 
+Important design note:
+
+- XLSForm choice lists are reusable by `list_name`, so multiple ODK fields may point to the
+  same source choice set
+- DigitVA intentionally stores and renders choice mappings per field, not as a shared
+  list-name master table
+- the effective application lookup key is `(form_type_id, field_id, choice_value)`
+- this means identical ODK choice sets may appear duplicated across fields in DigitVA by design
+- the Choices admin panel follows that application model to avoid confusion about what the
+  renderer actually uses at runtime
+
 | Column | Type | Notes |
 |--------|------|-------|
 | `choice_id` | UUID PK | |
@@ -164,7 +175,7 @@ The panel header shows a count of registered form types and two action buttons:
 Each registered form type is shown as a card with:
 - Code, name, and description
 - Stats: category count, field count, choice count
-- Action buttons: Fields · Sync ODK · Duplicate · Export
+- Action buttons: Fields · Categories · Choices · Sync ODK · Duplicate · Export
 
 #### Create a blank form type
 
@@ -207,6 +218,17 @@ Category display metadata is duplicated as well:
 **Export** button on any card → browser downloads `form_type_<code>.json`.
 
 Route: `GET /admin/api/form-types/<code>/export`
+
+### Field Editing
+
+The field edit modal is the authoritative admin UI for field-scoped choice labels.
+
+- `Field Type` is shown read-only from synced ODK metadata
+- choice rows are shown per field, not per shared XLSForm `list_name`
+- each row shows the ODK `choice_value` and an editable DigitVA `choice_label`
+- the saved `choice_label` is what coding templates render for that specific field
+- editing a choice label here does not affect other fields, even if the source XLSForm
+  reused the same choice list
 Response: JSON file attachment.
 
 Export bundle format:

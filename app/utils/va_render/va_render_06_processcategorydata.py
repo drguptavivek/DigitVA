@@ -19,6 +19,17 @@ va_isattachment = ["Id10476_audio", "imagenarr", "md_im1", "md_im2", "md_im3", "
 va_multipleselect = ["Id10173_nc", "Id10199", "Id10235", "Id10477", "Id10478", "Id10479"]
 
 
+def _choice_lookup_key_candidates(value):
+    """Return candidate choice keys for values that may arrive as numeric JSON."""
+    cleaned = va_render_cleannumericvalue(value)
+    candidates = []
+    for candidate in (value, cleaned):
+        text = str(candidate)
+        if text not in candidates:
+            candidates.append(text)
+    return candidates
+
+
 def va_render_processcategorydata(
     va_data, va_form_id, va_datalevel, va_mapping_choice, va_partial
 ):
@@ -43,7 +54,11 @@ def va_render_processcategorydata(
                 if va_fieldid in va_dealwithdatetimes:
                     value = va_render_formatdatetimeindian(value)
                 if va_fieldid in va_mapping_choice:
-                    value = va_mapping_choice[va_fieldid].get(str(value), value)
+                    choice_map = va_mapping_choice[va_fieldid]
+                    for candidate in _choice_lookup_key_candidates(value):
+                        if candidate in choice_map:
+                            value = choice_map[candidate]
+                            break
                 if va_fieldid in va_zeroskipfields and (
                     value == 1 or value == "1" or value == "1.0"
                 ):

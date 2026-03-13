@@ -1,0 +1,74 @@
+{#
+  Choice mapping browser for one form type.
+#}
+<div class="card mt-3" id="fmc-choices-panel">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h6 class="mb-0">
+      <i class="fa-solid fa-list-check me-1 text-secondary"></i>
+      Choices — <code>{{ form_type_code }}</code>
+      <i class="fa-solid fa-circle-info text-muted ms-1"
+         data-bs-toggle="tooltip"
+         data-bs-placement="right"
+         title="DigitVA stores and renders choices per field, even when the XLSForm reuses one ODK list_name across multiple fields. The app lookup key is field_id + choice_value by design."></i>
+    </h6>
+    <span class="badge bg-secondary">{{ rows|length }} choice{{ '' if rows|length == 1 else 's' }}</span>
+  </div>
+
+  <div class="card-body">
+    <div class="mb-3">
+      <input type="text" class="form-control form-control-sm" id="fmc-choice-filter"
+             placeholder="Filter by field ID, field label, choice value, or choice label">
+    </div>
+
+    {% if rows %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="fmc-choice-table">
+        <thead>
+          <tr>
+            <th style="width: 18%;">Field ID</th>
+            <th style="width: 28%;">Field Label</th>
+            <th style="width: 12%;">Field Type</th>
+            <th style="width: 8%;">Order</th>
+            <th style="width: 12%;">Value</th>
+            <th>App Label</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr data-choice-search="{{ ((row.field_id or '') ~ ' ' ~ (row.short_label or '') ~ ' ' ~ (row.field_type or '') ~ ' ' ~ (row.choice_value or '') ~ ' ' ~ (row.choice_label or ''))|lower }}">
+            <td class="font-monospace small">{{ row.field_id }}</td>
+            <td class="small">{{ row.short_label or '—' }}</td>
+            <td class="small"><code>{{ row.field_type or '—' }}</code></td>
+            <td class="small">{{ row.display_order }}</td>
+            <td class="font-monospace small">{{ row.choice_value }}</td>
+            <td class="small">{{ row.choice_label or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted small mb-0">No active choices found for this form type.</p>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+(function () {
+  document.querySelectorAll('#fmc-choices-panel [data-bs-toggle="tooltip"]').forEach(function (el) {
+    new bootstrap.Tooltip(el, { trigger: 'hover focus' });
+  });
+
+  var input = document.getElementById('fmc-choice-filter');
+  var table = document.getElementById('fmc-choice-table');
+  if (!input || !table) return;
+
+  input.addEventListener('input', function () {
+    var q = (input.value || '').trim().toLowerCase();
+    table.querySelectorAll('tbody tr').forEach(function (row) {
+      var hay = row.getAttribute('data-choice-search') || '';
+      row.style.display = (!q || hay.indexOf(q) !== -1) ? '' : 'none';
+    });
+  });
+}());
+</script>

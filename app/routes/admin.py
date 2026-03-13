@@ -144,6 +144,7 @@ def _serialize_category_browser_state(form_type, category_code):
                 "subcategory_code": sub.subcategory_code,
                 "subcategory_name": sub.subcategory_name,
                 "display_order": sub.display_order,
+                "render_mode": sub.render_mode,
                 "ordered_fields": fields_by_subcategory.get(
                     (category_code, sub.subcategory_code), []
                 ),
@@ -1427,6 +1428,7 @@ def admin_category_create(form_type_code):
     code = (data.get("category_code") or "").strip()
     name = (data.get("category_name") or "").strip() or None
     order = data.get("display_order")
+    render_mode = (data.get("render_mode") or "default").strip() or "default"
 
     if not code:
         return _json_error("category_code is required.", 400)
@@ -1590,6 +1592,7 @@ def admin_subcategory_create(form_type_code, category_code):
         subcategory_code=code,
         subcategory_name=name,
         display_order=int(order),
+        render_mode=render_mode,
     )
     db.session.add(sub)
     db.session.commit()
@@ -1598,6 +1601,7 @@ def admin_subcategory_create(form_type_code, category_code):
             "subcategory_code": sub.subcategory_code,
             "subcategory_name": sub.subcategory_name,
             "display_order": sub.display_order,
+            "render_mode": sub.render_mode,
         }
     }), 201
 
@@ -1633,6 +1637,8 @@ def admin_subcategory_update(form_type_code, category_code, subcategory_code):
             sub.display_order = int(data["display_order"])
         except (TypeError, ValueError):
             return _json_error("display_order must be an integer.", 400)
+    if "render_mode" in data:
+        sub.render_mode = (data["render_mode"] or "default").strip() or "default"
 
     db.session.commit()
     return jsonify({
@@ -1640,6 +1646,7 @@ def admin_subcategory_update(form_type_code, category_code, subcategory_code):
             "subcategory_code": sub.subcategory_code,
             "subcategory_name": sub.subcategory_name,
             "display_order": sub.display_order,
+            "render_mode": sub.render_mode,
         }
     })
 
@@ -2081,6 +2088,11 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         field.summary_include = request.form.get("summary_include") == "on"
         field.is_pii = request.form.get("is_pii") == "on"
         field.pii_type = request.form.get("pii_type") or None
+        for choice in choices:
+            label_key = f"choice_label__{choice.choice_id}"
+            raw_label = request.form.get(label_key)
+            if raw_label is not None:
+                choice.choice_label = raw_label.strip()
         db.session.commit()
 
         # Clear service cache so updated label is reflected immediately
@@ -2306,6 +2318,61 @@ def admin_panel_field_mapping_categories():
         form_type_code=form_type_code,
         form_type_name=form_type.form_type_name,
         categories_json=categories_json,
+    )
+
+
+@admin.get("/panels/field-mapping/choices")
+def admin_panel_field_mapping_choices():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    from sqlalchemy import select as sa_select
+    from app.models import MasFormTypes, MasFieldDisplayConfig
+    from app.models.va_field_mapping import MasChoiceMappings
+
+    form_type_code = request.args.get("form_type", "WHO_2022_VA")
+    form_type = db.session.scalar(
+        sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if not form_type:
+        return "Form type not found", 404
+
+    rows = db.session.execute(
+        sa_select(
+            MasChoiceMappings.field_id,
+            MasChoiceMappings.choice_value,
+            MasChoiceMappings.choice_label,
+            MasChoiceMappings.display_order,
+            MasFieldDisplayConfig.short_label,
+            MasFieldDisplayConfig.field_type,
+        )
+        .outerjoin(
+            MasFieldDisplayConfig,
+            sa.and_(
+                MasFieldDisplayConfig.form_type_id == MasChoiceMappings.form_type_id,
+                MasFieldDisplayConfig.field_id == MasChoiceMappings.field_id,
+            ),
+        )
+        .where(
+            MasChoiceMappings.form_type_id == form_type.form_type_id,
+            MasChoiceMappings.is_active == True,
+        )
+        .order_by(
+            MasChoiceMappings.field_id,
+            MasChoiceMappings.display_order,
+            MasChoiceMappings.choice_value,
+        )
+    ).all()
+
+    return render_template(
+        "admin/panels/field_mapping_choices.html",
+        form_type_code=form_type_code,
+        form_type_name=form_type.form_type_name,
+        rows=rows,
     )
 
 

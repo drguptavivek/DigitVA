@@ -3,10 +3,18 @@
 #}
 <div class="card mt-3" id="fmc-panel">
   <div class="card-header d-flex justify-content-between align-items-center">
-    <h6 class="mb-0">
-      <i class="fa-solid fa-folder-tree me-1 text-secondary"></i>
-      Categories — <code>{{ form_type_code }}</code>
-    </h6>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <h6 class="mb-0">
+        <i class="fa-solid fa-folder-tree me-1 text-secondary"></i>
+        Categories — <code>{{ form_type_code }}</code>
+      </h6>
+      <span class="badge text-bg-light border">
+        Special Categories
+        <i class="fa-solid fa-circle-info text-muted ms-1 fmc-tooltip"
+           data-bs-toggle="tooltip" data-bs-placement="bottom"
+           data-bs-title="Some categories use special render modes. Example: fields assigned to vahealthhistorydetails / medical_history feed the DISEASE / CO-MORBIDITY summary grouping instead of a plain query/response table."></i>
+      </span>
+    </div>
     <span class="badge bg-secondary" id="fmc-cat-count">{{ categories_json|length }} categor{{ 'y' if categories_json|length == 1 else 'ies' }}</span>
   </div>
 
@@ -48,6 +56,13 @@
           <button class="btn btn-sm btn-outline-success py-0 px-2 d-none" id="fmc-add-field-btn">
             <i class="fa-solid fa-plus me-1"></i>Add Field
           </button>
+        </div>
+        <div id="fmc-special-note" class="alert alert-info rounded-0 border-0 border-bottom mb-0 py-2 px-3 d-none small">
+          <i class="fa-solid fa-circle-info me-1"></i>
+          Fields assigned to <code>vahealthhistorydetails / medical_history</code> feed the
+          <strong>DISEASE / CO-MORBIDITY</strong> summary logic. <code>Yes</code> answers appear
+          in the positive-diagnosis group, <code>No</code> answers appear in the absent group,
+          and other values render in the detail table.
         </div>
         <div id="fmc-field-list" style="overflow-y:auto; max-height:400px;">
           <p class="text-muted small text-center py-5">Select a category on the left.</p>
@@ -191,6 +206,13 @@
           <input type="number" class="form-control form-control-sm"
                  id="fmc-add-modal-sub-order" placeholder="auto" min="0">
         </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Render Mode</label>
+          <select class="form-select form-select-sm" id="fmc-add-modal-sub-render-mode">
+            <option value="default">Default</option>
+            <option value="media_gallery">Images / Attachments Gallery</option>
+          </select>
+        </div>
         <div id="fmc-add-modal-sub-error" class="text-danger small mt-1 d-none"></div>
       </div>
       <div class="modal-footer py-2">
@@ -227,6 +249,13 @@
           <label class="form-label small fw-semibold mb-1">Display Order</label>
           <input type="number" class="form-control form-control-sm"
                  id="fmc-modal-sub-order" min="0">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Render Mode</label>
+          <select class="form-select form-select-sm" id="fmc-modal-sub-render-mode">
+            <option value="default">Default</option>
+            <option value="media_gallery">Images / Attachments Gallery</option>
+          </select>
         </div>
         <div id="fmc-modal-sub-error" class="text-danger small mt-1 d-none"></div>
       </div>
@@ -305,6 +334,9 @@
     };
   });
   _cats.sort(function (a, b) { return a.display_order - b.display_order; });
+  document.querySelectorAll('.fmc-tooltip').forEach(function (el) {
+    new bootstrap.Tooltip(el, { trigger: 'hover focus' });
+  });
   renderCats();
 
   function currentFields() {
@@ -318,6 +350,13 @@
 
   function currentCategory() {
     return _cats.find(function (c) { return c.category_code === _selectedCat; }) || null;
+  }
+
+  function renderModeBadge(renderMode) {
+    if (renderMode === 'media_gallery') {
+      return '<span class="badge text-bg-info ms-2">Gallery</span>';
+    }
+    return '';
   }
 
   function syncCategoryState(state, preserveSubSelection) {
@@ -424,7 +463,7 @@
         + ' ondragover="fieldDropOver(event,this)" ondragleave="fieldDropLeave(this)" ondrop="dropFieldOnSub(event,\'' + esc(s.subcategory_code) + '\')">'
         + '<span class="badge bg-secondary me-2" style="min-width:32px;">' + esc(s.display_order) + '</span>'
         + '<div class="flex-fill">'
-        + '<div class="small fw-semibold">' + esc(s.subcategory_name || s.subcategory_code) + '</div>'
+        + '<div class="small fw-semibold">' + esc(s.subcategory_name || s.subcategory_code) + renderModeBadge(s.render_mode) + '</div>'
         + '<div class="text-muted" style="font-size:0.7rem;">' + esc(s.subcategory_code) + '</div>'
         + '</div>'
         + '<div class="d-flex gap-1 ms-1">'
@@ -448,9 +487,11 @@
   function renderFields() {
     var el = document.getElementById('fmc-field-list');
     var hdr = document.getElementById('fmc-field-header');
+    var note = document.getElementById('fmc-special-note');
 
     if (!_selectedCat) {
       hdr.textContent = 'Select a category to browse fields';
+      note.classList.add('d-none');
       el.innerHTML = '<p class="text-muted small text-center py-5">Select a category on the left.</p>';
       return;
     }
@@ -464,6 +505,12 @@
     } else {
       var sub = _subs.find(function (s) { return s.subcategory_code === _selectedSub; });
       hdr.textContent = title + ' — ' + (sub ? (sub.subcategory_name || sub.subcategory_code) : _selectedSub);
+    }
+
+    if (_selectedCat === 'vahealthhistorydetails' && (_selectedSub === null || _selectedSub === 'medical_history')) {
+      note.classList.remove('d-none');
+    } else {
+      note.classList.add('d-none');
     }
 
     if (!fields.length) {
@@ -734,6 +781,7 @@
     document.getElementById('fmc-add-modal-sub-code').value  = '';
     document.getElementById('fmc-add-modal-sub-name').value  = '';
     document.getElementById('fmc-add-modal-sub-order').value = '';
+    document.getElementById('fmc-add-modal-sub-render-mode').value = 'default';
     document.getElementById('fmc-add-modal-sub-error').classList.add('d-none');
     if (!_subAddModal) _subAddModal = new bootstrap.Modal(document.getElementById('fmc-sub-add-modal'));
     _subAddModal.show();
@@ -744,11 +792,16 @@
     var code  = document.getElementById('fmc-add-modal-sub-code').value.trim();
     var name  = document.getElementById('fmc-add-modal-sub-name').value.trim();
     var order = document.getElementById('fmc-add-modal-sub-order').value.trim();
+    var renderMode = document.getElementById('fmc-add-modal-sub-render-mode').value;
     var errEl = document.getElementById('fmc-add-modal-sub-error');
     errEl.classList.add('d-none');
     if (!code) { errEl.textContent = 'Code is required.'; errEl.classList.remove('d-none'); return; }
     if (!_selectedCat) return;
-    var payload = { subcategory_code: code, subcategory_name: name || null };
+    var payload = {
+      subcategory_code: code,
+      subcategory_name: name || null,
+      render_mode: renderMode || 'default'
+    };
     if (order !== '') payload.display_order = parseInt(order, 10);
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
       + '/categories/' + encodeURIComponent(_selectedCat) + '/subcategories', 'POST', payload)
@@ -772,6 +825,7 @@
     document.getElementById('fmc-modal-sub-code').value        = code;
     document.getElementById('fmc-modal-sub-name').value        = sub.subcategory_name || '';
     document.getElementById('fmc-modal-sub-order').value       = sub.display_order;
+    document.getElementById('fmc-modal-sub-render-mode').value = sub.render_mode || 'default';
     document.getElementById('fmc-modal-sub-error').classList.add('d-none');
     if (!_subEditModal) _subEditModal = new bootstrap.Modal(document.getElementById('fmc-sub-edit-modal'));
     _subEditModal.show();
@@ -782,12 +836,17 @@
     var code  = document.getElementById('fmc-modal-sub-code-hidden').value;
     var name  = document.getElementById('fmc-modal-sub-name').value.trim();
     var order = document.getElementById('fmc-modal-sub-order').value;
+    var renderMode = document.getElementById('fmc-modal-sub-render-mode').value;
     var errEl = document.getElementById('fmc-modal-sub-error');
     errEl.classList.add('d-none');
     apiJson('/admin/api/form-types/' + encodeURIComponent(FORM_TYPE)
       + '/categories/' + encodeURIComponent(_selectedCat)
       + '/subcategories/' + encodeURIComponent(code), 'PUT',
-      { subcategory_name: name || null, display_order: parseInt(order, 10) || 0 })
+      {
+        subcategory_name: name || null,
+        display_order: parseInt(order, 10) || 0,
+        render_mode: renderMode || 'default'
+      })
       .then(function (res) {
         if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; errEl.classList.remove('d-none'); return; }
         var s = res.data.subcategory;
@@ -795,6 +854,7 @@
         if (idx !== -1) {
           _subs[idx].subcategory_name = s.subcategory_name;
           _subs[idx].display_order = s.display_order;
+          _subs[idx].render_mode = s.render_mode;
           _subs[idx].ordered_fields = s.ordered_fields || _subs[idx].ordered_fields || [];
         }
         _subs.sort(function (a, b) { return a.display_order - b.display_order; });

@@ -1,5 +1,6 @@
 {# display submission summary #}
-{% if summary %}
+{% set show_nqa_before_summary = va_action == "vacode" and narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+{% if summary and not show_nqa_before_summary %}
   <div class="content-section-title mt-2">
     <i class="fas fa-file-alt"></i>
     Symptoms on VA Interview
@@ -392,6 +393,33 @@
         });
       }
     </script>
+  {% endif %}
+
+  {% if summary and show_nqa_before_summary %}
+    <div class="content-section-title mt-4">
+      <i class="fas fa-file-alt"></i>
+      Symptoms on VA Interview
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover border">
+        <thead class="table-light">
+          <tr>
+            <th class="border-bottom">Summary</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="align-middle">
+              <div class="symptoms-container">
+                {% for item in summary %}
+                  <span class="badge bg-light text-dark border me-1 mb-1 px-2 py-1">{{ item.strip() }}</span>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   {% endif %}
 
   {% if va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" %}

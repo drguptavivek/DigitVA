@@ -68,6 +68,13 @@
             <i class="fa-solid fa-folder-tree me-1"></i>Categories
           </button>
           <button class="btn btn-sm btn-outline-secondary flex-fill"
+                  hx-get="/admin/panels/field-mapping/choices?form_type={{ stat.form_type_code }}"
+                  hx-target="#fm-subpanel"
+                  hx-swap="innerHTML"
+                  onclick="fmTrackSubview('choices', '{{ stat.form_type_code }}')">
+            <i class="fa-solid fa-list-check me-1"></i>Choices
+          </button>
+          <button class="btn btn-sm btn-outline-secondary flex-fill"
                   hx-get="/admin/panels/field-mapping/sync?form_type={{ stat.form_type_code }}"
                   hx-target="#fm-subpanel"
                   hx-swap="innerHTML"
@@ -264,6 +271,7 @@
     var urls = {
       'fields':     '/admin/panels/field-mapping/fields?form_type=',
       'categories': '/admin/panels/field-mapping/categories?form_type=',
+      'choices':    '/admin/panels/field-mapping/choices?form_type=',
       'sync':       '/admin/panels/field-mapping/sync?form_type=',
     };
     if (urls[subview]) {

@@ -7,7 +7,7 @@ from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
 
 def va_odk_downloadformdata(va_form):
-    client = va_odk_clientsetup()
+    client = va_odk_clientsetup(project_id=va_form.project_id)
     va_formdir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
     if os.path.exists(va_formdir):
         shutil.rmtree(va_formdir)

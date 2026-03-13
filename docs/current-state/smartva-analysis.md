@@ -10,6 +10,10 @@ last_updated: 2026-03-13
 
 SmartVA is an automated cause-of-death classification tool for Verbal Autopsy (VA) data. This document covers how DigitVA integrates SmartVA: input preparation, execution, output parsing, result storage, and operational considerations.
 
+The SmartVA source code is available at `vendor/smartva-analyze` (git submodule, pinned to v3.0.0) for troubleshooting and reference.
+
+---
+
 ## Overview
 
 SmartVA is run as a subprocess via a bundled x86-64 binary (`resource/smartva`). It consumes a CSV exported from ODK submissions and produces a multi-age-group cause-of-death ranking per submission. Results are stored in `va_smartva_results` and surfaced to coders in the VA coding interface.
@@ -26,8 +30,9 @@ SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions hav
 |---|---|
 | Path | `resource/smartva` |
 | Architecture | x86-64 Linux (ELF) |
+| Source | `vendor/smartva-analyze` (v3.0.0) |
 | Execution environment | `minerva_celery_worker` container (`platform: linux/amd64`) |
-| Must NOT run in | `minerva_app_service` (aarch64 on ARM hosts — will fail) |
+| Must NOT run in | `minerva_app_service` (aarch64 on ARM hosts — exit code 2) |
 
 The binary must be executable on the host filesystem (not only inside the image). Because the repo is bind-mounted into the container, run:
 
@@ -48,25 +53,109 @@ Both services must be `linux/amd64` because the host `.venv` (bind-mounted at `/
 
 ---
 
-## Data Flow
+## How SmartVA Processes Input (Source-Level)
+
+Understanding SmartVA's internals is essential for diagnosing prep failures. The pipeline inside SmartVA is:
+
+```
+smartva_input.csv
+      │
+      ▼
+workerthread.py         # reads CSV, strips ODK path prefixes from headers,
+                        # detects form type (WHO vs PHMRC)
+      │
+      ├─ WHO detected ──▶  who_prep.py    # maps Id10xxx columns → gen_5_* columns,
+      │                                   # calculates gen_5_4a/b/c/d from age fields
+      │
+      └─ PHMRC fallback ─▶ (no age calc) ─▶ common_prep.py fails with gen_5_4* error
+      │
+      ▼
+common_prep.py          # validates gen_5_4* exist, separates rows into
+                        # adult / child / neonate matrices
+      │
+      ▼
+{adult|child|neonate}_prep.py   # cause-of-death tariff scoring per age group
+      │
+      ▼
+smartva_output/         # per-age-group result CSVs
+```
+
+### WHO Form Detection (the critical threshold)
+
+`workerthread.py` determines form type by scanning headers after stripping ODK path prefixes:
+
+- If **≥ 80% of headers match `Id\d+`** → treated as WHO questionnaire → `who_prep.py` runs → `gen_5_4*` computed
+- If **< 80% match** → treated as PHMRC → no age conversion → `gen_5_4*` never created → `common_prep.py` fails
+
+**This is why the ICMR `sa*` columns caused failures.** Those 32 extra columns diluted the `Id####` ratio below 80%, so SmartVA never recognised the form as WHO and never ran `who_prep.py`. Dropping them in `va_smartva_prepdata` was not cosmetic — it restored the detection threshold.
+
+Any form integration that adds non-`Id####` columns risks this same failure if they push the ratio below 80%.
+
+### Age Field Computation in `who_prep.py`
+
+`who_prep.py::calculate_age()` tries each age source in priority order, stopping at the first non-empty value:
+
+| Priority | Source columns | Output |
+|---|---|---|
+| 1 | `ageInYears`, `age_adult`, `age_child_years` | `gen_5_4a` (years), `agedays = years × 365` |
+| 2 | `ageInMonths`, `age_child_months` | `gen_5_4b` (months), `agedays = months × 30` |
+| 3 | `ageInDays`, `ageInDaysNeonate`, `age_neonate_days`, `age_child_days` | `gen_5_4c` (days) |
+| 4 | `isAdult`, `isChild`, `isNeonate` (+ variants `1`, `2`) | `gen_5_4d` only (age group, no value) |
+| 5 | nothing | `gen_5_4d = 9` (unknown) — `common_prep.py` will error |
+
+Priority 4 is a degraded path: SmartVA knows the age module (adult/child/neonate) but not the actual age value. Causes are still scored but age-weighted precision is lost.
+
+### Age Group Classification (in `common_prep.py`)
+
+Once `gen_5_4*` is computed, rows are routed to age-group processors:
+
+| Age group | Threshold |
+|---|---|
+| Neonate | ≤ 28 days |
+| Child | 29 days – < 12 years |
+| Adult | ≥ 12 years |
+
+### The `gen_5_4*` Error Explained
+
+`common_prep.py` line 98-99:
+
+```python
+missing_vars = [var for var in list(AGE_VARS.values()) if var not in headers]
+status_logger.info('Cannot process data without: {}'.format(', '.join(missing_vars)))
+```
+
+This fires when `who_prep.py` was never run (PHMRC fallback) or ran but found no valid age fields at all. The error is always a symptom of one of:
+
+1. WHO column ratio < 80% (extra non-`Id####` columns) — **fix: drop them in prepdata**
+2. All age fields are blank/missing in the data — **fix: derive from `finalAgeInYears`**
+3. Form is genuinely not WHO VA 2022 — **fix: do not run SmartVA on it**
+
+---
+
+## Data Flow (DigitVA)
 
 ```
 ODK CSV (on disk)
     │
     ▼
-va_smartva_prepdata()         # filter columns, fix age, write smartva_input.csv
+va_smartva_prepdata()
+  - drop non-standard columns (sa*, survey_block, telephonic_consent)
+  - replace "nan" strings with "" in age columns
+  - derive ageInDays = round(finalAgeInYears × 365) when ageInDays is blank
+  - append sid = {KEY}-{form_id.lower()}
+  - write → smartva_input/smartva_input.csv
     │
     ▼
 va_smartva_runsmartva()       # subprocess: ./resource/smartva smartva_input.csv
     │
     ▼
-smartva_output/               # per-age-group result CSVs
+smartva_output/               # adult-predictions.csv, child-predictions.csv, neonate-predictions.csv
     │
     ▼
-va_smartva_formatsmartvaresult()   # parse output, join cause columns
+va_smartva_formatsmartvaresult()   # merge age-group CSVs, normalise columns
     │
     ▼
-va_smartva_appendsmartvaresults()  # load into DataFrame, resolve existing DB results
+va_smartva_appendsmartvaresults()  # resolve existing DB results
     │
     ▼
 va_smartva_results (DB table)
@@ -82,29 +171,25 @@ va_smartva_results (DB table)
 
 ### Column filtering
 
-SmartVA requires **exactly** the standard WHO VA 2022 column set. Extra columns cause the header mapper to fail with:
+Columns are dropped **before** writing SmartVA input to maintain the ≥80% `Id####` detection threshold:
 
-```
-Cannot process data without: gen_5_4*
-```
-
-Columns dropped before writing SmartVA input:
-
-| Prefix | Reason |
+| Prefix/name | Reason |
 |---|---|
 | `sa01`–`sa19` | Social-autopsy modules (ICMR training forms) |
-| `sa_` | Social-autopsy fields |
+| `sa_` | Social-autopsy generic fields |
 | `sa_note`, `sa_tu` | Social-autopsy variants |
 | `survey_block` | Telephonic interview metadata |
 | `telephonic_consent` | Telephonic interview metadata |
 
 The filtered CSV is written to `{APP_DATA}/{form_id}/smartva_input/smartva_input.csv`.
 
+> Any future form integration that adds non-`Id####` columns should have those columns added to `_SMARTVA_DROP_PREFIXES` in `va_smartva_02_prepdata.py`.
+
 ### Age derivation
 
-SmartVA derives `gen_5_4*` age-group flags from `ageInDays`. Some form versions (e.g. ICMR training forms where birth/death dates are unknown) record `finalAgeInYears` but leave `ageInDays` blank.
+Some form versions (e.g. ICMR training forms where birth/death dates are unknown) record `finalAgeInYears` but leave `ageInDays` blank. `who_prep.py` tries `ageInDays` at priority 3 — if it is blank, it falls through to age-group flags only (priority 4, degraded).
 
-When `ageInDays` is empty and `finalAgeInYears` is present:
+To keep full age precision, prepdata derives `ageInDays` when missing:
 
 ```python
 ageInDays = round(float(finalAgeInYears) * 365)
@@ -112,7 +197,7 @@ ageInDays = round(float(finalAgeInYears) * 365)
 
 ### `nan` cleanup
 
-Age columns (`ageInDays`, `ageInYears`, `ageInMonths`, etc.) may contain the string `"nan"` from pandas serialisation. These are replaced with `""` before writing.
+Age columns (`ageInDays`, `ageInYears`, `ageInMonths`, etc.) may contain the string `"nan"` from pandas serialisation. These are replaced with `""` before writing so SmartVA does not misparse them as numeric values.
 
 ### `sid` column
 
@@ -122,7 +207,7 @@ A `sid` column is appended to each row:
 {KEY}-{form_id.lower()}
 ```
 
-e.g. `uuid:abc123-icmr01nc0201`. This links SmartVA output rows back to submissions.
+e.g. `uuid:abc123-icmr01nc0201`. This links SmartVA output rows back to submissions in `va_smartva_results`.
 
 ---
 
@@ -143,10 +228,10 @@ Output is written to `{APP_DATA}/{form_id}/smartva_output/`.
 | Code | Meaning |
 |---|---|
 | 0 | Success |
-| 1 | SmartVA internal error (check stderr — often column/data issue) |
-| 2 | Binary architecture mismatch (running x86-64 ELF in aarch64 container) |
+| 1 | SmartVA internal error — check stderr; usually a column/data validation issue |
+| 2 | Binary architecture mismatch — running x86-64 ELF in an aarch64 container |
 
-If exit code ≠ 0, the function raises an exception that Phase 2 catches per-form, logs a warning, rolls back, and continues to the next form.
+If exit code ≠ 0, the exception is caught per-form in Phase 2: the DB session is rolled back, a warning is logged, and processing continues to the next form.
 
 ---
 
@@ -163,22 +248,60 @@ SmartVA produces age-group-specific result CSVs under `smartva_output/`. The for
 | `likelihood1` / `likelihood2` / `likelihood3` | Likelihoods |
 | `key_symptom1` / `key_symptom2` / `key_symptom3` | Key symptoms |
 | `all_symptoms` | Full symptom list |
-| `result_for` | Age group (adult/child/neonate) |
+| `result_for` | Age group (adult / child / neonate) |
 | `cause1_icd` / `cause2_icd` / `cause3_icd` | ICD-10 codes |
 
 ---
 
 ## Result Storage (`va_data_sync_01_odkcentral.py`)
 
-Results are persisted in `va_smartva_results`. The save logic:
+Results are persisted in `va_smartva_results`. The save logic per row:
 
-- **If submission was amended this sync run** (added or updated in Phase 1): deactivate any existing active result and write a new one.
-- **If submission has no existing active result** (gap fill): write a new result regardless of whether it was amended.
-- **If submission has an existing active result and was not amended**: skip (result is current).
+| Condition | Action |
+|---|---|
+| Submission was amended this sync run (Phase 1 added/updated it) | Deactivate old result, write new one |
+| Submission has no existing active result (gap fill) | Write new result regardless of Phase 1 |
+| Submission has an existing active result and was not amended | Skip — result is current |
 
 This means every sync run — including SmartVA-only runs — fills in missing results without overwriting results for unchanged submissions.
 
 Each saved result creates a `va_submissions_auditlog` entry. Each form's results are committed independently so a failure on one form does not roll back others.
+
+---
+
+## Mandatory Fields for SmartVA
+
+When integrating a new ODK server or form, the following fields must be present in the ODK form schema. Missing fields at the wrong tier cause silent degradation or hard failures.
+
+### Tier 1 — System mandatory (DigitVA won't function without these)
+
+| Field | Source | Why mandatory |
+|---|---|---|
+| `KEY` | ODK submission metadata | Generates `sid` — primary key for every submission |
+| `SubmissionDate` | ODK submission metadata | Submission timestamp |
+| `SubmitterName` | ODK submission metadata | Data collector attribution |
+| `Id10013` | WHO VA 2022 form | Consent gate — non-consented submissions are not imported |
+
+### Tier 2 — SmartVA mandatory (cause-of-death analysis fails without these)
+
+| Requirement | Acceptable fields | Notes |
+|---|---|---|
+| At least one age field | `ageInDays`, `ageInYears`, `ageInMonths`, `finalAgeInYears` | `finalAgeInYears` is a fallback — prepdata derives `ageInDays` from it |
+| Sex | `Id10019` | Required for SmartVA scoring |
+| WHO column ratio | ≥ 80% of form headers must match `Id\d+` after non-standard prefixes are dropped | Determines whether SmartVA runs `who_prep.py` or falls back to PHMRC |
+
+### Tier 3 — Quality fields (warn if absent, do not block)
+
+| Field | Impact if missing |
+|---|---|
+| `finalAgeInYears` | No fallback when `ageInDays` is blank — age degrades to group-only |
+| `isAdult` / `isChild` / `isNeonate` | No age-group fallback if all numeric age fields are blank |
+| `narr_language` / `language` | Narration language not tracked |
+| `instanceName` | Display name unavailable |
+| `unique_id` | Masked ID generation fails |
+| `start` | Timestamp-based masked ID generation fails |
+
+> A **Form Readiness Validator** that checks these tiers at ODK form mapping time — before any sync runs — is the correct long-term solution. See `docs/planning/` for the design proposal.
 
 ---
 
@@ -194,7 +317,7 @@ SmartVA-only: skips ODK download, runs Phase 2 only. Saves results for any submi
 
 - Data is already on disk and SmartVA failed mid-run
 - New submissions were imported but SmartVA was skipped
-- Manual re-run needed after fixing a SmartVA issue
+- Manual re-run needed after fixing a SmartVA prep issue
 
 Both tasks record to `va_sync_runs` with `triggered_by` set to `"manual"`, `"scheduled"`, or `"smartva-only"`.
 
@@ -241,25 +364,33 @@ If `resource/smartva` loses its executable bit (e.g. after a fresh checkout):
 chmod +x resource/smartva
 ```
 
+### Diagnosing a new form failure
+
+If SmartVA fails on a new form with `Cannot process data without: gen_5_4*`:
+
+1. Inspect the generated input file:
+   ```bash
+   head -1 /app/data/{form_id}/smartva_input/smartva_input.csv | tr ',' '\n' | grep -v 'Id[0-9]' | wc -l
+   ```
+   Count non-`Id####` headers. If this is high relative to total columns, the WHO detection threshold is being missed.
+
+2. Check age fields are present:
+   ```bash
+   head -1 /app/data/{form_id}/smartva_input/smartva_input.csv | tr ',' '\n' | grep -E 'ageIn|finalAge|isAdult|isChild|isNeonate'
+   ```
+   At least one must appear and have non-empty values in data rows.
+
+3. Add any new non-standard column prefixes to `_SMARTVA_DROP_PREFIXES` in `va_smartva_02_prepdata.py`.
+
 ### ICMR training form specifics
 
 The ICMR01NC0201 form uses a training variant with:
-- 32 extra `sa*` social-autopsy columns (dropped by `va_smartva_prepdata`)
-- Missing `ageInDays` for some records (derived from `finalAgeInYears * 365`)
-
-Without these fixes, SmartVA fails with `Cannot process data without: gen_5_4*`.
+- 32 extra `sa*` social-autopsy columns — diluted WHO ratio below 80%; dropped in prepdata
+- `ageInDays` blank for ~50% of records — derived from `finalAgeInYears × 365` in prepdata
 
 ### Re-running SmartVA without re-downloading
 
-Use the **Gen SmartVA** button or trigger:
-
-```bash
-docker compose exec minerva_celery_worker uv run celery -A make_celery:celery_app call \
-    app.tasks.sync_tasks.run_smartva_pending \
-    --kwargs='{"triggered_by":"manual"}'
-```
-
-Or run directly in the worker container:
+Use the **Gen SmartVA** button, or from the worker container:
 
 ```python
 from app import create_app
@@ -268,3 +399,15 @@ app = create_app()
 with app.app_context():
     va_smartva_run_pending()
 ```
+
+### SmartVA source reference
+
+The full SmartVA-Analyze v3.0.0 source is at `vendor/smartva-analyze`. Key files for troubleshooting:
+
+| File | What to look at |
+|---|---|
+| `src/smartva/workerthread.py` | Form type detection logic (the 80% threshold) |
+| `src/smartva/who_prep.py` | Age field calculation (`calculate_age()`) |
+| `src/smartva/common_prep.py` | `gen_5_4*` validation, adult/child/neonate routing |
+| `src/smartva/data/common_data.py` | `AGE_VARS` definition, default column list |
+| `src/smartva/data/who_data.py` | Full `Id10xxx` → `gen_5_*` column mapping table |

@@ -16,6 +16,7 @@ from app.models import (
     VaInitialAssessments,
     VaCoderReview,
     VaFinalAssessments,
+    VaForms,
 )
 from flask import (
     Blueprint,
@@ -246,6 +247,14 @@ def va_dashboard(va_role):
         lst_va = user_recent_final + user_recent_review
         counts_va = Counter(lst_va)
         result_va = [item for item in lst_va if counts_va[item] > 1]
+        demo_projects = []
+        if current_user.is_admin() and va_form_access:
+            demo_projects = db.session.execute(
+                sa.select(VaForms.project_id)
+                .where(VaForms.form_id.in_(va_form_access))
+                .distinct()
+                .order_by(VaForms.project_id)
+            ).scalars().all()
         return render_template(
             "va_frontpages/va_code.html",
             va_total_forms=va_total_forms,
@@ -254,6 +263,7 @@ def va_dashboard(va_role):
             va_has_allocation=va_has_allocation,
             va_recodeable=list(set(recent_final + recent_review) - set(result_va)),
             is_admin=current_user.is_admin(),
+            demo_projects=demo_projects,
         )
     elif va_role == "reviewer":
         va_form_access = current_user.get_reviewer_va_forms()

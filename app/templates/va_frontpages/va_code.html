@@ -101,9 +101,19 @@
     </a>
     {% endif %}
     {% if is_admin %}
-    <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vademo_start_coding', va_sid='vademo_start_coding') }}" class="btn btn-outline-secondary ms-2">
-      <i class="fas fa-flask me-2"></i>Start Demo Coding (Random Form)
-    </a>
+    <form method="get"
+          action="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vademo_start_coding', va_sid='vademo_start_coding') }}"
+          class="d-inline-flex align-items-center ms-2 gap-2">
+      <select name="project_id" class="form-select form-select-sm" style="min-width: 180px;">
+        <option value="">All coder projects</option>
+        {% for project_id in demo_projects %}
+        <option value="{{ project_id }}">{{ project_id }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn btn-outline-secondary">
+        <i class="fas fa-flask me-2"></i>Start Demo Coding
+      </button>
+    </form>
     {% endif %}
   </div>
 

@@ -1,5 +1,5 @@
 import uuid
-from flask import Blueprint, render_template, make_response, render_template_string, redirect, url_for
+from flask import Blueprint, render_template, make_response, render_template_string, redirect, request, url_for
 from flask_login import login_required, current_user
 # from app.models import VaSubmissions, VaReviewerReview
 # from app.decorators.va_validate_permissions import va_confirm_role
@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from app import db
 from datetime import datetime
 from app.decorators import va_validate_permissions
-from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissions, VaReviewerReview, VaInitialAssessments, VaFinalAssessments, VaCoderReview, VaSubmissionsAuditlog
+from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissions, VaReviewerReview, VaInitialAssessments, VaFinalAssessments, VaCoderReview, VaSubmissionsAuditlog, VaForms
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
@@ -32,6 +32,20 @@ def _get_category_render_context(va_form, va_action: str) -> tuple[list, str | N
         visible_codes,
     )
     return category_nav, default_category_code, visible_codes
+
+
+def _available_coding_submission_filters(form_ids, project_id=None):
+    filters = [
+        VaSubmissions.va_form_id.in_(form_ids),
+        VaSubmissions.va_narration_language.in_(current_user.vacode_language),
+    ]
+    if project_id:
+        filters.append(
+            VaSubmissions.va_form_id.in_(
+                sa.select(VaForms.form_id).where(VaForms.project_id == project_id)
+            )
+        )
+    return filters
 
 @va_cta.route("/<va_action>/<va_actiontype>/<va_sid>")
 @login_required
@@ -145,9 +159,8 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
                 sa.select(VaSubmissions.va_sid)
                 .where(
                     sa.sql.and_(
-                        VaSubmissions.va_form_id.in_(current_user.get_coder_va_forms()),
-                        VaSubmissions.va_narration_language.in_(
-                            current_user.vacode_language
+                        *_available_coding_submission_filters(
+                            current_user.get_coder_va_forms()
                         ),
                         VaSubmissions.va_sid.notin_(va_inicoded_forms),
                         VaSubmissions.va_sid.notin_(va_fincoded_forms),
@@ -162,9 +175,8 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
                     sa.select(VaSubmissions.va_sid)
                     .where(
                         sa.sql.and_(
-                            VaSubmissions.va_form_id.in_(current_user.get_coder_va_forms()),
-                            VaSubmissions.va_narration_language.in_(
-                                current_user.vacode_language
+                            *_available_coding_submission_filters(
+                                current_user.get_coder_va_forms()
                             ),
                             VaSubmissions.va_sid.notin_(va_inicoded_forms),
                             VaSubmissions.va_sid.notin_(va_fincoded_forms),
@@ -203,6 +215,27 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
                     403,
                 )
         if va_actiontype == "vademo_start_coding":
+            coder_form_ids = current_user.get_coder_va_forms()
+            if not coder_form_ids:
+                va_permission_abortwithflash(
+                    "You do not have coder access to any VA forms for demo coding.",
+                    403,
+                )
+
+            requested_project_id = (request.args.get("project_id") or "").strip().upper()
+            if requested_project_id:
+                allowed_project_ids = set(
+                    db.session.scalars(
+                        sa.select(VaForms.project_id).where(
+                            VaForms.form_id.in_(coder_form_ids)
+                        )
+                    ).all()
+                )
+                if requested_project_id not in allowed_project_ids:
+                    va_permission_abortwithflash(
+                        "You do not have coder access to the selected project.",
+                        403,
+                    )
             existing_alloc = db.session.scalar(
                 sa.select(VaAllocations).where(
                     (VaAllocations.va_allocated_to == current_user.user_id) &
@@ -247,6 +280,10 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
                 sa.select(VaSubmissions.va_sid)
                 .where(
                     sa.sql.and_(
+                        *_available_coding_submission_filters(
+                            coder_form_ids,
+                            requested_project_id or None,
+                        ),
                         VaSubmissions.va_sid.notin_(va_inicoded_forms),
                         VaSubmissions.va_sid.notin_(va_fincoded_forms),
                         VaSubmissions.va_sid.notin_(va_error_forms),

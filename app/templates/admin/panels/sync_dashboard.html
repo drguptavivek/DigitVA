@@ -73,7 +73,7 @@
     <div class="card-body py-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <span class="small fw-semibold text-secondary">
-          <i class="fa-solid fa-brain me-1"></i>SmartVA Results (Local)
+          <i class="fa-solid fa-brain me-1"></i>SmartVA Coverage by Project / Site
         </span>
         <button class="btn btn-sm btn-outline-secondary" id="sync-smartva-refresh-btn">
           <i class="fa-solid fa-rotate-right me-1"></i>Refresh
@@ -81,6 +81,22 @@
       </div>
       <div id="sync-smartva-wrap">
         <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>
+      </div>
+    </div>
+  </div>
+
+  {# Live progress log #}
+  <div class="card mb-3" id="sync-progress-card" style="display:none;">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-secondary">
+          <i class="fa-solid fa-terminal me-1"></i>Progress Log
+        </span>
+        <span id="sync-progress-run-label" class="small text-muted"></span>
+      </div>
+      <div id="sync-progress-wrap"
+           style="max-height:220px;overflow-y:auto;background:#f8f9fa;border-radius:4px;padding:8px;font-family:monospace;">
+        <span class="text-muted small">Waiting for entries…</span>
       </div>
     </div>
   </div>
@@ -196,8 +212,11 @@
         if (d.is_running) loadHistory();
       }, d.is_running ? 5000 : 30000);
 
-      // Reload SmartVA stats when a run just completed
-      if (!d.is_running && _wasRunning) {
+      // Progress polling and SmartVA stats refresh on run state changes
+      if (d.is_running && !_wasRunning) {
+        startProgressPolling();
+      } else if (!d.is_running && _wasRunning) {
+        stopProgressPolling();
         loadSmartvaStats();
       }
       _wasRunning = d.is_running;
@@ -333,6 +352,20 @@
 
   // ── SmartVA stats ──────────────────────────────────────────────────────────
 
+  function pendingBadge(n) {
+    return n === 0
+      ? '<span class="badge text-bg-success">Complete</span>'
+      : '<span class="badge text-bg-warning">' + n + ' pending</span>';
+  }
+
+  function progressBar(done, total) {
+    var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    var cls = pct === 100 ? 'bg-success' : pct > 50 ? 'bg-info' : 'bg-warning';
+    return '<div class="progress" style="height:6px;min-width:60px;" title="' + pct + '% complete">'
+      + '<div class="progress-bar ' + cls + '" style="width:' + pct + '%"></div>'
+      + '</div>';
+  }
+
   function loadSmartvaStats() {
     var wrap = document.getElementById('sync-smartva-wrap');
     if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>';
@@ -344,53 +377,114 @@
         return;
       }
       var d = res.data;
-      if (!d.forms || !d.forms.length) {
+      if (!d.projects || !d.projects.length) {
         wrap.innerHTML = '<p class="text-muted small mb-0">No forms found.</p>';
         return;
       }
-      var rows = d.forms.map(function (f) {
-        var pct = f.submissions > 0 ? Math.round((f.with_smartva / f.submissions) * 100) : 0;
-        var pendingBadge = f.pending_smartva === 0
-          ? '<span class="badge text-bg-success">All done</span>'
-          : '<span class="badge text-bg-warning">' + f.pending_smartva + ' pending</span>';
-        return '<tr>'
-          + '<td class="small">' + esc(f.form_id) + '</td>'
-          + '<td class="small text-center">' + f.submissions + '</td>'
-          + '<td class="small text-center">' + f.with_smartva + '</td>'
-          + '<td class="small text-center">' + pendingBadge + '</td>'
-          + '<td class="small text-center">'
-          +   '<div class="progress" style="height:6px;min-width:60px;">'
-          +     '<div class="progress-bar bg-success" style="width:' + pct + '%"></div>'
-          +   '</div>'
-          + '</td>'
-          + '</tr>';
-      }).join('');
-      var t = d.totals;
-      wrap.innerHTML =
-        '<table class="table table-sm table-bordered mb-1">'
+
+      var html = '<table class="table table-sm table-bordered mb-1">'
         + '<thead class="table-light"><tr>'
-        + '<th class="small">Form</th>'
+        + '<th class="small">Project / Site</th>'
         + '<th class="small text-center">Submissions</th>'
         + '<th class="small text-center">With SmartVA</th>'
-        + '<th class="small text-center">Status</th>'
-        + '<th class="small text-center">Coverage</th>'
-        + '</tr></thead>'
-        + '<tbody>' + rows + '</tbody>'
-        + '<tfoot class="table-light"><tr>'
+        + '<th class="small text-center">Pending</th>'
+        + '<th class="small text-center" style="min-width:80px;">Coverage</th>'
+        + '</tr></thead><tbody>';
+
+      d.projects.forEach(function (proj) {
+        // Project row
+        html += '<tr class="table-light">'
+          + '<td class="small fw-semibold" colspan="1">'
+          +   '<i class="fa-solid fa-folder me-1 text-secondary"></i>' + esc(proj.project_name || proj.project_id)
+          + '</td>'
+          + '<td class="small text-center fw-semibold">' + proj.submissions + '</td>'
+          + '<td class="small text-center fw-semibold">' + proj.with_smartva + '</td>'
+          + '<td class="small text-center">' + pendingBadge(proj.pending_smartva) + '</td>'
+          + '<td class="small text-center">' + progressBar(proj.with_smartva, proj.submissions) + '</td>'
+          + '</tr>';
+
+        // Site rows
+        proj.sites.forEach(function (site) {
+          html += '<tr>'
+            + '<td class="small ps-4 text-muted">'
+            +   '<i class="fa-solid fa-location-dot me-1"></i>' + esc(site.site_name || site.site_id)
+            +   ' <span class="text-secondary">(' + esc(site.form_id) + ')</span>'
+            + '</td>'
+            + '<td class="small text-center">' + site.submissions + '</td>'
+            + '<td class="small text-center">' + site.with_smartva + '</td>'
+            + '<td class="small text-center">' + pendingBadge(site.pending_smartva) + '</td>'
+            + '<td class="small text-center">' + progressBar(site.with_smartva, site.submissions) + '</td>'
+            + '</tr>';
+        });
+      });
+
+      var t = d.totals;
+      html += '</tbody><tfoot class="table-light"><tr>'
         + '<td class="small fw-semibold">Total</td>'
         + '<td class="small text-center fw-semibold">' + t.submissions + '</td>'
         + '<td class="small text-center fw-semibold">' + t.with_smartva + '</td>'
-        + '<td class="small text-center">'
-        +   (t.pending_smartva === 0
-            ? '<span class="badge text-bg-success">All done</span>'
-            : '<span class="badge text-bg-warning">' + t.pending_smartva + ' pending</span>')
-        + '</td>'
-        + '<td></td>'
-        + '</tr></tfoot>'
-        + '</table>';
+        + '<td class="small text-center">' + pendingBadge(t.pending_smartva) + '</td>'
+        + '<td class="small text-center">' + progressBar(t.with_smartva, t.submissions) + '</td>'
+        + '</tr></tfoot></table>';
+
+      wrap.innerHTML = html;
     }).catch(function () {
       if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
     });
+  }
+
+  // ── Progress log ───────────────────────────────────────────────────────────
+
+  var _lastProgressRunId = null;
+  var _progressInterval = null;
+
+  function loadProgress() {
+    apiJson('/admin/api/sync/progress').then(function (res) {
+      if (!res.ok) return;
+      var d = res.data;
+      var card = document.getElementById('sync-progress-card');
+      var wrap = document.getElementById('sync-progress-wrap');
+      var label = document.getElementById('sync-progress-run-label');
+      if (!card || !wrap) return;
+
+      var hasEntries = d.entries && d.entries.length > 0;
+      card.style.display = (d.is_running || hasEntries) ? '' : 'none';
+
+      if (!hasEntries) return;
+
+      // Only re-render if run changed or new entries arrived
+      var runChanged = d.run_id !== _lastProgressRunId;
+      _lastProgressRunId = d.run_id;
+
+      if (label) {
+        label.textContent = esc(d.triggered_by) + (d.is_running ? ' · running…' : ' · ' + esc(d.status));
+      }
+
+      var lines = d.entries.map(function (e) {
+        var t = e.ts ? e.ts.replace('T', ' ').slice(11, 19) : '';
+        var isErr = e.msg && e.msg.indexOf('FAILED') !== -1;
+        var cls = isErr ? 'text-danger' : 'text-dark';
+        return '<div class="' + cls + '" style="font-size:0.78rem;line-height:1.5;">'
+          + '<span class="text-secondary me-2">' + esc(t) + '</span>' + esc(e.msg)
+          + '</div>';
+      }).join('');
+      wrap.innerHTML = lines;
+
+      // Auto-scroll to bottom when running
+      if (d.is_running) wrap.scrollTop = wrap.scrollHeight;
+    });
+  }
+
+  function startProgressPolling() {
+    clearInterval(_progressInterval);
+    loadProgress();
+    _progressInterval = setInterval(loadProgress, 3000);
+  }
+
+  function stopProgressPolling() {
+    clearInterval(_progressInterval);
+    _progressInterval = null;
+    loadProgress(); // final update
   }
 
   // ── Trigger ────────────────────────────────────────────────────────────────
@@ -485,6 +579,7 @@
   loadStatus();
   loadHistory();
   loadSmartvaStats();
+  loadProgress();
   loadCoverage();   // slow — ODK API call, fires independently
 
 }());

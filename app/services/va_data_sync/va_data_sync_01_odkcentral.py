@@ -31,24 +31,52 @@ from app.utils import (
 log = logging.getLogger(__name__)
 
 
-def va_data_sync_odkcentral():
-    try:
-        log.info("DataSync Process [Initiated].")
-        print("DataSync Process [Initiated].")
+def _pending_smartva_sids(form_id: str) -> set[str]:
+    """Return the set of va_sids for va_form that have no active SmartVA result.
 
-        log.info("DataSync Process [Resolving sync forms from site mappings].")
-        print("DataSync Process [Resolving sync forms from site mappings].")
+    Used to filter SmartVA input to only submissions that actually need
+    processing, avoiding re-running SmartVA on already-completed cases.
+    """
+    all_sids = set(
+        db.session.scalars(
+            sa.select(VaSubmissions.va_sid).where(
+                VaSubmissions.va_form_id == form_id
+            )
+        ).all()
+    )
+    done_sids = set(
+        db.session.scalars(
+            sa.select(VaSmartvaResults.va_sid).where(
+                VaSmartvaResults.va_sid.in_(all_sids),
+                VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            )
+        ).all()
+    )
+    return all_sids - done_sids
+
+
+def va_data_sync_odkcentral(log_progress=None):
+    def _progress(msg):
+        print(msg)
+        if log_progress:
+            log_progress(msg)
+
+    try:
+        _progress("Sync started.")
+
+        _progress("Resolving active forms from site mappings…")
         va_forms = sync_runtime_forms_from_site_mappings()
         if not va_forms:
-            log.warning("DataSync Failed [Could not retrieve any active mapped VA forms for sync].")
-            print("DataSync Failed [Could not retrieve any active mapped VA forms for sync].")
+            _progress("No active mapped VA forms found — nothing to sync.")
             return
 
         # ── Phase 1: Download CSV + attachments ────────────────────────────────
 
+        form_ids = [f.form_id for f in va_forms]
+        _progress(f"Phase 1: downloading {len(va_forms)} form(s): {', '.join(form_ids)}")
         for va_form in va_forms:
             log.info("DataSync [Downloading: %s].", va_form.form_id)
-            print(f"DataSync Process [Downloading data & formatting attachments: {va_form.form_id}].")
+            _progress(f"Downloading {va_form.form_id}…")
             va_odk_downloadformdata(va_form)
 
         # ── Phase 1: Upsert submissions ────────────────────────────────────────
@@ -61,7 +89,7 @@ def va_data_sync_odkcentral():
         va_allsubmissions = []
         for va_form in va_forms:
             log.info("DataSync [Compiling submissions: %s].", va_form.form_id)
-            print(f"DataSync Process [Compiling VA submissions '{va_form.form_id}'].")
+            _progress(f"Compiling submissions: {va_form.form_id}…")
             va_submissions = va_preprocess_prepdata(va_form)
             if va_submissions:
                 va_allsubmissions.extend(va_submissions)
@@ -305,17 +333,15 @@ def va_data_sync_odkcentral():
                     )
                 )
 
-        print("DataSync Process [Released allocated VA submissions.]")
+        _progress("Releasing allocations and committing Phase 1…")
         db.session.commit()
-        log.info(
-            "DataSync Phase 1 complete: added=%d updated=%d discarded=%d",
-            va_submissions_added, va_submissions_updated, va_discarded_relrecords,
+        phase1_msg = (
+            f"Phase 1 complete — added: {va_submissions_added}, "
+            f"updated: {va_submissions_updated}, discarded: {va_discarded_relrecords}"
         )
-        print(
-            f"DataSync Phase 1 Complete [VA added: {va_submissions_added} | "
-            f"VA updated: {va_submissions_updated} | "
-            f"Related records discarded: {va_discarded_relrecords}]"
-        )
+        log.info("DataSync Phase 1 complete: added=%d updated=%d discarded=%d",
+                 va_submissions_added, va_submissions_updated, va_discarded_relrecords)
+        _progress(phase1_msg)
 
         # ── Phase 2: SmartVA — one form at a time ──────────────────────────────
 
@@ -323,16 +349,31 @@ def va_data_sync_odkcentral():
 
         for va_form in va_forms:
             try:
-                log.info("DataSync SmartVA [%s]: preparing input.", va_form.form_id)
-                print(f"DataSync Process [Preparing SmartVA input: {va_form.form_id}].")
-                va_smartva_prepdata(va_form)
+                # Pending = submissions with no active result + any amended this run
+                pending = _pending_smartva_sids(va_form.form_id) | (
+                    amended_sids & set(
+                        db.session.scalars(
+                            sa.select(VaSubmissions.va_sid).where(
+                                VaSubmissions.va_form_id == va_form.form_id
+                            )
+                        ).all()
+                    )
+                )
+                if not pending:
+                    log.info("DataSync SmartVA [%s]: all results up to date, skipping.", va_form.form_id)
+                    _progress(f"SmartVA {va_form.form_id}: all results up to date, skipping.")
+                    continue
+
+                log.info("DataSync SmartVA [%s]: preparing input (%d pending).", va_form.form_id, len(pending))
+                _progress(f"SmartVA {va_form.form_id}: preparing input ({len(pending)} pending)…")
+                va_smartva_prepdata(va_form, pending_sids=pending)
 
                 log.info("DataSync SmartVA [%s]: running analysis.", va_form.form_id)
-                print(f"DataSync Process [Initiating SmartVA analysis: {va_form.form_id}].")
+                _progress(f"SmartVA {va_form.form_id}: running analysis…")
                 va_smartva_runsmartva(va_form)
 
                 log.info("DataSync SmartVA [%s]: formatting output.", va_form.form_id)
-                print(f"DataSync Process [Processing & formatting SmartVA result: {va_form.form_id}].")
+                _progress(f"SmartVA {va_form.form_id}: formatting results…")
                 output_file = va_smartva_formatsmartvaresult(va_form)
                 if not output_file:
                     log.warning("DataSync SmartVA [%s]: no output file produced, skipping.", va_form.form_id)
@@ -409,19 +450,13 @@ def va_data_sync_odkcentral():
 
                 db.session.commit()
                 va_smartva_updated += form_updated
-                log.info(
-                    "DataSync SmartVA [%s]: committed %d result(s).",
-                    va_form.form_id, form_updated,
-                )
-                print(f"DataSync Process [SmartVA complete for {va_form.form_id}: {form_updated} result(s) saved].")
+                log.info("DataSync SmartVA [%s]: committed %d result(s).", va_form.form_id, form_updated)
+                _progress(f"SmartVA {va_form.form_id}: {form_updated} result(s) saved.")
 
             except Exception as e:
                 db.session.rollback()
-                log.warning(
-                    "DataSync SmartVA [%s] failed, skipping: %s",
-                    va_form.form_id, e, exc_info=True,
-                )
-                print(f"DataSync Warning [SmartVA skipped for {va_form.form_id}: {e}].")
+                log.warning("DataSync SmartVA [%s] failed, skipping: %s", va_form.form_id, e, exc_info=True)
+                _progress(f"SmartVA {va_form.form_id}: FAILED — {e}")
 
         log.info(
             "DataSync complete: added=%d updated=%d smartva=%d discarded=%d",
@@ -445,37 +480,44 @@ def va_data_sync_odkcentral():
         raise
 
 
-def va_smartva_run_pending():
+def va_smartva_run_pending(log_progress=None):
     """Run SmartVA only (Phase 2) for all forms, saving results for any
     submission that does not yet have an active SmartVA result.
     Does NOT download new data from ODK.
     """
+    def _progress(msg):
+        print(msg)
+        if log_progress:
+            log_progress(msg)
+
     try:
-        log.info("SmartVA-only run: started.")
-        print("SmartVA-only run: started.")
+        _progress("SmartVA-only run started.")
 
         va_forms = sync_runtime_forms_from_site_mappings()
         if not va_forms:
-            log.warning("SmartVA-only run: no active mapped VA forms found.")
-            print("SmartVA-only run: no active mapped VA forms found.")
+            _progress("No active mapped VA forms found.")
             return {"smartva_updated": 0}
 
-        # Empty amended_sids → only fill gaps (submissions without existing results)
-        amended_sids: set = set()
         va_smartva_updated = 0
 
         for va_form in va_forms:
             try:
-                log.info("SmartVA-only [%s]: preparing input.", va_form.form_id)
-                print(f"SmartVA-only [Preparing SmartVA input: {va_form.form_id}].")
-                va_smartva_prepdata(va_form)
+                pending = _pending_smartva_sids(va_form.form_id)
+                if not pending:
+                    log.info("SmartVA-only [%s]: all results up to date, skipping.", va_form.form_id)
+                    _progress(f"SmartVA {va_form.form_id}: all results up to date, skipping.")
+                    continue
+
+                log.info("SmartVA-only [%s]: preparing input (%d pending).", va_form.form_id, len(pending))
+                _progress(f"SmartVA {va_form.form_id}: preparing input ({len(pending)} pending)…")
+                va_smartva_prepdata(va_form, pending_sids=pending)
 
                 log.info("SmartVA-only [%s]: running analysis.", va_form.form_id)
-                print(f"SmartVA-only [Initiating SmartVA analysis: {va_form.form_id}].")
+                _progress(f"SmartVA {va_form.form_id}: running analysis…")
                 va_smartva_runsmartva(va_form)
 
                 log.info("SmartVA-only [%s]: formatting output.", va_form.form_id)
-                print(f"SmartVA-only [Processing & formatting SmartVA result: {va_form.form_id}].")
+                _progress(f"SmartVA {va_form.form_id}: formatting results…")
                 output_file = va_smartva_formatsmartvaresult(va_form)
                 if not output_file:
                     log.warning("SmartVA-only [%s]: no output file produced, skipping.", va_form.form_id)
@@ -493,10 +535,9 @@ def va_smartva_run_pending():
                     va_sid = getattr(va_smartva_record, "sid", None)
                     va_smartva_existing = va_smartva_existingactive_results.get(va_sid)
 
-                    # Only fill gaps — skip SIDs that already have an active result
-                    if va_sid not in amended_sids and va_smartva_existing:
-                        continue
-
+                    # Input was already filtered to pending only via pending_sids,
+                    # so every row in the output should be saved. Deactivate any
+                    # stale result that slipped through (e.g. race condition).
                     if va_smartva_existing:
                         va_smartva_existing.va_smartva_status = VaStatuses.deactive
                         db.session.add(
@@ -505,7 +546,7 @@ def va_smartva_run_pending():
                                 va_audit_entityid=va_smartva_existing.va_smartva_id,
                                 va_audit_byrole="vaadmin",
                                 va_audit_operation="d",
-                                va_audit_action="va_smartva_deletion_during_datasync",
+                                va_audit_action="va_smartva_deletion_during_smartva_only_run",
                             )
                         )
 
@@ -546,23 +587,22 @@ def va_smartva_run_pending():
                         )
                     )
                     form_updated += 1
-                    print(f"SmartVA-only [Saved result '{va_form.form_id}: {va_sid}']")
 
                 db.session.commit()
                 va_smartva_updated += form_updated
                 log.info("SmartVA-only [%s]: committed %d result(s).", va_form.form_id, form_updated)
-                print(f"SmartVA-only [Complete for {va_form.form_id}: {form_updated} result(s) saved].")
+                _progress(f"SmartVA {va_form.form_id}: {form_updated} result(s) saved.")
 
             except Exception as e:
                 db.session.rollback()
                 log.warning("SmartVA-only [%s] failed, skipping: %s", va_form.form_id, e, exc_info=True)
-                print(f"SmartVA-only Warning [Skipped {va_form.form_id}: {e}].")
+                _progress(f"SmartVA {va_form.form_id}: FAILED — {e}")
 
         log.info("SmartVA-only run complete: smartva_updated=%d", va_smartva_updated)
-        print(f"SmartVA-only Success [SmartVA updated: {va_smartva_updated}]")
+        _progress(f"SmartVA-only run complete — {va_smartva_updated} result(s) saved.")
         return {"smartva_updated": va_smartva_updated}
 
     except Exception as e:
         log.error("SmartVA-only run failed: %s", e, exc_info=True)
-        print(f"SmartVA-only Failed [Error: {str(e)}].")
+        _progress(f"SmartVA-only run FAILED: {e}")
         raise

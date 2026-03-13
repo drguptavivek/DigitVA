@@ -38,6 +38,8 @@ class VaSyncRun(db.Model):
     records_updated: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     records_skipped: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     error_message: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    # JSON array of {"ts": ISO-string, "msg": str} — appended during run for live progress
+    progress_log: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
 
     def __repr__(self) -> str:
         return f"<VaSyncRun {self.sync_run_id} status={self.status}>"

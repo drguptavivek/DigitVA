@@ -3216,54 +3216,146 @@ def admin_sync_trigger_smartva():
 @admin.get("/api/sync/smartva-stats")
 @require_api_role("admin")
 def admin_sync_smartva_stats():
-    """Return per-form SmartVA result counts."""
+    """Return SmartVA result counts grouped by project → site → form."""
     try:
         from app.models.va_submissions import VaSubmissions
         from app.models.va_smartva_results import VaSmartvaResults
         from app.models.va_forms import VaForms
+        from app.models.va_project_master import VaProjectMaster
+        from app.models.va_sites import VaSites
 
         forms = db.session.scalars(sa.select(VaForms)).all()
-        rows = []
-        total_submissions = 0
-        total_with_smartva = 0
-        total_without_smartva = 0
+
+        # Fetch SmartVA counts in one query: count active results per form
+        smartva_by_form = dict(
+            db.session.execute(
+                sa.select(
+                    VaSubmissions.va_form_id,
+                    sa.func.count(VaSmartvaResults.va_smartva_id).label("cnt"),
+                )
+                .join(VaSmartvaResults, VaSmartvaResults.va_sid == VaSubmissions.va_sid)
+                .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
+                .group_by(VaSubmissions.va_form_id)
+            ).all()
+        )
+
+        # Fetch submission counts per form
+        sub_by_form = dict(
+            db.session.execute(
+                sa.select(
+                    VaSubmissions.va_form_id,
+                    sa.func.count(VaSubmissions.va_sid).label("cnt"),
+                ).group_by(VaSubmissions.va_form_id)
+            ).all()
+        )
+
+        # Group by project → site
+        projects_map = {}
+        total_submissions = total_with_smartva = total_pending = 0
 
         for form in forms:
-            sub_count = db.session.scalar(
-                sa.select(sa.func.count()).where(VaSubmissions.va_form_id == form.form_id)
-            ) or 0
-            smartva_count = db.session.scalar(
-                sa.select(sa.func.count(VaSmartvaResults.va_smartva_id)).where(
-                    VaSmartvaResults.va_sid.in_(
-                        sa.select(VaSubmissions.va_sid).where(
-                            VaSubmissions.va_form_id == form.form_id
-                        )
-                    ),
-                    VaSmartvaResults.va_smartva_status == VaStatuses.active,
-                )
-            ) or 0
-            pending = sub_count - smartva_count
-            rows.append({
-                "form_id": form.form_id,
-                "submissions": sub_count,
-                "with_smartva": smartva_count,
-                "pending_smartva": max(pending, 0),
-            })
+            sub_count = sub_by_form.get(form.form_id, 0)
+            sva_count = smartva_by_form.get(form.form_id, 0)
+            pending = max(sub_count - sva_count, 0)
+
             total_submissions += sub_count
-            total_with_smartva += smartva_count
-            total_without_smartva += max(pending, 0)
+            total_with_smartva += sva_count
+            total_pending += pending
+
+            proj = projects_map.setdefault(form.project_id, {
+                "project_id": form.project_id,
+                "project_name": None,
+                "sites": {},
+                "submissions": 0,
+                "with_smartva": 0,
+                "pending_smartva": 0,
+            })
+            proj["submissions"] += sub_count
+            proj["with_smartva"] += sva_count
+            proj["pending_smartva"] += pending
+
+            site = proj["sites"].setdefault(form.site_id, {
+                "site_id": form.site_id,
+                "site_name": None,
+                "form_id": form.form_id,
+                "submissions": 0,
+                "with_smartva": 0,
+                "pending_smartva": 0,
+            })
+            site["submissions"] += sub_count
+            site["with_smartva"] += sva_count
+            site["pending_smartva"] += pending
+
+        # Enrich with project/site names
+        project_names = {
+            r.project_id: r.project_name
+            for r in db.session.scalars(sa.select(VaProjectMaster)).all()
+        }
+        site_names = {
+            r.site_id: r.site_name
+            for r in db.session.scalars(sa.select(VaSites)).all()
+        }
+        for pid, proj in projects_map.items():
+            proj["project_name"] = project_names.get(pid, pid)
+            for sid, site in proj["sites"].items():
+                site["site_name"] = site_names.get(sid, sid)
+            proj["sites"] = list(proj["sites"].values())
 
         return jsonify({
-            "forms": rows,
+            "projects": list(projects_map.values()),
             "totals": {
                 "submissions": total_submissions,
                 "with_smartva": total_with_smartva,
-                "pending_smartva": total_without_smartva,
+                "pending_smartva": total_pending,
             },
         })
     except Exception as e:
         log.error("admin_sync_smartva_stats failed", exc_info=True)
         return _json_error(f"Failed to load SmartVA stats: {str(e)}", 500)
+
+
+@admin.get("/api/sync/progress")
+@require_api_role("admin")
+def admin_sync_progress():
+    """Return live progress log for the currently running sync, or the last run."""
+    import json as _json
+    try:
+        from app.models.va_sync_runs import VaSyncRun
+
+        run = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .order_by(VaSyncRun.started_at.desc())
+            .limit(1)
+        )
+        if not run:
+            run = db.session.scalar(
+                sa.select(VaSyncRun)
+                .order_by(VaSyncRun.started_at.desc())
+                .limit(1)
+            )
+
+        if not run:
+            return jsonify({"is_running": False, "entries": []})
+
+        entries = []
+        if run.progress_log:
+            try:
+                entries = _json.loads(run.progress_log)
+            except Exception:
+                entries = []
+
+        return jsonify({
+            "is_running": run.status == "running",
+            "run_id": str(run.sync_run_id),
+            "triggered_by": run.triggered_by,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "status": run.status,
+            "entries": entries,
+        })
+    except Exception as e:
+        log.error("admin_sync_progress failed", exc_info=True)
+        return _json_error(f"Failed to load progress: {str(e)}", 500)
 
 
 def _sync_run_dict(run) -> dict:

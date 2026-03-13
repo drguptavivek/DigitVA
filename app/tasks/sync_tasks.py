@@ -9,6 +9,29 @@ from celery import shared_task
 from datetime import datetime, timezone
 
 
+def _log_progress(db, run_id, msg: str):
+    """Append a timestamped progress entry to va_sync_runs.progress_log.
+
+    Stored as a JSONB array of {ts, msg} objects. Uses a direct SQL UPDATE
+    so it commits immediately without interfering with the ORM session.
+    """
+    try:
+        entry = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "msg": msg})
+        db.session.execute(
+            sa.text(
+                "UPDATE va_sync_runs "
+                "SET progress_log = ("
+                "  COALESCE(progress_log::jsonb, '[]'::jsonb) || :entry::jsonb"
+                ")::text "
+                "WHERE sync_run_id = :run_id"
+            ),
+            {"entry": f"[{entry}]", "run_id": str(run_id)},
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 @shared_task(
     name="app.tasks.sync_tasks.run_odk_sync",
     bind=True,
@@ -32,8 +55,11 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
     db.session.commit()
     run_id = run.sync_run_id
 
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
     try:
-        result = va_data_sync_odkcentral()
+        result = va_data_sync_odkcentral(log_progress=log_progress)
         run = db.session.get(VaSyncRun, run_id)
         run.status = "success"
         run.finished_at = datetime.now(timezone.utc)
@@ -77,8 +103,11 @@ def run_smartva_pending(self, triggered_by="manual", user_id=None):
     db.session.commit()
     run_id = run.sync_run_id
 
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
     try:
-        result = va_smartva_run_pending()
+        result = va_smartva_run_pending(log_progress=log_progress)
         run = db.session.get(VaSyncRun, run_id)
         run.status = "success"
         run.finished_at = datetime.now(timezone.utc)

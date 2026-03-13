@@ -488,7 +488,7 @@
         + (field.is_pii ? '<i class="fa-solid fa-shield-halved text-warning" title="PII"></i>' : '')
         + '</div>'
         + '<button class="btn btn-outline-secondary btn-sm py-0 px-1 ms-2"'
-        + ' hx-get="/admin/panels/field-mapping/field/' + encodeURIComponent(FORM_TYPE) + '/' + encodeURIComponent(field.field_id) + '"'
+        + ' hx-get="/admin/panels/field-mapping/field/' + encodeURIComponent(FORM_TYPE) + '/' + encodeURIComponent(field.field_id) + '?origin=categories_browser"'
         + ' hx-target="#fm-edit-modal-body"'
         + ' hx-swap="innerHTML"'
         + ' data-bs-toggle="modal"'
@@ -518,6 +518,11 @@
   window.selectSub = function (code) {
     _selectedSub = code;
     renderSubs();
+  };
+
+  window.fmcRefreshCurrentSelection = function () {
+    if (!_selectedCat) return;
+    loadCategoryState(_selectedCat, _selectedSub);
   };
 
   window.startFieldDrag = function (event, fieldId) {

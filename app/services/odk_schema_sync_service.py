@@ -282,16 +282,33 @@ class OdkSchemaSyncService:
                     is_custom=False,
                 ))
                 stats["fields_added"] += 1
+                existing_choices = {
+                    choice.choice_value: choice
+                    for choice in db.session.scalars(
+                        select(MasChoiceMappings).where(
+                            MasChoiceMappings.form_type_id == ft_id,
+                            MasChoiceMappings.field_id == field_id,
+                        )
+                    ).all()
+                }
                 # Also upsert choices that came with this new field
                 for order, ch in enumerate((f.get("choices") or []), start=1):
                     cv = ch.get("value")
                     cl = ch.get("label") or str(cv)
                     if not cv:
                         continue
+                    cv = str(cv)
+                    existing_choice = existing_choices.get(cv)
+                    if existing_choice:
+                        existing_choice.choice_label = cl
+                        existing_choice.display_order = order
+                        existing_choice.is_active = True
+                        existing_choice.synced_at = now
+                        continue
                     db.session.add(MasChoiceMappings(
                         form_type_id=ft_id,
                         field_id=field_id,
-                        choice_value=str(cv),
+                        choice_value=cv,
                         choice_label=cl,
                         display_order=order,
                         is_active=True,

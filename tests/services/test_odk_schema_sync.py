@@ -14,7 +14,7 @@ from unittest.mock import Mock
 import json
 
 from app import db
-from app.models import MasFormTypes, MasChoiceMappings
+from app.models import MasChoiceMappings, MasFieldDisplayConfig, MasFormTypes
 from tests.base import BaseTestCase
 
 
@@ -302,3 +302,72 @@ class TestOdkSchemaSyncService(BaseTestCase):
             fc[0] == "NewDetField" and fc[1] == "brand_new"
             for fc in result["new_choices"]
         ))
+
+    def test_11_sync_selected_reuses_existing_choices_for_new_field(self):
+        """Applying a new field reuses orphaned choice rows instead of duplicating them."""
+        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+
+        db.session.add_all(
+            [
+                MasChoiceMappings(
+                    form_type_id=self.form_type.form_type_id,
+                    field_id="Id10020",
+                    choice_value="yes",
+                    choice_label="Yes",
+                    display_order=7,
+                    is_active=True,
+                ),
+                MasChoiceMappings(
+                    form_type_id=self.form_type.form_type_id,
+                    field_id="Id10020",
+                    choice_value="no",
+                    choice_label="No",
+                    display_order=8,
+                    is_active=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        svc = OdkSchemaSyncService()
+        stats = svc.sync_selected(
+            "WHO_2022_VA",
+            {
+                "new_fields": [
+                    {
+                        "field_id": "Id10020",
+                        "field_type": "select_one",
+                        "odk_label": "Is the date of birth known?",
+                        "choices": [
+                            {"value": "yes", "label": "Yes"},
+                            {"value": "no", "label": "No"},
+                            {"value": "ref", "label": "Refused to answer"},
+                        ],
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(stats["errors"], [], stats)
+        self.assertEqual(stats["fields_added"], 1, stats)
+        self.assertEqual(stats["choices_added"], 1, stats)
+
+        field = db.session.scalar(
+            db.select(MasFieldDisplayConfig).where(
+                MasFieldDisplayConfig.form_type_id == self.form_type.form_type_id,
+                MasFieldDisplayConfig.field_id == "Id10020",
+            )
+        )
+        self.assertIsNotNone(field)
+
+        choices = db.session.scalars(
+            db.select(MasChoiceMappings).where(
+                MasChoiceMappings.form_type_id == self.form_type.form_type_id,
+                MasChoiceMappings.field_id == "Id10020",
+            )
+        ).all()
+        self.assertEqual(len(choices), 3)
+        by_value = {choice.choice_value: choice for choice in choices}
+        self.assertEqual(by_value["yes"].display_order, 1)
+        self.assertEqual(by_value["no"].display_order, 2)
+        self.assertEqual(by_value["ref"].display_order, 3)

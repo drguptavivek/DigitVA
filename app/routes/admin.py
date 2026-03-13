@@ -2017,6 +2017,7 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
     from sqlalchemy import select as sa_select
     from app.models import MasFieldDisplayConfig, MasFormTypes
     from app.models.va_field_mapping import MasCategoryOrder, MasSubcategoryOrder
+    from app.models.va_field_mapping import MasChoiceMappings
 
     form_type = db.session.scalar(
         sa_select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
@@ -2032,6 +2033,8 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
     )
     if not field:
         return "Field not found", 404
+
+    origin = (request.args.get("origin") or request.form.get("origin") or "").strip()
 
     # Load categories for this form type
     categories = db.session.scalars(
@@ -2051,6 +2054,16 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
             )
             .order_by(MasSubcategoryOrder.display_order)
         ).all()
+
+    choices = db.session.scalars(
+        sa_select(MasChoiceMappings)
+        .where(
+            MasChoiceMappings.form_type_id == form_type.form_type_id,
+            MasChoiceMappings.field_id == field.field_id,
+            MasChoiceMappings.is_active == True,
+        )
+        .order_by(MasChoiceMappings.display_order, MasChoiceMappings.choice_label)
+    ).all()
 
     if request.method == "POST":
         field.short_label = request.form.get("short_label") or field.short_label
@@ -2103,6 +2116,8 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         field=field,
         categories=categories,
         subcategories=subcategories,
+        choices=choices,
+        origin=origin,
     )
 
 

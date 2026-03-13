@@ -3,10 +3,15 @@
   On save, refreshes the table row in place.
 #}
 <form hx-post="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}"
+      {% if origin == "categories_browser" %}
+      hx-swap="none"
+      {% else %}
       hx-target="#fm-field-row-{{ field.field_id }}"
       hx-swap="outerHTML"
-      hx-on::after-request="bootstrap.Modal.getInstance(document.getElementById('fm-edit-modal')).hide()">
+      {% endif %}
+      hx-on::after-request="if (event.detail.successful) { if (window.fmcRefreshCurrentSelection) window.fmcRefreshCurrentSelection(); bootstrap.Modal.getInstance(document.getElementById('fm-edit-modal')).hide(); }">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="origin" value="{{ origin }}">
 
   <div class="modal-header">
     <h5 class="modal-title" id="fm-edit-modal-label">
@@ -51,6 +56,43 @@
         </label>
         <input type="text" class="form-control form-control-sm text-muted"
                value="{{ field.odk_label or '—' }}" disabled>
+      </div>
+
+      {# Field Type #}
+      <div class="col-sm-4">
+        <label class="form-label small fw-semibold mb-1">
+          Field Type
+          <span class="badge bg-secondary ms-1 align-middle" style="font-size:0.65rem;">ODK</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="The raw XLSForm field type detected from ODK sync, for example select_one, integer, date, audio, or calculate."></i>
+        </label>
+        <input type="text" class="form-control form-control-sm text-muted"
+               value="{{ field.field_type or '—' }}" disabled>
+      </div>
+
+      {# Associated Choices #}
+      <div class="col-sm-8">
+        <label class="form-label small fw-semibold mb-1">
+          Associated Choices
+          <span class="badge bg-secondary ms-1 align-middle" style="font-size:0.65rem;">ODK</span>
+          <i class="fa-solid fa-circle-info text-muted ms-1 fme-tooltip"
+             data-bs-toggle="tooltip" data-bs-placement="top"
+             data-bs-title="The active choice mappings currently registered for this field in the selected form type."></i>
+        </label>
+        <div class="form-control form-control-sm bg-light" style="min-height: 38px; height: auto;">
+          {% if choices %}
+          <div class="d-flex flex-wrap gap-1">
+            {% for choice in choices %}
+            <span class="badge text-bg-light border font-monospace">
+              {{ choice.choice_value }}{% if choice.choice_label %} = {{ choice.choice_label }}{% endif %}
+            </span>
+            {% endfor %}
+          </div>
+          {% else %}
+          <span class="text-muted">No associated choices</span>
+          {% endif %}
+        </div>
       </div>
 
       {# Short Label #}

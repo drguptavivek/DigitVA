@@ -220,6 +220,8 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             template_name = "va_formcategory_partials/category_health_history_summary.html"
         elif category_config and category_config.render_mode == "attachments":
             template_name = "va_formcategory_partials/category_attachments.html"
+        elif category_config and category_config.render_mode == "workflow_panel":
+            template_name = "va_formcategory_partials/category_va_cod_assessment.html"
         return render_template(
             template_name,
             instance_name = va_submission.va_uniqueid_masked,

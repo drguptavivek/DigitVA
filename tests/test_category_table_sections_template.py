@@ -171,3 +171,30 @@ class TestCategoryTableSectionsTemplate(unittest.TestCase):
 
         self.assertIn("Save the Social Autopsy Analysis before proceeding to the next category.", rendered)
         self.assertIn("disabled", rendered)
+
+    def test_generic_category_uses_assign_cod_label_for_workflow_next_step(self):
+        category_config = SimpleNamespace(
+            display_label="Health Service Utilisation",
+            icon_name="fa-hospital",
+        )
+
+        rendered = self.env.get_template(
+            "va_formcategory_partials/category_table_sections.html"
+        ).render(
+            category_config=category_config,
+            category_data={"service": {"Question One": "Yes"}},
+            subcategory_labels={"service": "Service"},
+            flip_list=[],
+            info_list=[],
+            instance_name="CASE-1",
+            va_previouscategory="social_autopsy",
+            va_nextcategory="vacodassessment",
+            next_block_message=None,
+            va_action="vacode",
+            va_actiontype="vademo_start_coding",
+            va_sid="SID-1",
+            va_partial="vahealthserviceutilisation",
+            url_for=lambda *args, **kwargs: "/stub",
+        )
+
+        self.assertIn("Assign COD", rendered)

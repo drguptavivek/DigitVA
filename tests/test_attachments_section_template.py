@@ -70,3 +70,107 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
 
         self.assertNotIn('id="narrationCarousel"', rendered)
         self.assertIn('src="/media/image.jpg"', rendered)
+
+    def test_workflow_panels_no_longer_embed_cod_assessment_panel(self):
+        rendered = self.env.get_template(
+            "va_formcategory_partials/_attachments_workflow_panels.html"
+        ).render(
+            summary=[],
+            va_action="vacode",
+            va_actiontype="vademo_start_coding",
+            narrative_qa_enabled=False,
+            da_va_coder_review=None,
+            da_va_initial_assess=None,
+            da_va_final_assess=None,
+            vafinexists=False,
+            vaerrexists=False,
+            vainiexists=False,
+            va_initial_assess=None,
+            va_final_assess=None,
+            va_coder_review=None,
+            smartva=None,
+            reviewobject=None,
+            va_sid="SID-1",
+            url_for=lambda *args, **kwargs: "/stub",
+            csrf_token=lambda: "token",
+        )
+
+        self.assertNotIn("Initial Cause of Death Assessment", rendered)
+        self.assertNotIn("Final Cause of Death Assessment", rendered)
+
+    def test_cod_assessment_category_renders_dedicated_panel(self):
+        category_config = type(
+            "CategoryConfig",
+            (),
+            {
+                "icon_name": "fa-stethoscope",
+                "display_label": "VA COD Assessment",
+            },
+        )()
+
+        rendered = self.env.get_template(
+            "va_formcategory_partials/category_va_cod_assessment.html"
+        ).render(
+            category_config=category_config,
+            va_action="vacode",
+            va_actiontype="vademo_start_coding",
+            va_sid="SID-1",
+            vafinexists=False,
+            vaerrexists=False,
+            vainiexists=False,
+            va_initial_assess=None,
+            va_final_assess=None,
+            smartva=None,
+            va_previouscategory="vanarrationanddocuments",
+            url_for=lambda *args, **kwargs: "/stub",
+        )
+
+        self.assertIn("VA COD ASSESSMENT", rendered)
+        self.assertIn('id="form-container2"', rendered)
+        self.assertIn("Previous Category", rendered)
+        self.assertIn("Assign COD", rendered)
+
+    def test_attachments_category_uses_assign_cod_for_workflow_next_step(self):
+        category_config = type(
+            "CategoryConfig",
+            (),
+            {
+                "icon_name": "fa-file-medical-alt",
+                "display_label": "Narration and Documents",
+            },
+        )()
+
+        rendered = self.env.get_template(
+            "va_formcategory_partials/category_attachments.html"
+        ).render(
+            category_config=category_config,
+            category_data={"narration": {"Narrative Text": "Free text narrative"}},
+            subcategory_labels={"narration": "Narration"},
+            summary=[],
+            flip_list=[],
+            info_list=[],
+            subcategory_render_modes={},
+            instance_name="CASE-1",
+            va_action="vacode",
+            va_actiontype="vademo_start_coding",
+            va_sid="SID-1",
+            va_previouscategory="social_autopsy",
+            va_nextcategory="vacodassessment",
+            next_block_message=None,
+            narrative_qa_enabled=False,
+            da_va_coder_review=None,
+            da_va_initial_assess=None,
+            da_va_final_assess=None,
+            vafinexists=False,
+            vaerrexists=False,
+            vainiexists=False,
+            va_initial_assess=None,
+            va_final_assess=None,
+            va_coder_review=None,
+            smartva=None,
+            reviewobject=None,
+            url_for=lambda *args, **kwargs: "/stub",
+            csrf_token=lambda: "token",
+        )
+
+        self.assertIn("Assign COD", rendered)

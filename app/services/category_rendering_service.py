@@ -43,6 +43,21 @@ class CategoryRenderingService:
         "site_pi": "show_to_site_pi",
     }
 
+    WORKFLOW_NAV_ITEMS = {
+        "coder": [
+            CategoryNavItem(
+                category_code="vacodassessment",
+                display_label="VA COD Assessment",
+                nav_label="COD Assessment",
+                icon_name="fa-stethoscope",
+                render_mode="workflow_panel",
+                display_order=10_000,
+                always_include=True,
+                is_default_start=False,
+            )
+        ]
+    }
+
     def __init__(self):
         self._cache: dict[str, list[CategoryNavItem]] = {}
 
@@ -143,7 +158,7 @@ class CategoryRenderingService:
             .order_by(MasCategoryDisplayConfig.display_order, MasCategoryDisplayConfig.nav_label)
         ).all()
 
-        return [
+        items = [
             CategoryNavItem(
                 category_code=config.category_code,
                 display_label=config.display_label,
@@ -156,6 +171,7 @@ class CategoryRenderingService:
             )
             for config in configs
         ]
+        return items
 
     def is_category_enabled(
         self,
@@ -208,7 +224,7 @@ class CategoryRenderingService:
             .order_by(MasCategoryDisplayConfig.display_order, MasCategoryDisplayConfig.nav_label)
         ).all()
 
-        return [
+        items = [
             CategoryNavItem(
                 category_code=config.category_code,
                 display_label=config.display_label,
@@ -221,6 +237,9 @@ class CategoryRenderingService:
             )
             for config in configs
         ]
+        items.extend(self.WORKFLOW_NAV_ITEMS.get(role, []))
+        items.sort(key=lambda item: (item.display_order, item.nav_label))
+        return items
 
 
 _service: CategoryRenderingService | None = None

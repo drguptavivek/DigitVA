@@ -1,0 +1,41 @@
+<div class="card-header bg-primary text-white">
+  <h5 class="mb-0 d-flex align-items-center">
+    <i class="fas {{ category_config.icon_name or 'fa-stethoscope' }} me-2"></i>
+    <span style="font-size: 1rem; font-weight: 600; letter-spacing: 0.5px">
+      {{ category_config.display_label | upper }}
+    </span>
+  </h5>
+</div>
+
+<div class="card-body">
+  {% include 'va_formcategory_partials/_va_cod_assessment_panel.html' %}
+
+  <div class="card-footer d-flex justify-content-between mt-4">
+    {% if va_previouscategory %}
+      <button
+        class="btn btn-secondary"
+        hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_previouscategory) }}"
+        hx-target="#form-content"
+        hx-swap="innerHTML"
+      >
+        <i class="fas fa-arrow-left me-2"></i>Previous Category
+      </button>
+    {% else %}
+      <span></span>
+    {% endif %}
+    {% if va_action == "vacode" and (va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") and not vafinexists and not vaerrexists %}
+      {% set cod_partial = "vafinalasses" if vainiexists else "vainitialasses" %}
+      {% set cod_label = "Finalize COD" if vainiexists else "Assign COD" %}
+      <button
+        class="btn btn-primary"
+        hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=cod_partial) }}"
+        hx-target="#form-container2"
+        hx-swap="innerHTML"
+      >
+        <i class="fas fa-stethoscope me-2"></i>{{ cod_label }}
+      </button>
+    {% else %}
+      <span></span>
+    {% endif %}
+  </div>
+</div>

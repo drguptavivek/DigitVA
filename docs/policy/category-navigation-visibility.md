@@ -3,7 +3,7 @@ title: Category Navigation Visibility Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-12
+last_updated: 2026-03-13
 ---
 
 # Category Navigation Visibility Policy
@@ -18,11 +18,23 @@ hardcoded.
 
 ## Core Rule
 
-For category-style panels, left-nav visibility is determined from the submission's
-stored category availability list (`va_submissions.va_category_list`), not by ad hoc
-template inspection of raw field values.
+For category-style panels, left-nav visibility is determined dynamically from the
+submission's current data, form type, role-aware category config, and category render
+rules. The UI must not depend on stored `va_submissions.va_category_list` for runtime
+navigation decisions.
 
 ## Current Baseline
+
+### Workflow panels in nav
+
+Some left-nav items are workflow panels, not submission-data categories.
+
+Current baseline:
+
+- coder views append a final `COD Assessment` nav item
+- this workflow item is always shown for coder flows
+- it is ordered after the visible submission-data categories
+- it is not derived from mapped field values
 
 ### Standard categories
 
@@ -59,8 +71,8 @@ Current baseline:
 
 Current baseline:
 
-- it is appended during preprocess regardless of field-value filtering
-- the left nav template does not guard it with `catlist`
+- it is configured as always included
+- it no longer contains the COD assessment workflow block
 
 ### Badge counts
 

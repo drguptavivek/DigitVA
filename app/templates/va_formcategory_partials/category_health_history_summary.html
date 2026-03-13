@@ -107,11 +107,12 @@
       <span></span>
     {% endif %}
     {% if va_nextcategory %}
+      {% set next_label = "Assign COD" if va_nextcategory == "vacodassessment" else "Next Category" %}
       <div class="text-end">
         {% if next_block_message %}
           <div class="small text-warning mb-2">{{ next_block_message }}</div>
           <button class="btn btn-primary" id="next-category-btn" disabled>
-            <span>Next Category</span>
+            <span>{{ next_label }}</span>
             <i class="fas fa-arrow-right ms-2"></i>
           </button>
         {% else %}
@@ -122,7 +123,7 @@
             hx-target="#form-content"
             hx-swap="innerHTML"
           >
-            <span>Next Category</span>
+            <span>{{ next_label }}</span>
             <i class="fas fa-arrow-right ms-2"></i>
           </button>
         {% endif %}

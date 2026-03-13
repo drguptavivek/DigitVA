@@ -83,7 +83,7 @@ class TestCategoryRenderingService(BaseTestCase):
 
         self.assertEqual(
             [item.category_code for item in nav],
-            ["vademographicdetails", "vanarrationanddocuments"],
+            ["vademographicdetails", "vanarrationanddocuments", "vacodassessment"],
         )
 
     def test_site_pi_nav_includes_interview_when_visible(self):
@@ -121,3 +121,28 @@ class TestCategoryRenderingService(BaseTestCase):
 
         self.assertIsNone(previous_code)
         self.assertEqual(next_code, "vanarrationanddocuments")
+
+    def test_cod_assessment_is_final_coder_workflow_item(self):
+        previous_code, next_code = get_category_rendering_service().get_category_neighbours(
+            "TEST_RENDERING_FORM",
+            "vacode",
+            ["vademographicdetails"],
+            "vanarrationanddocuments",
+        )
+
+        self.assertEqual(previous_code, "vademographicdetails")
+        self.assertEqual(next_code, "vacodassessment")
+
+    def test_all_active_categories_returns_only_configured_categories(self):
+        items = get_category_rendering_service().get_all_active_categories(
+            "TEST_RENDERING_FORM"
+        )
+
+        self.assertEqual(
+            [item.category_code for item in items],
+            [
+                "vainterviewdetails",
+                "vademographicdetails",
+                "vanarrationanddocuments",
+            ],
+        )

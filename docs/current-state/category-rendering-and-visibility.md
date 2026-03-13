@@ -55,6 +55,8 @@ Current route behavior:
   - `attachments` -> hybrid renderer in
     [`category_attachments.html`](../../app/templates/va_formcategory_partials/category_attachments.html)
     using generic submission-data sections plus explicit workflow/result panels
+  - `workflow_panel` -> explicit workflow renderer in
+    [`category_va_cod_assessment.html`](../../app/templates/va_formcategory_partials/category_va_cod_assessment.html)
 
 Common filtering happens in
 [`app/utils/va_render/va_render_06_processcategorydata.py`](../../app/utils/va_render/va_render_06_processcategorydata.py).
@@ -81,7 +83,7 @@ Additional render-time transforms:
   non-binary leftovers generically from category data instead of using a category-
   specific template
 - `attachments` now renders narration/audio/images and document galleries generically
-  from category data, while still appending explicit SmartVA / QA / COD workflow UI
+  from category data, while still appending explicit QA and legacy workflow UI
 - in `attachments`, file type detection is automatic by file extension
 - image carousel behavior is now controlled by subcategory-level
   `MasSubcategoryOrder.render_mode`, currently seeded as `media_gallery` for
@@ -89,6 +91,8 @@ Additional render-time transforms:
 - attachment images now open in an in-page lightbox with close, zoom, and pan support
 - `social_autopsy` in `table_sections` mode now also appends an app-owned Social
   Autopsy analysis form for coder coding flows
+- coder views now also append a synthetic final nav item `vacodassessment`, which
+  renders the dedicated COD workflow panel outside `vanarrationanddocuments`
 - coder/reviewer rendering uses a bridge path so DB-only categories such as
   `social_autopsy` do not render empty while the field-level coder config remains
   partially static
@@ -109,6 +113,8 @@ Current visibility rules:
   marks it hidden for coder and reviewer
 - `vanarrationanddocuments` is always shown because its category config sets
   `always_include = true`
+- coder flows also show a final workflow nav item `vacodassessment`, which is not
+  derived from mapped submission fields
 
 `va_category_list` is built during preprocess in
 [`app/utils/va_preprocess/va_preprocess_03_categoriestodisplay.py`](../../app/utils/va_preprocess/va_preprocess_03_categoriestodisplay.py).

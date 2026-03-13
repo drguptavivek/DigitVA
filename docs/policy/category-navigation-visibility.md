@@ -35,11 +35,14 @@ Current baseline:
 - this workflow item is always shown for coder flows
 - it is ordered after the visible submission-data categories
 - it is not derived from mapped field values
+- it is the final workflow step for coder flows
+- it may assemble evidence from submission-data categories before showing the COD form
 
 ### Standard categories
 
 A standard category button is shown only when its category code exists in
-`va_category_list`.
+the live visible category set computed from current submission data and form-type
+config.
 
 Examples:
 
@@ -62,7 +65,7 @@ Examples:
 
 Current baseline:
 
-- show only when `vainterviewdetails` is present in `va_category_list`
+- show only when `vainterviewdetails` is present in the live visible category set
 - and only when `va_action == "vasitepi"`
 
 ### Narration and documents
@@ -85,7 +88,8 @@ Current baseline:
 
 ## How Availability Is Derived
 
-`va_category_list` is built during preprocessing using category-level data filtering.
+Runtime category visibility is computed dynamically using category-level data
+filtering.
 
 Current baseline filtering rules:
 
@@ -96,27 +100,13 @@ Current baseline filtering rules:
 - zero-valued age-group flags (`isNeonatal`, `isChild`, `isAdult`) do not count as content
 - missing attachments do not count as content
 - a category is included only if at least one field survives those filters
-- except for `vanarrationanddocuments`, which is always included
+- except for categories configured with `always_include = true`, such as
+  `vanarrationanddocuments`
 
 ## Ordering Rule
 
-Previous/next category navigation must use the same stored category list that drives
-left-nav visibility.
-
-The system should not use one source for the left nav and a different source for
-previous/next traversal.
-
-## Known Current Limitation
-
-Current implementation recalculates category content again at render time.
-
-This means:
-
-- a category may appear in the left nav because it was present at preprocess time
-- but the rendered panel may later be sparse or empty if mappings or filtering logic changed
-
-This limitation is accepted as current behavior, but future work should reduce this
-drift.
+Previous/next category navigation must use the same live visible category set that
+drives left-nav visibility.
 
 ## Change Control
 

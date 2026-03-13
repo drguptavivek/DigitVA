@@ -8,6 +8,7 @@ from app import db
 from datetime import datetime
 from app.decorators import va_validate_permissions
 from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissions, VaReviewerReview, VaInitialAssessments, VaFinalAssessments, VaCoderReview, VaSubmissionsAuditlog, VaForms
+from app.services.coding_allocation_service import release_stale_coding_allocations
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
@@ -97,40 +98,7 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
             )
     if va_action == "vacode":
         if va_actiontype == "vastartcoding":
-            for record in db.session.scalars(
-                sa.select(VaAllocations).where(
-                    (VaAllocations.va_allocation_status == VaStatuses.active) &
-                    (VaAllocations.va_allocation_for == VaAllocation.coding) &
-                    (VaAllocations.va_allocation_createdat + sa.text("interval '1 hours'") < sa.func.now())
-                )
-            ).all():
-                record.va_allocation_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid = record.va_sid,
-                        va_audit_entityid = record.va_allocation_id,
-                        va_audit_byrole = "vaadmin",
-                        va_audit_operation = "d",
-                        va_audit_action = "va_allocation_deletion_due to timeout",
-                    )
-                )
-                va_initialassess = db.session.scalar(
-                    sa.select(VaInitialAssessments).where(
-                        (VaInitialAssessments.va_sid == record.va_sid)
-                        & (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
-                    )
-                )
-                if va_initialassess:
-                    va_initialassess.va_iniassess_status = VaStatuses.deactive
-                    db.session.add(
-                        VaSubmissionsAuditlog(
-                            va_sid = va_initialassess.va_sid,
-                            va_audit_entityid = va_initialassess.va_iniassess_id,
-                            va_audit_byrole = "vaadmin",
-                            va_audit_operation = "d",
-                            va_audit_action = "va_partial_iniasses_deletion due to timeout",
-                        )
-                    )
+            release_stale_coding_allocations(timeout_hours=1)
             va_new_sid = db.session.scalar(sa.select(VaAllocations.va_sid).where((VaAllocations.va_allocated_to == current_user.user_id)&(VaAllocations.va_allocation_for == VaAllocation.coding)&(VaAllocations.va_allocation_status == VaStatuses.active)))
             if va_new_sid:
                 return redirect(url_for('va_cta.va_calltoaction', va_action = "vacode", va_actiontype = "varesumecoding", va_sid = "varesumecoding"))

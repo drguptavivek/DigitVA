@@ -15,7 +15,9 @@ Current policy docs:
 - [Access Control Model](access-control-model.md)
 - [Admin API Access Policy](admin-api-access.md)
 - [Category Navigation Visibility Policy](category-navigation-visibility.md)
+- [Coding Allocation Timeout Policy](coding-allocation-timeouts.md)
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
+- [UI Notification Policy](ui-notifications.md)
 
 Use `docs/policy` when a change affects:
 

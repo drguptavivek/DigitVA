@@ -84,6 +84,13 @@ Additional render-time transforms:
   specific template
 - `attachments` now renders narration/audio/images and document galleries generically
   from category data, while still appending explicit QA and legacy workflow UI
+- the coder-only `workflow_panel` COD step now assembles a condensed evidence block
+  before the COD form, including:
+  - live DB-driven summary badges from `summary_include` / `summary_label`
+  - narration and document sections
+  - `vahealthhistorydetails / medical_history` grouped with the same positive /
+    absent / detail logic used in the health history renderer
+  - the current coder note for the submission
 - in `attachments`, file type detection is automatic by file extension
 - image carousel behavior is now controlled by subcategory-level
   `MasSubcategoryOrder.render_mode`, currently seeded as `media_gallery` for
@@ -107,7 +114,7 @@ Current visibility rules:
 - the coding-page left nav is now rendered from `CategoryRenderingService`
 - a category must be role-visible in `mas_category_display_config`
 - a category must either:
-  - be present in `va_submissions.va_category_list`, or
+  - be present in the live visible category set derived from current submission data, or
   - have `always_include = true` in `mas_category_display_config`
 - this means `vainterviewdetails` is now site-PI-only because the category config
   marks it hidden for coder and reviewer
@@ -116,24 +123,11 @@ Current visibility rules:
 - coder flows also show a final workflow nav item `vacodassessment`, which is not
   derived from mapped submission fields
 
-`va_category_list` is built during preprocess in
-[`app/utils/va_preprocess/va_preprocess_03_categoriestodisplay.py`](../../app/utils/va_preprocess/va_preprocess_03_categoriestodisplay.py).
-
-Current preprocess rule:
-
-- preprocess now resolves the effective form type from `va_form_id` using the same
-  runtime form-type fallback chain
-- preprocess now loads category field mappings and choice mappings from the DB-backed
-  field mapping service for that form type
-- a category is included if `va_render_processcategorydata(...)` returns at least one
-  surviving mapped field
-- `vanarrationanddocuments` is appended unconditionally
-
-Important current limitation:
-
-- left-nav visibility is stored at preprocess time
-- actual panel content is recalculated again at render time
-- if mappings or data filters change after sync, the nav and the panel can drift
+The live visible category set is computed by
+[`get_visible_category_codes()`](../../app/services/category_rendering_service.py)
+from current submission data, form type, and mapped category content. Stored
+`va_category_list` remains in the database for legacy compatibility, but it is no
+longer the runtime source of truth for the nav.
 
 Current UI behavior:
 

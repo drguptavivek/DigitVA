@@ -4,19 +4,6 @@
 
 {% block content %}
 
-{% with messages = get_flashed_messages() %}
-    {% if messages %}
-      <div class="mt-3">
-        {% for message in messages %}
-          <div class="alert alert-success alert-dismissible fade show">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
-
   <!-- store active / selected sid -->
   <input type="hidden" id="active-sid" name="active_sid" value="">
   <!-- Content Section with Heading and Back Button Side-by-Side -->
@@ -194,30 +181,18 @@
   </div>
 </div>
 
-<div id="noteStatusMsg"></div>
-
-{# <!-- <script>
-document.addEventListener("htmx:afterSwap", (e) => {
-  if (e.detail.target.id === "noteStatusMsg") {
-    setTimeout(() => {
-      const notif = document.getElementById("noteStatusMsg");
-      if (notif) notif.remove();
-    }, 4000);
-  }
-});
-</script> --> #}
+<div id="noteStatusMsg" class="d-none"></div>
 
 <script>
-document.addEventListener("htmx:afterSettle", () => {
-  const notif = document.querySelector("#noteStatusMsg");
-  if (notif) {
-    setTimeout(() => {
-      notif.classList.remove("show");
-      setTimeout(() => {
-        notif.innerHTML = "";  // Clear message content
-      }, 300);
-    }, 4000);
+document.addEventListener("htmx:oobAfterSwap", function (event) {
+  if (event.detail.target.id !== "noteStatusMsg") return;
+  const notif = document.getElementById("noteStatusMsg");
+  if (!notif) return;
+  const message = notif.textContent.trim();
+  if (message && window.showAppToast) {
+    window.showAppToast(message, "success");
   }
+  notif.innerHTML = "";
 });
 </script>
 

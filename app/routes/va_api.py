@@ -19,6 +19,7 @@ from app.services.social_autopsy_analysis_service import (
     SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
     social_autopsy_option_set,
 )
+from app.services.submission_summary_service import build_submission_summary
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
@@ -147,6 +148,10 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             _form_type_code,
             va_partial,
         )
+        summary_items = build_submission_summary(
+            _form_type_code,
+            va_submission.va_data if va_submission else None,
+        )
 
         va_datalevel = va_get_render_datalevel(
             va_action,
@@ -199,6 +204,18 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                 )
             )
         va_social_autopsy_analysis = None
+        cod_attachments_data = {}
+        cod_attachments_labels = {}
+        cod_attachments_render_modes = {}
+        cod_health_history_data = {}
+        cod_health_history_labels = {}
+        va_usernote = db.session.scalar(
+            sa.select(VaUsernotes).where(
+                VaUsernotes.note_by == current_user.user_id,
+                VaUsernotes.note_vasubmission == va_sid,
+                VaUsernotes.note_status == VaStatuses.active,
+            )
+        )
         if va_partial == "social_autopsy" and va_action == "vacode":
             va_social_autopsy_analysis = db.session.scalar(
                 sa.select(VaSocialAutopsyAnalysis).where(
@@ -213,6 +230,33 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                 f"{item.delay_level}::{item.option_code}"
                 for item in va_social_autopsy_analysis.selected_options
             }
+        if category_config and category_config.render_mode == "workflow_panel":
+            cod_attachments_data = va_render_processcategorydata(
+                va_submission.va_data,
+                va_submission.va_form_id,
+                va_datalevel,
+                va_mapping_choice,
+                "vanarrationanddocuments",
+            )
+            cod_attachments_labels = _mapping_svc.get_subcategory_labels(
+                _form_type_code,
+                "vanarrationanddocuments",
+            )
+            cod_attachments_render_modes = _mapping_svc.get_subcategory_render_modes(
+                _form_type_code,
+                "vanarrationanddocuments",
+            )
+            cod_health_history_data = va_render_processcategorydata(
+                va_submission.va_data,
+                va_submission.va_form_id,
+                va_datalevel,
+                va_mapping_choice,
+                "vahealthhistorydetails",
+            )
+            cod_health_history_labels = _mapping_svc.get_subcategory_labels(
+                _form_type_code,
+                "vahealthhistorydetails",
+            )
         template_name = f"va_formcategory_partials/{va_partial}.html"
         if category_config and category_config.render_mode == "table_sections":
             template_name = "va_formcategory_partials/category_table_sections.html"
@@ -238,6 +282,7 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             va_sid = va_sid,
             va_partial = va_partial,
             summary = va_submission.va_summary,
+            summary_items = summary_items,
             reviewobject = reviewobject,
             vafinexists = vafinexists,
             vaerrexists = vaerrexists,
@@ -255,6 +300,12 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             va_social_autopsy_analysis = va_social_autopsy_analysis,
             social_autopsy_selected_pairs = social_autopsy_selected_pairs,
             next_block_message = next_block_message,
+            cod_attachments_data = cod_attachments_data,
+            cod_attachments_labels = cod_attachments_labels,
+            cod_attachments_render_modes = cod_attachments_render_modes,
+            cod_health_history_data = cod_health_history_data,
+            cod_health_history_labels = cod_health_history_labels,
+            va_usernote = va_usernote,
         )
     if va_partial == "vareviewform":
         form = VaReviewerReviewForm()
@@ -345,7 +396,25 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
     if va_partial == "vafinalasses":
         form1 = VaFinalAssessmentForm()
         smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
+        va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
+
+        def _render_final_assessment_form(error_messages=None):
+            return render_template(
+                f"va_form_partials/{va_partial}.html",
+                form=form1,
+                va_action=va_action,
+                va_actiontype=va_actiontype,
+                va_sid=va_sid,
+                smartva=smartva,
+                va_immediate_cod=va_initial_assess.va_immediate_cod or None,
+                va_antecedent_cod=va_initial_assess.va_antecedent_cod or None,
+                va_other_conditions=va_initial_assess.va_other_conditions or None,
+                form_error_messages=error_messages or [],
+            )
+
         if form1.validate_on_submit():
+            blocking_messages: list[str] = []
+
             # Enforce NQA completion if enabled for this project
             _project = _get_project_for_submission(va_sid)
             if _project and _project.narrative_qa_enabled:
@@ -357,10 +426,9 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     )
                 )
                 if not _nqa_done:
-                    if request.headers.get("HX-Request"):
-                        return jsonify({"error": "Narrative Quality Assessment must be completed before submitting the final COD."}), 400
-                    flash("Please complete the Narrative Quality Assessment before submitting.", "warning")
-                    return redirect(request.referrer or url_for("va_main.va_dashboard", va_role="coder"))
+                    blocking_messages.append(
+                        "Narrative Quality Assessment must be completed before submitting the final COD."
+                    )
             _submission = db.session.get(VaSubmissions, va_sid)
             _form_type_code = va_get_form_type_code_for_form(
                 _submission.va_form_id if _submission else None
@@ -384,10 +452,15 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     )
                 )
                 if not _social_done:
-                    if request.headers.get("HX-Request"):
-                        return jsonify({"error": "Social Autopsy Analysis must be completed before submitting the final COD."}), 400
-                    flash("Please complete the Social Autopsy Analysis before submitting.", "warning")
-                    return redirect(request.referrer or url_for("va_main.va_dashboard", va_role="coder"))
+                    blocking_messages.append(
+                        "Social Autopsy Analysis must be completed before submitting the final COD."
+                    )
+            if blocking_messages:
+                if request.headers.get("HX-Request"):
+                    return _render_final_assessment_form(blocking_messages)
+                for message in blocking_messages:
+                    flash(message, "warning")
+                return redirect(request.referrer or url_for("va_main.va_dashboard", va_role="coder"))
             gen_uuid = uuid.uuid4()
             new_review1 = VaFinalAssessments(
                 va_finassess_id=gen_uuid,
@@ -428,10 +501,7 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                 response.headers["HX-Redirect"] = url_for('va_main.va_dashboard', va_role="coder")
                 flash("VA Coding submitted successfully!", "success")
                 return response
-        va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
-        return render_template(
-            f"va_form_partials/{va_partial}.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None
-        )
+        return _render_final_assessment_form()
     if va_partial == "vausernote":
         form = VaUsernoteForm()
         va_usernote = db.session.scalar(

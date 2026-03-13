@@ -131,7 +131,7 @@ One row per field per form type. Controls every display aspect of a field.
 | `age_group` | VARCHAR(16) | `neonate`, `child`, `adult`, or blank |
 | `flip_color` | BOOLEAN | Invert colour coding in the UI |
 | `is_info` | BOOLEAN | Informational only — not coded |
-| `summary_include` | BOOLEAN | Include in case summary panel |
+| `summary_include` | BOOLEAN | Include in the live `Symptoms on VA Interview` summary panel |
 | `is_pii` | BOOLEAN | Field contains PII |
 | `pii_type` | VARCHAR(32) | `name`, `dob`, `address`, etc. |
 | `display_order` | NUMERIC(10,2) | Order within sub-category; decimal values allowed for rapid inserts |
@@ -589,7 +589,7 @@ svc.deactivate_form_type("OLD_FORM")
 |------|--------|------------------------|
 | **Flip Color** | `flip_color` | Inverts the colour coding so "No" appears positive and "Yes" negative |
 | **Is Info** | `is_info` | Field is shown for reference only; it is not included in VA coding |
-| **Summary Include** | `summary_include` | Field appears in the case summary panel alongside the VA result |
+| **Summary Include** | `summary_include` | Field appears in the live `Symptoms on VA Interview` summary panel |
 | **Is PII** | `is_pii` | Field contains personally identifiable information — masked in non-PII views |
 
 Labels hierarchy (first non-null wins for display):

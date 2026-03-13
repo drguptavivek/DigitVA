@@ -231,6 +231,17 @@
         {{ form.va_save_assessment(class="btn btn-primary px-4 py-2") }}  
       </div>  
 </form>
+{% if form_error_messages %}
+<script>
+  if (window.showAppToast) {
+    window.showAppToast(
+      '<div class="fw-semibold mb-1">Complete the following before final COD submission:</div><ul class="mb-0 ps-3">{% for message in form_error_messages %}<li>{{ message|escape }}</li>{% endfor %}</ul>',
+      'warning',
+      { timeoutMs: 5000 }
+    );
+  }
+</script>
+{% endif %}
 <div id="select2-root" data-icd-url="{{ url_for('va_api.icd_search') }}"></div>
 <script>
 document.body.addEventListener("htmx:afterSwap", function(event) {

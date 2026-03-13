@@ -1,0 +1,106 @@
+{% if summary_items %}
+  {% include 'va_formcategory_partials/_submission_summary_panel.html' %}
+{% endif %}
+
+{% if cod_attachments_data %}
+  <div class="content-section-title mt-4">
+    <i class="fas fa-file-medical-alt"></i>
+    Narration and Documents
+  </div>
+  {% for section_code, section_data in cod_attachments_data.items() %}
+    {% set section_title = cod_attachments_labels.get(section_code, section_code) %}
+    {% set section_index = loop.index0 %}
+    {% set subcategory_render_modes = cod_attachments_render_modes %}
+    {% include 'va_formcategory_partials/_attachments_section.html' %}
+  {% endfor %}
+{% endif %}
+
+{% if cod_health_history_data %}
+  <div class="content-section-title mt-4">
+    <i class="fas fa-notes-medical"></i>
+    Disease / Co-Morbidity
+  </div>
+
+  {% set medical_history = cod_health_history_data.get('medical_history', {}) %}
+  {% if medical_history %}
+    {% set positive_labels = [] %}
+    {% set negative_labels = [] %}
+    {% set other_affirmative = {} %}
+
+    {% for label, value in medical_history.items() %}
+      {% if value == "Yes" %}
+        {% set _ = positive_labels.append(label) %}
+      {% elif value == "No" %}
+        {% set _ = negative_labels.append(label) %}
+      {% else %}
+        {% set _ = other_affirmative.update({label: value}) %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <div class="card text-white shadow-sm" style="background-color: rgba(220, 53, 69, 0.85);">
+          <div class="card-header border-0 fw-semibold">Diagnosed by Health Professional</div>
+          <div class="card-body">
+            {% if positive_labels %}
+              <p class="mb-0">
+                {% for label in positive_labels %}
+                  {{ label }}<br>
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="mb-0 fst-italic">No positive diagnoses found.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6 mb-3">
+        <div class="card text-white shadow-sm" style="background-color: rgba(25, 135, 84, 0.85);">
+          <div class="card-header border-0 fw-semibold">Absent</div>
+          <div class="card-body">
+            {% if negative_labels %}
+              <p class="mb-0">
+                {% for label in negative_labels %}
+                  {{ label }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </p>
+            {% else %}
+              <p class="mb-0 fst-italic">No negative diagnoses found.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% if other_affirmative %}
+      {% set section_title = "Medical History (Responses)" %}
+      {% set section_data = other_affirmative %}
+      {% set section_index = 0 %}
+      {% include 'va_formcategory_partials/_table_section.html' %}
+    {% endif %}
+  {% endif %}
+
+  {% for section_code, section_data in cod_health_history_data.items() %}
+    {% if section_code != 'medical_history' %}
+      {% set section_title = cod_health_history_labels.get(section_code, section_code) %}
+      {% set section_index = loop.index0 + 1 %}
+      {% include 'va_formcategory_partials/_table_section.html' %}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+<div class="content-section-title mt-4">
+  <i class="fas fa-sticky-note"></i>
+  Notes
+</div>
+{% if va_usernote and va_usernote.note_content %}
+  <div class="card shadow-sm border">
+    <div class="card-body">
+      <p class="mb-0">{{ va_usernote.note_content }}</p>
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-light border">
+    <i class="fas fa-info-circle me-2"></i>No note saved for this submission yet.
+  </div>
+{% endif %}

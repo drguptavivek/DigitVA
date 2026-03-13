@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-03-13
 ---
 
 # Runtime And Operations
@@ -213,6 +213,57 @@ Current implication:
 
 - write activity is easier to audit
 - read/query performance analysis is not comprehensively captured in current SQL logs
+
+## Frontend Runtime Helpers
+
+### Shared toast notifications
+
+The app now exposes a shared transient-notification helper:
+
+- `window.showAppToast(message, type, options)`
+
+Implementation:
+
+- defined in [`app/static/js/base.js`](../../app/static/js/base.js)
+- mounted with a shared bottom-right toast container in
+  [`app/templates/va_frontpages/va_base.html`](../../app/templates/va_frontpages/va_base.html)
+
+Current availability:
+
+- all VA frontpages extending `va_base.html`
+- the admin console, because
+  [`app/templates/admin/admin_index.html`](../../app/templates/admin/admin_index.html)
+  extends the same base template
+
+Current behavior:
+
+- toasts render in the bottom-right corner
+- they auto-dismiss by default
+- they can be closed manually
+- flashed messages are surfaced through this helper on page load
+- HTMX/JS workflows may call this helper directly for save success, validation
+  warnings, and network errors
+
+## Background Tasks
+
+### Current scheduled tasks
+
+The app seeds Celery beat schedules on worker startup in [`make_celery.py`](../../make_celery.py).
+
+Current seeded periodic tasks:
+
+- ODK sync every 6 hours
+- stale coding allocation cleanup every 1 hour
+
+Current coding allocation cleanup behavior:
+
+- implemented in
+  [`app/services/coding_allocation_service.py`](../../app/services/coding_allocation_service.py)
+- scheduled by [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py)
+- deactivates stale active coding allocations older than 1 hour
+- preserves any saved `va_initial_assessments` rows
+- writes an audit entry with action
+  `va_allocation_released_due_to_timeout`
 
 ## Emailing
 

@@ -67,7 +67,6 @@
           <i class="fas fa-save me-1"></i>{% if analysis %}Update Analysis{% else %}Save Analysis{% endif %}
         </button>
       </div>
-      <div id="saa-alert" class="mt-2" style="display:none;"></div>
     {% elif analysis %}
       <div class="alert alert-secondary mt-3 mb-0 py-2">
         Social Autopsy analysis saved for this coder view.
@@ -117,7 +116,6 @@
       remark: document.getElementById('saa-remark').value
     };
 
-    var alertEl = document.getElementById('saa-alert');
     var btn = document.getElementById('saa-save-btn');
     btn.disabled = true;
 
@@ -132,11 +130,12 @@
     .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
     .then(function (res) {
       btn.disabled = false;
-      alertEl.style.display = '';
       if (res.ok && res.data.saved) {
         document.getElementById('saa-selection-count').textContent = res.data.selection_count;
         btn.innerHTML = '<i class="fas fa-save me-1"></i>Update Analysis';
-        alertEl.innerHTML = '<div class="alert alert-success py-2 mb-0">Social Autopsy analysis saved.</div>';
+        if (window.showAppToast) {
+          window.showAppToast('Social Autopsy analysis saved.', 'success');
+        }
         var nextBtn = document.getElementById('next-category-btn');
         if (nextBtn) {
           nextBtn.disabled = false;
@@ -149,14 +148,15 @@
             warning.remove();
           }
         }
-      } else {
-        alertEl.innerHTML = '<div class="alert alert-danger py-2 mb-0">' + (res.data.error || 'Failed to save analysis.') + '</div>';
+      } else if (window.showAppToast) {
+        window.showAppToast(res.data.error || 'Failed to save analysis.', 'danger', { timeoutMs: 6500 });
       }
     })
     .catch(function () {
       btn.disabled = false;
-      alertEl.style.display = '';
-      alertEl.innerHTML = '<div class="alert alert-danger py-2 mb-0">Network error. Please try again.</div>';
+      if (window.showAppToast) {
+        window.showAppToast('Network error. Please try again.', 'danger');
+      }
     });
   }
 </script>

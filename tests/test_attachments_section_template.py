@@ -118,6 +118,21 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
             vafinexists=False,
             vaerrexists=False,
             vainiexists=False,
+            summary_items=["Fever", "Cough"],
+            cod_attachments_data={"narration": {"Narrative Text": "Free text narrative"}},
+            cod_attachments_labels={"narration": "Narration"},
+            cod_attachments_render_modes={"narration": "default"},
+            cod_health_history_data={
+                "medical_history": {
+                    "Tuberculosis": "Yes",
+                    "HIV": "No",
+                    "Malaria test": "Pending",
+                }
+            },
+            cod_health_history_labels={"medical_history": "Disease / Co-Morbidity"},
+            va_usernote=type("UserNote", (), {"note_content": "Important coder note"})(),
+            flip_list=[],
+            info_list=[],
             va_initial_assess=None,
             va_final_assess=None,
             smartva=None,
@@ -126,9 +141,15 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
         )
 
         self.assertIn("VA COD ASSESSMENT", rendered)
+        self.assertIn("Symptoms on VA Interview", rendered)
+        self.assertIn("Narration and Documents", rendered)
+        self.assertIn("Disease / Co-Morbidity", rendered)
+        self.assertIn("Diagnosed by Health Professional", rendered)
+        self.assertIn("Notes", rendered)
+        self.assertIn("Important coder note", rendered)
         self.assertIn('id="form-container2"', rendered)
         self.assertIn("Previous Category", rendered)
-        self.assertIn("Assign COD", rendered)
+        self.assertNotIn("Assign COD", rendered)
 
     def test_attachments_category_uses_assign_cod_for_workflow_next_step(self):
         category_config = type(

@@ -192,3 +192,75 @@ def cleanup_stale_runs():
         db.session.commit()
     except Exception as e:
         print(f"Warning: Could not clean up stale sync runs: {e}")
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.release_stale_coding_allocations_task",
+    bind=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def release_stale_coding_allocations_task(self):
+    """Release stale coding allocations older than the configured timeout."""
+    from app.services.coding_allocation_service import release_stale_coding_allocations
+
+    return {"released": release_stale_coding_allocations(timeout_hours=1)}
+
+
+def ensure_coding_timeout_cleanup_scheduled():
+    """Seed the stale coding allocation cleanup task (every 1 hour). Idempotent."""
+    try:
+        from app import db
+
+        with db.engine.begin() as conn:
+            interval_id = conn.execute(
+                sa.text(
+                    "SELECT id FROM public.celery_intervalschedule "
+                    "WHERE every = 1 AND period = 'hours' LIMIT 1"
+                )
+            ).scalar()
+            if interval_id is None:
+                interval_id = conn.execute(
+                    sa.text(
+                        "INSERT INTO public.celery_intervalschedule (every, period) "
+                        "VALUES (1, 'hours') RETURNING id"
+                    )
+                ).scalar()
+
+            exists = conn.execute(
+                sa.text(
+                    "SELECT id FROM public.celery_periodictask WHERE name = :name LIMIT 1"
+                ),
+                {"name": "Release stale coding allocations — every 1 hour"},
+            ).scalar()
+
+            if not exists:
+                conn.execute(
+                    sa.text(
+                        """
+                        INSERT INTO public.celery_periodictask
+                            (name, task, args, kwargs, queue, exchange, routing_key, headers,
+                             priority, one_off, enabled, total_run_count, description,
+                             discriminator, schedule_id)
+                        VALUES
+                            (:name, :task, '[]', '{}', NULL, NULL, NULL, '{}',
+                             NULL, false, true, 0, '',
+                             'intervalschedule', :schedule_id)
+                        """
+                    ),
+                    {
+                        "name": "Release stale coding allocations — every 1 hour",
+                        "task": "app.tasks.sync_tasks.release_stale_coding_allocations_task",
+                        "schedule_id": interval_id,
+                    },
+                )
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO public.celery_periodictaskchanged (last_update) "
+                        "VALUES (NOW()) ON CONFLICT DO NOTHING"
+                    )
+                )
+
+        print("Coding allocation cleanup beat schedule seeded: every 1 hour.")
+    except Exception as e:
+        print(f"Warning: Could not seed coding allocation cleanup schedule: {e}")

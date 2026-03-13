@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-12
+last_updated: 2026-03-13
 ---
 
 # Workflow And Permissions
@@ -40,7 +40,10 @@ Coder dashboard behavior:
 Starting coding:
 
 - the app creates a `va_allocations` row for the chosen submission
-- stale coding allocations older than one hour are cleared before new allocation
+- stale coding allocations older than one hour are released automatically
+- the release path deactivates only the stale coding allocation
+- any saved `va_initial_assessments` row is preserved so the coder can resume
+  final COD later
 
 Coding steps:
 
@@ -51,6 +54,15 @@ Coding steps:
 Completion behavior:
 
 - final coding or not-codeable submission deactivates the active coding allocation
+
+Timeout cleanup:
+
+- the app still performs a stale-allocation release check when a coder starts
+  normal coding
+- a Celery beat task also runs every hour to release stale coding allocations
+- timeout release writes a `va_submissions_auditlog` row with
+  `va_allocation_released_due_to_timeout`
+- timeout release does not discard saved initial COD work
 
 Recode:
 

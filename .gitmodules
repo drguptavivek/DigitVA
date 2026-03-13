@@ -1,0 +1,3 @@
+[submodule "vendor/smartva-analyze"]
+	path = vendor/smartva-analyze
+	url = https://github.com/ihmeuw/SmartVA-Analyze.git

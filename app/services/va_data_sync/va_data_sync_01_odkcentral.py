@@ -348,10 +348,12 @@ def va_data_sync_odkcentral():
                 form_updated = 0
                 for va_smartva_record in va_smartva_new_results.itertuples():
                     va_sid = getattr(va_smartva_record, "sid", None)
-                    if va_sid not in amended_sids:
-                        continue
-
                     va_smartva_existing = va_smartva_existingactive_results.get(va_sid)
+
+                    # Save if: submission was amended this run (always refresh), or
+                    # submission has no existing active SmartVA result (fill gap).
+                    if va_sid not in amended_sids and va_smartva_existing:
+                        continue
                     if va_smartva_existing:
                         va_smartva_existing.va_smartva_status = VaStatuses.deactive
                         db.session.add(
@@ -440,4 +442,127 @@ def va_data_sync_odkcentral():
         log.error("DataSync failed: %s", e, exc_info=True)
         print(f"DataSync Failed [Error: {str(e)}].")
         print(traceback.format_exc())
+        raise
+
+
+def va_smartva_run_pending():
+    """Run SmartVA only (Phase 2) for all forms, saving results for any
+    submission that does not yet have an active SmartVA result.
+    Does NOT download new data from ODK.
+    """
+    try:
+        log.info("SmartVA-only run: started.")
+        print("SmartVA-only run: started.")
+
+        va_forms = sync_runtime_forms_from_site_mappings()
+        if not va_forms:
+            log.warning("SmartVA-only run: no active mapped VA forms found.")
+            print("SmartVA-only run: no active mapped VA forms found.")
+            return {"smartva_updated": 0}
+
+        # Empty amended_sids → only fill gaps (submissions without existing results)
+        amended_sids: set = set()
+        va_smartva_updated = 0
+
+        for va_form in va_forms:
+            try:
+                log.info("SmartVA-only [%s]: preparing input.", va_form.form_id)
+                print(f"SmartVA-only [Preparing SmartVA input: {va_form.form_id}].")
+                va_smartva_prepdata(va_form)
+
+                log.info("SmartVA-only [%s]: running analysis.", va_form.form_id)
+                print(f"SmartVA-only [Initiating SmartVA analysis: {va_form.form_id}].")
+                va_smartva_runsmartva(va_form)
+
+                log.info("SmartVA-only [%s]: formatting output.", va_form.form_id)
+                print(f"SmartVA-only [Processing & formatting SmartVA result: {va_form.form_id}].")
+                output_file = va_smartva_formatsmartvaresult(va_form)
+                if not output_file:
+                    log.warning("SmartVA-only [%s]: no output file produced, skipping.", va_form.form_id)
+                    continue
+
+                va_smartva_new_results, va_smartva_existingactive_results = (
+                    va_smartva_appendsmartvaresults(db.session, {va_form: output_file})
+                )
+                if va_smartva_new_results is None:
+                    log.info("SmartVA-only [%s]: no new results.", va_form.form_id)
+                    continue
+
+                form_updated = 0
+                for va_smartva_record in va_smartva_new_results.itertuples():
+                    va_sid = getattr(va_smartva_record, "sid", None)
+                    va_smartva_existing = va_smartva_existingactive_results.get(va_sid)
+
+                    # Only fill gaps — skip SIDs that already have an active result
+                    if va_sid not in amended_sids and va_smartva_existing:
+                        continue
+
+                    if va_smartva_existing:
+                        va_smartva_existing.va_smartva_status = VaStatuses.deactive
+                        db.session.add(
+                            VaSubmissionsAuditlog(
+                                va_sid=va_sid,
+                                va_audit_entityid=va_smartva_existing.va_smartva_id,
+                                va_audit_byrole="vaadmin",
+                                va_audit_operation="d",
+                                va_audit_action="va_smartva_deletion_during_datasync",
+                            )
+                        )
+
+                    va_smartva_uuid = uuid.uuid4()
+                    db.session.add(
+                        VaSmartvaResults(
+                            va_smartva_id=va_smartva_uuid,
+                            va_sid=va_sid,
+                            va_smartva_age=(
+                                format(float(getattr(va_smartva_record, "age", None)), ".1f")
+                                if getattr(va_smartva_record, "age", None) is not None
+                                else None
+                            ),
+                            va_smartva_gender=getattr(va_smartva_record, "sex", None),
+                            va_smartva_cause1=getattr(va_smartva_record, "cause1", None),
+                            va_smartva_likelihood1=getattr(va_smartva_record, "likelihood1", None),
+                            va_smartva_keysymptom1=getattr(va_smartva_record, "key_symptom1", None),
+                            va_smartva_cause2=getattr(va_smartva_record, "cause2", None),
+                            va_smartva_likelihood2=getattr(va_smartva_record, "likelihood2", None),
+                            va_smartva_keysymptom2=getattr(va_smartva_record, "key_symptom2", None),
+                            va_smartva_cause3=getattr(va_smartva_record, "cause3", None),
+                            va_smartva_likelihood3=getattr(va_smartva_record, "likelihood3", None),
+                            va_smartva_keysymptom3=getattr(va_smartva_record, "key_symptom3", None),
+                            va_smartva_allsymptoms=getattr(va_smartva_record, "all_symptoms", None),
+                            va_smartva_resultfor=getattr(va_smartva_record, "result_for", None),
+                            va_smartva_cause1icd=getattr(va_smartva_record, "cause1_icd", None),
+                            va_smartva_cause2icd=getattr(va_smartva_record, "cause2_icd", None),
+                            va_smartva_cause3icd=getattr(va_smartva_record, "cause3_icd", None),
+                        )
+                    )
+                    db.session.add(
+                        VaSubmissionsAuditlog(
+                            va_sid=va_sid,
+                            va_audit_entityid=va_smartva_uuid,
+                            va_audit_byrole="vaadmin",
+                            va_audit_operation="c",
+                            va_audit_action="va_smartva_creation_during_smartva_only_run",
+                        )
+                    )
+                    form_updated += 1
+                    print(f"SmartVA-only [Saved result '{va_form.form_id}: {va_sid}']")
+
+                db.session.commit()
+                va_smartva_updated += form_updated
+                log.info("SmartVA-only [%s]: committed %d result(s).", va_form.form_id, form_updated)
+                print(f"SmartVA-only [Complete for {va_form.form_id}: {form_updated} result(s) saved].")
+
+            except Exception as e:
+                db.session.rollback()
+                log.warning("SmartVA-only [%s] failed, skipping: %s", va_form.form_id, e, exc_info=True)
+                print(f"SmartVA-only Warning [Skipped {va_form.form_id}: {e}].")
+
+        log.info("SmartVA-only run complete: smartva_updated=%d", va_smartva_updated)
+        print(f"SmartVA-only Success [SmartVA updated: {va_smartva_updated}]")
+        return {"smartva_updated": va_smartva_updated}
+
+    except Exception as e:
+        log.error("SmartVA-only run failed: %s", e, exc_info=True)
+        print(f"SmartVA-only Failed [Error: {str(e)}].")
         raise

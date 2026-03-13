@@ -55,6 +55,50 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
         raise
 
 
+@shared_task(
+    name="app.tasks.sync_tasks.run_smartva_pending",
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=3600,
+)
+def run_smartva_pending(self, triggered_by="manual", user_id=None):
+    """Run SmartVA only (no ODK download) and record in va_sync_runs."""
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services.va_data_sync.va_data_sync_01_odkcentral import va_smartva_run_pending
+
+    run = VaSyncRun(
+        triggered_by=triggered_by,
+        triggered_user_id=user_id,
+        started_at=datetime.now(timezone.utc),
+        status="running",
+    )
+    db.session.add(run)
+    db.session.commit()
+    run_id = run.sync_run_id
+
+    try:
+        result = va_smartva_run_pending()
+        run = db.session.get(VaSyncRun, run_id)
+        run.status = "success"
+        run.finished_at = datetime.now(timezone.utc)
+        if result:
+            run.records_added = result.get("smartva_updated", 0)
+        db.session.commit()
+
+    except Exception as exc:
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_message = str(exc)[:2000]
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
+
+
 def ensure_sync_scheduled():
     """Seed the default ODK sync periodic task (every 6 hours). Idempotent."""
     try:

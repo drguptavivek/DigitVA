@@ -10,9 +10,14 @@
     <h5 class="mb-0">
       <i class="fa-solid fa-rotate me-2 text-secondary"></i>Data Sync
     </h5>
-    <button class="btn btn-sm btn-primary" id="sync-trigger-btn">
-      <i class="fa-solid fa-play me-1"></i>Sync Now
-    </button>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-secondary" id="sync-smartva-btn" title="Run SmartVA on pending submissions (no ODK download)">
+        <i class="fa-solid fa-brain me-1"></i>Gen SmartVA
+      </button>
+      <button class="btn btn-sm btn-primary" id="sync-trigger-btn">
+        <i class="fa-solid fa-play me-1"></i>Sync Now
+      </button>
+    </div>
   </div>
 
   {# Status bar #}
@@ -59,6 +64,23 @@
       </div>
       <div id="sync-coverage-wrap">
         <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching ODK counts…</span>
+      </div>
+    </div>
+  </div>
+
+  {# SmartVA status #}
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-secondary">
+          <i class="fa-solid fa-brain me-1"></i>SmartVA Results (Local)
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" id="sync-smartva-refresh-btn">
+          <i class="fa-solid fa-rotate-right me-1"></i>Refresh
+        </button>
+      </div>
+      <div id="sync-smartva-wrap">
+        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>
       </div>
     </div>
   </div>
@@ -126,6 +148,7 @@
   // ── Status ─────────────────────────────────────────────────────────────────
 
   var _statusInterval = null;
+  var _wasRunning = false;
 
   function loadStatus() {
     apiJson('/admin/api/sync/status').then(function (res) {
@@ -173,6 +196,12 @@
         if (d.is_running) loadHistory();
       }, d.is_running ? 5000 : 30000);
 
+      // Reload SmartVA stats when a run just completed
+      if (!d.is_running && _wasRunning) {
+        loadSmartvaStats();
+      }
+      _wasRunning = d.is_running;
+
       // Update trigger button state
       var btn = document.getElementById('sync-trigger-btn');
       if (btn) {
@@ -180,6 +209,13 @@
         btn.innerHTML = d.is_running
           ? '<i class="fa-solid fa-spinner fa-spin me-1"></i>Running…'
           : '<i class="fa-solid fa-play me-1"></i>Sync Now';
+      }
+      var smartvaBtn = document.getElementById('sync-smartva-btn');
+      if (smartvaBtn) {
+        smartvaBtn.disabled = d.is_running;
+        if (!d.is_running) {
+          smartvaBtn.innerHTML = '<i class="fa-solid fa-brain me-1"></i>Gen SmartVA';
+        }
       }
     }).catch(function () {
       var wrap = document.getElementById('sync-status-wrap');
@@ -295,6 +331,68 @@
     });
   }
 
+  // ── SmartVA stats ──────────────────────────────────────────────────────────
+
+  function loadSmartvaStats() {
+    var wrap = document.getElementById('sync-smartva-wrap');
+    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>';
+
+    apiJson('/admin/api/sync/smartva-stats').then(function (res) {
+      if (!wrap) return;
+      if (!res.ok) {
+        wrap.innerHTML = '<span class="text-danger small">Failed to load SmartVA stats.</span>';
+        return;
+      }
+      var d = res.data;
+      if (!d.forms || !d.forms.length) {
+        wrap.innerHTML = '<p class="text-muted small mb-0">No forms found.</p>';
+        return;
+      }
+      var rows = d.forms.map(function (f) {
+        var pct = f.submissions > 0 ? Math.round((f.with_smartva / f.submissions) * 100) : 0;
+        var pendingBadge = f.pending_smartva === 0
+          ? '<span class="badge text-bg-success">All done</span>'
+          : '<span class="badge text-bg-warning">' + f.pending_smartva + ' pending</span>';
+        return '<tr>'
+          + '<td class="small">' + esc(f.form_id) + '</td>'
+          + '<td class="small text-center">' + f.submissions + '</td>'
+          + '<td class="small text-center">' + f.with_smartva + '</td>'
+          + '<td class="small text-center">' + pendingBadge + '</td>'
+          + '<td class="small text-center">'
+          +   '<div class="progress" style="height:6px;min-width:60px;">'
+          +     '<div class="progress-bar bg-success" style="width:' + pct + '%"></div>'
+          +   '</div>'
+          + '</td>'
+          + '</tr>';
+      }).join('');
+      var t = d.totals;
+      wrap.innerHTML =
+        '<table class="table table-sm table-bordered mb-1">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="small">Form</th>'
+        + '<th class="small text-center">Submissions</th>'
+        + '<th class="small text-center">With SmartVA</th>'
+        + '<th class="small text-center">Status</th>'
+        + '<th class="small text-center">Coverage</th>'
+        + '</tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '<tfoot class="table-light"><tr>'
+        + '<td class="small fw-semibold">Total</td>'
+        + '<td class="small text-center fw-semibold">' + t.submissions + '</td>'
+        + '<td class="small text-center fw-semibold">' + t.with_smartva + '</td>'
+        + '<td class="small text-center">'
+        +   (t.pending_smartva === 0
+            ? '<span class="badge text-bg-success">All done</span>'
+            : '<span class="badge text-bg-warning">' + t.pending_smartva + ' pending</span>')
+        + '</td>'
+        + '<td></td>'
+        + '</tr></tfoot>'
+        + '</table>';
+    }).catch(function () {
+      if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
+    });
+  }
+
   // ── Trigger ────────────────────────────────────────────────────────────────
 
   document.getElementById('sync-trigger-btn').addEventListener('click', function () {
@@ -314,6 +412,30 @@
     }).catch(function () {
       btn.disabled = false;
       btn.innerHTML = '<i class="fa-solid fa-play me-1"></i>Sync Now';
+      showToast('Network error.', 'danger');
+    });
+  });
+
+  // ── Gen SmartVA ────────────────────────────────────────────────────────────
+
+  document.getElementById('sync-smartva-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Starting…';
+
+    apiJson('/admin/api/sync/trigger-smartva', 'POST').then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-brain me-1"></i>Gen SmartVA';
+        showToast(res.data.error || 'Failed to start SmartVA run.', 'danger');
+        return;
+      }
+      showToast('SmartVA run started.', 'success');
+      loadStatus();
+      loadHistory();
+    }).catch(function () {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-brain me-1"></i>Gen SmartVA';
       showToast('Network error.', 'danger');
     });
   });
@@ -346,6 +468,7 @@
   // ── Coverage refresh ───────────────────────────────────────────────────────
 
   document.getElementById('sync-coverage-refresh-btn').addEventListener('click', loadCoverage);
+  document.getElementById('sync-smartva-refresh-btn').addEventListener('click', loadSmartvaStats);
 
   // ── Toast helper ───────────────────────────────────────────────────────────
 
@@ -361,6 +484,7 @@
 
   loadStatus();
   loadHistory();
+  loadSmartvaStats();
   loadCoverage();   // slow — ODK API call, fires independently
 
 }());

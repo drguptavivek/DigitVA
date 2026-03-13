@@ -3186,6 +3186,86 @@ def admin_sync_coverage():
         return _json_error(f"Failed to load coverage data: {str(e)}", 500)
 
 
+@admin.post("/api/sync/trigger-smartva")
+@require_api_role("admin")
+def admin_sync_trigger_smartva():
+    try:
+        from app.models.va_sync_runs import VaSyncRun
+        from app.tasks.sync_tasks import run_smartva_pending
+
+        running = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .limit(1)
+        )
+        if running:
+            return _json_error("A sync is already in progress.", 409)
+
+        user = _request_user()
+        log.info("SmartVA-only run triggered by user %s", user.user_id if user else "unknown")
+        task = run_smartva_pending.delay(
+            triggered_by="smartva-only",
+            user_id=str(user.user_id) if user else None,
+        )
+        return jsonify({"message": "SmartVA run started.", "task_id": task.id}), 202
+    except Exception as e:
+        log.error("admin_sync_trigger_smartva failed", exc_info=True)
+        return _json_error(f"Failed to trigger SmartVA run: {str(e)}", 500)
+
+
+@admin.get("/api/sync/smartva-stats")
+@require_api_role("admin")
+def admin_sync_smartva_stats():
+    """Return per-form SmartVA result counts."""
+    try:
+        from app.models.va_submissions import VaSubmissions
+        from app.models.va_smartva_results import VaSmartvaResults
+        from app.models.va_forms import VaForms
+
+        forms = db.session.scalars(sa.select(VaForms)).all()
+        rows = []
+        total_submissions = 0
+        total_with_smartva = 0
+        total_without_smartva = 0
+
+        for form in forms:
+            sub_count = db.session.scalar(
+                sa.select(sa.func.count()).where(VaSubmissions.va_form_id == form.form_id)
+            ) or 0
+            smartva_count = db.session.scalar(
+                sa.select(sa.func.count(VaSmartvaResults.va_smartva_id)).where(
+                    VaSmartvaResults.va_sid.in_(
+                        sa.select(VaSubmissions.va_sid).where(
+                            VaSubmissions.va_form_id == form.form_id
+                        )
+                    ),
+                    VaSmartvaResults.va_smartva_status == VaStatuses.active,
+                )
+            ) or 0
+            pending = sub_count - smartva_count
+            rows.append({
+                "form_id": form.form_id,
+                "submissions": sub_count,
+                "with_smartva": smartva_count,
+                "pending_smartva": max(pending, 0),
+            })
+            total_submissions += sub_count
+            total_with_smartva += smartva_count
+            total_without_smartva += max(pending, 0)
+
+        return jsonify({
+            "forms": rows,
+            "totals": {
+                "submissions": total_submissions,
+                "with_smartva": total_with_smartva,
+                "pending_smartva": total_without_smartva,
+            },
+        })
+    except Exception as e:
+        log.error("admin_sync_smartva_stats failed", exc_info=True)
+        return _json_error(f"Failed to load SmartVA stats: {str(e)}", 500)
+
+
 def _sync_run_dict(run) -> dict:
     """Serialise a VaSyncRun to a JSON-safe dict."""
     if run is None:

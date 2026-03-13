@@ -12,7 +12,7 @@
         Special Categories
         <i class="fa-solid fa-circle-info text-muted ms-1 fmc-tooltip"
            data-bs-toggle="tooltip" data-bs-placement="bottom"
-           data-bs-title="Some categories use special render modes. Example: fields assigned to vahealthhistorydetails / medical_history feed the DISEASE / CO-MORBIDITY summary grouping instead of a plain query/response table."></i>
+           data-bs-title="Some categories use special render behavior. Example: fields assigned to vahealthhistorydetails / medical_history feed the DISEASE / CO-MORBIDITY summary grouping instead of a plain query/response table. Also, the social_autopsy category appends the app-owned Social Autopsy analysis form after the mapped submission questions in coder coding flows."></i>
       </span>
     </div>
     <span class="badge bg-secondary" id="fmc-cat-count">{{ categories_json|length }} categor{{ 'y' if categories_json|length == 1 else 'ies' }}</span>
@@ -59,10 +59,12 @@
         </div>
         <div id="fmc-special-note" class="alert alert-info rounded-0 border-0 border-bottom mb-0 py-2 px-3 d-none small">
           <i class="fa-solid fa-circle-info me-1"></i>
-          Fields assigned to <code>vahealthhistorydetails / medical_history</code> feed the
-          <strong>DISEASE / CO-MORBIDITY</strong> summary logic. <code>Yes</code> answers appear
-          in the positive-diagnosis group, <code>No</code> answers appear in the absent group,
-          and other values render in the detail table.
+          <span id="fmc-special-note-text">
+            Fields assigned to <code>vahealthhistorydetails / medical_history</code> feed the
+            <strong>DISEASE / CO-MORBIDITY</strong> summary logic. <code>Yes</code> answers appear
+            in the positive-diagnosis group, <code>No</code> answers appear in the absent group,
+            and other values render in the detail table.
+          </span>
         </div>
         <div id="fmc-field-list" style="overflow-y:auto; max-height:400px;">
           <p class="text-muted small text-center py-5">Select a category on the left.</p>
@@ -488,6 +490,7 @@
     var el = document.getElementById('fmc-field-list');
     var hdr = document.getElementById('fmc-field-header');
     var note = document.getElementById('fmc-special-note');
+    var noteText = document.getElementById('fmc-special-note-text');
 
     if (!_selectedCat) {
       hdr.textContent = 'Select a category to browse fields';
@@ -508,6 +511,10 @@
     }
 
     if (_selectedCat === 'vahealthhistorydetails' && (_selectedSub === null || _selectedSub === 'medical_history')) {
+      noteText.innerHTML = 'Fields assigned to <code>vahealthhistorydetails / medical_history</code> feed the <strong>DISEASE / CO-MORBIDITY</strong> summary logic. <code>Yes</code> answers appear in the positive-diagnosis group, <code>No</code> answers appear in the absent group, and other values render in the detail table.';
+      note.classList.remove('d-none');
+    } else if (_selectedCat === 'social_autopsy') {
+      noteText.innerHTML = 'The <code>social_autopsy</code> category uses the normal mapped submission fields shown below, and then appends the app-owned <strong>Social Autopsy Analysis</strong> form in coder coding flows.';
       note.classList.remove('d-none');
     } else {
       note.classList.add('d-none');

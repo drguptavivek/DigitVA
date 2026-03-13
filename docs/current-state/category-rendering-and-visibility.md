@@ -82,6 +82,13 @@ Additional render-time transforms:
   specific template
 - `attachments` now renders narration/audio/images and document galleries generically
   from category data, while still appending explicit SmartVA / QA / COD workflow UI
+- in `attachments`, file type detection is automatic by file extension
+- image carousel behavior is now controlled by subcategory-level
+  `MasSubcategoryOrder.render_mode`, currently seeded as `media_gallery` for
+  `medical_documents` and `death_documents`
+- attachment images now open in an in-page lightbox with close, zoom, and pan support
+- `social_autopsy` in `table_sections` mode now also appends an app-owned Social
+  Autopsy analysis form for coder coding flows
 - coder/reviewer rendering uses a bridge path so DB-only categories such as
   `social_autopsy` do not render empty while the field-level coder config remains
   partially static
@@ -249,6 +256,30 @@ rules above.
   - in the admin Categories browser, `vahealthhistorydetails / medical_history` should
     be treated as a special subcategory because assigning a field there opts it into this
     summary behavior, not a plain query/response section
+
+### `social_autopsy`
+
+- Nav label: `Social Autopsy`
+- Route: `/<va_action>/<va_actiontype>/<va_sid>/social_autopsy`
+- Partial:
+  [`app/templates/va_formcategory_partials/category_table_sections.html`](../../app/templates/va_formcategory_partials/category_table_sections.html)
+  with
+  [`app/templates/va_formcategory_partials/_social_autopsy_analysis_form.html`](../../app/templates/va_formcategory_partials/_social_autopsy_analysis_form.html)
+- Partial sections:
+  - DB-configured Social Autopsy subcategories and fields
+  - app-owned `Social Autopsy Analysis` form appended after the mapped sections
+- Important mapped fields:
+  - all fields assigned to category `social_autopsy` for the active form type
+- Conditions to appear in left nav:
+  - `social_autopsy` must be visible for the current role and have surviving mapped
+    field data
+- Important partial behavior:
+  - the mapped Social Autopsy submission fields render through the generic
+    `table_sections` pipeline
+  - in coder coding flows, the category then appends the app-owned Social Autopsy
+    analysis form
+  - in the admin Categories browser, `social_autopsy` should be treated as a special
+    category because it mixes dynamic submission rendering with an explicit workflow form
 
 ### `vageneralsymptoms`
 
@@ -468,9 +499,15 @@ rules above.
   - site PI mapping includes `death_registeration`
   - coder static mapping omits `death_registeration`
 - Important partial behavior:
+  - the active runtime path now uses
+    [`category_attachments.html`](../../app/templates/va_formcategory_partials/category_attachments.html),
+    not the legacy category-specific partial above
   - audio fields render as players
-  - narration image renders as an image viewer
-  - medical and death document images render as carousels
+  - narration image opens in the shared attachments lightbox
+  - `medical_documents` and `death_documents` are seeded with subcategory
+    `render_mode = media_gallery`, which drives their carousel rendering
+  - in coding mode with NQA enabled, `Narrative Quality Assessment` appears
+    immediately before `Symptoms on VA Interview`
 
 ## Current Gaps And Mismatches
 

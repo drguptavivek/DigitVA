@@ -1,7 +1,7 @@
 services:
   minerva_app_service:
     ports:
-      - "5005:5005"
+      - "127.0.0.1:5005:5005"
     environment:
       - FLASK_DEBUG=1
       - FLASK_ENV=development

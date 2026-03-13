@@ -1,0 +1,80 @@
+{% if va_action == "vacode" %}
+  {% if va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" %}
+    <div id="form-container2">
+      {% if not vafinexists and not vaerrexists and not vainiexists %}
+        <div hx-get="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vainitialasses') }}" hx-trigger="load" hx-swap="innerHTML" hx-target="this"></div>
+      {% elif vainiexists %}
+        <div hx-get="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vafinalasses') }}" hx-trigger="load" hx-swap="innerHTML" hx-target="this"></div>
+      {% endif %}
+    </div>
+  {% elif va_actiontype == "vaview" %}
+    {% if va_initial_assess or va_final_assess %}
+      <div class="content-section-title mt-4">
+        <i class="fas fa-chart-pie"></i>
+        SmartVA Analysis
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover border">
+          <thead class="table-light">
+            <tr><th width="40%" class="border-bottom">Query</th><th class="border-bottom">Response</th></tr>
+          </thead>
+          <tbody>
+            {% if smartva and smartva.va_smartva_age and smartva.va_smartva_age != 'NaN' and smartva.va_smartva_age is not none %}
+              <tr><td class="align-middle">Age</td><td class="align-middle">{{ smartva.va_smartva_age }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_gender and smartva.va_smartva_gender != 'NaN' and smartva.va_smartva_gender is not none %}
+              <tr><td class="align-middle">Gender</td><td class="align-middle">{{ smartva.va_smartva_gender }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_keysymptom1 and smartva.va_smartva_keysymptom1 != 'NaN' and smartva.va_smartva_keysymptom1 is not none %}
+              <tr><td class="align-middle">Primary Key Symptom</td><td class="align-middle">{{ smartva.va_smartva_keysymptom1 }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_keysymptom2 and smartva.va_smartva_keysymptom2 != 'NaN' and smartva.va_smartva_keysymptom2 is not none %}
+              <tr><td class="align-middle">Secondary Key Symptom</td><td class="align-middle">{{ smartva.va_smartva_keysymptom2 }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_keysymptom3 and smartva.va_smartva_keysymptom3 != 'NaN' and smartva.va_smartva_keysymptom3 is not none %}
+              <tr><td class="align-middle">Tertiary Key Symptom</td><td class="align-middle">{{ smartva.va_smartva_keysymptom3 }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_cause1 and smartva.va_smartva_cause1 != 'NaN' and smartva.va_smartva_cause1 is not none %}
+              <tr><td class="align-middle">Primary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause1 }}</span>{% if smartva.va_smartva_cause1icd and smartva.va_smartva_cause1icd != 'NaN' and smartva.va_smartva_cause1icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD: {{ smartva.va_smartva_cause1icd }}</span>{% endif %}</div></td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_likelihood1 and smartva.va_smartva_likelihood1 != 'NaN' and smartva.va_smartva_likelihood1 is not none %}
+              <tr><td class="align-middle">Primary Likelihood</td><td class="align-middle">{{ smartva.va_smartva_likelihood1 }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_cause2 and smartva.va_smartva_cause2 != 'NaN' and smartva.va_smartva_cause2 is not none %}
+              <tr><td class="align-middle">Secondary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause2 }}</span>{% if smartva.va_smartva_cause2icd and smartva.va_smartva_cause2icd != 'NaN' and smartva.va_smartva_cause2icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD: {{ smartva.va_smartva_cause2icd }}</span>{% endif %}</div></td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_likelihood2 and smartva.va_smartva_likelihood2 != 'NaN' and smartva.va_smartva_likelihood2 is not none %}
+              <tr><td class="align-middle">Secondary Likelihood</td><td class="align-middle">{{ smartva.va_smartva_likelihood2 }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_cause3 and smartva.va_smartva_cause3 != 'NaN' and smartva.va_smartva_cause3 is not none %}
+              <tr><td class="align-middle">Tertiary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause3 }}</span>{% if smartva.va_smartvacause3_icd and smartva.va_smartva_cause3icd != 'NaN' and smartva.va_smartva_cause3icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD: {{ smartva.va_smartva_cause3icd }}</span>{% endif %}</div></td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_likelihood3 and smartva.va_smartva_likelihood3 != 'NaN' and smartva.va_smartva_likelihood3 is not none %}
+              <tr><td class="align-middle">Tertiary Likelihood</td><td class="align-middle">{{ smartva.va_smartva_likelihood3 }}</td></tr>
+            {% endif %}
+            {% if smartva and smartva.va_smartva_allsymptoms and smartva.va_smartva_allsymptoms != 'NaN' and smartva.va_smartva_allsymptoms is not none %}
+              <tr><td class="align-middle">SmartVA Symptoms</td><td class="align-middle"><div class="symptoms-container">{% for symptom in smartva.va_smartva_allsymptoms.split(';') %}<span class="badge bg-light text-dark border me-1 mb-1 px-2 py-1">{{ symptom.strip() }}</span>{% endfor %}</div></td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if va_initial_assess %}
+        <div class="content-section-title mt-4"><i class="fas fa-notes-medical"></i>Initial Cause of Death Assessment</div>
+        <div class="table-responsive"><table class="table table-hover border"><thead class="table-light"><tr><th width="30%" class="border-bottom">Query</th><th class="border-bottom">Response</th></tr></thead><tbody>
+          {% if va_initial_assess.va_immediate_cod %}<tr><td class="align-middle">Immediate Cause of Death</td><td class="align-middle">{{ va_initial_assess.va_immediate_cod }}</td></tr>{% endif %}
+          {% if va_initial_assess.va_antecedent_cod %}<tr><td class="align-middle">Antecedent Cause of Death</td><td class="align-middle">{{ va_initial_assess.va_antecedent_cod }}</td></tr>{% endif %}
+          {% if va_initial_assess.va_other_conditions %}<tr><td class="align-middle">Other Contributing Conditions</td><td class="align-middle">{{ va_initial_assess.va_other_conditions }}</td></tr>{% endif %}
+        </tbody></table></div>
+      {% endif %}
+
+      {% if va_final_assess %}
+        <div class="content-section-title mt-4"><i class="fas fa-gavel"></i>Final Cause of Death Assessment</div>
+        <div class="table-responsive"><table class="table table-hover border"><thead class="table-light"><tr><th width="30%" class="border-bottom">Query</th><th class="border-bottom">Response</th></tr></thead><tbody>
+          {% if va_final_assess.va_conclusive_cod %}<tr><td class="align-middle">Underlying / Antecendent Cause of Death</td><td class="align-middle">{{ va_final_assess.va_conclusive_cod }}</td></tr>{% endif %}
+          {% if va_final_assess.va_finassess_remark %}<tr><td class="align-middle">Remarks</td><td class="align-middle">{{ va_final_assess.va_finassess_remark }}</td></tr>{% endif %}
+        </tbody></table></div>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+{% endif %}

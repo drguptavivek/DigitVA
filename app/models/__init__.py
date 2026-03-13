@@ -15,6 +15,10 @@ from app.models.va_coder_review import VaCoderReview
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_reviewer_review import VaReviewerReview
 from app.models.va_narrative_assessments import VaNarrativeAssessment
+from app.models.va_social_autopsy_analysis import (
+    VaSocialAutopsyAnalysis,
+    VaSocialAutopsyAnalysisOption,
+)
 from app.models.va_sync_runs import VaSyncRun
 from app.models.va_submissions_auditlog import VaSubmissionsAuditlog
 from app.models.va_user_access_grants import VaUserAccessGrants
@@ -58,6 +62,8 @@ __all__ = [
     "VaSmartvaResults",
     "VaReviewerReview",
     "VaNarrativeAssessment",
+    "VaSocialAutopsyAnalysis",
+    "VaSocialAutopsyAnalysisOption",
     "VaSyncRun",
     "VaSubmissionsAuditlog",
     "VaProjectSites",

@@ -17,7 +17,7 @@ from sqlalchemy import select
 from app import db
 from app.models import (
     MasFormTypes,
-    MasCategoryOrder,
+    MasCategoryDisplayConfig,
     MasSubcategoryOrder,
     MasFieldDisplayConfig,
     MasChoiceMappings,
@@ -142,14 +142,18 @@ class FieldMappingService:
 
         ft_id = form_type.form_type_id
 
-        # Load categories in display order
+        # Load categories in display order from the authoritative category
+        # display config table.
         categories = db.session.scalars(
-            select(MasCategoryOrder)
+            select(MasCategoryDisplayConfig)
             .where(
-                MasCategoryOrder.form_type_id == ft_id,
-                MasCategoryOrder.is_active == True,
+                MasCategoryDisplayConfig.form_type_id == ft_id,
+                MasCategoryDisplayConfig.is_active == True,
             )
-            .order_by(MasCategoryOrder.display_order)
+            .order_by(
+                MasCategoryDisplayConfig.display_order,
+                MasCategoryDisplayConfig.nav_label,
+            )
         ).all()
 
         # Load explicit subcategory ordering for this form type.

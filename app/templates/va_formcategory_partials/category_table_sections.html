@@ -14,6 +14,9 @@
       {% set section_index = loop.index0 %}
       {% include 'va_formcategory_partials/_table_section.html' %}
     {% endfor %}
+    {% if va_partial == "social_autopsy" %}
+      {% include 'va_formcategory_partials/_social_autopsy_analysis_form.html' %}
+    {% endif %}
   {% elif category_data and category_data.get('error') %}
     <div class="alert alert-warning">
       {{ category_data.get('error') }}
@@ -42,16 +45,26 @@
       <span></span>
     {% endif %}
     {% if va_nextcategory %}
-      <button
-        class="btn btn-primary"
-        id="next-category-btn"
-        hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_nextcategory) }}"
-        hx-target="#form-content"
-        hx-swap="innerHTML"
-      >
-        <span>Next Category</span>
-        <i class="fas fa-arrow-right ms-2"></i>
-      </button>
+      <div class="text-end">
+        {% if next_block_message %}
+          <div class="small text-warning mb-2">{{ next_block_message }}</div>
+          <button class="btn btn-primary" id="next-category-btn" disabled>
+            <span>Next Category</span>
+            <i class="fas fa-arrow-right ms-2"></i>
+          </button>
+        {% else %}
+          <button
+            class="btn btn-primary"
+            id="next-category-btn"
+            hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_nextcategory) }}"
+            hx-target="#form-content"
+            hx-swap="innerHTML"
+          >
+            <span>Next Category</span>
+            <i class="fas fa-arrow-right ms-2"></i>
+          </button>
+        {% endif %}
+      </div>
     {% else %}
       <span></span>
     {% endif %}

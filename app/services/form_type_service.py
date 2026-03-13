@@ -92,9 +92,9 @@ class FormTypeService:
         ) or 0
 
         category_count = db.session.scalar(
-            select(func.count()).select_from(MasCategoryOrder).where(
-                MasCategoryOrder.form_type_id == ft_id,
-                MasCategoryOrder.is_active == True,
+            select(func.count()).select_from(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == ft_id,
+                MasCategoryDisplayConfig.is_active == True,
             )
         ) or 0
 

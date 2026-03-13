@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-12
+last_updated: 2026-03-13
 ---
 
 # Current Data Model
@@ -207,6 +207,51 @@ Key fields:
 - `va_rreview`
 - `va_rreview_status`
 
+### `va_narrative_assessments`
+
+Purpose:
+
+- stores coder Narrative Quality Assessment answers for a submission
+
+Key fields:
+
+- `va_sid`
+- `va_nqa_by`
+- six scored question fields
+- `va_nqa_score`
+- `va_nqa_status`
+
+### `va_social_autopsy_analyses`
+
+Purpose:
+
+- stores coder Social Autopsy analysis for a submission as an app-owned workflow artifact
+
+Key fields:
+
+- `va_sid`
+- `va_saa_by`
+- `va_saa_remark`
+- `va_saa_status`
+
+Current behavior:
+
+- one active analysis row is stored per `(va_sid, coder)`
+- selected delay options are normalized into child rows, not flattened into the
+  submission JSON
+
+### `va_social_autopsy_analysis_options`
+
+Purpose:
+
+- stores selected Social Autopsy delay-factor options under a parent analysis row
+
+Key fields:
+
+- `va_saa_id`
+- `delay_level`
+- `option_code`
+
 ## Supporting Tables
 
 Other important tables:
@@ -287,6 +332,10 @@ Key fields:
 - `is_active`
 
 ### `mas_category_order`
+
+Legacy compatibility table retained during the category-config cutover. Runtime
+navigation and category admin now use `mas_category_display_config` as the
+authoritative category table.
 
 Purpose:
 

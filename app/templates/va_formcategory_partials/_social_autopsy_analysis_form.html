@@ -1,0 +1,163 @@
+{% set is_coding_mode = va_action == "vacode" and (va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+{% set analysis = va_social_autopsy_analysis %}
+{% set selected_pairs = social_autopsy_selected_pairs or [] %}
+
+<div class="content-section-title mt-4">
+  <i class="fas fa-clipboard-check"></i>
+  Social Autopsy Analysis
+</div>
+
+<div class="card shadow-sm border-0" id="social-autopsy-analysis-card">
+  <div class="card-body p-3">
+    <div class="small text-muted mb-3">
+      Select all applicable delay factors observed in this case.
+    </div>
+
+    {% for question in social_autopsy_analysis_questions %}
+      <div class="{% if not loop.first %}mt-4{% endif %}">
+        <div class="fw-semibold mb-2">{{ question.title }}</div>
+        <div class="d-flex flex-column gap-2">
+          {% for option in question.options %}
+            {% set pair_key = question.delay_level ~ '::' ~ option.option_code %}
+            <label class="border rounded p-2 {% if is_coding_mode %}bg-light-subtle{% endif %}">
+              <div class="form-check mb-1">
+                <input
+                  class="form-check-input saa-checkbox"
+                  type="checkbox"
+                  value="{{ option.option_code }}"
+                  data-delay-level="{{ question.delay_level }}"
+                  data-none-option="{% if option.option_code == 'none' %}1{% else %}0{% endif %}"
+                  id="saa_{{ question.delay_level }}_{{ option.option_code }}"
+                  {% if pair_key in selected_pairs %}checked{% endif %}
+                  {% if not is_coding_mode %}disabled{% endif %}
+                >
+                <label class="form-check-label fw-semibold" for="saa_{{ question.delay_level }}_{{ option.option_code }}">
+                  {{ option.label }}
+                </label>
+              </div>
+              <div class="small text-muted ms-4">{{ option.description }}</div>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+
+    <div class="mt-4">
+      <label for="saa-remark" class="form-label fw-semibold mb-1">Remarks</label>
+      <textarea
+        id="saa-remark"
+        class="form-control"
+        rows="3"
+        placeholder="Optional remarks about delay factors in this case"
+        {% if not is_coding_mode %}disabled{% endif %}
+      >{{ analysis.va_saa_remark if analysis else '' }}</textarea>
+    </div>
+
+    {% if is_coding_mode %}
+      <div class="d-flex align-items-center gap-3 mt-3 flex-wrap">
+        <div class="small text-muted">
+          Saved selections: <span id="saa-selection-count" class="fw-semibold">{{ selected_pairs|length }}</span>
+        </div>
+        <button
+          type="button"
+          class="btn btn-primary btn-sm ms-auto"
+          id="saa-save-btn"
+          onclick="saveSocialAutopsyAnalysis('{{ url_for('va_api.va_save_social_autopsy_analysis', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid) }}')"
+        >
+          <i class="fas fa-save me-1"></i>{% if analysis %}Update Analysis{% else %}Save Analysis{% endif %}
+        </button>
+      </div>
+      <div id="saa-alert" class="mt-2" style="display:none;"></div>
+    {% elif analysis %}
+      <div class="alert alert-secondary mt-3 mb-0 py-2">
+        Social Autopsy analysis saved for this coder view.
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if is_coding_mode %}
+<script>
+  document.querySelectorAll('.saa-checkbox').forEach(function (input) {
+    input.addEventListener('change', function () {
+      var delayLevel = input.dataset.delayLevel;
+      var isNone = input.dataset.noneOption === '1';
+      var peers = document.querySelectorAll('.saa-checkbox[data-delay-level="' + delayLevel + '"]');
+
+      if (isNone && input.checked) {
+        peers.forEach(function (peer) {
+          if (peer !== input) {
+            peer.checked = false;
+          }
+        });
+        return;
+      }
+
+      if (!isNone && input.checked) {
+        peers.forEach(function (peer) {
+          if (peer.dataset.noneOption === '1') {
+            peer.checked = false;
+          }
+        });
+      }
+    });
+  });
+
+  function saveSocialAutopsyAnalysis(url) {
+    var selected = [];
+    document.querySelectorAll('.saa-checkbox:checked').forEach(function (input) {
+      selected.push({
+        delay_level: input.dataset.delayLevel,
+        option_code: input.value
+      });
+    });
+
+    var payload = {
+      selected_options: selected,
+      remark: document.getElementById('saa-remark').value
+    };
+
+    var alertEl = document.getElementById('saa-alert');
+    var btn = document.getElementById('saa-save-btn');
+    btn.disabled = true;
+
+    fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': '{{ csrf_token() }}'
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+    .then(function (res) {
+      btn.disabled = false;
+      alertEl.style.display = '';
+      if (res.ok && res.data.saved) {
+        document.getElementById('saa-selection-count').textContent = res.data.selection_count;
+        btn.innerHTML = '<i class="fas fa-save me-1"></i>Update Analysis';
+        alertEl.innerHTML = '<div class="alert alert-success py-2 mb-0">Social Autopsy analysis saved.</div>';
+        var nextBtn = document.getElementById('next-category-btn');
+        if (nextBtn) {
+          nextBtn.disabled = false;
+          nextBtn.removeAttribute('disabled');
+        }
+        var footer = btn.closest('.card-body');
+        if (footer) {
+          var warning = footer.parentElement.querySelector('.small.text-warning');
+          if (warning) {
+            warning.remove();
+          }
+        }
+      } else {
+        alertEl.innerHTML = '<div class="alert alert-danger py-2 mb-0">' + (res.data.error || 'Failed to save analysis.') + '</div>';
+      }
+    })
+    .catch(function () {
+      btn.disabled = false;
+      alertEl.style.display = '';
+      alertEl.innerHTML = '<div class="alert alert-danger py-2 mb-0">Network error. Please try again.</div>';
+    });
+  }
+</script>
+{% endif %}

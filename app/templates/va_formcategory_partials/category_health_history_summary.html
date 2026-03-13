@@ -107,16 +107,26 @@
       <span></span>
     {% endif %}
     {% if va_nextcategory %}
-      <button
-        class="btn btn-primary"
-        id="next-category-btn"
-        hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_nextcategory) }}"
-        hx-target="#form-content"
-        hx-swap="innerHTML"
-      >
-        <span>Next Category</span>
-        <i class="fas fa-arrow-right ms-2"></i>
-      </button>
+      <div class="text-end">
+        {% if next_block_message %}
+          <div class="small text-warning mb-2">{{ next_block_message }}</div>
+          <button class="btn btn-primary" id="next-category-btn" disabled>
+            <span>Next Category</span>
+            <i class="fas fa-arrow-right ms-2"></i>
+          </button>
+        {% else %}
+          <button
+            class="btn btn-primary"
+            id="next-category-btn"
+            hx-get="{{ url_for('va_api.va_renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_nextcategory) }}"
+            hx-target="#form-content"
+            hx-swap="innerHTML"
+          >
+            <span>Next Category</span>
+            <i class="fas fa-arrow-right ms-2"></i>
+          </button>
+        {% endif %}
+      </div>
     {% else %}
       <span></span>
     {% endif %}

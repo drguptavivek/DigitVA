@@ -22,7 +22,7 @@ multiple form types can coexist independently.
 
 ```
 mas_form_types
-  └─► mas_category_order          (display groupings)
+  └─► mas_category_order          (legacy compatibility copy)
   └─► mas_category_display_config (category labels, icons, render mode, role visibility)
   └─► mas_subcategory_order       (sub-groupings within categories)
   └─► mas_field_display_config    (per-field labels and flags)
@@ -46,7 +46,9 @@ Registry of supported VA form types.
 
 ### `mas_category_order`
 
-Controls the display order of categories within a form type.
+Legacy compatibility table for category identity and order within a form type.
+Runtime and admin rendering now treat `mas_category_display_config` as the
+authoritative category source.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -61,9 +63,8 @@ Unique constraint: `(form_type_id, category_code)`.
 
 ### `mas_category_display_config`
 
-Category-level display metadata per form type. This is additive to
-`mas_category_order`: order remains structural there, while labels, icons, render
-mode, and role visibility live here.
+Category-level display metadata per form type. This is now the authoritative
+category table for runtime rendering and admin category management.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -73,7 +74,7 @@ mode, and role visibility live here.
 | `display_label` | VARCHAR(128) | Full heading used in the content panel |
 | `nav_label` | VARCHAR(128) | Left-nav label |
 | `icon_name` | VARCHAR(64) | Font Awesome icon class suffix |
-| `display_order` | INTEGER | Mirrored from `mas_category_order.display_order` for render-time use |
+| `display_order` | INTEGER | Authoritative category/nav order |
 | `render_mode` | VARCHAR(32) | e.g. `table_sections`, `health_history_summary`, `attachments` |
 | `show_to_coder` | BOOLEAN | Role visibility flag |
 | `show_to_reviewer` | BOOLEAN | Role visibility flag |
@@ -97,9 +98,19 @@ Controls the display order of sub-categories within a category.
 | `subcategory_code` | VARCHAR(64) | e.g. `A1`, `A2` |
 | `subcategory_name` | VARCHAR(128) | Display label |
 | `display_order` | INTEGER | |
+| `render_mode` | VARCHAR(32) | `default`, `media_gallery`, or future subcategory-level display mode |
 | `is_active` | BOOLEAN | |
 
 Unique constraint: `(form_type_id, category_code, subcategory_code)`.
+
+Important design note:
+
+- subcategory render behavior is now configurable
+- `render_mode = media_gallery` is currently used by the attachments renderer to
+  show image carousels/thumbnails for sections such as `medical_documents` and
+  `death_documents`
+- subcategories left as `default` render as normal query/response sections, even
+  if some individual fields happen to contain image or audio attachments
 
 ### `mas_field_display_config`
 
@@ -200,7 +211,7 @@ Route: `POST /admin/api/form-types/<source_code>/duplicate`
 Body: `{ "new_code": "...", "new_name": "...", "description": "..." }`
 
 The service copies all child records under a new `form_type_id` with fresh UUIDs:
-- All `MasCategoryOrder` rows
+- All `MasCategoryDisplayConfig` rows
 - All `MasSubcategoryOrder` rows
 - All `MasFieldDisplayConfig` rows (labels, flags, PII settings, ODK labels)
 - All `MasChoiceMappings` rows
@@ -229,6 +240,25 @@ The field edit modal is the authoritative admin UI for field-scoped choice label
 - the saved `choice_label` is what coding templates render for that specific field
 - editing a choice label here does not affect other fields, even if the source XLSForm
   reused the same choice list
+- choice lookups at render time now normalize numeric JSON values like `3.0` to
+  match string-coded choice values like `3`, which is important for some SOCIAL
+  form select fields synced from ODK
+
+### Categories Panel
+
+The Categories subpanel is a three-panel browser:
+
+- `Categories`
+- `Subcategories`
+- `Fields`
+
+Current special behaviors in that panel:
+
+- the header includes a `Special Categories` tooltip note
+- `vahealthhistorydetails / medical_history` shows a contextual note because fields
+  assigned there feed the `DISEASE / CO-MORBIDITY` summary grouping
+- subcategory add/edit modals now expose `Render Mode`
+- subcategories with `render_mode = media_gallery` are marked with a `Gallery` badge
 Response: JSON file attachment.
 
 Export bundle format:
@@ -510,7 +540,7 @@ The cache is invalidated after any field edit via `svc.clear_cache()`.
 
 Ordering behavior in `get_fieldsitepi(form_type_code)`:
 
-- categories are ordered by `MasCategoryOrder.display_order`
+- categories are ordered by `MasCategoryDisplayConfig.display_order`
 - subcategories within a category are ordered by `MasSubcategoryOrder.display_order`
 - fields within a subcategory are ordered by `MasFieldDisplayConfig.display_order`
 

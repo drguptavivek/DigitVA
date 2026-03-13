@@ -11,7 +11,7 @@ import pandas as pd
 from pathlib import Path
 from collections import OrderedDict
 from app import db
-from app.models import MasFormTypes, MasSubcategoryOrder
+from app.models import MasCategoryDisplayConfig, MasFormTypes, MasSubcategoryOrder
 from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator, WHO_2022_CATEGORIES
 from app.services.field_mapping_service import FieldMappingService
 from tests.base import BaseTestCase
@@ -287,6 +287,36 @@ class TestFieldMappingServiceStructure(BaseTestCase):
         expected_order = [c for c in WHO_2022_CATEGORIES if c in cat_keys]
         self.assertEqual(cat_keys, expected_order,
                          "Category order in fieldsitepi does not match source")
+
+    def test_15b_fieldsitepi_uses_category_display_config_order(self):
+        """Runtime category order follows MasCategoryDisplayConfig, not legacy order."""
+        form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == self.form_type_code)
+        )
+        first = db.session.scalar(
+            db.select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                MasCategoryDisplayConfig.category_code == "vanarrationanddocuments",
+            )
+        )
+        second = db.session.scalar(
+            db.select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                MasCategoryDisplayConfig.category_code == "vahealthserviceutilisation",
+            )
+        )
+        first.display_order = 20
+        second.display_order = 19
+        db.session.commit()
+
+        self.service.clear_cache()
+        result = self.service.get_fieldsitepi(self.form_type_code)
+        cat_keys = list(result.keys())
+
+        self.assertLess(
+            cat_keys.index("vahealthserviceutilisation"),
+            cat_keys.index("vanarrationanddocuments"),
+        )
 
     def test_16_fieldsitepi_uses_explicit_subcategory_order(self):
         """Subcategories are ordered by MasSubcategoryOrder, not first field order."""

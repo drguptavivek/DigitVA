@@ -7,7 +7,7 @@ Run (inside Docker):
 from decimal import Decimal
 
 from app import db
-from app.models import MasFormTypes, MasFieldDisplayConfig
+from app.models import MasCategoryDisplayConfig, MasFormTypes, MasFieldDisplayConfig
 from app.models.va_field_mapping import MasChoiceMappings
 from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
 from tests.base import BaseTestCase
@@ -224,3 +224,29 @@ class TestAdminFieldMappingRoutes(BaseTestCase):
             )
         )
         self.assertEqual(subcategory.render_mode, "media_gallery")
+
+    def test_13_category_update_syncs_runtime_display_order(self):
+        """Category edits from the Categories panel update runtime nav order too."""
+        self._login(self.base_admin_id)
+        csrf_headers = self._csrf_headers()
+
+        resp = self.client.put(
+            "/admin/api/form-types/WHO_2022_VA/categories/vanarrationanddocuments",
+            json={
+                "category_name": "Narration and Documents",
+                "display_order": 99,
+            },
+            headers=csrf_headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
+        )
+        display_cfg = db.session.scalar(
+            db.select(MasCategoryDisplayConfig).where(
+                MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                MasCategoryDisplayConfig.category_code == "vanarrationanddocuments",
+            )
+        )
+        self.assertEqual(display_cfg.display_order, 99)

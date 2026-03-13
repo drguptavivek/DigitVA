@@ -2,7 +2,7 @@ import os
 import uuid
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment
+from app.models import VaSubmissions, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis, VaSocialAutopsyAnalysisOption
 from app.models.va_project_master import VaProjectMaster
 from app.models.va_forms import VaForms
 from app.decorators import va_validate_permissions
@@ -15,6 +15,10 @@ from app.services.category_rendering_service import (
     get_visible_category_codes,
 )
 from app.services.field_mapping_service import get_mapping_service
+from app.services.social_autopsy_analysis_service import (
+    SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
+    social_autopsy_option_set,
+)
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
@@ -156,6 +160,12 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             visible_category_codes,
             va_partial,
         )
+        next_block_message = _get_required_completion_block(
+            va_sid,
+            va_partial,
+            va_action,
+            va_actiontype,
+        )
         reviewobject = db.session.scalar(sa.select(VaReviewerReview).where((VaReviewerReview.va_rreview_status == VaStatuses.active)&(VaReviewerReview.va_sid == va_sid)))
         vafinexists = db.session.scalar(sa.select(VaFinalAssessments.va_sid).where((VaFinalAssessments.va_finassess_status == VaStatuses.active)&(VaFinalAssessments.va_sid == va_sid)))
         vaerrexists = db.session.scalar(sa.select(VaCoderReview.va_sid).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
@@ -188,6 +198,21 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
                 )
             )
+        va_social_autopsy_analysis = None
+        if va_partial == "social_autopsy" and va_action == "vacode":
+            va_social_autopsy_analysis = db.session.scalar(
+                sa.select(VaSocialAutopsyAnalysis).where(
+                    VaSocialAutopsyAnalysis.va_sid == va_sid,
+                    VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
+                    VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+                )
+            )
+        social_autopsy_selected_pairs = set()
+        if va_social_autopsy_analysis:
+            social_autopsy_selected_pairs = {
+                f"{item.delay_level}::{item.option_code}"
+                for item in va_social_autopsy_analysis.selected_options
+            }
         template_name = f"va_formcategory_partials/{va_partial}.html"
         if category_config and category_config.render_mode == "table_sections":
             template_name = "va_formcategory_partials/category_table_sections.html"
@@ -224,6 +249,10 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             da_va_coder_review = da_va_coder_review,
             narrative_qa_enabled = narrative_qa_enabled,
             va_narrative_assessment = va_narrative_assessment,
+            social_autopsy_analysis_questions = SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
+            va_social_autopsy_analysis = va_social_autopsy_analysis,
+            social_autopsy_selected_pairs = social_autopsy_selected_pairs,
+            next_block_message = next_block_message,
         )
     if va_partial == "vareviewform":
         form = VaReviewerReviewForm()
@@ -329,6 +358,33 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     if request.headers.get("HX-Request"):
                         return jsonify({"error": "Narrative Quality Assessment must be completed before submitting the final COD."}), 400
                     flash("Please complete the Narrative Quality Assessment before submitting.", "warning")
+                    return redirect(request.referrer or url_for("va_main.va_dashboard", va_role="coder"))
+            _submission = db.session.get(VaSubmissions, va_sid)
+            _form_type_code = va_get_form_type_code_for_form(
+                _submission.va_form_id if _submission else None
+            )
+            _visible_category_codes = get_visible_category_codes(
+                _submission.va_data if _submission else None,
+                _submission.va_form_id if _submission else None,
+            )
+            _category_service = get_category_rendering_service()
+            if _category_service.is_category_enabled(
+                _form_type_code,
+                "vacode",
+                _visible_category_codes,
+                "social_autopsy",
+            ):
+                _social_done = db.session.scalar(
+                    sa.select(VaSocialAutopsyAnalysis).where(
+                        VaSocialAutopsyAnalysis.va_sid == va_sid,
+                        VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
+                        VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+                    )
+                )
+                if not _social_done:
+                    if request.headers.get("HX-Request"):
+                        return jsonify({"error": "Social Autopsy Analysis must be completed before submitting the final COD."}), 400
+                    flash("Please complete the Social Autopsy Analysis before submitting.", "warning")
                     return redirect(request.referrer or url_for("va_main.va_dashboard", va_role="coder"))
             gen_uuid = uuid.uuid4()
             new_review1 = VaFinalAssessments(
@@ -627,6 +683,40 @@ def _get_project_for_submission(va_sid: str):
     return db.session.get(VaProjectMaster, project_id)
 
 
+def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str, va_actiontype: str):
+    """Return a blocking message if the current category has an incomplete required form."""
+    if va_action != "vacode":
+        return None
+    if va_actiontype not in {"vastartcoding", "varesumecoding", "vademo_start_coding"}:
+        return None
+
+    if va_partial == "social_autopsy":
+        analysis = db.session.scalar(
+            sa.select(VaSocialAutopsyAnalysis).where(
+                VaSocialAutopsyAnalysis.va_sid == va_sid,
+                VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
+                VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+            )
+        )
+        if not analysis:
+            return "Save the Social Autopsy Analysis before proceeding to the next category."
+
+    if va_partial == "vanarrationanddocuments":
+        project = _get_project_for_submission(va_sid)
+        if project and project.narrative_qa_enabled:
+            nqa = db.session.scalar(
+                sa.select(VaNarrativeAssessment).where(
+                    VaNarrativeAssessment.va_sid == va_sid,
+                    VaNarrativeAssessment.va_nqa_by == current_user.user_id,
+                    VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+                )
+            )
+            if not nqa:
+                return "Complete the Narrative Quality Assessment before proceeding."
+
+    return None
+
+
 def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity) -> int:
     return length + pos_symptoms + neg_symptoms + chronology + doc_review + comorbidity
 
@@ -708,5 +798,121 @@ def va_save_narrative_qa(va_action, va_actiontype, va_sid):
         "score": nqa.va_nqa_score,
         "rating": nqa.rating,
         "rating_class": nqa.rating_class,
+    })
+
+
+@va_api.route("/<va_action>/<va_actiontype>/<va_sid>/social-autopsy-analysis", methods=["POST"])
+@login_required
+@va_validate_permissions()
+def va_save_social_autopsy_analysis(va_action, va_actiontype, va_sid):
+    """Save or update the Social Autopsy analysis selections for a coder."""
+    if va_action != "vacode":
+        return jsonify({"error": "Social Autopsy analysis is only available during coding."}), 403
+
+    data = request.get_json(force=True) or {}
+    selected_options = data.get("selected_options") or []
+    remark = (data.get("remark") or "").strip() or None
+
+    if not isinstance(selected_options, list):
+        return jsonify({"error": "selected_options must be a list."}), 400
+
+    valid_pairs = social_autopsy_option_set()
+    normalized = []
+    seen = set()
+    for item in selected_options:
+        if not isinstance(item, dict):
+            return jsonify({"error": "Each selected option must be an object."}), 400
+        delay_level = (item.get("delay_level") or "").strip()
+        option_code = (item.get("option_code") or "").strip()
+        pair = (delay_level, option_code)
+        if pair not in valid_pairs:
+            return jsonify({"error": f"Invalid Social Autopsy option: {delay_level}/{option_code}"}), 400
+        if pair in seen:
+            continue
+        seen.add(pair)
+        normalized.append(pair)
+
+    # "None" is exclusive within a delay level. If it is selected along with
+    # other options for the same delay, keep only "none" for that delay.
+    by_delay = {}
+    for delay_level, option_code in normalized:
+        by_delay.setdefault(delay_level, set()).add(option_code)
+
+    normalized = []
+    for delay_level in sorted(by_delay.keys()):
+        option_codes = by_delay[delay_level]
+        if "none" in option_codes:
+            normalized.append((delay_level, "none"))
+            continue
+        for option_code in sorted(option_codes):
+            normalized.append((delay_level, option_code))
+
+    required_delay_levels = {
+        question["delay_level"] for question in SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
+    }
+    missing_delay_levels = sorted(required_delay_levels - set(by_delay.keys()))
+    if missing_delay_levels:
+        return jsonify({
+            "error": (
+                "Please answer every Social Autopsy delay question. "
+                "Use 'None' where no delay factor applies."
+            ),
+            "missing_delay_levels": missing_delay_levels,
+        }), 400
+
+    existing = db.session.scalar(
+        sa.select(VaSocialAutopsyAnalysis).where(
+            VaSocialAutopsyAnalysis.va_sid == va_sid,
+            VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
+            VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+        )
+    )
+
+    created = False
+    if existing:
+        analysis = existing
+        analysis.va_saa_remark = remark
+        analysis.selected_options.clear()
+        db.session.flush()
+        audit_operation = "u"
+        audit_action = "social autopsy analysis updated"
+    else:
+        analysis = VaSocialAutopsyAnalysis(
+            va_sid=va_sid,
+            va_saa_by=current_user.user_id,
+            va_saa_remark=remark,
+            va_saa_status=VaStatuses.active,
+        )
+        db.session.add(analysis)
+        created = True
+        audit_operation = "c"
+        audit_action = "social autopsy analysis saved"
+
+    for delay_level, option_code in normalized:
+        analysis.selected_options.append(
+            VaSocialAutopsyAnalysisOption(
+                delay_level=delay_level,
+                option_code=option_code,
+            )
+        )
+
+    db.session.flush()
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="vacoder",
+            va_audit_by=current_user.user_id,
+            va_audit_operation=audit_operation,
+            va_audit_action=audit_action,
+            va_audit_entityid=analysis.va_saa_id,
+        )
+    )
+    db.session.commit()
+
+    return jsonify({
+        "saved": True,
+        "created": created,
+        "selection_count": len(normalized),
+        "remark": analysis.va_saa_remark,
     })
 #         return redirect(url_for('main.vacoding', sid=sid))

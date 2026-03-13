@@ -117,6 +117,43 @@ class CategoryRenderingService:
                 return item
         return None
 
+    def get_all_active_categories(
+        self,
+        form_type_code: str,
+    ) -> list[CategoryNavItem]:
+        """Return all active category configs for a form type, regardless of role."""
+        form_type = db.session.scalar(
+            select(MasFormTypes).where(
+                MasFormTypes.form_type_code == form_type_code,
+                MasFormTypes.is_active == True,
+            )
+        )
+        if not form_type:
+            return []
+
+        configs = db.session.scalars(
+            select(MasCategoryDisplayConfig)
+            .where(
+                MasCategoryDisplayConfig.form_type_id == form_type.form_type_id,
+                MasCategoryDisplayConfig.is_active == True,
+            )
+            .order_by(MasCategoryDisplayConfig.display_order, MasCategoryDisplayConfig.nav_label)
+        ).all()
+
+        return [
+            CategoryNavItem(
+                category_code=config.category_code,
+                display_label=config.display_label,
+                nav_label=config.nav_label,
+                icon_name=config.icon_name,
+                render_mode=config.render_mode,
+                display_order=config.display_order,
+                always_include=config.always_include,
+                is_default_start=config.is_default_start,
+            )
+            for config in configs
+        ]
+
     def is_category_enabled(
         self,
         form_type_code: str,

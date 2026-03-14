@@ -5,8 +5,13 @@ from app import db
 from app.models import (
     VaAllocations,
     VaAllocation,
+    VaCodingEpisode,
     VaForms,
     VaInitialAssessments,
+    VaNarrativeAssessment,
+    VaSocialAutopsyAnalysis,
+    VaSocialAutopsyAnalysisOption,
+    VaFinalAssessments,
     VaResearchProjects,
     VaSites,
     VaStatuses,
@@ -15,6 +20,10 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.coding_allocation_service import release_stale_coding_allocations
+from app.services.final_cod_authority_service import (
+    EPISODE_STATUS_ACTIVE,
+    EPISODE_TYPE_RECODE,
+)
 from tests.base import BaseTestCase
 
 
@@ -94,7 +103,7 @@ class TestCodingAllocationService(BaseTestCase):
             )
         )
 
-    def test_release_stale_coding_allocations_preserves_initial_assessment(self):
+    def test_release_stale_coding_allocations_reverts_first_pass_artifacts(self):
         stale_sid = "uuid:stale"
         fresh_sid = "uuid:fresh"
         self._add_submission(stale_sid)
@@ -132,7 +141,37 @@ class TestCodingAllocationService(BaseTestCase):
                     va_other_conditions=None,
                     va_iniassess_status=VaStatuses.active,
                 ),
+                VaNarrativeAssessment(
+                    va_sid=stale_sid,
+                    va_nqa_by=self.base_coder_user.user_id,
+                    va_nqa_length=2,
+                    va_nqa_pos_symptoms=2,
+                    va_nqa_neg_symptoms=1,
+                    va_nqa_chronology=1,
+                    va_nqa_doc_review=1,
+                    va_nqa_comorbidity=1,
+                    va_nqa_score=8,
+                    va_nqa_status=VaStatuses.active,
+                ),
+                VaSocialAutopsyAnalysis(
+                    va_sid=stale_sid,
+                    va_saa_by=self.base_coder_user.user_id,
+                    va_saa_remark="first pass",
+                    va_saa_status=VaStatuses.active,
+                ),
             ]
+        )
+        db.session.commit()
+        social_analysis = db.session.scalar(
+            db.select(VaSocialAutopsyAnalysis).where(
+                VaSocialAutopsyAnalysis.va_sid == stale_sid
+            )
+        )
+        social_analysis.selected_options.append(
+            VaSocialAutopsyAnalysisOption(
+                delay_level="delay_1_decision",
+                option_code="none",
+            )
         )
         db.session.commit()
 
@@ -144,6 +183,16 @@ class TestCodingAllocationService(BaseTestCase):
         initial_assessment = db.session.scalar(
             db.select(VaInitialAssessments).where(
                 VaInitialAssessments.va_sid == stale_sid
+            )
+        )
+        narrative_assessment = db.session.scalar(
+            db.select(VaNarrativeAssessment).where(
+                VaNarrativeAssessment.va_sid == stale_sid
+            )
+        )
+        social_analysis = db.session.scalar(
+            db.select(VaSocialAutopsyAnalysis).where(
+                VaSocialAutopsyAnalysis.va_sid == stale_sid
             )
         )
         audit_log = db.session.scalar(
@@ -162,10 +211,129 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(stale_allocation.va_allocation_status, VaStatuses.deactive)
         self.assertEqual(fresh_allocation.va_allocation_status, VaStatuses.active)
         self.assertIsNotNone(initial_assessment)
-        self.assertEqual(initial_assessment.va_iniassess_status, VaStatuses.active)
+        self.assertEqual(initial_assessment.va_iniassess_status, VaStatuses.deactive)
+        self.assertEqual(narrative_assessment.va_nqa_status, VaStatuses.deactive)
+        self.assertEqual(social_analysis.va_saa_status, VaStatuses.deactive)
         self.assertIsNotNone(audit_log)
         self.assertIsNotNone(workflow)
-        self.assertEqual(workflow.workflow_state, "coder_step1_saved")
+        self.assertEqual(workflow.workflow_state, "ready_for_coding")
+
+    def test_release_stale_coding_allocations_preserves_recode_analysis_artifacts(self):
+        stale_sid = "uuid:recode"
+        self._add_submission(stale_sid)
+        db.session.flush()
+
+        stale_allocation_id = uuid.uuid4()
+        final_assessment = VaFinalAssessments(
+            va_sid=stale_sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_remark="final",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final_assessment)
+        db.session.flush()
+
+        db.session.add(
+            VaCodingEpisode(
+                episode_id=uuid.uuid4(),
+                va_sid=stale_sid,
+                episode_type=EPISODE_TYPE_RECODE,
+                episode_status=EPISODE_STATUS_ACTIVE,
+                started_by=self.base_coder_user.user_id,
+                base_final_assessment_id=final_assessment.va_finassess_id,
+            )
+        )
+
+        db.session.add_all(
+            [
+                VaAllocations(
+                    va_allocation_id=stale_allocation_id,
+                    va_sid=stale_sid,
+                    va_allocated_to=self.base_coder_user.user_id,
+                    va_allocation_for=VaAllocation.coding,
+                    va_allocation_status=VaStatuses.active,
+                    va_allocation_createdat=datetime.now(timezone.utc)
+                    - timedelta(hours=2),
+                ),
+                VaInitialAssessments(
+                    va_sid=stale_sid,
+                    va_iniassess_by=self.base_coder_user.user_id,
+                    va_immediate_cod="R99",
+                    va_antecedent_cod="R99",
+                    va_other_conditions=None,
+                    va_iniassess_status=VaStatuses.active,
+                ),
+                VaNarrativeAssessment(
+                    va_sid=stale_sid,
+                    va_nqa_by=self.base_coder_user.user_id,
+                    va_nqa_length=2,
+                    va_nqa_pos_symptoms=2,
+                    va_nqa_neg_symptoms=1,
+                    va_nqa_chronology=1,
+                    va_nqa_doc_review=1,
+                    va_nqa_comorbidity=1,
+                    va_nqa_score=8,
+                    va_nqa_status=VaStatuses.active,
+                ),
+                VaSocialAutopsyAnalysis(
+                    va_sid=stale_sid,
+                    va_saa_by=self.base_coder_user.user_id,
+                    va_saa_remark="recode",
+                    va_saa_status=VaStatuses.active,
+                ),
+            ]
+        )
+        db.session.commit()
+        social_analysis = db.session.scalar(
+            db.select(VaSocialAutopsyAnalysis).where(
+                VaSocialAutopsyAnalysis.va_sid == stale_sid
+            )
+        )
+        social_analysis.selected_options.append(
+            VaSocialAutopsyAnalysisOption(
+                delay_level="delay_1_decision",
+                option_code="none",
+            )
+        )
+        db.session.commit()
+
+        released = release_stale_coding_allocations(timeout_hours=1)
+
+        self.assertEqual(released, 1)
+        initial_assessment = db.session.scalar(
+            db.select(VaInitialAssessments).where(
+                VaInitialAssessments.va_sid == stale_sid
+            )
+        )
+        narrative_assessment = db.session.scalar(
+            db.select(VaNarrativeAssessment).where(
+                VaNarrativeAssessment.va_sid == stale_sid
+            )
+        )
+        social_analysis = db.session.scalar(
+            db.select(VaSocialAutopsyAnalysis).where(
+                VaSocialAutopsyAnalysis.va_sid == stale_sid
+            )
+        )
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == stale_sid
+            )
+        )
+        recode_audit = db.session.scalar(
+            db.select(VaSubmissionsAuditlog).where(
+                VaSubmissionsAuditlog.va_sid == stale_sid,
+                VaSubmissionsAuditlog.va_audit_action
+                == "recode episode abandoned due to timeout",
+            )
+        )
+
+        self.assertEqual(initial_assessment.va_iniassess_status, VaStatuses.deactive)
+        self.assertEqual(narrative_assessment.va_nqa_status, VaStatuses.active)
+        self.assertEqual(social_analysis.va_saa_status, VaStatuses.active)
+        self.assertEqual(workflow.workflow_state, "coder_finalized")
+        self.assertIsNotNone(recode_audit)
 
     def test_no_commit_path_when_nothing_is_stale(self):
         fresh_sid = "uuid:no_stale"

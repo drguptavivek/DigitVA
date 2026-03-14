@@ -128,9 +128,14 @@ Timeout cleanup:
 - a Celery beat task also runs every hour to release stale coding allocations
 - timeout release writes a `va_submissions_auditlog` row with
   `va_allocation_released_due_to_timeout`
-- timeout release does not discard saved initial COD work
-- timeout release now refreshes `va_submission_workflow` from the remaining
-  active legacy records for that submission
+- timeout release now reverts unfinished Step 1 COD drafts by deactivating the
+  timed-out coder's active `va_initial_assessments` row
+- first-pass timeout reversion also deactivates the timed-out coder's NQA and
+  Social Autopsy analysis rows so the submission returns to
+  `ready_for_coding`
+- recode timeout reversion preserves the authoritative final COD plus recode NQA
+  and Social Autopsy analysis rows, abandons the active recode episode, and
+  returns canonical workflow state to `coder_finalized`
 
 Canonical state values currently written in the runtime path include:
 

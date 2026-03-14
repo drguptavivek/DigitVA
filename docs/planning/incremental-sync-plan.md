@@ -1,7 +1,7 @@
 ---
 title: Incremental ODK Sync — OData Filter-Gated Per-Form Download
 doc_type: planning
-status: draft
+status: implemented
 owner: engineering
 last_updated: 2026-03-14
 ---

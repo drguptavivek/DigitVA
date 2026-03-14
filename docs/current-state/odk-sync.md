@@ -3,33 +3,33 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-12
+last_updated: 2026-03-14
 ---
 
 # ODK Sync And Attachments
 
 ## Summary
 
-ODK sync is a batch process that:
+ODK sync is an incremental batch process that:
 
-1. resolves active site-level ODK mappings
-2. materializes compatibility `va_forms` rows for those mappings
-3. uses each form's `odk_project_id` and `odk_form_id`
-4. downloads `submissions.csv.zip` from ODK Central
-5. extracts CSV and attachments to local disk
-6. preprocesses submission rows
-7. writes or updates `va_submissions`
-8. refreshes SmartVA outputs
+1. Resolves active site-level ODK mappings
+2. Materializes compatibility `va_forms` rows for those mappings
+3. For each form, runs an OData filter-gated delta check — skips if nothing changed since last sync
+4. Fetches changed submissions via OData JSON (paginated, no ZIP download)
+5. Writes or updates `va_submissions` rows
+6. Per-form commit — earlier forms are not rolled back if a later form fails
+7. Syncs attachments for upserted submissions using ETag-based conditional download
+8. Rebuilds full CSV from DB for SmartVA compatibility
+9. Records `last_synced_at` on the mapping row after each successful form
+10. Runs SmartVA on any new or updated submissions
 
 ## Connection Model
-
-**Connection Model (current)**:
 
 - ODK connection details are stored in `mas_odk_connections` (DB) with encrypted credentials
 - Each project is linked to a connection via `map_project_odk`
 - `va_odk_clientsetup(project_id)` resolves the connection from DB first, falls back to legacy `odk_config.toml` if no DB mapping exists
-- pyODK `Client` is built using an explicit `Session` (base_url, username, password) passed at construction; a shared stub config file (`odk_stub_config.toml`) satisfies the file-read requirement without storing credentials
-- Each connection uses its own cache file (`odk_cache_<connection_id>.toml`) so concurrent calls to different ODK servers do not share or overwrite auth tokens
+- pyODK `Client` is built using an explicit `Session` (base_url, username, password); a shared stub config file (`odk_stub_config.toml`) satisfies the file-read requirement without storing credentials
+- Each connection uses its own cache file (`odk_cache_<connection_id>.toml`) so concurrent calls to different ODK servers do not share auth tokens
 - The legacy `odk_config.toml` fallback remains for projects not yet migrated to DB-managed connections
 
 ## Sync Entry Point
@@ -38,162 +38,226 @@ Main service:
 
 - [`va_data_sync_odkcentral()`](../../app/services/va_data_sync/va_data_sync_01_odkcentral.py)
 
-Current behavior:
+Behavior:
 
-- loads active `map_project_site_odk` rows for active project-site assignments
-- upserts compatibility `va_forms` rows for those mappings
-- loops over the resulting runtime forms
-- downloads and preprocesses data for each form
+- Loads active `map_project_site_odk` rows for active project-site assignments
+- Upserts compatibility `va_forms` rows for those mappings
+- Captures `snapshot_time = datetime.now(UTC)` before any ODK calls
+- Loops over forms, running the delta check → fetch → upsert → attach → commit pipeline per form
 
-Important current-state detail:
+Important detail:
 
-- `map_project_site_odk` is now the source of truth for what gets synced
-- `va_forms` still exists because submissions, media storage, permissions, and several legacy workflow paths still key off `va_form_id`
-- sync therefore materializes `va_forms` rows from the site mapping table rather than requiring admins to manage both tables separately
+- `map_project_site_odk` is the source of truth for what gets synced
+- `va_forms` still exists because submissions, media storage, permissions, and several workflow paths key off `va_form_id`
+- Sync materializes `va_forms` rows from the site mapping table rather than requiring admins to manage both separately
 
-## How Downloads Work
+## Delta Check (Phase 1)
 
-For each active form, the app calls the ODK endpoint:
+Before fetching any submission data, the sync runs a lightweight OData count:
 
-- `projects/{odk_project_id}/forms/{odk_form_id}/submissions.csv.zip`
+```
+GET /v1/projects/{id}/forms/{formId}/submissions.svc/Submissions
+  ?$filter=(__system/submissionDate gt T) or (__system/updatedAt gt T)
+  &$top=0&$count=true
+```
 
-This is done in:
+Implemented in [`va_odk_delta_count()`](../../app/utils/va_odk/va_odk_05_deltacheck.py).
 
-- [`va_odk_downloadformdata()`](../../app/utils/va_odk/va_odk_02_downloadformdata.py)
+Rules:
 
-The response zip is stored temporarily and extracted under:
+| Condition | Action |
+|---|---|
+| `mapping.last_synced_at` is NULL | First-ever sync — always download |
+| Delta count = 0 | Skip form entirely (no ODK fetch, no attachment calls) |
+| Delta count > 0 | Proceed to full OData JSON fetch |
+| ODK error / timeout | Fall through to full download as safe fallback |
 
-- `data/<form_id>/`
+`snapshot_time` is captured before any ODK calls. `last_synced_at` is set to `snapshot_time` (not wall clock) after a successful form sync. This ensures submissions arriving mid-run are caught on the next sync rather than missed.
 
-Typical extracted contents:
+## Submission Fetch (Phase 2)
 
-- `<odk_form_id>.csv`
-- `media/` attachment directory when attachments exist
+Changed submissions are fetched via OData JSON (paginated, 250 per page):
 
-## Attachment Handling
+```
+GET /v1/projects/{id}/forms/{formId}/submissions.svc/Submissions
+  ?$top=250&$skip=N
+  &$filter=(__system/submissionDate gt T) or (__system/updatedAt gt T)
+```
 
-Attachments are not pulled one by one. They arrive as part of the exported zip.
+For first-ever syncs (`last_synced_at` is NULL), no filter is applied — all submissions are fetched.
 
-Current local storage pattern:
+Implemented in [`va_odk_fetch_submissions()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py).
 
-- `data/<form_id>/media/<filename>`
+### OData JSON normalization
 
-Audio post-processing:
+OData returns nested group objects. The fetch utility flattens them to leaf field names (equivalent to `groupPaths=false`) and maps `__system.*` fields to CSV column equivalents:
 
-- `.amr` files in the media directory are converted to `.mp3`
-- original `.amr` files are deleted after successful conversion
+| OData field | Normalized name |
+|---|---|
+| `__id` | `KEY` |
+| `__system/submissionDate` | `SubmissionDate` |
+| `__system/updatedAt` | `updatedAt` |
+| `__system/submitterId` | `SubmitterID` |
+| `__system/submitterName` | `SubmitterName` |
+| `__system/reviewState` | `ReviewState` |
 
-Media serving:
+Nested group objects are recursively flattened to leaf names. Because WHO VA 2022 field names are globally unique, name collisions from flattening are not a concern in practice.
 
-- media is served later through the Flask route in [`va_api.py`](../../app/routes/va_api.py)
-- access is checked against the current user's form access
+### CSV rebuild for SmartVA
 
-## Submission Preprocessing
+After each form sync, [`va_odk_rebuild_form_csv_from_db()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py) regenerates the full CSV from all `va_submissions.va_data` records. This ensures SmartVA-only runs have complete data even after an incremental sync that only fetched recent changes.
 
-The extracted CSV is processed in:
+## Attachment Sync (Phase 2)
 
-- [`va_preprocess_prepdata()`](../../app/utils/va_preprocess/va_preprocess_01_prepdata.py)
+Attachments are downloaded per-submission using ETag-based conditional HTTP:
 
-Current normalization steps include:
+```
+# 1. Fetch attachment list (no binary)
+GET /v1/projects/{id}/forms/{formId}/submissions/{instanceId}/attachments
+→ [{name: "audio.amr", exists: true}, ...]
 
-- replace pandas null-like values with Python `None`
-- add `form_def = <app form_id>` if missing
-- add `sid = <ODK KEY>-<form_id.lower()>` if missing
-- add `updatedAt` using an additional ODK API call
-- derive `unique_id2` when possible
+# 2. Conditional download
+GET /v1/projects/{id}/forms/{formId}/submissions/{instanceId}/attachments/{filename}
+If-None-Match: <stored_etag>
+→ 304 Not Modified  (skip — nothing transferred)
+→ 200 + binary      (download — write file, update ETag record)
+```
 
-This means `va_submissions` is not a raw mirror of ODK rows. It is a managed application table populated from normalized ODK data.
+Implemented in [`va_odk_sync_submission_attachments()`](../../app/utils/va_odk/va_odk_07_syncattachments.py).
+
+Rules:
+
+- Attachment sync only runs for submissions in `upserted_map` — i.e. submissions that were added or updated in this sync
+- Submissions that already exist with unchanged `updatedat` receive zero attachment API calls
+- Forms with delta = 0 receive zero attachment API calls
+- The media directory is **never cleared** (`rmtree` eliminated) — files for unchanged submissions remain on disk
+
+### ETag cache
+
+ETag records are stored in `va_submission_attachments`:
+
+| Column | Purpose |
+|---|---|
+| `va_sid` | FK → `va_submissions` |
+| `filename` | Original filename from ODK |
+| `local_path` | Path on disk (may differ — `.amr` stored as `.mp3`) |
+| `mime_type` | Content-Type from download response |
+| `etag` | ETag header from last successful download |
+| `exists_on_odk` | Whether ODK reports the file as present |
+| `last_downloaded_at` | When the file was last downloaded |
+
+Primary key: `(va_sid, filename)`.
+
+### Audio conversion
+
+`.amr` files are converted to `.mp3` using `pydub` immediately after download. The `.amr` file is deleted after successful conversion. Conversion failure keeps the `.amr` on disk (better than data loss).
+
+### API call volume
+
+For each submission in `upserted_map`:
+
+- 1 attachment-list API call (always)
+- N download calls (one per new or changed file; 0 if all ETags match → 304)
+
+On first sync of a large form: O(submissions) attachment-list calls are unavoidable. On subsequent syncs with no changes: 0 calls (delta check skips the form entirely).
 
 ## Update Detection
 
-The app fetches `__system/updatedAt` from ODK using:
+During upsert:
 
-- [`va_odk_submissionupdatedate()`](../../app/utils/va_odk/va_odk_03_submissionupdatedate.py)
+- Submission exists with same `va_odk_updatedat` → skipped (no DB write, no attachment call)
+- Submission exists with changed `va_odk_updatedat` → updated; active workflow artifacts deactivated
+- Submission does not exist and consent = `yes` → inserted
+- Submission does not exist and consent ≠ `yes` → ignored
 
-During sync:
+When a submission is updated, the app deactivates related local workflow artifacts:
 
-- if a `va_sid` already exists and `updatedAt` changed, the submission row is updated
-- if a `va_sid` does not exist and consent is `yes`, a new row is inserted
+- Active coder allocations
+- Coder review records
+- Initial assessments
+- Final assessments
+- Reviewer reviews
+- User notes
+
+ODK is treated as the source of truth for submission content.
 
 ## Derived Data Added During Sync
 
-After basic preprocessing, the app computes:
+After upsert, the app computes and stores:
 
 - `va_summary`
 - `va_catcount`
 - `va_category_list`
 
-These values are derived from mapping-driven preprocessing and are used later in UI rendering and workflow logic.
+These are derived from mapping-driven preprocessing and drive UI rendering and workflow logic.
+
+## Per-Form Isolation
+
+Each form is committed independently. A failure on one form:
+
+- Does not roll back earlier committed forms
+- Does not update `last_synced_at` for the failed form (it retries next run)
+- Is recorded in `failed_forms`; the overall run status becomes `partial`
 
 ## SmartVA During Sync
 
-The same sync run also:
+After all forms complete, SmartVA runs on any submissions without results:
 
-- prepares SmartVA input
-- runs SmartVA
-- formats SmartVA output
-- stores SmartVA results tied to the submission
-
-## Important Current-State Behavior
-
-If an ODK submission changes and sync updates the corresponding `va_submissions` row, the app deactivates related local workflow artifacts such as:
-
-- active allocations
-- coder review records
-- initial assessments
-- final assessments
-- reviewer reviews
-- user notes
-
-This means ODK is treated as the source of truth for the submission content.
+- Prepares input CSV
+- Runs SmartVA analysis
+- Formats and stores results tied to the submission
 
 ## Sync Scheduling
 
-Sync is driven by Celery beat using the `celery-sqlalchemy-scheduler` DatabaseScheduler.
+Sync is driven by Celery beat using `celery-sqlalchemy-scheduler` DatabaseScheduler.
 
-Celery task:
+Tasks:
 
-- [`run_odk_sync()`](../../app/tasks/sync_tasks.py) — wraps `va_data_sync_odkcentral()`, records outcome in `va_sync_runs`
+- [`run_odk_sync()`](../../app/tasks/sync_tasks.py) — full sync across all active forms; records outcome in `va_sync_runs`
+- [`run_single_form_sync(form_id)`](../../app/tasks/sync_tasks.py) — force-resync one form, bypasses delta check
 
-Default schedule:
+Default schedule: every 6 hours (configurable via admin sync dashboard without restart).
 
-- every 6 hours (configurable via admin sync dashboard without a restart)
-- seeded on worker startup by `ensure_sync_scheduled()` in `sync_tasks.py`
+Manual triggers:
 
-Manual trigger:
-
-- `POST /admin/api/sync/trigger` — dispatches `run_odk_sync.delay()` immediately
-- returns `409` if a run is already in progress
-
-Sync can also be invoked directly from the Flask shell context via `va_initiate_datasync()` or `va_data_sync_odkcentral()`.
+- `POST /admin/api/sync/trigger` — dispatches `run_odk_sync.delay()`; returns 409 if a run is already in progress
+- `POST /admin/api/sync/form/<form_id>` — dispatches `run_single_form_sync.delay(form_id)`
 
 ## Sync Run History
 
 Every sync run is recorded in `va_sync_runs`:
 
 | Field | Purpose |
-|-------|---------|
+|---|---|
 | `sync_run_id` | UUID primary key |
 | `triggered_by` | `"scheduled"` or `"manual"` |
 | `triggered_user_id` | FK to `va_users` (manual runs only) |
 | `started_at` | When the run began |
 | `finished_at` | When the run ended (null while running) |
-| `status` | `"running"` / `"success"` / `"error"` |
+| `status` | `"running"` / `"success"` / `"partial"` / `"error"` |
 | `records_added` | New submissions inserted |
 | `records_updated` | Existing submissions updated |
-| `error_message` | First 2000 chars of exception if failed |
+| `progress_log` | JSON array of timestamped progress messages |
+| `error_message` | First 2000 chars of exception or list of failed form IDs |
+
+Status meanings:
+
+| Status | Meaning |
+|---|---|
+| `success` | All forms succeeded or were delta-skipped |
+| `partial` | At least one form failed, at least one succeeded |
+| `error` | Task crashed or all forms failed |
 
 Stale `running` rows (older than 2 hours) are marked `error` automatically on worker restart.
 
 ## ODK Coverage Check
 
-A lightweight ODK count utility avoids downloading submission data:
+A lightweight OData count utility:
 
-- [`va_odk_submissioncount()`](../../app/utils/va_odk/va_odk_04_submissioncount.py)
-- uses OData `$top=0&$count=true` against the submissions endpoint
-- returns the total submission count for a given ODK project + form
+- [`va_odk_delta_count()`](../../app/utils/va_odk/va_odk_05_deltacheck.py) — uses `$top=0&$count=true` with an optional `since` filter
+- Returns total or filtered submission count without downloading any data
 
-Used by `GET /admin/api/sync/coverage` to compare ODK totals against local `va_submissions` counts per site mapping. This powers the coverage table in the admin sync dashboard.
+Also used by `GET /admin/api/sync/coverage` to compare ODK totals against local `va_submissions` counts per site mapping.
 
 ## Admin Sync Dashboard
 
@@ -201,21 +265,31 @@ Available at Admin Console → Data Sync (admin-only).
 
 Sections:
 
-- **Status bar** — last run outcome, auto-refreshes every 30 s (5 s while running)
-- **Sync Now** — manual trigger with 409 guard against concurrent runs
-- **Schedule configurator** — change the beat interval (1–168 h) without restarting
-- **Coverage table** — ODK total vs local total per site mapping; loaded on demand
+- **Status bar** — last run outcome; auto-refreshes every 30s (5s while running)
+- **Sync Now** — manual full sync trigger; 409 guard against concurrent runs
+- **Gen SmartVA** — trigger SmartVA-only run without ODK download
+- **Schedule configurator** — change beat interval (1–168h) without restarting
+- **Coverage table** — ODK total vs local total, last synced time, per-form force-resync button
+- **Progress log** — live timestamped entries; clears and resets when a new run starts
 - **Run history** — last 20 runs with duration, trigger source, status, and error detail
+
+## Local Storage Layout
+
+```
+data/
+  <form_id>/
+    <odk_form_id>.csv        ← rebuilt from va_submissions.va_data after each sync
+    media/
+      <filename>             ← attachment files (never cleared between syncs)
+      <basename>.mp3         ← converted audio (original .amr deleted after conversion)
+```
 
 ## Mapping Spreadsheets
 
-Current mapping spreadsheets under `resource/mapping`:
+Under `resource/mapping`:
 
-- `mapping_labels.xlsx`
-- `mapping_choices.xlsx`
-- `icdcodes.xlsx`
+- `mapping_labels.xlsx` — field display config and category ordering
+- `mapping_choices.xlsx` — choice value mappings
+- `icdcodes.xlsx` — ICD lookup data
 
-Current usage:
-
-- `mapping_labels.xlsx` and `mapping_choices.xlsx` feed mapping generation used by preprocessing and rendering
-- `icdcodes.xlsx` is used to populate ICD lookup data, not to perform the ODK sync itself
+These feed mapping generation used by preprocessing and rendering. They are not used during the ODK sync itself.

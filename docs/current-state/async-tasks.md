@@ -62,9 +62,10 @@ run_odk_sync(triggered_by="scheduled", user_id=None)
 
 **Behavior:**
 1. Writes a `VaSyncRun` row with `status="running"` and commits immediately (dashboard sees it)
-2. Calls `va_data_sync_odkcentral()` which does its own commit on success
-3. On success: updates the run row with `status="success"` and metric counts
-4. On error: updates with `status="error"` and `error_message`, then re-raises so Celery marks the task failed
+2. Calls `va_data_sync_odkcentral()` — incremental per-form pipeline (delta check → OData fetch → upsert → ETag attachment sync → per-form commit)
+3. On success: updates with `status="success"` and metric counts
+4. On partial success (some forms failed): updates with `status="partial"` and lists failed form IDs in `error_message`
+5. On error: updates with `status="error"` and `error_message`, then re-raises so Celery marks the task failed
 
 **Limits:** `soft_time_limit=1800s`, `time_limit=3600s`
 
@@ -75,6 +76,43 @@ run_odk_sync(triggered_by="scheduled", user_id=None)
 from app.tasks.sync_tasks import run_odk_sync
 run_odk_sync.delay(triggered_by="manual", user_id=str(user_id))
 ```
+
+---
+
+### `app.tasks.sync_tasks.run_single_form_sync`
+
+Defined in [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py).
+
+**Purpose:** Force-resync a single form, bypassing the delta check entirely.
+
+**Signature:**
+```python
+run_single_form_sync(form_id: str, triggered_by: str = "manual")
+```
+
+**Behavior:**
+1. Looks up the `va_forms` row for `form_id`
+2. Fetches all submissions via OData JSON (no `since` filter — downloads everything)
+3. Upserts submissions, syncs attachments (ETag-based), rebuilds CSV
+4. Updates `mapping.last_synced_at`
+
+**When to use:** A form failed during a full sync run (status `partial`), or attachments are suspected to be out of sync. Triggered from the per-form sync button in the admin coverage table via `POST /admin/api/sync/form/<form_id>`.
+
+**Manual dispatch:**
+```python
+from app.tasks.sync_tasks import run_single_form_sync
+run_single_form_sync.delay(form_id="UNSW01KA0101", triggered_by="manual")
+```
+
+---
+
+### `app.tasks.sync_tasks.run_smartva_pending`
+
+**Purpose:** Run SmartVA analysis on submissions that have no SmartVA result yet, without triggering an ODK download.
+
+Triggered from the admin dashboard "Gen SmartVA" button via `POST /admin/api/sync/trigger-smartva`.
+
+---
 
 ## Beat Schedule Tables
 

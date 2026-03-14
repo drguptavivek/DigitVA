@@ -469,11 +469,15 @@
       var hasEntries = d.entries && d.entries.length > 0;
       card.style.display = (d.is_running || hasEntries) ? '' : 'none';
 
-      if (!hasEntries) return;
-
-      // Only re-render if run changed or new entries arrived
+      // Clear stale content immediately when a new run starts
       var runChanged = d.run_id !== _lastProgressRunId;
-      _lastProgressRunId = d.run_id;
+      if (runChanged) {
+        _lastProgressRunId = d.run_id;
+        wrap.innerHTML = '<span class="text-muted small">Waiting for entries…</span>';
+        if (label) label.textContent = '';
+      }
+
+      if (!hasEntries) return;
 
       if (label) {
         label.textContent = esc(d.triggered_by) + (d.is_running ? ' · running…' : ' · ' + esc(d.status));

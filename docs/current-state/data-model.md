@@ -217,6 +217,71 @@ Key fields:
 - `va_finassess_remark`
 - `va_finassess_status`
 
+Current behavior:
+
+- this table still stores the underlying coder final-COD records
+- multiple historical rows may now exist for the same submission across recode
+  episodes
+- the active row alone is no longer the sole authority signal during the
+  workflow migration
+
+### `va_final_cod_authority`
+
+Purpose:
+
+- stores the single authoritative final-COD pointer for each submission
+
+Key fields:
+
+- `va_sid`
+- `authoritative_final_assessment_id`
+- `authority_source_role`
+- `authority_reason`
+- `effective_at`
+- `updated_by`
+
+Current behavior:
+
+- this table is additive and backfilled from the most recent active
+  `va_final_assessments` row during migration
+- runtime COD panel rendering now prefers this table when deciding which final
+  COD to show as current
+- when a recode replacement final COD is submitted, the authority row is moved
+  to the replacement final assessment
+- when sync invalidates a submission's finalized COD, the authority row is
+  cleared instead of relying only on `va_finassess_status`
+
+### `va_coding_episodes`
+
+Purpose:
+
+- tracks additive coding episodes such as recode attempts without destroying the
+  currently authoritative coder outcome
+
+Key fields:
+
+- `episode_id`
+- `va_sid`
+- `episode_type`
+- `episode_status`
+- `started_by`
+- `base_final_assessment_id`
+- `replacement_final_assessment_id`
+- `started_at`
+- `completed_at`
+- `abandoned_at`
+
+Current behavior:
+
+- currently used for non-destructive `recode` handling
+- only one active recode episode is allowed per submission
+- starting recode creates an episode but does not deactivate the current
+  authoritative final COD
+- successful replacement final COD completes the episode and links the
+  replacement final assessment
+- stale allocation timeout or sync invalidation abandons the active recode
+  episode without deleting historical COD rows
+
 ### `va_coder_review`
 
 Purpose:

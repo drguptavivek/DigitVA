@@ -129,6 +129,7 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
                     va_category_list=[],
                 )
             )
+            db.session.flush()
             db.session.add(
                 VaSubmissionWorkflow(
                     va_sid=sid,
@@ -160,6 +161,17 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
 
         db.session.commit()
 
+    def setUp(self):
+        super().setUp()
+        db.session.query(VaAllocations).filter(
+            VaAllocations.va_allocated_to == self.base_coder_user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+        ).update(
+            {"va_allocation_status": VaStatuses.deactive},
+            synchronize_session=False,
+        )
+        db.session.commit()
+
     def _active_coding_sid(self):
         return db.session.scalar(
             db.select(VaAllocations.va_sid).where(
@@ -181,8 +193,19 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
 
     def test_startcoding_uses_only_random_projects(self):
         self._login(self.base_coder_id)
+        db.session.query(VaAllocations).filter(
+            VaAllocations.va_allocated_to == self.base_coder_user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+        ).update(
+            {"va_allocation_status": VaStatuses.deactive},
+            synchronize_session=False,
+        )
+        db.session.commit()
 
-        response = self.client.get("/vacta/vacode/vastartcoding/vastartcoding")
+        response = self.client.get(
+            "/vacta/vacode/vastartcoding/vastartcoding",
+            follow_redirects=True,
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_coding_sid(), "sid-random-1")

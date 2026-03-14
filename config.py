@@ -1,4 +1,5 @@
 import os
+import tempfile
 import redis
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -57,6 +58,13 @@ class Config:
 class TestConfig(Config):
     TESTING = True
     ODK_CREDENTIAL_PEPPER = "test-pepper-do-not-use-in-production"
+    # Keep test sessions out of SQLAlchemy metadata/schema lifecycle.
+    # This avoids Flask-Session redefining the va_sessions table every time
+    # create_app() is called across multiple test classes.
+    SESSION_TYPE = "filesystem"
+    SESSION_FILE_DIR = os.path.join(
+        tempfile.gettempdir(), "digitva_test_flask_session"
+    )
     # Derive test DB URL from DATABASE_URL (swap db name to minerva_test) so
     # this works both inside Docker (minerva_db_service:5432) and locally
     # (localhost:8450).  TEST_DATABASE_URL overrides everything.

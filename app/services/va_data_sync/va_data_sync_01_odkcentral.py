@@ -9,6 +9,10 @@ from app import db
 from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.final_cod_authority_service import (
+    abandon_active_recode_episode,
+    upsert_final_cod_authority,
+)
 from app.services.submission_workflow_service import (
     WORKFLOW_READY_FOR_CODING,
     set_submission_workflow_state,
@@ -173,6 +177,17 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                     va_audit_operation="d",
                     va_audit_action="va_finalasses_deletion_during_datasync",
                 ))
+            upsert_final_cod_authority(
+                va_submission_sid,
+                None,
+                reason="submission_updated_during_sync",
+                source_role="vaadmin",
+            )
+            abandon_active_recode_episode(
+                va_submission_sid,
+                by_role="vaadmin",
+                audit_action="recode episode abandoned due to data sync update",
+            )
             for record in db.session.scalars(
                 sa.select(VaInitialAssessments).where(
                     (VaInitialAssessments.va_sid == va_submission_sid)

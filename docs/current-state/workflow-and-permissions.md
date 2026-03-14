@@ -45,6 +45,10 @@ Current cutover status:
 - data-manager dashboard now exists as a scope-based browse/view workflow
 - data-manager Not Codeable writes canonical workflow state
   `not_codeable_by_data_manager`
+- final COD display now prefers explicit authority resolution through
+  `va_final_cod_authority`
+- recode now starts a separate non-destructive episode in `va_coding_episodes`
+  instead of immediately discarding the current finalized coder outcome
 
 ## Main Workflow Sequence
 
@@ -180,7 +184,31 @@ Audit trail:
 
 Recode:
 
-- the app can deactivate existing active coding artifacts and reopen a submission for fresh coding
+- only coder-finalized submissions are currently eligible for recode
+- recode is now additive:
+  - starting recode creates or reuses an active `va_coding_episodes` row
+  - the current authoritative final COD remains in force during the recode
+    window
+  - successful replacement final COD supersedes the prior authoritative final
+    COD and completes the recode episode
+- the recode start window is currently twenty-four hours from the authoritative
+  final COD timestamp
+- stale allocation timeout abandons the active recode episode without deleting
+  the previously authoritative final COD
+- sync updates that invalidate an existing finalized COD also abandon any active
+  recode episode and clear final-COD authority for that submission
+
+Final COD authority:
+
+- the coding UI now resolves "current final COD" through
+  `va_final_cod_authority` first
+- fallback to the newest active `va_final_assessments` row still exists for
+  backward compatibility during migration
+- a replacement final COD submission now:
+  - deactivates the superseded active final-assessment rows
+  - writes audit entries for supersession
+  - updates `va_final_cod_authority`
+  - completes the active recode episode if one exists
 
 ### Coding Screen Left Navigation
 

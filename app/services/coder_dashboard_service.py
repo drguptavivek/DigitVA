@@ -136,7 +136,7 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
 
 
 def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> list[str]:
-    """Return recently coder-completed SIDs that are eligible for recode."""
+    """Return recently finalized SIDs that are eligible for recode."""
     if not accessible_form_ids:
         return []
 
@@ -163,23 +163,11 @@ def get_coder_recodeable_sids(user_id, accessible_form_ids: Sequence[str]) -> li
         )
         .where(
             VaSubmissions.va_form_id.in_(accessible_form_ids),
-            VaSubmissionWorkflow.workflow_state.in_(CODER_COMPLETED_WORKFLOW_STATES),
-            sa.or_(
-                sa.and_(
-                    VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED,
-                    VaFinalAssessments.va_finassess_id.is_not(None),
-                    VaFinalAssessments.va_finassess_createdat + recent_window
-                    > sa.func.now(),
-                    VaCoderReview.va_creview_id.is_(None),
-                ),
-                sa.and_(
-                    VaSubmissionWorkflow.workflow_state == WORKFLOW_NOT_CODEABLE_BY_CODER,
-                    VaCoderReview.va_creview_id.is_not(None),
-                    VaCoderReview.va_creview_createdat + recent_window
-                    > sa.func.now(),
-                    VaFinalAssessments.va_finassess_id.is_(None),
-                ),
-            ),
+            VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED,
+            VaFinalAssessments.va_finassess_id.is_not(None),
+            VaFinalAssessments.va_finassess_createdat + recent_window
+            > sa.func.now(),
+            VaCoderReview.va_creview_id.is_(None),
         )
     )
     return db.session.scalars(stmt).all()

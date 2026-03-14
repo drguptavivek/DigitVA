@@ -6,10 +6,12 @@ from app.models.va_users import VaUsers
 from app.models.va_usernotes import VaUsernotes
 from app.models.va_submissions import VaSubmissions
 from app.models.va_submission_workflow import VaSubmissionWorkflow
+from app.models.va_coding_episodes import VaCodingEpisode
 from app.models.va_research_projects import VaResearchProjects
 from app.models.va_project_sites import VaProjectSites
 from app.models.va_initial_assessments import VaInitialAssessments
 from app.models.va_final_assessments import VaFinalAssessments
+from app.models.va_final_cod_authority import VaFinalCodAuthority
 from app.models.va_icd_codes import VaIcdCodes
 from app.models.va_allocations import VaAllocations
 from app.models.va_coder_review import VaCoderReview
@@ -55,6 +57,7 @@ __all__ = [
     "VaUsers",
     "VaSubmissions",
     "VaSubmissionWorkflow",
+    "VaCodingEpisode",
     "VaUsernotesFor",
     "VaUsernotes",
     "VaInitialAssessments",
@@ -63,6 +66,7 @@ __all__ = [
     "VaCoderReview",
     "VaDataManagerReview",
     "VaFinalAssessments",
+    "VaFinalCodAuthority",
     "VaIcdCodes",
     "VaSmartvaResults",
     "VaReviewerReview",

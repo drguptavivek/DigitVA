@@ -5,14 +5,18 @@ from flask_login import login_required, current_user
 # from app.decorators.va_validate_permissions import va_confirm_role
 import sqlalchemy as sa
 from app import db
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.decorators import va_validate_permissions
-from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissions, VaReviewerReview, VaInitialAssessments, VaFinalAssessments, VaCoderReview, VaSubmissionsAuditlog, VaForms
+from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissions, VaReviewerReview, VaSubmissionsAuditlog, VaForms
 from app.models.va_submission_workflow import VaSubmissionWorkflow
 from app.services.coding_allocation_service import release_stale_coding_allocations
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
+)
+from app.services.final_cod_authority_service import (
+    get_authoritative_final_assessment,
+    start_recode_episode,
 )
 from app.services.project_workflow_service import (
     split_form_ids_by_coding_intake_mode,
@@ -316,60 +320,26 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
         if va_actiontype == "varesumecoding":
             va_new_sid = db.session.scalar(sa.select(VaAllocations.va_sid).where((VaAllocations.va_allocated_to == current_user.user_id)&(VaAllocations.va_allocation_for == VaAllocation.coding)&(VaAllocations.va_allocation_status == VaStatuses.active)))
         if va_actiontype == "varecode":
-            va_initialassess = db.session.scalar(
-                    sa.select(VaInitialAssessments).where(
-                        (VaInitialAssessments.va_sid == va_sid)
-                        & (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
-                    )
+            authoritative_final = get_authoritative_final_assessment(va_sid)
+            if not authoritative_final:
+                va_permission_abortwithflash(
+                    "Only coder-finalized submissions can be reopened for recode.",
+                    403,
                 )
-            if va_initialassess:
-                va_initialassess.va_iniassess_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid = va_initialassess.va_sid,
-                        va_audit_entityid = va_initialassess.va_iniassess_id,
-                        va_audit_by = current_user.user_id,
-                        va_audit_byrole = "vacoder",
-                        va_audit_operation = "d",
-                        va_audit_action = "va_partial_iniasses_deletion due to recode",
-                    )
+            if authoritative_final.va_finassess_createdat <= (
+                datetime.now(authoritative_final.va_finassess_createdat.tzinfo)
+                - timedelta(hours=24)
+            ):
+                va_permission_abortwithflash(
+                    "This submission is outside the recode window.",
+                    403,
                 )
-            va_finassess = db.session.scalar(
-                    sa.select(VaFinalAssessments).where(
-                        (VaFinalAssessments.va_sid == va_sid)
-                        & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
-                    )
-                )
-            if va_finassess:
-                va_finassess.va_finassess_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid = va_finassess.va_sid,
-                        va_audit_entityid = va_finassess.va_finassess_id,
-                        va_audit_by = current_user.user_id,
-                        va_audit_byrole = "vacoder",
-                        va_audit_operation = "d",
-                        va_audit_action = "va_partial_finassess_deletion due to recode",
-                    )
-                )
-            va_coderreview = db.session.scalar(
-                    sa.select(VaCoderReview).where(
-                        (VaCoderReview.va_sid == va_sid)
-                        & (VaCoderReview.va_creview_status == VaStatuses.active)
-                    )
-                )
-            if va_coderreview:
-                va_coderreview.va_creview_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid = va_coderreview.va_sid,
-                        va_audit_entityid = va_coderreview.va_creview_id,
-                        va_audit_by = current_user.user_id,
-                        va_audit_byrole = "vacoder",
-                        va_audit_operation = "d",
-                        va_audit_action = "va_partial_coder review_deletion due to recode",
-                    )
-                )
+
+            episode = start_recode_episode(
+                va_sid,
+                current_user.user_id,
+                base_final_assessment=authoritative_final,
+            )
             gen_uuid = uuid.uuid4()
             db.session.add(
                 VaAllocations(
@@ -387,6 +357,16 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
                     va_audit_operation = "c",
                     va_audit_action = "form allocated to coder for recoding",
                     va_audit_entityid = gen_uuid
+                )
+            )
+            db.session.add(
+                VaSubmissionsAuditlog(
+                    va_sid=va_sid,
+                    va_audit_byrole="vacoder",
+                    va_audit_by=current_user.user_id,
+                    va_audit_operation="c",
+                    va_audit_action="recode episode started",
+                    va_audit_entityid=episode.episode_id,
                 )
             )
             set_submission_workflow_state(

@@ -3,6 +3,7 @@ import uuid
 from app import db
 from app.models import (
     MasCategoryOrder,
+    MasCategoryDisplayConfig,
     MasFieldDisplayConfig,
     MasFormTypes,
     MasSubcategoryOrder,
@@ -57,6 +58,35 @@ class TestCategoryFormTypeResolution(BaseTestCase):
                 category_code="vademographicdetails",
                 category_name="Demographic / Risk Factors",
                 display_order=1,
+                is_active=True,
+            )
+        )
+        db.session.add(
+            MasCategoryDisplayConfig(
+                form_type_id=cls.social_form_type.form_type_id,
+                category_code="vademographicdetails",
+                display_label="Demographic / Risk Factors",
+                nav_label="Demographic / Risk Factors",
+                display_order=1,
+                render_mode="table_sections",
+                show_to_coder=True,
+                show_to_reviewer=True,
+                show_to_site_pi=True,
+                is_active=True,
+            )
+        )
+        db.session.add(
+            MasCategoryDisplayConfig(
+                form_type_id=cls.social_form_type.form_type_id,
+                category_code="vanarrationanddocuments",
+                display_label="Narration and Documents",
+                nav_label="Narration and Documents",
+                display_order=2,
+                render_mode="attachments",
+                show_to_coder=True,
+                show_to_reviewer=True,
+                show_to_site_pi=True,
+                always_include=True,
                 is_active=True,
             )
         )

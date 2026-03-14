@@ -6,6 +6,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissionsAuditlog
+from app.services.final_cod_authority_service import abandon_active_recode_episode
 from app.services.submission_workflow_service import (
     infer_workflow_state_after_coding_release,
     set_submission_workflow_state,
@@ -26,6 +27,11 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     released = 0
     for record in stale_allocations:
         record.va_allocation_status = VaStatuses.deactive
+        abandon_active_recode_episode(
+            record.va_sid,
+            by_role="vasystem",
+            audit_action="recode episode abandoned due to timeout",
+        )
         set_submission_workflow_state(
             record.va_sid,
             infer_workflow_state_after_coding_release(record.va_sid),

@@ -14,6 +14,12 @@ from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
 )
+from app.services.final_cod_authority_service import (
+    complete_recode_episode,
+    get_active_recode_episode,
+    get_authoritative_final_assessment,
+    upsert_final_cod_authority,
+)
 from app.services.field_mapping_service import get_mapping_service
 from app.services.social_autopsy_analysis_service import (
     SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
@@ -331,10 +337,11 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             va_actiontype,
         )
         reviewobject = db.session.scalar(sa.select(VaReviewerReview).where((VaReviewerReview.va_rreview_status == VaStatuses.active)&(VaReviewerReview.va_sid == va_sid)))
-        vafinexists = db.session.scalar(sa.select(VaFinalAssessments.va_sid).where((VaFinalAssessments.va_finassess_status == VaStatuses.active)&(VaFinalAssessments.va_sid == va_sid)))
+        authoritative_final_assess = get_authoritative_final_assessment(va_sid)
+        vafinexists = authoritative_final_assess.va_sid if authoritative_final_assess else None
         vaerrexists = db.session.scalar(sa.select(VaCoderReview.va_sid).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
         vainiexists = db.session.scalar(sa.select(VaInitialAssessments.va_sid).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
-        va_final_assess = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.va_finassess_status == VaStatuses.active)&(VaFinalAssessments.va_sid == va_sid)))
+        va_final_assess = authoritative_final_assess
         va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
         va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
         smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
@@ -522,6 +529,24 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         if save_clicked and form.validate_on_submit():
             form1 = VaFinalAssessmentForm()
             smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
+            for existing_initial in db.session.scalars(
+                sa.select(VaInitialAssessments).where(
+                    VaInitialAssessments.va_sid == va_sid,
+                    VaInitialAssessments.va_iniassess_by == current_user.user_id,
+                    VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+                )
+            ).all():
+                existing_initial.va_iniassess_status = VaStatuses.deactive
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=va_sid,
+                        va_audit_byrole="vacoder",
+                        va_audit_by=current_user.user_id,
+                        va_audit_operation="d",
+                        va_audit_action="superseded initial cod draft",
+                        va_audit_entityid=existing_initial.va_iniassess_id,
+                    )
+                )
             gen_uuid = uuid.uuid4()
             new_review = VaInitialAssessments(
                 va_iniassess_id=gen_uuid,
@@ -564,7 +589,15 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
     if va_partial == "vafinalasses":
         form1 = VaFinalAssessmentForm()
         smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
-        va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
+        va_initial_assess = db.session.scalar(
+            sa.select(VaInitialAssessments)
+            .where(
+                VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+                VaInitialAssessments.va_sid == va_sid,
+                VaInitialAssessments.va_iniassess_by == current_user.user_id,
+            )
+            .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
+        )
 
         def _render_final_assessment_form(error_messages=None):
             return render_template(
@@ -630,6 +663,8 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     flash(message, "warning")
                 return redirect(request.referrer or url_for("va_main.va_dashboard", va_role="coder"))
             gen_uuid = uuid.uuid4()
+            active_recode_episode = get_active_recode_episode(va_sid)
+            prior_authoritative_final = get_authoritative_final_assessment(va_sid)
             new_review1 = VaFinalAssessments(
                 va_finassess_id=gen_uuid,
                 va_sid=va_sid,
@@ -640,6 +675,51 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                 # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
                 # va_rreview_remark=form.va_rreview_remark.data.strip() or None,
             )
+            db.session.add(new_review1)
+
+            for existing_final in db.session.scalars(
+                sa.select(VaFinalAssessments).where(
+                    VaFinalAssessments.va_sid == va_sid,
+                    VaFinalAssessments.va_finassess_status == VaStatuses.active,
+                )
+            ).all():
+                existing_final.va_finassess_status = VaStatuses.deactive
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=va_sid,
+                        va_audit_byrole="vacoder",
+                        va_audit_by=current_user.user_id,
+                        va_audit_operation="d",
+                        va_audit_action=(
+                            "superseded authoritative final cod"
+                            if prior_authoritative_final
+                            and existing_final.va_finassess_id
+                            == prior_authoritative_final.va_finassess_id
+                            else "deactivated superseded final cod"
+                        ),
+                        va_audit_entityid=existing_final.va_finassess_id,
+                    )
+                )
+
+            for existing_initial in db.session.scalars(
+                sa.select(VaInitialAssessments).where(
+                    VaInitialAssessments.va_sid == va_sid,
+                    VaInitialAssessments.va_iniassess_by == current_user.user_id,
+                    VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+                )
+            ).all():
+                existing_initial.va_iniassess_status = VaStatuses.deactive
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=va_sid,
+                        va_audit_byrole="vacoder",
+                        va_audit_by=current_user.user_id,
+                        va_audit_operation="d",
+                        va_audit_action="superseded initial cod draft",
+                        va_audit_entityid=existing_initial.va_iniassess_id,
+                    )
+                )
+
             db.session.add(
                 VaSubmissionsAuditlog(
                     va_sid = va_sid,
@@ -662,7 +742,20 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     va_audit_entityid = va_has_allocation.va_allocation_id
                 )
             )
-            db.session.add(new_review1)
+            db.session.flush()
+            upsert_final_cod_authority(
+                va_sid,
+                new_review1,
+                reason=(
+                    "replacement_final_cod_submitted"
+                    if active_recode_episode
+                    else "final_cod_submitted"
+                ),
+                source_role="vacoder",
+                updated_by=current_user.user_id,
+            )
+            if active_recode_episode:
+                complete_recode_episode(active_recode_episode, new_review1)
             set_submission_workflow_state(
                 va_sid,
                 WORKFLOW_CODER_FINALIZED,

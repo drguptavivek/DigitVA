@@ -31,7 +31,6 @@ from app.utils import (
     va_smartva_runsmartva,
     va_smartva_formatsmartvaresult,
     va_smartva_appendsmartvaresults,
-    va_preprocess_prepdata,
     va_preprocess_summcatenotification,
     va_preprocess_categoriestodisplay,
 )

@@ -249,6 +249,7 @@ def _serialize_project(project):
         "project_nickname": project.project_nickname,
         "status": project.project_status.value,
         "narrative_qa_enabled": project.narrative_qa_enabled,
+        "coding_intake_mode": project.coding_intake_mode,
     }
 
 
@@ -314,6 +315,161 @@ _AUDIT_ACTION_DISPLAY = {
     "va_partial_finassess_deletion due to recode": "Partial final assessment reset (recode)",
     "va_partial_iniasses_deletion due to recode": "Partial initial assessment reset (recode)",
     "va_partial_iniasses_deletion due to timeout": "Partial assessment reset (timeout)",
+}
+
+# Detailed explanations for each action type (for help modal)
+_AUDIT_ACTION_EXPLANATIONS = {
+    # Allocation & Workflow
+    "form allocated to coder": {
+        "label": "Form Allocated to Coder",
+        "category": "Allocation",
+        "explanation": "A VA form has been assigned to a specific coder for processing. The coder can now begin the coding workflow.",
+    },
+    "form allocated to admin for demo coding": {
+        "label": "Form Allocated for Demo Coding",
+        "category": "Allocation",
+        "explanation": "A VA form has been assigned to an admin user for demonstration or training purposes.",
+    },
+    "form allocated to coder for recoding": {
+        "label": "Form Allocated for Recoding",
+        "category": "Allocation",
+        "explanation": "A previously coded form has been returned to a coder (possibly a different one) for re-evaluation. This typically happens after a review rejection or quality issue.",
+    },
+    "allocated form released from coder": {
+        "label": "Allocation Released",
+        "category": "Allocation",
+        "explanation": "The coder's allocation has been released, making the form available for re-allocation. This may be voluntary or admin-initiated.",
+    },
+    "va_allocation_released_by_admin_for_demo": {
+        "label": "Demo Allocation Reset",
+        "category": "Allocation",
+        "explanation": "An admin has reset a demo allocation, returning the form to the available pool.",
+    },
+    "va_allocation_released_due_to_timeout": {
+        "label": "Allocation Released (Timeout)",
+        "category": "Allocation",
+        "explanation": "The allocation was automatically released because the coder exceeded the maximum allowed time without completing the form.",
+    },
+    "va_allocation_deletion_due to timeout": {
+        "label": "Allocation Deleted (Timeout)",
+        "category": "Allocation",
+        "explanation": "The allocation record was deleted due to timeout. The form is now available for re-allocation.",
+    },
+    "va_allocation_deletion_during_datasync": {
+        "label": "Allocation Deleted (Sync)",
+        "category": "Allocation",
+        "explanation": "All active allocations were cleared during an ODK sync because the underlying submission was updated in ODK Central. This ensures coders work on the latest data.",
+    },
+    # Cause of Death
+    "initial cod submitted": {
+        "label": "Initial COD Submitted",
+        "category": "Cause of Death",
+        "explanation": "The coder has submitted the initial (Step 1) cause of death determination. This is the first COD assessment before final review.",
+    },
+    "final cod submitted": {
+        "label": "Final COD Submitted",
+        "category": "Cause of Death",
+        "explanation": "The final (Step 2) cause of death has been submitted after review. This represents the completed COD determination.",
+    },
+    "error reported by coder": {
+        "label": "Error Reported by Coder",
+        "category": "Cause of Death",
+        "explanation": "The coder has flagged this form as 'Not Codeable' due to insufficient or inconsistent information. The form may require additional review or data correction.",
+    },
+    # Assessments
+    "social autopsy analysis saved": {
+        "label": "Social Autopsy Saved",
+        "category": "Assessment",
+        "explanation": "The social autopsy analysis (contextual information about circumstances of death) has been saved for this submission.",
+    },
+    "social autopsy analysis updated": {
+        "label": "Social Autopsy Updated",
+        "category": "Assessment",
+        "explanation": "The social autopsy analysis has been modified and resaved.",
+    },
+    "narrative quality assessment saved": {
+        "label": "Narrative QA Saved",
+        "category": "Assessment",
+        "explanation": "A narrative quality assessment has been recorded, evaluating the completeness and quality of the verbal autopsy narrative.",
+    },
+    "narrative quality assessment updated": {
+        "label": "Narrative QA Updated",
+        "category": "Assessment",
+        "explanation": "The narrative quality assessment has been modified and resaved.",
+    },
+    # ODK Integration
+    "odk review state set to hasIssues": {
+        "label": "ODK Revision Flag Applied",
+        "category": "ODK Integration",
+        "explanation": "The submission has been flagged in ODK Central as having issues. This notifies data collectors that the submission needs attention or correction.",
+    },
+    "odk review state update failed": {
+        "label": "ODK Revision Flag Failed",
+        "category": "ODK Integration",
+        "explanation": "An attempt to set the ODK review state failed, possibly due to connectivity issues or ODK Central being unavailable.",
+    },
+    # Sync Operations
+    "va_submission_creation_during_datasync": {
+        "label": "Submission Created (Sync)",
+        "category": "Data Sync",
+        "explanation": "A new VA submission was imported from ODK Central during a scheduled or manual sync operation.",
+    },
+    "va_submission_updation_during_datasync": {
+        "label": "Submission Updated (Sync)",
+        "category": "Data Sync",
+        "explanation": "An existing VA submission was updated from ODK Central. The submission had been edited in ODK, and the local copy was refreshed.",
+    },
+    "va_smartva_creation_during_datasync": {
+        "label": "SmartVA Result Created (Sync)",
+        "category": "Data Sync",
+        "explanation": "A new SmartVA algorithmic cause of death prediction was generated and stored for this submission.",
+    },
+    "va_smartva_deletion_during_datasync": {
+        "label": "SmartVA Result Replaced (Sync)",
+        "category": "Data Sync",
+        "explanation": "An existing SmartVA result was superseded by a new one. The old result was marked inactive; this is normal when submission data changes.",
+    },
+    "va_coderreview_deletion_during_datasync": {
+        "label": "Coder Review Reset (Sync)",
+        "category": "Data Sync",
+        "explanation": "Coder review data was cleared because the underlying submission was updated in ODK Central. The form needs to be re-coded.",
+    },
+    "va_finalasses_deletion_during_datasync": {
+        "label": "Final Assessment Reset (Sync)",
+        "category": "Data Sync",
+        "explanation": "Final assessment data was cleared due to an ODK update. The form requires re-evaluation.",
+    },
+    "va_initialasses_deletion_during_datasync": {
+        "label": "Initial Assessment Reset (Sync)",
+        "category": "Data Sync",
+        "explanation": "Initial assessment data was cleared due to an ODK update. The form requires re-evaluation.",
+    },
+    "va_usernote_deletion_during_datasync": {
+        "label": "User Note Reset (Sync)",
+        "category": "Data Sync",
+        "explanation": "User notes attached to this submission were cleared because the submission was updated from ODK Central.",
+    },
+    # Partial Work Reset
+    "va_partial_coder review_deletion due to recode": {
+        "label": "Partial Review Reset (Recode)",
+        "category": "Partial Reset",
+        "explanation": "Partial coder review work was discarded because the form was sent for recoding. In-progress work is cleared to start fresh.",
+    },
+    "va_partial_finassess_deletion due to recode": {
+        "label": "Partial Final Assessment Reset (Recode)",
+        "category": "Partial Reset",
+        "explanation": "Partial final assessment work was discarded because the form was sent for recoding.",
+    },
+    "va_partial_iniasses_deletion due to recode": {
+        "label": "Partial Initial Assessment Reset (Recode)",
+        "category": "Partial Reset",
+        "explanation": "Partial initial assessment work was discarded because the form was sent for recoding.",
+    },
+    "va_partial_iniasses_deletion due to timeout": {
+        "label": "Partial Assessment Reset (Timeout)",
+        "category": "Partial Reset",
+        "explanation": "Partial assessment work was discarded because the allocation timed out before completion.",
+    },
 }
 
 
@@ -587,7 +743,8 @@ def admin_create_project():
         project_code=project_code,
         project_name=project_name,
         project_nickname=project_nickname,
-        project_status=VaStatuses.active
+        project_status=VaStatuses.active,
+        coding_intake_mode="random_form_allocation",
     )
     db.session.add(project)
     db.session.commit()
@@ -630,6 +787,15 @@ def admin_update_project(project_id):
 
     if "narrative_qa_enabled" in payload:
         project.narrative_qa_enabled = bool(payload["narrative_qa_enabled"])
+
+    if "coding_intake_mode" in payload:
+        coding_intake_mode = (payload["coding_intake_mode"] or "").strip()
+        if coding_intake_mode not in {
+            "random_form_allocation",
+            "pick_and_choose",
+        }:
+            return _json_error("Invalid coding_intake_mode.", 400)
+        project.coding_intake_mode = coding_intake_mode
 
     db.session.commit()
     return jsonify({"project": _serialize_project(project)})
@@ -3287,6 +3453,7 @@ def admin_panel_activity():
         project_options=project_options,
         site_options=site_options,
         action_options=action_options,
+        action_explanations=_AUDIT_ACTION_EXPLANATIONS,
     )
 
 

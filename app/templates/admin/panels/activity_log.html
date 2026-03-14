@@ -39,7 +39,14 @@
           <input type="text" name="user_id" value="{{ user_id }}" class="form-control form-control-sm" placeholder="name@example.com">
         </div>
         <div class="col-md-4">
-          <label class="form-label small fw-semibold mb-1">Action</label>
+          <label class="form-label small fw-semibold mb-1">
+            Action
+            <i class="fa-solid fa-circle-info text-secondary ms-1"
+               role="button"
+               data-bs-toggle="modal"
+               data-bs-target="#actionHelpModal"
+               title="Click for action explanations"></i>
+          </label>
           <select name="action" class="form-select form-select-sm">
             <option value="">All</option>
             {% for value, label in action_options %}
@@ -133,6 +140,38 @@
               {% endif %}>
         Next<i class="fa-solid fa-chevron-right ms-1"></i>
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Action Explanations Modal -->
+<div class="modal fade" id="actionHelpModal" tabindex="-1" aria-labelledby="actionHelpModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="actionHelpModalLabel">
+          <i class="fa-solid fa-info-circle me-2 text-primary"></i>Action Type Explanations
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="list-group list-group-flush">
+          {% for action_key, info in action_explanations.items() %}
+            <div class="list-group-item">
+              <div class="d-flex w-100 justify-content-between align-items-start">
+                <h6 class="mb-1 fw-semibold">{{ info.label }}</h6>
+                <span class="badge bg-secondary text-light">{{ info.category }}</span>
+              </div>
+              <p class="mb-1 small text-muted">{{ info.explanation }}</p>
+              <small class="text-body-secondary font-monospace">{{ action_key }}</small>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <small class="text-muted me-auto">These actions are recorded in the audit log for compliance and troubleshooting.</small>
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
     </div>
   </div>
 </div>

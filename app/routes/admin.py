@@ -280,13 +280,44 @@ _AUDIT_STAGE_CONFIG = {
 }
 
 _AUDIT_ACTION_DISPLAY = {
+    # Workflow actions
+    "form allocated to coder": "Form allocated to coder",
+    "form allocated to admin for demo coding": "Form allocated for demo coding",
+    "form allocated to coder for recoding": "Form allocated for recoding",
+    "allocated form released from coder": "Allocation released from coder",
     "va_allocation_released_by_admin_for_demo": "Demo allocation reset",
+    "va_allocation_released_due_to_timeout": "Allocation released (timeout)",
+    "va_allocation_deletion_due to timeout": "Allocation deleted (timeout)",
+    "va_allocation_deletion_during_datasync": "Allocation deleted (sync)",
+    # COD actions
+    "initial cod submitted": "Initial COD submitted",
+    "final cod submitted": "Final COD submitted",
+    "error reported by coder": "Error reported by coder",
+    # Assessment actions
+    "social autopsy analysis saved": "Social autopsy saved",
+    "social autopsy analysis updated": "Social autopsy updated",
+    "narrative quality assessment saved": "Narrative QA saved",
+    "narrative quality assessment updated": "Narrative QA updated",
+    # ODK actions
     "odk review state set to hasIssues": "ODK revision flag applied",
-    "odk review state update failed": "ODK revision flag update failed",
+    "odk review state update failed": "ODK revision flag failed",
+    # Sync actions
+    "va_submission_creation_during_datasync": "Submission created (sync)",
+    "va_submission_updation_during_datasync": "Submission updated (sync)",
+    "va_smartva_creation_during_datasync": "SmartVA result created (sync)",
+    "va_smartva_deletion_during_datasync": "SmartVA result replaced (sync)",
+    "va_coderreview_deletion_during_datasync": "Coder review reset (sync)",
+    "va_finalasses_deletion_during_datasync": "Final assessment reset (sync)",
+    "va_initialasses_deletion_during_datasync": "Initial assessment reset (sync)",
+    "va_usernote_deletion_during_datasync": "User note reset (sync)",
+    "va_partial_coder review_deletion due to recode": "Partial review reset (recode)",
+    "va_partial_finassess_deletion due to recode": "Partial final assessment reset (recode)",
+    "va_partial_iniasses_deletion due to recode": "Partial initial assessment reset (recode)",
+    "va_partial_iniasses_deletion due to timeout": "Partial assessment reset (timeout)",
 }
 
 
-def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=None, user_id=None):
+def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=None, user_id=None, action=None):
     """Return paginated submission audit rows with lightweight workflow context."""
     from sqlalchemy import select as sa_select
     from app.models import VaSubmissions, VaSubmissionsAuditlog, VaUsers
@@ -326,6 +357,8 @@ def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=N
             query = query.where(VaSubmissionsAuditlog.va_audit_by == resolved_user_id)
         except ValueError:
             query = query.where(sa.false())
+    if action:
+        query = query.where(VaSubmissionsAuditlog.va_audit_action == action)
 
     count_query = (
         sa.select(sa.func.count())
@@ -345,6 +378,8 @@ def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=N
             count_query = count_query.where(VaSubmissionsAuditlog.va_audit_by == resolved_user_id)
         except ValueError:
             count_query = count_query.where(sa.false())
+    if action:
+        count_query = count_query.where(VaSubmissionsAuditlog.va_audit_action == action)
 
     total_count = db.session.scalar(count_query) or 0
     rows = db.session.execute(
@@ -3200,6 +3235,7 @@ def admin_panel_activity():
     project_id = (request.args.get("project_id") or "").strip().upper()
     site_id = (request.args.get("site_id") or "").strip().upper()
     user_id = (request.args.get("user_id") or "").strip()
+    action = (request.args.get("action") or "").strip()
     try:
         limit = min(max(int(request.args.get("limit", 100)), 1), 300)
     except (TypeError, ValueError):
@@ -3216,6 +3252,7 @@ def admin_panel_activity():
         project_id=project_id or None,
         site_id=site_id or None,
         user_id=user_id or None,
+        action=action or None,
     )
     project_options = db.session.scalars(
         sa.select(VaForms.project_id).distinct().order_by(VaForms.project_id)
@@ -3223,6 +3260,17 @@ def admin_panel_activity():
     site_options = db.session.scalars(
         sa.select(VaForms.site_id).distinct().order_by(VaForms.site_id)
     ).all()
+    from app.models import VaSubmissionsAuditlog
+    raw_action_options = db.session.scalars(
+        sa.select(VaSubmissionsAuditlog.va_audit_action)
+        .distinct()
+        .order_by(VaSubmissionsAuditlog.va_audit_action)
+    ).all()
+    # Build labeled options: (raw_value, display_label)
+    action_options = [
+        (opt, _AUDIT_ACTION_DISPLAY.get(opt, opt))
+        for opt in raw_action_options
+    ]
 
     return render_template(
         "admin/panels/activity_log.html",
@@ -3231,12 +3279,14 @@ def admin_panel_activity():
         project_id=project_id,
         site_id=site_id,
         user_id=user_id,
+        action=action,
         limit=limit,
         page=page,
         total_count=total_count,
         total_pages=max((total_count + limit - 1) // limit, 1),
         project_options=project_options,
         site_options=site_options,
+        action_options=action_options,
     )
 
 

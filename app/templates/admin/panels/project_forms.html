@@ -58,10 +58,20 @@
     var m = method || 'GET';
     var headers = { 'X-CSRFToken': csrf() };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 15000) : null;
     return fetch(url, {
       method: m, headers: headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
-    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+      signal: controller ? controller.signal : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .catch(function (err) {
+        if (err && err.name === 'AbortError') throw new Error('Request timed out.');
+        throw err;
+      })
+      .finally(function () {
+        if (timer) clearTimeout(timer);
+      });
   }
 
   function esc(s) {
@@ -74,6 +84,8 @@
   var _connection      = null;   // { connection_id, connection_name, status }
   var _sites           = [];     // [{ site_id, site_name }]
   var _odkProjects     = [];     // [{ id, name }] from ODK Central
+  var _odkProjectsLoaded = false;
+  var _odkProjectsError = null;
   var _odkFormsCache   = {};     // "odkProjectId" → [{ xmlFormId, name }]
   var _siteMappings    = [];     // [{ site_id, odk_project_id, odk_form_id, form_type_id, form_type_code }]
   var _formTypes       = [];     // [{ form_type_id, form_type_code, form_type_name }]
@@ -118,6 +130,8 @@
     _connection = null;
     _sites = [];
     _odkProjects = [];
+    _odkProjectsLoaded = false;
+    _odkProjectsError = null;
     _odkFormsCache = {};
     _siteMappings = [];
     _formTypes = [];
@@ -179,15 +193,7 @@
         return;
       }
 
-      // Fetch ODK projects from the linked connection
-      apiJson('/admin/api/odk-connections/' + _connection.connection_id + '/odk-projects')
-        .then(function (res) {
-          if (!res.ok) throw new Error(res.data.error || 'Failed to fetch ODK projects.');
-          _odkProjects = res.data.odk_projects || [];
-          renderTable();
-        }).catch(function (err) {
-          setContent('<div class="alert alert-danger small py-2">' + esc(String(err)) + '</div>');
-        });
+      renderTable();
 
     }).catch(function () {
       setContent('<div class="alert alert-danger small py-2">Failed to load project data.</div>');
@@ -279,14 +285,19 @@
     var savedFid    = saved ? saved.odk_form_id : '';
     var savedFtId   = saved ? (saved.form_type_id || '') : '';
 
-    var projOptions = _odkProjects.length
-      ? (!savedOpid ? '<option value="">— ODK project —</option>' : '')
-        + _odkProjects.map(function (op) {
-            var sel = (String(op.id) === savedOpid) ? ' selected' : '';
-            return '<option value="' + esc(op.id) + '"' + sel + '>'
-              + esc(op.name) + ' (#' + esc(op.id) + ')</option>';
-          }).join('')
-      : '<option value="">No ODK projects found</option>';
+    var projOptions = '<option value="">Loading ODK projects…</option>';
+    if (_odkProjectsLoaded) {
+      projOptions = _odkProjects.length
+        ? (!savedOpid ? '<option value="">— ODK project —</option>' : '')
+          + _odkProjects.map(function (op) {
+              var sel = (String(op.id) === savedOpid) ? ' selected' : '';
+              return '<option value="' + esc(op.id) + '"' + sel + '>'
+                + esc(op.name) + ' (#' + esc(op.id) + ')</option>';
+            }).join('')
+        : '<option value="">No ODK projects found</option>';
+    } else if (_odkProjectsError) {
+      projOptions = '<option value="">Failed to load ODK projects</option>';
+    }
 
     var ftOptions = '<option value="">— select form type —</option>'
       + _formTypes.map(function (ft) {
@@ -306,9 +317,19 @@
       + '<div>'
       + '<label class="form-label small mb-1 text-muted">ODK Project</label>'
       + '<select class="form-select form-select-sm pf-opid-sel" data-sid="' + esc(site.site_id) + '" '
-      + 'id="pf-opid-' + esc(site.site_id) + '" style="max-width:720px;width:100%;">'
+      + 'id="pf-opid-' + esc(site.site_id) + '" style="max-width:720px;width:100%;"'
+      + (_odkProjectsLoaded ? '' : ' disabled')
+      + '>'
       + projOptions
       + '</select>'
+      + (!_odkProjectsLoaded && !_odkProjectsError
+          ? '<div class="text-muted small mt-1"><i class="fa-solid fa-spinner fa-spin me-1"></i>'
+            + 'Loading available ODK projects…</div>'
+          : '')
+      + (_odkProjectsError
+          ? '<div class="text-danger small mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>'
+            + esc(_odkProjectsError) + '</div>'
+          : '')
       + '</div>'
 
       // ODK Form select
@@ -368,6 +389,8 @@
     if (!row) return;
     row.classList.remove('d-none');
 
+    ensureOdkProjectsLoaded(sid);
+
     if (loadForms) {
       var opidSel = document.getElementById('pf-opid-' + sid);
       var formSel = document.getElementById('pf-form-' + sid);
@@ -411,6 +434,25 @@
       closeBtn._bound = true;
       closeBtn.addEventListener('click', function () { closeConfigRow(sid); });
     }
+  }
+
+  function ensureOdkProjectsLoaded(openSid) {
+    if (_odkProjectsLoaded || _odkProjectsError || !_connection) return;
+    apiJson('/admin/api/odk-connections/' + _connection.connection_id + '/odk-projects')
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.data.error || 'Failed to fetch ODK projects.');
+        _odkProjects = res.data.odk_projects || [];
+        _odkProjectsLoaded = true;
+        _odkProjectsError = null;
+        renderTable();
+        if (openSid) openConfigRow(openSid, true);
+      }).catch(function (err) {
+        _odkProjects = [];
+        _odkProjectsLoaded = false;
+        _odkProjectsError = String(err);
+        renderTable();
+        if (openSid) openConfigRow(openSid, false);
+      });
   }
 
   function closeConfigRow(sid) {

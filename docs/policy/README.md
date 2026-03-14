@@ -22,6 +22,7 @@ Current policy docs:
 - [Final COD Authority Policy](final-cod-authority.md)
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
+- [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [UI Notification Policy](ui-notifications.md)
 
 Use `docs/policy` when a change affects:

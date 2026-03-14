@@ -3487,7 +3487,7 @@ def admin_sync_status():
         )
         last_completed = db.session.scalar(
             sa.select(VaSyncRun)
-            .where(VaSyncRun.status.in_(["success", "error"]))
+            .where(VaSyncRun.status.in_(["success", "partial", "error", "cancelled"]))
             .order_by(VaSyncRun.started_at.desc())
             .limit(1)
         )
@@ -3552,6 +3552,62 @@ def admin_sync_trigger():
     except Exception as e:
         log.error("admin_sync_trigger failed", exc_info=True)
         return _json_error(f"Failed to trigger sync: {str(e)}", 500)
+
+
+@admin.post("/api/sync/stop")
+@require_api_role("admin")
+def admin_sync_stop():
+    try:
+        from datetime import datetime, timezone
+        from flask import current_app
+        from app.models.va_sync_runs import VaSyncRun
+
+        celery_app = current_app.extensions.get("celery")
+        if celery_app is None:
+            return _json_error("Celery is not configured.", 503)
+
+        inspect = celery_app.control.inspect(timeout=2)
+        active_by_worker = inspect.active() or {}
+        sync_task_names = {
+            "app.tasks.sync_tasks.run_odk_sync",
+            "app.tasks.sync_tasks.run_smartva_pending",
+            "app.tasks.sync_tasks.run_single_form_sync",
+        }
+        active_task_ids = []
+        for tasks in active_by_worker.values():
+            for task in tasks or []:
+                if task.get("name") in sync_task_names and task.get("id"):
+                    active_task_ids.append(task["id"])
+
+        running_rows = db.session.scalars(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .order_by(VaSyncRun.started_at.desc())
+        ).all()
+
+        if not active_task_ids and not running_rows:
+            return _json_error("No sync task is currently running.", 409)
+
+        for task_id in active_task_ids:
+            celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+
+        now = datetime.now(timezone.utc)
+        for row in running_rows:
+            row.status = "cancelled"
+            row.finished_at = now
+            row.error_message = "Cancelled by admin."
+        db.session.commit()
+
+        return jsonify(
+            {
+                "message": "Stop signal sent to running sync task(s).",
+                "task_ids": active_task_ids,
+                "runs_cancelled": len(running_rows),
+            }
+        )
+    except Exception as e:
+        log.error("admin_sync_stop failed", exc_info=True)
+        return _json_error(f"Failed to stop sync: {str(e)}", 500)
 
 
 @admin.post("/api/sync/schedule")

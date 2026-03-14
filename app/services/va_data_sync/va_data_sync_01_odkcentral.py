@@ -39,7 +39,7 @@ from app.utils import (
     va_odk_fetch_submissions,
     va_odk_write_form_csv,
     va_odk_rebuild_form_csv_from_db,
-    va_odk_sync_submission_attachments,
+    va_odk_sync_form_attachments,
     va_smartva_prepdata,
     va_smartva_runsmartva,
     va_smartva_formatsmartvaresult,
@@ -494,12 +494,6 @@ def va_data_sync_odkcentral(log_progress=None):
                     ),
                     log_progress=_progress,
                 )
-                odk_client = _get_or_create_sync_odk_client(
-                    clients_by_group,
-                    connection_by_project,
-                    va_form,
-                    mapping,
-                )
 
                 # Write CSV for SmartVA (same format as ZIP-extracted CSV)
                 form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
@@ -531,43 +525,32 @@ def va_data_sync_odkcentral(log_progress=None):
 
                 # Sync attachments for upserted submissions (ETag-based, no rmtree)
                 if upserted_map:
-                    attach_dl = attach_skip = attach_err = 0
                     total_attach = len(upserted_map)
                     _progress(
                         f"[{va_form.form_id}] syncing attachments for "
                         f"{total_attach} submission(s)…"
                     )
-                    for idx, (va_sid, instance_id) in enumerate(upserted_map.items(), 1):
-                        if not instance_id:
-                            continue
-                        try:
-                            r = va_odk_sync_submission_attachments(
-                                va_form,
-                                instance_id,
-                                va_sid,
-                                media_dir,
-                                client=odk_client,
-                            )
-                            attach_dl += r["downloaded"]
-                            attach_skip += r["skipped"]
-                            attach_err += r["errors"]
-                        except Exception as attach_err_exc:
-                            attach_err += 1
-                            log.warning(
-                                "DataSync [%s] attachment sync failed for %s: %s",
-                                va_form.form_id, va_sid, attach_err_exc,
-                            )
-                        if idx % 50 == 0:
-                            _progress(
-                                f"[{va_form.form_id}] attachments: "
-                                f"{idx}/{total_attach} checked, "
-                                f"{attach_dl} downloaded so far…"
-                            )
+                    attachment_totals = va_odk_sync_form_attachments(
+                        va_form,
+                        upserted_map,
+                        media_dir,
+                        client_factory=lambda: _get_or_create_sync_odk_client(
+                            clients_by_group,
+                            connection_by_project,
+                            va_form,
+                            mapping,
+                        ),
+                    )
                     db.session.commit()  # commit ETag records
                     _progress(
                         f"[{va_form.form_id}] attachments done: "
-                        f"{attach_dl} downloaded, {attach_skip} skipped"
-                        + (f", {attach_err} errors" if attach_err else "")
+                        f"{attachment_totals['downloaded']} downloaded, "
+                        f"{attachment_totals['skipped']} skipped"
+                        + (
+                            f", {attachment_totals['errors']} errors"
+                            if attachment_totals["errors"]
+                            else ""
+                        )
                     )
 
                 # Rebuild full CSV from DB so SmartVA-only runs have all submissions

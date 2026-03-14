@@ -6,7 +6,10 @@ from app.utils.va_odk.va_odk_06_fetchsubmissions import (
     va_odk_write_form_csv,
     va_odk_rebuild_form_csv_from_db,
 )
-from app.utils.va_odk.va_odk_07_syncattachments import va_odk_sync_submission_attachments
+from app.utils.va_odk.va_odk_07_syncattachments import (
+    va_odk_sync_form_attachments,
+    va_odk_sync_submission_attachments,
+)
 
 from app.utils.va_preprocess.va_preprocess_01_prepdata import va_preprocess_prepdata
 from app.utils.va_preprocess.va_preprocess_03_categoriestodisplay import va_preprocess_categoriestodisplay
@@ -75,6 +78,7 @@ __all__ = [
     "va_odk_fetch_submissions",
     "va_odk_write_form_csv",
     "va_odk_rebuild_form_csv_from_db",
+    "va_odk_sync_form_attachments",
     "va_odk_sync_submission_attachments",
     "va_preprocess_prepdata",
     "va_preprocess_summcatenotification",

@@ -165,7 +165,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         va_odk_fetch_submissions,
         va_odk_write_form_csv,
         va_odk_rebuild_form_csv_from_db,
-        va_odk_sync_submission_attachments,
+        va_odk_sync_form_attachments,
         va_smartva_prepdata,
         va_smartva_runsmartva,
         va_smartva_formatsmartvaresult,
@@ -224,28 +224,22 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
 
         # Sync attachments for upserted submissions
         if upserted_map:
-            attach_dl = attach_skip = attach_err = 0
-            for va_sid, instance_id in upserted_map.items():
-                if not instance_id:
-                    continue
-                try:
-                    r = va_odk_sync_submission_attachments(
-                        va_form,
-                        instance_id,
-                        va_sid,
-                        media_dir,
-                        client=odk_client,
-                    )
-                    attach_dl += r["downloaded"]
-                    attach_skip += r["skipped"]
-                    attach_err += r["errors"]
-                except Exception as ae:
-                    attach_err += 1
-                    log.warning("SingleFormSync [%s] attachment error for %s: %s", form_id, va_sid, ae)
+            attachment_totals = va_odk_sync_form_attachments(
+                va_form,
+                upserted_map,
+                media_dir,
+                client_factory=lambda: _get_single_form_odk_client(va_form),
+            )
             db.session.commit()
             log_progress(
-                f"[{form_id}] attachments: {attach_dl} downloaded, {attach_skip} skipped"
-                + (f", {attach_err} errors" if attach_err else "")
+                f"[{form_id}] attachments: "
+                f"{attachment_totals['downloaded']} downloaded, "
+                f"{attachment_totals['skipped']} skipped"
+                + (
+                    f", {attachment_totals['errors']} errors"
+                    if attachment_totals["errors"]
+                    else ""
+                )
             )
 
         # Rebuild full CSV from DB

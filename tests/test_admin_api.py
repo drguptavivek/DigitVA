@@ -1,6 +1,7 @@
 import uuid
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import sqlalchemy as sa
 
@@ -12,6 +13,7 @@ from app.models import (
     VaProjectSites,
     VaSiteMaster,
     VaStatuses,
+    VaSyncRun,
     VaUserAccessGrants,
     VaUsers,
 )
@@ -667,3 +669,50 @@ class AdminApiTests(BaseTestCase):
         # Delete mapping
         del_resp = self.client.delete(f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}", headers=headers)
         self.assertEqual(del_resp.status_code, 200)
+
+    def test_admin_can_stop_running_sync_task(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        run = VaSyncRun(
+            triggered_by="manual",
+            triggered_user_id=uuid.UUID(self.admin_user_id),
+            started_at=datetime.now(timezone.utc),
+            status="running",
+        )
+        db.session.add(run)
+        db.session.commit()
+
+        mock_celery = MagicMock()
+        mock_inspect = MagicMock()
+        mock_inspect.active.return_value = {
+            "worker@node1": [
+                {
+                    "id": "task-123",
+                    "name": "app.tasks.sync_tasks.run_odk_sync",
+                }
+            ]
+        }
+        mock_celery.control.inspect.return_value = mock_inspect
+        original_celery = self.app.extensions.get("celery")
+        self.app.extensions["celery"] = mock_celery
+
+        try:
+            response = self.client.post("/admin/api/sync/stop", headers=headers)
+        finally:
+            self.app.extensions["celery"] = original_celery
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["task_ids"], ["task-123"])
+        self.assertEqual(payload["runs_cancelled"], 1)
+
+        db.session.expire_all()
+        cancelled = db.session.get(VaSyncRun, run.sync_run_id)
+        self.assertEqual(cancelled.status, "cancelled")
+        self.assertEqual(cancelled.error_message, "Cancelled by admin.")
+        mock_celery.control.revoke.assert_called_once_with(
+            "task-123",
+            terminate=True,
+            signal="SIGTERM",
+        )

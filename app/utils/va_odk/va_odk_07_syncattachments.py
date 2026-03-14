@@ -12,13 +12,264 @@ unchanged submissions remain on disk, so coders never see missing attachments
 during an active sync.
 """
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
+from datetime import datetime, timezone
 import logging
 import os
-from datetime import datetime, timezone
+import threading
 
 import sqlalchemy as sa
 
 log = logging.getLogger(__name__)
+_ATTACHMENT_SYNC_MAX_WORKERS = 3
+
+
+@dataclass(slots=True)
+class AttachmentChange:
+    filename: str
+    exists_on_odk: bool
+    local_path: str | None = None
+    mime_type: str | None = None
+    etag: str | None = None
+    last_downloaded_at: datetime | None = None
+
+
+@dataclass(slots=True)
+class SubmissionAttachmentSyncResult:
+    va_sid: str
+    downloaded: int
+    skipped: int
+    errors: int
+    changes: list[AttachmentChange]
+
+
+def _sync_submission_attachments_no_db(
+    va_form,
+    instance_id: str,
+    va_sid: str,
+    media_dir: str,
+    existing_etags: dict[str, str | None],
+    client,
+) -> SubmissionAttachmentSyncResult:
+    """Sync one submission's attachments without touching the ORM session."""
+    os.makedirs(media_dir, exist_ok=True)
+
+    list_url = (
+        f"projects/{va_form.odk_project_id}"
+        f"/forms/{va_form.odk_form_id}"
+        f"/submissions/{instance_id}/attachments"
+    )
+    list_resp = client.session.get(list_url)
+    if list_resp.status_code != 200:
+        raise Exception(
+            f"Attachment list fetch failed HTTP {list_resp.status_code} "
+            f"for {va_sid}: {list_resp.text[:200]}"
+        )
+    attachments: list[dict] = list_resp.json()
+
+    downloaded = 0
+    skipped = 0
+    errors = 0
+    changes: list[AttachmentChange] = []
+
+    for attachment in attachments:
+        filename: str = attachment.get("name", "")
+        exists_on_odk: bool = bool(attachment.get("exists", False))
+        if not filename:
+            continue
+
+        if not exists_on_odk:
+            changes.append(AttachmentChange(filename=filename, exists_on_odk=False))
+            continue
+
+        headers: dict = {}
+        stored_etag = existing_etags.get(filename)
+        if stored_etag:
+            headers["If-None-Match"] = stored_etag
+
+        dl_url = (
+            f"projects/{va_form.odk_project_id}"
+            f"/forms/{va_form.odk_form_id}"
+            f"/submissions/{instance_id}/attachments/{filename}"
+        )
+        try:
+            dl_resp = client.session.get(dl_url, headers=headers)
+
+            if dl_resp.status_code == 304:
+                skipped += 1
+                continue
+
+            if dl_resp.status_code != 200:
+                raise Exception(f"HTTP {dl_resp.status_code}: {dl_resp.text[:200]}")
+
+            new_etag: str | None = (
+                dl_resp.headers.get("ETag") or dl_resp.headers.get("etag")
+            )
+            raw_mime: str = dl_resp.headers.get("Content-Type", "")
+            mime_type: str | None = raw_mime.split(";")[0].strip() or None
+
+            write_path = os.path.join(media_dir, filename)
+            with open(write_path, "wb") as f:
+                f.write(dl_resp.content)
+
+            local_path = write_path
+            if filename.lower().endswith(".amr"):
+                local_path = _convert_amr_to_mp3(write_path, va_form.form_id)
+
+            changes.append(
+                AttachmentChange(
+                    filename=filename,
+                    exists_on_odk=True,
+                    local_path=local_path,
+                    mime_type=mime_type,
+                    etag=new_etag,
+                    last_downloaded_at=datetime.now(timezone.utc),
+                )
+            )
+            downloaded += 1
+        except Exception as exc:
+            errors += 1
+            log.warning(
+                "Attachment sync error [%s/%s]: %s", va_sid, filename, exc, exc_info=True
+            )
+
+    return SubmissionAttachmentSyncResult(
+        va_sid=va_sid,
+        downloaded=downloaded,
+        skipped=skipped,
+        errors=errors,
+        changes=changes,
+    )
+
+
+def _apply_submission_attachment_result(existing_records, result):
+    """Apply a network-only attachment sync result to ORM records."""
+    from app import db
+    from app.models.va_submission_attachments import VaSubmissionAttachments
+
+    existing = existing_records.setdefault(result.va_sid, {})
+    for change in result.changes:
+        rec = existing.get(change.filename)
+        if rec:
+            rec.exists_on_odk = change.exists_on_odk
+            if change.exists_on_odk:
+                rec.local_path = change.local_path
+                rec.mime_type = change.mime_type
+                rec.etag = change.etag
+                rec.last_downloaded_at = change.last_downloaded_at
+        elif change.exists_on_odk:
+            rec = VaSubmissionAttachments(
+                va_sid=result.va_sid,
+                filename=change.filename,
+                local_path=change.local_path,
+                mime_type=change.mime_type,
+                etag=change.etag,
+                exists_on_odk=True,
+                last_downloaded_at=change.last_downloaded_at,
+            )
+            db.session.add(rec)
+            existing[change.filename] = rec
+
+
+def _load_existing_attachment_records(va_sids):
+    """Load existing ORM attachment records keyed by submission and filename."""
+    from app import db
+    from app.models.va_submission_attachments import VaSubmissionAttachments
+
+    if not va_sids:
+        return {}
+    rows = db.session.scalars(
+        sa.select(VaSubmissionAttachments).where(
+            VaSubmissionAttachments.va_sid.in_(va_sids)
+        )
+    ).all()
+    existing = {}
+    for row in rows:
+        existing.setdefault(row.va_sid, {})[row.filename] = row
+    return existing
+
+
+def va_odk_sync_form_attachments(
+    va_form,
+    upserted_map: dict[str, str],
+    media_dir: str,
+    *,
+    client_factory,
+    max_workers: int = _ATTACHMENT_SYNC_MAX_WORKERS,
+):
+    """Sync attachments for all changed submissions in a form with bounded parallelism."""
+    from app import db
+
+    if not upserted_map:
+        return {"downloaded": 0, "skipped": 0, "errors": 0}
+
+    existing_records = _load_existing_attachment_records(list(upserted_map.keys()))
+    per_sid_etags = {
+        va_sid: {name: rec.etag for name, rec in rows.items()}
+        for va_sid, rows in existing_records.items()
+    }
+
+    thread_local = threading.local()
+
+    def _get_client():
+        client = getattr(thread_local, "odk_client", None)
+        if client is None:
+            client = client_factory()
+            thread_local.odk_client = client
+        return client
+
+    def _run_submission_sync(va_sid: str, instance_id: str):
+        return _sync_submission_attachments_no_db(
+            va_form,
+            instance_id,
+            va_sid,
+            media_dir,
+            per_sid_etags.get(va_sid, {}),
+            _get_client(),
+        )
+
+    results = []
+    worker_count = min(max_workers, max(1, len(upserted_map)))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_map = {
+            executor.submit(_run_submission_sync, va_sid, instance_id): (
+                va_sid,
+                instance_id,
+            )
+            for va_sid, instance_id in upserted_map.items()
+            if instance_id
+        }
+        for future in as_completed(future_map):
+            va_sid, _ = future_map[future]
+            try:
+                results.append(future.result())
+            except Exception as exc:
+                log.warning(
+                    "Attachment sync failed for %s: %s",
+                    va_sid,
+                    exc,
+                    exc_info=True,
+                )
+                results.append(
+                    SubmissionAttachmentSyncResult(
+                        va_sid=va_sid,
+                        downloaded=0,
+                        skipped=0,
+                        errors=1,
+                        changes=[],
+                    )
+                )
+
+    totals = {"downloaded": 0, "skipped": 0, "errors": 0}
+    for result in results:
+        totals["downloaded"] += result.downloaded
+        totals["skipped"] += result.skipped
+        totals["errors"] += result.errors
+        _apply_submission_attachment_result(existing_records, result)
+
+    db.session.flush()
+    return totals
 
 
 def va_odk_sync_submission_attachments(
@@ -49,22 +300,6 @@ def va_odk_sync_submission_attachments(
 
     os.makedirs(media_dir, exist_ok=True)
     client = client or va_odk_clientsetup(project_id=va_form.project_id)
-
-    # 1. Fetch attachment list (returns [{name, exists}, ...])
-    list_url = (
-        f"projects/{va_form.odk_project_id}"
-        f"/forms/{va_form.odk_form_id}"
-        f"/submissions/{instance_id}/attachments"
-    )
-    list_resp = client.session.get(list_url)
-    if list_resp.status_code != 200:
-        raise Exception(
-            f"Attachment list fetch failed HTTP {list_resp.status_code} "
-            f"for {va_sid}: {list_resp.text[:200]}"
-        )
-    attachments: list[dict] = list_resp.json()
-
-    # 2. Load existing ETag records for this submission (keyed by filename)
     existing: dict[str, VaSubmissionAttachments] = {
         r.filename: r
         for r in db.session.scalars(
@@ -73,99 +308,21 @@ def va_odk_sync_submission_attachments(
             )
         ).all()
     }
-
-    downloaded = 0
-    skipped = 0
-    errors = 0
-
-    for attachment in attachments:
-        filename: str = attachment.get("name", "")
-        exists_on_odk: bool = bool(attachment.get("exists", False))
-
-        if not filename:
-            continue
-
-        # Mark files ODK no longer has
-        if not exists_on_odk:
-            if filename in existing:
-                existing[filename].exists_on_odk = False
-            continue
-
-        rec = existing.get(filename)
-        stored_etag: str | None = rec.etag if rec else None
-
-        # 3. Conditional download
-        dl_url = (
-            f"projects/{va_form.odk_project_id}"
-            f"/forms/{va_form.odk_form_id}"
-            f"/submissions/{instance_id}/attachments/{filename}"
-        )
-        headers: dict = {}
-        if stored_etag:
-            headers["If-None-Match"] = stored_etag
-
-        try:
-            dl_resp = client.session.get(dl_url, headers=headers)
-
-            if dl_resp.status_code == 304:
-                skipped += 1
-                log.debug("Attachment [%s/%s]: 304 Not Modified — skipped", va_sid, filename)
-                continue
-
-            if dl_resp.status_code != 200:
-                raise Exception(f"HTTP {dl_resp.status_code}: {dl_resp.text[:200]}")
-
-            new_etag: str | None = (
-                dl_resp.headers.get("ETag") or dl_resp.headers.get("etag")
-            )
-            raw_mime: str = dl_resp.headers.get("Content-Type", "")
-            mime_type: str | None = raw_mime.split(";")[0].strip() or None
-
-            # Write the file
-            write_path = os.path.join(media_dir, filename)
-            with open(write_path, "wb") as f:
-                f.write(dl_resp.content)
-
-            local_path = write_path
-
-            # .amr → .mp3 conversion
-            if filename.lower().endswith(".amr"):
-                local_path = _convert_amr_to_mp3(write_path, va_form.form_id)
-
-            # Upsert ETag record
-            now = datetime.now(timezone.utc)
-            if rec:
-                rec.local_path = local_path
-                rec.mime_type = mime_type
-                rec.etag = new_etag
-                rec.exists_on_odk = True
-                rec.last_downloaded_at = now
-            else:
-                db.session.add(VaSubmissionAttachments(
-                    va_sid=va_sid,
-                    filename=filename,
-                    local_path=local_path,
-                    mime_type=mime_type,
-                    etag=new_etag,
-                    exists_on_odk=True,
-                    last_downloaded_at=now,
-                ))
-
-            downloaded += 1
-            log.debug(
-                "Attachment [%s/%s]: downloaded %d bytes", va_sid, filename, len(dl_resp.content)
-            )
-
-        except Exception as e:
-            errors += 1
-            log.warning(
-                "Attachment sync error [%s/%s]: %s", va_sid, filename, e, exc_info=True
-            )
-
-    # Flush ETag records to DB — caller commits after processing all submissions
+    result = _sync_submission_attachments_no_db(
+        va_form,
+        instance_id,
+        va_sid,
+        media_dir,
+        {name: rec.etag for name, rec in existing.items()},
+        client,
+    )
+    _apply_submission_attachment_result({va_sid: existing}, result)
     db.session.flush()
-
-    return {"downloaded": downloaded, "skipped": skipped, "errors": errors}
+    return {
+        "downloaded": result.downloaded,
+        "skipped": result.skipped,
+        "errors": result.errors,
+    }
 
 
 def _convert_amr_to_mp3(amr_path: str, form_id: str) -> str:

@@ -11,6 +11,9 @@
       <i class="fa-solid fa-rotate me-2 text-secondary"></i>Data Sync
     </h5>
     <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-danger d-none" id="sync-stop-btn">
+        <i class="fa-solid fa-stop me-1"></i>Stop
+      </button>
       <button class="btn btn-sm btn-outline-secondary" id="sync-smartva-btn" title="Run SmartVA on pending submissions (no ODK download)">
         <i class="fa-solid fa-brain me-1"></i>Gen SmartVA
       </button>
@@ -59,11 +62,11 @@
           <i class="fa-solid fa-chart-bar me-1"></i>ODK vs Local Coverage
         </span>
         <button class="btn btn-sm btn-outline-secondary" id="sync-coverage-refresh-btn">
-          <i class="fa-solid fa-rotate-right me-1"></i>Refresh
+          <i class="fa-solid fa-download me-1"></i>Load
         </button>
       </div>
       <div id="sync-coverage-wrap">
-        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching ODK counts…</span>
+        <span class="text-muted small">ODK counts are loaded on demand.</span>
       </div>
     </div>
   </div>
@@ -156,6 +159,7 @@
     var map = {
       success: '<span class="badge text-bg-success">Success</span>',
       partial: '<span class="badge text-bg-warning">Partial</span>',
+      cancelled: '<span class="badge text-bg-secondary">Cancelled</span>',
       error:   '<span class="badge text-bg-danger">Error</span>',
       running: '<span class="badge text-bg-warning"><i class="fa-solid fa-spinner fa-spin me-1"></i>Running</span>',
     };
@@ -166,6 +170,7 @@
 
   var _statusInterval = null;
   var _wasRunning = false;
+  var _coverageLoaded = false;
 
   function loadStatus() {
     apiJson('/admin/api/sync/status').then(function (res) {
@@ -237,6 +242,11 @@
           smartvaBtn.innerHTML = '<i class="fa-solid fa-brain me-1"></i>Gen SmartVA';
         }
       }
+      var stopBtn = document.getElementById('sync-stop-btn');
+      if (stopBtn) {
+        stopBtn.classList.toggle('d-none', !d.is_running);
+        stopBtn.disabled = !d.is_running;
+      }
     }).catch(function () {
       var wrap = document.getElementById('sync-status-wrap');
       if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
@@ -256,6 +266,11 @@
         return;
       }
       var d = res.data;
+      _coverageLoaded = true;
+      var coverageBtn = document.getElementById('sync-coverage-refresh-btn');
+      if (coverageBtn) {
+        coverageBtn.innerHTML = '<i class="fa-solid fa-rotate-right me-1"></i>Refresh';
+      }
       if (!d.mappings || !d.mappings.length) {
         wrap.innerHTML = '<p class="text-muted small mb-0">No active site mappings found.</p>';
         return;
@@ -560,6 +575,30 @@
     });
   });
 
+  document.getElementById('sync-stop-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Stopping…';
+
+    apiJson('/admin/api/sync/stop', 'POST').then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-stop me-1"></i>Stop';
+        showToast(res.data.error || 'Failed to stop sync.', 'danger');
+        return;
+      }
+      showToast(res.data.message || 'Stop signal sent.', 'warning');
+      loadStatus();
+      loadHistory();
+      loadProgress();
+      btn.innerHTML = '<i class="fa-solid fa-stop me-1"></i>Stop';
+    }).catch(function () {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-stop me-1"></i>Stop';
+      showToast('Network error.', 'danger');
+    });
+  });
+
   // ── Gen SmartVA ────────────────────────────────────────────────────────────
 
   document.getElementById('sync-smartva-btn').addEventListener('click', function () {
@@ -630,7 +669,6 @@
   loadHistory();
   loadSmartvaStats();
   loadProgress();
-  loadCoverage();   // slow — ODK API call, fires independently
 
 }());
 </script>

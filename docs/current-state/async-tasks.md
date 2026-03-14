@@ -71,6 +71,12 @@ run_odk_sync(triggered_by="scheduled", user_id=None)
 
 **Default schedule:** every 6 hours via Celery Beat (seeded by `ensure_sync_scheduled()`)
 
+Admin dashboard behavior:
+
+- the sync dashboard can revoke a running sync task from the UI
+- revoked runs are recorded in `va_sync_runs` with status `cancelled`
+- ODK coverage checks from the dashboard are loaded on demand, not automatically on panel render
+
 **Manual dispatch:**
 ```python
 from app.tasks.sync_tasks import run_odk_sync

@@ -1,0 +1,52 @@
+---
+title: Sync Dashboard Operations Policy
+doc_type: policy
+status: active
+owner: engineering
+last_updated: 2026-03-14
+---
+
+# Sync Dashboard Operations Policy
+
+## Scope
+
+This policy defines operator-facing behavior for the admin sync dashboard at
+`/admin/panels/sync`.
+
+## Coverage Loading
+
+ODK coverage counts are operationally expensive because they require live calls
+to ODK Central for every active mapping.
+
+Policy:
+
+- the dashboard must not fetch ODK coverage automatically on initial panel load
+- ODK coverage must be loaded only when the operator explicitly requests it
+- the UI must make it clear that coverage is on-demand
+- SmartVA coverage and local sync status may still load automatically because
+  they do not require the same live ODK count fan-out
+
+## Stop Control
+
+The dashboard must provide an operator stop control while a sync task is
+running.
+
+Policy:
+
+- the stop control is shown only when a sync run is active
+- activating stop sends a revoke request to the running Celery sync task with
+  termination enabled
+- the corresponding `va_sync_runs` row must be marked `cancelled`
+- cancelled runs remain visible in sync history and status views
+
+## Concurrency
+
+The dashboard must continue to prevent starting a second sync while one is
+already running.
+
+Policy:
+
+- `Sync Now` remains disabled while a run is active
+- `Gen SmartVA` remains disabled while a run is active
+- the stop control is the only operator action exposed for an active run
+

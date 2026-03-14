@@ -126,7 +126,10 @@ If-None-Match: <stored_etag>
 → 200 + binary      (download — write file, update ETag record)
 ```
 
-Implemented in [`va_odk_sync_submission_attachments()`](../../app/utils/va_odk/va_odk_07_syncattachments.py).
+Implemented in:
+
+- [`va_odk_sync_submission_attachments()`](../../app/utils/va_odk/va_odk_07_syncattachments.py)
+- [`va_odk_sync_form_attachments()`](../../app/utils/va_odk/va_odk_07_syncattachments.py)
 
 Rules:
 
@@ -177,6 +180,19 @@ group for:
 This reduces repeated auth/session verification calls from roughly
 O(submissions) to roughly O(connection/project groups) during the
 attachment-heavy parts of a sync run.
+
+### Bounded parallelism
+
+Attachment sync now processes changed submissions with a small bounded worker
+pool per form:
+
+- default worker cap is `3`
+- network I/O and file writes happen in worker threads
+- ORM record creation and updates are applied sequentially in the main thread
+
+This keeps the sync run fully synchronous and only marks the form successful
+after all attachment work completes, while reducing attachment wall-clock time
+without sharing the Flask SQLAlchemy session across threads.
 
 ## Connectivity Retry Policy
 
@@ -316,9 +332,10 @@ Sections:
 
 - **Status bar** — last run outcome; auto-refreshes every 30s (5s while running)
 - **Sync Now** — manual full sync trigger; 409 guard against concurrent runs
+- **Stop** — shown only while a sync run is active; sends a revoke/terminate signal to the active Celery sync task and marks the run `cancelled`
 - **Gen SmartVA** — trigger SmartVA-only run without ODK download
 - **Schedule configurator** — change beat interval (1–168h) without restarting
-- **Coverage table** — ODK total vs local total, last synced time, per-form force-resync button
+- **Coverage table** — ODK total vs local total, last synced time, per-form force-resync button; loaded on demand rather than automatically on panel load
 - **Progress log** — live timestamped entries; clears and resets when a new run starts
 - **Run history** — last 20 runs with duration, trigger source, status, and error detail
 

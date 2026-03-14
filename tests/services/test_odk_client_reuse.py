@@ -5,7 +5,10 @@ from unittest.mock import patch
 
 from app.utils.va_odk.va_odk_05_deltacheck import va_odk_delta_count
 from app.utils.va_odk.va_odk_06_fetchsubmissions import va_odk_fetch_submissions
-from app.utils.va_odk.va_odk_07_syncattachments import va_odk_sync_submission_attachments
+from app.utils.va_odk.va_odk_07_syncattachments import (
+    va_odk_sync_form_attachments,
+    va_odk_sync_submission_attachments,
+)
 
 
 class _FakeResponse:
@@ -132,3 +135,54 @@ class TestOdkClientReuse(TestCase):
 
         self.assertEqual(result["downloaded"], 1)
         self.assertEqual(len(fake_client.session.calls), 2)
+
+    def test_form_attachment_sync_uses_client_factory_and_aggregates_results(self):
+        fake_client = SimpleNamespace(
+            session=_FakeSession(
+                [
+                    _FakeResponse(json_data=[{"name": "one.txt", "exists": True}]),
+                    _FakeResponse(
+                        headers={"ETag": "etag-one", "Content-Type": "text/plain"},
+                        content=b"one",
+                    ),
+                    _FakeResponse(json_data=[{"name": "two.txt", "exists": True}]),
+                    _FakeResponse(
+                        headers={"ETag": "etag-two", "Content-Type": "text/plain"},
+                        content=b"two",
+                    ),
+                ]
+            )
+        )
+        va_form = SimpleNamespace(
+            project_id="PROJ01",
+            odk_project_id="11",
+            odk_form_id="FORM_A",
+        )
+        client_factory_calls = 0
+
+        def client_factory():
+            nonlocal client_factory_calls
+            client_factory_calls += 1
+            return fake_client
+
+        with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
+            mock_db.session.scalars.return_value.all.return_value = []
+            mock_db.session.flush.return_value = None
+            mock_db.session.add.return_value = None
+
+            result = va_odk_sync_form_attachments(
+                va_form,
+                {
+                    "uuid:one-form01": "uuid:one",
+                    "uuid:two-form01": "uuid:two",
+                },
+                media_dir,
+                client_factory=client_factory,
+                max_workers=1,
+            )
+
+        self.assertEqual(result["downloaded"], 2)
+        self.assertEqual(result["skipped"], 0)
+        self.assertEqual(result["errors"], 0)
+        self.assertEqual(client_factory_calls, 1)
+        self.assertEqual(len(fake_client.session.calls), 4)

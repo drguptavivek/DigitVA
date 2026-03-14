@@ -26,6 +26,7 @@ def va_odk_sync_submission_attachments(
     instance_id: str,
     va_sid: str,
     media_dir: str,
+    client=None,
 ) -> dict:
     """Sync attachments for one submission using ETag-based conditional download.
 
@@ -47,7 +48,7 @@ def va_odk_sync_submission_attachments(
     from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
     os.makedirs(media_dir, exist_ok=True)
-    client = va_odk_clientsetup(project_id=va_form.project_id)
+    client = client or va_odk_clientsetup(project_id=va_form.project_id)
 
     # 1. Fetch attachment list (returns [{name, exists}, ...])
     list_url = (

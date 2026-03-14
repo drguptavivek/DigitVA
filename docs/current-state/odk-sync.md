@@ -17,11 +17,12 @@ ODK sync is an incremental batch process that:
 3. For each form, runs an OData filter-gated delta check — skips if nothing changed since last sync
 4. Fetches changed submissions via OData JSON (paginated, no ZIP download)
 5. Writes or updates `va_submissions` rows
-6. Per-form commit — earlier forms are not rolled back if a later form fails
-7. Syncs attachments for upserted submissions using ETag-based conditional download
-8. Rebuilds full CSV from DB for SmartVA compatibility
-9. Records `last_synced_at` on the mapping row after each successful form
-10. Runs SmartVA on any new or updated submissions
+6. Reuses one pyODK client/session per `(connection_id, odk_project_id)` group across delta, fetch, and attachment sync
+7. Per-form commit — earlier forms are not rolled back if a later form fails
+8. Syncs attachments for upserted submissions using ETag-based conditional download
+9. Rebuilds full CSV from DB for SmartVA compatibility
+10. Records `last_synced_at` on the mapping row after each successful form
+11. Runs SmartVA on any new or updated submissions
 
 ## Connection Model
 
@@ -50,6 +51,9 @@ Important detail:
 - `map_project_site_odk` is the source of truth for what gets synced
 - `va_forms` still exists because submissions, media storage, permissions, and several workflow paths key off `va_form_id`
 - Sync materializes `va_forms` rows from the site mapping table rather than requiring admins to manage both separately
+- the sync loop now groups forms by `(connection_id, odk_project_id)` and
+  reuses one pyODK client across every form in that group for delta checks,
+  OData fetches, and attachment requests
 
 ## Delta Check (Phase 1)
 
@@ -159,6 +163,42 @@ For each submission in `upserted_map`:
 - N download calls (one per new or changed file; 0 if all ETags match → 304)
 
 On first sync of a large form: O(submissions) attachment-list calls are unavoidable. On subsequent syncs with no changes: 0 calls (delta check skips the form entirely).
+
+### Auth/session reuse
+
+The sync path now reuses one pyODK client per `(connection_id, odk_project_id)`
+group for:
+
+- delta check
+- submission fetch pagination
+- attachment list calls
+- conditional attachment downloads
+
+This reduces repeated auth/session verification calls from roughly
+O(submissions) to roughly O(connection/project groups) during the
+attachment-heavy parts of a sync run.
+
+## Connectivity Retry Policy
+
+ODK sync now applies bounded retry only at the form-fetch boundary.
+
+Rules:
+
+- delta-check timeout still falls through immediately to the full-download path
+- the full OData fetch is retried only for retryable upstream failures such as:
+  - connect timeout
+  - connection error
+  - request timeout
+  - auth/session failures surfaced as token or 401/403-style errors
+- retry budget is fixed at 3 attempts total
+- backoff schedule is `5s`, then `10s`
+- each retry refreshes the cached pyODK client for that
+  `(connection_id, odk_project_id)` group before retrying
+- after the final failed attempt, the form is marked failed for the run and the
+  sync continues with later forms
+
+This is intended to stop repeated hammering of ODK Central while still allowing
+short-lived auth/connectivity faults to recover cleanly.
 
 ## Update Detection
 

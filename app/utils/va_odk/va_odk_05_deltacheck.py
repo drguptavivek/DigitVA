@@ -14,6 +14,7 @@ def va_odk_delta_count(
     odk_form_id: str,
     since: datetime,
     app_project_id: str | None = None,
+    client=None,
 ) -> int:
     """Return count of submissions created or updated after `since`.
 
@@ -39,7 +40,7 @@ def va_odk_delta_count(
         f" or (__system/updatedAt gt {since_str})"
     )
 
-    client = va_odk_clientsetup(project_id=app_project_id)
+    client = client or va_odk_clientsetup(project_id=app_project_id)
 
     result: list = [None]
     error: list = [None]

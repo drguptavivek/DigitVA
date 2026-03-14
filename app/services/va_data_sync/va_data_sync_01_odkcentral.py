@@ -1,5 +1,6 @@
 import os
 import uuid
+import time
 import logging
 import traceback
 import sqlalchemy as sa
@@ -7,7 +8,9 @@ from datetime import datetime, timezone
 from flask import current_app
 from app import db
 from dateutil import parser
+import requests
 from app.models.map_project_site_odk import MapProjectSiteOdk
+from app.models.map_project_odk import MapProjectOdk
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.services.final_cod_authority_service import (
     abandon_active_recode_episode,
@@ -31,6 +34,7 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.utils import (
+    va_odk_clientsetup,
     va_odk_delta_count,
     va_odk_fetch_submissions,
     va_odk_write_form_csv,
@@ -45,6 +49,98 @@ from app.utils import (
 )
 
 log = logging.getLogger(__name__)
+
+_ODK_CONNECTIVITY_MAX_ATTEMPTS = 3
+_ODK_CONNECTIVITY_BACKOFF_SECONDS = (5, 10)
+
+
+def _resolve_project_connections():
+    """Return project_id -> connection_id mapping for the current sync run."""
+    project_connection_rows = db.session.scalars(sa.select(MapProjectOdk)).all()
+    return {
+        row.project_id: row.connection_id for row in project_connection_rows
+    }
+
+
+def _is_odk_retryable_error(exc: Exception) -> bool:
+    """Return True when an exception should trigger a bounded ODK client refresh/retry."""
+    if isinstance(
+        exc,
+        (
+            requests.exceptions.ConnectTimeout,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+        ),
+    ):
+        return True
+
+    message = str(exc)
+    retryable_markers = (
+        "ConnectTimeout",
+        "ConnectionError",
+        "Max retries exceeded",
+        "timed out",
+        "HTTPSConnectionPool",
+        "/v1/users/current",
+        "401",
+        "403",
+        "Unauthorized",
+        "Forbidden",
+        "token",
+        "expired",
+        "auth",
+    )
+    return any(marker in message for marker in retryable_markers)
+
+
+def _get_or_create_sync_odk_client(
+    client_cache: dict,
+    connection_by_project: dict,
+    va_form,
+    mapping,
+    *,
+    force_refresh: bool = False,
+):
+    """Return a cached pyODK client for a form's connection/project group."""
+    if mapping is None:
+        return va_odk_clientsetup(project_id=va_form.project_id)
+
+    connection_id = connection_by_project.get(va_form.project_id)
+    if connection_id is None:
+        return va_odk_clientsetup(project_id=va_form.project_id)
+
+    group_key = (connection_id, int(mapping.odk_project_id))
+    if force_refresh:
+        client_cache.pop(group_key, None)
+    if group_key not in client_cache:
+        client_cache[group_key] = va_odk_clientsetup(project_id=va_form.project_id)
+    return client_cache[group_key]
+
+
+def _run_with_odk_connectivity_backoff(label: str, callback, log_progress=None):
+    """Retry ODK connectivity/auth failures with bounded exponential backoff."""
+    last_exc = None
+    for attempt in range(1, _ODK_CONNECTIVITY_MAX_ATTEMPTS + 1):
+        try:
+            return callback(attempt)
+        except Exception as exc:
+            last_exc = exc
+            if not _is_odk_retryable_error(exc):
+                raise
+            if attempt >= _ODK_CONNECTIVITY_MAX_ATTEMPTS:
+                break
+            delay = _ODK_CONNECTIVITY_BACKOFF_SECONDS[min(
+                attempt - 1, len(_ODK_CONNECTIVITY_BACKOFF_SECONDS) - 1
+            )]
+            message = (
+                f"{label} connectivity/auth failure on attempt "
+                f"{attempt}/{_ODK_CONNECTIVITY_MAX_ATTEMPTS} — retrying in {delay}s"
+            )
+            log.warning(message + ": %s", exc)
+            if log_progress:
+                log_progress(message)
+            time.sleep(delay)
+    raise last_exc
 
 
 def _pending_smartva_sids(form_id: str) -> set[str]:
@@ -319,6 +415,8 @@ def va_data_sync_odkcentral(log_progress=None):
         # Build (project_id, site_id) → MapProjectSiteOdk lookup for delta check
         all_mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
         mappings_by_ps = {(m.project_id, m.site_id): m for m in all_mappings}
+        connection_by_project = _resolve_project_connections()
+        clients_by_group = {}
 
         form_ids = [f.form_id for f in va_forms]
         _progress(f"Processing {len(va_forms)} form(s): {', '.join(form_ids)}")
@@ -335,6 +433,12 @@ def va_data_sync_odkcentral(log_progress=None):
         for va_form in va_forms:
             mapping = mappings_by_ps.get((va_form.project_id, va_form.site_id))
             try:
+                odk_client = _get_or_create_sync_odk_client(
+                    clients_by_group,
+                    connection_by_project,
+                    va_form,
+                    mapping,
+                )
                 # Delta check
                 if mapping and mapping.last_synced_at is not None:
                     since_str = mapping.last_synced_at.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -344,6 +448,7 @@ def va_data_sync_odkcentral(log_progress=None):
                             odk_form_id=va_form.odk_form_id,
                             since=mapping.last_synced_at,
                             app_project_id=va_form.project_id,
+                            client=odk_client,
                         )
                         if delta == 0:
                             _progress(
@@ -374,9 +479,26 @@ def va_data_sync_odkcentral(log_progress=None):
                 # Fetch submissions via OData JSON (no ZIP, no rmtree)
                 log.info("DataSync [Fetching submissions via OData: %s].", va_form.form_id)
                 _progress(f"[{va_form.form_id}] fetching submissions from ODK…")
-                va_submissions_raw = va_odk_fetch_submissions(
+                va_submissions_raw = _run_with_odk_connectivity_backoff(
+                    f"[{va_form.form_id}] ODK fetch",
+                    lambda attempt: va_odk_fetch_submissions(
+                        va_form,
+                        since=mapping.last_synced_at if mapping else None,
+                        client=_get_or_create_sync_odk_client(
+                            clients_by_group,
+                            connection_by_project,
+                            va_form,
+                            mapping,
+                            force_refresh=(attempt > 1),
+                        ),
+                    ),
+                    log_progress=_progress,
+                )
+                odk_client = _get_or_create_sync_odk_client(
+                    clients_by_group,
+                    connection_by_project,
                     va_form,
-                    since=mapping.last_synced_at if mapping else None,
+                    mapping,
                 )
 
                 # Write CSV for SmartVA (same format as ZIP-extracted CSV)
@@ -420,7 +542,11 @@ def va_data_sync_odkcentral(log_progress=None):
                             continue
                         try:
                             r = va_odk_sync_submission_attachments(
-                                va_form, instance_id, va_sid, media_dir
+                                va_form,
+                                instance_id,
+                                va_sid,
+                                media_dir,
+                                client=odk_client,
                             )
                             attach_dl += r["downloaded"]
                             attach_skip += r["skipped"]

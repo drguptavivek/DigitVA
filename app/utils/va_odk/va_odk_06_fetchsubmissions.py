@@ -32,7 +32,11 @@ log = logging.getLogger(__name__)
 _PAGE_SIZE = 250
 
 
-def va_odk_fetch_submissions(va_form, since: datetime | None = None) -> list[dict]:
+def va_odk_fetch_submissions(
+    va_form,
+    since: datetime | None = None,
+    client=None,
+) -> list[dict]:
     """Fetch submissions for a form via OData JSON.
 
     If `since` is a timezone-aware datetime, only submissions created or
@@ -42,7 +46,7 @@ def va_odk_fetch_submissions(va_form, since: datetime | None = None) -> list[dic
     Pages through results in batches of _PAGE_SIZE. Returns a list of
     normalized flat dicts ready for va_preprocess_prepdata / upsert.
     """
-    client = va_odk_clientsetup(project_id=va_form.project_id)
+    client = client or va_odk_clientsetup(project_id=va_form.project_id)
     base_url = (
         f"projects/{va_form.odk_project_id}"
         f"/forms/{va_form.odk_form_id}.svc/Submissions"

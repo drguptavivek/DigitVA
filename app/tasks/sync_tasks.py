@@ -12,6 +12,13 @@ from datetime import datetime, timezone
 log = logging.getLogger(__name__)
 
 
+def _get_single_form_odk_client(va_form):
+    """Return one pyODK client for the single-form sync run."""
+    from app.utils import va_odk_clientsetup
+
+    return va_odk_clientsetup(project_id=va_form.project_id)
+
+
 def _log_progress(db, run_id, msg: str):
     """Append a timestamped progress entry to va_sync_runs.progress_log.
 
@@ -193,13 +200,18 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
 
         snapshot_time = datetime.now(timezone.utc)
         amended_sids: set[str] = set()
+        odk_client = _get_single_form_odk_client(va_form)
         form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
         media_dir = os.path.join(form_dir, "media")
         os.makedirs(media_dir, exist_ok=True)
 
         # Fetch ALL submissions (force-resync = no since filter)
         log_progress(f"[{form_id}] fetching all submissions from ODK…")
-        va_submissions_raw = va_odk_fetch_submissions(va_form, since=None)
+        va_submissions_raw = va_odk_fetch_submissions(
+            va_form,
+            since=None,
+            client=odk_client,
+        )
         va_odk_write_form_csv(va_submissions_raw, va_form, form_dir)
 
         # Upsert
@@ -217,7 +229,13 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
                 if not instance_id:
                     continue
                 try:
-                    r = va_odk_sync_submission_attachments(va_form, instance_id, va_sid, media_dir)
+                    r = va_odk_sync_submission_attachments(
+                        va_form,
+                        instance_id,
+                        va_sid,
+                        media_dir,
+                        client=odk_client,
+                    )
                     attach_dl += r["downloaded"]
                     attach_skip += r["skipped"]
                     attach_err += r["errors"]

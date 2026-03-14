@@ -6,6 +6,7 @@ services:
     command: ./boot.sh
     volumes:
       - .:/app
+      - venv_app:/app/.venv
     ports:
       - "8050:5000"
     environment:
@@ -33,6 +34,7 @@ services:
     command: uv run celery -A make_celery:celery_app worker --loglevel=info
     volumes:
       - .:/app
+      - venv_worker:/app/.venv
     environment:
       - SECRET_KEY=5Ag92#2g]oLIHEk
       - DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva
@@ -51,6 +53,7 @@ services:
     command: bash -c "sleep 10 && uv run celery -A make_celery:celery_app beat --loglevel=info -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler"
     volumes:
       - .:/app
+      - venv_beat:/app/.venv
     environment:
       - SECRET_KEY=5Ag92#2g]oLIHEk
       - DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva
@@ -96,3 +99,6 @@ services:
 
 volumes:
   pgdata_minerva:
+  venv_app:
+  venv_worker:
+  venv_beat:

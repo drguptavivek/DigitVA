@@ -164,3 +164,4 @@ def _ensure_legacy_project_site_rows(project_id: str, site_id: str) -> None:
                 site_status=site_master.site_status,
             )
         )
+        db.session.flush()

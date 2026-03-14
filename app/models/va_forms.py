@@ -18,7 +18,7 @@ class VaForms(db.Model):
         sa.String(4), sa.ForeignKey("va_sites.site_id"), index=True
     )
     odk_form_id: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
-    odk_project_id: so.Mapped[str] = so.mapped_column(sa.String(2), nullable=False)
+    odk_project_id: so.Mapped[str] = so.mapped_column(sa.String(8), nullable=False)
     form_type: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
     form_smartvahiv: so.Mapped[str] = so.mapped_column(sa.String(8), default="False", nullable=False)
     form_smartvamalaria: so.Mapped[str] = so.mapped_column(sa.String(8), default="False", nullable=False)

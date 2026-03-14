@@ -20,7 +20,7 @@ class VaSubmissions(db.Model):
     va_odk_updatedat: so.Mapped[Optional[datetime]] = so.mapped_column(
         sa.DateTime, nullable=True, index=True
     )
-    va_data_collector: so.Mapped[str] = so.mapped_column(sa.String(32), nullable=False)
+    va_data_collector: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=False)
     va_odk_reviewstate: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(16), nullable=True, index=True
     )
@@ -31,7 +31,7 @@ class VaSubmissions(db.Model):
         sa.String(4), nullable=False, index=True
     )
     va_narration_language: so.Mapped[str] = so.mapped_column(
-        sa.String(16), nullable=False, index=True
+        sa.String(32), nullable=False, index=True
     )
     va_deceased_age: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False)
     va_deceased_gender: so.Mapped[str] = so.mapped_column(sa.String(8), nullable=False)

@@ -4,32 +4,36 @@ The run_odk_sync task wraps va_data_sync_odkcentral(), recording every run
 in va_sync_runs so the admin dashboard can show history and current status.
 """
 import json
+import logging
 import sqlalchemy as sa
 from celery import shared_task
 from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
 
 
 def _log_progress(db, run_id, msg: str):
     """Append a timestamped progress entry to va_sync_runs.progress_log.
 
-    Stored as a JSONB array of {ts, msg} objects. Uses a direct SQL UPDATE
-    so it commits immediately without interfering with the ORM session.
+    Uses a dedicated connection (outside the ORM session) so that a failure
+    here never rolls back in-flight sync work.
     """
     try:
         entry = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "msg": msg})
-        db.session.execute(
-            sa.text(
-                "UPDATE va_sync_runs "
-                "SET progress_log = ("
-                "  COALESCE(progress_log::jsonb, '[]'::jsonb) || :entry::jsonb"
-                ")::text "
-                "WHERE sync_run_id = :run_id"
-            ),
-            {"entry": f"[{entry}]", "run_id": str(run_id)},
-        )
-        db.session.commit()
+        with db.engine.connect() as conn:
+            conn.execute(
+                sa.text(
+                    "UPDATE va_sync_runs "
+                    "SET progress_log = ("
+                    "  COALESCE(progress_log::jsonb, '[]'::jsonb) || (:entry)::jsonb"
+                    ")::text "
+                    "WHERE sync_run_id = :run_id"
+                ),
+                {"entry": f"[{entry}]", "run_id": str(run_id)},
+            )
+            conn.commit()
     except Exception:
-        db.session.rollback()
+        log.warning("_log_progress failed for run %s", run_id, exc_info=True)
 
 
 @shared_task(

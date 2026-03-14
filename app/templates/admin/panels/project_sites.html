@@ -244,7 +244,7 @@
   function loadAllSites() {
     var sel = document.getElementById('ps-site-select');
     sel.innerHTML = '<option value="">Loading…</option>';
-    apiJson('/admin/api/sites').then(function (res) {
+    apiJson('/admin/api/sites?master=1').then(function (res) {
       var all = (res.data && res.data.sites) || [];
       var mapped = {};
       _mappings.filter(function (m) { return m.status === 'active'; })

@@ -379,7 +379,12 @@ def va_data_sync_odkcentral(log_progress=None):
                 # Sync attachments for upserted submissions (ETag-based, no rmtree)
                 if upserted_map:
                     attach_dl = attach_skip = attach_err = 0
-                    for va_sid, instance_id in upserted_map.items():
+                    total_attach = len(upserted_map)
+                    _progress(
+                        f"[{va_form.form_id}] syncing attachments for "
+                        f"{total_attach} submission(s)…"
+                    )
+                    for idx, (va_sid, instance_id) in enumerate(upserted_map.items(), 1):
                         if not instance_id:
                             continue
                         try:
@@ -395,9 +400,15 @@ def va_data_sync_odkcentral(log_progress=None):
                                 "DataSync [%s] attachment sync failed for %s: %s",
                                 va_form.form_id, va_sid, attach_err_exc,
                             )
+                        if idx % 50 == 0:
+                            _progress(
+                                f"[{va_form.form_id}] attachments: "
+                                f"{idx}/{total_attach} checked, "
+                                f"{attach_dl} downloaded so far…"
+                            )
                     db.session.commit()  # commit ETag records
                     _progress(
-                        f"[{va_form.form_id}] attachments: "
+                        f"[{va_form.form_id}] attachments done: "
                         f"{attach_dl} downloaded, {attach_skip} skipped"
                         + (f", {attach_err} errors" if attach_err else "")
                     )

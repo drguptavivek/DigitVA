@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-03-12
+last_updated: 2026-03-14
 ---
 
 # Asynchronous Background Tasks

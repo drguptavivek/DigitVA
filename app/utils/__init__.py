@@ -1,5 +1,4 @@
 from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
-from app.utils.va_odk.va_odk_02_downloadformdata import va_odk_downloadformdata
 from app.utils.va_odk.va_odk_03_submissionupdatedate import va_odk_submissionupdatedate
 from app.utils.va_odk.va_odk_05_deltacheck import va_odk_delta_count
 from app.utils.va_odk.va_odk_06_fetchsubmissions import (
@@ -71,7 +70,6 @@ from app.utils.va_researchproject.va_researchproject_01_variablevalidators impor
 
 __all__ = [
     "va_odk_clientsetup",
-    "va_odk_downloadformdata",
     "va_odk_submissionupdatedate",
     "va_odk_delta_count",
     "va_odk_fetch_submissions",

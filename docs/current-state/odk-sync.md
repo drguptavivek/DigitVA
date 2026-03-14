@@ -97,7 +97,6 @@ OData returns nested group objects. The fetch utility flattens them to leaf fiel
 | `__id` | `KEY` |
 | `__system/submissionDate` | `SubmissionDate` |
 | `__system/updatedAt` | `updatedAt` |
-| `__system/submitterId` | `SubmitterID` |
 | `__system/submitterName` | `SubmitterName` |
 | `__system/reviewState` | `ReviewState` |
 

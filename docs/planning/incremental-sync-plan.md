@@ -27,7 +27,6 @@ Every sync run downloads the **full CSV zip for every active form**, regardless 
 
 ## Non-Goals (this phase)
 
-- Fetching only the changed submissions via OData JSON (would require rewriting the CSV-based preprocessing pipeline — future work).
 - Changing the per-submission upsert logic (update-if-updatedAt-changed stays as-is).
 - Changing the SmartVA phase structure.
 
@@ -189,16 +188,16 @@ Add `partial`: one or more forms failed but at least one succeeded. The error me
 
 ## Verification Checklist
 
-- [ ] Second sync run: all unchanged forms show "skipped", `last_synced_at` updated
-- [ ] New ODK submission added: only that form downloads on next sync
-- [ ] Edited ODK submission: caught by `updatedAt` filter, form downloads
-- [ ] Force-resync single form: bypasses delta check, downloads regardless
-- [ ] ODK delta check timeout: form falls through to full download, sync continues
-- [ ] One form download failure: earlier forms committed, failed form retries next run, status = `partial`
-- [ ] First-ever sync (NULL `last_synced_at`): always downloads
-- [ ] No regression: upsert / SmartVA / allocation-release logic unchanged
+- [x] Second sync run: all unchanged forms show "skipped", `last_synced_at` updated
+- [x] New ODK submission added: only that form downloads on next sync
+- [x] Edited ODK submission: caught by `updatedAt` filter, form downloads
+- [x] Force-resync single form: bypasses delta check, downloads regardless
+- [x] ODK delta check timeout: form falls through to full download, sync continues
+- [x] One form download failure: earlier forms committed, failed form retries next run, status = `partial`
+- [x] First-ever sync (NULL `last_synced_at`): always downloads
+- [x] No regression: upsert / SmartVA / allocation-release logic unchanged
 
-## Phase 2 — Per-Submission Attachment Download (replace CSV ZIP)
+## Phase 2 — Per-Submission Attachment Download (replace CSV ZIP) ✅ IMPLEMENTED
 
 ### The current waste
 

@@ -1,5 +1,6 @@
 from app.forms.va_login_form import LoginForm
 from app.forms.va_coderreview_form import VaCoderReviewForm
+from app.forms.va_datamanagerreview_form import VaDataManagerReviewForm
 from app.forms.va_finassess_form import VaFinalAssessmentForm
 from app.forms.va_iniassess_form import VaInitialAssessmentForm
 from app.forms.va_reviewerreview_form import VaReviewerReviewForm
@@ -11,6 +12,7 @@ __all__ = [
     "LoginForm",
     "VaInitialAssessmentForm",
     "VaCoderReviewForm",
+    "VaDataManagerReviewForm",
     "VaFinalAssessmentForm",
     "VaReviewerReviewForm",
     "VaUsernoteForm",

@@ -96,9 +96,11 @@
       <i class="fas fa-edit me-2"></i>Continue Pending VA Coding
     </a>
     {% else %}
+    {% if va_random_ready_forms %}
     <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vastartcoding', va_sid='vastartcoding') }}" class="btn btn-primary">
       <i class="fas fa-edit me-2"></i>Start VA Coding
     </a>
+    {% endif %}
     {% endif %}
     {% if is_admin %}
     <form method="get"
@@ -116,6 +118,58 @@
     </form>
     {% endif %}
   </div>
+
+  {% if pick_ready_forms %}
+  <div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+          <h4 class="text-primary mb-1">Pick And Choose Coding</h4>
+          <p class="text-secondary mb-0">
+            These submissions belong to projects configured for manual coder selection.
+          </p>
+        </div>
+        <span class="badge bg-light text-primary border">{{ pick_ready_forms|length }} ready</span>
+      </div>
+      <div class="table-responsive">
+        <table id="pickCodingTable" class="table table-hover align-middle table-striped mb-0">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Site</th>
+              <th>Submission Date</th>
+              <th>VA Form ID</th>
+              <th>Data Collector</th>
+              <th>Age / Gender</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in pick_ready_forms %}
+            <tr>
+              <td>{{ row.project_id }}</td>
+              <td>{{ row.site_id }}</td>
+              <td>{{ row.va_submission_date }}</td>
+              <td>{{ row.va_uniqueid_masked }}</td>
+              <td>{{ row.va_data_collector or '-' }}</td>
+              <td>{{ row.va_deceased_age or '-' }} / {{ row.va_deceased_gender or '-' }}</td>
+              <td>
+                {% if va_has_allocation %}
+                <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Continue current coding first</button>
+                {% else %}
+                <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vapickcoding', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
+                  Start Coding
+                </a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Filters + Table Tools -->
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -177,7 +231,8 @@
 
   <script id="va-context" type="application/json">
   {{ {
-    "hasAllocation": va_has_allocation
+    "hasAllocation": va_has_allocation,
+    "hasPickReadyForms": pick_ready_forms|length > 0
   } | tojson }}
 </script>
 
@@ -262,6 +317,16 @@
           });
         }
       });
+
+      if (context.hasPickReadyForms) {
+        $('#pickCodingTable').DataTable({
+          pageLength: 10,
+          order: [[0, 'asc'], [1, 'asc'], [2, 'asc']],
+          columnDefs: [
+            { targets: 6, orderable: false, searchable: false }
+          ]
+        });
+      }
     });
   </script>
 {% endblock %}

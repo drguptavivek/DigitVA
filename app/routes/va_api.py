@@ -2,7 +2,7 @@ import os
 import uuid
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis, VaSocialAutopsyAnalysisOption
+from app.models import VaSubmissions, VaSubmissionWorkflow, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis, VaSocialAutopsyAnalysisOption
 from app.models.va_project_master import VaProjectMaster
 from app.models.va_forms import VaForms
 from app.decorators import va_validate_permissions
@@ -20,8 +20,17 @@ from app.services.social_autopsy_analysis_service import (
     social_autopsy_option_set,
 )
 from app.services.submission_summary_service import build_submission_summary
+from app.services.submission_workflow_service import (
+    WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+    WORKFLOW_NOT_CODEABLE_BY_CODER,
+    WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_SCREENING_PENDING,
+    set_submission_workflow_state,
+)
 from app.services.odk_review_service import sync_not_codeable_review_state
-from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaFinalAssessmentForm, VaUsernoteForm
+from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaDataManagerReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
 va_api = Blueprint("va_api", __name__)
@@ -114,6 +123,23 @@ children = [
     "Z28.3 - Incomplete immunization Status"
 ]
 
+DATA_MANAGER_TRIAGE_ALLOWED_STATES = {
+    WORKFLOW_SCREENING_PENDING,
+    WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+}
+
+
+def _data_manager_reason_label(reason_code: str) -> str:
+    label_map = {
+        "submission_incomplete": "Submission information is incomplete or unusable.",
+        "source_data_mismatch": "Submission content does not match the expected deceased or source data.",
+        "duplicate_submission": "This appears to be a duplicate submission.",
+        "language_unreadable": "Narrative or key data cannot be understood for coding preparation.",
+        "others": "Other issue reported by data manager.",
+    }
+    return label_map.get(reason_code, reason_code)
+
 
 @va_api.route("/<va_action>/<va_actiontype>/<va_sid>/<va_partial>", methods=["GET", "POST"])
 @login_required
@@ -134,6 +160,138 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         visible_category_codes,
         va_partial,
     ):
+        if va_partial == "vadmtriage":
+            form = VaDataManagerReviewForm()
+            active_dm_review = db.session.scalar(
+                sa.select(VaDataManagerReview).where(
+                    VaDataManagerReview.va_sid == va_sid,
+                    VaDataManagerReview.va_dmreview_status == VaStatuses.active,
+                )
+            )
+            submission_workflow = db.session.scalar(
+                sa.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == va_sid
+                )
+            )
+            success_message = None
+
+            if request.method == "POST":
+                if submission_workflow not in DATA_MANAGER_TRIAGE_ALLOWED_STATES:
+                    return render_template(
+                        "va_formcategory_partials/category_data_manager_triage.html",
+                        category_config=category_service.get_category_config(
+                            _form_type_code,
+                            va_action,
+                            va_partial,
+                        ),
+                        va_action=va_action,
+                        va_actiontype=va_actiontype,
+                        va_sid=va_sid,
+                        va_partial=va_partial,
+                        form=form,
+                        va_previouscategory=category_service.get_category_neighbours(
+                            _form_type_code,
+                            va_action,
+                            visible_category_codes,
+                            va_partial,
+                        )[0],
+                        va_nextcategory=category_service.get_category_neighbours(
+                            _form_type_code,
+                            va_action,
+                            visible_category_codes,
+                            va_partial,
+                        )[1],
+                        active_dm_review=active_dm_review,
+                        submission_workflow_state=submission_workflow,
+                        form_error_messages=[
+                            "This submission can only be flagged by a data manager before coder workflow begins."
+                        ],
+                    )
+                if form.validate_on_submit():
+                    other_reason = (form.va_dmreview_other.data or "").strip() or None
+                    if active_dm_review:
+                        active_dm_review.va_dmreview_reason = form.va_dmreview_reason.data
+                        active_dm_review.va_dmreview_other = other_reason
+                        audit_action = "data manager not codeable updated"
+                        audit_operation = "u"
+                        entity_id = active_dm_review.va_dmreview_id
+                    else:
+                        entity_id = uuid.uuid4()
+                        active_dm_review = VaDataManagerReview(
+                            va_dmreview_id=entity_id,
+                            va_sid=va_sid,
+                            va_dmreview_by=current_user.user_id,
+                            va_dmreview_reason=form.va_dmreview_reason.data,
+                            va_dmreview_other=other_reason,
+                        )
+                        db.session.add(active_dm_review)
+                        audit_action = "submission flagged not codeable by data manager"
+                        audit_operation = "c"
+                    db.session.add(
+                        VaSubmissionsAuditlog(
+                            va_sid=va_sid,
+                            va_audit_byrole="data_manager",
+                            va_audit_by=current_user.user_id,
+                            va_audit_operation=audit_operation,
+                            va_audit_action=audit_action,
+                            va_audit_entityid=entity_id,
+                        )
+                    )
+                    set_submission_workflow_state(
+                        va_sid,
+                        WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+                        reason="data_manager_marked_not_codeable",
+                        by_user_id=current_user.user_id,
+                        by_role="data_manager",
+                    )
+                    db.session.commit()
+                    success_message = "Submission marked Not Codeable by data manager."
+                    flash(success_message, "success")
+                    form = VaDataManagerReviewForm()
+                    active_dm_review = db.session.scalar(
+                        sa.select(VaDataManagerReview).where(
+                            VaDataManagerReview.va_sid == va_sid,
+                            VaDataManagerReview.va_dmreview_status == VaStatuses.active,
+                        )
+                    )
+                    submission_workflow = WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER
+                elif active_dm_review:
+                    form.va_dmreview_reason.data = active_dm_review.va_dmreview_reason
+                    form.va_dmreview_other.data = active_dm_review.va_dmreview_other
+            elif active_dm_review:
+                form.va_dmreview_reason.data = active_dm_review.va_dmreview_reason
+                form.va_dmreview_other.data = active_dm_review.va_dmreview_other
+
+            va_previouscategory, va_nextcategory = category_service.get_category_neighbours(
+                _form_type_code,
+                va_action,
+                visible_category_codes,
+                va_partial,
+            )
+            return render_template(
+                "va_formcategory_partials/category_data_manager_triage.html",
+                category_config=category_service.get_category_config(
+                    _form_type_code,
+                    va_action,
+                    va_partial,
+                ),
+                va_action=va_action,
+                va_actiontype=va_actiontype,
+                va_sid=va_sid,
+                va_partial=va_partial,
+                form=form,
+                va_previouscategory=va_previouscategory,
+                va_nextcategory=va_nextcategory,
+                active_dm_review=active_dm_review,
+                active_dm_review_label=(
+                    _data_manager_reason_label(active_dm_review.va_dmreview_reason)
+                    if active_dm_review
+                    else None
+                ),
+                submission_workflow_state=submission_workflow,
+                success_message=success_message,
+                form_error_messages=[],
+            )
         _mapping_svc = get_mapping_service()
         category_config = category_service.get_category_config(
             _form_type_code,
@@ -267,6 +425,8 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             template_name = "va_formcategory_partials/category_attachments.html"
         elif category_config and category_config.render_mode == "workflow_panel":
             template_name = "va_formcategory_partials/category_va_cod_assessment.html"
+        elif category_config and category_config.render_mode == "data_manager_panel":
+            template_name = "va_formcategory_partials/category_data_manager_triage.html"
         return render_template(
             template_name,
             instance_name = va_submission.va_uniqueid_masked,
@@ -385,6 +545,13 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                     va_audit_entityid = gen_uuid
                 )
             )
+            set_submission_workflow_state(
+                va_sid,
+                WORKFLOW_CODER_STEP1_SAVED,
+                reason="initial_cod_submitted",
+                by_user_id=current_user.user_id,
+                by_role="vacoder",
+            )
             db.session.commit()
             va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
             return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None)
@@ -496,6 +663,13 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                 )
             )
             db.session.add(new_review1)
+            set_submission_workflow_state(
+                va_sid,
+                WORKFLOW_CODER_FINALIZED,
+                reason="final_cod_submitted",
+                by_user_id=current_user.user_id,
+                by_role="vacoder",
+            )
             db.session.commit()
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
@@ -572,6 +746,13 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                 )
             )
             db.session.add(new_coder_review)
+            set_submission_workflow_state(
+                va_sid,
+                WORKFLOW_NOT_CODEABLE_BY_CODER,
+                reason="coder_marked_not_codeable",
+                by_user_id=current_user.user_id,
+                by_role="vacoder",
+            )
             odk_sync_result = sync_not_codeable_review_state(
                 va_sid,
                 form.va_creview_reason.data,
@@ -806,7 +987,7 @@ def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str,
     """Return a blocking message if the current category has an incomplete required form."""
     if va_action != "vacode":
         return None
-    if va_actiontype not in {"vastartcoding", "varesumecoding", "vademo_start_coding"}:
+    if va_actiontype not in {"vastartcoding", "vapickcoding", "varesumecoding", "vademo_start_coding"}:
         return None
 
     if va_partial == "social_autopsy":

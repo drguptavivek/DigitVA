@@ -1,5 +1,5 @@
 {# display submission summary #}
-{% set show_nqa_before_summary = va_action == "vacode" and narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+{% set show_nqa_before_summary = va_action == "vacode" and narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
 {% if summary_items and not show_nqa_before_summary %}
   {% include 'va_formcategory_partials/_submission_summary_panel.html' %}
 {% endif %}
@@ -198,7 +198,7 @@
     </div>
   {% endif %}
 
-  {% if narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+  {% if narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
     <div class="content-section-title mt-4">
       <i class="fas fa-star-half-alt"></i>
       Narrative Quality Assessment

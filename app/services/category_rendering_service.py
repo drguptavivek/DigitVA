@@ -35,12 +35,14 @@ class CategoryRenderingService:
         "vacode": "coder",
         "vareview": "reviewer",
         "vasitepi": "site_pi",
+        "vadata": "data_manager",
     }
 
     ROLE_VISIBILITY_COLUMN = {
         "coder": "show_to_coder",
         "reviewer": "show_to_reviewer",
         "site_pi": "show_to_site_pi",
+        "data_manager": "show_to_site_pi",
     }
 
     WORKFLOW_NAV_ITEMS = {
@@ -55,7 +57,19 @@ class CategoryRenderingService:
                 always_include=True,
                 is_default_start=False,
             )
-        ]
+        ],
+        "data_manager": [
+            CategoryNavItem(
+                category_code="vadmtriage",
+                display_label="Data Manager Triage",
+                nav_label="Data Triage",
+                icon_name="fa-flag",
+                render_mode="data_manager_panel",
+                display_order=10_000,
+                always_include=True,
+                is_default_start=False,
+            )
+        ],
     }
 
     def __init__(self):

@@ -68,8 +68,22 @@ class VaUsers(UserMixin, db.Model):
         from flask import url_for
         if self.landing_page == "admin":
             return url_for("admin.admin_index")
-        if self.landing_page:
+        if self.landing_page == "data_manager":
+            return url_for("va_main.va_dashboard", va_role="data_manager")
+        if self.landing_page == "coder" and self.is_coder():
             return url_for("va_main.va_dashboard", va_role=self.landing_page)
+        if self.landing_page == "reviewer" and self.is_reviewer():
+            return url_for("va_main.va_dashboard", va_role=self.landing_page)
+        if self.landing_page == "sitepi" and self.is_site_pi():
+            return url_for("va_main.va_dashboard", va_role=self.landing_page)
+        if self.is_coder():
+            return url_for("va_main.va_dashboard", va_role="coder")
+        if self.is_data_manager():
+            return url_for("va_main.va_dashboard", va_role="data_manager")
+        if self.is_reviewer():
+            return url_for("va_main.va_dashboard", va_role="reviewer")
+        if self.is_site_pi():
+            return url_for("va_main.va_dashboard", va_role="sitepi")
         return url_for("va_main.va_index")
 
     def set_password(self, password):
@@ -95,6 +109,15 @@ class VaUsers(UserMixin, db.Model):
         if va_form:
             return va_form in reviewer_va_form
         return bool(reviewer_va_form)
+
+    def is_data_manager(self, project_id=None, site_id=None):
+        if project_id and site_id:
+            return self.has_data_manager_submission_access(project_id, site_id)
+        if project_id:
+            return project_id in self.get_data_manager_projects()
+        return bool(
+            self.get_data_manager_projects() or self.get_data_manager_project_sites()
+        )
 
     def is_admin(self):
         from app.models import (
@@ -167,6 +190,27 @@ class VaUsers(UserMixin, db.Model):
     def get_reviewer_va_forms(self):
         return self._get_granted_va_forms("reviewer")
 
+    def get_data_manager_projects(self):
+        return self._get_granted_project_ids("data_manager")
+
+    def get_data_manager_project_sites(self):
+        return self._get_granted_project_site_pairs("data_manager")
+
+    def has_data_manager_submission_access(self, project_id: str, site_id: str) -> bool:
+        if project_id in self.get_data_manager_projects():
+            return True
+        return (project_id, site_id) in self.get_data_manager_project_sites()
+
+    def has_data_manager_form_access(self, va_form: str) -> bool:
+        from app.models import VaForms
+
+        row = db.session.execute(
+            sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == va_form)
+        ).first()
+        if not row:
+            return False
+        return self.has_data_manager_submission_access(row.project_id, row.site_id)
+
     def get_all_accessible_va_forms(self):
         all_va_forms = set()
         if self.permission:
@@ -188,6 +232,8 @@ class VaUsers(UserMixin, db.Model):
         if va_form in self.get_reviewer_va_forms():
             return True
         if va_form in self.get_site_pi_va_forms():
+            return True
+        if self.has_data_manager_form_access(va_form):
             return True
         for legacy_role, va_forms in self.permission.items():
             if legacy_role in {"coder", "reviewer", "sitepi"}:
@@ -240,6 +286,51 @@ class VaUsers(UserMixin, db.Model):
             .where(sa.or_(project_scope_exists, project_site_scope_exists))
         )
         return set(db.session.scalars(stmt).all())
+
+    def _get_granted_project_ids(self, role: str) -> set[str]:
+        from app.models import (
+            VaAccessRoles,
+            VaAccessScopeTypes,
+            VaUserAccessGrants,
+            VaStatuses,
+        )
+
+        stmt = sa.select(VaUserAccessGrants.project_id).where(
+            VaUserAccessGrants.user_id == self.user_id,
+            VaUserAccessGrants.role == VaAccessRoles(role),
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+        )
+        return {
+            project_id
+            for project_id in db.session.scalars(stmt).all()
+            if project_id is not None
+        }
+
+    def _get_granted_project_site_pairs(self, role: str) -> set[tuple[str, str]]:
+        from app.models import (
+            VaAccessRoles,
+            VaAccessScopeTypes,
+            VaProjectSites,
+            VaUserAccessGrants,
+            VaStatuses,
+        )
+
+        stmt = (
+            sa.select(VaProjectSites.project_id, VaProjectSites.site_id)
+            .join(
+                VaUserAccessGrants,
+                VaUserAccessGrants.project_site_id == VaProjectSites.project_site_id,
+            )
+            .where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == VaAccessRoles(role),
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+                VaProjectSites.project_site_status == VaStatuses.active,
+            )
+        )
+        return {(project_id, site_id) for project_id, site_id in db.session.execute(stmt)}
 
 
 @login.user_loader

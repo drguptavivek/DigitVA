@@ -274,6 +274,8 @@ _AUDIT_STAGE_CONFIG = {
     "initial cod submitted": ("Step 1 COD", "warning"),
     "final cod submitted": ("Step 2 COD", "success"),
     "error reported by coder": ("Not Codeable", "danger"),
+    "submission flagged not codeable by data manager": ("Data Triage", "danger"),
+    "data manager not codeable updated": ("Data Triage", "warning"),
     "odk review state set to hasIssues": ("ODK Central", "info"),
     "odk review state update failed": ("ODK Central", "warning"),
     "allocated form released from coder": ("Allocation Released", "secondary"),
@@ -294,6 +296,8 @@ _AUDIT_ACTION_DISPLAY = {
     "initial cod submitted": "Initial COD submitted",
     "final cod submitted": "Final COD submitted",
     "error reported by coder": "Error reported by coder",
+    "submission flagged not codeable by data manager": "Flagged not codeable by data manager",
+    "data manager not codeable updated": "Data-manager not codeable updated",
     # Assessment actions
     "social autopsy analysis saved": "Social autopsy saved",
     "social autopsy analysis updated": "Social autopsy updated",
@@ -375,6 +379,16 @@ _AUDIT_ACTION_EXPLANATIONS = {
         "label": "Error Reported by Coder",
         "category": "Cause of Death",
         "explanation": "The coder has flagged this form as 'Not Codeable' due to insufficient or inconsistent information. The form may require additional review or data correction.",
+    },
+    "submission flagged not codeable by data manager": {
+        "label": "Flagged Not Codeable by Data Manager",
+        "category": "Data Triage",
+        "explanation": "A data manager has excluded this submission from coder allocation because it is unsuitable for coding in its current form.",
+    },
+    "data manager not codeable updated": {
+        "label": "Data-Manager Not Codeable Updated",
+        "category": "Data Triage",
+        "explanation": "The existing data-manager Not Codeable decision was updated with revised reason or notes.",
     },
     # Assessments
     "social autopsy analysis saved": {
@@ -624,6 +638,7 @@ def _resolve_scope_from_payload(payload):
             VaAccessRoles.collaborator,
             VaAccessRoles.coder,
             VaAccessRoles.reviewer,
+            VaAccessRoles.data_manager,
         }:
             raise ValueError("This role cannot use project scope.")
         if not project_id or project_site_id_value:
@@ -635,6 +650,7 @@ def _resolve_scope_from_payload(payload):
         VaAccessRoles.collaborator,
         VaAccessRoles.coder,
         VaAccessRoles.reviewer,
+        VaAccessRoles.data_manager,
     }:
         raise ValueError("This role cannot use project_site scope.")
     if payload.get("project_id"):

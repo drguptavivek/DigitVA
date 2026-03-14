@@ -37,6 +37,7 @@ def validate_landing_page(landing_page):
         "coder",
         "reviewer",
         "sitepi",
+        "data_manager",
     ]
     return (
         True

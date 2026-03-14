@@ -48,6 +48,13 @@
             <option value="deactive">Inactive</option>
           </select>
         </div>
+        <div class="col-sm-4">
+          <label class="form-label small mb-1">Coding Intake Mode</label>
+          <select class="form-select form-select-sm" id="project-coding-intake-mode-input">
+            <option value="random_form_allocation">Random form allocation</option>
+            <option value="pick_and_choose">Pick and choose</option>
+          </select>
+        </div>
       </div>
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
@@ -144,6 +151,9 @@
         + '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
         + '</button>';
       var nqaEnabled = !!p.narrative_qa_enabled;
+      var intakeLabel = p.coding_intake_mode === 'pick_and_choose'
+        ? 'Pick and choose'
+        : 'Random allocation';
       var nqaBtn = '<button class="btn btn-sm py-0 px-2 project-nqa-btn '
         + (nqaEnabled ? 'btn-success' : 'btn-outline-secondary') + '"'
         + ' data-id="' + esc(p.project_id) + '"'
@@ -161,6 +171,7 @@
         + '<td class="align-middle py-2 small">' + esc(p.project_code || '') + '</td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_name) + '</td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_nickname) + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(intakeLabel) + '</td>'
         + '<td class="align-middle py-2">'
         + (isActive
             ? '<span class="badge text-bg-success">Active</span>'
@@ -176,6 +187,7 @@
       + '<th class="fw-medium small text-muted" style="width:10%;">Code</th>'
       + '<th class="fw-medium small text-muted">Name</th>'
       + '<th class="fw-medium small text-muted" style="width:15%;">Nickname</th>'
+      + '<th class="fw-medium small text-muted" style="width:16%;">Coding Intake</th>'
       + '<th class="fw-medium small text-muted" style="width:10%;">Status</th>'
       + '<th class="fw-medium small text-muted text-end" style="width:20%;">Actions</th>'
       + '</tr></thead>'
@@ -288,6 +300,7 @@
   var nameInput = document.getElementById('project-name-input');
   var nicknameInput = document.getElementById('project-nickname-input');
   var statusInput = document.getElementById('project-status-input');
+  var codingIntakeModeInput = document.getElementById('project-coding-intake-mode-input');
   var errEl = document.getElementById('project-form-error');
 
   function resetForm() {
@@ -300,6 +313,7 @@
     nicknameInput.value = '';
     statusInput.value = 'active';
     statusInput.disabled = true; // New projects are always active
+    codingIntakeModeInput.value = 'random_form_allocation';
     errEl.textContent = '';
   }
 
@@ -316,6 +330,7 @@
     nicknameInput.value = project.project_nickname;
     statusInput.value = project.status;
     statusInput.disabled = false; // Existing projects can change status
+    codingIntakeModeInput.value = project.coding_intake_mode || 'random_form_allocation';
     errEl.textContent = '';
     
     formContainer.classList.remove('d-none');
@@ -339,7 +354,8 @@
     var data = {
       project_code: codeInput.value.trim().toUpperCase(),
       project_name: nameInput.value.trim(),
-      project_nickname: nicknameInput.value.trim()
+      project_nickname: nicknameInput.value.trim(),
+      coding_intake_mode: codingIntakeModeInput.value
     };
     
     var url, method;

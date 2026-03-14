@@ -34,6 +34,12 @@ class VaProjectMaster(db.Model):
     narrative_qa_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"
     )
+    coding_intake_mode: so.Mapped[str] = so.mapped_column(
+        sa.String(32),
+        nullable=False,
+        default="random_form_allocation",
+        server_default="random_form_allocation",
+    )
 
     def __repr__(self) -> str:
         return f"VA Project Master -> {self.project_id} ({self.project_status})"

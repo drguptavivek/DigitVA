@@ -16,7 +16,7 @@
       </h4>
     </div>
     <div>
-      <a href="{{ url_for('va_main.va_dashboard', va_role='coder') }}" class="btn btn-outline-primary">
+      <a href="{{ url_for('va_main.va_dashboard', va_role=back_dashboard_role or 'coder') }}" class="btn btn-outline-primary">
         <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
       </a>
     </div>
@@ -29,6 +29,12 @@
       for
       <b>maintaining observations.</b>
     </li>
+  </ol>
+  {% elif va_action == "vadata" %}
+  <p><b>Verbal Autopsy Data Manager Review</b></p>
+  <ol class="mb-0">
+    <li>Review the submission in read-only mode.</li>
+    <li>Use the <b>Data Triage</b> panel to keep unsuitable submissions out of coder allocation.</li>
   </ol>
   {% else %}
   <p><b>Verbal Autopsy Cause of Death Ascertainment</b></p>
@@ -152,6 +158,7 @@
     </div>
   </div>
 
+{% if va_action in ["vacode", "vareview"] %}
   <div class="notes-tab" id="notesTab">
     <i class="fas fa-solid fa-paperclip"></i>
     Notes
@@ -195,6 +202,7 @@ document.addEventListener("htmx:oobAfterSwap", function (event) {
   notif.innerHTML = "";
 });
 </script>
+{% endif %}
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {

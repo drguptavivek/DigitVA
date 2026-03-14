@@ -3,7 +3,12 @@ from app import db
 from functools import wraps
 from flask import redirect, url_for, request
 from flask_login import current_user
-from app.models import VaSubmissions
+from app.models import VaForms, VaSubmissions, VaSubmissionWorkflow
+from app.services.project_workflow_service import (
+    CODING_INTAKE_PICK,
+    get_project_coding_intake_mode,
+)
+from app.services.submission_workflow_service import CODER_READY_POOL_STATES
 from app.utils import (
     va_permission_abortwithflash,
     va_permission_ensureallocation,
@@ -62,6 +67,7 @@ def va_hasrole(role):
         "coder": current_user.is_coder(),
         "reviewer": current_user.is_reviewer(),
         "sitepi": current_user.is_site_pi(),
+        "data_manager": current_user.is_data_manager(),
     }
     return mapping.get(role)
 
@@ -99,6 +105,35 @@ def _validate_vacode(actiontype, sid, partial):
             va_permission_validaterecodelimits(sid)
         else:
             va_permission_ensureallocation(sid, "coding")
+    elif actiontype == "vapickcoding":
+        if not current_user.has_va_form_access(form_id, "coder"):
+            va_permission_abortwithflash(
+                "You do not have coder access for this VA form.", 403
+            )
+        if current_user.vacode_formcount >= 200:
+            va_permission_abortwithflash(
+                "You have reached your yearly limit of 200 coded VA forms.", 403
+            )
+        if partial:
+            va_permission_ensureallocation(sid, "coding")
+            return
+        project_id = db.session.scalar(
+            sa.select(VaForms.project_id).where(VaForms.form_id == form_id)
+        )
+        if get_project_coding_intake_mode(project_id) != CODING_INTAKE_PICK:
+            va_permission_abortwithflash(
+                "This project does not use pick-and-choose coding.", 403
+            )
+        va_permission_ensurenoactiveallocation("coding")
+        workflow_state = db.session.scalar(
+            sa.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+        if workflow_state not in CODER_READY_POOL_STATES:
+            va_permission_abortwithflash(
+                "This submission is no longer available for coding.", 409
+            )
     elif actiontype == "vademo_start_coding":
         if not current_user.is_admin():
             va_permission_abortwithflash(
@@ -181,8 +216,31 @@ def _validate_vasitepi(actiontype, sid, partial):
         va_permission_abortwithflash("Unknown SitePI dashboard action requested.", 404)
 
 
+def _validate_vadata(actiontype, sid, partial):
+    from app.models import VaForms
+
+    form = db.session.execute(
+        sa.select(VaSubmissions.va_form_id, VaForms.project_id, VaForms.site_id)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(VaSubmissions.va_sid == sid)
+    ).mappings().first()
+    if not form:
+        va_permission_abortwithflash("Submission not found.", 404)
+    if not current_user.has_data_manager_submission_access(
+        form["project_id"], form["site_id"]
+    ):
+        va_permission_abortwithflash(
+            "You do not have data-manager access to this submission.", 403
+        )
+    if actiontype != "vaview":
+        va_permission_abortwithflash(
+            "Unknown data-manager action requested.", 404
+        )
+
+
 _ACTION_VALIDATORS = {
     "vacode": _validate_vacode,
     "vareview": _validate_vareview,
     "vasitepi": _validate_vasitepi,
+    "vadata": _validate_vadata,
 }

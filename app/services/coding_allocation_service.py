@@ -6,6 +6,10 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaAllocations, VaAllocation, VaStatuses, VaSubmissionsAuditlog
+from app.services.submission_workflow_service import (
+    infer_workflow_state_after_coding_release,
+    set_submission_workflow_state,
+)
 
 
 def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
@@ -22,6 +26,12 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     released = 0
     for record in stale_allocations:
         record.va_allocation_status = VaStatuses.deactive
+        set_submission_workflow_state(
+            record.va_sid,
+            infer_workflow_state_after_coding_release(record.va_sid),
+            reason="allocation_timeout_release",
+            by_role="vasystem",
+        )
         db.session.add(
             VaSubmissionsAuditlog(
                 va_sid=record.va_sid,

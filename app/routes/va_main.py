@@ -13,11 +13,18 @@ from app.models import (
     VaStatuses,
     VaAllocations,
     VaAllocation,
-    VaInitialAssessments,
-    VaCoderReview,
-    VaFinalAssessments,
+    VaDataManagerReview,
     VaForms,
+    VaSubmissionWorkflow,
 )
+from app.services.coder_dashboard_service import (
+    get_coder_completed_count,
+    get_coder_completed_history,
+    get_coder_project_ids,
+    get_coder_recodeable_sids,
+)
+from app.services.project_workflow_service import split_form_ids_by_coding_intake_mode
+from app.services.submission_workflow_service import CODER_READY_POOL_STATES
 from flask import (
     Blueprint,
     render_template,
@@ -28,7 +35,6 @@ from flask import (
     url_for,
     request
 )
-from collections import Counter
 from datetime import datetime
 
 va_main = Blueprint("va_main", __name__)
@@ -50,162 +56,158 @@ def va_index():
 def va_dashboard(va_role):
     if va_role == "coder":
         va_form_access = current_user.get_coder_va_forms()
-        va_accepted_forms = db.session.scalars(
-            sa.select(VaReviewerReview.va_sid).where(
-                (VaReviewerReview.va_rreview_status == VaStatuses.active)
-                & (VaReviewerReview.va_rreview == "accepted")
-            )
-        ).all()
-        va_inicoded_forms = db.session.scalars(
-            sa.select(VaInitialAssessments.va_sid).where(
-                (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
-            )
-        ).all()
-        va_fincoded_forms = db.session.scalars(
-            sa.select(VaFinalAssessments.va_sid).where(
-                (VaFinalAssessments.va_finassess_status == VaStatuses.active)
-            )
-        ).all()
-        va_error_forms = db.session.scalars(
-            sa.select(VaCoderReview.va_sid).where(
-                (VaCoderReview.va_creview_status == VaStatuses.active)
-            )
-        ).all()
-        va_alreadyreserved = db.session.scalars(
-            sa.select(VaAllocations.va_sid).where(
-                (VaAllocations.va_allocation_status == VaStatuses.active) &
-                (VaAllocations.va_allocation_for == VaAllocation.coding)
-            )
-        ).all()
         if va_form_access:
+            random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(
+                va_form_access
+            )
             va_total_forms = db.session.scalar(
                 sa.select(sa.func.count())
                 .select_from(VaSubmissions)
+                .join(
+                    VaSubmissionWorkflow,
+                    VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
+                )
                 .where(
                     sa.sql.and_(
                         VaSubmissions.va_form_id.in_(va_form_access),
                         VaSubmissions.va_narration_language.in_(
                             current_user.vacode_language
                         ),
-                        VaSubmissions.va_sid.notin_(va_inicoded_forms),
-                        VaSubmissions.va_sid.notin_(va_fincoded_forms),
-                        VaSubmissions.va_sid.notin_(va_error_forms),
-                        VaSubmissions.va_sid.notin_(va_alreadyreserved),
+                        VaSubmissionWorkflow.workflow_state.in_(
+                            CODER_READY_POOL_STATES
+                        ),
                     )
                 )
             )
+            va_random_ready_forms = 0
+            if random_form_ids:
+                va_random_ready_forms = db.session.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(VaSubmissions)
+                    .join(
+                        VaSubmissionWorkflow,
+                        VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
+                    )
+                    .where(
+                        sa.sql.and_(
+                            VaSubmissions.va_form_id.in_(random_form_ids),
+                            VaSubmissions.va_narration_language.in_(
+                                current_user.vacode_language
+                            ),
+                            VaSubmissionWorkflow.workflow_state.in_(
+                                CODER_READY_POOL_STATES
+                            ),
+                        )
+                    )
+                )
             # the following is the temporary code to allow TR01 to code only old 88 forms, please remove it later
             if current_user.is_coder(va_form = "UNSW01TR0101"):
                 va_total_forms = db.session.scalar(
                     sa.select(sa.func.count())
                     .select_from(VaSubmissions)
+                    .join(
+                        VaSubmissionWorkflow,
+                        VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
+                    )
                     .where(
                         sa.sql.and_(
                             VaSubmissions.va_form_id.in_(va_form_access),
                             VaSubmissions.va_narration_language.in_(
                                 current_user.vacode_language
                             ),
-                            VaSubmissions.va_sid.notin_(va_inicoded_forms),
-                            VaSubmissions.va_sid.notin_(va_fincoded_forms),
-                            VaSubmissions.va_sid.notin_(va_error_forms),
-                            VaSubmissions.va_sid.notin_(va_alreadyreserved),
+                            VaSubmissionWorkflow.workflow_state.in_(
+                                CODER_READY_POOL_STATES
+                            ),
                             sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date()
                         )
                     )
                 )
+                if random_form_ids:
+                    va_random_ready_forms = db.session.scalar(
+                        sa.select(sa.func.count())
+                        .select_from(VaSubmissions)
+                        .join(
+                            VaSubmissionWorkflow,
+                            VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
+                        )
+                        .where(
+                            sa.sql.and_(
+                                VaSubmissions.va_form_id.in_(random_form_ids),
+                                VaSubmissions.va_narration_language.in_(
+                                    current_user.vacode_language
+                                ),
+                                VaSubmissionWorkflow.workflow_state.in_(
+                                    CODER_READY_POOL_STATES
+                                ),
+                                sa.func.date(VaSubmissions.va_submission_date)
+                                <= datetime(2025, 9, 9).date(),
+                            )
+                        )
+                    )
             # till here, remove this part for TR01 in future
-            va_forms_completed = db.session.scalar(
-                sa.select(sa.func.count())
-                .select_from(VaCoderReview)
-                .where(
-                    sa.sql.and_(
-                        VaCoderReview.va_creview_by == current_user.user_id,
-                        VaCoderReview.va_creview_status == VaStatuses.active,
-                    )
-                )
-            ) + db.session.scalar(
-                sa.select(sa.func.count())
-                .select_from(VaFinalAssessments)
-                .where(
-                    sa.sql.and_(
-                        VaFinalAssessments.va_finassess_by == current_user.user_id,
-                        VaFinalAssessments.va_finassess_status == VaStatuses.active,
-                    )
-                )
-            )
-            va_forms_raw1 = (
-                db.session.execute(
+            pick_ready_rows = []
+            if pick_form_ids:
+                pick_stmt = (
                     sa.select(
+                        VaSubmissions.va_sid,
+                        VaSubmissions.va_uniqueid_masked,
+                        VaSubmissions.va_form_id,
+                        VaForms.project_id,
+                        VaForms.site_id,
                         sa.func.date(VaSubmissions.va_submission_date).label(
                             "va_submission_date"
                         ),
-                        VaSubmissions.va_form_id,
-                        VaCoderReview.va_sid,
-                        VaSubmissions.va_uniqueid_masked,
                         VaSubmissions.va_data_collector,
                         VaSubmissions.va_deceased_age,
                         VaSubmissions.va_deceased_gender,
-                        VaCoderReview.va_creview_createdat.label("va_coding_date"),
-                        sa.literal("Not Codeable").label("va_code_status"),
                     )
-                    .outerjoin(
-                        VaSubmissions,
-                        sa.sql.and_(
-                            VaCoderReview.va_sid == VaSubmissions.va_sid,
-                        ),
+                    .select_from(VaSubmissions)
+                    .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+                    .join(
+                        VaSubmissionWorkflow,
+                        VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
                     )
                     .where(
                         sa.sql.and_(
-                            VaCoderReview.va_creview_by == current_user.user_id,
-                            VaCoderReview.va_creview_status == VaStatuses.active,
+                            VaSubmissions.va_form_id.in_(pick_form_ids),
+                            VaSubmissions.va_narration_language.in_(
+                                current_user.vacode_language
+                            ),
+                            VaSubmissionWorkflow.workflow_state.in_(
+                                CODER_READY_POOL_STATES
+                            ),
                         )
                     )
-                )
-                .mappings()
-                .all()
-            )
-            va_forms_raw2 = (
-                db.session.execute(
-                    sa.select(
-                        sa.func.date(VaSubmissions.va_submission_date).label(
-                            "va_submission_date"
-                        ),
-                        VaSubmissions.va_form_id,
-                        VaFinalAssessments.va_sid,
+                    .order_by(
+                        VaForms.project_id,
+                        VaForms.site_id,
+                        VaSubmissions.va_submission_date,
                         VaSubmissions.va_uniqueid_masked,
-                        VaSubmissions.va_data_collector,
-                        VaSubmissions.va_deceased_age,
-                        VaSubmissions.va_deceased_gender,
-                        VaFinalAssessments.va_finassess_createdat.label(
-                            "va_coding_date"
-                        ),
-                        sa.literal("VA Coding Completed").label("va_code_status"),
-                    )
-                    .outerjoin(
-                        VaSubmissions,
-                        sa.sql.and_(
-                            VaFinalAssessments.va_sid == VaSubmissions.va_sid,
-                        ),
-                    )
-                    .where(
-                        sa.sql.and_(
-                            VaFinalAssessments.va_finassess_by == current_user.user_id,
-                            VaFinalAssessments.va_finassess_status == VaStatuses.active,
-                        )
                     )
                 )
-                .mappings()
-                .all()
+                if current_user.is_coder(va_form="UNSW01TR0101"):
+                    pick_stmt = pick_stmt.where(
+                        sa.func.date(VaSubmissions.va_submission_date)
+                        <= datetime(2025, 9, 9).date()
+                    )
+                pick_ready_rows = [
+                    va_render_serialisedates(row, ["va_submission_date"])
+                    for row in db.session.execute(pick_stmt).mappings().all()
+                ]
+            va_forms_completed = get_coder_completed_count(
+                current_user.user_id,
+                va_form_access,
             )
-            va_forms_raw = va_forms_raw1 + va_forms_raw2
-            va_date_fields = ["va_submission_date", "va_coding_date"]
-            va_forms = [
-                va_render_serialisedates(row, va_date_fields) for row in va_forms_raw
-            ]
+            va_forms = get_coder_completed_history(
+                current_user.user_id,
+                va_form_access,
+            )
         else:
             va_total_forms = 0
+            va_random_ready_forms = 0
             va_forms_completed = 0
             va_forms = []
+            pick_ready_rows = []
         va_has_allocation = db.session.scalar(
             sa.select(VaAllocations.va_sid).where(
                 (VaAllocations.va_allocated_to == current_user.user_id)
@@ -213,55 +215,21 @@ def va_dashboard(va_role):
                 & (VaAllocations.va_allocation_status == VaStatuses.active)
             )
         )
-        recent_final = db.session.scalars(
-            sa.select(VaFinalAssessments.va_sid).where(
-                (VaFinalAssessments.va_finassess_by == current_user.user_id)
-                & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
-                & (
-                    VaFinalAssessments.va_finassess_createdat
-                    + sa.text("interval '24 hours'")
-                    > sa.func.now()
-                )
-            )
-        ).all()
-        recent_review = db.session.scalars(
-            sa.select(VaCoderReview.va_sid).where(
-                (VaCoderReview.va_creview_by == current_user.user_id)
-                & (VaCoderReview.va_creview_status == VaStatuses.active)
-                & (
-                    VaCoderReview.va_creview_createdat + sa.text("interval '24 hours'")
-                    > sa.func.now()
-                )
-            )
-        ).all()
-        user_recent_final = db.session.scalars(
-            sa.select(VaFinalAssessments.va_sid).where(
-                (VaFinalAssessments.va_finassess_by == current_user.user_id)
-            )
-        ).all()
-        user_recent_review = db.session.scalars(
-            sa.select(VaCoderReview.va_sid).where(
-                (VaCoderReview.va_creview_by == current_user.user_id)
-            )
-        ).all()
-        lst_va = user_recent_final + user_recent_review
-        counts_va = Counter(lst_va)
-        result_va = [item for item in lst_va if counts_va[item] > 1]
         demo_projects = []
         if current_user.is_admin() and va_form_access:
-            demo_projects = db.session.execute(
-                sa.select(VaForms.project_id)
-                .where(VaForms.form_id.in_(va_form_access))
-                .distinct()
-                .order_by(VaForms.project_id)
-            ).scalars().all()
+            demo_projects = get_coder_project_ids(va_form_access)
         return render_template(
             "va_frontpages/va_code.html",
             va_total_forms=va_total_forms,
+            va_random_ready_forms=va_random_ready_forms,
             va_forms_completed=va_forms_completed,
             va_forms=va_forms,
+            pick_ready_forms=pick_ready_rows,
             va_has_allocation=va_has_allocation,
-            va_recodeable=list(set(recent_final + recent_review) - set(result_va)),
+            va_recodeable=get_coder_recodeable_sids(
+                current_user.user_id,
+                va_form_access,
+            ),
             is_admin=current_user.is_admin(),
             demo_projects=demo_projects,
         )
@@ -446,6 +414,84 @@ def va_dashboard(va_role):
             "va_frontpages/va_sitepi.html",
             sitepi_sites=sitepi_sites,
             default_site_data=default_site_data
+        )
+    elif va_role == "data_manager":
+        project_ids = sorted(current_user.get_data_manager_projects())
+        project_site_pairs = current_user.get_data_manager_project_sites()
+        if not project_ids and not project_site_pairs:
+            va_permission_abortwithflash(
+                "No data-manager scope has been assigned.", 403
+            )
+
+        project_scope_exists = sa.false()
+        if project_ids:
+            project_scope_exists = VaForms.project_id.in_(project_ids)
+
+        project_site_scope_exists = sa.false()
+        if project_site_pairs:
+            project_site_scope_exists = sa.tuple_(VaForms.project_id, VaForms.site_id).in_(
+                list(project_site_pairs)
+            )
+
+        scope_filter = sa.or_(project_scope_exists, project_site_scope_exists)
+        total_submissions = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSubmissions)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .where(scope_filter)
+        )
+        flagged_submissions = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaDataManagerReview)
+            .where(VaDataManagerReview.va_dmreview_status == VaStatuses.active)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaDataManagerReview.va_sid)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .where(scope_filter)
+        )
+        submission_rows = [
+            va_render_serialisedates(
+                row,
+                ["va_submission_date", "va_dmreview_createdat"],
+            )
+            for row in db.session.execute(
+                sa.select(
+                    VaSubmissions.va_sid,
+                    VaSubmissions.va_uniqueid_masked,
+                    VaForms.project_id,
+                    VaForms.site_id,
+                    sa.func.date(VaSubmissions.va_submission_date).label(
+                        "va_submission_date"
+                    ),
+                    VaSubmissions.va_data_collector,
+                    VaSubmissionWorkflow.workflow_state,
+                    VaDataManagerReview.va_dmreview_createdat,
+                )
+                .select_from(VaSubmissions)
+                .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+                .join(
+                    VaSubmissionWorkflow,
+                    VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
+                )
+                .outerjoin(
+                    VaDataManagerReview,
+                    sa.and_(
+                        VaDataManagerReview.va_sid == VaSubmissions.va_sid,
+                        VaDataManagerReview.va_dmreview_status == VaStatuses.active,
+                    ),
+                )
+                .where(scope_filter)
+                .order_by(
+                    VaForms.project_id,
+                    VaForms.site_id,
+                    VaSubmissions.va_submission_date.desc(),
+                )
+            ).mappings().all()
+        ]
+        return render_template(
+            "va_frontpages/va_data_manager.html",
+            total_submissions=total_submissions,
+            flagged_submissions=flagged_submissions,
+            submission_rows=submission_rows,
         )
     else:
         va_permission_abortwithflash("Invalid dashboard path.", 404)

@@ -10,6 +10,7 @@ from app.models import (
     VaResearchProjects,
     VaSites,
     VaStatuses,
+    VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
@@ -152,12 +153,19 @@ class TestCodingAllocationService(BaseTestCase):
                 == "va_allocation_released_due_to_timeout",
             )
         )
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == stale_sid
+            )
+        )
 
         self.assertEqual(stale_allocation.va_allocation_status, VaStatuses.deactive)
         self.assertEqual(fresh_allocation.va_allocation_status, VaStatuses.active)
         self.assertIsNotNone(initial_assessment)
         self.assertEqual(initial_assessment.va_iniassess_status, VaStatuses.active)
         self.assertIsNotNone(audit_log)
+        self.assertIsNotNone(workflow)
+        self.assertEqual(workflow.workflow_state, "coder_step1_saved")
 
     def test_no_commit_path_when_nothing_is_stale(self):
         fresh_sid = "uuid:no_stale"

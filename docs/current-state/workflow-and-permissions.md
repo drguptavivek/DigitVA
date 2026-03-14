@@ -35,6 +35,8 @@ Current cutover status:
 - coder random allocation reads `va_submission_workflow`
 - admin demo allocation reads `va_submission_workflow`
 - coder dashboard available-form count reads `va_submission_workflow`
+- coder dashboard completed-history count and status labels now read
+  `va_submission_workflow`
 - project-level `coding_intake_mode` is now stored on `va_project_master`
   with `random_form_allocation` as the default
 - coder dashboard now splits eligible coding intake by project mode:
@@ -76,6 +78,12 @@ Coder dashboard behavior:
   - the submission's `va_form_id` is in the coder's permitted forms
   - the submission language is in the coder's allowed languages
   - the submission's canonical workflow state is eligible for coding
+- completed-history rows and the cumulative coded count now use canonical
+  workflow states:
+  - `coder_finalized`
+  - `not_codeable_by_coder`
+- the dashboard still reads underlying final-assessment / coder-review rows for
+  display timestamps and actor attribution during the migration period
 
 Starting coding:
 

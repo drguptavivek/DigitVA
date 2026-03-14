@@ -422,7 +422,8 @@ class AdminApiTests(BaseTestCase):
             json={
                 "project_name": "Updated Master Project",
                 "project_code": "UPD999",
-                "status": "deactive"
+                "status": "deactive",
+                "coding_intake_mode": "pick_and_choose",
             },
             headers=headers
         )
@@ -430,6 +431,10 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(edit_resp.get_json()["project"]["project_name"], "Updated Master Project")
         self.assertEqual(edit_resp.get_json()["project"]["project_code"], "UPD999")
         self.assertEqual(edit_resp.get_json()["project"]["status"], "deactive")
+        self.assertEqual(
+            edit_resp.get_json()["project"]["coding_intake_mode"],
+            "pick_and_choose",
+        )
         
         # Toggle project status
         toggle_resp = self.client.post(

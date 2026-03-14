@@ -1,0 +1,116 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | Data Manager{% endblock %}
+
+{% block content %}
+  {% with messages = get_flashed_messages(with_categories = true) %}
+  {% if messages %}
+    <div class="container mt-4">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% endwith %}
+
+  <h2 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
+    Welcome, {{ current_user.name }}
+  </h2>
+
+  <div class="content-section mb-4">
+    <h4 class="content-section-title">
+      <i class="fas fa-folder-open"></i>
+      Data Manager Triage
+    </h4>
+    <p><b>Use this dashboard to review submissions in your scope before coder allocation.</b></p>
+    <ol class="mb-0">
+      <li>Browse submissions across your assigned project or project-site scope.</li>
+      <li>Open any submission in read-only mode.</li>
+      <li>Use the <b>Data Triage</b> panel inside a submission to mark it Not Codeable for coder allocation.</li>
+    </ol>
+  </div>
+
+  <div class="row mb-4 g-3">
+    <div class="col-md-6">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4 text-center">
+          <i class="fas fa-file-alt text-primary fa-2x mb-3"></i>
+          <h5 class="text-primary fw-semibold mb-3">Scoped Submissions</h5>
+          <div class="d-flex align-items-baseline justify-content-center">
+            <h2 class="display-4 fw-bold text-primary mb-0">{{ total_submissions }}</h2>
+            <span class="ms-2 text-secondary small">submissions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4 text-center">
+          <i class="fas fa-flag text-danger fa-2x mb-3"></i>
+          <h5 class="text-danger fw-semibold mb-3">Flagged Not Codeable</h5>
+          <div class="d-flex align-items-baseline justify-content-center">
+            <h2 class="display-4 fw-bold text-danger mb-0">{{ flagged_submissions }}</h2>
+            <span class="ms-2 text-secondary small">submissions</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table id="dmTable" class="table table-hover align-middle table-striped nowrap" style="width: 100%; min-width: 1100px;">
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Site</th>
+          <th>Submission Date</th>
+          <th>VA Form ID</th>
+          <th>Data Collector</th>
+          <th>Workflow State</th>
+          <th>Flagged At</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in submission_rows %}
+        <tr>
+          <td>{{ row.project_id }}</td>
+          <td>{{ row.site_id }}</td>
+          <td>{{ row.va_submission_date }}</td>
+          <td>{{ row.va_uniqueid_masked }}</td>
+          <td>{{ row.va_data_collector or '-' }}</td>
+          <td>
+            {% if row.workflow_state == 'not_codeable_by_data_manager' %}
+            <span class="badge bg-danger">Flagged by Data Manager</span>
+            {% elif row.workflow_state == 'ready_for_coding' %}
+            <span class="badge bg-primary">Ready for Coding</span>
+            {% elif row.workflow_state == 'screening_pending' %}
+            <span class="badge bg-secondary">Screening Pending</span>
+            {% else %}
+            <span class="badge bg-light text-dark border">{{ row.workflow_state }}</span>
+            {% endif %}
+          </td>
+          <td>{{ row.va_dmreview_createdat or '-' }}</td>
+          <td>
+            <a href="{{ url_for('va_cta.va_calltoaction', va_action='vadata', va_actiontype='vaview', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
+              View
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    $(document).ready(function () {
+      $('#dmTable').DataTable({
+        pageLength: 25,
+        order: [[0, 'asc'], [1, 'asc'], [2, 'desc']]
+      });
+    });
+  </script>
+{% endblock %}

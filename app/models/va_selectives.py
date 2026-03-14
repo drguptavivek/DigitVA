@@ -25,6 +25,7 @@ class VaAccessRoles(enum.Enum):
     collaborator = "collaborator"
     coder = "coder"
     reviewer = "reviewer"
+    data_manager = "data_manager"
 
 
 class VaAccessScopeTypes(enum.Enum):

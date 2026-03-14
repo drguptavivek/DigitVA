@@ -52,6 +52,7 @@
             <option value="">— select —</option>
             <option value="coder">Coder</option>
             <option value="reviewer">Reviewer</option>
+            <option value="data_manager">Data Manager</option>
             <option value="site_pi">Site PI</option>
             <option value="collaborator">Collaborator</option>
             <option value="project_pi" class="ag-admin-only d-none">Project PI</option>
@@ -121,6 +122,7 @@
       <option value="">All roles</option>
       <option value="coder">Coder</option>
       <option value="reviewer">Reviewer</option>
+      <option value="data_manager">Data Manager</option>
       <option value="site_pi">Site PI</option>
       <option value="collaborator">Collaborator</option>
       <option value="project_pi">Project PI</option>
@@ -264,8 +266,8 @@
   document.getElementById('ag-filter-role').addEventListener('change', applyFilters);
   document.getElementById('ag-filter-site').addEventListener('change', applyFilters);
 
-  var ROLE_LABEL = { coder:'Coder', reviewer:'Reviewer', site_pi:'Site PI', collaborator:'Collaborator', project_pi:'Project PI', admin:'Admin' };
-  var ROLE_COLOR = { coder:'primary', reviewer:'success', site_pi:'warning', collaborator:'info', project_pi:'danger', admin:'dark' };
+  var ROLE_LABEL = { coder:'Coder', reviewer:'Reviewer', data_manager:'Data Manager', site_pi:'Site PI', collaborator:'Collaborator', project_pi:'Project PI', admin:'Admin' };
+  var ROLE_COLOR = { coder:'primary', reviewer:'success', data_manager:'secondary', site_pi:'warning', collaborator:'info', project_pi:'danger', admin:'dark' };
 
   function roleBadge(g) {
     var color = ROLE_COLOR[g.role] || 'secondary';

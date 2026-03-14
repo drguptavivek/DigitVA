@@ -1,4 +1,4 @@
-{% set is_coding_mode = va_action == "vacode" and (va_actiontype == "vastartcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+{% set is_coding_mode = va_action == "vacode" and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
 {% set analysis = va_social_autopsy_analysis %}
 {% set selected_pairs = social_autopsy_selected_pairs or [] %}
 

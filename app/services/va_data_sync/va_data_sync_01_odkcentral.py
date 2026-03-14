@@ -9,6 +9,11 @@ from app import db
 from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.submission_workflow_service import (
+    WORKFLOW_READY_FOR_CODING,
+    set_submission_workflow_state,
+    sync_submission_workflow_from_legacy_records,
+)
 from app.models import (
     VaAllocations,
     VaCoderReview,
@@ -215,6 +220,11 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                 ))
             va_submission_amended = True
             updated += 1
+            sync_submission_workflow_from_legacy_records(
+                va_submission_sid,
+                reason="odk_submission_updated",
+                by_role="vaadmin",
+            )
             print(f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']")
 
         elif not existing and va_submission_consent == "yes":
@@ -246,6 +256,12 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                 )
             )
             db.session.flush()
+            set_submission_workflow_state(
+                va_submission_sid,
+                WORKFLOW_READY_FOR_CODING,
+                reason="submission_created_during_sync",
+                by_role="vaadmin",
+            )
             va_submission_amended = True
             added += 1
             db.session.add(
@@ -467,6 +483,11 @@ def va_data_sync_odkcentral(log_progress=None):
                         va_audit_action="va_partial_iniasses_deletion_during_datasync",
                     )
                 )
+            sync_submission_workflow_from_legacy_records(
+                record.va_sid,
+                reason="sync_reset_after_submission_update",
+                by_role="vaadmin",
+            )
 
         db.session.commit()
 

@@ -265,6 +265,21 @@ Current coding allocation cleanup behavior:
 - writes an audit entry with action
   `va_allocation_released_due_to_timeout`
 
+## Admin Operations
+
+### Workflow activity panel
+
+The admin console now includes an admin-only `Activity` panel.
+
+Current behavior:
+
+- reads from `va_submissions_auditlog`
+- supports server-side filters for `SID`, `project`, `site`, `actor`, and row limit
+- shows workflow-oriented stage labels for key coder milestones
+
+The panel is intended for operational tracing of coding progress rather than raw
+database inspection.
+
 ## Emailing
 
 ### Current state

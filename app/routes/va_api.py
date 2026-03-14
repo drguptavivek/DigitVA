@@ -20,6 +20,7 @@ from app.services.social_autopsy_analysis_service import (
     social_autopsy_option_set,
 )
 from app.services.submission_summary_service import build_submission_summary
+from app.services.odk_review_service import sync_not_codeable_review_state
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
@@ -529,14 +530,24 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         return render_template(f"va_form_partials/{va_partial}.html", va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, form=form)
     if va_partial == "vacoderreview":
         form = VaCoderReviewForm()
+        def _render_coder_review_form(error_messages=None):
+            return render_template(
+                f"va_form_partials/{va_partial}.html",
+                va_action=va_action,
+                va_actiontype=va_actiontype,
+                va_sid=va_sid,
+                form=form,
+                form_error_messages=error_messages or [],
+            )
         if form.validate_on_submit():
             gen_uuid = uuid.uuid4()
+            other_reason = form.va_creview_other.data.strip() or None
             new_coder_review = VaCoderReview(
                 va_creview_id = gen_uuid,
                 va_sid = va_sid,
                 va_creview_by = current_user.user_id,
                 va_creview_reason = form.va_creview_reason.data,
-                va_creview_other = form.va_creview_other.data.strip() or None
+                va_creview_other = other_reason
             )
             db.session.add(
                 VaSubmissionsAuditlog(
@@ -561,13 +572,49 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
                 )
             )
             db.session.add(new_coder_review)
+            odk_sync_result = sync_not_codeable_review_state(
+                va_sid,
+                form.va_creview_reason.data,
+                other_reason,
+            )
+            if odk_sync_result.success:
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=va_sid,
+                        va_audit_byrole="vacoder",
+                        va_audit_by=current_user.user_id,
+                        va_audit_operation="u",
+                        va_audit_action=f"odk review state set to {odk_sync_result.review_state}",
+                    )
+                )
+            else:
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=va_sid,
+                        va_audit_byrole="vacoder",
+                        va_audit_by=current_user.user_id,
+                        va_audit_operation="u",
+                        va_audit_action="odk review state update failed",
+                    )
+                )
             db.session.commit()
+            success_message = "Not Codeable saved locally."
+            warning_message = None
+            if odk_sync_result.success:
+                success_message += " ODK Central was flagged for revision."
+            else:
+                warning_message = (
+                    "Not Codeable was saved locally, but ODK Central could not be "
+                    f"updated automatically. {odk_sync_result.error_message}"
+                )
+            flash(success_message, "success")
+            if warning_message:
+                flash(warning_message, "warning")
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
                 response.headers["HX-Redirect"] = url_for('va_main.va_dashboard', va_role="coder")
-                flash("Error reported successfully!", "success")
                 return response
-        return render_template(f"va_form_partials/{va_partial}.html", va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, form=form)
+        return _render_coder_review_form()
         
         
         
@@ -849,6 +896,8 @@ def va_save_narrative_qa(va_action, va_actiontype, va_sid):
         existing.va_nqa_comorbidity  = comorbidity
         existing.va_nqa_score        = score
         nqa = existing
+        audit_operation = "u"
+        audit_action = "narrative quality assessment updated"
     else:
         nqa = VaNarrativeAssessment(
             va_sid=va_sid,
@@ -863,7 +912,20 @@ def va_save_narrative_qa(va_action, va_actiontype, va_sid):
             va_nqa_status=VaStatuses.active,
         )
         db.session.add(nqa)
+        audit_operation = "c"
+        audit_action = "narrative quality assessment saved"
 
+    db.session.flush()
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="vacoder",
+            va_audit_by=current_user.user_id,
+            va_audit_operation=audit_operation,
+            va_audit_action=audit_action,
+            va_audit_entityid=nqa.va_nqa_id,
+        )
+    )
     db.session.commit()
     return jsonify({
         "saved": True,

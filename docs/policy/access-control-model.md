@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-03-14
 ---
 
 # Access Control Model
@@ -28,6 +28,7 @@ DigitVA uses these roles:
 - `admin`
 - `project_pi`
 - `site_pi`
+- `data_manager`
 - `collaborator`
 - `coder`
 - `reviewer`
@@ -70,6 +71,24 @@ May:
 - perform oversight actions allowed by workflow policy
 
 A user may hold `site_pi` grants for many project-site pairs.
+
+### `data_manager`
+
+Data-quality and operational triage role within assigned scope.
+
+May:
+
+- browse all submissions within assigned scope
+- open submissions in read-only mode
+- document that a submission is not codeable from a data-management perspective
+- view reporting and workflow context needed to diagnose submission quality issues
+
+May not:
+
+- start coding
+- submit COD assessments
+- submit reviewer QA
+- take coder-only or reviewer-only workflow actions
 
 ### `collaborator`
 
@@ -134,6 +153,7 @@ The system must not infer broader access from missing values or partial keys.
 - `admin` uses `global`
 - `project_pi` uses `project`
 - `site_pi` uses `project_site`
+- `data_manager` uses `project` or `project_site`
 - `collaborator` uses `project` or `project_site`
 - `coder` uses `project` or `project_site`
 - `reviewer` uses `project` or `project_site`
@@ -202,6 +222,16 @@ Result:
 
 ### Example 5
 
+- user role: `data_manager`
+- user grant: `project(ICMR01)`
+
+Result:
+
+- the user may browse and view submissions across all sites in `ICMR01`
+- the user may mark a submission Not Codeable as a data-management outcome
+- the user may not start coding or review
+### Example 6
+
 - user role: `project_pi`
 - user grant: `project(UNSW01)`
 
@@ -247,6 +277,8 @@ Current permissions are legacy and inconsistent:
 
 - coder and reviewer permissions are currently form-centric
 - Site PI behavior mixes form and site assumptions
+- data-manager behavior must be introduced as explicit scope-based access rather
+  than via coder or site-PI shortcuts
 
 Migration policy:
 

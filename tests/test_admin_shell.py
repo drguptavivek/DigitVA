@@ -89,6 +89,7 @@ class AdminPanelRoutingTests(BaseTestCase):
     PANELS = [
         "/admin/panels/access-grants",
         "/admin/panels/project-sites",
+        "/admin/panels/activity",
     ]
 
     def test_panel_redirects_unauthenticated(self):
@@ -109,7 +110,10 @@ class AdminPanelRoutingTests(BaseTestCase):
         for url in self.PANELS:
             with self.subTest(url=url):
                 response = self.client.get(url)
-                self.assertEqual(response.status_code, 200)
+                if url == "/admin/panels/activity":
+                    self.assertEqual(response.status_code, 403)
+                else:
+                    self.assertEqual(response.status_code, 200)
 
     def test_panels_accept_project_id_query_param(self):
         self._login(self.base_admin_id)

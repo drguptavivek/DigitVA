@@ -1,0 +1,184 @@
+<div id="panel-activity-log">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-clock-rotate-left me-2 text-secondary"></i>Activity Log
+    </h5>
+    <span class="badge bg-secondary">{{ activity_rows|length }} event(s)</span>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <form class="row g-2 align-items-end"
+            hx-get="/admin/panels/activity"
+            hx-target="#admin-panel"
+            hx-swap="innerHTML">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1">SID</label>
+          <input type="text" name="sid" value="{{ sid }}" class="form-control form-control-sm" placeholder="uuid:...">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">Project</label>
+          <select name="project_id" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for option in project_options %}
+              <option value="{{ option }}" {% if project_id == option %}selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">Site</label>
+          <select name="site_id" class="form-select form-select-sm">
+            <option value="">All</option>
+            {% for option in site_options %}
+              <option value="{{ option }}" {% if site_id == option %}selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1">Actor Email ID</label>
+          <input type="text" name="user_id" value="{{ user_id }}" class="form-control form-control-sm" placeholder="name@example.com">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label small fw-semibold mb-1">Limit</label>
+          <input type="number" min="1" max="300" name="limit" value="{{ limit }}" class="form-control form-control-sm">
+        </div>
+        <input type="hidden" name="page" value="1">
+        <div class="col-md-1 d-grid">
+          <button class="btn btn-sm btn-primary">
+            <i class="fa-solid fa-filter me-1"></i>Apply
+          </button>
+        </div>
+      </form>
+      <div class="small text-muted mt-2">
+        Tracks coder workflow milestones such as coding started, Social Autopsy saved, NQA saved, Step 1 COD, and Step 2 COD.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0 activity-log-table">
+        <thead class="table-light">
+          <tr>
+            <th class="activity-col-when">When</th>
+            <th class="activity-col-stage">Stage</th>
+            <th class="activity-col-action">Action</th>
+            <th class="activity-col-sid">SID</th>
+            <th class="activity-col-project">Project</th>
+            <th class="activity-col-site">Site</th>
+            <th class="activity-col-form">Form</th>
+            <th class="activity-col-vaid">VA ID</th>
+            <th class="activity-col-actor">Actor</th>
+            <th class="activity-col-role">Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if activity_rows %}
+            {% for row in activity_rows %}
+              <tr>
+                <td class="small activity-wrap-cell">
+                  <span class="activity-when"
+                        data-iso="{{ row.created_at.isoformat() }}">
+                    {{ row.created_at | user_timezone('%Y-%m-%d %H:%M') }}
+                  </span>
+                </td>
+                <td><span class="badge text-bg-{{ row.badge_class }}">{{ row.stage_label }}</span></td>
+                <td class="small activity-wrap-cell">{{ row.action }}</td>
+                <td class="small font-monospace activity-wrap-cell">{{ row.sid }}</td>
+                <td class="small text-nowrap">{{ row.project_id }}</td>
+                <td class="small text-nowrap">{{ row.site_id }}</td>
+                <td class="small font-monospace text-nowrap">{{ row.form_id }}</td>
+                <td class="small activity-wrap-cell">{{ row.unique_id }}</td>
+                <td class="small activity-wrap-cell">{{ row.actor_display }}</td>
+                <td class="small text-nowrap">{{ row.by_role }}</td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="10" class="text-center text-muted py-4">No activity found for the selected filters.</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-center mt-3">
+    <div class="small text-muted">
+      Showing page {{ page }} of {{ total_pages }} · {{ total_count }} event(s)
+    </div>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary"
+              {% if page <= 1 %}disabled{% else %}
+              hx-get="/admin/panels/activity?sid={{ sid | urlencode }}&project_id={{ project_id | urlencode }}&site_id={{ site_id | urlencode }}&user_id={{ user_id | urlencode }}&limit={{ limit }}&page={{ page - 1 }}"
+              hx-target="#admin-panel"
+              hx-swap="innerHTML"
+              {% endif %}>
+        <i class="fa-solid fa-chevron-left me-1"></i>Previous
+      </button>
+      <button class="btn btn-outline-secondary"
+              {% if page >= total_pages %}disabled{% else %}
+              hx-get="/admin/panels/activity?sid={{ sid | urlencode }}&project_id={{ project_id | urlencode }}&site_id={{ site_id | urlencode }}&user_id={{ user_id | urlencode }}&limit={{ limit }}&page={{ page + 1 }}"
+              hx-target="#admin-panel"
+              hx-swap="innerHTML"
+              {% endif %}>
+        Next<i class="fa-solid fa-chevron-right ms-1"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .activity-log-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .activity-log-table th,
+  .activity-log-table td {
+    overflow: hidden;
+    vertical-align: middle;
+  }
+  .activity-wrap-cell {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .activity-col-when { width: 10%; }
+  .activity-col-stage { width: 10%; }
+  .activity-col-action { width: 12%; }
+  .activity-col-sid { width: 17%; }
+  .activity-col-project { width: 6%; }
+  .activity-col-site { width: 5%; }
+  .activity-col-form { width: 10%; }
+  .activity-col-vaid { width: 10%; }
+  .activity-col-actor { width: 12%; }
+  .activity-col-role { width: 8%; }
+</style>
+
+<script>
+  (function () {
+    var configuredTimezone = {{ (current_user.timezone or '') | tojson }};
+    var locale = navigator.language || undefined;
+    var timezone = configuredTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    document.querySelectorAll('.activity-when').forEach(function (el) {
+      var isoValue = el.getAttribute('data-iso');
+      if (!isoValue) return;
+      var parsed = new Date(isoValue);
+      if (Number.isNaN(parsed.getTime())) return;
+      try {
+        el.textContent = new Intl.DateTimeFormat(locale, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: timezone,
+        }).format(parsed);
+      } catch (error) {
+        // Leave server-rendered fallback text in place.
+      }
+    });
+  }());
+</script>

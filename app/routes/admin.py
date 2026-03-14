@@ -3,6 +3,7 @@ import re
 import uuid
 from decimal import Decimal, InvalidOperation
 from secrets import token_hex
+from types import SimpleNamespace
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ from app.models import (
     MasOdkConnections,
     MapProjectOdk,
     MapProjectSiteOdk,
+    VaForms,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
@@ -257,6 +259,123 @@ def _serialize_site(site):
         "site_abbr": site.site_abbr,
         "status": site.site_status.value,
     }
+
+
+_AUDIT_STAGE_CONFIG = {
+    "form allocated to coder": ("Coding Started", "primary"),
+    "form allocated to admin for demo coding": ("Coding Started", "primary"),
+    "form allocated to coder for recoding": ("Coding Restarted", "warning"),
+    "va_allocation_released_by_admin_for_demo": ("Demo Allocation", "secondary"),
+    "social autopsy analysis saved": ("Social Autopsy", "info"),
+    "social autopsy analysis updated": ("Social Autopsy", "info"),
+    "narrative quality assessment saved": ("Narrative Quality", "info"),
+    "narrative quality assessment updated": ("Narrative Quality", "info"),
+    "initial cod submitted": ("Step 1 COD", "warning"),
+    "final cod submitted": ("Step 2 COD", "success"),
+    "error reported by coder": ("Not Codeable", "danger"),
+    "odk review state set to hasIssues": ("ODK Central", "info"),
+    "odk review state update failed": ("ODK Central", "warning"),
+    "allocated form released from coder": ("Allocation Released", "secondary"),
+    "va_allocation_released_due_to_timeout": ("Timeout Release", "secondary"),
+}
+
+_AUDIT_ACTION_DISPLAY = {
+    "va_allocation_released_by_admin_for_demo": "Demo allocation reset",
+    "odk review state set to hasIssues": "ODK revision flag applied",
+    "odk review state update failed": "ODK revision flag update failed",
+}
+
+
+def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=None, user_id=None):
+    """Return paginated submission audit rows with lightweight workflow context."""
+    from sqlalchemy import select as sa_select
+    from app.models import VaSubmissions, VaSubmissionsAuditlog, VaUsers
+
+    query = (
+        sa_select(
+            VaSubmissionsAuditlog.va_audit_id,
+            VaSubmissionsAuditlog.va_sid,
+            VaSubmissionsAuditlog.va_audit_createdat,
+            VaSubmissionsAuditlog.va_audit_byrole,
+            VaSubmissionsAuditlog.va_audit_by,
+            VaSubmissionsAuditlog.va_audit_operation,
+            VaSubmissionsAuditlog.va_audit_action,
+            VaSubmissionsAuditlog.va_audit_entityid,
+            VaSubmissions.va_form_id,
+            VaForms.project_id,
+            VaForms.site_id,
+            VaSubmissions.va_uniqueid_masked,
+            VaUsers.email.label("actor_email"),
+            VaUsers.name.label("actor_name"),
+        )
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionsAuditlog.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .outerjoin(VaUsers, VaUsers.user_id == VaSubmissionsAuditlog.va_audit_by)
+        .order_by(VaSubmissionsAuditlog.va_audit_createdat.desc())
+    )
+
+    if sid:
+        query = query.where(VaSubmissionsAuditlog.va_sid.ilike(f"%{sid}%"))
+    if project_id:
+        query = query.where(VaForms.project_id == project_id)
+    if site_id:
+        query = query.where(VaForms.site_id == site_id)
+    if user_id:
+        try:
+            resolved_user_id = uuid.UUID(user_id)
+            query = query.where(VaSubmissionsAuditlog.va_audit_by == resolved_user_id)
+        except ValueError:
+            query = query.where(sa.false())
+
+    count_query = (
+        sa.select(sa.func.count())
+        .select_from(VaSubmissionsAuditlog)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionsAuditlog.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+    )
+    if sid:
+        count_query = count_query.where(VaSubmissionsAuditlog.va_sid.ilike(f"%{sid}%"))
+    if project_id:
+        count_query = count_query.where(VaForms.project_id == project_id)
+    if site_id:
+        count_query = count_query.where(VaForms.site_id == site_id)
+    if user_id:
+        try:
+            resolved_user_id = uuid.UUID(user_id)
+            count_query = count_query.where(VaSubmissionsAuditlog.va_audit_by == resolved_user_id)
+        except ValueError:
+            count_query = count_query.where(sa.false())
+
+    total_count = db.session.scalar(count_query) or 0
+    rows = db.session.execute(
+        query.limit(limit).offset((page - 1) * limit)
+    ).all()
+    activity_rows = []
+    for row in rows:
+        stage_label, badge_class = _AUDIT_STAGE_CONFIG.get(
+            row.va_audit_action,
+            ("Other", "secondary"),
+        )
+        actor_display = row.actor_email or row.actor_name or "System"
+        activity_rows.append(
+            SimpleNamespace(
+                audit_id=row.va_audit_id,
+                sid=row.va_sid,
+                created_at=row.va_audit_createdat,
+                by_role=row.va_audit_byrole,
+                actor_display=actor_display,
+                action=_AUDIT_ACTION_DISPLAY.get(row.va_audit_action, row.va_audit_action),
+                operation=row.va_audit_operation,
+                entity_id=row.va_audit_entityid,
+                form_id=row.va_form_id,
+                project_id=row.project_id,
+                site_id=row.site_id,
+                unique_id=row.va_uniqueid_masked,
+                stage_label=stage_label,
+                badge_class=badge_class,
+            )
+        )
+    return activity_rows, total_count
 
 
 def _serialize_project_site(row):
@@ -3066,6 +3185,59 @@ def admin_panel_sync():
     if not user.is_admin():
         return render_template("va_errors/va_403.html"), 403
     return render_template("admin/panels/sync_dashboard.html")
+
+
+@admin.get("/panels/activity")
+def admin_panel_activity():
+    denied = _require_admin_ui_access()
+    if denied:
+        return denied
+    user = _request_user()
+    if not user.is_admin():
+        return render_template("va_errors/va_403.html"), 403
+
+    sid = (request.args.get("sid") or "").strip()
+    project_id = (request.args.get("project_id") or "").strip().upper()
+    site_id = (request.args.get("site_id") or "").strip().upper()
+    user_id = (request.args.get("user_id") or "").strip()
+    try:
+        limit = min(max(int(request.args.get("limit", 100)), 1), 300)
+    except (TypeError, ValueError):
+        limit = 100
+    try:
+        page = max(int(request.args.get("page", 1)), 1)
+    except (TypeError, ValueError):
+        page = 1
+
+    activity_rows, total_count = _build_activity_rows(
+        limit=limit,
+        page=page,
+        sid=sid or None,
+        project_id=project_id or None,
+        site_id=site_id or None,
+        user_id=user_id or None,
+    )
+    project_options = db.session.scalars(
+        sa.select(VaForms.project_id).distinct().order_by(VaForms.project_id)
+    ).all()
+    site_options = db.session.scalars(
+        sa.select(VaForms.site_id).distinct().order_by(VaForms.site_id)
+    ).all()
+
+    return render_template(
+        "admin/panels/activity_log.html",
+        activity_rows=activity_rows,
+        sid=sid,
+        project_id=project_id,
+        site_id=site_id,
+        user_id=user_id,
+        limit=limit,
+        page=page,
+        total_count=total_count,
+        total_pages=max((total_count + limit - 1) // limit, 1),
+        project_options=project_options,
+        site_options=site_options,
+    )
 
 
 @admin.get("/api/sync/status")

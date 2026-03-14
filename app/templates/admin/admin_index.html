@@ -3,104 +3,144 @@
 {% block title %}Admin Console — DigitVA{% endblock %}
 
 {% block content %}
-<div class="row g-0" id="admin-console" style="min-height: calc(100vh - 120px);">
+<div class="row g-0 flex-nowrap" id="admin-console" style="min-height: calc(100vh - 120px);">
 
   {# Left sidebar #}
-  <div class="col-auto border-end bg-light" id="admin-sidebar" style="width: 220px; min-height: 100%;">
+  <div class="col-auto border-end bg-light" id="admin-sidebar">
     <div class="p-3">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <p class="text-muted small text-uppercase fw-semibold mb-0 admin-sidebar-heading">Manage</p>
+        <button type="button"
+                id="admin-sidebar-toggle"
+                class="btn btn-sm btn-outline-secondary"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar">
+          <i class="fa-solid fa-angles-left"></i>
+        </button>
+      </div>
 
-      <p class="text-muted small text-uppercase fw-semibold mb-2">Manage</p>
       <nav class="nav flex-column gap-1">
 
         <a class="nav-link admin-nav-link rounded px-2 py-1"
            href="#"
+           title="Access Grants"
            data-panel="/admin/panels/access-grants"
            hx-get="/admin/panels/access-grants"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-key me-2"></i>Access Grants
+          <i class="fa-solid fa-key admin-nav-icon"></i>
+          <span class="admin-nav-label">Access Grants</span>
         </a>
 
         <a class="nav-link admin-nav-link rounded px-2 py-1"
            href="#"
+           title="Project Sites"
            data-panel="/admin/panels/project-sites"
            hx-get="/admin/panels/project-sites"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-diagram-project me-2"></i>Project Sites
+          <i class="fa-solid fa-diagram-project admin-nav-icon"></i>
+          <span class="admin-nav-label">Project Sites</span>
         </a>
 
         {# Admin-only items — revealed by JS after bootstrap fetch #}
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Project Forms"
            data-panel="/admin/panels/project-forms"
            hx-get="/admin/panels/project-forms"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-file-waveform me-2"></i>Project Forms
+          <i class="fa-solid fa-file-waveform admin-nav-icon"></i>
+          <span class="admin-nav-label">Project Forms</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Project PIs"
            data-panel="/admin/panels/project-pi"
            hx-get="/admin/panels/project-pi"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-user-tie me-2"></i>Project PIs
+          <i class="fa-solid fa-user-tie admin-nav-icon"></i>
+          <span class="admin-nav-label">Project PIs</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Projects"
            data-panel="/admin/panels/projects"
            hx-get="/admin/panels/projects"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-folder me-2"></i>Projects
+          <i class="fa-solid fa-folder admin-nav-icon"></i>
+          <span class="admin-nav-label">Projects</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Sites"
            data-panel="/admin/panels/sites"
            hx-get="/admin/panels/sites"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-location-dot me-2"></i>Sites
+          <i class="fa-solid fa-location-dot admin-nav-icon"></i>
+          <span class="admin-nav-label">Sites</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Users"
            data-panel="/admin/panels/users"
            hx-get="/admin/panels/users"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-users me-2"></i>Users
+          <i class="fa-solid fa-users admin-nav-icon"></i>
+          <span class="admin-nav-label">Users</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="ODK Connections"
            data-panel="/admin/panels/odk-connections"
            hx-get="/admin/panels/odk-connections"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-plug me-2"></i>ODK Connections
+          <i class="fa-solid fa-plug admin-nav-icon"></i>
+          <span class="admin-nav-label">ODK Connections</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Field Mapping"
            data-panel="/admin/panels/field-mapping"
            hx-get="/admin/panels/field-mapping"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-table-list me-2"></i>Field Mapping
+          <i class="fa-solid fa-table-list admin-nav-icon"></i>
+          <span class="admin-nav-label">Field Mapping</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Data Sync"
            data-panel="/admin/panels/sync"
            hx-get="/admin/panels/sync"
            hx-target="#admin-panel"
            hx-swap="innerHTML">
-          <i class="fa-solid fa-rotate me-2"></i>Data Sync
+          <i class="fa-solid fa-rotate admin-nav-icon"></i>
+          <span class="admin-nav-label">Data Sync</span>
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
+           title="Activity"
+           data-panel="/admin/panels/activity"
+           hx-get="/admin/panels/activity"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-clock-rotate-left admin-nav-icon"></i>
+          <span class="admin-nav-label">Activity</span>
         </a>
 
       </nav>
@@ -108,7 +148,7 @@
   </div>
 
   {# Panel content area #}
-  <div class="col">
+  <div class="col" id="admin-main-column">
     <div id="admin-panel" class="p-4">
       <div class="text-center text-muted py-5">
         <i class="fa-solid fa-arrow-left fa-2x mb-3 d-block"></i>
@@ -124,10 +164,50 @@
 
 <style>
   #admin-console { margin-top: -1rem; }
+  #admin-sidebar {
+    width: 220px;
+    min-height: 100%;
+    transition: width 0.2s ease;
+    flex: 0 0 auto;
+  }
+  #admin-main-column {
+    min-width: 0;
+    overflow-x: auto;
+  }
   #main-content { padding-top: 0 !important; }
-  .admin-nav-link { color: #555 !important; font-size: 0.9rem; text-decoration: none; opacity: 1; }
+  .admin-nav-link {
+    color: #555 !important;
+    font-size: 0.9rem;
+    text-decoration: none;
+    opacity: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    white-space: nowrap;
+  }
   .admin-nav-link:hover { background-color: #e9ecef; color: #333 !important; }
   .admin-nav-link.active { background-color: #0d6efd1a; color: #0d6efd !important; font-weight: 500; }
+  .admin-nav-icon {
+    width: 1.25rem;
+    text-align: center;
+    flex: 0 0 1.25rem;
+  }
+  body.admin-sidebar-collapsed #admin-sidebar {
+    width: 74px;
+  }
+  body.admin-sidebar-collapsed .admin-sidebar-heading,
+  body.admin-sidebar-collapsed .admin-nav-label {
+    display: none;
+  }
+  body.admin-sidebar-collapsed .admin-nav-link {
+    justify-content: center;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    gap: 0;
+  }
+  body.admin-sidebar-collapsed .admin-nav-icon {
+    margin-right: 0 !important;
+  }
 </style>
 
 <script>
@@ -135,6 +215,40 @@
   'use strict';
 
   var adminState = null;
+  var SIDEBAR_STORAGE_KEY = 'digitva_admin_sidebar_collapsed';
+
+  function setSidebarCollapsed(collapsed) {
+    document.body.classList.toggle('admin-sidebar-collapsed', collapsed);
+    var toggle = document.getElementById('admin-sidebar-toggle');
+    if (toggle) {
+      toggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+      toggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      toggle.innerHTML = collapsed
+        ? '<i class="fa-solid fa-angles-right"></i>'
+        : '<i class="fa-solid fa-angles-left"></i>';
+    }
+    try {
+      localStorage.setItem(SIDEBAR_STORAGE_KEY, collapsed ? '1' : '0');
+    } catch (e) {
+      // ignore storage failures
+    }
+  }
+
+  function initSidebarState() {
+    var collapsed = false;
+    try {
+      collapsed = localStorage.getItem(SIDEBAR_STORAGE_KEY) === '1';
+    } catch (e) {
+      collapsed = false;
+    }
+    setSidebarCollapsed(collapsed);
+    var toggle = document.getElementById('admin-sidebar-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', function () {
+        setSidebarCollapsed(!document.body.classList.contains('admin-sidebar-collapsed'));
+      });
+    }
+  }
 
   async function initAdmin() {
     try {
@@ -202,7 +316,10 @@
     banner.classList.remove('d-none');
   }
 
-  document.addEventListener('DOMContentLoaded', initAdmin);
+  document.addEventListener('DOMContentLoaded', function () {
+    initSidebarState();
+    initAdmin();
+  });
 }());
 </script>
 {% endblock %}

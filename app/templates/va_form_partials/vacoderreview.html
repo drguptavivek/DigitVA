@@ -16,6 +16,7 @@
             <strong class="d-block mb-2">Please note:</strong>
             <ul class="mb-0 ps-3">
               <li class="mb-1">Once reported an error, this VA form will be flagged for review by the Site PI.</li>
+              <li class="mb-1">DigitVA saves the Not Codeable outcome locally first. ODK Central revision status is updated separately and any failure is logged for follow-up.</li>
             </ul>
           </div>
         </div>
@@ -100,3 +101,15 @@
     }
   });
 </script>
+
+{% if form_error_messages %}
+<script>
+  if (window.showAppToast) {
+    window.showAppToast(
+      '<div class="fw-semibold mb-1">Not Codeable could not be completed:</div><ul class="mb-0 ps-3">{% for message in form_error_messages %}<li>{{ message|escape }}</li>{% endfor %}</ul>',
+      'danger',
+      { timeoutMs: 6500 }
+    );
+  }
+</script>
+{% endif %}

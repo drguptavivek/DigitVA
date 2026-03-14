@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-03-14
 ---
 
 # Policy Docs
@@ -13,9 +13,13 @@ This folder contains policy baselines for application behavior.
 Current policy docs:
 
 - [Access Control Model](access-control-model.md)
+- [Admin Activity Log Policy](admin-activity-log.md)
 - [Admin API Access Policy](admin-api-access.md)
 - [Category Navigation Visibility Policy](category-navigation-visibility.md)
+- [Coding Workflow State Machine Policy](coding-workflow-state-machine.md)
 - [Coding Allocation Timeout Policy](coding-allocation-timeouts.md)
+- [Data Manager Workflow Policy](data-manager-workflow.md)
+- [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [UI Notification Policy](ui-notifications.md)
 

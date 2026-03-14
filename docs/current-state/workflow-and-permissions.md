@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-03-14
 ---
 
 # Workflow And Permissions
@@ -50,6 +50,8 @@ Coding steps:
 - initial assessment creates a `va_initial_assessments` row
 - final coding creates a `va_final_assessments` row
 - not-codeable path creates a `va_coder_review` row
+- when a coder marks a case Not Codeable, DigitVA saves the local outcome first
+  and then separately attempts to push `hasIssues` review state to ODK Central
 
 Completion behavior:
 
@@ -63,6 +65,19 @@ Timeout cleanup:
 - timeout release writes a `va_submissions_auditlog` row with
   `va_allocation_released_due_to_timeout`
 - timeout release does not discard saved initial COD work
+
+Audit trail:
+
+- coder workflow milestones are recorded in `va_submissions_auditlog`
+- current milestone examples include:
+  - `form allocated to coder`
+  - `social autopsy analysis saved` / `updated`
+  - `narrative quality assessment saved` / `updated`
+  - `initial cod submitted`
+  - `final cod submitted`
+- `error reported by coder`
+- `odk review state set to hasIssues`
+- `odk review state update failed`
 
 Recode:
 

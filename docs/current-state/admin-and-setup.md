@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-11
+last_updated: 2026-03-14
 ---
 
 # Admin And Setup Model
@@ -48,6 +48,34 @@ Project PIs can access the following panels, scoped to their own project:
 - Project Sites
 - Project Forms
 - Project PIs
+
+Current grant roles include:
+
+- `admin`
+- `project_pi`
+- `site_pi`
+- `coder`
+- `reviewer`
+- `data_manager`
+- `collaborator`
+
+Current scope rules include:
+
+- `data_manager` may be granted at `project` or `project_site`
+
+## Project Master
+
+Current project master data now includes:
+
+- project identity fields
+- active/inactive status
+- Narrative Quality Assessment enablement
+- coding intake mode (`random_form_allocation` or `pick_and_choose`)
+
+Current admin behavior:
+
+- the Projects panel can edit `coding_intake_mode`
+- new projects default to `random_form_allocation`
 
 ## Project Forms Panel
 

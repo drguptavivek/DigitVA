@@ -188,6 +188,16 @@ After upsert, the app computes and stores:
 - `va_catcount`
 - `va_category_list`
 
+The sync path also maintains:
+
+- `va_submission_workflow`
+
+Current behavior:
+
+- newly inserted consented submissions are initialized as `ready_for_coding`
+- updated submissions refresh their canonical workflow row after local
+  workflow artifacts are deactivated
+
 These are derived from mapping-driven preprocessing and drive UI rendering and workflow logic.
 
 ## Per-Form Isolation

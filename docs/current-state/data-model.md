@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-03-14
 ---
 
 # Current Data Model
@@ -36,10 +36,14 @@ Key fields:
 - `project_name`
 - `project_nickname`
 - `project_status`
+- `narrative_qa_enabled`
+- `coding_intake_mode`
 
 Current role:
 
 - top-level project master, but effectively used in a one-project deployment model
+- also stores project-level workflow toggles such as Narrative QA enablement
+  and coder intake mode
 
 ### `va_sites`
 
@@ -150,6 +154,40 @@ Key fields:
 - `va_allocation_status`
 - timestamps
 
+### `va_submission_workflow`
+
+Purpose:
+
+- stores one canonical local workflow-state row per submission
+
+Key fields:
+
+- `va_sid`
+- `workflow_state`
+- `workflow_reason`
+- `workflow_updated_by_role`
+- `workflow_updated_by`
+- `workflow_created_at`
+- `workflow_updated_at`
+
+Current behavior:
+
+- this table is additive and coexists with legacy workflow tables
+- current rows are backfilled from active legacy records
+- current route integration updates the row on:
+  - coder allocation start
+  - initial COD submit
+  - final COD submit
+  - coder Not Codeable submit
+  - data-manager Not Codeable submit
+  - sync-created submissions
+  - stale coding allocation release
+- coder dashboard availability and coder intake selection now read this table
+- data-manager triage also writes directly to this table
+- completion history and recode behavior still rely on legacy workflow tables
+  in parallel, so this table is the canonical state store under migration, not
+  yet the sole source of truth
+
 ### `va_initial_assessments`
 
 Purpose:
@@ -192,6 +230,28 @@ Key fields:
 - `va_creview_reason`
 - `va_creview_other`
 - `va_creview_status`
+
+### `va_data_manager_review`
+
+Purpose:
+
+- records data-manager decision that a submission should be kept out of coder
+  allocation
+
+Key fields:
+
+- `va_sid`
+- `va_dmreview_by`
+- `va_dmreview_reason`
+- `va_dmreview_other`
+- `va_dmreview_status`
+
+Current behavior:
+
+- one active row is allowed per submission
+- this table is distinct from coder-owned Not Codeable records
+- an active row drives canonical workflow state
+  `not_codeable_by_data_manager`
 
 ### `va_reviewer_review`
 

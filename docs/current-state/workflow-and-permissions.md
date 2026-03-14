@@ -15,10 +15,34 @@ After sync, the application runs a role-based workflow over `va_submissions`.
 Primary roles:
 
 - coder
+- data manager
 - reviewer
 - site PI
+- admin
 
 The current workflow is built around form-based permissions and per-submission allocation.
+
+An additive canonical workflow-state table now exists:
+
+- `va_submission_workflow`
+
+This table stores one local business-state row per submission, but the
+application is still in migration. Legacy workflow tables still drive
+completion history, recode behavior, and some reporting paths.
+
+Current cutover status:
+
+- coder random allocation reads `va_submission_workflow`
+- admin demo allocation reads `va_submission_workflow`
+- coder dashboard available-form count reads `va_submission_workflow`
+- project-level `coding_intake_mode` is now stored on `va_project_master`
+  with `random_form_allocation` as the default
+- coder dashboard now splits eligible coding intake by project mode:
+  - `random_form_allocation` projects use the existing start button
+  - `pick_and_choose` projects expose a browse-and-start list
+- data-manager dashboard now exists as a scope-based browse/view workflow
+- data-manager Not Codeable writes canonical workflow state
+  `not_codeable_by_data_manager`
 
 ## Main Workflow Sequence
 
@@ -30,26 +54,54 @@ The current workflow is built around form-based permissions and per-submission a
 
 ## Coder Workflow
 
+Project-level intake setting:
+
+- `va_project_master.coding_intake_mode`
+- supported values:
+  - `random_form_allocation`
+  - `pick_and_choose`
+
+Current implementation status:
+
+- the setting is now editable in the admin Projects panel
+- `random_form_allocation` projects still use the existing start-coding flow
+- `pick_and_choose` projects now render an eligible-submission browse table on
+  the coder dashboard
+- pick-and-choose start uses the dedicated `vapickcoding` action and still
+  creates a normal coding allocation plus `coding_in_progress` workflow state
+
 Coder dashboard behavior:
 
 - the coder sees submissions only if:
   - the submission's `va_form_id` is in the coder's permitted forms
   - the submission language is in the coder's allowed languages
-  - the submission is not already in an excluded terminal or allocated state
+  - the submission's canonical workflow state is eligible for coding
 
 Starting coding:
 
 - the app creates a `va_allocations` row for the chosen submission
+- the app also records `coding_in_progress` in `va_submission_workflow`
 - stale coding allocations older than one hour are released automatically
 - the release path deactivates only the stale coding allocation
 - any saved `va_initial_assessments` row is preserved so the coder can resume
   final COD later
 
+Entry variants:
+
+- `vastartcoding` picks from only the coder-accessible projects configured for
+  `random_form_allocation`
+- `vapickcoding` is available only for ready submissions in coder-accessible
+  projects configured for `pick_and_choose`
+
 Coding steps:
 
 - initial assessment creates a `va_initial_assessments` row
+- initial assessment also records `coder_step1_saved` in `va_submission_workflow`
 - final coding creates a `va_final_assessments` row
+- final coding also records `coder_finalized` in `va_submission_workflow`
 - not-codeable path creates a `va_coder_review` row
+- coder Not Codeable also records `not_codeable_by_coder` in
+  `va_submission_workflow`
 - when a coder marks a case Not Codeable, DigitVA saves the local outcome first
   and then separately attempts to push `hasIssues` review state to ODK Central
 
@@ -65,6 +117,45 @@ Timeout cleanup:
 - timeout release writes a `va_submissions_auditlog` row with
   `va_allocation_released_due_to_timeout`
 - timeout release does not discard saved initial COD work
+- timeout release now refreshes `va_submission_workflow` from the remaining
+  active legacy records for that submission
+
+Canonical state values currently written in the runtime path include:
+
+- `ready_for_coding`
+- `coding_in_progress`
+- `coder_step1_saved`
+- `coder_finalized`
+- `not_codeable_by_coder`
+
+## Data Manager Workflow
+
+Scope model:
+
+- data-manager access is granted at:
+  - `project`
+  - `project_site`
+
+Current runtime behavior:
+
+- a data manager sees all submissions in granted scope, regardless of coder
+  allocation
+- data-manager view uses the same category rendering shell in read-only mode
+- category visibility currently follows the site-PI visibility configuration
+- the left navigation adds a synthetic final panel:
+  - `vadmtriage`
+
+Data-manager triage:
+
+- the `Data Triage` panel can mark a submission Not Codeable only while the
+  canonical workflow state is:
+  - `screening_pending`
+  - `ready_for_coding`
+  - `not_codeable_by_data_manager`
+- a successful triage write creates or updates `va_data_manager_review`
+- the canonical workflow state is updated to `not_codeable_by_data_manager`
+- coder availability excludes those submissions automatically because coder pool
+  selection now requires `ready_for_coding`
 
 Audit trail:
 
@@ -85,29 +176,14 @@ Recode:
 
 ### Coding Screen Left Navigation
 
-The coder/reviewer left navigation in `va_coding.html` is currently driven by the
-stored `va_submissions.va_category_list` value, not by dynamic template inspection of
-raw submission data.
+The coder/reviewer left navigation is now built dynamically from:
 
-Current flow:
+- form-type category config
+- live submission data visibility
+- role-aware category rendering rules
 
-1. sync/preprocessing computes `va_category_list`
-2. `va_cta` passes that list to the coding page as `catlist`
-3. most category buttons render only if their hardcoded category code is present in `catlist`
-4. previous/next category navigation also uses the same stored list
-
-Current visibility patterns:
-
-- most categories are guarded by `"<category_code>" in catlist`
-- `vainterviewdetails` adds a second gate and only shows for `va_action == "vasitepi"`
-- `vanarrationanddocuments` is always shown in the left nav and is not guarded by `catlist`
-- `catcount` drives badge counts only; it does not control visibility
-
-Important limitation:
-
-- category visibility is determined at preprocess time and stored
-- category content is recalculated again at render time
-- this means nav visibility and actual rendered content can drift if mappings or filters change after sync
+The stored `va_submissions.va_category_list` remains a legacy derived field, but
+it no longer controls the visible category flow in coding.
 
 ## Reviewer Workflow
 

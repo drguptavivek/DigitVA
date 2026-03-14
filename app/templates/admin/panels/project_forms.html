@@ -206,15 +206,34 @@
       bar.classList.add('d-none');
       return;
     }
+    var guard = _connection.guard || {};
     var statusBadge = _connection.status === 'active'
       ? '<span class="badge text-bg-success ms-2">Active</span>'
       : '<span class="badge text-bg-secondary ms-2">Inactive</span>';
+    var guardHtml = '';
+    if (guard.cooldown_active) {
+      guardHtml = '<div class="small text-danger mt-2">'
+        + '<i class="fa-solid fa-triangle-exclamation me-1"></i>'
+        + 'Live ODK actions are in cooldown until ' + esc(guard.cooldown_until || '') + '.'
+        + (guard.last_failure_message
+            ? '<div class="text-wrap mt-1">' + esc(guard.last_failure_message) + '</div>'
+            : '')
+        + '</div>';
+    } else if (guard.consecutive_failure_count > 0 && guard.last_failure_message) {
+      guardHtml = '<div class="small text-warning mt-2">'
+        + '<i class="fa-solid fa-circle-info me-1"></i>'
+        + 'Recent ODK failures: ' + esc(guard.consecutive_failure_count)
+        + '<div class="text-wrap mt-1">' + esc(guard.last_failure_message) + '</div>'
+        + '</div>';
+    }
     bar.innerHTML = '<div class="d-flex align-items-center gap-2 p-2 bg-light border rounded small">'
       + '<i class="fa-solid fa-plug text-secondary"></i>'
       + '<span class="text-muted">ODK Connection:</span>'
       + '<strong>' + esc(_connection.connection_name) + '</strong>'
       + statusBadge
-      + '</div>';
+      + (_connection.base_url ? '<span class="text-muted ms-2">' + esc(_connection.base_url) + '</span>' : '')
+      + '</div>'
+      + guardHtml;
     bar.classList.remove('d-none');
   }
 

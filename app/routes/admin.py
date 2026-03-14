@@ -1,6 +1,7 @@
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from secrets import token_hex
 from types import SimpleNamespace
@@ -2888,6 +2889,36 @@ def _get_connection_project_ids(connection_id: uuid.UUID) -> list[str]:
     return sorted(rows)
 
 
+def _odk_connection_alerts() -> list[dict]:
+    """Return active ODK connection alerts for operator-facing admin panels."""
+    now = datetime.now(timezone.utc)
+    conns = db.session.scalars(
+        sa.select(MasOdkConnections)
+        .where(MasOdkConnections.status == VaStatuses.active)
+        .order_by(MasOdkConnections.connection_name)
+    ).all()
+
+    alerts = []
+    for conn in conns:
+        guard = serialize_connection_guard_state(conn)
+        if not (guard["cooldown_active"] or guard["consecutive_failure_count"] > 0):
+            continue
+        alerts.append(
+            {
+                "connection_id": str(conn.connection_id),
+                "connection_name": conn.connection_name,
+                "base_url": conn.base_url,
+                "guard": guard,
+                "cooldown_remaining_seconds": (
+                    max(0, int((conn.cooldown_until - now).total_seconds()))
+                    if conn.cooldown_until and conn.cooldown_until > now
+                    else 0
+                ),
+            }
+        )
+    return alerts
+
+
 @admin.get("/api/odk-connections")
 @require_api_role("admin")
 def admin_odk_connections_list():
@@ -3260,7 +3291,9 @@ def admin_project_odk_connection(project_id):
         "connection": {
             "connection_id": str(conn.connection_id),
             "connection_name": conn.connection_name,
+            "base_url": conn.base_url,
             "status": conn.status.value,
+            "guard": serialize_connection_guard_state(conn),
         }
     })
 
@@ -3517,6 +3550,7 @@ def admin_sync_status():
             "current_run": _sync_run_dict(running) if running else None,
             "last_completed": _sync_run_dict(last_completed) if last_completed else None,
             "schedule_hours": schedule_hours,
+            "odk_connection_alerts": _odk_connection_alerts(),
         })
     except Exception as e:
         log.error("admin_sync_status failed", exc_info=True)

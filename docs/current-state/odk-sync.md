@@ -251,6 +251,13 @@ This guard is used by:
 - admin connection tests
 - ODK review-state write-back
 
+Operator-facing visibility now exists in:
+
+- the ODK Connections admin panel
+- the Project Forms connection bar for the selected project
+- the Sync Dashboard status card when any active ODK connection is degraded or
+  in cooldown
+
 Related policy:
 
 - [ODK Connection Guard Policy](../policy/odk-connection-guard.md)

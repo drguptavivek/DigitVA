@@ -166,6 +166,37 @@
     return map[status] || '<span class="badge text-bg-secondary">' + esc(status) + '</span>';
   }
 
+  function fmtClock(seconds) {
+    if (!seconds || seconds <= 0) return '0s';
+    if (seconds < 60) return seconds + 's';
+    var m = Math.floor(seconds / 60);
+    var s = seconds % 60;
+    return m + 'm ' + s + 's';
+  }
+
+  function renderConnectionAlerts(alerts) {
+    if (!alerts || !alerts.length) return '';
+    var items = alerts.map(function (a) {
+      var guard = a.guard || {};
+      if (guard.cooldown_active) {
+        return '<div class="small text-danger">'
+          + '<i class="fa-solid fa-triangle-exclamation me-1"></i>'
+          + '<strong>' + esc(a.connection_name) + '</strong>'
+          + ' in cooldown for ' + esc(fmtClock(a.cooldown_remaining_seconds || 0))
+          + (guard.last_failure_message ? ': ' + esc(guard.last_failure_message) : '')
+          + '</div>';
+      }
+      return '<div class="small text-warning">'
+        + '<i class="fa-solid fa-circle-info me-1"></i>'
+        + '<strong>' + esc(a.connection_name) + '</strong>'
+        + ' has ' + esc(guard.consecutive_failure_count) + ' recent retryable failure(s)'
+        + (guard.last_failure_message ? ': ' + esc(guard.last_failure_message) : '')
+        + '</div>';
+    }).join('');
+
+    return '<div class="w-100 border-top pt-2 mt-2">' + items + '</div>';
+  }
+
   // ── Status ─────────────────────────────────────────────────────────────────
 
   var _statusInterval = null;
@@ -209,7 +240,8 @@
         if (sel) sel.value = String(d.schedule_hours);
       }
 
-      wrap.innerHTML = '<div class="d-flex align-items-center gap-2 flex-wrap">' + parts.join('') + '</div>';
+      wrap.innerHTML = '<div class="d-flex align-items-center gap-2 flex-wrap">' + parts.join('') + '</div>'
+        + renderConnectionAlerts(d.odk_connection_alerts || []);
 
       // Poll while running; otherwise check every 30s
       clearInterval(_statusInterval);

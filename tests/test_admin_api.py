@@ -1,12 +1,13 @@
 import uuid
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasOdkConnections,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaProjectMaster,
@@ -716,3 +717,29 @@ class AdminApiTests(BaseTestCase):
             terminate=True,
             signal="SIGTERM",
         )
+
+    def test_sync_status_includes_odk_connection_alerts(self):
+        self._login(self.admin_user_id)
+
+        create_resp = self.client.post("/admin/api/odk-connections", json={
+            "connection_name": "Alert ODK",
+            "base_url": "https://odk.example.com",
+            "username": "admin@example.com",
+            "password": "password123"
+        }, headers=self._csrf_headers())
+        self.assertEqual(create_resp.status_code, 201)
+        conn_id = create_resp.get_json()["connection"]["connection_id"]
+
+        conn = db.session.get(MasOdkConnections, uuid.UUID(conn_id))
+        conn.consecutive_failure_count = 2
+        conn.last_failure_message = "connect timeout"
+        conn.cooldown_until = datetime.now(timezone.utc) + timedelta(minutes=3)
+        db.session.commit()
+
+        response = self.client.get("/admin/api/sync/status")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        alerts = payload["odk_connection_alerts"]
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["connection_name"], "Alert ODK")
+        self.assertTrue(alerts[0]["guard"]["cooldown_active"])

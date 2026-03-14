@@ -396,6 +396,28 @@ class OdkConnectionsApiTests(BaseTestCase):
         )
         self.assertIn(self.BASE_PROJECT_ID, target["project_ids"])
 
+    def test_project_connection_includes_guard_state(self):
+        conn = self._create_connection("Project Guard Server")
+        conn.consecutive_failure_count = 1
+        conn.last_failure_message = "recent timeout"
+        db.session.add(
+            MapProjectOdk(
+                project_id=self.BASE_PROJECT_ID,
+                connection_id=conn.connection_id,
+            )
+        )
+        db.session.flush()
+
+        self._login(self.base_admin_id)
+        resp = self.client.get(
+            f"/admin/api/projects/{self.BASE_PROJECT_ID}/odk-connection"
+        )
+        self.assertEqual(resp.status_code, 200)
+        payload = resp.get_json()["connection"]
+        self.assertEqual(payload["connection_name"], "Project Guard Server")
+        self.assertEqual(payload["guard"]["consecutive_failure_count"], 1)
+        self.assertEqual(payload["guard"]["last_failure_message"], "recent timeout")
+
     # ── panel route ──────────────────────────────────────────────────────────
 
     def test_odk_connections_panel_renders_for_admin(self):

@@ -26,6 +26,19 @@ Policy:
 - SmartVA coverage and local sync status may still load automatically because
   they do not require the same live ODK count fan-out
 
+## Connection Health Visibility
+
+Operators need to see when live ODK actions are likely to fail before they
+start expensive or repeated requests.
+
+Policy:
+
+- the sync dashboard status area must surface active ODK connection cooldowns
+  and recent retryable connection failures
+- these alerts are informational and must not trigger additional live ODK calls
+- the alerts should help explain why coverage loads, per-form syncs, or other
+  live ODK actions may currently fail fast
+
 ## Stop Control
 
 The dashboard must provide an operator stop control while a sync task is
@@ -49,4 +62,3 @@ Policy:
 - `Sync Now` remains disabled while a run is active
 - `Gen SmartVA` remains disabled while a run is active
 - the stop control is the only operator action exposed for an active run
-

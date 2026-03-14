@@ -97,11 +97,11 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             if va_submission.get("narr_language")
             else va_submission.get("language")
         )
-        va_submission_age = (
-            int(va_submission.get("finalAgeInYears"))
-            if va_submission.get("finalAgeInYears")
-            else 0
-        )
+        _raw_age = va_submission.get("finalAgeInYears")
+        try:
+            va_submission_age = int(_raw_age) if _raw_age else 0
+        except (ValueError, TypeError):
+            va_submission_age = 0
         va_submission_gender = va_submission.get("Id10019")
 
         existing = db.session.scalar(

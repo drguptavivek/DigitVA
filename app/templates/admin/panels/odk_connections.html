@@ -130,6 +130,25 @@
       : '<span class="badge text-bg-secondary">Inactive</span>';
   }
 
+  function guardSummary(c) {
+    var guard = c.guard || {};
+    if (guard.cooldown_active) {
+      return '<div class="small text-danger mt-1">'
+        + '<i class="fa-solid fa-triangle-exclamation me-1"></i>'
+        + 'Cooldown until ' + esc(guard.cooldown_until || '')
+        + (guard.last_failure_message ? '<div class="text-wrap mt-1">' + esc(guard.last_failure_message) + '</div>' : '')
+        + '</div>';
+    }
+    if (guard.consecutive_failure_count > 0 && guard.last_failure_message) {
+      return '<div class="small text-warning mt-1">'
+        + '<i class="fa-solid fa-circle-info me-1"></i>'
+        + 'Recent failure count: ' + esc(guard.consecutive_failure_count)
+        + '<div class="text-wrap mt-1">' + esc(guard.last_failure_message) + '</div>'
+        + '</div>';
+    }
+    return '';
+  }
+
   function renderConnections() {
     var wrap = document.getElementById('odc-list-wrap');
     if (!_connections.length) {
@@ -158,6 +177,7 @@
         +     '<div class="fw-semibold">' + esc(c.connection_name) + ' ' + statusBadge(c.status) + '</div>'
         +     '<div class="small text-muted mt-1"><i class="fa-solid fa-link me-1"></i>' + esc(c.base_url) + '</div>'
         +     (c.notes ? '<div class="small text-muted mt-1">' + esc(c.notes) + '</div>' : '')
+        +     guardSummary(c)
         +   '</div>'
         +   '<div class="d-flex gap-1 flex-wrap justify-content-end">'
         +     '<button class="btn btn-sm btn-outline-secondary odc-test-btn" data-cid="' + esc(cid) + '" title="Test connection">'

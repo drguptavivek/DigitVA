@@ -8,10 +8,15 @@ from types import SimpleNamespace
 log = logging.getLogger(__name__)
 
 import sqlalchemy as sa
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import generate_csrf
 
 from app import db
+from app.services.odk_connection_guard_service import (
+    OdkConnectionCooldownError,
+    guarded_odk_call,
+    serialize_connection_guard_state,
+)
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -2870,6 +2875,7 @@ def _serialize_odk_connection(conn, project_ids: list[str]) -> dict:
         "project_ids": project_ids,
         "created_at": conn.created_at.isoformat(),
         "updated_at": conn.updated_at.isoformat(),
+        "guard": serialize_connection_guard_state(conn),
     }
 
 
@@ -3063,16 +3069,23 @@ def admin_odk_connections_test(connection_id):
 
     try:
         import requests as http
-        resp = http.post(
-            f"{conn.base_url}/v1/sessions",
-            json={"email": username, "password": password},
-            timeout=10,
+        resp = guarded_odk_call(
+            lambda: http.post(
+                f"{conn.base_url}/v1/sessions",
+                json={"email": username, "password": password},
+                timeout=current_app.config.get(
+                    "ODK_CONNECTION_TEST_TIMEOUT_SECONDS", 10
+                ),
+            ),
+            connection_id=conn.connection_id,
         )
         if resp.status_code == 200:
             return jsonify({"ok": True, "message": "Authentication successful."})
         return jsonify(
             {"ok": False, "message": f"ODK returned HTTP {resp.status_code}."}
         ), 200
+    except OdkConnectionCooldownError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 200
     except Exception as exc:
         return jsonify({"ok": False, "message": f"Connection error: {exc}"}), 200
 
@@ -3178,7 +3191,10 @@ def admin_odk_list_odk_projects(connection_id):
 
     try:
         client = _get_odk_client_for_connection(conn)
-        projects = client.projects.list()
+        projects = guarded_odk_call(
+            lambda: client.projects.list(),
+            client=client,
+        )
         return jsonify({
             "odk_projects": [
                 {"id": p.id, "name": p.name} for p in projects
@@ -3202,7 +3218,10 @@ def admin_odk_list_forms(connection_id, odk_project_id):
 
     try:
         client = _get_odk_client_for_connection(conn)
-        forms = client.forms.list(project_id=odk_project_id)
+        forms = guarded_odk_call(
+            lambda: client.forms.list(project_id=odk_project_id),
+            client=client,
+        )
         return jsonify({
             "forms": [
                 {"xmlFormId": f.xmlFormId, "name": f.name, "version": f.version}

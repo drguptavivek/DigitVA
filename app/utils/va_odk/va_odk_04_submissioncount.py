@@ -1,6 +1,9 @@
 import logging
 import threading
 
+from flask import has_app_context
+
+from app.services.odk_connection_guard_service import guarded_odk_call
 from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
 log = logging.getLogger(__name__)
@@ -29,24 +32,41 @@ def va_odk_submissioncount(
 
     result: list = [None]
     error: list = [None]
-
     def _fetch():
-        try:
-            url = f"projects/{odk_project_id}/forms/{odk_form_id}.svc/Submissions"
-            response = client.session.get(url, params={"$top": 0, "$count": "true"})
-            if response.status_code != 200:
-                raise Exception(
-                    f"ODK API returned HTTP {response.status_code}: {response.text[:200]}"
+        if has_app_context():
+            try:
+                url = f"projects/{odk_project_id}/forms/{odk_form_id}.svc/Submissions"
+                response = guarded_odk_call(
+                    lambda: client.session.get(
+                        url, params={"$top": 0, "$count": "true"}
+                    ),
+                    client=client,
                 )
-            data = response.json()
-            count = int(data.get("@odata.count") or 0)
-            log.info(
-                "ODK submissionCount project=%s form=%s: %d",
-                odk_project_id, odk_form_id, count,
-            )
-            result[0] = count
-        except Exception as e:
-            error[0] = e
+                if response.status_code != 200:
+                    raise Exception(
+                        f"ODK API returned HTTP {response.status_code}: {response.text[:200]}"
+                    )
+                data = response.json()
+                count = int(data.get("@odata.count") or 0)
+                log.info(
+                    "ODK submissionCount project=%s form=%s: %d",
+                    odk_project_id, odk_form_id, count,
+                )
+                result[0] = count
+            except Exception as e:
+                error[0] = e
+        else:
+            try:
+                url = f"projects/{odk_project_id}/forms/{odk_form_id}.svc/Submissions"
+                response = client.session.get(url, params={"$top": 0, "$count": "true"})
+                if response.status_code != 200:
+                    raise Exception(
+                        f"ODK API returned HTTP {response.status_code}: {response.text[:200]}"
+                    )
+                data = response.json()
+                result[0] = int(data.get("@odata.count") or 0)
+            except Exception as e:
+                error[0] = e
 
     t = threading.Thread(target=_fetch, daemon=True)
     t.start()

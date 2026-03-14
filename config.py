@@ -42,6 +42,18 @@ class Config:
 
     # Validated at runtime when first used — see app/utils/credential_crypto.py
     ODK_CREDENTIAL_PEPPER: str = os.environ.get("ODK_CREDENTIAL_PEPPER", "")
+    ODK_CONNECTION_FAILURE_THRESHOLD = int(
+        os.environ.get("ODK_CONNECTION_FAILURE_THRESHOLD", "3")
+    )
+    ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS = int(
+        os.environ.get("ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS", "300")
+    )
+    ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS = float(
+        os.environ.get("ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS", "0.5")
+    )
+    ODK_CONNECTION_TEST_TIMEOUT_SECONDS = int(
+        os.environ.get("ODK_CONNECTION_TEST_TIMEOUT_SECONDS", "10")
+    )
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     
@@ -79,6 +91,8 @@ class TestConfig(Config):
     # Use a fixed secret key so CSRF tokens are reproducible within a test session
     SECRET_KEY = "test-secret-key-not-for-production"
     WTF_CSRF_SECRET_KEY = "test-csrf-secret-key-not-for-production"
-    
+    ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS = 0.0
+    ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS = 60
+
     CELERY = Config.CELERY.copy()
     CELERY["beat_dburi"] = SQLALCHEMY_DATABASE_URI

@@ -37,6 +37,22 @@ class MasOdkConnections(db.Model):
         index=True,
     )
     notes: so.Mapped[str | None] = so.mapped_column(sa.Text)
+    cooldown_until: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    consecutive_failure_count: so.Mapped[int] = so.mapped_column(
+        sa.Integer, nullable=False, default=0
+    )
+    last_failure_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    last_failure_message: so.Mapped[str | None] = so.mapped_column(sa.Text)
+    last_success_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+    last_request_started_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
 
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False

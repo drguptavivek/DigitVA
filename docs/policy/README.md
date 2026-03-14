@@ -21,6 +21,7 @@ Current policy docs:
 - [Data Manager Workflow Policy](data-manager-workflow.md)
 - [Final COD Authority Policy](final-cod-authority.md)
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
+- [ODK Connection Guard Policy](odk-connection-guard.md)
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [UI Notification Policy](ui-notifications.md)

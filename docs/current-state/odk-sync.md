@@ -31,6 +31,13 @@ ODK sync is an incremental batch process that:
 - `va_odk_clientsetup(project_id)` resolves the connection from DB first, falls back to legacy `odk_config.toml` if no DB mapping exists
 - pyODK `Client` is built using an explicit `Session` (base_url, username, password); a shared stub config file (`odk_stub_config.toml`) satisfies the file-read requirement without storing credentials
 - Each connection uses its own cache file (`odk_cache_<connection_id>.toml`) so concurrent calls to different ODK servers do not share auth tokens
+- Each DB-managed connection also stores shared guard state:
+  - `cooldown_until`
+  - `consecutive_failure_count`
+  - `last_failure_at`
+  - `last_failure_message`
+  - `last_success_at`
+  - `last_request_started_at`
 - The legacy `odk_config.toml` fallback remains for projects not yet migrated to DB-managed connections
 
 ## Sync Entry Point
@@ -215,6 +222,38 @@ Rules:
 
 This is intended to stop repeated hammering of ODK Central while still allowing
 short-lived auth/connectivity faults to recover cleanly.
+
+## Shared Connection Guard
+
+DB-managed ODK connections now use a shared guard service across app and worker
+processes.
+
+Rules:
+
+- every outbound ODK request for DB-managed connections reserves a per-connection
+  request slot before the request is sent
+- the minimum interval between request starts is configurable through
+  `ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS`
+- retryable connectivity/auth failures increment a shared consecutive-failure
+  counter on `mas_odk_connections`
+- once the configured failure threshold is reached, the connection enters
+  cooldown until `cooldown_until`
+- during cooldown, later callers fail fast without attempting a live upstream
+  call
+- successful calls reset the shared failure count and clear cooldown
+
+This guard is used by:
+
+- OData delta checks
+- OData submission fetch pages
+- attachment list and download requests
+- admin live ODK project/form lookups
+- admin connection tests
+- ODK review-state write-back
+
+Related policy:
+
+- [ODK Connection Guard Policy](../policy/odk-connection-guard.md)
 
 ## Update Detection
 

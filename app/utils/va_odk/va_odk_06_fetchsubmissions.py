@@ -25,6 +25,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
+from app.services.odk_connection_guard_service import guarded_odk_call
 from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
 log = logging.getLogger(__name__)
@@ -70,7 +71,10 @@ def va_odk_fetch_submissions(
 
     while True:
         params["$skip"] = skip
-        response = client.session.get(base_url, params=params)
+        response = guarded_odk_call(
+            lambda: client.session.get(base_url, params=params),
+            client=client,
+        )
         if response.status_code != 200:
             raise Exception(
                 f"OData submissions fetch failed HTTP {response.status_code} "

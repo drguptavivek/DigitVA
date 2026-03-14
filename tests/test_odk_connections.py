@@ -14,11 +14,14 @@ Covers:
 
 import uuid
 import unittest
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 import sqlalchemy as sa
 
 from app import db
 from app.models import MasOdkConnections, MapProjectOdk, VaStatuses
+from app.services.odk_connection_guard_service import OdkConnectionCooldownError
 from app.utils.credential_crypto import decrypt_credential, encrypt_credential
 from tests.base import BaseTestCase
 
@@ -125,6 +128,26 @@ class OdkConnectionsApiTests(BaseTestCase):
         self.assertNotIn("password_enc", body)
         self.assertNotIn("username_salt", body)
         self.assertNotIn("password_salt", body)
+
+    def test_list_includes_guard_state(self):
+        conn = self._create_connection("Guarded Server")
+        conn.consecutive_failure_count = 2
+        conn.last_failure_at = datetime.now(timezone.utc)
+        conn.last_failure_message = "connect timeout"
+        conn.cooldown_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+        db.session.flush()
+
+        self._login(self.base_admin_id)
+        resp = self.client.get("/admin/api/odk-connections")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        target = next(
+            c for c in data["connections"]
+            if c["connection_name"] == "Guarded Server"
+        )
+        self.assertTrue(target["guard"]["cooldown_active"])
+        self.assertEqual(target["guard"]["consecutive_failure_count"], 2)
+        self.assertEqual(target["guard"]["last_failure_message"], "connect timeout")
 
     # ── create ────────────────────────────────────────────────────────────────
 
@@ -385,3 +408,25 @@ class OdkConnectionsApiTests(BaseTestCase):
         self._login(self.base_project_pi_id)
         resp = self.client.get("/admin/panels/odk-connections")
         self.assertEqual(resp.status_code, 403)
+
+    def test_connection_test_returns_cooldown_message_without_hitting_network(self):
+        conn = self._create_connection("Cooling Server")
+        self._login(self.base_admin_id)
+        headers = self._csrf_headers()
+        with patch(
+            "app.routes.admin.guarded_odk_call",
+            side_effect=OdkConnectionCooldownError(
+                conn.connection_name,
+                datetime.now(timezone.utc) + timedelta(minutes=5),
+                "ODK Central timed out",
+            ),
+        ) as mock_guard:
+            resp = self.client.post(
+                f"/admin/api/odk-connections/{conn.connection_id}/test",
+                headers=headers,
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.get_json()["ok"])
+        self.assertIn("cooldown", resp.get_json()["message"].lower())
+        mock_guard.assert_called_once()

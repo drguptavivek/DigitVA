@@ -20,6 +20,9 @@ import os
 import threading
 
 import sqlalchemy as sa
+from flask import current_app, has_app_context
+
+from app.services.odk_connection_guard_service import guarded_odk_call
 
 log = logging.getLogger(__name__)
 _ATTACHMENT_SYNC_MAX_WORKERS = 3
@@ -60,7 +63,10 @@ def _sync_submission_attachments_no_db(
         f"/forms/{va_form.odk_form_id}"
         f"/submissions/{instance_id}/attachments"
     )
-    list_resp = client.session.get(list_url)
+    list_resp = guarded_odk_call(
+        lambda: client.session.get(list_url),
+        client=client,
+    )
     if list_resp.status_code != 200:
         raise Exception(
             f"Attachment list fetch failed HTTP {list_resp.status_code} "
@@ -94,7 +100,10 @@ def _sync_submission_attachments_no_db(
             f"/submissions/{instance_id}/attachments/{filename}"
         )
         try:
-            dl_resp = client.session.get(dl_url, headers=headers)
+            dl_resp = guarded_odk_call(
+                lambda: client.session.get(dl_url, headers=headers),
+                client=client,
+            )
 
             if dl_resp.status_code == 304:
                 skipped += 1
@@ -209,6 +218,7 @@ def va_odk_sync_form_attachments(
         va_sid: {name: rec.etag for name, rec in rows.items()}
         for va_sid, rows in existing_records.items()
     }
+    app = current_app._get_current_object() if has_app_context() else None
 
     thread_local = threading.local()
 
@@ -220,6 +230,16 @@ def va_odk_sync_form_attachments(
         return client
 
     def _run_submission_sync(va_sid: str, instance_id: str):
+        if app is not None:
+            with app.app_context():
+                return _sync_submission_attachments_no_db(
+                    va_form,
+                    instance_id,
+                    va_sid,
+                    media_dir,
+                    per_sid_etags.get(va_sid, {}),
+                    _get_client(),
+                )
         return _sync_submission_attachments_no_db(
             va_form,
             instance_id,

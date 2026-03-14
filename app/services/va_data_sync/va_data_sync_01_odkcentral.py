@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 from flask import current_app
 from app import db
 from dateutil import parser
-import requests
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.odk_connection_guard_service import (
+    is_retryable_odk_connectivity_error,
+)
 from app.services.final_cod_authority_service import (
     abandon_active_recode_episode,
     upsert_final_cod_authority,
@@ -64,33 +66,7 @@ def _resolve_project_connections():
 
 def _is_odk_retryable_error(exc: Exception) -> bool:
     """Return True when an exception should trigger a bounded ODK client refresh/retry."""
-    if isinstance(
-        exc,
-        (
-            requests.exceptions.ConnectTimeout,
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-        ),
-    ):
-        return True
-
-    message = str(exc)
-    retryable_markers = (
-        "ConnectTimeout",
-        "ConnectionError",
-        "Max retries exceeded",
-        "timed out",
-        "HTTPSConnectionPool",
-        "/v1/users/current",
-        "401",
-        "403",
-        "Unauthorized",
-        "Forbidden",
-        "token",
-        "expired",
-        "auth",
-    )
-    return any(marker in message for marker in retryable_markers)
+    return is_retryable_odk_connectivity_error(exc)
 
 
 def _get_or_create_sync_odk_client(

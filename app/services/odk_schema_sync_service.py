@@ -22,6 +22,7 @@ from app.models import (
     MasChoiceMappings,
     MasFieldDisplayConfig,
 )
+from app.services.odk_connection_guard_service import guarded_odk_call
 from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
 
@@ -666,7 +667,10 @@ class OdkSchemaSyncService:
         /fields API.
         """
         try:
-            resp = client.get(f"projects/{project_id}/forms/{form_id}.xlsx")
+            resp = guarded_odk_call(
+                lambda: client.get(f"projects/{project_id}/forms/{form_id}.xlsx"),
+                client=client,
+            )
             if resp.status_code != 200:
                 return None
 
@@ -723,9 +727,12 @@ class OdkSchemaSyncService:
     def _fetch_fields(self, client, project_id: int, form_id: str) -> list[dict] | None:
         """Fallback: fetch field list from ODK fields endpoint."""
         try:
-            resp = client.get(
-                f"projects/{project_id}/forms/{form_id}/fields",
-                params={"odata": "false"},
+            resp = guarded_odk_call(
+                lambda: client.get(
+                    f"projects/{project_id}/forms/{form_id}/fields",
+                    params={"odata": "false"},
+                ),
+                client=client,
             )
             if resp.status_code != 200:
                 return None

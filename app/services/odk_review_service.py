@@ -5,6 +5,7 @@ import re
 
 from app import db
 from app.models import VaForms, VaSubmissions
+from app.services.odk_connection_guard_service import guarded_odk_call
 from app.utils import va_odk_clientsetup
 
 
@@ -73,12 +74,15 @@ def mark_submission_needs_revision(
     comment = build_not_codeable_review_comment(reason_code, other_text)
     instance_id = resolve_odk_instance_id(va_sid)
     client = va_odk_clientsetup(project_id=va_form.project_id)
-    client.submissions.review(
-        instance_id=instance_id,
-        review_state=ODK_REVIEW_STATE_HAS_ISSUES,
-        form_id=va_form.odk_form_id,
-        project_id=int(va_form.odk_project_id),
-        comment=comment,
+    guarded_odk_call(
+        lambda: client.submissions.review(
+            instance_id=instance_id,
+            review_state=ODK_REVIEW_STATE_HAS_ISSUES,
+            form_id=va_form.odk_form_id,
+            project_id=int(va_form.odk_project_id),
+            comment=comment,
+        ),
+        client=client,
     )
     submission.va_odk_reviewstate = ODK_REVIEW_STATE_HAS_ISSUES
     return ODK_REVIEW_STATE_HAS_ISSUES, comment

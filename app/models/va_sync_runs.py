@@ -33,7 +33,7 @@ class VaSyncRun(db.Model):
     )
     status: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="running"
-    )  # "running" | "success" | "error"
+    )  # "running" | "success" | "partial" | "error"
     records_added: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     records_updated: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     records_skipped: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)

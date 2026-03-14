@@ -1,9 +1,13 @@
+import os
 import uuid
 import logging
 import traceback
 import sqlalchemy as sa
+from datetime import datetime, timezone
+from flask import current_app
 from app import db
 from dateutil import parser
+from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.models import (
     VaAllocations,
@@ -18,7 +22,11 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.utils import (
-    va_odk_downloadformdata,
+    va_odk_delta_count,
+    va_odk_fetch_submissions,
+    va_odk_write_form_csv,
+    va_odk_rebuild_form_csv_from_db,
+    va_odk_sync_submission_attachments,
     va_smartva_prepdata,
     va_smartva_runsmartva,
     va_smartva_formatsmartvaresult,
@@ -55,6 +63,210 @@ def _pending_smartva_sids(form_id: str) -> set[str]:
     return all_sids - done_sids
 
 
+def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map=None):
+    """Upsert a single form's submissions into the DB.
+
+    Returns (added, updated, discarded) counts.
+    If upserted_map is provided (dict), it is populated with {va_sid: KEY}
+    for every submission that was added or updated — used by the attachment
+    sync step to know which submissions' attachments need refreshing.
+    Caller is responsible for committing.
+    """
+    added = 0
+    updated = 0
+    discarded = 0
+
+    for va_submission in (va_submissions or []):
+        va_submission_amended = False
+
+        va_submission_sid         = va_submission.get("sid")
+        va_submission_formid      = va_submission.get("form_def")
+        va_submission_date        = parser.isoparse(va_submission.get("SubmissionDate"))
+        va_submission_updatedat   = (
+            parser.isoparse(va_submission.get("updatedAt")).replace(tzinfo=None)
+            if va_submission.get("updatedAt")
+            else None
+        )
+        va_submission_datacollector  = va_submission.get("SubmitterName")
+        va_submission_reviewstate    = va_submission.get("ReviewState")
+        va_submission_instancename   = va_submission.get("instanceName")
+        va_submission_uniqueid       = va_submission.get("unique_id")
+        va_submission_uniqueidmask   = va_submission.get("unique_id2")
+        va_submission_consent        = va_submission.get("Id10013")
+        va_submission_narrlang       = (
+            va_submission.get("narr_language")
+            if va_submission.get("narr_language")
+            else va_submission.get("language")
+        )
+        va_submission_age = (
+            int(va_submission.get("finalAgeInYears"))
+            if va_submission.get("finalAgeInYears")
+            else 0
+        )
+        va_submission_gender = va_submission.get("Id10019")
+
+        existing = db.session.scalar(
+            sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_submission_sid)
+        )
+
+        if existing and va_submission_updatedat != existing.va_odk_updatedat:
+            existing.va_sid                = va_submission_sid
+            existing.va_form_id            = va_submission_formid
+            existing.va_submission_date    = va_submission_date
+            existing.va_odk_updatedat      = va_submission_updatedat
+            existing.va_data_collector     = va_submission_datacollector
+            existing.va_odk_reviewstate    = va_submission_reviewstate
+            existing.va_instance_name      = va_submission_instancename
+            existing.va_uniqueid_real      = va_submission_uniqueid
+            existing.va_uniqueid_masked    = va_submission_uniqueidmask
+            existing.va_consent            = va_submission_consent
+            existing.va_narration_language = va_submission_narrlang
+            existing.va_deceased_age       = va_submission_age
+            existing.va_deceased_gender    = va_submission_gender
+            existing.va_data               = va_submission
+            (
+                existing.va_summary,
+                existing.va_catcount,
+            ) = va_preprocess_summcatenotification(va_submission)
+            existing.va_category_list = va_preprocess_categoriestodisplay(
+                va_submission, va_submission_formid
+            )
+            db.session.add(
+                VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="u",
+                    va_audit_action="va_submission_updation_during_datasync",
+                )
+            )
+            for record in db.session.scalars(
+                sa.select(VaCoderReview).where(
+                    (VaCoderReview.va_sid == va_submission_sid)
+                    & (VaCoderReview.va_creview_status == VaStatuses.active)
+                )
+            ).all():
+                record.va_creview_status = VaStatuses.deactive
+                discarded += 1
+                db.session.add(VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_entityid=record.va_creview_id,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="d",
+                    va_audit_action="va_coderreview_deletion_during_datasync",
+                ))
+            for record in db.session.scalars(
+                sa.select(VaFinalAssessments).where(
+                    (VaFinalAssessments.va_sid == va_submission_sid)
+                    & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
+                )
+            ).all():
+                record.va_finassess_status = VaStatuses.deactive
+                discarded += 1
+                db.session.add(VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_entityid=record.va_finassess_id,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="d",
+                    va_audit_action="va_finalasses_deletion_during_datasync",
+                ))
+            for record in db.session.scalars(
+                sa.select(VaInitialAssessments).where(
+                    (VaInitialAssessments.va_sid == va_submission_sid)
+                    & (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
+                )
+            ).all():
+                record.va_iniassess_status = VaStatuses.deactive
+                discarded += 1
+                db.session.add(VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_entityid=record.va_iniassess_id,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="d",
+                    va_audit_action="va_initialasses_deletion_during_datasync",
+                ))
+            for record in db.session.scalars(
+                sa.select(VaReviewerReview).where(
+                    (VaReviewerReview.va_sid == va_submission_sid)
+                    & (VaReviewerReview.va_rreview_status == VaStatuses.active)
+                )
+            ).all():
+                record.va_rreview_status = VaStatuses.deactive
+                discarded += 1
+                db.session.add(VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_entityid=record.va_rreview_id,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="d",
+                    va_audit_action="va_reviewerreview_deletion_during_datasync",
+                ))
+            for record in db.session.scalars(
+                sa.select(VaUsernotes).where(
+                    (VaUsernotes.note_vasubmission == va_submission_sid)
+                    & (VaUsernotes.note_status == VaStatuses.active)
+                )
+            ).all():
+                record.note_status = VaStatuses.deactive
+                discarded += 1
+                db.session.add(VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_entityid=record.note_id,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="d",
+                    va_audit_action="va_usernote_deletion_during_datasync",
+                ))
+            va_submission_amended = True
+            updated += 1
+            print(f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']")
+
+        elif not existing and va_submission_consent == "yes":
+            va_submission_summary, va_submission_catcount = (
+                va_preprocess_summcatenotification(va_submission)
+            )
+            va_submission_categorylist = va_preprocess_categoriestodisplay(
+                va_submission, va_submission_formid
+            )
+            db.session.add(
+                VaSubmissions(
+                    va_sid=va_submission_sid,
+                    va_form_id=va_submission_formid,
+                    va_submission_date=va_submission_date,
+                    va_odk_updatedat=va_submission_updatedat,
+                    va_data_collector=va_submission_datacollector,
+                    va_odk_reviewstate=va_submission_reviewstate,
+                    va_instance_name=va_submission_instancename,
+                    va_uniqueid_real=va_submission_uniqueid,
+                    va_uniqueid_masked=va_submission_uniqueidmask,
+                    va_consent=va_submission_consent,
+                    va_narration_language=va_submission_narrlang,
+                    va_deceased_age=va_submission_age,
+                    va_deceased_gender=va_submission_gender,
+                    va_data=va_submission,
+                    va_summary=va_submission_summary,
+                    va_catcount=va_submission_catcount,
+                    va_category_list=va_submission_categorylist,
+                )
+            )
+            db.session.flush()
+            va_submission_amended = True
+            added += 1
+            db.session.add(
+                VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="c",
+                    va_audit_action="va_submission_creation_during_datasync",
+                )
+            )
+            print(f"DataSync Process [Added VA submission '{va_submission_formid}: {va_submission_sid}']")
+
+        if va_submission_amended:
+            amended_sids.add(va_submission_sid)
+            if upserted_map is not None:
+                upserted_map[va_submission_sid] = va_submission.get("KEY", "")
+
+    return added, updated, discarded
+
+
 def va_data_sync_odkcentral(log_progress=None):
     def _progress(msg):
         print(msg)
@@ -64,242 +276,155 @@ def va_data_sync_odkcentral(log_progress=None):
     try:
         _progress("Sync started.")
 
+        # Capture before any ODK calls — ensures submissions arriving during
+        # the run are caught on the next sync rather than silently skipped.
+        snapshot_time = datetime.now(timezone.utc)
+
         _progress("Resolving active forms from site mappings…")
         va_forms = sync_runtime_forms_from_site_mappings()
         if not va_forms:
             _progress("No active mapped VA forms found — nothing to sync.")
             return
 
-        # ── Phase 1: Download CSV + attachments ────────────────────────────────
+        # Build (project_id, site_id) → MapProjectSiteOdk lookup for delta check
+        all_mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
+        mappings_by_ps = {(m.project_id, m.site_id): m for m in all_mappings}
 
         form_ids = [f.form_id for f in va_forms]
-        _progress(f"Phase 1: downloading {len(va_forms)} form(s): {', '.join(form_ids)}")
-        for va_form in va_forms:
-            log.info("DataSync [Downloading: %s].", va_form.form_id)
-            _progress(f"Downloading {va_form.form_id}…")
-            va_odk_downloadformdata(va_form)
-
-        # ── Phase 1: Upsert submissions ────────────────────────────────────────
+        _progress(f"Processing {len(va_forms)} form(s): {', '.join(form_ids)}")
 
         va_submissions_added = 0
         va_submissions_updated = 0
         va_discarded_relrecords = 0
-        amended_sids = set()   # track which SIDs changed — used in Phase 2
+        amended_sids: set[str] = set()
+        failed_form_ids: list[str] = []
+        downloaded_forms: list = []  # forms that were downloaded (not skipped)
 
-        va_allsubmissions = []
+        # ── Per-form: delta check → download → upsert → commit ─────────────────
+
         for va_form in va_forms:
-            log.info("DataSync [Compiling submissions: %s].", va_form.form_id)
-            _progress(f"Compiling submissions: {va_form.form_id}…")
-            va_submissions = va_preprocess_prepdata(va_form)
-            if va_submissions:
-                va_allsubmissions.extend(va_submissions)
-
-        for va_submission in va_allsubmissions:
-            va_submission_amended = False
-
-            va_submission_sid          = va_submission.get("sid")
-            va_submission_formid       = va_submission.get("form_def")
-            va_submission_date         = parser.isoparse(va_submission.get("SubmissionDate"))
-            va_submission_updatedat    = (
-                parser.isoparse(va_submission.get("updatedAt")).replace(tzinfo=None)
-                if va_submission.get("updatedAt")
-                else None
-            )
-            va_submission_datacollector  = va_submission.get("SubmitterName")
-            va_submission_reviewstate    = va_submission.get("ReviewState")
-            va_submission_instancename   = va_submission.get("instanceName")
-            va_submission_uniqueid       = va_submission.get("unique_id")
-            va_submission_uniqueidmask   = va_submission.get("unique_id2")
-            va_submission_consent        = va_submission.get("Id10013")
-            va_submission_narrlang       = (
-                va_submission.get("narr_language")
-                if va_submission.get("narr_language")
-                else va_submission.get("language")
-            )
-            va_submission_age = (
-                int(va_submission.get("finalAgeInYears"))
-                if va_submission.get("finalAgeInYears")
-                else 0
-            )
-            va_submission_gender = va_submission.get("Id10019")
-
-            existing_va_submission = db.session.scalar(
-                sa.select(VaSubmissions).where(
-                    VaSubmissions.va_sid == va_submission_sid
-                )
-            )
-
-            if (
-                existing_va_submission
-                and va_submission_updatedat != existing_va_submission.va_odk_updatedat
-            ):
-                existing_va_submission.va_sid                 = va_submission_sid
-                existing_va_submission.va_form_id             = va_submission_formid
-                existing_va_submission.va_submission_date     = va_submission_date
-                existing_va_submission.va_odk_updatedat       = va_submission_updatedat
-                existing_va_submission.va_data_collector      = va_submission_datacollector
-                existing_va_submission.va_odk_reviewstate     = va_submission_reviewstate
-                existing_va_submission.va_instance_name       = va_submission_instancename
-                existing_va_submission.va_uniqueid_real       = va_submission_uniqueid
-                existing_va_submission.va_uniqueid_masked     = va_submission_uniqueidmask
-                existing_va_submission.va_consent             = va_submission_consent
-                existing_va_submission.va_narration_language  = va_submission_narrlang
-                existing_va_submission.va_deceased_age        = va_submission_age
-                existing_va_submission.va_deceased_gender     = va_submission_gender
-                existing_va_submission.va_data                = va_submission
-                (
-                    existing_va_submission.va_summary,
-                    existing_va_submission.va_catcount,
-                ) = va_preprocess_summcatenotification(va_submission)
-                existing_va_submission.va_category_list = va_preprocess_categoriestodisplay(
-                    va_submission, va_submission_formid
-                )
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="u",
-                        va_audit_action="va_submission_updation_during_datasync",
-                    )
-                )
-                for record in db.session.scalars(
-                    sa.select(VaCoderReview).where(
-                        (VaCoderReview.va_sid == va_submission_sid)
-                        & (VaCoderReview.va_creview_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_creview_status = VaStatuses.deactive
-                    va_discarded_relrecords += 1
-                    db.session.add(
-                        VaSubmissionsAuditlog(
-                            va_sid=va_submission_sid,
-                            va_audit_entityid=record.va_creview_id,
-                            va_audit_byrole="vaadmin",
-                            va_audit_operation="d",
-                            va_audit_action="va_coderreview_deletion_during_datasync",
+            mapping = mappings_by_ps.get((va_form.project_id, va_form.site_id))
+            try:
+                # Delta check
+                if mapping and mapping.last_synced_at is not None:
+                    since_str = mapping.last_synced_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    try:
+                        delta = va_odk_delta_count(
+                            odk_project_id=int(va_form.odk_project_id),
+                            odk_form_id=va_form.odk_form_id,
+                            since=mapping.last_synced_at,
+                            app_project_id=va_form.project_id,
                         )
-                    )
-                for record in db.session.scalars(
-                    sa.select(VaFinalAssessments).where(
-                        (VaFinalAssessments.va_sid == va_submission_sid)
-                        & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_finassess_status = VaStatuses.deactive
-                    va_discarded_relrecords += 1
-                    db.session.add(
-                        VaSubmissionsAuditlog(
-                            va_sid=va_submission_sid,
-                            va_audit_entityid=record.va_finassess_id,
-                            va_audit_byrole="vaadmin",
-                            va_audit_operation="d",
-                            va_audit_action="va_finalasses_deletion_during_datasync",
+                        if delta == 0:
+                            _progress(
+                                f"[{va_form.form_id}] delta check: 0 changes "
+                                f"since {since_str} — skipped"
+                            )
+                            log.info(
+                                "DataSync [%s]: 0 changes since %s, skipping.",
+                                va_form.form_id, since_str,
+                            )
+                            continue
+                        _progress(
+                            f"[{va_form.form_id}] delta check: {delta} change(s) "
+                            f"since {since_str} — downloading…"
                         )
-                    )
-                for record in db.session.scalars(
-                    sa.select(VaInitialAssessments).where(
-                        (VaInitialAssessments.va_sid == va_submission_sid)
-                        & (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_iniassess_status = VaStatuses.deactive
-                    va_discarded_relrecords += 1
-                    db.session.add(
-                        VaSubmissionsAuditlog(
-                            va_sid=va_submission_sid,
-                            va_audit_entityid=record.va_iniassess_id,
-                            va_audit_byrole="vaadmin",
-                            va_audit_operation="d",
-                            va_audit_action="va_initialasses_deletion_during_datasync",
+                    except Exception as delta_err:
+                        _progress(
+                            f"[{va_form.form_id}] delta check failed "
+                            f"({delta_err}) — downloading as fallback"
                         )
-                    )
-                for record in db.session.scalars(
-                    sa.select(VaReviewerReview).where(
-                        (VaReviewerReview.va_sid == va_submission_sid)
-                        & (VaReviewerReview.va_rreview_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.va_rreview_status = VaStatuses.deactive
-                    va_discarded_relrecords += 1
-                    db.session.add(
-                        VaSubmissionsAuditlog(
-                            va_sid=va_submission_sid,
-                            va_audit_entityid=record.va_rreview_id,
-                            va_audit_byrole="vaadmin",
-                            va_audit_operation="d",
-                            va_audit_action="va_reviewerreview_deletion_during_datasync",
+                        log.warning(
+                            "DataSync [%s]: delta check failed, falling through to full download: %s",
+                            va_form.form_id, delta_err,
                         )
-                    )
-                for record in db.session.scalars(
-                    sa.select(VaUsernotes).where(
-                        (VaUsernotes.note_vasubmission == va_submission_sid)
-                        & (VaUsernotes.note_status == VaStatuses.active)
-                    )
-                ).all():
-                    record.note_status = VaStatuses.deactive
-                    va_discarded_relrecords += 1
-                    db.session.add(
-                        VaSubmissionsAuditlog(
-                            va_sid=va_submission_sid,
-                            va_audit_entityid=record.note_id,
-                            va_audit_byrole="vaadmin",
-                            va_audit_operation="d",
-                            va_audit_action="va_usernote_deletion_during_datasync",
-                        )
-                    )
-                va_submission_amended = True
-                va_submissions_updated += 1
-                print(
-                    f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']"
+                else:
+                    _progress(f"[{va_form.form_id}] first sync — downloading…")
+
+                # Fetch submissions via OData JSON (no ZIP, no rmtree)
+                log.info("DataSync [Fetching submissions via OData: %s].", va_form.form_id)
+                _progress(f"[{va_form.form_id}] fetching submissions from ODK…")
+                va_submissions_raw = va_odk_fetch_submissions(
+                    va_form,
+                    since=mapping.last_synced_at if mapping else None,
                 )
 
-            elif not existing_va_submission and va_submission_consent == "yes":
-                va_submission_summary, va_submission_catcount = (
-                    va_preprocess_summcatenotification(va_submission)
+                # Write CSV for SmartVA (same format as ZIP-extracted CSV)
+                form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
+                media_dir = os.path.join(form_dir, "media")
+                os.makedirs(media_dir, exist_ok=True)
+                va_odk_write_form_csv(va_submissions_raw, va_form, form_dir)
+
+                # Upsert submissions for this form only
+                log.info("DataSync [Upserting submissions: %s].", va_form.form_id)
+                _progress(f"[{va_form.form_id}] upserting {len(va_submissions_raw)} submission(s)…")
+                upserted_map: dict[str, str] = {}  # {va_sid: instance_id}
+                form_added, form_updated, form_discarded = _upsert_form_submissions(
+                    va_form, va_submissions_raw, amended_sids, upserted_map
                 )
-                va_submission_categorylist = va_preprocess_categoriestodisplay(
-                    va_submission, va_submission_formid
+                va_submissions_added += form_added
+                va_submissions_updated += form_updated
+                va_discarded_relrecords += form_discarded
+
+                # Per-form commit — isolates failures so other forms are not rolled back
+                db.session.commit()
+                _progress(
+                    f"[{va_form.form_id}] done: "
+                    f"+{form_added} added, {form_updated} updated"
                 )
-                db.session.add(
-                    VaSubmissions(
-                        va_sid=va_submission_sid,
-                        va_form_id=va_submission_formid,
-                        va_submission_date=va_submission_date,
-                        va_odk_updatedat=va_submission_updatedat,
-                        va_data_collector=va_submission_datacollector,
-                        va_odk_reviewstate=va_submission_reviewstate,
-                        va_instance_name=va_submission_instancename,
-                        va_uniqueid_real=va_submission_uniqueid,
-                        va_uniqueid_masked=va_submission_uniqueidmask,
-                        va_consent=va_submission_consent,
-                        va_narration_language=va_submission_narrlang,
-                        va_deceased_age=va_submission_age,
-                        va_deceased_gender=va_submission_gender,
-                        va_data=va_submission,
-                        va_summary=va_submission_summary,
-                        va_catcount=va_submission_catcount,
-                        va_category_list=va_submission_categorylist,
-                    )
-                )
-                db.session.flush()
-                va_submission_amended = True
-                va_submissions_added += 1
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_submission_sid,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="c",
-                        va_audit_action="va_submission_creation_during_datasync",
-                    )
-                )
-                print(
-                    f"DataSync Process [Added VA submission '{va_submission_formid}: {va_submission_sid}']"
+                log.info(
+                    "DataSync [%s]: committed — added=%d updated=%d discarded=%d",
+                    va_form.form_id, form_added, form_updated, form_discarded,
                 )
 
-            if va_submission_amended:
-                amended_sids.add(va_submission_sid)
+                # Sync attachments for upserted submissions (ETag-based, no rmtree)
+                if upserted_map:
+                    attach_dl = attach_skip = attach_err = 0
+                    for va_sid, instance_id in upserted_map.items():
+                        if not instance_id:
+                            continue
+                        try:
+                            r = va_odk_sync_submission_attachments(
+                                va_form, instance_id, va_sid, media_dir
+                            )
+                            attach_dl += r["downloaded"]
+                            attach_skip += r["skipped"]
+                            attach_err += r["errors"]
+                        except Exception as attach_err_exc:
+                            attach_err += 1
+                            log.warning(
+                                "DataSync [%s] attachment sync failed for %s: %s",
+                                va_form.form_id, va_sid, attach_err_exc,
+                            )
+                    db.session.commit()  # commit ETag records
+                    _progress(
+                        f"[{va_form.form_id}] attachments: "
+                        f"{attach_dl} downloaded, {attach_skip} skipped"
+                        + (f", {attach_err} errors" if attach_err else "")
+                    )
 
-        # Release allocations
+                # Rebuild full CSV from DB so SmartVA-only runs have all submissions
+                va_odk_rebuild_form_csv_from_db(va_form, form_dir)
+
+                # Record successful sync time
+                if mapping:
+                    mapping.last_synced_at = snapshot_time
+                    db.session.commit()
+
+                downloaded_forms.append(va_form)
+
+            except Exception as form_err:
+                db.session.rollback()
+                log.error(
+                    "DataSync [%s] failed: %s",
+                    va_form.form_id, form_err, exc_info=True,
+                )
+                _progress(f"[{va_form.form_id}] FAILED: {form_err}")
+                failed_form_ids.append(va_form.form_id)
+
+        # ── Release allocations (global — runs after all forms) ─────────────────
+
+        _progress("Releasing active coding allocations…")
         for record in db.session.scalars(
             sa.select(VaAllocations).where(
                 VaAllocations.va_allocation_status == VaStatuses.active
@@ -333,23 +458,28 @@ def va_data_sync_odkcentral(log_progress=None):
                     )
                 )
 
-        _progress("Releasing allocations and committing Phase 1…")
         db.session.commit()
+
         phase1_msg = (
-            f"Phase 1 complete — added: {va_submissions_added}, "
+            f"Downloads complete — added: {va_submissions_added}, "
             f"updated: {va_submissions_updated}, discarded: {va_discarded_relrecords}"
         )
-        log.info("DataSync Phase 1 complete: added=%d updated=%d discarded=%d",
-                 va_submissions_added, va_submissions_updated, va_discarded_relrecords)
+        if failed_form_ids:
+            phase1_msg += f" | failed forms: {', '.join(failed_form_ids)}"
+        log.info(
+            "DataSync Phase 1 complete: added=%d updated=%d discarded=%d failed=%s",
+            va_submissions_added, va_submissions_updated,
+            va_discarded_relrecords, failed_form_ids,
+        )
         _progress(phase1_msg)
 
         # ── Phase 2: SmartVA — one form at a time ──────────────────────────────
 
         va_smartva_updated = 0
 
-        for va_form in va_forms:
+        # Run SmartVA only for forms that were actually downloaded this run
+        for va_form in downloaded_forms:
             try:
-                # Pending = submissions with no active result + any amended this run
                 pending = _pending_smartva_sids(va_form.form_id) | (
                     amended_sids & set(
                         db.session.scalars(
@@ -391,8 +521,6 @@ def va_data_sync_odkcentral(log_progress=None):
                     va_sid = getattr(va_smartva_record, "sid", None)
                     va_smartva_existing = va_smartva_existingactive_results.get(va_sid)
 
-                    # Save if: submission was amended this run (always refresh), or
-                    # submission has no existing active SmartVA result (fill gap).
                     if va_sid not in amended_sids and va_smartva_existing:
                         continue
                     if va_smartva_existing:
@@ -444,9 +572,7 @@ def va_data_sync_odkcentral(log_progress=None):
                         )
                     )
                     form_updated += 1
-                    print(
-                        f"DataSync Process [Updated SmartVA result '{va_form.form_id}: {va_sid}']"
-                    )
+                    print(f"DataSync Process [Updated SmartVA result '{va_form.form_id}: {va_sid}']")
 
                 db.session.commit()
                 va_smartva_updated += form_updated
@@ -459,8 +585,9 @@ def va_data_sync_odkcentral(log_progress=None):
                 _progress(f"SmartVA {va_form.form_id}: FAILED — {e}")
 
         log.info(
-            "DataSync complete: added=%d updated=%d smartva=%d discarded=%d",
-            va_submissions_added, va_submissions_updated, va_smartva_updated, va_discarded_relrecords,
+            "DataSync complete: added=%d updated=%d smartva=%d discarded=%d failed=%s",
+            va_submissions_added, va_submissions_updated,
+            va_smartva_updated, va_discarded_relrecords, failed_form_ids,
         )
         print(
             f"DataSync Success [VA added: {va_submissions_added} | VA updated: {va_submissions_updated} | "
@@ -471,6 +598,7 @@ def va_data_sync_odkcentral(log_progress=None):
             "updated": va_submissions_updated,
             "smartva_updated": va_smartva_updated,
             "discarded": va_discarded_relrecords,
+            "failed_forms": failed_form_ids,
         }
 
     except Exception as e:
@@ -535,9 +663,6 @@ def va_smartva_run_pending(log_progress=None):
                     va_sid = getattr(va_smartva_record, "sid", None)
                     va_smartva_existing = va_smartva_existingactive_results.get(va_sid)
 
-                    # Input was already filtered to pending only via pending_sids,
-                    # so every row in the output should be saved. Deactivate any
-                    # stale result that slipped through (e.g. race condition).
                     if va_smartva_existing:
                         va_smartva_existing.va_smartva_status = VaStatuses.deactive
                         db.session.add(

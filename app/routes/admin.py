@@ -3453,6 +3453,7 @@ def admin_sync_coverage():
                 "local_total": local_count,
                 "missing": (odk_count - local_count) if odk_count is not None else None,
                 "error": odk_error,
+                "last_synced_at": mapping.last_synced_at.isoformat() if mapping.last_synced_at else None,
             })
             if odk_count is not None:
                 odk_total += odk_count
@@ -3496,6 +3497,31 @@ def admin_sync_trigger_smartva():
     except Exception as e:
         log.error("admin_sync_trigger_smartva failed", exc_info=True)
         return _json_error(f"Failed to trigger SmartVA run: {str(e)}", 500)
+
+
+@admin.post("/api/sync/form/<form_id>")
+@require_api_role("admin")
+def admin_sync_form(form_id: str):
+    """Force-resync a single form, bypassing the delta check."""
+    try:
+        from app.models.va_forms import VaForms
+        from app.tasks.sync_tasks import run_single_form_sync
+
+        va_form = db.session.get(VaForms, form_id)
+        if va_form is None:
+            return _json_error(f"Form '{form_id}' not found.", 404)
+
+        user = _request_user()
+        log.info("Single-form force-resync of %s triggered by user %s", form_id, user.user_id if user else "unknown")
+        task = run_single_form_sync.delay(
+            form_id=form_id,
+            triggered_by="manual",
+            user_id=str(user.user_id) if user else None,
+        )
+        return jsonify({"message": f"Sync started for form {form_id}.", "task_id": task.id}), 202
+    except Exception as e:
+        log.error("admin_sync_form failed for %s", form_id, exc_info=True)
+        return _json_error(f"Failed to trigger sync for form {form_id}: {str(e)}", 500)
 
 
 @admin.get("/api/sync/smartva-stats")

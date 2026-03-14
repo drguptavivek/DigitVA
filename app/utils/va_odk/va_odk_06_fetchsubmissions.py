@@ -1,0 +1,245 @@
+"""Fetch submission data from ODK Central via OData JSON.
+
+Replaces the CSV ZIP download for submission metadata. Returns normalized
+flat dicts with the same field-name structure as the CSV groupPaths=false
+export, so the rest of the pipeline (SmartVA prep, upsert, rendering) is
+unchanged.
+
+Key normalizations:
+  __id                    → KEY (CSV column name)
+  __system.submissionDate → SubmissionDate
+  __system.updatedAt      → updatedAt
+  __system.submitterName  → SubmitterName
+  __system.reviewState    → ReviewState
+  meta.instanceName       → instanceName
+  nested group fields     → flattened to leaf names (groupPaths=false)
+
+Computed fields added to each record:
+  form_def   = va_form.form_id
+  sid        = f"{KEY}-{form_id.lower()}"   (matches existing sid scheme)
+  unique_id2 = derived from unique_id + start timestamp
+"""
+
+import csv
+import logging
+import os
+from datetime import datetime, timezone
+
+from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+
+log = logging.getLogger(__name__)
+
+_PAGE_SIZE = 250
+
+
+def va_odk_fetch_submissions(va_form, since: datetime | None = None) -> list[dict]:
+    """Fetch submissions for a form via OData JSON.
+
+    If `since` is a timezone-aware datetime, only submissions created or
+    updated after that timestamp are returned (incremental sync).
+    If `since` is None, all submissions are returned (first sync).
+
+    Pages through results in batches of _PAGE_SIZE. Returns a list of
+    normalized flat dicts ready for va_preprocess_prepdata / upsert.
+    """
+    client = va_odk_clientsetup(project_id=va_form.project_id)
+    base_url = (
+        f"projects/{va_form.odk_project_id}"
+        f"/forms/{va_form.odk_form_id}.svc/Submissions"
+    )
+
+    params: dict = {"$top": _PAGE_SIZE}
+    if since is not None:
+        if since.tzinfo is None:
+            raise ValueError("va_odk_fetch_submissions: `since` must be timezone-aware")
+        since_str = since.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        params["$filter"] = (
+            f"(__system/submissionDate gt {since_str})"
+            f" or (__system/updatedAt gt {since_str})"
+        )
+        log.info("va_odk_fetch_submissions [%s]: incremental since=%s", va_form.form_id, since_str)
+    else:
+        log.info("va_odk_fetch_submissions [%s]: full fetch (no since filter)", va_form.form_id)
+
+    all_records: list[dict] = []
+    skip = 0
+
+    while True:
+        params["$skip"] = skip
+        response = client.session.get(base_url, params=params)
+        if response.status_code != 200:
+            raise Exception(
+                f"OData submissions fetch failed HTTP {response.status_code} "
+                f"for {va_form.form_id}: {response.text[:200]}"
+            )
+        data = response.json()
+        page = data.get("value", [])
+        if not page:
+            break
+        for record in page:
+            all_records.append(_normalize_odata_record(record, va_form.form_id))
+        log.info(
+            "va_odk_fetch_submissions [%s]: page skip=%d got %d (running total: %d)",
+            va_form.form_id, skip, len(page), len(all_records),
+        )
+        if len(page) < _PAGE_SIZE:
+            break
+        skip += _PAGE_SIZE
+
+    log.info(
+        "va_odk_fetch_submissions [%s]: fetched %d submission(s) total",
+        va_form.form_id, len(all_records),
+    )
+    return all_records
+
+
+def va_odk_write_form_csv(records: list[dict], va_form, form_dir: str) -> str | None:
+    """Write normalized submission records to the form's CSV file.
+
+    The CSV is used by va_smartva_prepdata (SmartVA input preparation),
+    which reads it the same way as the ZIP-extracted CSV. Writing from
+    OData-normalized records produces the same flat column structure.
+
+    Returns the CSV path, or None if records is empty.
+    """
+    if not records:
+        log.info("va_odk_write_form_csv [%s]: no records — CSV not written", va_form.form_id)
+        return None
+
+    os.makedirs(form_dir, exist_ok=True)
+    csv_path = os.path.join(form_dir, f"{va_form.odk_form_id}.csv")
+
+    # Collect all keys across all records for a complete header set
+    all_keys: list[str] = []
+    seen: set[str] = set()
+    for record in records:
+        for k in record.keys():
+            if k not in seen:
+                all_keys.append(k)
+                seen.add(k)
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(records)
+
+    log.info(
+        "va_odk_write_form_csv [%s]: wrote %d row(s) to %s",
+        va_form.form_id, len(records), csv_path,
+    )
+    return csv_path
+
+
+def va_odk_rebuild_form_csv_from_db(va_form, form_dir: str) -> str | None:
+    """Regenerate the full form CSV from va_submissions.va_data in the DB.
+
+    Called after incremental sync (when the fetched CSV only has changed
+    submissions) so that va_smartva_prepdata can see all submissions for
+    SmartVA-only runs.
+
+    Returns the CSV path, or None if no submissions exist.
+    """
+    import sqlalchemy as sa
+    from app import db
+    from app.models.va_submissions import VaSubmissions
+
+    rows = db.session.scalars(
+        sa.select(VaSubmissions.va_data).where(
+            VaSubmissions.va_form_id == va_form.form_id
+        )
+    ).all()
+
+    if not rows:
+        return None
+
+    # Collect union of all keys to build a complete header
+    all_keys: list[str] = []
+    seen: set[str] = set()
+    for data in rows:
+        if not data:
+            continue
+        for k in data.keys():
+            if k not in seen:
+                all_keys.append(k)
+                seen.add(k)
+
+    if not all_keys:
+        return None
+
+    os.makedirs(form_dir, exist_ok=True)
+    csv_path = os.path.join(form_dir, f"{va_form.odk_form_id}.csv")
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
+        writer.writeheader()
+        for data in rows:
+            if data:
+                writer.writerow(data)
+
+    log.info(
+        "va_odk_rebuild_form_csv_from_db [%s]: wrote %d row(s) from DB to %s",
+        va_form.form_id, len(rows), csv_path,
+    )
+    return csv_path
+
+
+def _normalize_odata_record(record: dict, form_id: str) -> dict:
+    """Normalize an OData submission record to flat dict matching CSV groupPaths=false.
+
+    System metadata (__system, meta) → CSV column equivalents.
+    Nested group objects → flattened to leaf-name keys only.
+    Computed fields (sid, form_def, unique_id2) added inline.
+    """
+    out: dict = {}
+
+    system = record.get("__system") or {}
+    meta = record.get("meta") or {}
+
+    instance_id: str = record.get("__id", "")
+
+    # CSV metadata column equivalents
+    out["KEY"] = instance_id
+    out["SubmissionDate"] = system.get("submissionDate")
+    out["updatedAt"] = system.get("updatedAt")
+    out["SubmitterName"] = system.get("submitterName")
+    out["ReviewState"] = system.get("reviewState")
+    out["instanceName"] = meta.get("instanceName")
+
+    # Flatten all form fields — discard group nesting, keep leaf names
+    _flatten_into(record, out, skip_keys={"__id", "__system", "meta"})
+
+    # Computed fields (match va_preprocess_prepdata output)
+    out["form_def"] = form_id
+    out["sid"] = f"{instance_id}-{form_id.lower()}"
+
+    # unique_id2 (same logic as va_preprocess_prepdata)
+    if out.get("unique_id"):
+        try:
+            start_str = out.get("start")
+            if start_str:
+                start_dt = datetime.fromisoformat(str(start_str))
+                out["unique_id2"] = (
+                    str(out["unique_id"]).rsplit("_", 1)[0]
+                    + "_"
+                    + start_dt.strftime("%H%M%S")
+                    + f"{int(start_dt.microsecond / 1000):03}"
+                )
+            else:
+                out["unique_id2"] = "Unavailable"
+        except Exception:
+            out["unique_id2"] = "Unavailable"
+    else:
+        out["unique_id2"] = "Unavailable"
+
+    return out
+
+
+def _flatten_into(obj: dict, out: dict, skip_keys: set):
+    """Recursively copy leaf values from `obj` into `out`, discarding group keys."""
+    for k, v in obj.items():
+        if k in skip_keys:
+            continue
+        if isinstance(v, dict):
+            _flatten_into(v, out, skip_keys=set())
+        else:
+            out[k] = v  # None values preserved as-is

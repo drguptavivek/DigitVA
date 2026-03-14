@@ -52,6 +52,10 @@ class MapProjectSiteOdk(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    # Timestamp used in the last successful delta check. NULL = never synced → always download.
+    last_synced_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
 
     # Relationship to form type (lazy load — used when resolving rendering config)
     form_type: so.Mapped["MasFormTypes | None"] = so.relationship(

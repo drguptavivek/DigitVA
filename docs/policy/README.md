@@ -19,6 +19,7 @@ Current policy docs:
 - [Coding Workflow State Machine Policy](coding-workflow-state-machine.md)
 - [Coding Allocation Timeout Policy](coding-allocation-timeouts.md)
 - [Data Manager Workflow Policy](data-manager-workflow.md)
+- [Final COD Authority Policy](final-cod-authority.md)
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [UI Notification Policy](ui-notifications.md)

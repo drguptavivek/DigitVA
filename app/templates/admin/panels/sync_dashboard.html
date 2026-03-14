@@ -155,6 +155,7 @@
   function statusBadge(status) {
     var map = {
       success: '<span class="badge text-bg-success">Success</span>',
+      partial: '<span class="badge text-bg-warning">Partial</span>',
       error:   '<span class="badge text-bg-danger">Error</span>',
       running: '<span class="badge text-bg-warning"><i class="fa-solid fa-spinner fa-spin me-1"></i>Running</span>',
     };
@@ -270,11 +271,20 @@
         } else if (m.missing != null) {
           missingBadge = '<span class="badge text-bg-warning">' + m.missing + ' missing</span>';
         }
+        var lastSync = m.last_synced_at ? fmtRelTime(m.last_synced_at) : '<span class="text-muted">never</span>';
+        var syncBtn = m.form_id
+          ? '<button class="btn btn-sm btn-outline-secondary py-0 px-1 form-sync-btn" '
+            + 'data-form-id="' + esc(m.form_id) + '" title="Force-resync this form">'
+            + '<i class="fa-solid fa-rotate-right"></i></button>'
+          : '';
         return '<tr>'
-          + '<td class="small">' + esc(m.project_id) + ' / ' + esc(m.site_id) + '</td>'
+          + '<td class="small">' + esc(m.project_id) + ' / ' + esc(m.site_id)
+          +   (m.form_id ? ' <span class="text-secondary">(' + esc(m.form_id) + ')</span>' : '') + '</td>'
           + '<td class="small text-center">' + (m.odk_total != null ? m.odk_total : '—') + '</td>'
           + '<td class="small text-center">' + m.local_total + '</td>'
           + '<td class="small text-center">' + missingBadge + '</td>'
+          + '<td class="small text-center">' + lastSync + '</td>'
+          + '<td class="small text-center">' + syncBtn + '</td>'
           + '</tr>';
       }).join('');
 
@@ -286,15 +296,24 @@
         + '<th class="small text-center">ODK</th>'
         + '<th class="small text-center">Local</th>'
         + '<th class="small text-center">Status</th>'
+        + '<th class="small text-center">Last synced</th>'
+        + '<th class="small text-center">Sync</th>'
         + '</tr></thead>'
         + '<tbody>' + rows + '</tbody>'
         + '<tfoot class="table-light"><tr>'
         + '<td class="small fw-semibold">Total</td>'
         + '<td class="small text-center fw-semibold">' + (totals.odk_total || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.local_total || 0) + '</td>'
-        + '<td></td>'
+        + '<td colspan="3"></td>'
         + '</tr></tfoot>'
         + '</table>';
+
+      // Wire up per-form sync buttons
+      wrap.querySelectorAll('.form-sync-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          syncForm(btn.getAttribute('data-form-id'), btn);
+        });
+      });
     }).catch(function () {
       if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error fetching coverage.</span>';
     });
@@ -485,6 +504,33 @@
     clearInterval(_progressInterval);
     _progressInterval = null;
     loadProgress(); // final update
+  }
+
+  // ── Per-form force-resync ──────────────────────────────────────────────────
+
+  function syncForm(formId, btn) {
+    if (!formId) return;
+    var origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    apiJson('/admin/api/sync/form/' + encodeURIComponent(formId), 'POST').then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+        showToast(res.data.error || 'Failed to start sync for ' + formId + '.', 'danger');
+        return;
+      }
+      showToast('Sync started for ' + formId + '.', 'success');
+      loadStatus();
+      loadHistory();
+      // Re-enable after a short delay so the user can see it fired
+      setTimeout(function () { btn.disabled = false; btn.innerHTML = origHtml; }, 3000);
+    }).catch(function () {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      showToast('Network error.', 'danger');
+    });
   }
 
   // ── Trigger ────────────────────────────────────────────────────────────────

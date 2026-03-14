@@ -1,6 +1,13 @@
 from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 from app.utils.va_odk.va_odk_02_downloadformdata import va_odk_downloadformdata
 from app.utils.va_odk.va_odk_03_submissionupdatedate import va_odk_submissionupdatedate
+from app.utils.va_odk.va_odk_05_deltacheck import va_odk_delta_count
+from app.utils.va_odk.va_odk_06_fetchsubmissions import (
+    va_odk_fetch_submissions,
+    va_odk_write_form_csv,
+    va_odk_rebuild_form_csv_from_db,
+)
+from app.utils.va_odk.va_odk_07_syncattachments import va_odk_sync_submission_attachments
 
 from app.utils.va_preprocess.va_preprocess_01_prepdata import va_preprocess_prepdata
 from app.utils.va_preprocess.va_preprocess_03_categoriestodisplay import va_preprocess_categoriestodisplay
@@ -66,6 +73,11 @@ __all__ = [
     "va_odk_clientsetup",
     "va_odk_downloadformdata",
     "va_odk_submissionupdatedate",
+    "va_odk_delta_count",
+    "va_odk_fetch_submissions",
+    "va_odk_write_form_csv",
+    "va_odk_rebuild_form_csv_from_db",
+    "va_odk_sync_submission_attachments",
     "va_preprocess_prepdata",
     "va_preprocess_summcatenotification",
     "va_preprocess_categoriestodisplay",

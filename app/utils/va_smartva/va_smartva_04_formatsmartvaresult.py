@@ -1,14 +1,12 @@
 import os
-import shutil
 import pandas as pd
 from flask import current_app
 from app.utils.va_smartva.va_smartva_01_icdcodes import VA_SMARTVA_ICDS
 
 
-def va_smartva_formatsmartvaresult(va_form):
-    va_formdir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
-    va_smartva_outputdir = os.path.join(va_formdir, "smartva_output")
-    va_smartva_outputfile = os.path.join(va_smartva_outputdir, "smartva_output.csv")
+def va_smartva_formatsmartvaresult(va_form, workspace_dir: str):
+    va_smartva_outputdir = os.path.join(workspace_dir, "smartva_output")
+    va_smartva_outputfile = os.path.join(workspace_dir, "smartva_output.csv")
     if os.path.exists(va_smartva_outputdir) or os.listdir(va_smartva_outputdir):
         try:
             va_smartva_icddict = (
@@ -47,9 +45,6 @@ def va_smartva_formatsmartvaresult(va_form):
                 va_smartva_combinedresults = pd.concat(
                     va_smartva_allresults, ignore_index=True
                 )
-                if os.path.exists(va_smartva_outputdir):
-                    shutil.rmtree(va_smartva_outputdir)
-                os.makedirs(va_smartva_outputdir, exist_ok=True)
                 va_smartva_combinedresults.to_csv(va_smartva_outputfile, index=False)
                 return va_smartva_outputfile
             return None

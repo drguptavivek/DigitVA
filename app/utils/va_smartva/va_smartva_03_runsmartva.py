@@ -4,14 +4,12 @@ import subprocess
 from flask import current_app
 
 
-def va_smartva_runsmartva(va_form):
-    va_formdir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
-    va_smartva_inputdir = os.path.join(va_formdir, "smartva_input")
-    va_smartva_outputdir = os.path.join(va_formdir, "smartva_output")
-    if os.path.exists(va_smartva_outputdir):
-        shutil.rmtree(va_smartva_outputdir)
+def va_smartva_runsmartva(va_form, workspace_dir: str):
+    va_smartva_inputfile = os.path.join(workspace_dir, "smartva_input.csv")
+    va_smartva_outputdir = os.path.join(workspace_dir, "smartva_output")
+    
     os.makedirs(va_smartva_outputdir, exist_ok=True)
-    va_smartva_inputfile = os.path.join(va_smartva_inputdir, "smartva_input.csv")
+    
     if os.path.exists(va_smartva_inputfile):
         va_smartva_binary = os.path.join(current_app.config["APP_RESOURCE"], "smartva")
         # ! in case the permission issue occurs, un-comment this piece of code from stackoverflow

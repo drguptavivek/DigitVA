@@ -1,6 +1,5 @@
 import os
 import csv
-import shutil
 from flask import current_app
 
 # Columns that SmartVA does not understand and must be excluded from input.
@@ -22,24 +21,20 @@ def _should_drop(header: str) -> bool:
     )
 
 
-def va_smartva_prepdata(va_form, pending_sids=None):
-    """Prepare the SmartVA input CSV for va_form.
+def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
+    """Prepare the SmartVA input CSV for va_form within an isolated workspace.
 
     Args:
         va_form: VAForm instance.
+        workspace_dir: Path to the ephemeral workspace directory.
         pending_sids: Optional set of sid strings. When provided, only rows
             whose computed sid is in this set are written to the input file.
             Pass None (default) to include all rows (e.g. full re-analysis).
     """
     va_formdir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
     vacsv_path = os.path.join(va_formdir, f"{va_form.odk_form_id}.csv")
-    va_smartvainputdir_path = os.path.join(va_formdir, "smartva_input")
-    if os.path.exists(va_smartvainputdir_path):
-        shutil.rmtree(va_smartvainputdir_path)
-    os.makedirs(va_smartvainputdir_path, exist_ok=True)
-    va_smartvainputfile_path = os.path.join(
-        va_smartvainputdir_path, "smartva_input.csv"
-    )
+    va_smartvainputfile_path = os.path.join(workspace_dir, "smartva_input.csv")
+
     if os.path.exists(vacsv_path):
         try:
             nan_check_columns = [

@@ -3,6 +3,7 @@ import uuid
 import time
 import logging
 import traceback
+import tempfile
 import sqlalchemy as sa
 from datetime import datetime, timezone
 from flask import current_app
@@ -743,24 +744,25 @@ def va_data_sync_odkcentral(log_progress=None):
                     _progress(f"SmartVA {va_form.form_id}: all results up to date, skipping.")
                     continue
 
-                log.info("DataSync SmartVA [%s]: preparing input (%d pending).", va_form.form_id, len(pending))
-                _progress(f"SmartVA {va_form.form_id}: preparing input ({len(pending)} pending)…")
-                va_smartva_prepdata(va_form, pending_sids=pending)
+                with tempfile.TemporaryDirectory() as workspace_dir:
+                    log.info("DataSync SmartVA [%s]: preparing input (%d pending).", va_form.form_id, len(pending))
+                    _progress(f"SmartVA {va_form.form_id}: preparing input ({len(pending)} pending)…")
+                    va_smartva_prepdata(va_form, workspace_dir=workspace_dir, pending_sids=pending)
 
-                log.info("DataSync SmartVA [%s]: running analysis.", va_form.form_id)
-                _progress(f"SmartVA {va_form.form_id}: running analysis…")
-                va_smartva_runsmartva(va_form)
+                    log.info("DataSync SmartVA [%s]: running analysis.", va_form.form_id)
+                    _progress(f"SmartVA {va_form.form_id}: running analysis…")
+                    va_smartva_runsmartva(va_form, workspace_dir=workspace_dir)
 
-                log.info("DataSync SmartVA [%s]: formatting output.", va_form.form_id)
-                _progress(f"SmartVA {va_form.form_id}: formatting results…")
-                output_file = va_smartva_formatsmartvaresult(va_form)
-                if not output_file:
-                    log.warning("DataSync SmartVA [%s]: no output file produced, skipping.", va_form.form_id)
-                    continue
+                    log.info("DataSync SmartVA [%s]: formatting output.", va_form.form_id)
+                    _progress(f"SmartVA {va_form.form_id}: formatting results…")
+                    output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir=workspace_dir)
+                    if not output_file:
+                        log.warning("DataSync SmartVA [%s]: no output file produced, skipping.", va_form.form_id)
+                        continue
 
-                va_smartva_new_results, va_smartva_existingactive_results = (
-                    va_smartva_appendsmartvaresults(db.session, {va_form: output_file})
-                )
+                    va_smartva_new_results, va_smartva_existingactive_results = (
+                        va_smartva_appendsmartvaresults(db.session, {va_form: output_file})
+                    )
                 if va_smartva_new_results is None:
                     log.info("DataSync SmartVA [%s]: no new results.", va_form.form_id)
                     continue

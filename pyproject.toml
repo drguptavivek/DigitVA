@@ -32,6 +32,7 @@ dependencies = [
     "redis>=7.3.0",
     "sqlalchemy-celery-beat>=0.8.4",
     "flask-session>=0.8.0",
+    "Flask-Limiter==4.0.0",
 ]
 
 [project.optional-dependencies]

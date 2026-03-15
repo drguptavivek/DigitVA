@@ -1,5 +1,5 @@
 import sqlalchemy as sa
-from app import db
+from app import db, limiter
 from app.forms import VaMyprofileForm, VaForcePasswordChangeForm
 from app.utils import va_render_serialisedates
 from app.decorators import va_validate_permissions
@@ -791,6 +791,7 @@ def va_profile():
 
 @va_main.route("/force-password-change", methods=["GET", "POST"])
 @login_required
+@limiter.limit("5 per minute", methods=["POST"])
 def force_password_change():
     if current_user.pw_reset_t_and_c:
         return redirect(url_for("va_main.va_dashboard", va_role="coder"))

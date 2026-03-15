@@ -1,4 +1,4 @@
-from app import db
+from app import db, limiter
 from app.models import VaUsers
 from app.forms import LoginForm
 import sqlalchemy as sa
@@ -10,6 +10,7 @@ va_auth = Blueprint("va_auth", __name__)
 
 
 @va_auth.route("/valogin", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def va_login():
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())

@@ -12,6 +12,8 @@ from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf.csrf import CSRFProtect
 from flask_session import Session
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from config import Config
 from celery import Celery, Task
 
@@ -20,6 +22,10 @@ migrate = Migrate()
 login = LoginManager()
 csrf = CSRFProtect()
 sess_manager = Session()
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+)
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -44,6 +50,10 @@ def create_app(config_class=Config):
     
     app.config['SESSION_SQLALCHEMY'] = db
     sess_manager.init_app(app)
+
+    # Initialize rate limiter with Redis storage
+    limiter.storage_uri = app.config.get("REDIS_URL", "redis://localhost:6379/0")
+    limiter.init_app(app)
     
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'

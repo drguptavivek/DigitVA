@@ -328,6 +328,7 @@ def va_servemedia(va_form_id, va_filename):
 
 
 @va_api.route("/icd-search")
+@login_required
 def icd_search():
     query = request.args.get("q", "")
     results = db.session.execute(

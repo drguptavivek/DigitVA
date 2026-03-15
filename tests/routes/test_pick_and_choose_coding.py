@@ -187,6 +187,10 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         response = self.client.get("/vadashboard/coder")
 
         self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Random Allocation Forms Ready", response.data)
+        self.assertIn(b"Pick And Choose Forms Ready", response.data)
+        self.assertIn(b"Two coding modes are active for your access scope.", response.data)
+        self.assertIn(b"Start Random Allocation Coding", response.data)
         self.assertIn(b"Pick And Choose Coding", response.data)
         self.assertIn(b"sid-pick-1", response.data)
         self.assertIn(b"vapickcoding/sid-pick-1", response.data)

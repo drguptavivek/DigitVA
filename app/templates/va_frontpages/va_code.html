@@ -29,15 +29,18 @@
     <b>Welcome to the Verbal Autopsy Coding Dashboard</b>
   </p>
   <ol class="mb-0">
-    <li>The stats below reflect the <b>total VA forms awaiting to be coded</b> and <b>those you've already coded</b>.</li>
+    <li>The stats below separate <b>Random Allocation</b> work from <b>Pick And Choose</b> work so you can see exactly which intake mode is available.</li>
     <li>
       Click
-      <b>"Start VA Coding"</b>
-      to start coding a VA form. Once assigned, you are expected to complete its coding before picking another. If some VA Coding is already in progress and assigned to you, you'll see a
+      <b>"Start Random Allocation Coding"</b>
+      to let the system assign a case from projects that use random allocation. Once assigned, you are expected to complete its coding before picking another. If some VA Coding is already in progress and assigned to you, you'll see a
       <b>"Continue Pending VA Coding"</b>
       option instead. Please note that any assigned VA form will be
       <b>revoked after an hour</b>
       if the VA Coding is not completed.
+    </li>
+    <li>
+      Use the <b>"Pick And Choose Coding"</b> table only for projects that require manual case selection.
     </li>
     <li>
       Use the
@@ -57,23 +60,39 @@
 
 <!-- KPI cards -->
 <div class="row mb-4 g-3">
-  <div class="col-md-6">
+  <div class="col-md-4">
     <div class="card shadow-sm border-0 rounded-3 h-100">
       <div class="card-body p-4">
         <div class="d-flex flex-column align-items-center">
           <div class="mb-3">
             <i class="fas fa-clipboard-list text-primary fa-2x"></i>
           </div>
-          <h5 class="text-primary fw-semibold mb-3">Active VA Forms Available to {{ current_user.name }} for Coding</h5>
+          <h5 class="text-primary fw-semibold mb-3">Random Allocation Forms Ready</h5>
           <div class="d-flex align-items-baseline">
-            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_total_forms }}</h2>
+            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_random_ready_forms }}</h2>
             <span class="ms-2 text-secondary small">forms</span>
           </div>
         </div>
       </div>
     </div>
   </div>
-  <div class="col-md-6">
+  <div class="col-md-4">
+    <div class="card shadow-sm border-0 rounded-3 h-100">
+      <div class="card-body p-4">
+        <div class="d-flex flex-column align-items-center">
+          <div class="mb-3">
+            <i class="fas fa-list-check text-primary fa-2x"></i>
+          </div>
+          <h5 class="text-primary fw-semibold mb-3">Pick And Choose Forms Ready</h5>
+          <div class="d-flex align-items-baseline">
+            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_pick_ready_forms_count }}</h2>
+            <span class="ms-2 text-secondary small">forms</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
     <div class="card shadow-sm border-0 rounded-3 h-100">
       <div class="card-body p-4">
         <div class="d-flex flex-column align-items-center">
@@ -90,6 +109,33 @@
     </div>
   </div>
 </div>
+  {% if has_random_mode and has_pick_mode %}
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+    <i class="fas fa-circle-info mt-1"></i>
+    <div>
+      <strong>Two coding modes are active for your access scope.</strong>
+      Use <strong>Start Random Allocation Coding</strong> for system-assigned projects.
+      Use the <strong>Pick And Choose Coding</strong> table below for manual-selection projects.
+    </div>
+  </div>
+  {% elif has_pick_mode and not has_random_mode %}
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+    <i class="fas fa-circle-info mt-1"></i>
+    <div>
+      <strong>Your current coding access uses Pick And Choose only.</strong>
+      Start work from the <strong>Pick And Choose Coding</strong> table below.
+      The random-allocation button will not appear because no random-allocation projects are in scope.
+    </div>
+  </div>
+  {% elif has_random_mode and not has_pick_mode %}
+  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
+    <i class="fas fa-circle-info mt-1"></i>
+    <div>
+      <strong>Your current coding access uses Random Allocation only.</strong>
+      Use <strong>Start Random Allocation Coding</strong> to receive the next eligible case automatically.
+    </div>
+  </div>
+  {% endif %}
   <div class="text-center mb-4">
     {% if va_has_allocation %}
     <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='varesumecoding', va_sid='varesumecoding') }}" class="btn btn-primary">
@@ -98,7 +144,7 @@
     {% else %}
     {% if va_random_ready_forms %}
     <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vastartcoding', va_sid='vastartcoding') }}" class="btn btn-primary">
-      <i class="fas fa-edit me-2"></i>Start VA Coding
+      <i class="fas fa-edit me-2"></i>Start Random Allocation Coding
     </a>
     {% endif %}
     {% endif %}

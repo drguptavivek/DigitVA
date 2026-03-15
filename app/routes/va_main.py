@@ -202,12 +202,18 @@ def va_dashboard(va_role):
                 current_user.user_id,
                 va_form_access,
             )
+            va_pick_ready_forms_count = len(pick_ready_rows)
+            has_random_mode = bool(random_form_ids)
+            has_pick_mode = bool(pick_form_ids)
         else:
             va_total_forms = 0
             va_random_ready_forms = 0
             va_forms_completed = 0
             va_forms = []
             pick_ready_rows = []
+            va_pick_ready_forms_count = 0
+            has_random_mode = False
+            has_pick_mode = False
         va_has_allocation = db.session.scalar(
             sa.select(VaAllocations.va_sid).where(
                 (VaAllocations.va_allocated_to == current_user.user_id)
@@ -222,9 +228,12 @@ def va_dashboard(va_role):
             "va_frontpages/va_code.html",
             va_total_forms=va_total_forms,
             va_random_ready_forms=va_random_ready_forms,
+            va_pick_ready_forms_count=va_pick_ready_forms_count,
             va_forms_completed=va_forms_completed,
             va_forms=va_forms,
             pick_ready_forms=pick_ready_rows,
+            has_random_mode=has_random_mode,
+            has_pick_mode=has_pick_mode,
             va_has_allocation=va_has_allocation,
             va_recodeable=get_coder_recodeable_sids(
                 current_user.user_id,

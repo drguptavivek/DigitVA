@@ -14,6 +14,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_talisman import Talisman
 from config import Config
 from celery import Celery, Task
 
@@ -26,6 +27,7 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per day", "50 per hour"],
 )
+talisman = Talisman()
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -54,6 +56,28 @@ def create_app(config_class=Config):
     # Initialize rate limiter with Redis storage
     limiter.storage_uri = app.config.get("REDIS_URL", "redis://localhost:6379/0")
     limiter.init_app(app)
+
+    # Initialize security headers with Flask-Talisman
+    # In development/testing, disable HTTPS enforcement
+    force_https = not (app.debug or app.testing)
+    talisman.init_app(
+        app,
+        force_https=force_https,
+        strict_transport_security=True,
+        strict_transport_security_max_age=31536000,
+        content_security_policy={
+            'default-src': "'self'",
+            'script-src': "'self' 'unsafe-inline'",  # unsafe-inline needed for HTMX
+            'style-src': "'self' 'unsafe-inline'",
+            'img-src': "'self' data:",
+            'font-src': "'self'",
+            'connect-src': "'self'",
+        },
+        x_frame_options='DENY',
+        x_content_type_options=True,
+        x_xss_protection=True,
+        referrer_policy='strict-origin-when-cross-origin',
+    )
     
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'

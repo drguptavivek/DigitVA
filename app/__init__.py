@@ -15,7 +15,7 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
-from werkzeug.middleware.proxy import ProxyFix
+from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
 from celery import Celery, Task
 
@@ -70,13 +70,6 @@ def create_app(config_class=Config):
             'default-src': "'self'",
             'script-src': "'self' 'unsafe-inline'",  # unsafe-inline needed for HTMX
             'style-src': "'self' 'unsafe-inline'",
-        },
-    )
-
-    # Handle reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto, etc.)
-    # Set x_for=1 if behind a single reverse proxy (nginx, traefik, etc.)
-    # Increase count if behind multiple proxies
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
             'img-src': "'self' data:",
             'font-src': "'self'",
             'connect-src': "'self'",
@@ -86,7 +79,12 @@ def create_app(config_class=Config):
         x_xss_protection=True,
         referrer_policy='strict-origin-when-cross-origin',
     )
-    
+
+    # Handle reverse proxy headers (X-Forwarded-For, X-Forwarded-Proto, etc.)
+    # Set x_for=1 if behind a single reverse proxy (nginx, traefik, etc.)
+    # Increase count if behind multiple proxies
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'
     app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])

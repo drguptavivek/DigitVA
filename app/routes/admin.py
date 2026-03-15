@@ -3537,6 +3537,17 @@ def admin_sync_status():
             .order_by(VaSyncRun.started_at.desc())
             .limit(1)
         )
+
+        # Flag runs that have been "running" for over 10 minutes with no
+        # progress entries — likely orphaned by a worker crash.
+        possibly_stale = False
+        if running:
+            from datetime import datetime, timezone
+            age_seconds = (datetime.now(timezone.utc) - running.started_at).total_seconds()
+            has_progress = bool(running.progress_log and running.progress_log.strip() not in ("", "[]"))
+            if age_seconds > 600 and not has_progress:
+                possibly_stale = True
+
         last_completed = db.session.scalar(
             sa.select(VaSyncRun)
             .where(VaSyncRun.status.in_(["success", "partial", "error", "cancelled"]))
@@ -3547,6 +3558,7 @@ def admin_sync_status():
 
         return jsonify({
             "is_running": running is not None,
+            "possibly_stale": possibly_stale,
             "current_run": _sync_run_dict(running) if running else None,
             "last_completed": _sync_run_dict(last_completed) if last_completed else None,
             "schedule_hours": schedule_hours,

@@ -2,7 +2,9 @@ from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 from app.utils.va_odk.va_odk_03_submissionupdatedate import va_odk_submissionupdatedate
 from app.utils.va_odk.va_odk_05_deltacheck import va_odk_delta_count
 from app.utils.va_odk.va_odk_06_fetchsubmissions import (
+    va_odk_fetch_instance_ids,
     va_odk_fetch_submissions,
+    va_odk_fetch_submissions_by_ids,
     va_odk_write_form_csv,
     va_odk_rebuild_form_csv_from_db,
 )
@@ -75,7 +77,9 @@ __all__ = [
     "va_odk_clientsetup",
     "va_odk_submissionupdatedate",
     "va_odk_delta_count",
+    "va_odk_fetch_instance_ids",
     "va_odk_fetch_submissions",
+    "va_odk_fetch_submissions_by_ids",
     "va_odk_write_form_csv",
     "va_odk_rebuild_form_csv_from_db",
     "va_odk_sync_form_attachments",

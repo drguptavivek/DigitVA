@@ -55,6 +55,9 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
     from app.models.va_sync_runs import VaSyncRun
     from app.services.va_data_sync.va_data_sync_01_odkcentral import va_data_sync_odkcentral
 
+    # Expire any orphaned "running" rows left by a crashed worker.
+    cleanup_stale_runs()
+
     # Write "running" record in its own transaction so the dashboard sees it immediately.
     run = VaSyncRun(
         triggered_by=triggered_by,
@@ -106,6 +109,8 @@ def run_smartva_pending(self, triggered_by="manual", user_id=None):
     from app import db
     from app.models.va_sync_runs import VaSyncRun
     from app.services.va_data_sync.va_data_sync_01_odkcentral import va_smartva_run_pending
+
+    cleanup_stale_runs()
 
     run = VaSyncRun(
         triggered_by=triggered_by,
@@ -400,20 +405,31 @@ def ensure_sync_scheduled():
 
 
 def cleanup_stale_runs():
-    """Mark orphaned 'running' rows as 'error' on worker startup."""
+    """Mark orphaned 'running' rows as 'error'.
+
+    Called on worker startup and before each new sync run.  The threshold
+    is 45 minutes — well under the Celery soft_time_limit (30 min), so any
+    run older than that is certainly dead.
+    """
     try:
         from app import db
-        db.session.execute(sa.text("""
+        result = db.session.execute(sa.text("""
             UPDATE va_sync_runs
             SET status = 'error',
                 finished_at = NOW(),
-                error_message = 'Worker restarted — run did not complete'
+                error_message = 'Stale run — worker likely restarted before completion'
             WHERE status = 'running'
-              AND started_at < NOW() - INTERVAL '2 hours'
+              AND started_at < NOW() - INTERVAL '45 minutes'
         """))
+        if result.rowcount:
+            log.warning("Cleaned up %d stale 'running' sync run(s).", result.rowcount)
         db.session.commit()
     except Exception as e:
-        print(f"Warning: Could not clean up stale sync runs: {e}")
+        log.warning("Could not clean up stale sync runs: %s", e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
 
 @shared_task(

@@ -33,6 +33,110 @@ log = logging.getLogger(__name__)
 _PAGE_SIZE = 250
 
 
+def va_odk_fetch_instance_ids(va_form, client=None) -> list[str]:
+    """Fetch all submission instance IDs from ODK Central (lightweight).
+
+    Uses the REST submissions listing endpoint which returns all submissions
+    in a single call with only metadata — no form data transferred.
+    Returns a list of instance ID strings.
+    """
+    client = client or va_odk_clientsetup(project_id=va_form.project_id)
+    url = (
+        f"projects/{va_form.odk_project_id}"
+        f"/forms/{va_form.odk_form_id}/submissions"
+    )
+
+    response = guarded_odk_call(
+        lambda: client.session.get(url),
+        client=client,
+    )
+    if response.status_code != 200:
+        raise Exception(
+            f"Submissions listing failed HTTP {response.status_code} "
+            f"for {va_form.form_id}: {response.text[:200]}"
+        )
+
+    all_ids = [
+        s["instanceId"]
+        for s in response.json()
+        if s.get("instanceId") and not s.get("deletedAt")
+    ]
+
+    log.info(
+        "va_odk_fetch_instance_ids [%s]: %d ID(s) from ODK",
+        va_form.form_id, len(all_ids),
+    )
+    return all_ids
+
+
+def va_odk_fetch_submissions_by_ids(
+    va_form,
+    instance_ids: list[str],
+    client=None,
+    log_progress=None,
+) -> list[dict]:
+    """Fetch specific submissions by instance ID using OData single-entity access.
+
+    Uses Submissions('{instanceId}') — one HTTP call per submission.
+    Logs progress every 50 records.
+    """
+    if not instance_ids:
+        return []
+
+    client = client or va_odk_clientsetup(project_id=va_form.project_id)
+    base_url = (
+        f"projects/{va_form.odk_project_id}"
+        f"/forms/{va_form.odk_form_id}.svc/Submissions"
+    )
+
+    all_records: list[dict] = []
+    errors = 0
+
+    for idx, iid in enumerate(instance_ids, 1):
+        # OData single-entity: Submissions('uuid:...')
+        url = f"{base_url}('{iid}')"
+        try:
+            response = guarded_odk_call(
+                lambda: client.session.get(url),
+                client=client,
+            )
+            if response.status_code != 200:
+                log.warning(
+                    "va_odk_fetch_submissions_by_ids [%s]: HTTP %d for %s",
+                    va_form.form_id, response.status_code, iid,
+                )
+                errors += 1
+                continue
+            data = response.json()
+            # Single-entity OData returns {"value": [record], ...}
+            value = data.get("value", [data])
+            records = value if isinstance(value, list) else [value]
+            for record in records:
+                all_records.append(_normalize_odata_record(record, va_form.form_id))
+        except Exception as e:
+            log.warning(
+                "va_odk_fetch_submissions_by_ids [%s]: error fetching %s: %s",
+                va_form.form_id, iid, e,
+            )
+            errors += 1
+
+        if idx % 50 == 0:
+            msg = (
+                f"[{va_form.form_id}] gap fetch: {idx}/{len(instance_ids)} "
+                f"({errors} errors)" if errors else
+                f"[{va_form.form_id}] gap fetch: {idx}/{len(instance_ids)}"
+            )
+            log.info("va_odk_fetch_submissions_by_ids %s", msg)
+            if log_progress:
+                log_progress(msg)
+
+    log.info(
+        "va_odk_fetch_submissions_by_ids [%s]: done — %d fetched, %d errors of %d requested",
+        va_form.form_id, len(all_records), errors, len(instance_ids),
+    )
+    return all_records
+
+
 def va_odk_fetch_submissions(
     va_form,
     since: datetime | None = None,

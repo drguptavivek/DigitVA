@@ -38,7 +38,9 @@ from app.models import (
 from app.utils import (
     va_odk_clientsetup,
     va_odk_delta_count,
+    va_odk_fetch_instance_ids,
     va_odk_fetch_submissions,
+    va_odk_fetch_submissions_by_ids,
     va_odk_write_form_csv,
     va_odk_rebuild_form_csv_from_db,
     va_odk_sync_form_attachments,
@@ -314,7 +316,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             )
             print(f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']")
 
-        elif not existing and va_submission_consent == "yes":
+        elif not existing and va_submission_consent and va_submission_consent != "no":
             va_submission_summary, va_submission_catcount = (
                 va_preprocess_summcatenotification(va_submission)
             )
@@ -416,6 +418,7 @@ def va_data_sync_odkcentral(log_progress=None):
                     mapping,
                 )
                 # Delta check
+                use_gap_sync = False
                 if mapping and mapping.last_synced_at is not None:
                     since_str = mapping.last_synced_at.strftime("%Y-%m-%dT%H:%M:%SZ")
                     try:
@@ -429,47 +432,133 @@ def va_data_sync_odkcentral(log_progress=None):
                         if delta == 0:
                             _progress(
                                 f"[{va_form.form_id}] delta check: 0 changes "
-                                f"since {since_str} — skipped"
+                                f"since {since_str} — checking for gaps…"
                             )
-                            log.info(
-                                "DataSync [%s]: 0 changes since %s, skipping.",
-                                va_form.form_id, since_str,
+                            use_gap_sync = True
+                        else:
+                            _progress(
+                                f"[{va_form.form_id}] delta check: {delta} change(s) "
+                                f"since {since_str} — downloading…"
                             )
-                            continue
-                        _progress(
-                            f"[{va_form.form_id}] delta check: {delta} change(s) "
-                            f"since {since_str} — downloading…"
-                        )
                     except Exception as delta_err:
                         _progress(
                             f"[{va_form.form_id}] delta check failed "
-                            f"({delta_err}) — downloading as fallback"
+                            f"({delta_err}) — falling back to gap check"
                         )
                         log.warning(
-                            "DataSync [%s]: delta check failed, falling through to full download: %s",
+                            "DataSync [%s]: delta check failed, using gap sync: %s",
                             va_form.form_id, delta_err,
                         )
+                        use_gap_sync = True
                 else:
                     _progress(f"[{va_form.form_id}] first sync — downloading…")
 
-                # Fetch submissions via OData JSON (no ZIP, no rmtree)
-                log.info("DataSync [Fetching submissions via OData: %s].", va_form.form_id)
-                _progress(f"[{va_form.form_id}] fetching submissions from ODK…")
-                va_submissions_raw = _run_with_odk_connectivity_backoff(
-                    f"[{va_form.form_id}] ODK fetch",
-                    lambda attempt: va_odk_fetch_submissions(
-                        va_form,
-                        since=mapping.last_synced_at if mapping else None,
-                        client=_get_or_create_sync_odk_client(
-                            clients_by_group,
-                            connection_by_project,
+                # ── Gap sync: compare ODK IDs with local, fetch only missing ──
+                if use_gap_sync:
+                    odk_ids = va_odk_fetch_instance_ids(va_form, client=odk_client)
+                    # va_sid = "{instance_id}-{form_id_lower}" — build a set
+                    # of expected sids from the ODK instance IDs for fast lookup
+                    form_id_lower = va_form.form_id.lower()
+                    local_sids = set(
+                        db.session.scalars(
+                            sa.select(VaSubmissions.va_sid).where(
+                                VaSubmissions.va_form_id == va_form.form_id
+                            )
+                        ).all()
+                    )
+                    missing_ids = [
+                        iid for iid in odk_ids
+                        if f"{iid}-{form_id_lower}" not in local_sids
+                    ]
+                    if not missing_ids:
+                        _progress(
+                            f"[{va_form.form_id}] gap check: "
+                            f"{len(odk_ids)} in ODK, {len(local_sids)} local — in sync"
+                        )
+                        continue
+                    _progress(
+                        f"[{va_form.form_id}] gap check: "
+                        f"{len(missing_ids)} missing of {len(odk_ids)} "
+                        f"— fetching & upserting in batches of 50…"
+                    )
+
+                    # Fetch + upsert in batches so progress is saved incrementally
+                    _GAP_BATCH = 50
+                    gap_added_total = 0
+                    gap_updated_total = 0
+                    gap_discarded_total = 0
+                    gap_errors = 0
+                    form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
+                    media_dir = os.path.join(form_dir, "media")
+                    os.makedirs(media_dir, exist_ok=True)
+
+                    for batch_start in range(0, len(missing_ids), _GAP_BATCH):
+                        batch_ids = missing_ids[batch_start : batch_start + _GAP_BATCH]
+                        batch_records = va_odk_fetch_submissions_by_ids(
+                            va_form, batch_ids, client=odk_client,
+                        )
+                        if batch_records:
+                            upserted_map_batch: dict[str, str] = {}
+                            b_added, b_updated, b_discarded = _upsert_form_submissions(
+                                va_form, batch_records, amended_sids, upserted_map_batch
+                            )
+                            db.session.commit()
+                            gap_added_total += b_added
+                            gap_updated_total += b_updated
+                            gap_discarded_total += b_discarded
+
+                            # Sync attachments for this batch
+                            if upserted_map_batch:
+                                va_odk_sync_form_attachments(
+                                    va_form, upserted_map_batch, media_dir,
+                                    client_factory=lambda: _get_or_create_sync_odk_client(
+                                        clients_by_group, connection_by_project,
+                                        va_form, mapping,
+                                    ),
+                                )
+                                db.session.commit()
+
+                        done = min(batch_start + _GAP_BATCH, len(missing_ids))
+                        _progress(
+                            f"[{va_form.form_id}] gap batch {done}/{len(missing_ids)}: "
+                            f"+{gap_added_total} added, {gap_updated_total} updated"
+                        )
+
+                    va_submissions_added += gap_added_total
+                    va_submissions_updated += gap_updated_total
+                    va_discarded_relrecords += gap_discarded_total
+
+                    # Rebuild full CSV and update last_synced_at
+                    va_odk_rebuild_form_csv_from_db(va_form, form_dir)
+                    if mapping:
+                        mapping.last_synced_at = snapshot_time
+                        db.session.commit()
+
+                    _progress(
+                        f"[{va_form.form_id}] gap sync done: "
+                        f"+{gap_added_total} added, {gap_updated_total} updated"
+                    )
+                    downloaded_forms.append(va_form)
+                    continue  # skip the normal upsert/attachment flow below
+                else:
+                    # Normal delta or first-sync fetch
+                    log.info("DataSync [Fetching submissions via OData: %s].", va_form.form_id)
+                    _progress(f"[{va_form.form_id}] fetching submissions from ODK…")
+                    va_submissions_raw = _run_with_odk_connectivity_backoff(
+                        f"[{va_form.form_id}] ODK fetch",
+                        lambda attempt: va_odk_fetch_submissions(
                             va_form,
-                            mapping,
-                            force_refresh=(attempt > 1),
+                            since=mapping.last_synced_at if mapping else None,
+                            client=_get_or_create_sync_odk_client(
+                                clients_by_group,
+                                connection_by_project,
+                                va_form,
+                                mapping,
+                                force_refresh=(attempt > 1),
+                            ),
                         ),
-                    ),
-                    log_progress=_progress,
-                )
+                        log_progress=_progress,
+                    )
 
                 # Write CSV for SmartVA (same format as ZIP-extracted CSV)
                 form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)

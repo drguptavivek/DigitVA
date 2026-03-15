@@ -28,7 +28,7 @@ class VaSubmissions(db.Model):
     va_uniqueid_real: so.Mapped[Optional[str]] = so.mapped_column(sa.String(128), nullable=True)
     va_uniqueid_masked: so.Mapped[Optional[str]] = so.mapped_column(sa.String(128), nullable=False)    
     va_consent: so.Mapped[str] = so.mapped_column(
-        sa.String(4), nullable=False, index=True
+        sa.String(32), nullable=False, index=True
     )
     va_narration_language: so.Mapped[str] = so.mapped_column(
         sa.String(32), nullable=False, index=True

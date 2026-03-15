@@ -202,6 +202,7 @@
   var _statusInterval = null;
   var _wasRunning = false;
   var _coverageLoaded = false;
+  var _triggerGraceUntil = 0;  // timestamp — don't stop progress polling before this
 
   function loadStatus() {
     apiJson('/admin/api/sync/status').then(function (res) {
@@ -219,6 +220,14 @@
           '<span class="me-3">' + statusBadge('running') + '</span>' +
           '<span class="small text-muted">Started ' + fmtRelTime(d.current_run.started_at) + '</span>'
         );
+        if (d.possibly_stale) {
+          parts.push(
+            '<span class="small text-warning ms-2">'
+            + '<i class="fa-solid fa-triangle-exclamation me-1"></i>'
+            + 'Possibly stale — no progress for 10+ min. Try stopping and re-running.'
+            + '</span>'
+          );
+        }
       } else if (d.last_completed) {
         var lc = d.last_completed;
         parts.push(
@@ -252,8 +261,8 @@
 
       // Progress polling and SmartVA stats refresh on run state changes
       if (d.is_running && !_wasRunning) {
-        startProgressPolling();
-      } else if (!d.is_running && _wasRunning) {
+        if (!_progressInterval) startProgressPolling();
+      } else if (!d.is_running && _wasRunning && Date.now() > _triggerGraceUntil) {
         stopProgressPolling();
         loadSmartvaStats();
       }
@@ -310,18 +319,30 @@
 
       var rows = d.mappings.map(function (m) {
         var missingBadge = '';
+        var statusTip = '';
         if (m.error) {
           var errShort = m.error.indexOf('timed out') !== -1 ? 'Timeout' : 'ODK error';
-          missingBadge = '<span class="badge text-bg-secondary" title="' + esc(m.error) + '">' + errShort + '</span>';
+          missingBadge = '<span class="badge text-bg-secondary">' + errShort + '</span>';
+          statusTip = esc(m.error);
         } else if (m.missing === 0) {
           missingBadge = '<span class="badge text-bg-success">In sync</span>';
-        } else if (m.missing != null) {
+          statusTip = 'All ODK submissions are present locally.';
+        } else if (m.missing != null && m.missing > 0) {
           missingBadge = '<span class="badge text-bg-warning">' + m.missing + ' missing</span>';
+          statusTip = m.missing + ' submission(s) exist in ODK but not locally.'
+            + ' Common reasons: consent refused (Id10013=no or null), or a previous sync was interrupted.'
+            + ' Run a normal "Sync Now" — gap detection will auto-fetch only the missing records safely without affecting existing codings.';
+        } else if (m.missing != null && m.missing < 0) {
+          var extra = Math.abs(m.missing);
+          missingBadge = '<span class="badge text-bg-info">' + extra + ' extra locally</span>';
+          statusTip = extra + ' submission(s) exist locally but were deleted or archived in ODK.'
+            + ' This is normal — the sync never deletes local records.'
+            + ' No action needed unless you want to manually clean up orphaned local records.';
         }
         var lastSync = m.last_synced_at ? fmtRelTime(m.last_synced_at) : '<span class="text-muted">never</span>';
         var syncBtn = m.form_id
           ? '<button class="btn btn-sm btn-outline-secondary py-0 px-1 form-sync-btn" '
-            + 'data-form-id="' + esc(m.form_id) + '" title="Force-resync this form">'
+            + 'data-form-id="' + esc(m.form_id) + '" title="Force-resync (use with caution). Prefer normal sync — it auto-detects and fills gaps safely.">'
             + '<i class="fa-solid fa-rotate-right"></i></button>'
           : '';
         return '<tr>'
@@ -329,7 +350,12 @@
           +   (m.form_id ? ' <span class="text-secondary">(' + esc(m.form_id) + ')</span>' : '') + '</td>'
           + '<td class="small text-center">' + (m.odk_total != null ? m.odk_total : '—') + '</td>'
           + '<td class="small text-center">' + m.local_total + '</td>'
-          + '<td class="small text-center">' + missingBadge + '</td>'
+          + '<td class="small text-center">'
+          + missingBadge
+          + (statusTip
+              ? ' <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.7rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" title="' + esc(statusTip) + '"></i>'
+              : '')
+          + '</td>'
           + '<td class="small text-center">' + lastSync + '</td>'
           + '<td class="small text-center">' + syncBtn + '</td>'
           + '</tr>';
@@ -342,9 +368,9 @@
         + '<th class="small">Site</th>'
         + '<th class="small text-center">ODK</th>'
         + '<th class="small text-center">Local</th>'
-        + '<th class="small text-center">Status</th>'
+        + '<th class="small text-center">Status <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="ODK counts all submissions. Local only stores consent-granted (Id10013 ≠ no/null). Small gaps are normal."></i></th>'
         + '<th class="small text-center">Last synced</th>'
-        + '<th class="small text-center">Sync</th>'
+        + '<th class="small text-center">Sync <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="Force-resync re-downloads ALL submissions. Use with caution — codings for ODK-edited submissions will be reset. Prefer normal Sync Now."></i></th>'
         + '</tr></thead>'
         + '<tbody>' + rows + '</tbody>'
         + '<tfoot class="table-light"><tr>'
@@ -360,6 +386,11 @@
         btn.addEventListener('click', function () {
           syncForm(btn.getAttribute('data-form-id'), btn);
         });
+      });
+
+      // Initialize Bootstrap tooltips
+      wrap.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
       });
     }).catch(function () {
       if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error fetching coverage.</span>';
@@ -546,14 +577,16 @@
   }
 
   function startProgressPolling() {
-    clearInterval(_progressInterval);
-    loadProgress();
+    if (_progressInterval) clearInterval(_progressInterval);
     _progressInterval = setInterval(loadProgress, 3000);
+    loadProgress();
   }
 
   function stopProgressPolling() {
-    clearInterval(_progressInterval);
-    _progressInterval = null;
+    if (_progressInterval) {
+      clearInterval(_progressInterval);
+      _progressInterval = null;
+    }
     loadProgress(); // final update
   }
 
@@ -561,6 +594,14 @@
 
   function syncForm(formId, btn) {
     if (!formId) return;
+    if (!confirm(
+      'Force-resync ' + formId + '?\n\n'
+      + 'This re-downloads ALL submissions from ODK.\n\n'
+      + '⚠️ WARNING: If any submission was edited in ODK since it was last synced, '
+      + 'all codings, reviews, and assessments for that submission will be RESET.\n\n'
+      + 'Unchanged submissions are not affected.\n\n'
+      + 'Prefer running a normal sync first — it uses gap detection to fetch only missing records safely.'
+    )) return;
     var origHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
@@ -598,6 +639,17 @@
         showToast(res.data.error || 'Failed to start sync.', 'danger');
         return;
       }
+      // Reset progress card immediately so the user sees it's a fresh run
+      _lastProgressRunId = null;
+      _triggerGraceUntil = Date.now() + 15000; // 15s grace — Celery may not have the row yet
+      var card = document.getElementById('sync-progress-card');
+      var wrap = document.getElementById('sync-progress-wrap');
+      var label = document.getElementById('sync-progress-run-label');
+      if (card) card.style.display = '';
+      if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Starting sync…</span>';
+      if (label) label.textContent = 'manual · starting…';
+      startProgressPolling();
+      _wasRunning = true;
       loadStatus();
       loadHistory();
     }).catch(function () {
@@ -646,6 +698,16 @@
         return;
       }
       showToast('SmartVA run started.', 'success');
+      _lastProgressRunId = null;
+      _triggerGraceUntil = Date.now() + 15000;
+      var card = document.getElementById('sync-progress-card');
+      var wrap = document.getElementById('sync-progress-wrap');
+      var label = document.getElementById('sync-progress-run-label');
+      if (card) card.style.display = '';
+      if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Starting SmartVA…</span>';
+      if (label) label.textContent = 'smartva-only · starting…';
+      startProgressPolling();
+      _wasRunning = true;
       loadStatus();
       loadHistory();
     }).catch(function () {

@@ -83,11 +83,19 @@ The Project Forms panel manages the mapping between an app project-site pair, a 
 
 Key behavior:
 
-- dropdowns for available ODK projects and forms are populated live from ODK Central via pyODK using the connection assigned to the project
+- the site table renders immediately from local DB state
+- ODK project and form dropdowns are populated lazily from ODK Central only
+  when an operator opens a site's Configure row
+- live ODK dropdown fetches now respect the shared ODK connection guard
+  state, so cooldown/failure messages are surfaced inline instead of leaving
+  the whole panel blocked
 - a **Form Type** dropdown lists all active form types from `mas_form_types` (e.g. `WHO_2022_VA`, `WHO_2022_VA_SOCIAL`); selecting one links that form type to the site mapping
 - each project-site pair maps to at most one ODK form and at most one form type
 - the mapping is stored in `map_project_site_odk` (columns: `odk_project_id`, `odk_form_id`, `form_type_id`)
 - the table summary shows the configured form type as a badge next to the ODK form info; a warning badge is shown if no form type is selected
+- the connection bar now shows the assigned connection's current cooldown or
+  recent failure state so operators can see degraded ODK health before trying
+  more live lookups
 
 ## ODK Connections Panel
 
@@ -97,6 +105,10 @@ The ODK Connections panel allows administrators to:
 - edit or delete existing connections
 - test a connection against ODK Central
 - assign a connection to one or more projects
+- inspect shared connection-health state such as:
+  - cooldown active/until
+  - recent retryable failure count
+  - recent failure message
 
 Credentials (username and password) are stored encrypted in `mas_odk_connections`:
 
@@ -105,6 +117,14 @@ Credentials (username and password) are stored encrypted in `mas_odk_connections
 - a shared pepper is read from the environment at runtime
 
 Plaintext credentials are never persisted to the database.
+
+Current operational behavior:
+
+- each DB-managed ODK connection also stores shared guard state used by both
+  app requests and background workers
+- admin connection tests and live ODK lookups fail fast while a connection is
+  in cooldown
+- the same connection guard is used by sync and ODK write-back flows
 
 ## Current Setup Path
 

@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-03-14
 ---
 
 # Current State Index
@@ -15,9 +15,9 @@ The current system should be understood as:
 - a single-project-first Flask application
 - server-rendered UI with HTMX partial loading
 - PostgreSQL-backed workflow state
-- global ODK connection configuration
+- DB-managed ODK connection configuration with legacy TOML fallback
 - per-form ODK project/form mapping
-- shell-driven admin/setup workflows
+- admin-driven operational setup with some remaining shell/bootstrap helpers
 
 Read these documents in this order:
 

@@ -76,6 +76,19 @@ Admin dashboard behavior:
 - the sync dashboard can revoke a running sync task from the UI
 - revoked runs are recorded in `va_sync_runs` with status `cancelled`
 - ODK coverage checks from the dashboard are loaded on demand, not automatically on panel render
+- sync status now includes shared ODK connection alerts so operators can see
+  active cooldowns and recent retryable connection failures without triggering
+  more live ODK calls
+
+ODK connection protection during task execution:
+
+- DB-managed ODK connections now use a shared guard backed by
+  `mas_odk_connections`
+- each outbound ODK request reserves a paced per-connection request slot
+- retryable connectivity/auth failures increment a shared failure counter
+- repeated retryable failures activate a shared cooldown, after which later
+  requests fail fast until the cooldown expires
+- successful requests clear cooldown and reset the shared failure count
 
 **Manual dispatch:**
 ```python
@@ -103,6 +116,11 @@ run_single_form_sync(form_id: str, triggered_by: str = "manual")
 4. Updates `mapping.last_synced_at`
 
 **When to use:** A form failed during a full sync run (status `partial`), or attachments are suspected to be out of sync. Triggered from the per-form sync button in the admin coverage table via `POST /admin/api/sync/form/<form_id>`.
+
+Operational note:
+
+- if the underlying ODK connection is in cooldown, the task fails fast rather
+  than continuing to burst requests at Central
 
 **Manual dispatch:**
 ```python
@@ -161,3 +179,6 @@ import app.tasks.my_module  # noqa: F401
 - **Beat not running scheduled tasks:** Check `celery_periodictask.enabled = true` and `celery_periodictaskchanged` has a recent row. Restart `minerva_celery_beat` if needed.
 - **Beat DB table errors on cold start:** Beat waits 10 s at startup to allow `flask db upgrade` to complete first. If tables are still missing, run `flask db upgrade` manually and restart Beat.
 - **Orphaned `running` sync rows:** Cleaned automatically on next worker startup by `cleanup_stale_runs()`.
+- **Repeated ODK connectivity failures:** Check `mas_odk_connections`
+  cooldown/failure state through the ODK Connections panel or the Sync
+  Dashboard status alerts before retrying live ODK actions.

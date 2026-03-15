@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-03-14
 ---
 
 # Runtime And Operations
@@ -72,12 +72,12 @@ Current services:
 - `minerva_app_service`
 - `minerva_db_service`
 - `minerva_redis_service`
-- `minerva_worker_service` (Celery worker)
-- `minerva_beat_service` (Celery beat)
+- `minerva_celery_worker` (Celery worker)
+- `minerva_celery_beat` (Celery beat)
 
 Current behavior:
 
-- app is bound to host port `8050`
+- local override binds the app to `127.0.0.1:5005`
 - postgres is bound to host port `8450`
 - redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`
@@ -101,6 +101,8 @@ Current implication:
 
 - schema migrations are applied automatically at container startup
 - runtime is tightly coupled to the DB being available
+- old-format live databases are expected to migrate forward via additive
+  Alembic migrations rather than manual resets
 
 ## Database And Migrations
 
@@ -158,6 +160,8 @@ Key test files:
 Current implication:
 - Test coverage is being actively built for critical areas like authentication, authorization, and session management.
 - Tests run inside the application container using `uv run python -m pytest tests/`.
+- `TestConfig` now uses filesystem-backed Flask sessions so the test harness
+  does not fight schema lifecycle around `va_sessions`.
 
 ## Logging
 
@@ -255,6 +259,14 @@ Current seeded periodic tasks:
 - ODK sync every 6 hours
 - stale coding allocation cleanup every 1 hour
 
+Current ODK operational protection:
+
+- DB-managed ODK connections are paced per connection before each outbound ODK
+  request
+- repeated retryable ODK connectivity/auth failures activate shared cooldown on
+  the connection row
+- app and worker processes use the same shared connection guard state
+
 Current coding allocation cleanup behavior:
 
 - implemented in
@@ -279,6 +291,17 @@ Current behavior:
 
 The panel is intended for operational tracing of coding progress rather than raw
 database inspection.
+
+### ODK operator visibility
+
+The admin console now exposes ODK connection health in multiple places:
+
+- ODK Connections panel: per-connection cooldown and recent failure state
+- Project Forms panel: selected project's connection state in the connection bar
+- Sync Dashboard: active connection alerts in the status card
+
+This visibility is driven from shared DB-backed guard state on
+`mas_odk_connections`, not from extra live ODK checks.
 
 ## Emailing
 
@@ -314,14 +337,22 @@ Current infra assumptions visible in the repo:
 - local disk used for logs
 - local resource files used for mappings, SmartVA assets, and pyODK config
 
+Current ODK configuration model:
+
+- DB-managed ODK connections are the primary runtime path
+- legacy `odk_config.toml` remains only as a backward-compatibility fallback
+  for unmapped projects
+
 This is a simple deployment shape, not a cloud-native split-service architecture.
 
 ## Operational Gaps Worth Noting
 
 - no implemented email delivery subsystem
 - no UI for infrastructure/admin setup
-- ODK configuration is file-based and global
 - logs are file-based, not centralized
 - attachment and sync data are stored on local/shared disk paths
+- live ODK behavior still depends on one shared Central instance being healthy,
+  though the app now uses per-connection pacing and cooldown to reduce burst
+  pressure
 
 These constraints matter for any future move toward multi-project and multi-server onboarding.

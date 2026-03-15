@@ -30,3 +30,5 @@ private/
 .beads/hooks/pre-push
 .beads/hooks/pre-commit
 .beads/hooks/post-merge
+docs/Samplemanuscripts/
+docs/Samplemanuscripts/*.*

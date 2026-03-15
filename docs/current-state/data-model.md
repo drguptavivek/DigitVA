@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-16
 ---
 
 # Current Data Model
@@ -552,6 +552,37 @@ Key fields:
 - `is_pii`
 - `display_order`
 - `is_active`
+
+### `mas_languages`
+
+Purpose:
+
+- canonical language list for the application
+- used by coder profile language selection, submission filtering, and sync normalization
+
+Key fields:
+
+- `language_code` — primary key (e.g. `bangla`, `english`, `hindi`)
+- `language_name` — display name (e.g. `Bangla`, `English`, `Hindi`)
+- `is_active` — boolean; inactive languages hidden from profile selection
+
+### `map_language_aliases`
+
+Purpose:
+
+- maps raw ODK language values to canonical `mas_languages.language_code`
+- lookup table used by `_normalize_language()` during sync
+
+Key fields:
+
+- `alias` — primary key (e.g. `bn`, `bengali`, `Bengali`)
+- `language_code` — FK to `mas_languages`
+
+Behavior:
+
+- multiple aliases can map to one canonical code
+- alias conflicts across languages are prevented (unique PK)
+- unknown ODK values pass through unchanged and appear in admin unmapped alert
 
 ### `mas_choice_mappings`
 

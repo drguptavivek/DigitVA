@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-16
 ---
 
 # ODK Sync And Attachments
@@ -79,11 +79,31 @@ Rules:
 | Condition | Action |
 |---|---|
 | `mapping.last_synced_at` is NULL | First-ever sync — always download |
-| Delta count = 0 | Skip form entirely (no ODK fetch, no attachment calls) |
+| Delta count = 0 | Run gap check (compare ODK IDs vs local) |
 | Delta count > 0 | Proceed to full OData JSON fetch |
-| ODK error / timeout | Fall through to full download as safe fallback |
+| ODK error / timeout | Run gap check as safe fallback |
 
 `snapshot_time` is captured before any ODK calls. `last_synced_at` is set to `snapshot_time` (not wall clock) after a successful form sync. This ensures submissions arriving mid-run are caught on the next sync rather than missed.
+
+## Gap Sync (Phase 1b)
+
+When the delta count is 0 or the delta check fails, the sync runs a gap check instead of skipping the form entirely. This catches submissions that were missed by earlier failed syncs.
+
+Steps:
+
+1. Fetch all ODK submission instance IDs via `GET /v1/projects/{pid}/forms/{fid}/submissions` (single REST call, metadata only)
+2. Load all local `va_sid` values for the form
+3. Compute missing IDs: ODK IDs that don't have a corresponding local `{id}-{form_id.lower()}`
+4. If no missing IDs → skip form (truly in sync)
+5. Fetch missing submissions in batches of 50 via OData single-entity access `Submissions('{instanceId}')`
+6. Upsert and commit each batch independently for crash resilience
+
+Implemented in:
+
+- [`va_odk_fetch_instance_ids()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py) — lightweight ID listing
+- [`va_odk_fetch_submissions_by_ids()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py) — targeted fetch by instance ID
+
+Note: OData `$filter` on `__id` is not supported by ODK Central (HTTP 501). The single-entity access pattern `Submissions('{instanceId}')` is used instead.
 
 ## Submission Fetch (Phase 2)
 
@@ -268,8 +288,8 @@ During upsert:
 
 - Submission exists with same `va_odk_updatedat` → skipped (no DB write, no attachment call)
 - Submission exists with changed `va_odk_updatedat` → updated; active workflow artifacts deactivated
-- Submission does not exist and consent = `yes` → inserted
-- Submission does not exist and consent ≠ `yes` → ignored
+- Submission does not exist and consent is present and ≠ `no` → inserted (accepts `yes`, `telephonic_consent`, etc.)
+- Submission does not exist and consent = `no` or is null → ignored
 
 When a submission is updated, the app deactivates related local workflow artifacts:
 
@@ -281,6 +301,12 @@ When a submission is updated, the app deactivates related local workflow artifac
 - User notes
 
 ODK is treated as the source of truth for submission content.
+
+## Language Normalization
+
+During upsert, raw ODK language values (`narr_language` or `language` field) are normalized to canonical codes via `_normalize_language()`. This looks up the `map_language_aliases` table (cached per sync run). Unknown values pass through unchanged and appear in the admin Languages panel unmapped alert.
+
+Example: `"Bengali"`, `"bn"`, `"bengali"` all normalize to `"bangla"`.
 
 ## Derived Data Added During Sync
 
@@ -359,7 +385,7 @@ Status meanings:
 | `partial` | At least one form failed, at least one succeeded |
 | `error` | Task crashed or all forms failed |
 
-Stale `running` rows (older than 2 hours) are marked `error` automatically on worker restart.
+Stale `running` rows (older than 45 minutes) are marked `error` automatically on worker restart and before each new sync run.
 
 ## ODK Coverage Check
 

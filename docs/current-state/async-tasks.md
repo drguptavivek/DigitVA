@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-03-14
+last_updated: 2026-03-16
 ---
 
 # Asynchronous Background Tasks
@@ -44,7 +44,7 @@ On worker/beat startup `make_celery.py`:
 1. Creates the Flask app via `create_app()`
 2. Retrieves `celery_app` from `flask_app.extensions["celery"]`
 3. Imports `app.tasks.sync_tasks` to register tasks with the worker
-4. Calls `cleanup_stale_runs()` — marks orphaned `running` sync rows as `error`
+4. Calls `cleanup_stale_runs()` — marks orphaned `running` sync rows (older than 45 minutes) as `error`
 5. Calls `ensure_sync_scheduled()` — idempotently seeds the ODK sync beat entry
 
 ## Registered Tasks
@@ -62,10 +62,11 @@ run_odk_sync(triggered_by="scheduled", user_id=None)
 
 **Behavior:**
 1. Writes a `VaSyncRun` row with `status="running"` and commits immediately (dashboard sees it)
-2. Calls `va_data_sync_odkcentral()` — incremental per-form pipeline (delta check → OData fetch → upsert → ETag attachment sync → per-form commit)
-3. On success: updates with `status="success"` and metric counts
-4. On partial success (some forms failed): updates with `status="partial"` and lists failed form IDs in `error_message`
-5. On error: updates with `status="error"` and `error_message`, then re-raises so Celery marks the task failed
+2. Calls `cleanup_stale_runs()` — expires orphaned "running" rows before starting
+3. Calls `va_data_sync_odkcentral()` — incremental per-form pipeline (delta check → gap sync → OData fetch → upsert → language normalization → ETag attachment sync → per-form commit)
+4. On success: updates with `status="success"` and metric counts
+5. On partial success (some forms failed): updates with `status="partial"` and lists failed form IDs in `error_message`
+6. On error: updates with `status="error"` and `error_message`, then re-raises so Celery marks the task failed
 
 **Limits:** `soft_time_limit=1800s`, `time_limit=3600s`
 
@@ -178,7 +179,7 @@ import app.tasks.my_module  # noqa: F401
 - **Task not found by worker:** Ensure the task module is imported in `make_celery.py`.
 - **Beat not running scheduled tasks:** Check `celery_periodictask.enabled = true` and `celery_periodictaskchanged` has a recent row. Restart `minerva_celery_beat` if needed.
 - **Beat DB table errors on cold start:** Beat waits 10 s at startup to allow `flask db upgrade` to complete first. If tables are still missing, run `flask db upgrade` manually and restart Beat.
-- **Orphaned `running` sync rows:** Cleaned automatically on next worker startup by `cleanup_stale_runs()`.
+- **Orphaned `running` sync rows:** Cleaned automatically on next worker startup and before each new sync run by `cleanup_stale_runs()` (45-minute threshold).
 - **Repeated ODK connectivity failures:** Check `mas_odk_connections`
   cooldown/failure state through the ODK Connections panel or the Sync
   Dashboard status alerts before retrying live ODK actions.

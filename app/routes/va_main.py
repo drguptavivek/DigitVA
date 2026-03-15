@@ -748,10 +748,11 @@ def va_sitepi_data():
 @login_required
 def va_profile():
     form = VaMyprofileForm()
-    stmt = sa.select(sa.func.distinct(VaSubmissions.va_narration_language))
-    result = db.session.execute(stmt).scalars().all()
-    lang_choices = sorted([lang for lang in result if lang])
-    form.va_languages.choices = [(lang, lang) for lang in lang_choices]
+    from app.models.mas_languages import MasLanguages
+    languages = db.session.scalars(
+        sa.select(MasLanguages).where(MasLanguages.is_active == True).order_by(MasLanguages.language_name)
+    ).all()
+    form.va_languages.choices = [(l.language_code, l.language_name) for l in languages]
 
     if form.va_update_password.data and form.validate_on_submit():
         if not form.va_current_password.data or not form.va_new_password.data:

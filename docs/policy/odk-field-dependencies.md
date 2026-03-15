@@ -3,7 +3,7 @@ title: ODK Field Dependencies — Application Logic Based on ODK Form Fields
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-16
 ---
 
 # ODK Field Dependencies — Application Logic Based on ODK Form Fields
@@ -31,21 +31,21 @@ This document captures all ODK form fields that the DigitVA application depends 
 |-------|----------|
 | `yes` | Submission is **imported** and available for coding |
 | `no` | Submission is **excluded** from sync |
-| `telephonic_consent` | Submission is **excluded** from sync |
-| (any other) | Submission is **excluded** from sync |
+| `telephonic_consent` | Submission is **imported** from sync |
+| (any other) | Submission is **imported** from sync |
 | `null` / missing | Submission is **excluded** from sync |
 
 ### Code Reference
 
 ```python
-# app/services/va_data_sync/va_data_sync_01_odkcentral.py:230
-elif not existing and va_submission_consent == "yes":
-    # Only insert if consent == "yes"
+# app/services/va_data_sync/va_data_sync_01_odkcentral.py
+elif not existing and va_submission_consent and va_submission_consent != "no":
+    # Insert if consent is present and not "no"
 ```
 
 ### Impact
 
-- Submissions with `consent ≠ "yes"` will NOT appear in the local database
+- Submissions with `consent == "no"` or `consent is null` will NOT appear in the local database
 - Coverage check will show "missing" count = ODK total - local count
 - This is intentional behavior to exclude non-consented submissions
 
@@ -152,23 +152,49 @@ out["unique_id2"] = (
 | **Primary Field** | `narr_language` |
 | **Fallback Field** | `language` |
 | **DB Column** | `va_submissions.va_narration_language` |
+| **Normalization** | Raw ODK values mapped to canonical codes via `map_language_aliases` |
+| **Canonical List** | `mas_languages` table |
+
+### Language Normalization
+
+Raw ODK values (e.g., `"Bengali"`, `"bn"`, `"bangla"`) are normalized to canonical
+codes (e.g., `"bangla"`) at sync time using the `map_language_aliases` lookup table.
+Unknown values pass through unchanged and are stored as-is.
 
 ### Code Reference
 
 ```python
-# app/services/va_data_sync/va_data_sync_01_odkcentral.py:100-104
-va_submission_narrlang = (
+# app/services/va_data_sync/va_data_sync_01_odkcentral.py
+_raw_lang = (
     va_submission.get("narr_language")
     if va_submission.get("narr_language")
     else va_submission.get("language")
 )
+va_submission_narrlang = _normalize_language(_raw_lang)
 ```
 
-### Expected Values
+### Canonical Languages
 
-- `en` (English)
-- `hi` (Hindi)
-- Other language codes as defined in form
+| Code | Display Name | Common Aliases |
+|------|-------------|----------------|
+| `bangla` | Bangla | bengali, bn |
+| `english` | English | en, eng |
+| `hindi` | Hindi | hi, hin |
+| `kannada` | Kannada | kn, kan |
+| `malayalam` | Malayalam | ml, mal |
+| `marathi` | Marathi | mr, mar |
+| `tamil` | Tamil | ta, tam |
+| `telugu` | Telugu | te, tel |
+| `gujarati` | Gujarati | gu, guj |
+| `odia` | Odia | or, ori, oriya |
+| `punjabi` | Punjabi | pa, pan |
+| `assamese` | Assamese | as, asm |
+| `urdu` | Urdu | ur, urd |
+
+### Adding New Languages or Aliases
+
+Add rows to `mas_languages` and `map_language_aliases` via admin or migration.
+The sync alias cache reloads at the start of each sync run.
 
 ---
 
@@ -329,15 +355,14 @@ When creating a new ODK form for DigitVA, ensure it contains:
 
 ### Adding New Consent Values
 
-To accept additional consent values (e.g., `telephonic_consent`):
+Current logic: any non-null, non-`"no"` value is accepted. No code change needed
+for new consent values — they are imported automatically.
 
-```python
-# Change from:
-elif not existing and va_submission_consent == "yes":
+### Adding New Languages
 
-# To:
-elif not existing and va_submission_consent in ("yes", "telephonic_consent"):
-```
+Add rows to `mas_languages` and `map_language_aliases` tables. The sync alias
+cache reloads at the start of each sync run. New languages can also be added
+via the seed command or a migration.
 
 ---
 

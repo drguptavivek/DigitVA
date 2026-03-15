@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-16
 ---
 
 # Admin And Setup Model
@@ -28,6 +28,7 @@ The `/admin` interface provides the following management panels:
 - **Sites** — site master management (create, activate, deactivate)
 - **Users** — user account management (create, reset password, toggle active status)
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
+- **Languages** — canonical language list management with ODK alias mapping. Shows unmapped language values found in submissions.
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
@@ -39,6 +40,7 @@ The following panels are restricted to application-level admins:
 - Users
 - Sites
 - Projects
+- Languages
 
 ### Project-PI-Accessible Panels
 
@@ -125,6 +127,40 @@ Current operational behavior:
 - admin connection tests and live ODK lookups fail fast while a connection is
   in cooldown
 - the same connection guard is used by sync and ODK write-back flows
+
+## Languages Panel
+
+The Languages panel manages the canonical language list and ODK alias mappings used throughout the application.
+
+### Data Model
+
+- **`mas_languages`** — canonical language list with `language_code` (PK), `language_name`, and `is_active` flag
+- **`map_language_aliases`** — maps raw ODK field values to canonical codes (e.g., `"bn"` → `"bangla"`, `"Bengali"` → `"bangla"`)
+
+### Key Behavior
+
+- the panel lists all canonical languages with their aliases and submission counts
+- admins can create, edit (rename/update aliases), and toggle languages active/inactive
+- **unmapped values alert**: the panel detects language values in `va_submissions` that don't match any alias and displays them prominently so the admin can add them
+- aliases can be added or removed inline; the language code itself is always kept as an alias
+- alias conflicts across languages are prevented (one alias maps to exactly one language)
+- deactivated languages are hidden from coder profile language selection but existing data is preserved
+
+### Sync Integration
+
+- during ODK sync, raw `narr_language` / `language` values are normalized to canonical codes via `_normalize_language()` before storage
+- the alias lookup is cached per sync run (cleared at start of each run)
+- unknown values (no matching alias) pass through unchanged and appear in the unmapped alert
+
+### API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/admin/api/languages` | List languages (optional `include_inactive`, `include_unmapped`) |
+| POST | `/admin/api/languages` | Create new language with aliases |
+| PUT | `/admin/api/languages/<code>` | Update name and/or aliases |
+| POST | `/admin/api/languages/<code>/toggle` | Toggle active/inactive |
+| DELETE | `/admin/api/languages/<code>/aliases/<alias>` | Remove a single alias |
 
 ## Current Setup Path
 

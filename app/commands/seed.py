@@ -21,11 +21,53 @@ def seed_group():
 @click.option("--test", is_flag=True, default=False, help="Also create test users.")
 def seed_run(test):
     """Seed bootstrap data. Safe to run repeatedly."""
+    _seed_languages()
     _seed_admin()
     _seed_form_types()
     _seed_who_2022_va_fields()
     if test:
         _seed_test_users()
+
+
+_SEED_LANGUAGES = [
+    ("bangla",     "Bangla",     ["bangla", "bengali", "bn"]),
+    ("english",    "English",    ["english", "en", "eng"]),
+    ("hindi",      "Hindi",      ["hindi", "hi", "hin"]),
+    ("kannada",    "Kannada",    ["kannada", "kn", "kan"]),
+    ("malayalam",  "Malayalam",  ["malayalam", "ml", "mal"]),
+    ("marathi",    "Marathi",    ["marathi", "mr", "mar"]),
+    ("tamil",      "Tamil",      ["tamil", "ta", "tam"]),
+    ("telugu",     "Telugu",     ["telugu", "te", "tel"]),
+    ("gujarati",   "Gujarati",   ["gujarati", "gu", "guj"]),
+    ("odia",       "Odia",       ["odia", "or", "ori", "oriya"]),
+    ("punjabi",    "Punjabi",    ["punjabi", "pa", "pan"]),
+    ("assamese",   "Assamese",   ["assamese", "as", "asm"]),
+    ("urdu",       "Urdu",       ["urdu", "ur", "urd"]),
+    ("khasi",      "Khasi",      ["khasi", "kha"]),
+]
+
+
+def _seed_languages():
+    """Populate canonical languages and ODK alias mappings."""
+    from app.models.mas_languages import MasLanguages, MapLanguageAliases
+
+    added = 0
+    for code, name, aliases in _SEED_LANGUAGES:
+        existing = db.session.get(MasLanguages, code)
+        if existing:
+            continue
+        lang = MasLanguages(language_code=code, language_name=name, is_active=True)
+        db.session.add(lang)
+        for alias in aliases:
+            if not db.session.get(MapLanguageAliases, alias):
+                db.session.add(MapLanguageAliases(alias=alias, language_code=code))
+        added += 1
+
+    if added:
+        db.session.commit()
+        click.echo(f"  [ok]   seeded {added} language(s) with aliases")
+    else:
+        click.echo("  [skip] languages already seeded")
 
 
 def _seed_admin():

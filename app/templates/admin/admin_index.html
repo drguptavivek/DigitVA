@@ -101,6 +101,17 @@
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Languages"
+           data-panel="/admin/panels/languages"
+           hx-get="/admin/panels/languages"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-language admin-nav-icon"></i>
+          <span class="admin-nav-label">Languages</span>
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
            title="ODK Connections"
            data-panel="/admin/panels/odk-connections"
            hx-get="/admin/panels/odk-connections"

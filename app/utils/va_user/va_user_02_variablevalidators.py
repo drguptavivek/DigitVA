@@ -55,16 +55,16 @@ def validate_languages_exist(vacode_language, session):
     if not isinstance(vacode_language, list):
         return fail(f"vacode_language '{vacode_language}' must be a list.")
 
+    from app.models.mas_languages import MasLanguages
     valid_languages = set(
-        session.scalars(sa.select(VaSubmissions.va_narration_language)).all()
+        session.scalars(
+            sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)
+        ).all()
     )
 
     for lang in vacode_language:
         if lang not in valid_languages:
-            print(f"Warning: Language '{lang}' not in VA submissions. Continue? (y/n)")
-            response = input().strip()
-            if response != "y":
-                return fail("VA user creation aborted by admin.")
+            return fail(f"Language '{lang}' is not in the canonical language list.")
     return True
 
 

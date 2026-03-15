@@ -1,0 +1,434 @@
+{#
+  Language Management panel
+  Lists canonical languages with aliases, allows create/edit/toggle.
+  Shows unmapped language values found in submissions.
+#}
+<div id="panel-languages">
+
+  {# Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-language me-2 text-secondary"></i>Languages
+    </h5>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="lang-show-inactive" role="switch">
+        <label class="form-check-label small text-muted" for="lang-show-inactive">Show inactive</label>
+      </div>
+      <button class="btn btn-sm btn-primary" id="lang-show-form-btn">
+        <i class="fa-solid fa-plus me-1"></i>New Language
+      </button>
+    </div>
+  </div>
+
+  {# Unmapped languages alert — filled by JS #}
+  <div id="lang-unmapped-wrap"></div>
+
+  {# Inline form for create / edit #}
+  <div id="lang-form-container" class="card mb-4 d-none">
+    <div class="card-body">
+      <h6 class="card-title mb-3" id="lang-form-title">Create Language</h6>
+      <div class="row g-2 align-items-start">
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Code <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm" id="lang-code-input" placeholder="e.g. bangla" maxlength="32">
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-1">Display Name <span class="text-danger">*</span></label>
+          <input type="text" class="form-control form-control-sm" id="lang-name-input" placeholder="e.g. Bangla">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label small mb-1">Aliases <span class="text-muted">(comma-separated)</span></label>
+          <input type="text" class="form-control form-control-sm" id="lang-aliases-input" placeholder="e.g. bengali, bn, Bengali">
+        </div>
+        <div class="col-sm-3 d-flex align-items-end mb-1">
+          <div class="d-flex gap-2 w-100">
+            <button class="btn btn-sm btn-success flex-grow-1" id="lang-submit-btn">
+              <i class="fa-solid fa-check me-1"></i>Save
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="lang-cancel-btn">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div id="lang-form-error" class="text-danger small mt-2"></div>
+    </div>
+  </div>
+
+  {# Toggle confirmation modal #}
+  <div class="modal fade" id="lang-toggle-modal" tabindex="-1" aria-labelledby="lang-toggle-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="lang-toggle-modal-label"></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body small py-3" id="lang-toggle-modal-body"></div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="lang-toggle-confirm-btn">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Delete alias confirmation modal #}
+  <div class="modal fade" id="lang-delete-alias-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title">Remove Alias</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body small py-3" id="lang-delete-alias-body"></div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="lang-delete-alias-confirm-btn">Remove</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Table — filled by JS #}
+  <div id="lang-table-wrap"></div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── state & render ────────────────────────────────────────────────────────
+
+  var _languages = [];
+  var _editingCode = null;
+
+  function loadLanguages() {
+    var wrap = document.getElementById('lang-table-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading\u2026</div>';
+
+    apiJson('/admin/api/languages?include_inactive=1&include_unmapped=1').then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      _languages = res.data.languages || [];
+      var showInactive = document.getElementById('lang-show-inactive').checked;
+      renderTable(showInactive);
+      renderUnmapped(res.data.unmapped || []);
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function renderUnmapped(unmapped) {
+    var wrap = document.getElementById('lang-unmapped-wrap');
+    if (!unmapped.length) {
+      wrap.innerHTML = '';
+      return;
+    }
+    var badges = unmapped.map(function (u) {
+      return '<span class="badge text-bg-warning me-1 mb-1">'
+        + esc(u.value) + ' <span class="text-muted">(' + u.count + ')</span>'
+        + ' <button class="btn-close btn-close-sm ms-1 lang-map-unmapped-btn" '
+        + ' data-value="' + esc(u.value) + '" '
+        + ' style="font-size:0.5rem;vertical-align:middle;" title="Map this value"></button>'
+        + '</span>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="alert alert-warning small py-2 mb-3">'
+      + '<i class="fa-solid fa-triangle-exclamation me-1"></i>'
+      + '<strong>Unmapped language values</strong> found in submissions (not matching any alias):<br>'
+      + '<div class="mt-2">' + badges + '</div>'
+      + '<div class="text-muted mt-1">Click the \u00d7 on a badge to add it as an alias to an existing language, or create a new language with this value.</div>'
+      + '</div>';
+
+    // Bind map buttons — open add-alias prompt
+    var btns = wrap.querySelectorAll('.lang-map-unmapped-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function (e) {
+        e.stopPropagation();
+        var val = this.getAttribute('data-value');
+        promptMapUnmapped(val);
+      });
+    }
+  }
+
+  function promptMapUnmapped(value) {
+    // Pre-fill the form with the unmapped value as an alias
+    resetForm();
+    document.getElementById('lang-aliases-input').value = value;
+    var formContainer = document.getElementById('lang-form-container');
+    formContainer.classList.remove('d-none');
+    document.getElementById('lang-code-input').focus();
+    document.getElementById('lang-form-error').textContent =
+      'Add "' + value + '" as an alias: either create a new language, or edit an existing one and add this alias.';
+  }
+
+  function renderTable(showInactive) {
+    var wrap = document.getElementById('lang-table-wrap');
+    var visible = showInactive ? _languages : _languages.filter(function (l) { return l.is_active; });
+    if (!visible.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No languages found.</p>';
+      return;
+    }
+
+    var rows = visible.map(function (l) {
+      var isActive = l.is_active;
+      var aliasHtml = (l.aliases || []).map(function (a) {
+        return '<span class="badge text-bg-light border me-1 mb-1">'
+          + esc(a)
+          + ' <button class="btn-close btn-close-sm ms-1 lang-remove-alias-btn" '
+          + ' data-code="' + esc(l.language_code) + '" data-alias="' + esc(a) + '"'
+          + ' style="font-size:0.45rem;vertical-align:middle;" title="Remove alias"></button>'
+          + '</span>';
+      }).join('');
+
+      var toggleBtn = '<button class="btn btn-sm py-0 px-2 lang-toggle-btn '
+        + (isActive ? 'btn-outline-danger' : 'btn-outline-success') + '"'
+        + ' data-code="' + esc(l.language_code) + '"'
+        + ' data-name="' + esc(l.language_name) + '"'
+        + ' data-active="' + (isActive ? '1' : '0') + '"'
+        + ' title="' + (isActive ? 'Deactivate' : 'Activate') + '">'
+        + '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
+        + '</button>';
+      var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary lang-edit-btn"'
+        + ' data-code="' + esc(l.language_code) + '" title="Edit">'
+        + '<i class="fa-solid fa-pen"></i></button>';
+
+      return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
+        + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(l.language_code) + '</span></td>'
+        + '<td class="align-middle py-2 small">' + esc(l.language_name) + '</td>'
+        + '<td class="align-middle py-2 small">' + (aliasHtml || '<span class="text-muted">none</span>') + '</td>'
+        + '<td class="align-middle py-2 text-center small">' + (l.submission_count || 0) + '</td>'
+        + '<td class="align-middle py-2">'
+        + (isActive
+            ? '<span class="badge text-bg-success">Active</span>'
+            : '<span class="badge text-bg-secondary">Inactive</span>')
+        + '</td>'
+        + '<td class="align-middle py-2 text-end">' + toggleBtn + ' ' + editBtn + '</td>'
+        + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted" style="width:12%;">Code</th>'
+      + '<th class="fw-medium small text-muted" style="width:15%;">Display Name</th>'
+      + '<th class="fw-medium small text-muted">Aliases</th>'
+      + '<th class="fw-medium small text-muted text-center" style="width:10%;">Submissions</th>'
+      + '<th class="fw-medium small text-muted" style="width:10%;">Status</th>'
+      + '<th class="fw-medium small text-muted text-end" style="width:12%;">Actions</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody>'
+      + '</table></div>';
+
+    // Bind edit buttons
+    var editBtns = wrap.querySelectorAll('.lang-edit-btn');
+    for (var i = 0; i < editBtns.length; i++) {
+      editBtns[i].addEventListener('click', function () {
+        openEditForm(this.getAttribute('data-code'));
+      });
+    }
+
+    // Bind toggle buttons
+    var toggleBtns = wrap.querySelectorAll('.lang-toggle-btn');
+    for (var j = 0; j < toggleBtns.length; j++) {
+      toggleBtns[j].addEventListener('click', function () {
+        promptToggle(this.getAttribute('data-code'), this.getAttribute('data-name'), this.getAttribute('data-active') === '1');
+      });
+    }
+
+    // Bind remove-alias buttons
+    var removeBtns = wrap.querySelectorAll('.lang-remove-alias-btn');
+    for (var k = 0; k < removeBtns.length; k++) {
+      removeBtns[k].addEventListener('click', function (e) {
+        e.stopPropagation();
+        promptDeleteAlias(this.getAttribute('data-code'), this.getAttribute('data-alias'));
+      });
+    }
+  }
+
+  document.getElementById('lang-show-inactive').addEventListener('change', function () {
+    renderTable(this.checked);
+  });
+
+  // ── toggle modal ──────────────────────────────────────────────────────────
+
+  var _pendingToggleCode = null;
+  var _toggleModal = null;
+
+  function promptToggle(code, name, isActive) {
+    var action = isActive ? 'Deactivate' : 'Activate';
+    var color  = isActive ? 'text-danger' : 'text-success';
+    document.getElementById('lang-toggle-modal-label').innerHTML =
+      '<i class="fa-solid fa-toggle-' + (isActive ? 'off' : 'on') + ' ' + color + ' me-2"></i>' + action + ' Language';
+    var body = action + ' <strong>' + esc(code) + ' \u2014 ' + esc(name) + '</strong>?';
+    if (isActive) {
+      body += '<div class="text-danger small mt-2"><i class="fa-solid fa-triangle-exclamation me-1"></i>'
+        + 'Inactive languages will not appear in user profile language selection.</div>';
+    }
+    document.getElementById('lang-toggle-modal-body').innerHTML = body;
+    var confirmBtn = document.getElementById('lang-toggle-confirm-btn');
+    confirmBtn.className = 'btn btn-sm ' + (isActive ? 'btn-danger' : 'btn-success');
+    confirmBtn.textContent = action;
+    _pendingToggleCode = code;
+    if (!_toggleModal) _toggleModal = new bootstrap.Modal(document.getElementById('lang-toggle-modal'));
+    _toggleModal.show();
+  }
+
+  document.getElementById('lang-toggle-confirm-btn').addEventListener('click', function () {
+    if (!_pendingToggleCode) return;
+    var code = _pendingToggleCode;
+    _pendingToggleCode = null;
+    _toggleModal.hide();
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/admin/api/languages/' + encodeURIComponent(code) + '/toggle', 'POST').then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) {
+        var wrap = document.getElementById('lang-table-wrap');
+        wrap.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger small py-2 mt-2">' + esc(res.data.error || 'Failed.') + '</div>');
+        return;
+      }
+      loadLanguages();
+    }).catch(function () { btn.disabled = false; });
+  });
+
+  // ── delete alias modal ────────────────────────────────────────────────────
+
+  var _pendingDeleteAlias = null;
+  var _deleteAliasModal = null;
+
+  function promptDeleteAlias(code, alias) {
+    document.getElementById('lang-delete-alias-body').innerHTML =
+      'Remove alias <strong>' + esc(alias) + '</strong> from language <strong>' + esc(code) + '</strong>?';
+    _pendingDeleteAlias = { code: code, alias: alias };
+    if (!_deleteAliasModal) _deleteAliasModal = new bootstrap.Modal(document.getElementById('lang-delete-alias-modal'));
+    _deleteAliasModal.show();
+  }
+
+  document.getElementById('lang-delete-alias-confirm-btn').addEventListener('click', function () {
+    if (!_pendingDeleteAlias) return;
+    var info = _pendingDeleteAlias;
+    _pendingDeleteAlias = null;
+    _deleteAliasModal.hide();
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/admin/api/languages/' + encodeURIComponent(info.code) + '/aliases/' + encodeURIComponent(info.alias), 'DELETE').then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) {
+        var wrap = document.getElementById('lang-table-wrap');
+        wrap.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger small py-2 mt-2">' + esc(res.data.error || 'Failed.') + '</div>');
+        return;
+      }
+      loadLanguages();
+    }).catch(function () { btn.disabled = false; });
+  });
+
+  // ── form handling ─────────────────────────────────────────────────────────
+
+  var formContainer = document.getElementById('lang-form-container');
+  var formTitle = document.getElementById('lang-form-title');
+  var codeInput = document.getElementById('lang-code-input');
+  var nameInput = document.getElementById('lang-name-input');
+  var aliasesInput = document.getElementById('lang-aliases-input');
+  var errEl = document.getElementById('lang-form-error');
+
+  function resetForm() {
+    _editingCode = null;
+    formTitle.textContent = 'Create Language';
+    codeInput.value = '';
+    codeInput.disabled = false;
+    nameInput.value = '';
+    aliasesInput.value = '';
+    errEl.textContent = '';
+  }
+
+  function openEditForm(code) {
+    var lang = _languages.find(function (l) { return l.language_code === code; });
+    if (!lang) return;
+
+    _editingCode = code;
+    formTitle.textContent = 'Edit Language: ' + code;
+    codeInput.value = lang.language_code;
+    codeInput.disabled = true;
+    nameInput.value = lang.language_name;
+    aliasesInput.value = (lang.aliases || []).join(', ');
+    errEl.textContent = '';
+
+    formContainer.classList.remove('d-none');
+    nameInput.focus();
+  }
+
+  document.getElementById('lang-show-form-btn').addEventListener('click', function () {
+    resetForm();
+    formContainer.classList.remove('d-none');
+    codeInput.focus();
+  });
+
+  document.getElementById('lang-cancel-btn').addEventListener('click', function () {
+    formContainer.classList.add('d-none');
+    resetForm();
+  });
+
+  document.getElementById('lang-submit-btn').addEventListener('click', function () {
+    errEl.textContent = '';
+
+    var aliases = aliasesInput.value.split(',').map(function (a) { return a.trim(); }).filter(Boolean);
+    var data = {
+      language_name: nameInput.value.trim(),
+      aliases: aliases,
+    };
+
+    var url, method;
+
+    if (_editingCode) {
+      url = '/admin/api/languages/' + encodeURIComponent(_editingCode);
+      method = 'PUT';
+    } else {
+      url = '/admin/api/languages';
+      method = 'POST';
+      data.language_code = codeInput.value.trim().toLowerCase();
+      if (!data.language_code) { errEl.textContent = 'Language code is required.'; return; }
+      if (!/^[a-z][a-z0-9_]*$/.test(data.language_code)) {
+        errEl.textContent = 'Code must be lowercase letters, digits, or underscores.';
+        return;
+      }
+    }
+
+    if (!data.language_name) { errEl.textContent = 'Display name is required.'; return; }
+
+    var btn = this;
+    btn.disabled = true;
+    apiJson(url, method, data).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed.'; return; }
+      formContainer.classList.add('d-none');
+      loadLanguages();
+    }).catch(function () {
+      btn.disabled = false;
+      errEl.textContent = 'Network error.';
+    });
+  });
+
+  // ── init ──────────────────────────────────────────────────────────────────
+
+  loadLanguages();
+
+}());
+</script>

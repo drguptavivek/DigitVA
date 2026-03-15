@@ -57,6 +57,33 @@ log = logging.getLogger(__name__)
 _ODK_CONNECTIVITY_MAX_ATTEMPTS = 3
 _ODK_CONNECTIVITY_BACKOFF_SECONDS = (5, 10)
 
+# ── Language normalization ────────────────────────────────────────────
+_language_alias_cache: dict[str, str] | None = None
+
+
+def _normalize_language(raw: str | None) -> str:
+    """Map a raw ODK language value to its canonical code via map_language_aliases.
+
+    Returns the canonical code if a match is found, otherwise returns the
+    raw value unchanged (so unknown languages are still stored).
+    """
+    if not raw:
+        return raw or ""
+    global _language_alias_cache
+    if _language_alias_cache is None:
+        from app.models.mas_languages import MapLanguageAliases
+        rows = db.session.execute(
+            sa.select(MapLanguageAliases.alias, MapLanguageAliases.language_code)
+        ).all()
+        _language_alias_cache = {r.alias.lower(): r.language_code for r in rows}
+    return _language_alias_cache.get(raw.lower(), raw)
+
+
+def _reset_language_cache():
+    """Clear the alias cache (call at start of each sync run)."""
+    global _language_alias_cache
+    _language_alias_cache = None
+
 
 def _resolve_project_connections():
     """Return project_id -> connection_id mapping for the current sync run."""
@@ -175,11 +202,12 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
         va_submission_uniqueid       = va_submission.get("unique_id")
         va_submission_uniqueidmask   = va_submission.get("unique_id2")
         va_submission_consent        = va_submission.get("Id10013")
-        va_submission_narrlang       = (
+        _raw_lang = (
             va_submission.get("narr_language")
             if va_submission.get("narr_language")
             else va_submission.get("language")
         )
+        va_submission_narrlang = _normalize_language(_raw_lang)
         _raw_age = va_submission.get("finalAgeInYears")
         try:
             va_submission_age = int(_raw_age) if _raw_age else 0
@@ -379,6 +407,7 @@ def va_data_sync_odkcentral(log_progress=None):
 
     try:
         _progress("Sync started.")
+        _reset_language_cache()
 
         # Capture before any ODK calls — ensures submissions arriving during
         # the run are caught on the next sync rather than silently skipped.

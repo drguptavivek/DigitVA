@@ -900,12 +900,26 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
 @va_api.route('/vaservemedia/<va_form_id>/<va_filename>')
 @login_required
 def va_servemedia(va_form_id, va_filename):
+    # Validate form_id format to prevent path traversal
+    if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
+        abort(400, description="Invalid form ID format")
+
     if not current_user.has_va_form_access(va_form_id):
         va_permission_abortwithflash(f"You don't have permissions to access the media files for '{va_form_id}'", 403)
+
+    # Sanitize filename to prevent path traversal attacks
+    safe_filename = secure_filename(va_filename)
+    if not safe_filename:
+        abort(400, description="Invalid filename")
+
+    # Additional check for path traversal patterns
+    if '..' in va_filename or va_filename.startswith('/') or va_filename.startswith('\\'):
+        abort(400, description="Invalid filename")
+
     media_base = os.path.join(
         current_app.config["APP_DATA"], va_form_id, "media"
     )
-    return send_from_directory(media_base, va_filename)
+    return send_from_directory(media_base, safe_filename)
 
 
 

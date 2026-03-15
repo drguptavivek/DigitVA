@@ -323,8 +323,17 @@ def va_servemedia(va_form_id, va_filename):
             f"You don't have permissions to access the media files for '{va_form_id}'",
             403,
         )
+
+    # Validate form_id format to prevent path traversal
+    if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
+        abort(400, description="Invalid form ID format")
+
+    # Sanitize filename to safe_fn = secure_filename(va_filename)
+    if not safe_fn or '..' in va_filename or va_filename.startswith('\\'):
+        abort(400, description="Invalid filename")
+
     media_base = os.path.join(current_app.config["APP_DATA"], va_form_id, "media")
-    return send_from_directory(media_base, va_filename)
+    return send_from_directory(media_base, safe_fn)
 
 
 @va_api.route("/icd-search")

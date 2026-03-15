@@ -47,6 +47,11 @@ class VaFinalAssessments(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    demo_expires_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime,
+        nullable=True,
+        index=True,
+    )
 
     def __repr__(self):
         return f"VA Conclusive COD -> {self.va_sid} ({self.va_finassess_status}): {self.va_conclusive_cod} | by {self.va_finasses_by}"

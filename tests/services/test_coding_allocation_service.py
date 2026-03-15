@@ -6,6 +6,7 @@ from app.models import (
     VaAllocations,
     VaAllocation,
     VaCodingEpisode,
+    VaFinalCodAuthority,
     VaForms,
     VaInitialAssessments,
     VaNarrativeAssessment,
@@ -19,10 +20,18 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.coding_allocation_service import release_stale_coding_allocations
+from app.services.coding_allocation_service import (
+    cleanup_expired_demo_coding_artifacts,
+    release_stale_coding_allocations,
+)
 from app.services.final_cod_authority_service import (
     EPISODE_STATUS_ACTIVE,
     EPISODE_TYPE_RECODE,
+    upsert_final_cod_authority,
+)
+from app.services.submission_workflow_service import (
+    WORKFLOW_CODER_FINALIZED,
+    set_submission_workflow_state,
 )
 from tests.base import BaseTestCase
 
@@ -334,6 +343,105 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(social_analysis.va_saa_status, VaStatuses.active)
         self.assertEqual(workflow.workflow_state, "coder_finalized")
         self.assertIsNotNone(recode_audit)
+
+    def test_cleanup_expired_demo_coding_artifacts_deactivates_demo_records(self):
+        stale_sid = "uuid:demo-expired"
+        self._add_submission(stale_sid)
+        db.session.flush()
+
+        expired_at = datetime.now(timezone.utc) - timedelta(hours=7)
+        final_assessment = VaFinalAssessments(
+            va_sid=stale_sid,
+            va_finassess_by=self.base_admin_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_remark="demo final",
+            va_finassess_status=VaStatuses.active,
+            demo_expires_at=expired_at,
+        )
+        narrative = VaNarrativeAssessment(
+            va_sid=stale_sid,
+            va_nqa_by=self.base_admin_user.user_id,
+            va_nqa_length=2,
+            va_nqa_pos_symptoms=2,
+            va_nqa_neg_symptoms=1,
+            va_nqa_chronology=1,
+            va_nqa_doc_review=1,
+            va_nqa_comorbidity=1,
+            va_nqa_score=8,
+            va_nqa_status=VaStatuses.active,
+            demo_expires_at=expired_at,
+        )
+        social = VaSocialAutopsyAnalysis(
+            va_sid=stale_sid,
+            va_saa_by=self.base_admin_user.user_id,
+            va_saa_remark="demo social",
+            va_saa_status=VaStatuses.active,
+            demo_expires_at=expired_at,
+        )
+        db.session.add_all([final_assessment, narrative, social])
+        db.session.flush()
+        social.selected_options.append(
+            VaSocialAutopsyAnalysisOption(
+                delay_level="delay_1_decision",
+                option_code="none",
+            )
+        )
+        upsert_final_cod_authority(
+            stale_sid,
+            final_assessment,
+            reason="final_cod_submitted",
+            source_role="vacoder",
+            updated_by=self.base_admin_user.user_id,
+        )
+        set_submission_workflow_state(
+            stale_sid,
+            WORKFLOW_CODER_FINALIZED,
+            by_user_id=self.base_admin_user.user_id,
+            by_role="vaadmin",
+        )
+        db.session.commit()
+
+        expired = cleanup_expired_demo_coding_artifacts()
+
+        self.assertEqual(expired, 3)
+        stored_final = db.session.get(VaFinalAssessments, final_assessment.va_finassess_id)
+        stored_narrative = db.session.get(VaNarrativeAssessment, narrative.va_nqa_id)
+        stored_social = db.session.get(VaSocialAutopsyAnalysis, social.va_saa_id)
+        authority = db.session.scalar(
+            db.select(VaFinalCodAuthority).where(
+                VaFinalCodAuthority.va_sid == stale_sid
+            )
+        )
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == stale_sid
+            )
+        )
+
+        self.assertEqual(stored_final.va_finassess_status, VaStatuses.deactive)
+        self.assertEqual(stored_narrative.va_nqa_status, VaStatuses.deactive)
+        self.assertEqual(stored_social.va_saa_status, VaStatuses.deactive)
+        self.assertIsNotNone(authority)
+        self.assertIsNone(authority.authoritative_final_assessment_id)
+        self.assertEqual(workflow.workflow_state, "ready_for_coding")
+
+        audit_actions = {
+            row.va_audit_action
+            for row in db.session.scalars(
+                db.select(VaSubmissionsAuditlog).where(
+                    VaSubmissionsAuditlog.va_sid == stale_sid
+                )
+            ).all()
+        }
+        self.assertIn("final cod expired after demo retention", audit_actions)
+        self.assertIn(
+            "narrative quality assessment expired after demo retention",
+            audit_actions,
+        )
+        self.assertIn(
+            "social autopsy analysis expired after demo retention",
+            audit_actions,
+        )
 
     def test_no_commit_path_when_nothing_is_stale(self):
         fresh_sid = "uuid:no_stale"

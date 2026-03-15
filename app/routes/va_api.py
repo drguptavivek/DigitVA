@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from app import db
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis, VaSocialAutopsyAnalysisOption
@@ -40,6 +41,7 @@ from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderRevi
 
 
 va_api = Blueprint("va_api", __name__)
+DEMO_RETENTION_HOURS = 6
 adult = [
     "I10 - Essential Hypertension",
     "E11 - Type 2 Diabetes Mellitus",
@@ -665,24 +667,26 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
             gen_uuid = uuid.uuid4()
             active_recode_episode = get_active_recode_episode(va_sid)
             prior_authoritative_final = get_authoritative_final_assessment(va_sid)
+            existing_active_finals = db.session.scalars(
+                sa.select(VaFinalAssessments).where(
+                    VaFinalAssessments.va_sid == va_sid,
+                    VaFinalAssessments.va_finassess_status == VaStatuses.active,
+                )
+            ).all()
             new_review1 = VaFinalAssessments(
                 va_finassess_id=gen_uuid,
                 va_sid=va_sid,
                 va_finassess_by=current_user.user_id,
                 va_conclusive_cod=form1.va_conclusive_cod.data,
                 va_finassess_remark=form1.va_finassess_remark.data.strip() or None,
+                demo_expires_at=_demo_expiry_for_actiontype(va_actiontype),
                 # va_rreview=form.va_rreview.data,
                 # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
                 # va_rreview_remark=form.va_rreview_remark.data.strip() or None,
             )
             db.session.add(new_review1)
 
-            for existing_final in db.session.scalars(
-                sa.select(VaFinalAssessments).where(
-                    VaFinalAssessments.va_sid == va_sid,
-                    VaFinalAssessments.va_finassess_status == VaStatuses.active,
-                )
-            ).all():
+            for existing_final in existing_active_finals:
                 existing_final.va_finassess_status = VaStatuses.deactive
                 db.session.add(
                     VaSubmissionsAuditlog(
@@ -1114,6 +1118,13 @@ def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comor
     return length + pos_symptoms + neg_symptoms + chronology + doc_review + comorbidity
 
 
+def _demo_expiry_for_actiontype(va_actiontype: str):
+    """Return the demo artifact expiry timestamp for demo coding saves."""
+    if va_actiontype != "vademo_start_coding":
+        return None
+    return datetime.now(timezone.utc) + timedelta(hours=DEMO_RETENTION_HOURS)
+
+
 @va_api.route("/<va_action>/<va_actiontype>/<va_sid>/narrative-qa", methods=["POST"])
 @login_required
 @va_validate_permissions()
@@ -1169,6 +1180,7 @@ def va_save_narrative_qa(va_action, va_actiontype, va_sid):
         existing.va_nqa_doc_review   = doc_review
         existing.va_nqa_comorbidity  = comorbidity
         existing.va_nqa_score        = score
+        existing.demo_expires_at     = _demo_expiry_for_actiontype(va_actiontype)
         nqa = existing
         audit_operation = "u"
         audit_action = "narrative quality assessment updated"
@@ -1184,6 +1196,7 @@ def va_save_narrative_qa(va_action, va_actiontype, va_sid):
             va_nqa_comorbidity=comorbidity,
             va_nqa_score=score,
             va_nqa_status=VaStatuses.active,
+            demo_expires_at=_demo_expiry_for_actiontype(va_actiontype),
         )
         db.session.add(nqa)
         audit_operation = "c"
@@ -1280,6 +1293,7 @@ def va_save_social_autopsy_analysis(va_action, va_actiontype, va_sid):
     if existing:
         analysis = existing
         analysis.va_saa_remark = remark
+        analysis.demo_expires_at = _demo_expiry_for_actiontype(va_actiontype)
         analysis.selected_options.clear()
         db.session.flush()
         audit_operation = "u"
@@ -1290,6 +1304,7 @@ def va_save_social_autopsy_analysis(va_action, va_actiontype, va_sid):
             va_saa_by=current_user.user_id,
             va_saa_remark=remark,
             va_saa_status=VaStatuses.active,
+            demo_expires_at=_demo_expiry_for_actiontype(va_actiontype),
         )
         db.session.add(analysis)
         created = True

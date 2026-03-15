@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-15
 ---
 
 # Workflow And Permissions
@@ -97,6 +97,9 @@ Starting coding:
 - the release path deactivates only the stale coding allocation
 - any saved `va_initial_assessments` row is preserved so the coder can resume
   final COD later
+- admin demo coding also creates a normal coding allocation, but demo-created
+  NQA, Social Autopsy, and final COD artifacts now carry a 6-hour
+  `demo_expires_at` timestamp
 
 Entry variants:
 
@@ -120,6 +123,9 @@ Coding steps:
 Completion behavior:
 
 - final coding or not-codeable submission deactivates the active coding allocation
+- demo final coding now keeps the saved NQA, Social Autopsy, and final COD rows
+  active immediately after submission so they remain visible in the dashboard
+  during the demo-retention window
 
 Timeout cleanup:
 
@@ -136,6 +142,12 @@ Timeout cleanup:
 - recode timeout reversion preserves the authoritative final COD plus recode NQA
   and Social Autopsy analysis rows, abandons the active recode episode, and
   returns canonical workflow state to `coder_finalized`
+- the same hourly maintenance task now also deactivates expired demo-created
+  NQA, Social Autopsy, and final COD rows whose `demo_expires_at` timestamp is
+  older than the current time
+- when demo-retention cleanup deactivates an authoritative demo final COD, it
+  also clears or repoints `va_final_cod_authority` and restores canonical
+  workflow state based on the remaining active records
 
 Canonical state values currently written in the runtime path include:
 

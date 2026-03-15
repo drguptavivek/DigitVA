@@ -49,6 +49,11 @@ class VaNarrativeAssessment(db.Model):
         sa.DateTime, default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc), nullable=False,
     )
+    demo_expires_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime,
+        nullable=True,
+        index=True,
+    )
 
     __table_args__ = (
         sa.UniqueConstraint("va_sid", "va_nqa_by", name="uq_nqa_sid_by"),

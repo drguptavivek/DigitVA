@@ -44,6 +44,11 @@ class VaSocialAutopsyAnalysis(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+    demo_expires_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime,
+        nullable=True,
+        index=True,
+    )
 
     selected_options: so.Mapped[list["VaSocialAutopsyAnalysisOption"]] = so.relationship(
         "VaSocialAutopsyAnalysisOption",

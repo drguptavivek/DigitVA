@@ -8,6 +8,7 @@ from app import db
 from app.models import (
     VaAllocation,
     VaAllocations,
+    VaFinalAssessments,
     VaInitialAssessments,
     VaNarrativeAssessment,
     VaSocialAutopsyAnalysis,
@@ -17,6 +18,7 @@ from app.models import (
 from app.services.final_cod_authority_service import (
     abandon_active_recode_episode,
     get_active_recode_episode,
+    upsert_final_cod_authority,
 )
 from app.services.submission_workflow_service import (
     infer_workflow_state_after_coding_release,
@@ -131,4 +133,103 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     if released:
         db.session.commit()
 
+    cleanup_expired_demo_coding_artifacts(now=datetime.now(timezone.utc))
     return released
+
+
+def cleanup_expired_demo_coding_artifacts(
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Deactivate demo-coded artifacts whose retention window has expired."""
+    cutoff = now or datetime.now(timezone.utc)
+    expired_count = 0
+    affected_sids: set[str] = set()
+
+    expired_narratives = db.session.scalars(
+        sa.select(VaNarrativeAssessment).where(
+            VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+            VaNarrativeAssessment.demo_expires_at.is_not(None),
+            VaNarrativeAssessment.demo_expires_at < cutoff,
+        )
+    ).all()
+    for narrative in expired_narratives:
+        narrative.va_nqa_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=narrative.va_sid,
+                va_audit_entityid=narrative.va_nqa_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="u",
+                va_audit_action="narrative quality assessment expired after demo retention",
+            )
+        )
+        affected_sids.add(narrative.va_sid)
+        expired_count += 1
+
+    expired_social = db.session.scalars(
+        sa.select(VaSocialAutopsyAnalysis).where(
+            VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+            VaSocialAutopsyAnalysis.demo_expires_at.is_not(None),
+            VaSocialAutopsyAnalysis.demo_expires_at < cutoff,
+        )
+    ).all()
+    for analysis in expired_social:
+        analysis.va_saa_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=analysis.va_sid,
+                va_audit_entityid=analysis.va_saa_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="u",
+                va_audit_action="social autopsy analysis expired after demo retention",
+            )
+        )
+        affected_sids.add(analysis.va_sid)
+        expired_count += 1
+
+    expired_finals = db.session.scalars(
+        sa.select(VaFinalAssessments).where(
+            VaFinalAssessments.va_finassess_status == VaStatuses.active,
+            VaFinalAssessments.demo_expires_at.is_not(None),
+            VaFinalAssessments.demo_expires_at < cutoff,
+        )
+    ).all()
+    for final_row in expired_finals:
+        final_row.va_finassess_status = VaStatuses.deactive
+        replacement_final = db.session.scalar(
+            sa.select(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid == final_row.va_sid,
+                VaFinalAssessments.va_finassess_status == VaStatuses.active,
+            ).order_by(VaFinalAssessments.va_finassess_createdat.desc())
+        )
+        upsert_final_cod_authority(
+            final_row.va_sid,
+            replacement_final,
+            reason="demo_retention_expired",
+            source_role="vasystem",
+        )
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=final_row.va_sid,
+                va_audit_entityid=final_row.va_finassess_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="u",
+                va_audit_action="final cod expired after demo retention",
+            )
+        )
+        affected_sids.add(final_row.va_sid)
+        expired_count += 1
+
+    for va_sid in affected_sids:
+        set_submission_workflow_state(
+            va_sid,
+            infer_workflow_state_after_coding_release(va_sid),
+            reason="demo_retention_cleanup",
+            by_role="vasystem",
+        )
+
+    if expired_count:
+        db.session.commit()
+
+    return expired_count

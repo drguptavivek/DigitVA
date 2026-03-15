@@ -216,6 +216,7 @@ Key fields:
 - `va_conclusive_cod`
 - `va_finassess_remark`
 - `va_finassess_status`
+- `demo_expires_at`
 
 Current behavior:
 
@@ -224,6 +225,9 @@ Current behavior:
   episodes
 - the active row alone is no longer the sole authority signal during the
   workflow migration
+- normal coding leaves `demo_expires_at` null
+- demo coding stamps a 6-hour expiry timestamp so completed demo finals remain
+  visible briefly and are then deactivated by hourly cleanup
 
 ### `va_final_cod_authority`
 
@@ -345,6 +349,13 @@ Key fields:
 - six scored question fields
 - `va_nqa_score`
 - `va_nqa_status`
+- `demo_expires_at`
+
+Current behavior:
+
+- normal coding leaves `demo_expires_at` null
+- demo coding (`vademo_start_coding`) stamps a 6-hour expiry timestamp so the
+  hourly cleanup path can deactivate temporary demo artifacts
 
 ### `va_social_autopsy_analyses`
 
@@ -358,12 +369,15 @@ Key fields:
 - `va_saa_by`
 - `va_saa_remark`
 - `va_saa_status`
+- `demo_expires_at`
 
 Current behavior:
 
 - one active analysis row is stored per `(va_sid, coder)`
 - selected delay options are normalized into child rows, not flattened into the
   submission JSON
+- demo coding stamps a 6-hour expiry timestamp on the parent row so completed
+  demo artifacts can be cleaned up automatically
 
 ### `va_social_autopsy_analysis_options`
 

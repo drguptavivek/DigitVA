@@ -171,6 +171,9 @@ class TestCategoryTableSectionsTemplate(unittest.TestCase):
 
         self.assertIn("Save the Social Autopsy Analysis before proceeding to the next category.", rendered)
         self.assertIn("disabled", rendered)
+        self.assertIn('data-hx-get="/vaapi/vacode/vademo_start_coding/SID-1/vanarrationanddocuments"', rendered)
+        self.assertIn('data-hx-target="#form-content"', rendered)
+        self.assertIn('data-hx-swap="innerHTML"', rendered)
 
     def test_generic_category_uses_assign_cod_label_for_workflow_next_step(self):
         category_config = SimpleNamespace(

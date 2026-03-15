@@ -138,8 +138,23 @@
         }
         var nextBtn = document.getElementById('next-category-btn');
         if (nextBtn) {
+          var nextUrl = nextBtn.getAttribute('data-hx-get');
+          if (nextUrl) {
+            nextBtn.setAttribute('hx-get', nextUrl);
+          }
+          var nextTarget = nextBtn.getAttribute('data-hx-target');
+          if (nextTarget) {
+            nextBtn.setAttribute('hx-target', nextTarget);
+          }
+          var nextSwap = nextBtn.getAttribute('data-hx-swap');
+          if (nextSwap) {
+            nextBtn.setAttribute('hx-swap', nextSwap);
+          }
           nextBtn.disabled = false;
           nextBtn.removeAttribute('disabled');
+          if (window.htmx) {
+            window.htmx.process(nextBtn);
+          }
         }
         var footer = btn.closest('.card-body');
         if (footer) {

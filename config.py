@@ -73,6 +73,8 @@ class Config:
 class TestConfig(Config):
     TESTING = True
     ODK_CREDENTIAL_PEPPER = "test-pepper-do-not-use-in-production"
+    # Use in-memory storage for the rate limiter during tests.
+    RATELIMIT_STORAGE_URI = "memory://"
     # Keep test sessions out of SQLAlchemy metadata/schema lifecycle.
     # This avoids Flask-Session redefining the va_sessions table every time
     # create_app() is called across multiple test classes.

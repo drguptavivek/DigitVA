@@ -55,7 +55,7 @@ def create_app(config_class=Config):
     sess_manager.init_app(app)
 
     # Initialize rate limiter with Redis storage
-    limiter.storage_uri = app.config.get("REDIS_URL", "redis://localhost:6379/0")
+    app.config.setdefault("RATELIMIT_STORAGE_URI", app.config.get("REDIS_URL", "redis://localhost:6379/0"))
     limiter.init_app(app)
 
     # Initialize security headers with Flask-Talisman

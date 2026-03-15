@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-15
 ---
 
 # Coding Workflow State Machine Policy
@@ -108,6 +108,27 @@ The project-level intake mode affects only how coding work is entered. It does
 not change the downstream coding state machine once a case enters active coder
 workflow.
 
+## Demo Coding Mode
+
+DigitVA also supports an admin-only demo coding entry path through
+`vademo_start_coding`.
+
+Demo coding uses the same case-viewing and coding forms as normal coding, but
+it is not a permanent production completion path.
+
+Current intended baseline:
+
+- demo coding may save NQA, Social Autopsy Analysis, and final COD artifacts
+- those demo artifacts must be visible immediately after save, including on the
+  coder dashboard while they remain active
+- demo artifacts are temporary and must expire automatically after the
+  configured demo-retention window
+- after demo-retention cleanup, the submission must return to the non-demo
+  workflow state implied by any remaining active records
+
+The demo-retention rules are defined in
+[Demo Coding Retention Policy](demo-coding-retention.md).
+
 ## Canonical Case State
 
 The canonical submission-level workflow state should be modeled with one of the
@@ -195,6 +216,18 @@ These states describe the local business outcome for the submission.
       timeout reversion
     - first-pass coding does not preserve Social Autopsy delay analysis as a
       completed artifact after timeout reversion
+
+
+  Demo coding retention expiry:
+
+    coder_finalized ----- demo retention cleanup ----> ready_for_coding
+
+    Notes:
+    - applies only to artifacts created through `vademo_start_coding`
+    - finalized demo artifacts may remain visible for the configured retention
+      window before cleanup
+    - cleanup must also deactivate demo NQA and Social Autopsy artifacts tied
+      to the same completed demo coding outcome
 
 
   Optional data-manager triage:

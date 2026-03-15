@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-15
 ---
 
 # Policy Docs
@@ -19,6 +19,7 @@ Current policy docs:
 - [Coding Workflow State Machine Policy](coding-workflow-state-machine.md)
 - [Coding Allocation Timeout Policy](coding-allocation-timeouts.md)
 - [Data Manager Workflow Policy](data-manager-workflow.md)
+- [Demo Coding Retention Policy](demo-coding-retention.md)
 - [Final COD Authority Policy](final-cod-authority.md)
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)

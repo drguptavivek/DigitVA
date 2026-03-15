@@ -10,8 +10,8 @@ services:
     ports:
       - "8050:5000"
     environment:
-      - SECRET_KEY=5Ag92#2g]oLIHEk
-      - DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://minerva_redis_service:6379/0
@@ -36,8 +36,8 @@ services:
       - .:/app
       - venv_worker:/app/.venv
     environment:
-      - SECRET_KEY=5Ag92#2g]oLIHEk
-      - DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://minerva_redis_service:6379/0
@@ -55,8 +55,8 @@ services:
       - .:/app
       - venv_beat:/app/.venv
     environment:
-      - SECRET_KEY=5Ag92#2g]oLIHEk
-      - DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://minerva_redis_service:6379/0
@@ -82,9 +82,9 @@ services:
     image: postgres:17
     container_name: minerva_db
     environment:
-      POSTGRES_USER: minerva
-      POSTGRES_PASSWORD: minerva
-      POSTGRES_DB: minerva
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata_minerva:/var/lib/postgresql/data
     ports:

@@ -20,6 +20,9 @@ def _require_env(key: str) -> str:
 
 
 class Config:
+    # SECURITY: SECRET_KEY must be set via environment variable in production.
+    # The fallback is only for development convenience and should never be used in production.
+    # Docker Compose will fail to start if .env is missing required variables.
     SECRET_KEY = os.environ.get("SECRET_KEY") or "5Ag92#2g]oLIHEk"
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     REMEMBER_COOKIE_DURATION = timedelta(minutes=30)

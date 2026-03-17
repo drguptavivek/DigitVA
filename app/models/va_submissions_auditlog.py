@@ -14,7 +14,7 @@ class VaSubmissionsAuditlog(db.Model):
         sa.String(64), sa.ForeignKey("va_submissions.va_sid"), index=True, nullable=False
     )
     va_audit_byrole: so.Mapped[str] = so.mapped_column(
-        sa.String(8), nullable=False
+        sa.String(30), nullable=False
     )
     va_audit_by: so.Mapped[Optional[uuid.UUID]] = so.mapped_column(
         sa.Uuid(as_uuid=True), nullable=True

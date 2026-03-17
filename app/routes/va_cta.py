@@ -32,6 +32,20 @@ from app.utils import va_get_form_type_code_for_form, va_permission_abortwithfla
 va_cta = Blueprint("va_cta", __name__)
 
 
+def _audit_submission_read(va_sid: str, action: str) -> None:
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="data_manager",
+            va_audit_by=current_user.user_id,
+            va_audit_operation="r",
+            va_audit_action=action,
+            va_audit_entityid=uuid.uuid4(),
+        )
+    )
+    db.session.commit()
+
+
 def _get_category_render_context(va_form, va_action: str) -> tuple[list, str | None]:
     form_type_code = va_get_form_type_code_for_form(va_form.va_form_id)
     category_service = get_category_rendering_service()
@@ -402,6 +416,10 @@ def va_calltoaction(va_action, va_actiontype, va_sid):
     if va_action == "vadata":
         if va_actiontype == "vaview":
             va_form = db.session.get(VaSubmissions, va_sid)
+            _audit_submission_read(
+                va_sid,
+                "data_manager_viewed_submission_read_only",
+            )
             category_nav, default_category_code, visible_codes = _get_category_render_context(
                 va_form,
                 va_action,

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import sqlalchemy as sa
 from app import db
 from app.models import (
     MapProjectSiteOdk,
@@ -19,6 +20,7 @@ from app.models import (
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissionAttachments,
+    VaSubmissionsAuditlog,
     VaSubmissions,
     VaSyncRun,
     VaUserAccessGrants,
@@ -442,6 +444,17 @@ class DataManagerDashboardTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 202)
         mocked_delay.assert_called_once()
+        audit_row = db.session.scalar(
+            sa.select(VaSubmissionsAuditlog)
+            .where(VaSubmissionsAuditlog.va_sid == self.SID)
+            .order_by(VaSubmissionsAuditlog.va_audit_createdat.desc())
+        )
+        self.assertIsNotNone(audit_row)
+        self.assertEqual(
+            audit_row.va_audit_action,
+            "data_manager_requested_submission_refresh",
+        )
+        self.assertEqual(audit_row.va_audit_byrole, "data_manager")
 
     @patch("app.routes.va_main.va_odk_clientsetup")
     def test_data_manager_odk_edit_redirect_uses_scoped_submission_mapping(
@@ -471,6 +484,34 @@ class DataManagerDashboardTests(BaseTestCase):
             response.headers["Location"],
             "https://minerva.example.org/-/edit/token123?instance_id=uuid:data-manager-dashboard",
         )
+        audit_row = db.session.scalar(
+            sa.select(VaSubmissionsAuditlog)
+            .where(VaSubmissionsAuditlog.va_sid == self.SID)
+            .order_by(VaSubmissionsAuditlog.va_audit_createdat.desc())
+        )
+        self.assertIsNotNone(audit_row)
+        self.assertEqual(
+            audit_row.va_audit_action,
+            "data_manager_opened_odk_edit_link",
+        )
+
+    def test_data_manager_read_only_view_writes_audit_row(self):
+        self._login(self.dm_user_id)
+
+        response = self.client.get(f"/vacta/vadata/vaview/{self.SID}")
+
+        self.assertEqual(response.status_code, 200)
+        audit_row = db.session.scalar(
+            sa.select(VaSubmissionsAuditlog)
+            .where(VaSubmissionsAuditlog.va_sid == self.SID)
+            .order_by(VaSubmissionsAuditlog.va_audit_createdat.desc())
+        )
+        self.assertIsNotNone(audit_row)
+        self.assertEqual(
+            audit_row.va_audit_action,
+            "data_manager_viewed_submission_read_only",
+        )
+        self.assertEqual(audit_row.va_audit_byrole, "data_manager")
 
     def test_single_form_task_revalidates_scope_in_worker(self):
         from app.tasks.sync_tasks import run_single_form_sync

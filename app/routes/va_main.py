@@ -1,5 +1,6 @@
 import json
 import re
+import uuid
 from types import SimpleNamespace
 import logging
 import sqlalchemy as sa
@@ -25,6 +26,7 @@ from app.models import (
     VaSyncRun,
     VaSiteMaster,
     VaSubmissionWorkflow,
+    VaSubmissionsAuditlog,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.coder_dashboard_service import (
@@ -51,6 +53,25 @@ from datetime import datetime, timedelta
 
 va_main = Blueprint("va_main", __name__)
 log = logging.getLogger(__name__)
+
+
+def _audit_data_manager_submission_action(
+    va_sid: str,
+    action: str,
+    *,
+    operation: str = "r",
+) -> None:
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="data_manager",
+            va_audit_by=current_user.user_id,
+            va_audit_operation=operation,
+            va_audit_action=action,
+            va_audit_entityid=uuid.uuid4(),
+        )
+    )
+    db.session.commit()
 
 
 def _data_manager_scope_filter(user):
@@ -770,6 +791,10 @@ def va_data_manager_submission_odk_edit(va_sid):
         va_permission_abortwithflash(
             "ODK edit link is not available for this submission.", 404
         )
+    _audit_data_manager_submission_action(
+        va_sid,
+        "data_manager_opened_odk_edit_link",
+    )
     return redirect(odk_edit_url)
 
 
@@ -1258,6 +1283,11 @@ def va_data_manager_sync_submission(va_sid: str):
             va_sid=va_sid,
             triggered_by="data-manager",
             user_id=str(current_user.user_id),
+        )
+        _audit_data_manager_submission_action(
+            va_sid,
+            "data_manager_requested_submission_refresh",
+            operation="u",
         )
         return jsonify(
             {

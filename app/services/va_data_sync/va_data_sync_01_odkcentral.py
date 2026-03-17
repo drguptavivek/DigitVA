@@ -176,7 +176,7 @@ def _pending_smartva_sids(form_id: str) -> set[str]:
 def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map=None):
     """Upsert a single form's submissions into the DB.
 
-    Returns (added, updated, discarded) counts.
+    Returns (added, updated, discarded, skipped) counts.
     If upserted_map is provided (dict), it is populated with {va_sid: KEY}
     for every submission that was added or updated — used by the attachment
     sync step to know which submissions' attachments need refreshing.
@@ -185,6 +185,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
     added = 0
     updated = 0
     discarded = 0
+    skipped = 0  # Submissions skipped due to consent=no or missing consent
 
     for va_submission in (va_submissions or []):
         va_submission_amended = False
@@ -397,7 +398,15 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             if upserted_map is not None:
                 upserted_map[va_submission_sid] = va_submission.get("KEY", "")
 
-    return added, updated, discarded
+        # Log skipped submissions (consent=no or missing consent)
+        elif not existing:
+            skipped += 1
+            log.debug(
+                "DataSync [%s]: skipped %s — consent=%s",
+                va_form.form_id, va_submission_sid, va_submission_consent,
+            )
+
+    return added, updated, discarded, skipped
 
 
 def va_data_sync_odkcentral(log_progress=None):
@@ -518,6 +527,7 @@ def va_data_sync_odkcentral(log_progress=None):
                     gap_added_total = 0
                     gap_updated_total = 0
                     gap_discarded_total = 0
+                    gap_skipped_total = 0  # Submissions skipped due to consent
                     gap_errors = 0
                     form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
                     media_dir = os.path.join(form_dir, "media")
@@ -530,12 +540,13 @@ def va_data_sync_odkcentral(log_progress=None):
                         )
                         if batch_records:
                             upserted_map_batch: dict[str, str] = {}
-                            b_added, b_updated, b_discarded = _upsert_form_submissions(
+                            b_added, b_updated, b_discarded, b_skipped = _upsert_form_submissions(
                                 va_form, batch_records, amended_sids, upserted_map_batch
                             )
                             db.session.commit()
                             gap_added_total += b_added
                             gap_updated_total += b_updated
+                            gap_skipped_total += b_skipped
                             gap_discarded_total += b_discarded
 
                             # Sync attachments for this batch
@@ -550,9 +561,10 @@ def va_data_sync_odkcentral(log_progress=None):
                                 db.session.commit()
 
                         done = min(batch_start + _GAP_BATCH, len(missing_ids))
+                        skip_msg = f", {gap_skipped_total} skipped" if gap_skipped_total else ""
                         _progress(
                             f"[{va_form.form_id}] gap batch {done}/{len(missing_ids)}: "
-                            f"+{gap_added_total} added, {gap_updated_total} updated"
+                            f"+{gap_added_total} added, {gap_updated_total} updated{skip_msg}"
                         )
 
                     va_submissions_added += gap_added_total
@@ -565,9 +577,10 @@ def va_data_sync_odkcentral(log_progress=None):
                         mapping.last_synced_at = snapshot_time
                         db.session.commit()
 
+                    skip_msg = f", {gap_skipped_total} skipped (no consent)" if gap_skipped_total else ""
                     _progress(
                         f"[{va_form.form_id}] gap sync done: "
-                        f"+{gap_added_total} added, {gap_updated_total} updated"
+                        f"+{gap_added_total} added, {gap_updated_total} updated{skip_msg}"
                     )
                     downloaded_forms.append(va_form)
                     continue  # skip the normal upsert/attachment flow below
@@ -601,7 +614,7 @@ def va_data_sync_odkcentral(log_progress=None):
                 log.info("DataSync [Upserting submissions: %s].", va_form.form_id)
                 _progress(f"[{va_form.form_id}] upserting {len(va_submissions_raw)} submission(s)…")
                 upserted_map: dict[str, str] = {}  # {va_sid: instance_id}
-                form_added, form_updated, form_discarded = _upsert_form_submissions(
+                form_added, form_updated, form_discarded, form_skipped = _upsert_form_submissions(
                     va_form, va_submissions_raw, amended_sids, upserted_map
                 )
                 va_submissions_added += form_added
@@ -610,13 +623,14 @@ def va_data_sync_odkcentral(log_progress=None):
 
                 # Per-form commit — isolates failures so other forms are not rolled back
                 db.session.commit()
+                skip_msg = f", {form_skipped} skipped" if form_skipped else ""
                 _progress(
                     f"[{va_form.form_id}] done: "
-                    f"+{form_added} added, {form_updated} updated"
+                    f"+{form_added} added, {form_updated} updated{skip_msg}"
                 )
                 log.info(
-                    "DataSync [%s]: committed — added=%d updated=%d discarded=%d",
-                    va_form.form_id, form_added, form_updated, form_discarded,
+                    "DataSync [%s]: committed — added=%d updated=%d discarded=%d skipped=%d",
+                    va_form.form_id, form_added, form_updated, form_discarded, form_skipped,
                 )
 
                 # Sync attachments for upserted submissions (ETag-based, no rmtree)

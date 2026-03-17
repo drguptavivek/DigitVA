@@ -69,35 +69,26 @@
 
   <div class="card shadow-sm border-0 rounded-3 mb-4">
     <div class="card-body">
-      <div class="row g-3 align-items-end">
-        <div class="col-md-5">
-          <label for="dm-project-filter" class="form-label mb-1">
+      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+        <div>
+          <div class="form-label mb-1">
             <strong>Sync Forms For a Project and Site</strong>
             <span class="ms-1 text-muted"
                   data-bs-toggle="tooltip"
                   data-bs-placement="top"
-                  title="Runs a force-resync for every form that matches the selected project and site filters in your scope. Matched forms are fetched from ODK to refresh new and updated submissions, attachments, and SmartVA inputs. Older unchanged submissions are not individually refetched unless they are part of the selected form-level resync.">
+                  title="Opens a confirmation modal where you explicitly choose the project and site scope to resync. Matched forms are fetched from ODK to refresh new and updated submissions, attachments, and SmartVA inputs. Older unchanged submissions are not individually refetched unless they are part of the selected form-level resync.">
               <i class="fas fa-circle-info"></i>
             </span>
-          </label>
-          <select id="dm-project-filter" class="form-select" multiple>
-            {% for form in scoped_forms|groupby('project_id') %}
-            <option value="{{ form.grouper }}">{{ form.grouper }}</option>
-            {% endfor %}
-          </select>
+          </div>
+          <div class="small text-muted">
+            Open the sync modal to choose projects, sites, and review the exact forms that will be queued.
+          </div>
         </div>
-        <div class="col-md-4">
-          <label for="dm-site-filter" class="form-label mb-1"><strong>Sites</strong></label>
-          <select id="dm-site-filter" class="form-select" multiple></select>
-        </div>
-        <div class="col-md-3">
-          <button type="button" id="dm-form-sync-btn" class="btn btn-outline-secondary w-100">
-            <i class="fas fa-rotate-right me-2"></i>Sync Matching Forms
+        <div class="flex-shrink-0">
+          <button type="button" id="dm-open-sync-modal-btn" class="btn btn-outline-secondary">
+            <i class="fas fa-rotate-right me-2"></i>Open Sync Modal
           </button>
         </div>
-      </div>
-      <div class="small text-muted mt-2">
-        Choose one or more projects and optional sites. DigitVA will run the existing secure form sync for every matched form in your scoped access.
       </div>
     </div>
   </div>
@@ -110,7 +101,21 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <p class="mb-3">Review the exact sync scope before starting.</p>
+          <p class="mb-3">Choose the exact sync scope, then review the matched forms before starting.</p>
+          <div class="row g-3 align-items-end mb-4">
+            <div class="col-md-6">
+              <label for="dm-project-filter" class="form-label mb-1"><strong>Projects</strong></label>
+              <select id="dm-project-filter" class="form-select" multiple>
+                {% for form in scoped_forms|groupby('project_id') %}
+                <option value="{{ form.grouper }}">{{ form.grouper }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="dm-site-filter" class="form-label mb-1"><strong>Sites</strong></label>
+              <select id="dm-site-filter" class="form-select" multiple></select>
+            </div>
+          </div>
           <div class="mb-3">
             <div class="fw-semibold">Selected Projects</div>
             <div id="dm-sync-summary-projects" class="small text-muted">None</div>
@@ -239,6 +244,7 @@
       const scopedForms = {{ scoped_forms|tojson }};
       const projectFilter = $('#dm-project-filter');
       const siteFilter = $('#dm-site-filter');
+      const openSyncModalButton = $('#dm-open-sync-modal-btn');
       const syncConfirmModalEl = document.getElementById('dm-sync-confirm-modal');
       const syncConfirmModal = new bootstrap.Modal(syncConfirmModalEl);
       const syncSummaryProjects = $('#dm-sync-summary-projects');
@@ -278,7 +284,7 @@
         const selectedSites = selectedSiteLabels();
 
         syncSummaryProjects.text(
-          selectedProjects.length ? selectedProjects.join(', ') : 'All projects in your scope'
+          selectedProjects.length ? selectedProjects.join(', ') : 'None selected'
         );
         syncSummarySites.text(
           selectedSites.length ? selectedSites.join(', ') : 'All sites in selected projects'
@@ -350,29 +356,20 @@
         order: [[0, 'asc'], [1, 'asc'], [2, 'desc']]
       });
 
-      $.fn.dataTable.ext.search.push(function (settings, data) {
-        if (settings.nTable !== dmTable.table().node()) {
-          return true;
-        }
-        const selectedProjects = currentProjectSelection();
-        const selectedSites = currentSiteSelection();
-        const rowProject = data[0];
-        const rowSite = data[1];
-        const matchesProject = !selectedProjects.length || selectedProjects.includes(rowProject);
-        const matchesSite = !selectedSites.length || selectedSites.includes(rowSite);
-        return matchesProject && matchesSite;
-      });
-
       projectFilter.on('change', function () {
         refreshSiteOptions();
-        dmTable.draw();
+        renderSyncSummary(formsMatchingSelection());
       });
 
       siteFilter.on('change', function () {
-        dmTable.draw();
+        renderSyncSummary(formsMatchingSelection());
       });
 
-      refreshSiteOptions();
+      openSyncModalButton.on('click', function () {
+        refreshSiteOptions();
+        renderSyncSummary(formsMatchingSelection());
+        syncConfirmModal.show();
+      });
 
       function postJson(url) {
         return fetch(url, {
@@ -394,22 +391,18 @@
         }
       }
 
-      $('#dm-form-sync-btn').on('click', function () {
+      syncConfirmButton.on('click', async function () {
+        const selectedProjects = currentProjectSelection();
         const matchedForms = formsMatchingSelection();
+        if (!selectedProjects.length) {
+          if (window.showAppToast) window.showAppToast('Select at least one project before starting sync.', 'warning');
+          return;
+        }
         if (!matchedForms.length) {
-          if (window.showAppToast) window.showAppToast('Select at least one project or site that has forms in your scope.', 'warning');
+          if (window.showAppToast) window.showAppToast('No forms match the selected project and site scope.', 'warning');
           return;
         }
         pendingSyncForms = matchedForms;
-        renderSyncSummary(matchedForms);
-        syncConfirmModal.show();
-      });
-
-      syncConfirmButton.on('click', async function () {
-        if (!pendingSyncForms.length) {
-          syncConfirmModal.hide();
-          return;
-        }
         syncConfirmButton.prop('disabled', true);
         try {
           await syncFormsSequentially(pendingSyncForms);

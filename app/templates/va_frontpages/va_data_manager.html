@@ -76,7 +76,7 @@
             <span class="ms-1 text-muted"
                   data-bs-toggle="tooltip"
                   data-bs-placement="top"
-                  title="Runs a force-resync for every form that matches the selected project and site filters in your scope. Each matched form is fetched fully from ODK, so new and updated submissions are refreshed along with attachments and SmartVA inputs.">
+                  title="Runs a force-resync for every form that matches the selected project and site filters in your scope. Matched forms are fetched from ODK to refresh new and updated submissions, attachments, and SmartVA inputs. Older unchanged submissions are not individually refetched unless they are part of the selected form-level resync.">
               <i class="fas fa-circle-info"></i>
             </span>
           </label>
@@ -98,6 +98,39 @@
       </div>
       <div class="small text-muted mt-2">
         Choose one or more projects and optional sites. DigitVA will run the existing secure form sync for every matched form in your scoped access.
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="dm-sync-confirm-modal" tabindex="-1" aria-labelledby="dm-sync-confirm-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="dm-sync-confirm-title">Confirm Form Sync</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-3">Review the exact sync scope before starting.</p>
+          <div class="mb-3">
+            <div class="fw-semibold">Selected Projects</div>
+            <div id="dm-sync-summary-projects" class="small text-muted">None</div>
+          </div>
+          <div class="mb-3">
+            <div class="fw-semibold">Selected Sites</div>
+            <div id="dm-sync-summary-sites" class="small text-muted">All sites in selected projects</div>
+          </div>
+          <div class="mb-3">
+            <div class="fw-semibold">Matched Forms</div>
+            <div id="dm-sync-summary-count" class="small text-muted mb-2"></div>
+            <ul id="dm-sync-summary-forms" class="list-group list-group-flush"></ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="dm-sync-confirm-btn">
+            Start Sync
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -206,6 +239,14 @@
       const scopedForms = {{ scoped_forms|tojson }};
       const projectFilter = $('#dm-project-filter');
       const siteFilter = $('#dm-site-filter');
+      const syncConfirmModalEl = document.getElementById('dm-sync-confirm-modal');
+      const syncConfirmModal = new bootstrap.Modal(syncConfirmModalEl);
+      const syncSummaryProjects = $('#dm-sync-summary-projects');
+      const syncSummarySites = $('#dm-sync-summary-sites');
+      const syncSummaryCount = $('#dm-sync-summary-count');
+      const syncSummaryForms = $('#dm-sync-summary-forms');
+      const syncConfirmButton = $('#dm-sync-confirm-btn');
+      let pendingSyncForms = [];
 
       function currentProjectSelection() {
         return projectFilter.val() || [];
@@ -223,6 +264,36 @@
           const matchesProject = !selectedProjects.length || selectedProjects.includes(form.project_id);
           const matchesSite = !selectedSites.length || selectedSites.includes(form.site_id);
           return matchesProject && matchesSite;
+        });
+      }
+
+      function selectedSiteLabels() {
+        return siteFilter.find(':selected').map(function () {
+          return $(this).text();
+        }).get();
+      }
+
+      function renderSyncSummary(matchedForms) {
+        const selectedProjects = currentProjectSelection();
+        const selectedSites = selectedSiteLabels();
+
+        syncSummaryProjects.text(
+          selectedProjects.length ? selectedProjects.join(', ') : 'All projects in your scope'
+        );
+        syncSummarySites.text(
+          selectedSites.length ? selectedSites.join(', ') : 'All sites in selected projects'
+        );
+        syncSummaryCount.text(
+          matchedForms.length + ' form' + (matchedForms.length === 1 ? '' : 's') + ' will be queued.'
+        );
+        syncSummaryForms.empty();
+
+        matchedForms.forEach(function (form) {
+          syncSummaryForms.append(
+            $('<li class="list-group-item px-0 py-2"></li>').text(
+              form.project_id + ' / ' + form.site_id + ' - ' + form.site_name + ' (' + form.form_id + ')'
+            )
+          );
         });
       }
 
@@ -323,27 +394,41 @@
         }
       }
 
-      $('#dm-form-sync-btn').on('click', async function () {
+      $('#dm-form-sync-btn').on('click', function () {
         const matchedForms = formsMatchingSelection();
         if (!matchedForms.length) {
           if (window.showAppToast) window.showAppToast('Select at least one project or site that has forms in your scope.', 'warning');
           return;
         }
-        const button = $(this);
-        button.prop('disabled', true);
+        pendingSyncForms = matchedForms;
+        renderSyncSummary(matchedForms);
+        syncConfirmModal.show();
+      });
+
+      syncConfirmButton.on('click', async function () {
+        if (!pendingSyncForms.length) {
+          syncConfirmModal.hide();
+          return;
+        }
+        syncConfirmButton.prop('disabled', true);
         try {
-          await syncFormsSequentially(matchedForms);
+          await syncFormsSequentially(pendingSyncForms);
+          syncConfirmModal.hide();
           if (window.showAppToast) {
             window.showAppToast(
-              'Started sync for ' + matchedForms.length + ' form' + (matchedForms.length === 1 ? '' : 's') + '.',
+              'Started sync for ' + pendingSyncForms.length + ' form' + (pendingSyncForms.length === 1 ? '' : 's') + '.',
               'success'
             );
           }
         } catch (err) {
           if (window.showAppToast) window.showAppToast(err.message, 'danger');
         } finally {
-          button.prop('disabled', false);
+          syncConfirmButton.prop('disabled', false);
         }
+      });
+
+      syncConfirmModalEl.addEventListener('hidden.bs.modal', function () {
+        pendingSyncForms = [];
       });
 
       $('.dm-refresh-submission-btn').on('click', function () {

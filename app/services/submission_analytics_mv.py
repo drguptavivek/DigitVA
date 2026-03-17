@@ -1,0 +1,283 @@
+"""Helpers for the submission analytics materialized view."""
+
+from __future__ import annotations
+
+import sqlalchemy as sa
+
+from app import db
+
+
+MV_NAME = "va_submission_analytics_mv"
+_DAYS_PER_MONTH = "30.4375"
+_DAYS_PER_YEAR = "365.25"
+
+
+def build_submission_analytics_mv_sql(view_name: str = MV_NAME) -> str:
+    """Return the CREATE MATERIALIZED VIEW statement for submission analytics."""
+    return f"""
+CREATE MATERIALIZED VIEW {view_name} AS
+WITH base AS (
+    SELECT
+        s.va_sid,
+        s.va_form_id AS form_id,
+        f.project_id,
+        f.site_id,
+        s.va_submission_date AS submission_at,
+        DATE(s.va_submission_date) AS submission_date,
+        DATE_TRUNC('week', s.va_submission_date)::date AS submission_week_start,
+        DATE_TRUNC('month', s.va_submission_date)::date AS submission_month_start,
+        w.workflow_state,
+        s.va_odk_reviewstate AS odk_review_state,
+        s.va_sync_issue_code AS odk_sync_issue_code,
+        (s.va_sync_issue_code IS NOT NULL) AS has_sync_issue,
+        s.va_deceased_gender AS sex,
+        LOWER(NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_group', '')), '')) AS age_group_raw,
+        CASE
+            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_neonate_hours', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (s.va_data ->> 'age_neonate_hours')::numeric
+            ELSE NULL
+        END AS age_neonate_hours_num,
+        CASE
+            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_neonate_days', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (s.va_data ->> 'age_neonate_days')::numeric
+            ELSE NULL
+        END AS age_neonate_days_num,
+        CASE
+            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInDays', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (s.va_data ->> 'ageInDays')::numeric
+            ELSE NULL
+        END AS age_in_days_num,
+        CASE
+            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInMonths', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (s.va_data ->> 'ageInMonths')::numeric
+            ELSE NULL
+        END AS age_in_months_num,
+        CASE
+            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInYears', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (s.va_data ->> 'ageInYears')::numeric
+            ELSE NULL
+        END AS age_in_years_num,
+        CASE
+            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInYears2', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (s.va_data ->> 'ageInYears2')::numeric
+            ELSE NULL
+        END AS age_in_years2_num,
+        CASE
+            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'finalAgeInYears', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
+                THEN (s.va_data ->> 'finalAgeInYears')::numeric
+            ELSE NULL
+        END AS final_age_years_num,
+        COALESCE(s.va_data ->> 'isNeonatal', '') IN ('1', '1.0', 'true', 'True') AS is_neonatal,
+        COALESCE(s.va_data ->> 'isChild', '') IN ('1', '1.0', 'true', 'True') AS is_child,
+        COALESCE(s.va_data ->> 'isAdult', '') IN ('1', '1.0', 'true', 'True') AS is_adult
+    FROM va_submissions s
+    JOIN va_forms f ON f.form_id = s.va_form_id
+    LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+),
+age_source AS (
+    SELECT
+        b.*,
+        CASE
+            WHEN b.age_neonate_hours_num IS NOT NULL THEN 'age_neonate_hours'
+            WHEN b.age_neonate_days_num IS NOT NULL THEN 'age_neonate_days'
+            WHEN b.is_neonatal AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
+            WHEN b.is_child AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
+            WHEN b.is_child AND b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
+            WHEN b.is_child AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
+            WHEN b.is_child AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
+            WHEN b.is_child AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
+            WHEN b.is_adult AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
+            WHEN b.is_adult AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
+            WHEN b.is_adult AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
+            WHEN b.age_in_years_num IS NOT NULL THEN 'ageInYears'
+            WHEN b.age_in_days_num IS NOT NULL THEN 'ageInDays'
+            WHEN b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
+            WHEN b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
+            WHEN b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
+            ELSE NULL
+        END AS normalized_age_source
+    FROM base b
+),
+age_normalized AS (
+    SELECT
+        a.*,
+        CASE
+            WHEN a.normalized_age_source = 'age_neonate_hours' THEN a.age_neonate_hours_num
+            ELSE NULL
+        END AS normalized_age_hours,
+        CASE
+            WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
+            WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num
+            WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num
+            WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num * {_DAYS_PER_MONTH}
+            WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num * {_DAYS_PER_YEAR}
+            WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num * {_DAYS_PER_YEAR}
+            WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num * {_DAYS_PER_YEAR}
+            ELSE NULL
+        END AS normalized_age_days,
+        CASE
+            WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
+            WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num / {_DAYS_PER_MONTH}
+            WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num / {_DAYS_PER_MONTH}
+            WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num
+            WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num * 12
+            WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num * 12
+            WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num * 12
+            ELSE NULL
+        END AS normalized_age_months,
+        CASE
+            WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
+            WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num / {_DAYS_PER_YEAR}
+            WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num / {_DAYS_PER_YEAR}
+            WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num / 12
+            WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num
+            WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num
+            WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num
+            ELSE NULL
+        END AS normalized_age_years,
+        CASE
+            WHEN a.normalized_age_source = 'age_neonate_hours' THEN 'hours'
+            WHEN a.normalized_age_source IN ('age_neonate_days', 'ageInDays') THEN 'days'
+            WHEN a.normalized_age_source = 'ageInMonths' THEN 'months'
+            WHEN a.normalized_age_source IN ('ageInYears', 'ageInYears2', 'finalAgeInYears') THEN 'years'
+            ELSE 'unknown'
+        END AS age_precision
+    FROM age_source a
+)
+SELECT
+    an.va_sid,
+    an.form_id,
+    an.project_id,
+    an.site_id,
+    an.submission_at,
+    an.submission_date,
+    an.submission_week_start,
+    an.submission_month_start,
+    an.workflow_state,
+    an.odk_review_state,
+    an.odk_sync_issue_code,
+    an.has_sync_issue,
+    an.sex,
+    an.normalized_age_hours,
+    an.normalized_age_days,
+    an.normalized_age_months,
+    an.normalized_age_years,
+    an.normalized_age_source,
+    an.age_precision,
+    CASE
+        WHEN an.normalized_age_days IS NOT NULL AND an.normalized_age_days <= 28 THEN 'neonate'
+        WHEN an.normalized_age_years IS NULL THEN 'unknown'
+        WHEN an.normalized_age_years < 15 THEN 'child'
+        WHEN an.normalized_age_years < 50 THEN '15_49y'
+        WHEN an.normalized_age_years < 65 THEN '50_64y'
+        ELSE '65_plus'
+    END AS analytics_age_band,
+    (init_assess.va_iniassess_id IS NOT NULL) AS has_human_initial_cod,
+    init_assess.va_immediate_cod AS initial_immediate_cod_text,
+    substring(init_assess.va_immediate_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)') AS initial_immediate_icd,
+    init_assess.va_antecedent_cod AS initial_antecedent_cod_text,
+    substring(init_assess.va_antecedent_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)') AS initial_antecedent_icd,
+    (final_assess.va_finassess_id IS NOT NULL) AS has_human_final_cod,
+    final_assess.va_conclusive_cod AS final_cod_text,
+    substring(final_assess.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)') AS final_icd,
+    COALESCE(final_assess.authority_source_role, 'latest_active_fallback') AS final_cod_authority_source,
+    (smartva.va_smartva_id IS NOT NULL) AS has_smartva,
+    smartva.va_smartva_age AS smartva_age,
+    smartva.va_smartva_gender AS smartva_gender,
+    smartva.va_smartva_resultfor AS smartva_result_for,
+    smartva.va_smartva_cause1 AS smartva_cause1,
+    smartva.va_smartva_cause1icd AS smartva_cause1_icd,
+    smartva.va_smartva_cause2 AS smartva_cause2,
+    smartva.va_smartva_cause2icd AS smartva_cause2_icd,
+    smartva.va_smartva_cause3 AS smartva_cause3,
+    smartva.va_smartva_cause3icd AS smartva_cause3_icd
+FROM age_normalized an
+LEFT JOIN LATERAL (
+    SELECT
+        i.va_iniassess_id,
+        i.va_immediate_cod,
+        i.va_antecedent_cod
+    FROM va_initial_assessments i
+    WHERE
+        i.va_sid = an.va_sid
+        AND i.va_iniassess_status = 'active'
+    ORDER BY i.va_iniassess_createdat DESC, i.va_iniassess_id DESC
+    LIMIT 1
+) AS init_assess ON TRUE
+LEFT JOIN LATERAL (
+    SELECT
+        f.va_finassess_id,
+        f.va_conclusive_cod,
+        a.authority_source_role
+    FROM va_final_assessments f
+    LEFT JOIN va_final_cod_authority a
+        ON a.authoritative_final_assessment_id = f.va_finassess_id
+    WHERE f.va_finassess_id = (
+        COALESCE(
+            (
+                SELECT a2.authoritative_final_assessment_id
+                FROM va_final_cod_authority a2
+                WHERE
+                    a2.va_sid = an.va_sid
+                    AND a2.authoritative_final_assessment_id IS NOT NULL
+                LIMIT 1
+            ),
+            (
+                SELECT f2.va_finassess_id
+                FROM va_final_assessments f2
+                WHERE
+                    f2.va_sid = an.va_sid
+                    AND f2.va_finassess_status = 'active'
+                ORDER BY f2.va_finassess_createdat DESC, f2.va_finassess_id DESC
+                LIMIT 1
+            )
+        )
+    )
+) AS final_assess ON TRUE
+LEFT JOIN LATERAL (
+    SELECT
+        sv.va_smartva_id,
+        sv.va_smartva_age,
+        sv.va_smartva_gender,
+        sv.va_smartva_resultfor,
+        sv.va_smartva_cause1,
+        sv.va_smartva_cause1icd,
+        sv.va_smartva_cause2,
+        sv.va_smartva_cause2icd,
+        sv.va_smartva_cause3,
+        sv.va_smartva_cause3icd
+    FROM va_smartva_results sv
+    WHERE
+        sv.va_sid = an.va_sid
+        AND sv.va_smartva_status = 'active'
+    ORDER BY sv.va_smartva_updatedat DESC, sv.va_smartva_id DESC
+    LIMIT 1
+) AS smartva ON TRUE
+WITH DATA
+"""
+
+
+def build_refresh_submission_analytics_mv_sql(
+    *,
+    view_name: str = MV_NAME,
+    concurrently: bool = False,
+) -> str:
+    """Return the REFRESH MATERIALIZED VIEW statement."""
+    concurrent_clause = " CONCURRENTLY" if concurrently else ""
+    return f"REFRESH MATERIALIZED VIEW{concurrent_clause} {view_name}"
+
+
+def refresh_submission_analytics_mv(*, concurrently: bool = False) -> None:
+    """Refresh the submission analytics materialized view."""
+    sql = sa.text(
+        build_refresh_submission_analytics_mv_sql(
+            concurrently=concurrently,
+        )
+    )
+    if concurrently:
+        with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            conn.execute(sql)
+        return
+
+    db.session.execute(sql)
+    db.session.commit()

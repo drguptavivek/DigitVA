@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-17
+last_updated: 2026-03-18
 ---
 
 # Current Data Model
@@ -233,6 +233,32 @@ Current behavior:
 - normal coding leaves `demo_expires_at` null
 - demo coding stamps a 6-hour expiry timestamp so completed demo finals remain
   visible briefly and are then deactivated by hourly cleanup
+
+## Analytics Materialized View
+
+### `va_submission_analytics_mv`
+
+Purpose:
+
+- provides one-row-per-submission analytics data for trends, demographics,
+  workflow, SmartVA, and human coding
+
+Key fields:
+
+- project/site/form identifiers
+- submission day/week/month buckets
+- workflow and sync states
+- normalized age fields
+- analytics age band
+- human initial COD and authoritative final COD
+- parsed human ICD prefixes
+- SmartVA causes and ICD codes
+
+Current behavior:
+
+- populated by a PostgreSQL materialized view
+- refreshed hourly by Celery Beat
+- intended for reporting and chart APIs, not operational workflow writes
 
 ### `va_final_cod_authority`
 

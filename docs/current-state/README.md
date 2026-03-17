@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-18
 ---
 
 # Current State Index
@@ -29,6 +29,8 @@ Read these documents in this order:
 6. [Workflow And Permissions](workflow-and-permissions.md)
 7. [Admin And Setup Model](admin-and-setup.md)
 8. [Runtime And Operations](runtime-and-operations.md)
+9. [Data Manager Dashboard](data-manager-dashboard.md)
+10. [Submission Analytics Materialized View](submission-analytics.md)
 
 Related planning:
 

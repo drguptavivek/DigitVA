@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-15
+last_updated: 2026-03-18
 ---
 
 # Policy Docs
@@ -26,6 +26,7 @@ Current policy docs:
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [UI Notification Policy](ui-notifications.md)
+- [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)
 
 Use `docs/policy` when a change affects:
 

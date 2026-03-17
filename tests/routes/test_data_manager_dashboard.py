@@ -317,16 +317,21 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn(b"id=\"dm-view-odk-issues-btn\"", response.data)
         self.assertIn(b"id=\"dm-view-smartva-missing-btn\"", response.data)
         self.assertIn(b"Edit", response.data)
+        self.assertIn(b"Project - Site Submissions", response.data)
+        self.assertIn(b"This Week", response.data)
+        self.assertIn(b"Today", response.data)
+        self.assertIn(b"dm-project-site-submissions-chart", response.data)
+        self.assertIn(b"vendors/chartjs/chart.umd.min.js", response.data)
         self.assertIn(b"Table Columns", response.data)
         self.assertIn(b"Optional Columns", response.data)
         self.assertIn(b"Project", response.data)
         self.assertIn(b"Data Collector", response.data)
         self.assertIn(b"Flagged At", response.data)
+        self.assertIn(b"Sync Latest data", response.data)
         self.assertIn(b"Needs correction from field team.", response.data)
         self.assertIn(b"Narrative answer is incomplete.", response.data)
         self.assertIn(b"Missing In ODK", response.data)
         self.assertIn(b"Sync Forms For a Project and Site", response.data)
-        self.assertIn(b"Open Sync Modal", response.data)
         self.assertIn(b"Refresh", response.data)
         self.assertIn(b"Clear Filters", response.data)
         self.assertIn(b"All workflow states", response.data)
@@ -389,6 +394,20 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(len(payload["runs"]), 1)
         self.assertEqual(payload["runs"][0]["target"], self.FORM_ID)
         self.assertEqual(payload["runs"][0]["records_added"], 2)
+
+    def test_data_manager_can_load_project_site_submission_stats(self):
+        self._login(self.dm_user_id)
+
+        response = self.client.get("/vadashboard/data-manager/api/project-site-submissions")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["stats"])
+        self.assertEqual(payload["stats"][0]["project_id"], self.BASE_PROJECT_ID)
+        self.assertEqual(payload["stats"][0]["site_id"], self.BASE_SITE_ID)
+        self.assertIn("total_submissions", payload["stats"][0])
+        self.assertIn("this_week_submissions", payload["stats"][0])
+        self.assertIn("today_submissions", payload["stats"][0])
 
     def test_data_manager_can_trigger_scoped_form_sync(self):
         self._login(self.dm_user_id)

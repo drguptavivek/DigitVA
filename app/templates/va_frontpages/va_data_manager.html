@@ -98,6 +98,12 @@
     #dm-column-options-menu .form-check-label {
       cursor: pointer;
     }
+
+    .dm-submission-chart-wrap {
+      position: relative;
+      height: 300px;
+      margin-top: 0.5rem;
+    }
   </style>
 
   {% with messages = get_flashed_messages(with_categories = true) %}
@@ -149,7 +155,7 @@
         </div>
         <div class="flex-shrink-0">
           <button type="button" id="dm-open-sync-modal-btn" class="btn btn-outline-secondary">
-            <i class="fas fa-rotate-right me-2"></i>Open Sync Modal
+            <i class="fas fa-rotate-right me-2"></i>Sync Latest data
           </button>
         </div>
       </div>
@@ -312,7 +318,7 @@
       <div class="card shadow-sm border-0 rounded-3 h-100">
         <div class="card-body p-4 text-center">
           <i class="fas fa-file-alt text-primary fa-2x mb-3"></i>
-          <h5 class="text-primary fw-semibold mb-3">Scoped Submissions</h5>
+          <h5 class="text-primary fw-semibold mb-3">Submissions</h5>
           <div class="d-flex align-items-baseline justify-content-center">
             <h2 class="display-4 fw-bold text-primary mb-0">{{ total_submissions }}</h2>
           </div>
@@ -366,6 +372,21 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+          <h5 class="text-primary fw-semibold mb-1">Project - Site Submissions</h5>
+          <div class="small text-muted">Compact project-site view of total, this week, and today.</div>
+        </div>
+      </div>
+      <div class="dm-submission-chart-wrap">
+        <canvas id="dm-project-site-submissions-chart"></canvas>
+      </div>
+      <div id="dm-project-site-submissions-empty" class="text-muted small d-none">No scoped submissions found.</div>
     </div>
   </div>
 
@@ -609,6 +630,7 @@
     </table>
   </div>
 
+  <script src="{{ url_for('static', filename='vendors/chartjs/chart.umd.min.js') }}"></script>
   <script>
     $(document).ready(function () {
       const csrfToken = '{{ csrf_token() }}';
@@ -647,9 +669,13 @@
       const viewSmartvaMissingButton = $('#dm-view-smartva-missing-btn');
       const columnToggles = $('.dm-column-toggle');
       const filterCollapseEl = document.getElementById('dm-filter-collapse');
+      const filterCollapse = bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false });
+      const filterStateKey = 'digitva.data_manager.table_state.v1';
       let pendingSyncForms = [];
       let syncResultsPoll = null;
       let workflowQuickFilter = '';
+      let suppressFilterStateSave = false;
+      let projectSiteSubmissionsChart = null;
 
       function currentProjectSelection() {
         return projectFilter.val() || [];
@@ -836,6 +862,89 @@
         ]
       });
 
+      function currentFilterState() {
+        return {
+          search: tableSearch.val() || '',
+          project: tableProjectFilter.val() || '',
+          site: tableSiteFilter.val() || '',
+          date_from: tableDateFrom.val() || '',
+          date_to: tableDateTo.val() || '',
+          odk_status: tableOdkFilter.val() || '',
+          smartva: tableSmartvaFilter.val() || '',
+          odk_sync: tableSyncFilter.val() || '',
+          workflow: tableWorkflowFilter.val() || '',
+          columns: {
+            project: dmTable.column(0).visible(),
+            data_collector: dmTable.column(4).visible(),
+            flagged_at: dmTable.column(10).visible(),
+          },
+        };
+      }
+
+      function saveFilterState() {
+        if (suppressFilterStateSave) {
+          return;
+        }
+        try {
+          window.localStorage.setItem(filterStateKey, JSON.stringify(currentFilterState()));
+        } catch (err) {
+          console.warn('Could not persist data-manager filter state.', err);
+        }
+      }
+
+      function restoreFilterState() {
+        let state = null;
+        try {
+          state = JSON.parse(window.localStorage.getItem(filterStateKey) || 'null');
+        } catch (err) {
+          state = null;
+        }
+        if (!state) {
+          return;
+        }
+
+        suppressFilterStateSave = true;
+        tableSearch.val(state.search || '');
+        tableProjectFilter.val(state.project || '');
+        tableSiteFilter.val(state.site || '');
+        tableDateFrom.val(state.date_from || '');
+        tableDateTo.val(state.date_to || '');
+        tableOdkFilter.val(state.odk_status || '');
+        tableSmartvaFilter.val(state.smartva || '');
+        tableSyncFilter.val(state.odk_sync || '');
+        tableWorkflowFilter.val(state.workflow || '');
+
+        const columnState = state.columns || {};
+        columnToggles.each(function () {
+          const checkbox = $(this);
+          const columnIndex = Number(checkbox.data('column-index'));
+          const key = columnIndex === 0
+            ? 'project'
+            : columnIndex === 4
+              ? 'data_collector'
+              : 'flagged_at';
+          const visible = Boolean(columnState[key]);
+          checkbox.prop('checked', visible);
+          dmTable.column(columnIndex).visible(visible);
+        });
+        suppressFilterStateSave = false;
+
+        const hasAnyFilter = [
+          state.search,
+          state.project,
+          state.site,
+          state.date_from,
+          state.date_to,
+          state.odk_status,
+          state.smartva,
+          state.odk_sync,
+          state.workflow,
+        ].some(Boolean);
+        if (hasAnyFilter) {
+          filterCollapse.show();
+        }
+      }
+
       columnToggles.each(function () {
         const checkbox = $(this);
         const columnIndex = Number(checkbox.data('column-index'));
@@ -846,6 +955,7 @@
         const checkbox = $(this);
         const columnIndex = Number(checkbox.data('column-index'));
         dmTable.column(columnIndex).visible(checkbox.is(':checked'));
+        saveFilterState();
       });
 
       $.fn.dataTable.ext.search.push(function (settings, data) {
@@ -894,6 +1004,7 @@
         dmTable.column(8).search(tableSyncFilter.val() || '', false, false);
         dmTable.column(9).search(workflowQuickFilter || tableWorkflowFilter.val() || '', Boolean(workflowQuickFilter), false);
         dmTable.draw();
+        saveFilterState();
       }
 
       function resetTableFilters() {
@@ -928,21 +1039,21 @@
         resetTableFilters();
         workflowQuickFilter = 'Flagged by Data Manager|Not Codeable By Coder';
         applyTableFilters();
-        bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false }).show();
+        filterCollapse.show();
       });
 
       viewOdkIssuesButton.on('click', function () {
         resetTableFilters();
         tableOdkFilter.val('Has Issues');
         applyTableFilters();
-        bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false }).show();
+        filterCollapse.show();
       });
 
       viewSmartvaMissingButton.on('click', function () {
         resetTableFilters();
         dmTable.column(6).search('Missing', false, false);
         applyTableFilters();
-        bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false }).show();
+        filterCollapse.show();
       });
 
       projectFilter.on('change', function () {
@@ -1003,6 +1114,141 @@
             return payload;
           });
         });
+      }
+
+      function loadProjectSiteSubmissionsChart() {
+        const chartCanvas = document.getElementById('dm-project-site-submissions-chart');
+        const emptyState = document.getElementById('dm-project-site-submissions-empty');
+        if (!chartCanvas || !window.Chart) {
+          return;
+        }
+
+        return fetch('/vadashboard/data-manager/api/project-site-submissions')
+          .then(function (response) {
+            return response.json().then(function (payload) {
+              if (!response.ok) {
+                throw new Error(payload.error || 'Failed to load project-site submission stats.');
+              }
+              return payload;
+            });
+          })
+          .then(function (payload) {
+            const stats = payload.stats || [];
+            if (!stats.length) {
+              chartCanvas.classList.add('d-none');
+              if (emptyState) {
+                emptyState.classList.remove('d-none');
+              }
+              if (projectSiteSubmissionsChart) {
+                projectSiteSubmissionsChart.destroy();
+                projectSiteSubmissionsChart = null;
+              }
+              return;
+            }
+
+            chartCanvas.classList.remove('d-none');
+            if (emptyState) {
+              emptyState.classList.add('d-none');
+            }
+
+            const chartLabels = stats.map(function (row) {
+              return row.project_id + ' / ' + row.site_id;
+            });
+            const chartData = {
+              labels: chartLabels,
+              datasets: [
+                {
+                  label: 'Total',
+                  data: stats.map(function (row) { return row.total_submissions || 0; }),
+                  backgroundColor: '#b7d7ff',
+                  borderColor: '#9ec8fb',
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  barThickness: 10,
+                },
+                {
+                  label: 'This Week',
+                  data: stats.map(function (row) { return row.this_week_submissions || 0; }),
+                  backgroundColor: '#bfe8df',
+                  borderColor: '#a5dccf',
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  barThickness: 10,
+                },
+                {
+                  label: 'Today',
+                  data: stats.map(function (row) { return row.today_submissions || 0; }),
+                  backgroundColor: '#f6d7e6',
+                  borderColor: '#edc2d7',
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  barThickness: 10,
+                },
+              ],
+            };
+
+            if (projectSiteSubmissionsChart) {
+              projectSiteSubmissionsChart.data = chartData;
+              projectSiteSubmissionsChart.update();
+              return;
+            }
+
+            projectSiteSubmissionsChart = new Chart(chartCanvas, {
+              type: 'bar',
+              data: chartData,
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                  legend: {
+                    position: 'top',
+                    align: 'start',
+                    labels: {
+                      usePointStyle: true,
+                      pointStyle: 'rectRounded',
+                      boxWidth: 10,
+                      color: '#607080',
+                    },
+                  },
+                  tooltip: {
+                    backgroundColor: '#ffffff',
+                    titleColor: '#334155',
+                    bodyColor: '#475569',
+                    borderColor: '#dbe5ef',
+                    borderWidth: 1,
+                    displayColors: true,
+                  },
+                },
+                scales: {
+                  x: {
+                    beginAtZero: true,
+                    ticks: {
+                      precision: 0,
+                      color: '#6b7280',
+                    },
+                    grid: {
+                      color: '#eef3f7',
+                    },
+                    border: {
+                      display: false,
+                    },
+                  },
+                  y: {
+                    ticks: {
+                      color: '#475569',
+                    },
+                    grid: {
+                      display: false,
+                    },
+                    border: {
+                      display: false,
+                    },
+                  },
+                },
+              },
+            });
+          });
       }
 
       function loadPreview() {
@@ -1108,6 +1354,9 @@
           });
       });
 
+      restoreFilterState();
+      applyTableFilters();
+      loadProjectSiteSubmissionsChart();
       loadSyncResults();
     });
   </script>

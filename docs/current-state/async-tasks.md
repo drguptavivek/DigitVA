@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-03-17
+last_updated: 2026-03-18
 ---
 
 # Asynchronous Background Tasks
@@ -46,6 +46,8 @@ On worker/beat startup `make_celery.py`:
 3. Imports `app.tasks.sync_tasks` to register tasks with the worker
 4. Calls `cleanup_stale_runs()` — marks orphaned `running` sync rows (older than 45 minutes) as `error`
 5. Calls `ensure_sync_scheduled()` — idempotently seeds the ODK sync beat entry
+6. Calls `ensure_coding_timeout_cleanup_scheduled()` — seeds stale allocation cleanup
+7. Calls `ensure_submission_analytics_mv_refresh_scheduled()` — seeds hourly analytics MV refresh
 
 ## Registered Tasks
 
@@ -173,6 +175,20 @@ run_single_submission_sync.delay(
 **Purpose:** Run SmartVA analysis on submissions that have no SmartVA result yet, without triggering an ODK download.
 
 Triggered from the admin dashboard "Gen SmartVA" button via `POST /admin/api/sync/trigger-smartva`.
+
+---
+
+### `app.tasks.sync_tasks.refresh_submission_analytics_mv_task`
+
+**Purpose:** Refresh the submission analytics materialized view on an hourly cadence.
+
+**Behavior:**
+1. Creates a `va_sync_runs` row with `triggered_by="analytics_mv"`
+2. Refreshes `va_submission_analytics_mv` using `REFRESH MATERIALIZED VIEW CONCURRENTLY`
+3. Records the refreshed row count in `records_updated`
+4. Marks the run `success` or `error`
+
+**Default schedule:** every 1 hour via Celery Beat
 
 ---
 

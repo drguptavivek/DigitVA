@@ -3,6 +3,7 @@ import re
 from types import SimpleNamespace
 import logging
 import sqlalchemy as sa
+import pytz
 from app import db, limiter
 from app.forms import VaMyprofileForm, VaForcePasswordChangeForm
 from app.utils import va_odk_clientsetup, va_render_serialisedates
@@ -46,7 +47,7 @@ from flask import (
     url_for,
     request
 )
-from datetime import datetime
+from datetime import datetime, timedelta
 
 va_main = Blueprint("va_main", __name__)
 log = logging.getLogger(__name__)
@@ -170,6 +171,51 @@ def _filter_scoped_forms(
         for form in scoped_forms
         if (not selected_projects or form["project_id"] in selected_projects)
         and (not selected_sites or form["site_id"] in selected_sites)
+    ]
+
+
+def _data_manager_project_site_submission_stats(user) -> list[dict]:
+    scope_filter = _data_manager_scope_filter(user)
+    tz_name = getattr(user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    user_tz = pytz.timezone(tz_name)
+    now_local = datetime.now(user_tz)
+    today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start_local = today_start_local - timedelta(days=today_start_local.weekday())
+    today_start_utc = today_start_local.astimezone(pytz.UTC)
+    week_start_utc = week_start_local.astimezone(pytz.UTC)
+
+    return [
+        {
+            "project_id": row["project_id"],
+            "site_id": row["site_id"],
+            "total_submissions": row["total_submissions"] or 0,
+            "this_week_submissions": row["this_week_submissions"] or 0,
+            "today_submissions": row["today_submissions"] or 0,
+        }
+        for row in db.session.execute(
+            sa.select(
+                VaForms.project_id,
+                VaForms.site_id,
+                sa.func.count(VaSubmissions.va_sid).label("total_submissions"),
+                sa.func.sum(
+                    sa.case(
+                        (VaSubmissions.va_submission_date >= week_start_utc, 1),
+                        else_=0,
+                    )
+                ).label("this_week_submissions"),
+                sa.func.sum(
+                    sa.case(
+                        (VaSubmissions.va_submission_date >= today_start_utc, 1),
+                        else_=0,
+                    )
+                ).label("today_submissions"),
+            )
+            .select_from(VaSubmissions)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .where(scope_filter)
+            .group_by(VaForms.project_id, VaForms.site_id)
+            .order_by(VaForms.project_id, VaForms.site_id)
+        ).mappings().all()
     ]
 
 
@@ -1163,6 +1209,20 @@ def va_data_manager_sync_runs():
                     or _sync_run_target_label(run) in scoped_form_ids
                 )
             ]
+        }
+    )
+
+
+@va_main.get("/vadashboard/data-manager/api/project-site-submissions")
+@login_required
+def va_data_manager_project_site_submissions():
+    if not current_user.is_data_manager():
+        return jsonify({"error": "Data-manager access is required."}), 403
+
+    return jsonify(
+        {
+            "stats": _data_manager_project_site_submission_stats(current_user),
+            "timezone": getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata",
         }
     )
 

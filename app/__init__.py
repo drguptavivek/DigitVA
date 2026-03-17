@@ -111,6 +111,9 @@ def create_app(config_class=Config):
 
     from app.commands.seed import init_app as init_seed_commands
     init_seed_commands(app)
+
+    from app.commands.analytics import init_app as init_analytics_commands
+    init_analytics_commands(app)
     
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

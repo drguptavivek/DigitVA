@@ -154,6 +154,11 @@ function initImageViewer() {
   const brightnessSlider = document.getElementById("brightnessSlider");
   const contrastSlider = document.getElementById("contrastSlider");
 
+  // Only initialize if the image viewer elements exist on this page
+  if (!image || !brightnessSlider || !contrastSlider) {
+    return;
+  }
+
   // Make cropper globally accessible
   window.cropper = new Cropper(image, {
     viewMode: 1,

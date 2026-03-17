@@ -76,6 +76,7 @@ class BaseTestCase(unittest.TestCase):
         cls.app = create_app(cls.config_class)
         cls.ctx = cls.app.app_context()
         cls.ctx.push()
+        db.drop_all()
         db.create_all()
         cls._seed_base_fixtures()
 

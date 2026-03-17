@@ -24,6 +24,15 @@ class VaSubmissions(db.Model):
     va_odk_reviewstate: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(16), nullable=True, index=True
     )
+    va_sync_issue_code: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(32), nullable=True, index=True
+    )
+    va_sync_issue_detail: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(255), nullable=True
+    )
+    va_sync_issue_updated_at: so.Mapped[Optional[datetime]] = so.mapped_column(
+        sa.DateTime, nullable=True, index=True
+    )
     va_instance_name: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=True)
     va_uniqueid_real: so.Mapped[Optional[str]] = so.mapped_column(sa.String(128), nullable=True)
     va_uniqueid_masked: so.Mapped[Optional[str]] = so.mapped_column(sa.String(128), nullable=False)    

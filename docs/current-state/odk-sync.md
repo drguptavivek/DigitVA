@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-16
+last_updated: 2026-03-17
 ---
 
 # ODK Sync And Attachments
@@ -16,13 +16,14 @@ ODK sync is an incremental batch process that:
 2. Materializes compatibility `va_forms` rows for those mappings
 3. For each form, runs an OData filter-gated delta check — skips if nothing changed since last sync
 4. Fetches changed submissions via OData JSON (paginated, no ZIP download)
-5. Writes or updates `va_submissions` rows
-6. Reuses one pyODK client/session per `(connection_id, odk_project_id)` group across delta, fetch, and attachment sync
+5. Writes or updates `va_submissions` rows for all fetched ODK submissions, including consent=`no` and consent-missing rows
+6. Reuses one pyODK client/session per `(connection_id, odk_project_id)` group across delta, fetch, targeted single-record refresh, and attachment sync
 7. Per-form commit — earlier forms are not rolled back if a later form fails
 8. Syncs attachments for upserted submissions using ETag-based conditional download
 9. Rebuilds full CSV from DB for SmartVA compatibility
 10. Records `last_synced_at` on the mapping row after each successful form
-11. Runs SmartVA on any new or updated submissions
+11. Marks local sync issues when a local submission is missing from active ODK submissions
+12. Runs SmartVA on any new or updated submissions
 
 ## Connection Model
 
@@ -93,10 +94,11 @@ Steps:
 
 1. Fetch all ODK submission instance IDs via `GET /v1/projects/{pid}/forms/{fid}/submissions` (single REST call, metadata only)
 2. Load all local `va_sid` values for the form
-3. Compute missing IDs: ODK IDs that don't have a corresponding local `{id}-{form_id.lower()}`
-4. If no missing IDs → skip form (truly in sync)
-5. Fetch missing submissions in batches of 50 via OData single-entity access `Submissions('{instanceId}')`
-6. Upsert and commit each batch independently for crash resilience
+3. Compare local rows to active ODK IDs and flag local submissions missing from ODK as a sync issue
+4. Compute missing IDs: ODK IDs that don't have a corresponding local `{id}-{form_id.lower()}`
+5. If no missing IDs → skip form (truly in sync from a fetch perspective)
+6. Fetch missing submissions in batches of 50 via OData single-entity access `Submissions('{instanceId}')`
+7. Upsert and commit each batch independently for crash resilience
 
 Implemented in:
 
@@ -104,6 +106,21 @@ Implemented in:
 - [`va_odk_fetch_submissions_by_ids()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py) — targeted fetch by instance ID
 
 Note: OData `$filter` on `__id` is not supported by ODK Central (HTTP 501). The single-entity access pattern `Submissions('{instanceId}')` is used instead.
+
+### Local sync-issue tracking
+
+DigitVA now stores local sync-health markers on `va_submissions`:
+
+- `va_sync_issue_code`
+- `va_sync_issue_detail`
+- `va_sync_issue_updated_at`
+
+Current code written by the runtime path:
+
+- `missing_in_odk` — the submission exists locally but was absent from the
+  current active ODK submission ID list for that form
+
+The flag is cleared automatically if the submission reappears in a later sync.
 
 ## Submission Fetch (Phase 2)
 
@@ -167,7 +184,9 @@ Implemented in:
 
 Rules:
 
-- Attachment sync only runs for submissions in `upserted_map` — i.e. submissions that were added or updated in this sync
+- attachment sync runs for submissions in `upserted_map` during full and
+  single-form sync
+- single-submission refresh also syncs attachments for that submission
 - Submissions that already exist with unchanged `updatedat` receive zero attachment API calls
 - Forms with delta = 0 receive zero attachment API calls
 - The media directory is **never cleared** (`rmtree` eliminated) — files for unchanged submissions remain on disk
@@ -359,6 +378,7 @@ Tasks:
 
 - [`run_odk_sync()`](../../app/tasks/sync_tasks.py) — full sync across all active forms; records outcome in `va_sync_runs`
 - [`run_single_form_sync(form_id)`](../../app/tasks/sync_tasks.py) — force-resync one form, bypasses delta check
+- [`run_single_submission_sync(va_sid)`](../../app/tasks/sync_tasks.py) — refreshes one local submission from ODK, syncs its attachments, and reruns SmartVA for that submission
 
 Default schedule: every 6 hours (configurable via admin sync dashboard without restart).
 
@@ -366,6 +386,8 @@ Manual triggers:
 
 - `POST /admin/api/sync/trigger` — dispatches `run_odk_sync.delay()`; returns 409 if a run is already in progress
 - `POST /admin/api/sync/form/<form_id>` — dispatches `run_single_form_sync.delay(form_id)`
+- `POST /vadashboard/data-manager/api/forms/<form_id>/sync` — dispatches scoped single-form sync for a data manager
+- `POST /vadashboard/data-manager/api/submissions/<va_sid>/sync` — dispatches scoped single-submission refresh for a data manager
 
 ## Sync Run History
 

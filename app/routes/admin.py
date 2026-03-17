@@ -3650,6 +3650,7 @@ def admin_sync_stop():
             "app.tasks.sync_tasks.run_odk_sync",
             "app.tasks.sync_tasks.run_smartva_pending",
             "app.tasks.sync_tasks.run_single_form_sync",
+            "app.tasks.sync_tasks.run_single_submission_sync",
         }
         active_task_ids = []
         for tasks in active_by_worker.values():

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-16
+last_updated: 2026-03-17
 ---
 
 # Current Data Model
@@ -120,6 +120,9 @@ Key fields:
 - `va_odk_updatedat`
 - `va_data_collector`
 - `va_odk_reviewstate`
+- `va_sync_issue_code`
+- `va_sync_issue_detail`
+- `va_sync_issue_updated_at`
 - `va_instance_name`
 - `va_uniqueid_real`
 - `va_uniqueid_masked`
@@ -137,6 +140,8 @@ Current behavior:
 - `va_form_id` points to `va_forms.form_id`
 - `va_data` holds the processed ODK row as JSONB
 - additional structured and derived fields are extracted for workflow and UI use
+- `va_odk_reviewstate` mirrors ODK Central review state locally for dashboard visibility
+- `va_sync_issue_*` captures local sync-health markers such as `missing_in_odk`
 
 ## Workflow Tables
 

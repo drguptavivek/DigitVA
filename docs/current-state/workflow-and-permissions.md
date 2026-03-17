@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-15
+last_updated: 2026-03-17
 ---
 
 # Workflow And Permissions
@@ -173,6 +173,11 @@ Current runtime behavior:
 - category visibility currently follows the site-PI visibility configuration
 - the left navigation adds a synthetic final panel:
   - `vadmtriage`
+- the dashboard now exposes:
+  - ODK review state mirrored from ODK Central
+  - local sync issue status
+  - scoped form sync
+  - scoped single-submission refresh
 
 Data-manager triage:
 
@@ -185,6 +190,14 @@ Data-manager triage:
 - the canonical workflow state is updated to `not_codeable_by_data_manager`
 - coder availability excludes those submissions automatically because coder pool
   selection now requires `ready_for_coding`
+
+Data-manager sync controls:
+
+- a data manager can trigger a force-resync for any form in granted scope
+- a data manager can trigger a single-submission refresh for any submission in
+  granted scope
+- the single-submission refresh updates local submission data, attachments, and
+  SmartVA result for that submission
 
 Audit trail:
 

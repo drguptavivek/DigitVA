@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-03-16
+last_updated: 2026-03-17
 ---
 
 # Asynchronous Background Tasks
@@ -127,6 +127,41 @@ Operational note:
 ```python
 from app.tasks.sync_tasks import run_single_form_sync
 run_single_form_sync.delay(form_id="UNSW01KA0101", triggered_by="manual")
+```
+
+---
+
+### `app.tasks.sync_tasks.run_single_submission_sync`
+
+Defined in [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py).
+
+**Purpose:** Refresh one existing local submission from ODK, sync its
+attachments, and rerun SmartVA for that submission.
+
+**Signature:**
+```python
+run_single_submission_sync(va_sid: str, triggered_by: str = "manual")
+```
+
+**Behavior:**
+1. Looks up the local `va_submissions` row and resolves its ODK instance ID
+2. Fetches the latest ODK payload for that instance
+3. Marks `missing_in_odk` if the submission is no longer present in active ODK
+4. Upserts the local submission when found
+5. Syncs attachments for that submission
+6. Rebuilds the form CSV
+7. Reruns SmartVA for the target submission only
+
+**When to use:** A data manager wants to refresh one submission without waiting
+for a full-form or full-system sync.
+
+**Manual dispatch:**
+```python
+from app.tasks.sync_tasks import run_single_submission_sync
+run_single_submission_sync.delay(
+    va_sid="uuid:example-unsw01ka0101",
+    triggered_by="manual",
+)
 ```
 
 ---

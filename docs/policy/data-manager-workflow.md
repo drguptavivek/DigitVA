@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-17
 ---
 
 # Data Manager Workflow Policy
@@ -33,6 +33,8 @@ A data manager may:
 
 - browse all submissions in scope
 - open an individual submission in read-only mode
+- trigger a scoped form sync from the data-manager dashboard
+- trigger a single-submission refresh from ODK for a submission in scope
 - mark a submission as Not Codeable from the data-management workflow
 - document the reason and optional notes for that decision
 
@@ -79,6 +81,38 @@ That means:
 
 - visible submissions are determined by project or project-site grant scope
 - visibility is not limited to cases already worked on by the same user
+
+The dashboard should expose local operational state so the data manager does
+not need to use ODK Central directly.
+
+At minimum the dashboard must show:
+
+- canonical local workflow state
+- ODK review state mirrored locally from ODK Central
+- local sync issue status for the submission
+
+## ODK Sync Visibility
+
+The data-manager dashboard is also the operator-facing view for submission-level
+ODK sync health within the data manager's scope.
+
+Policy:
+
+- sync must import all submissions from the mapped ODK form, including rows
+  where consent is `no` or missing
+- ODK review state must be stored locally and shown on the data-manager
+  dashboard
+- if a locally tracked submission is no longer present in active ODK
+  submissions, DigitVA must record a local sync issue and surface it on the
+  dashboard
+- a data manager may trigger:
+  - a full sync for one scoped form
+  - a targeted refresh for one scoped submission
+- a targeted refresh must update:
+  - the local submission payload
+  - attachments for that submission
+  - SmartVA result for that submission
+  - local sync-issue status for the parent form
 
 ## Audit Expectations
 

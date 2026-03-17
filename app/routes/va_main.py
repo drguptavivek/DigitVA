@@ -1,3 +1,4 @@
+import logging
 import sqlalchemy as sa
 from app import db, limiter
 from app.forms import VaMyprofileForm, VaForcePasswordChangeForm
@@ -38,6 +39,33 @@ from flask import (
 from datetime import datetime
 
 va_main = Blueprint("va_main", __name__)
+log = logging.getLogger(__name__)
+
+
+def _data_manager_scope_filter(user):
+    project_ids = sorted(user.get_data_manager_projects())
+    project_site_pairs = user.get_data_manager_project_sites()
+
+    project_scope_exists = sa.false()
+    if project_ids:
+        project_scope_exists = VaForms.project_id.in_(project_ids)
+
+    project_site_scope_exists = sa.false()
+    if project_site_pairs:
+        project_site_scope_exists = sa.tuple_(
+            VaForms.project_id, VaForms.site_id
+        ).in_(list(project_site_pairs))
+
+    return sa.or_(project_scope_exists, project_site_scope_exists)
+
+
+def _data_manager_form_in_scope(user, form_id: str) -> bool:
+    row = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form_id)
+    ).first()
+    if not row:
+        return False
+    return user.has_data_manager_submission_access(row.project_id, row.site_id)
 
 @va_main.route('/health', methods=['GET'])
 @limiter.exempt
@@ -433,17 +461,7 @@ def va_dashboard(va_role):
                 "No data-manager scope has been assigned.", 403
             )
 
-        project_scope_exists = sa.false()
-        if project_ids:
-            project_scope_exists = VaForms.project_id.in_(project_ids)
-
-        project_site_scope_exists = sa.false()
-        if project_site_pairs:
-            project_site_scope_exists = sa.tuple_(VaForms.project_id, VaForms.site_id).in_(
-                list(project_site_pairs)
-            )
-
-        scope_filter = sa.or_(project_scope_exists, project_site_scope_exists)
+        scope_filter = _data_manager_scope_filter(current_user)
         total_submissions = db.session.scalar(
             sa.select(sa.func.count())
             .select_from(VaSubmissions)
@@ -473,6 +491,9 @@ def va_dashboard(va_role):
                         "va_submission_date"
                     ),
                     VaSubmissions.va_data_collector,
+                    VaSubmissions.va_odk_reviewstate,
+                    VaSubmissions.va_sync_issue_code,
+                    VaSubmissions.va_sync_issue_updated_at,
                     VaSubmissionWorkflow.workflow_state,
                     VaDataManagerReview.va_dmreview_createdat,
                 )
@@ -497,11 +518,21 @@ def va_dashboard(va_role):
                 )
             ).mappings().all()
         ]
+        scoped_forms = db.session.execute(
+            sa.select(
+                VaForms.form_id,
+                VaForms.project_id,
+                VaForms.site_id,
+            )
+            .where(scope_filter)
+            .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
+        ).mappings().all()
         return render_template(
             "va_frontpages/va_data_manager.html",
             total_submissions=total_submissions,
             flagged_submissions=flagged_submissions,
             submission_rows=submission_rows,
+            scoped_forms=scoped_forms,
         )
     else:
         va_permission_abortwithflash("Invalid dashboard path.", 404)
@@ -752,6 +783,84 @@ def va_sitepi_data():
     </div>
     </div>
     """, site_data=site_data)
+
+
+@va_main.post("/vadashboard/data-manager/api/forms/<form_id>/sync")
+@login_required
+def va_data_manager_sync_form(form_id: str):
+    if not current_user.is_data_manager():
+        return jsonify({"error": "Data-manager access is required."}), 403
+    if not _data_manager_form_in_scope(current_user, form_id):
+        return jsonify({"error": "You do not have access to sync this form."}), 403
+
+    try:
+        from flask import current_app
+        from app.tasks.sync_tasks import run_single_form_sync
+
+        if current_app.extensions.get("celery") is None:
+            return jsonify({"error": "Celery is not configured."}), 503
+
+        task = run_single_form_sync.delay(
+            form_id=form_id,
+            triggered_by="data-manager",
+            user_id=str(current_user.user_id),
+        )
+        return jsonify(
+            {
+                "message": f"Sync started for form {form_id}.",
+                "task_id": task.id,
+            }
+        ), 202
+    except Exception as exc:
+        log.error("va_data_manager_sync_form failed for %s", form_id, exc_info=True)
+        return jsonify({"error": str(exc)}), 500
+
+
+@va_main.post("/vadashboard/data-manager/api/submissions/<va_sid>/sync")
+@login_required
+def va_data_manager_sync_submission(va_sid: str):
+    if not current_user.is_data_manager():
+        return jsonify({"error": "Data-manager access is required."}), 403
+
+    submission = db.session.get(VaSubmissions, va_sid)
+    if submission is None:
+        return jsonify({"error": "Submission not found."}), 404
+
+    form_row = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id).where(
+            VaForms.form_id == submission.va_form_id
+        )
+    ).first()
+    if not form_row or not current_user.has_data_manager_submission_access(
+        form_row.project_id, form_row.site_id
+    ):
+        return jsonify({"error": "You do not have access to sync this submission."}), 403
+
+    try:
+        from flask import current_app
+        from app.tasks.sync_tasks import run_single_submission_sync
+
+        if current_app.extensions.get("celery") is None:
+            return jsonify({"error": "Celery is not configured."}), 503
+
+        task = run_single_submission_sync.delay(
+            va_sid=va_sid,
+            triggered_by="data-manager",
+            user_id=str(current_user.user_id),
+        )
+        return jsonify(
+            {
+                "message": f"Refresh started for submission {va_sid}.",
+                "task_id": task.id,
+            }
+        ), 202
+    except Exception as exc:
+        log.error(
+            "va_data_manager_sync_submission failed for %s",
+            va_sid,
+            exc_info=True,
+        )
+        return jsonify({"error": str(exc)}), 500
 
 
 @va_main.route("/vaprofile", methods=["GET", "POST"])

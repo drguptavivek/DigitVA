@@ -57,6 +57,7 @@ log = logging.getLogger(__name__)
 
 _ODK_CONNECTIVITY_MAX_ATTEMPTS = 3
 _ODK_CONNECTIVITY_BACKOFF_SECONDS = (5, 10)
+SYNC_ISSUE_MISSING_IN_ODK = "missing_in_odk"
 
 # ── Language normalization ────────────────────────────────────────────
 _language_alias_cache: dict[str, str] | None = None
@@ -173,6 +174,59 @@ def _pending_smartva_sids(form_id: str) -> set[str]:
     return all_sids - done_sids
 
 
+def _normalize_consent(raw_value) -> str:
+    """Persist consent values exactly when present, else as an empty string."""
+    if raw_value is None:
+        return ""
+    return str(raw_value).strip()
+
+
+def _mark_form_sync_issues(va_form, odk_instance_ids: list[str], *, by_role: str = "vaadmin"):
+    """Mark local submissions that no longer exist in ODK for a form."""
+    expected_sids = {
+        f"{instance_id}-{va_form.form_id.lower()}"
+        for instance_id in (odk_instance_ids or [])
+    }
+    now = datetime.now(timezone.utc)
+
+    local_rows = db.session.scalars(
+        sa.select(VaSubmissions).where(VaSubmissions.va_form_id == va_form.form_id)
+    ).all()
+
+    for submission in local_rows:
+        if submission.va_sid in expected_sids:
+            if submission.va_sync_issue_code == SYNC_ISSUE_MISSING_IN_ODK:
+                submission.va_sync_issue_code = None
+                submission.va_sync_issue_detail = None
+                submission.va_sync_issue_updated_at = now
+                db.session.add(
+                    VaSubmissionsAuditlog(
+                        va_sid=submission.va_sid,
+                        va_audit_byrole=by_role,
+                        va_audit_operation="u",
+                        va_audit_action="submission restored from ODK sync issue",
+                    )
+                )
+            continue
+
+        if submission.va_sync_issue_code == SYNC_ISSUE_MISSING_IN_ODK:
+            continue
+
+        submission.va_sync_issue_code = SYNC_ISSUE_MISSING_IN_ODK
+        submission.va_sync_issue_detail = (
+            "Submission exists locally but is missing from active ODK submissions."
+        )
+        submission.va_sync_issue_updated_at = now
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=submission.va_sid,
+                va_audit_byrole=by_role,
+                va_audit_operation="u",
+                va_audit_action="submission missing from ODK detected during sync",
+            )
+        )
+
+
 def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map=None):
     """Upsert a single form's submissions into the DB.
 
@@ -185,7 +239,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
     added = 0
     updated = 0
     discarded = 0
-    skipped = 0  # Submissions skipped due to consent=no or missing consent
+    skipped = 0
 
     for va_submission in (va_submissions or []):
         va_submission_amended = False
@@ -203,7 +257,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
         va_submission_instancename   = va_submission.get("instanceName")
         va_submission_uniqueid       = va_submission.get("unique_id")
         va_submission_uniqueidmask   = va_submission.get("unique_id2")
-        va_submission_consent        = va_submission.get("Id10013")
+        va_submission_consent        = _normalize_consent(va_submission.get("Id10013"))
         _raw_lang = (
             va_submission.get("narr_language")
             if va_submission.get("narr_language")
@@ -235,6 +289,9 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             existing.va_narration_language = va_submission_narrlang
             existing.va_deceased_age       = va_submission_age
             existing.va_deceased_gender    = va_submission_gender
+            existing.va_sync_issue_code    = None
+            existing.va_sync_issue_detail  = None
+            existing.va_sync_issue_updated_at = None
             existing.va_data               = va_submission
             (
                 existing.va_summary,
@@ -346,7 +403,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             )
             print(f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']")
 
-        elif not existing and va_submission_consent and va_submission_consent != "no":
+        elif not existing:
             va_submission_summary, va_submission_catcount = (
                 va_preprocess_summcatenotification(va_submission)
             )
@@ -368,6 +425,9 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                     va_narration_language=va_submission_narrlang,
                     va_deceased_age=va_submission_age,
                     va_deceased_gender=va_submission_gender,
+                    va_sync_issue_code=None,
+                    va_sync_issue_detail=None,
+                    va_sync_issue_updated_at=None,
                     va_data=va_submission,
                     va_summary=va_submission_summary,
                     va_catcount=va_submission_catcount,
@@ -397,14 +457,6 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             amended_sids.add(va_submission_sid)
             if upserted_map is not None:
                 upserted_map[va_submission_sid] = va_submission.get("KEY", "")
-
-        # Log skipped submissions (consent=no or missing consent)
-        elif not existing:
-            skipped += 1
-            log.debug(
-                "DataSync [%s]: skipped %s — consent=%s",
-                va_form.form_id, va_submission_sid, va_submission_consent,
-            )
 
     return added, updated, discarded, skipped
 
@@ -457,6 +509,8 @@ def va_data_sync_odkcentral(log_progress=None):
                     va_form,
                     mapping,
                 )
+                odk_ids_current = va_odk_fetch_instance_ids(va_form, client=odk_client)
+                _mark_form_sync_issues(va_form, odk_ids_current)
                 # Delta check
                 use_gap_sync = False
                 if mapping and mapping.last_synced_at is not None:
@@ -495,7 +549,7 @@ def va_data_sync_odkcentral(log_progress=None):
 
                 # ── Gap sync: compare ODK IDs with local, fetch only missing ──
                 if use_gap_sync:
-                    odk_ids = va_odk_fetch_instance_ids(va_form, client=odk_client)
+                    odk_ids = odk_ids_current
                     # va_sid = "{instance_id}-{form_id_lower}" — build a set
                     # of expected sids from the ODK instance IDs for fast lookup
                     form_id_lower = va_form.form_id.lower()
@@ -515,6 +569,9 @@ def va_data_sync_odkcentral(log_progress=None):
                             f"[{va_form.form_id}] gap check: "
                             f"{len(odk_ids)} in ODK, {len(local_sids)} local — in sync"
                         )
+                        if mapping:
+                            mapping.last_synced_at = snapshot_time
+                            db.session.commit()
                         continue
                     _progress(
                         f"[{va_form.form_id}] gap check: "

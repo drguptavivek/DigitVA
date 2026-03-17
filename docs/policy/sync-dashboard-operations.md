@@ -3,7 +3,7 @@ title: Sync Dashboard Operations Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-17
 ---
 
 # Sync Dashboard Operations Policy
@@ -51,6 +51,11 @@ Policy:
   termination enabled
 - the corresponding `va_sync_runs` row must be marked `cancelled`
 - cancelled runs remain visible in sync history and status views
+- the stop control applies to:
+  - full ODK sync
+  - SmartVA-only sync
+  - single-form sync
+  - single-submission sync
 
 ## Concurrency
 

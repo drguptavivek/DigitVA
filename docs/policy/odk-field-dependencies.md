@@ -3,7 +3,7 @@ title: ODK Field Dependencies — Application Logic Based on ODK Form Fields
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-16
+last_updated: 2026-03-17
 ---
 
 # ODK Field Dependencies — Application Logic Based on ODK Form Fields
@@ -16,7 +16,7 @@ This document captures all ODK form fields that the DigitVA application depends 
 
 ---
 
-## 1. Consent Gate — `Id10013`
+## 1. Consent Capture — `Id10013`
 
 | Property | Value |
 |----------|-------|
@@ -29,25 +29,25 @@ This document captures all ODK form fields that the DigitVA application depends 
 
 | Value | Behavior |
 |-------|----------|
-| `yes` | Submission is **imported** and available for coding |
-| `no` | Submission is **excluded** from sync |
-| `telephonic_consent` | Submission is **imported** from sync |
-| (any other) | Submission is **imported** from sync |
-| `null` / missing | Submission is **excluded** from sync |
+| `yes` | Submission is **imported** and stored locally |
+| `no` | Submission is **imported** and stored locally |
+| `telephonic_consent` | Submission is **imported** and stored locally |
+| (any other) | Submission is **imported** and stored locally |
+| `null` / missing | Submission is **imported** and stored locally as blank consent |
 
 ### Code Reference
 
-```python
-# app/services/va_data_sync/va_data_sync_01_odkcentral.py
-elif not existing and va_submission_consent and va_submission_consent != "no":
-    # Insert if consent is present and not "no"
-```
+Consent is normalized and persisted during sync; it is no longer an ingest-time
+filter.
 
 ### Impact
 
-- Submissions with `consent == "no"` or `consent is null` will NOT appear in the local database
-- Coverage check will show "missing" count = ODK total - local count
-- This is intentional behavior to exclude non-consented submissions
+- Consent remains available for workflow and UI decisions, but it does not
+  exclude a row from local sync
+- Coverage comparison and dashboard counts should treat consented and
+  non-consented rows as part of the synced ODK population
+- Data managers can review ODK status and sync health without losing visibility
+  into consent=`no` or consent-missing rows
 
 ---
 

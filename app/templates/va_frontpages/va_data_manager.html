@@ -33,6 +33,30 @@
     </ol>
   </div>
 
+  <div class="card shadow-sm border-0 rounded-3 mb-4">
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-8">
+          <label for="dm-form-sync-select" class="form-label mb-1"><strong>Scoped Form Sync</strong></label>
+          <select id="dm-form-sync-select" class="form-select">
+            <option value="">Select a form in your scope</option>
+            {% for form in scoped_forms %}
+            <option value="{{ form.form_id }}">{{ form.project_id }} / {{ form.site_id }} ({{ form.form_id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <button type="button" id="dm-form-sync-btn" class="btn btn-outline-secondary w-100">
+            <i class="fas fa-rotate-right me-2"></i>Sync Selected Form
+          </button>
+        </div>
+      </div>
+      <div class="small text-muted mt-2">
+        Trigger a targeted sync for one form in your scope. This fetches submission data and attachments from ODK.
+      </div>
+    </div>
+  </div>
+
   <div class="row mb-4 g-3">
     <div class="col-md-6">
       <div class="card shadow-sm border-0 rounded-3 h-100">
@@ -69,6 +93,8 @@
           <th>Submission Date</th>
           <th>VA Form ID</th>
           <th>Data Collector</th>
+          <th>ODK Status</th>
+          <th>Sync Issue</th>
           <th>Workflow State</th>
           <th>Flagged At</th>
           <th>Action</th>
@@ -82,6 +108,25 @@
           <td>{{ row.va_submission_date }}</td>
           <td>{{ row.va_uniqueid_masked }}</td>
           <td>{{ row.va_data_collector or '-' }}</td>
+          <td>
+            {% if row.va_odk_reviewstate == 'hasIssues' %}
+            <span class="badge bg-warning text-dark">Has Issues</span>
+            {% elif row.va_odk_reviewstate %}
+            <span class="badge bg-info text-dark">{{ row.va_odk_reviewstate }}</span>
+            {% else %}
+            <span class="badge bg-light text-dark border">No review state</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if row.va_sync_issue_code == 'missing_in_odk' %}
+            <span class="badge bg-danger">Missing In ODK</span>
+            {% if row.va_sync_issue_updated_at %}
+            <div class="small text-muted mt-1">{{ row.va_sync_issue_updated_at }}</div>
+            {% endif %}
+            {% else %}
+            <span class="badge bg-success">In Sync</span>
+            {% endif %}
+          </td>
           <td>
             {% if row.workflow_state == 'not_codeable_by_data_manager' %}
             <span class="badge bg-danger">Flagged by Data Manager</span>
@@ -98,6 +143,11 @@
             <a href="{{ url_for('va_cta.va_calltoaction', va_action='vadata', va_actiontype='vaview', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
               View
             </a>
+            <button type="button"
+                    class="btn btn-sm btn-outline-secondary dm-refresh-submission-btn"
+                    data-sid="{{ row.va_sid }}">
+              Refresh
+            </button>
           </td>
         </tr>
         {% endfor %}
@@ -107,9 +157,51 @@
 
   <script>
     $(document).ready(function () {
+      const csrfToken = '{{ csrf_token() }}';
+
       $('#dmTable').DataTable({
         pageLength: 25,
         order: [[0, 'asc'], [1, 'asc'], [2, 'desc']]
+      });
+
+      function postJson(url) {
+        return fetch(url, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken }
+        }).then(function (response) {
+          return response.json().then(function (payload) {
+            if (!response.ok) {
+              throw new Error(payload.error || 'Request failed.');
+            }
+            return payload;
+          });
+        });
+      }
+
+      $('#dm-form-sync-btn').on('click', function () {
+        const formId = $('#dm-form-sync-select').val();
+        if (!formId) {
+          if (window.showAppToast) window.showAppToast('Select a form first.', 'warning');
+          return;
+        }
+        postJson('/vadashboard/data-manager/api/forms/' + encodeURIComponent(formId) + '/sync')
+          .then(function (payload) {
+            if (window.showAppToast) window.showAppToast(payload.message || 'Form sync started.', 'success');
+          })
+          .catch(function (err) {
+            if (window.showAppToast) window.showAppToast(err.message, 'danger');
+          });
+      });
+
+      $('.dm-refresh-submission-btn').on('click', function () {
+        const sid = $(this).data('sid');
+        postJson('/vadashboard/data-manager/api/submissions/' + encodeURIComponent(sid) + '/sync')
+          .then(function (payload) {
+            if (window.showAppToast) window.showAppToast(payload.message || 'Submission refresh started.', 'success');
+          })
+          .catch(function (err) {
+            if (window.showAppToast) window.showAppToast(err.message, 'danger');
+          });
       });
     });
   </script>

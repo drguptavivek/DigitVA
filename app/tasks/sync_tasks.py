@@ -168,6 +168,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
     from app.models.map_project_site_odk import MapProjectSiteOdk
     import sqlalchemy as sa
     from app.utils import (
+        va_odk_fetch_instance_ids,
         va_odk_fetch_submissions,
         va_odk_write_form_csv,
         va_odk_rebuild_form_csv_from_db,
@@ -178,7 +179,8 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         va_smartva_appendsmartvaresults,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
-        _upsert_form_submissions, _pending_smartva_sids,
+        _mark_form_sync_issues, _pending_smartva_sids, _upsert_form_submissions,
+        SYNC_ISSUE_MISSING_IN_ODK,
     )
     from app.models import VaStatuses, VaSmartvaResults, VaSubmissionsAuditlog, VaSubmissions
     import uuid
@@ -211,6 +213,9 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         media_dir = os.path.join(form_dir, "media")
         os.makedirs(media_dir, exist_ok=True)
 
+        odk_ids = va_odk_fetch_instance_ids(va_form, client=odk_client)
+        _mark_form_sync_issues(va_form, odk_ids)
+
         # Fetch ALL submissions (force-resync = no since filter)
         log_progress(f"[{form_id}] fetching all submissions from ODK…")
         va_submissions_raw = va_odk_fetch_submissions(
@@ -222,11 +227,14 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
 
         # Upsert
         upserted_map: dict[str, str] = {}
-        added, updated, discarded = _upsert_form_submissions(
+        added, updated, discarded, skipped = _upsert_form_submissions(
             va_form, va_submissions_raw, amended_sids, upserted_map
         )
         db.session.commit()
-        log_progress(f"[{form_id}] upserted: +{added} added, {updated} updated")
+        log_progress(
+            f"[{form_id}] upserted: +{added} added, {updated} updated"
+            + (f", {skipped} skipped" if skipped else "")
+        )
 
         # Sync attachments for upserted submissions
         if upserted_map:
@@ -350,6 +358,200 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             if run:
                 run.status = "error"
                 run.finished_at = datetime.now(timezone.utc)
+                run.error_message = str(exc)[:2000]
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_single_submission_sync",
+    bind=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", user_id=None):
+    """Fetch and upsert one submission from ODK for its mapped form."""
+    from datetime import datetime as _dt
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from app.models import VaForms, VaSubmissions
+    from app.services.odk_review_service import resolve_odk_instance_id
+    from app.utils import (
+        va_odk_fetch_instance_ids,
+        va_odk_fetch_submissions_by_ids,
+        va_odk_rebuild_form_csv_from_db,
+        va_odk_sync_form_attachments,
+        va_smartva_appendsmartvaresults,
+        va_smartva_formatsmartvaresult,
+        va_smartva_prepdata,
+        va_smartva_runsmartva,
+    )
+    from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+        _mark_form_sync_issues,
+        _upsert_form_submissions,
+        SYNC_ISSUE_MISSING_IN_ODK,
+    )
+    import os
+    from flask import current_app
+    import tempfile
+    import uuid
+    from app.models import VaSmartvaResults, VaStatuses, VaSubmissionsAuditlog
+
+    run = VaSyncRun(
+        triggered_by=triggered_by,
+        triggered_user_id=user_id,
+        started_at=_dt.now(timezone.utc),
+        status="running",
+    )
+    db.session.add(run)
+    db.session.commit()
+    run_id = run.sync_run_id
+
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
+    try:
+        submission = db.session.get(VaSubmissions, va_sid)
+        if submission is None:
+            raise ValueError(f"Submission '{va_sid}' not found.")
+
+        va_form = db.session.get(VaForms, submission.va_form_id)
+        if va_form is None:
+            raise ValueError(f"Form '{submission.va_form_id}' not found.")
+
+        odk_client = _get_single_form_odk_client(va_form)
+        instance_id = resolve_odk_instance_id(va_sid)
+        log_progress(f"[{va_sid}] fetching latest submission from ODK…")
+        records = va_odk_fetch_submissions_by_ids(
+            va_form,
+            [instance_id],
+            client=odk_client,
+        )
+
+        if not records:
+            submission.va_sync_issue_code = SYNC_ISSUE_MISSING_IN_ODK
+            submission.va_sync_issue_detail = (
+                "Submission could not be fetched from active ODK submissions."
+            )
+            submission.va_sync_issue_updated_at = _dt.now(timezone.utc)
+            db.session.commit()
+
+            run = db.session.get(VaSyncRun, run_id)
+            run.status = "partial"
+            run.finished_at = _dt.now(timezone.utc)
+            run.error_message = "Submission is missing from ODK."
+            db.session.commit()
+            return
+
+        upserted_map = {}
+        added, updated, discarded, skipped = _upsert_form_submissions(
+            va_form,
+            records,
+            amended_sids=set(),
+            upserted_map=upserted_map,
+        )
+        _mark_form_sync_issues(va_form, va_odk_fetch_instance_ids(va_form, client=odk_client))
+        db.session.commit()
+
+        form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
+        media_dir = os.path.join(form_dir, "media")
+        os.makedirs(media_dir, exist_ok=True)
+        if upserted_map:
+            va_odk_sync_form_attachments(
+                va_form,
+                upserted_map,
+                media_dir,
+                client_factory=lambda: _get_single_form_odk_client(va_form),
+            )
+            db.session.commit()
+        va_odk_rebuild_form_csv_from_db(va_form, form_dir)
+
+        smartva_updated = 0
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            va_smartva_prepdata(va_form, workspace_dir, pending_sids={va_sid})
+            va_smartva_runsmartva(va_form, workspace_dir)
+            output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
+            if output_file:
+                new_results, existingactive_results = va_smartva_appendsmartvaresults(
+                    db.session,
+                    {va_form: output_file},
+                )
+                if new_results is not None:
+                    for record in new_results.itertuples():
+                        result_sid = getattr(record, "sid", None)
+                        if result_sid != va_sid:
+                            continue
+                        existing = existingactive_results.get(result_sid)
+                        if existing:
+                            existing.va_smartva_status = VaStatuses.deactive
+                            db.session.add(
+                                VaSubmissionsAuditlog(
+                                    va_sid=result_sid,
+                                    va_audit_entityid=existing.va_smartva_id,
+                                    va_audit_byrole="vaadmin",
+                                    va_audit_operation="d",
+                                    va_audit_action="va_smartva_deletion_during_datasync",
+                                )
+                            )
+                        result_id = uuid.uuid4()
+                        db.session.add(
+                            VaSmartvaResults(
+                                va_smartva_id=result_id,
+                                va_sid=result_sid,
+                                va_smartva_age=(
+                                    format(float(getattr(record, "age", None)), ".1f")
+                                    if getattr(record, "age", None) is not None
+                                    else None
+                                ),
+                                va_smartva_gender=getattr(record, "sex", None),
+                                va_smartva_cause1=getattr(record, "cause1", None),
+                                va_smartva_likelihood1=getattr(record, "likelihood1", None),
+                                va_smartva_keysymptom1=getattr(record, "key_symptom1", None),
+                                va_smartva_cause2=getattr(record, "cause2", None),
+                                va_smartva_likelihood2=getattr(record, "likelihood2", None),
+                                va_smartva_keysymptom2=getattr(record, "key_symptom2", None),
+                                va_smartva_cause3=getattr(record, "cause3", None),
+                                va_smartva_likelihood3=getattr(record, "likelihood3", None),
+                                va_smartva_keysymptom3=getattr(record, "key_symptom3", None),
+                                va_smartva_allsymptoms=getattr(record, "all_symptoms", None),
+                                va_smartva_resultfor=getattr(record, "result_for", None),
+                                va_smartva_cause1icd=getattr(record, "cause1_icd", None),
+                                va_smartva_cause2icd=getattr(record, "cause2_icd", None),
+                                va_smartva_cause3icd=getattr(record, "cause3_icd", None),
+                            )
+                        )
+                        db.session.add(
+                            VaSubmissionsAuditlog(
+                                va_sid=result_sid,
+                                va_audit_entityid=result_id,
+                                va_audit_byrole="vaadmin",
+                                va_audit_operation="c",
+                                va_audit_action="va_smartva_creation_during_datasync",
+                            )
+                        )
+                        smartva_updated += 1
+                db.session.commit()
+
+        run = db.session.get(VaSyncRun, run_id)
+        run.status = "success"
+        run.finished_at = _dt.now(timezone.utc)
+        run.records_added = added
+        run.records_updated = updated
+        db.session.commit()
+        log_progress(
+            f"[{va_sid}] refreshed from ODK: +{added} added, {updated} updated"
+            + (f", {discarded} discarded" if discarded else "")
+            + (f", {skipped} skipped" if skipped else "")
+            + (f", {smartva_updated} smartva" if smartva_updated else "")
+        )
+    except Exception as exc:
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = _dt.now(timezone.utc)
                 run.error_message = str(exc)[:2000]
                 db.session.commit()
         except Exception:

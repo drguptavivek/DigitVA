@@ -44,6 +44,39 @@ def _log_progress(db, run_id, msg: str):
         log.warning("_log_progress failed for run %s", run_id, exc_info=True)
 
 
+def _get_request_user(user_id):
+    from app import db
+    from app.models import VaUsers
+
+    if not user_id:
+        return None
+    return db.session.get(VaUsers, user_id)
+
+
+def _authorize_data_manager_form_sync(user_id, va_form):
+    user = _get_request_user(user_id)
+    if user is None:
+        return
+    if user.is_admin():
+        return
+    if not user.is_data_manager():
+        raise PermissionError("User is not allowed to run data-manager sync.")
+    if not user.has_data_manager_submission_access(va_form.project_id, va_form.site_id):
+        raise PermissionError("User does not have access to this form.")
+
+
+def _authorize_data_manager_submission_sync(user_id, submission, va_form):
+    user = _get_request_user(user_id)
+    if user is None:
+        return
+    if user.is_admin():
+        return
+    if not user.is_data_manager():
+        raise PermissionError("User is not allowed to run data-manager sync.")
+    if not user.has_data_manager_submission_access(va_form.project_id, va_form.site_id):
+        raise PermissionError("User does not have access to this submission.")
+
+
 @shared_task(
     name="app.tasks.sync_tasks.run_odk_sync",
     bind=True,
@@ -202,6 +235,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         va_form = db.session.get(VaForms, form_id)
         if va_form is None:
             raise ValueError(f"Form '{form_id}' not found in va_forms")
+        _authorize_data_manager_form_sync(user_id, va_form)
 
         log_progress(f"[{form_id}] force-resync started — bypassing delta check")
         log.info("SingleFormSync [%s]: force-resync started.", form_id)
@@ -420,6 +454,7 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         va_form = db.session.get(VaForms, submission.va_form_id)
         if va_form is None:
             raise ValueError(f"Form '{submission.va_form_id}' not found.")
+        _authorize_data_manager_submission_sync(user_id, submission, va_form)
 
         odk_client = _get_single_form_odk_client(va_form)
         instance_id = resolve_odk_instance_id(va_sid)

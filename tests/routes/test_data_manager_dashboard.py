@@ -7,8 +7,10 @@ from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
+    VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
+    VaSiteMaster,
     VaSites,
     VaStatuses,
     VaSubmissionWorkflow,
@@ -22,6 +24,10 @@ from tests.base import BaseTestCase
 class DataManagerDashboardTests(BaseTestCase):
     FORM_ID = f"{BaseTestCase.BASE_PROJECT_ID}{BaseTestCase.BASE_SITE_ID}01"
     SID = "uuid:data-manager-dashboard"
+    OUT_PROJECT_ID = "DMOUT1"
+    OUT_SITE_ID = "DMO1"
+    OUT_FORM_ID = "DMOUT1DMO101"
+    OUT_SID = "uuid:data-manager-out-of-scope"
 
     @classmethod
     def setUpClass(cls):
@@ -93,6 +99,105 @@ class DataManagerDashboardTests(BaseTestCase):
         db.session.add(
             VaSubmissionWorkflow(
                 va_sid=cls.SID,
+                workflow_state="ready_for_coding",
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.add(
+            VaProjectMaster(
+                project_id=cls.OUT_PROJECT_ID,
+                project_code=cls.OUT_PROJECT_ID,
+                project_name="Out Of Scope Project",
+                project_nickname="OutScope",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaResearchProjects(
+                project_id=cls.OUT_PROJECT_ID,
+                project_code=cls.OUT_PROJECT_ID,
+                project_name="Out Of Scope Project",
+                project_nickname="OutScope",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSites(
+                site_id=cls.OUT_SITE_ID,
+                project_id=cls.OUT_PROJECT_ID,
+                site_name="Out Of Scope Site",
+                site_abbr=cls.OUT_SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSiteMaster(
+                site_id=cls.OUT_SITE_ID,
+                site_name="Out Of Scope Site",
+                site_abbr=cls.OUT_SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id=cls.OUT_PROJECT_ID,
+                site_id=cls.OUT_SITE_ID,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaForms(
+                form_id=cls.OUT_FORM_ID,
+                project_id=cls.OUT_PROJECT_ID,
+                site_id=cls.OUT_SITE_ID,
+                odk_form_id="DM_OUT_FORM",
+                odk_project_id="12",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissions(
+                va_sid=cls.OUT_SID,
+                va_form_id=cls.OUT_FORM_ID,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_odk_reviewstate="approved",
+                va_data_collector="Collector",
+                va_instance_name=cls.OUT_SID,
+                va_uniqueid_real=cls.OUT_SID,
+                va_uniqueid_masked="masked-out",
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=41,
+                va_deceased_gender="female",
+                va_data={"sid": cls.OUT_SID},
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=cls.OUT_SID,
                 workflow_state="ready_for_coding",
                 workflow_reason="test_seed",
                 workflow_updated_by_role="vasystem",
@@ -181,3 +286,29 @@ class DataManagerDashboardTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 202)
         mocked_delay.assert_called_once()
+
+    def test_single_form_task_revalidates_scope_in_worker(self):
+        from app.tasks.sync_tasks import run_single_form_sync
+
+        with patch("app.tasks.sync_tasks._get_single_form_odk_client") as mocked_client:
+            with self.assertRaises(PermissionError):
+                run_single_form_sync.run(
+                    form_id=self.OUT_FORM_ID,
+                    triggered_by="manual",
+                    user_id=self.dm_user_id,
+                )
+
+        mocked_client.assert_not_called()
+
+    def test_single_submission_task_revalidates_scope_in_worker(self):
+        from app.tasks.sync_tasks import run_single_submission_sync
+
+        with patch("app.tasks.sync_tasks._get_single_form_odk_client") as mocked_client:
+            with self.assertRaises(PermissionError):
+                run_single_submission_sync.run(
+                    va_sid=self.OUT_SID,
+                    triggered_by="manual",
+                    user_id=self.dm_user_id,
+                )
+
+        mocked_client.assert_not_called()

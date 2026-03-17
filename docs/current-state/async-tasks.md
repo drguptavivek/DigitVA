@@ -112,9 +112,10 @@ run_single_form_sync(form_id: str, triggered_by: str = "manual")
 
 **Behavior:**
 1. Looks up the `va_forms` row for `form_id`
-2. Fetches all submissions via OData JSON (no `since` filter — downloads everything)
-3. Upserts submissions, syncs attachments (ETag-based), rebuilds CSV
-4. Updates `mapping.last_synced_at`
+2. Revalidates request-time access in the worker for non-admin user-triggered runs
+3. Fetches all submissions via OData JSON (no `since` filter — downloads everything)
+4. Upserts submissions, syncs attachments (ETag-based), rebuilds CSV
+5. Updates `mapping.last_synced_at`
 
 **When to use:** A form failed during a full sync run (status `partial`), or attachments are suspected to be out of sync. Triggered from the per-form sync button in the admin coverage table via `POST /admin/api/sync/form/<form_id>`.
 
@@ -145,12 +146,13 @@ run_single_submission_sync(va_sid: str, triggered_by: str = "manual")
 
 **Behavior:**
 1. Looks up the local `va_submissions` row and resolves its ODK instance ID
-2. Fetches the latest ODK payload for that instance
-3. Marks `missing_in_odk` if the submission is no longer present in active ODK
-4. Upserts the local submission when found
-5. Syncs attachments for that submission
-6. Rebuilds the form CSV
-7. Reruns SmartVA for the target submission only
+2. Revalidates request-time access in the worker for non-admin user-triggered runs
+3. Fetches the latest ODK payload for that instance
+4. Marks `missing_in_odk` if the submission is no longer present in active ODK
+5. Upserts the local submission when found
+6. Syncs attachments for that submission
+7. Rebuilds the form CSV
+8. Reruns SmartVA for the target submission only
 
 **When to use:** A data manager wants to refresh one submission without waiting
 for a full-form or full-system sync.

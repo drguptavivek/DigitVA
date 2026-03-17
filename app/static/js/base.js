@@ -1,3 +1,88 @@
+// Global session expiry handling
+(function () {
+  'use strict';
+
+  var _sessionExpired = false;
+  var _loginUrl = '/auth/login';
+
+  function showSessionExpiredModal() {
+    if (_sessionExpired) return; // Only show once
+    _sessionExpired = true;
+
+    // Stop all tracked intervals (like sync polling)
+    if (window._syncDashboardIntervals) {
+      window._syncDashboardIntervals.forEach(function (id) { clearInterval(id); });
+    }
+
+    // Create modal backdrop
+    var backdrop = document.createElement('div');
+    backdrop.id = 'session-expired-backdrop';
+    backdrop.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;'
+      + 'background:rgba(0,0,0,0.5);z-index:9999;display:flex;'
+      + 'align-items:center;justify-content:center;';
+
+    backdrop.innerHTML =
+      '<div class="card shadow" style="max-width:400px;margin:1rem;">'
+      + '<div class="card-body text-center p-4">'
+      + '<i class="fa-solid fa-clock-rotate-left fa-3x text-warning mb-3"></i>'
+      + '<h5 class="card-title">Session Expired</h5>'
+      + '<p class="card-text text-muted small mb-3">'
+      + 'Your session has timed out. Please log in again to continue.'
+      + '</p>'
+      + '<a href="' + _loginUrl + '" class="btn btn-primary w-100">'
+      + '<i class="fa-solid fa-right-to-bracket me-2"></i>Log In'
+      + '</a>'
+      + '</div></div>';
+
+    document.body.appendChild(backdrop);
+
+    // Prevent further fetch calls from making API requests
+    console.log('[session] Session expired - API requests blocked');
+  }
+
+  // Intercept fetch to handle 401 responses
+  var originalFetch = window.fetch;
+  window.fetch = function (url, options) {
+    var requestUrl = typeof url === 'string' ? url : url.url || '';
+
+    // Skip non-API requests (static files, etc.)
+    var isApiRequest = requestUrl.indexOf('/api/') !== -1
+      || requestUrl.indexOf('/admin/api/') !== -1
+      || requestUrl.indexOf('/auth/') === -1; // Most app routes require auth
+
+    // Block all requests if session expired
+    if (_sessionExpired && isApiRequest) {
+      console.log('[session] Blocked API request to:', requestUrl);
+      return Promise.resolve({
+        ok: false,
+        status: 401,
+        json: function () { return Promise.resolve({ error: 'Session expired' }); },
+        text: function () { return Promise.resolve('Session expired'); },
+      });
+    }
+
+    return originalFetch.apply(this, arguments).then(function (response) {
+      if (response.status === 401 && !_sessionExpired) {
+        // Check if this is an API request (not a page navigation)
+        if (isApiRequest) {
+          console.log('[session] 401 response from:', requestUrl);
+          showSessionExpiredModal();
+        }
+      }
+      return response;
+    });
+  };
+
+  // Also handle HTMX 401 responses
+  document.body.addEventListener('htmx:beforeSwap', function (evt) {
+    if (evt.detail.xhr && evt.detail.xhr.status === 401) {
+      showSessionExpiredModal();
+      evt.preventDefault();
+    }
+  });
+
+})();
+
 // Shared app-wide toast helper. Available anywhere that extends va_base.html,
 // including coder/reviewer/site-PI screens and the admin console.
 

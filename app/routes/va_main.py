@@ -35,6 +35,7 @@ from app.services.coder_dashboard_service import (
     get_coder_project_ids,
     get_coder_recodeable_sids,
 )
+from app.services.submission_analytics_mv import get_dm_kpi_from_mv
 from app.services.project_workflow_service import split_form_ids_by_coding_intake_mode
 from app.services.odk_connection_guard_service import guarded_odk_call
 from app.services.odk_review_service import resolve_odk_instance_id
@@ -657,48 +658,14 @@ def va_dashboard(va_role):
             )
 
         scope_filter = _data_manager_scope_filter(current_user)
-        total_submissions = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaSubmissions)
-            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(scope_filter)
+        kpi = get_dm_kpi_from_mv(
+            project_ids=project_ids,
+            project_site_pairs=project_site_pairs,
         )
-        flagged_submissions = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaSubmissionWorkflow)
-            .where(
-                VaSubmissionWorkflow.workflow_state.in_(
-                    [
-                        "not_codeable_by_data_manager",
-                        "not_codeable_by_coder",
-                    ]
-                )
-            )
-            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionWorkflow.va_sid)
-            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(scope_filter)
-        )
-        odk_has_issues_submissions = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaSubmissions)
-            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(scope_filter)
-            .where(VaSubmissions.va_odk_reviewstate == "hasIssues")
-        )
-        smartva_missing_submissions = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaSubmissions)
-            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(scope_filter)
-            .where(
-                ~sa.exists(
-                    sa.select(1).where(
-                        VaSmartvaResults.va_sid == VaSubmissions.va_sid,
-                        VaSmartvaResults.va_smartva_status == VaStatuses.active,
-                    )
-                )
-            )
-        )
+        total_submissions = kpi["total_submissions"]
+        flagged_submissions = kpi["flagged_submissions"]
+        odk_has_issues_submissions = kpi["odk_has_issues_submissions"]
+        smartva_missing_submissions = kpi["smartva_missing_submissions"]
         attachment_counts = (
             sa.select(
                 VaSubmissionAttachments.va_sid.label("va_sid"),

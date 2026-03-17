@@ -313,6 +313,13 @@
     </div>
   </div>
 
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h6 class="text-muted mb-0 small">Dashboard Analytics</h6>
+    <button type="button" id="dm-refresh-dashboard-btn" class="btn btn-sm btn-outline-primary">
+      <i class="fas fa-chart-bar me-1"></i>Refresh Dashboard
+    </button>
+  </div>
+
   <div class="row mb-4 g-3">
     <div class="col-md-6 col-xl-3">
       <div class="card shadow-sm border-0 rounded-3 h-100">
@@ -375,18 +382,46 @@
     </div>
   </div>
 
-  <div class="card shadow-sm border-0 rounded-3 mb-4">
-    <div class="card-body">
-      <div class="d-flex align-items-center justify-content-between mb-3">
-        <div>
+  <div class="row mb-4 g-3 align-items-stretch">
+    <div class="col-lg-7">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body">
           <h5 class="text-primary fw-semibold mb-1">Project - Site Submissions</h5>
-          <div class="small text-muted">Compact project-site view of total, this week, and today.</div>
+          <div class="small text-muted mb-3">Compact project-site view of total, this week, and today.</div>
+          <div class="dm-submission-chart-wrap">
+            <canvas id="dm-project-site-submissions-chart"></canvas>
+          </div>
+          <div id="dm-project-site-submissions-empty" class="text-muted small d-none">No scoped submissions found.</div>
         </div>
       </div>
-      <div class="dm-submission-chart-wrap">
-        <canvas id="dm-project-site-submissions-chart"></canvas>
+    </div>
+    <div class="col-lg-5">
+      <div class="row g-3 h-100">
+        <div class="col-12">
+          <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card-body">
+              <h6 class="text-primary fw-semibold mb-1">Age Group</h6>
+              <div class="small text-muted mb-2">Breakdown by analytics age band.</div>
+              <div style="position:relative;height:165px;">
+                <canvas id="dm-age-band-chart"></canvas>
+              </div>
+              <div id="dm-age-band-empty" class="text-muted small d-none text-center mt-1">No age data.</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-12">
+          <div class="card shadow-sm border-0 rounded-3 h-100">
+            <div class="card-body">
+              <h6 class="text-primary fw-semibold mb-1">Sex / Gender</h6>
+              <div class="small text-muted mb-2">Breakdown by reported sex.</div>
+              <div style="position:relative;height:165px;">
+                <canvas id="dm-sex-chart"></canvas>
+              </div>
+              <div id="dm-sex-empty" class="text-muted small d-none text-center mt-1">No sex data.</div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div id="dm-project-site-submissions-empty" class="text-muted small d-none">No scoped submissions found.</div>
     </div>
   </div>
 
@@ -676,6 +711,26 @@
       let workflowQuickFilter = '';
       let suppressFilterStateSave = false;
       let projectSiteSubmissionsChart = null;
+
+      // Refresh Dashboard button — triggers on-demand MV refresh then reloads
+      $('#dm-refresh-dashboard-btn').on('click', function () {
+        const btn = $(this);
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Refreshing…');
+        fetch('/vadashboard/api/data-manager/refresh-mv', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+        })
+          .then(function (resp) {
+            if (!resp.ok) {
+              return resp.json().then(function (d) { throw new Error(d.error || 'Refresh failed.'); });
+            }
+            window.location.reload();
+          })
+          .catch(function (err) {
+            btn.prop('disabled', false).html('<i class="fas fa-chart-bar me-1"></i>Refresh Dashboard');
+            alert('Dashboard refresh failed: ' + err.message);
+          });
+      });
 
       function currentProjectSelection() {
         return projectFilter.val() || [];
@@ -1250,6 +1305,85 @@
             });
           });
       }
+
+      // -----------------------------------------------------------------------
+      // Demographics pie charts — Age Band and Sex from /api/analytics/demographics
+      // -----------------------------------------------------------------------
+
+      const PIE_PALETTE = [
+        '#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6',
+        '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
+      ];
+
+      let ageBandChart = null;
+      let sexChart = null;
+
+      function buildPieConfig(labels, data) {
+        return {
+          type: 'pie',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: PIE_PALETTE.slice(0, labels.length),
+              borderWidth: 1,
+              borderColor: '#ffffff',
+            }],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: { boxWidth: 10, font: { size: 11 }, color: '#475569' },
+              },
+              tooltip: {
+                backgroundColor: '#ffffff',
+                titleColor: '#334155',
+                bodyColor: '#475569',
+                borderColor: '#dbe5ef',
+                borderWidth: 1,
+              },
+            },
+          },
+        };
+      }
+
+      function loadDemographicsCharts() {
+        fetch('/api/analytics/demographics')
+          .then(function (resp) { return resp.json(); })
+          .then(function (payload) {
+            // Age band chart
+            const ageBands = payload.age_bands || [];
+            const ageBandCanvas = document.getElementById('dm-age-band-chart');
+            if (!ageBands.length) {
+              $('#dm-age-band-empty').removeClass('d-none');
+            } else {
+              const labels = ageBands.map(function (r) { return r.band || 'unknown'; });
+              const counts = ageBands.map(function (r) { return r.count; });
+              if (ageBandChart) { ageBandChart.destroy(); }
+              ageBandChart = new Chart(ageBandCanvas, buildPieConfig(labels, counts));
+            }
+
+            // Sex chart
+            const sexData = payload.sex || [];
+            const sexCanvas = document.getElementById('dm-sex-chart');
+            if (!sexData.length) {
+              $('#dm-sex-empty').removeClass('d-none');
+            } else {
+              const sexLabels = sexData.map(function (r) { return r.sex || 'unknown'; });
+              const sexCounts = sexData.map(function (r) { return r.count; });
+              if (sexChart) { sexChart.destroy(); }
+              sexChart = new Chart(sexCanvas, buildPieConfig(sexLabels, sexCounts));
+            }
+          })
+          .catch(function (err) {
+            console.warn('Demographics chart load failed:', err);
+          });
+      }
+
+      loadDemographicsCharts();
 
       function loadPreview() {
         const selectedProjects = currentProjectSelection();

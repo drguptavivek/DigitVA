@@ -267,6 +267,70 @@ def build_refresh_submission_analytics_mv_sql(
     return f"REFRESH MATERIALIZED VIEW{concurrent_clause} {view_name}"
 
 
+def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs):
+    """Return a WHERE clause scoped to the given project/project-site grants."""
+    project_clause = sa.false()
+    if project_ids:
+        project_clause = mv.c.project_id.in_(project_ids)
+
+    site_clause = sa.false()
+    if project_site_pairs:
+        site_clause = sa.tuple_(mv.c.project_id, mv.c.site_id).in_(
+            list(project_site_pairs)
+        )
+
+    return sa.or_(project_clause, site_clause)
+
+
+def get_dm_kpi_from_mv(
+    project_ids: list[str],
+    project_site_pairs,
+) -> dict:
+    """Return scoped KPI counts for the data-manager dashboard from the analytics MV."""
+    mv = sa.table(
+        MV_NAME,
+        sa.column("project_id"),
+        sa.column("site_id"),
+        sa.column("workflow_state"),
+        sa.column("odk_review_state"),
+        sa.column("has_smartva"),
+    )
+    scope = _mv_scope_filter(mv, project_ids, project_site_pairs)
+
+    total = db.session.scalar(
+        sa.select(sa.func.count()).select_from(mv).where(scope)
+    ) or 0
+    flagged = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(mv)
+        .where(scope)
+        .where(
+            mv.c.workflow_state.in_(
+                ["not_codeable_by_data_manager", "not_codeable_by_coder"]
+            )
+        )
+    ) or 0
+    odk_issues = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(mv)
+        .where(scope)
+        .where(mv.c.odk_review_state == "hasIssues")
+    ) or 0
+    smartva_missing = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(mv)
+        .where(scope)
+        .where(mv.c.has_smartva.is_(False))
+    ) or 0
+
+    return {
+        "total_submissions": total,
+        "flagged_submissions": flagged,
+        "odk_has_issues_submissions": odk_issues,
+        "smartva_missing_submissions": smartva_missing,
+    }
+
+
 def refresh_submission_analytics_mv(*, concurrently: bool = False) -> None:
     """Refresh the submission analytics materialized view."""
     sql = sa.text(

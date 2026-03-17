@@ -73,13 +73,24 @@
     });
   };
 
-  // Also handle HTMX 401 responses
-  document.body.addEventListener('htmx:beforeSwap', function (evt) {
-    if (evt.detail.xhr && evt.detail.xhr.status === 401) {
-      showSessionExpiredModal();
-      evt.preventDefault();
-    }
-  });
+  // Also handle HTMX 401 responses (wait for DOM to be ready)
+  if (document.body) {
+    document.body.addEventListener('htmx:beforeSwap', function (evt) {
+      if (evt.detail.xhr && evt.detail.xhr.status === 401) {
+        showSessionExpiredModal();
+        evt.preventDefault();
+      }
+    });
+  } else {
+    document.addEventListener('DOMContentLoaded', function () {
+      document.body.addEventListener('htmx:beforeSwap', function (evt) {
+        if (evt.detail.xhr && evt.detail.xhr.status === 401) {
+          showSessionExpiredModal();
+          evt.preventDefault();
+        }
+      });
+    });
+  }
 
 })();
 

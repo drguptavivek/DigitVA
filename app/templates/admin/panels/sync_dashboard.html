@@ -122,12 +122,12 @@
 (function () {
   'use strict';
 
-  // Prevent double initialization - must check AND set atomically
-  if (window._syncDashboardInitializing) {
-    console.log('[sync_dashboard] Already initializing, skipping');
+  // Prevent double initialization - use a persistent running flag
+  if (window._syncDashboardRunning) {
+    console.log('[sync_dashboard] Already running, skipping re-initialization');
     return;
   }
-  window._syncDashboardInitializing = true;
+  window._syncDashboardRunning = true;
 
   // Clean up any previous intervals from prior script executions
   if (window._syncDashboardIntervals) {
@@ -812,9 +812,6 @@
   loadHistory();
   loadSmartvaStats();
   loadProgress();
-
-  // Allow re-initialization on future HTMX loads
-  window._syncDashboardInitializing = false;
 
 }());
 </script>

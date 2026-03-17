@@ -36,23 +36,34 @@
   <div class="card shadow-sm border-0 rounded-3 mb-4">
     <div class="card-body">
       <div class="row g-3 align-items-end">
-        <div class="col-md-8">
-          <label for="dm-form-sync-select" class="form-label mb-1"><strong>Scoped Form Sync</strong></label>
-          <select id="dm-form-sync-select" class="form-select">
-            <option value="">Select a form in your scope</option>
-            {% for form in scoped_forms %}
-            <option value="{{ form.form_id }}">{{ form.project_id }} / {{ form.site_id }} ({{ form.form_id }})</option>
+        <div class="col-md-5">
+          <label for="dm-project-filter" class="form-label mb-1">
+            <strong>Sync Forms For a Project and Site</strong>
+            <span class="ms-1 text-muted"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  title="Runs a force-resync for every form that matches the selected project and site filters in your scope. Each matched form is fetched fully from ODK, so new and updated submissions are refreshed along with attachments and SmartVA inputs.">
+              <i class="fas fa-circle-info"></i>
+            </span>
+          </label>
+          <select id="dm-project-filter" class="form-select" multiple>
+            {% for form in scoped_forms|groupby('project_id') %}
+            <option value="{{ form.grouper }}">{{ form.grouper }}</option>
             {% endfor %}
           </select>
         </div>
         <div class="col-md-4">
+          <label for="dm-site-filter" class="form-label mb-1"><strong>Sites</strong></label>
+          <select id="dm-site-filter" class="form-select" multiple></select>
+        </div>
+        <div class="col-md-3">
           <button type="button" id="dm-form-sync-btn" class="btn btn-outline-secondary w-100">
-            <i class="fas fa-rotate-right me-2"></i>Sync Selected Form
+            <i class="fas fa-rotate-right me-2"></i>Sync Matching Forms
           </button>
         </div>
       </div>
       <div class="small text-muted mt-2">
-        Trigger a targeted sync for one form in your scope. This fetches submission data and attachments from ODK.
+        Choose one or more projects and optional sites. DigitVA will run the existing secure form sync for every matched form in your scoped access.
       </div>
     </div>
   </div>
@@ -158,11 +169,99 @@
   <script>
     $(document).ready(function () {
       const csrfToken = '{{ csrf_token() }}';
+      const scopedForms = {{ scoped_forms|tojson }};
+      const projectFilter = $('#dm-project-filter');
+      const siteFilter = $('#dm-site-filter');
 
-      $('#dmTable').DataTable({
+      function currentProjectSelection() {
+        return projectFilter.val() || [];
+      }
+
+      function currentSiteSelection() {
+        return siteFilter.val() || [];
+      }
+
+      function formsMatchingSelection() {
+        const selectedProjects = currentProjectSelection();
+        const selectedSites = currentSiteSelection();
+
+        return scopedForms.filter(function (form) {
+          const matchesProject = !selectedProjects.length || selectedProjects.includes(form.project_id);
+          const matchesSite = !selectedSites.length || selectedSites.includes(form.site_id);
+          return matchesProject && matchesSite;
+        });
+      }
+
+      function refreshSiteOptions() {
+        const selectedProjects = currentProjectSelection();
+        const previouslySelectedSites = new Set(currentSiteSelection());
+        const availableSites = [];
+        const seenSites = new Set();
+
+        scopedForms.forEach(function (form) {
+          if (selectedProjects.length && !selectedProjects.includes(form.project_id)) {
+            return;
+          }
+          if (!seenSites.has(form.site_id)) {
+            seenSites.add(form.site_id);
+            availableSites.push(form.site_id);
+          }
+        });
+
+        siteFilter.empty();
+        availableSites.sort().forEach(function (siteId) {
+          const option = new Option(siteId, siteId, false, previouslySelectedSites.has(siteId));
+          siteFilter.append(option);
+        });
+        siteFilter.trigger('change.select2');
+      }
+
+      projectFilter.select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'All projects',
+        closeOnSelect: false
+      });
+
+      siteFilter.select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        placeholder: 'All sites',
+        closeOnSelect: false
+      });
+
+      $('[data-bs-toggle="tooltip"]').each(function () {
+        new bootstrap.Tooltip(this);
+      });
+
+      const dmTable = $('#dmTable').DataTable({
         pageLength: 25,
         order: [[0, 'asc'], [1, 'asc'], [2, 'desc']]
       });
+
+      $.fn.dataTable.ext.search.push(function (settings, data) {
+        if (settings.nTable !== dmTable.table().node()) {
+          return true;
+        }
+        const selectedProjects = currentProjectSelection();
+        const selectedSites = currentSiteSelection();
+        const rowProject = data[0];
+        const rowSite = data[1];
+        const matchesProject = !selectedProjects.length || selectedProjects.includes(rowProject);
+        const matchesSite = !selectedSites.length || selectedSites.includes(rowSite);
+        return matchesProject && matchesSite;
+      });
+
+      projectFilter.on('change', function () {
+        refreshSiteOptions();
+        dmTable.draw();
+      });
+
+      siteFilter.on('change', function () {
+        dmTable.draw();
+      });
+
+      refreshSiteOptions();
 
       function postJson(url) {
         return fetch(url, {
@@ -178,19 +277,33 @@
         });
       }
 
-      $('#dm-form-sync-btn').on('click', function () {
-        const formId = $('#dm-form-sync-select').val();
-        if (!formId) {
-          if (window.showAppToast) window.showAppToast('Select a form first.', 'warning');
+      async function syncFormsSequentially(forms) {
+        for (const form of forms) {
+          await postJson('/vadashboard/data-manager/api/forms/' + encodeURIComponent(form.form_id) + '/sync');
+        }
+      }
+
+      $('#dm-form-sync-btn').on('click', async function () {
+        const matchedForms = formsMatchingSelection();
+        if (!matchedForms.length) {
+          if (window.showAppToast) window.showAppToast('Select at least one project or site that has forms in your scope.', 'warning');
           return;
         }
-        postJson('/vadashboard/data-manager/api/forms/' + encodeURIComponent(formId) + '/sync')
-          .then(function (payload) {
-            if (window.showAppToast) window.showAppToast(payload.message || 'Form sync started.', 'success');
-          })
-          .catch(function (err) {
-            if (window.showAppToast) window.showAppToast(err.message, 'danger');
-          });
+        const button = $(this);
+        button.prop('disabled', true);
+        try {
+          await syncFormsSequentially(matchedForms);
+          if (window.showAppToast) {
+            window.showAppToast(
+              'Started sync for ' + matchedForms.length + ' form' + (matchedForms.length === 1 ? '' : 's') + '.',
+              'success'
+            );
+          }
+        } catch (err) {
+          if (window.showAppToast) window.showAppToast(err.message, 'danger');
+        } finally {
+          button.prop('disabled', false);
+        }
       });
 
       $('.dm-refresh-submission-btn').on('click', function () {

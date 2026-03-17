@@ -518,15 +518,22 @@ def va_dashboard(va_role):
                 )
             ).mappings().all()
         ]
-        scoped_forms = db.session.execute(
-            sa.select(
-                VaForms.form_id,
-                VaForms.project_id,
-                VaForms.site_id,
-            )
-            .where(scope_filter)
-            .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
-        ).mappings().all()
+        scoped_forms = [
+            {
+                "form_id": row.form_id,
+                "project_id": row.project_id,
+                "site_id": row.site_id,
+            }
+            for row in db.session.execute(
+                sa.select(
+                    VaForms.form_id,
+                    VaForms.project_id,
+                    VaForms.site_id,
+                )
+                .where(scope_filter)
+                .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
+            ).mappings().all()
+        ]
         return render_template(
             "va_frontpages/va_data_manager.html",
             total_submissions=total_submissions,

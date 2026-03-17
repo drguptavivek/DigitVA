@@ -250,7 +250,8 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Has Issues", response.data)
         self.assertIn(b"Missing In ODK", response.data)
-        self.assertIn(b"Sync Selected Form", response.data)
+        self.assertIn(b"Sync Forms For a Project and Site", response.data)
+        self.assertIn(b"Sync Matching Forms", response.data)
         self.assertIn(b"Refresh", response.data)
 
     def test_data_manager_can_trigger_scoped_form_sync(self):

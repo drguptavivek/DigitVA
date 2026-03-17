@@ -4,6 +4,19 @@
 
 {% block content %}
   <style>
+    #dm-sync-confirm-modal .modal-dialog {
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    #dm-sync-confirm-modal .modal-content {
+      max-height: calc(100vh - 2rem);
+    }
+
+    #dm-sync-confirm-modal .modal-body {
+      overflow-y: auto;
+    }
+
     #dm-project-filter + .select2-container .select2-selection--multiple,
     #dm-site-filter + .select2-container .select2-selection--multiple {
       min-height: 38px;
@@ -34,6 +47,56 @@
       margin-top: 0;
       margin-bottom: 0;
       white-space: nowrap;
+    }
+
+    .dm-attachment-count {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      white-space: nowrap;
+    }
+
+    .dm-card-count-button {
+      background: none;
+      border: 0;
+      padding: 0;
+      color: inherit;
+      line-height: 1;
+    }
+
+    .dm-card-count-button:hover,
+    .dm-card-count-button:focus {
+      color: inherit;
+      opacity: 0.85;
+    }
+
+    #dm-column-options-menu .dropdown-item {
+      cursor: default;
+    }
+
+    #dm-column-options-menu {
+      min-width: 220px;
+      margin-top: 0.35rem;
+    }
+
+    #dm-column-options-menu .form-check {
+      margin-bottom: 0;
+      padding: 0.35rem 0.5rem 0.35rem 1.85rem;
+    }
+
+    #dm-column-options-menu .form-check:hover {
+      background-color: var(--bs-light);
+      border-radius: 0.375rem;
+    }
+
+    #dm-column-options-menu .form-check-input {
+      float: none;
+      margin-left: -1.35rem;
+      margin-right: 0.5rem;
+    }
+
+    #dm-column-options-menu .form-check-label {
+      cursor: pointer;
     }
   </style>
 
@@ -129,6 +192,60 @@
             <div id="dm-sync-summary-count" class="small text-muted mb-2"></div>
             <ul id="dm-sync-summary-forms" class="list-group list-group-flush"></ul>
           </div>
+          <div class="alert alert-light border small mb-4">
+            Missing ODK records will be flagged locally as sync issues. They will not be deleted from DigitVA.
+          </div>
+          <div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="fw-semibold">Live Sync Preview</div>
+              <div id="dm-sync-preview-status" class="small text-muted">Select project/site scope to load preview.</div>
+            </div>
+            <div class="row g-3 mb-3">
+              <div class="col-md-3">
+                <div class="border rounded-3 p-3 h-100">
+                  <div class="small text-muted">Matched Forms</div>
+                  <div id="dm-preview-total-forms" class="fw-bold fs-5">0</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="border rounded-3 p-3 h-100">
+                  <div class="small text-muted">ODK New To Fetch</div>
+                  <div id="dm-preview-new-fetch" class="fw-bold fs-5">0</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="border rounded-3 p-3 h-100">
+                  <div class="small text-muted">ODK Updated Candidates</div>
+                  <div id="dm-preview-updated" class="fw-bold fs-5">0</div>
+                </div>
+              </div>
+              <div class="col-md-3">
+                <div class="border rounded-3 p-3 h-100">
+                  <div class="small text-muted">Local Missing In ODK</div>
+                  <div id="dm-preview-missing-in-odk" class="fw-bold fs-5">0</div>
+                </div>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Form</th>
+                    <th>Local</th>
+                    <th>ODK</th>
+                    <th>New To Fetch</th>
+                    <th>Updated Candidates</th>
+                    <th>Missing In ODK</th>
+                  </tr>
+                </thead>
+                <tbody id="dm-sync-preview-rows">
+                  <tr>
+                    <td colspan="6" class="text-muted">No preview loaded yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -140,27 +257,242 @@
     </div>
   </div>
 
+  <div class="accordion mb-4" id="dm-sync-results-accordion">
+    <div class="accordion-item border-0 shadow-sm rounded-3 overflow-hidden">
+      <h2 class="accordion-header" id="dm-sync-results-heading">
+        <button class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#dm-sync-results-collapse"
+                aria-expanded="false"
+                aria-controls="dm-sync-results-collapse">
+          <span>
+            <span class="d-block fw-semibold text-primary">Recent Sync Results</span>
+            <span class="small text-muted">Latest data-manager initiated form sync runs in your timezone.</span>
+          </span>
+        </button>
+      </h2>
+      <div id="dm-sync-results-collapse"
+           class="accordion-collapse collapse"
+           aria-labelledby="dm-sync-results-heading"
+           data-bs-parent="#dm-sync-results-accordion">
+        <div class="accordion-body">
+          <div class="d-flex justify-content-end mb-3">
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="dm-sync-results-refresh">
+              <i class="fas fa-rotate-right me-1"></i>Refresh
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Status</th>
+                  <th>Started</th>
+                  <th>Finished</th>
+                  <th>Added</th>
+                  <th>Updated</th>
+                  <th>Latest Progress</th>
+                </tr>
+              </thead>
+              <tbody id="dm-sync-results-rows">
+                <tr>
+                  <td colspan="7" class="text-muted">No sync runs yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="row mb-4 g-3">
-    <div class="col-md-6">
+    <div class="col-md-6 col-xl-3">
       <div class="card shadow-sm border-0 rounded-3 h-100">
         <div class="card-body p-4 text-center">
           <i class="fas fa-file-alt text-primary fa-2x mb-3"></i>
           <h5 class="text-primary fw-semibold mb-3">Scoped Submissions</h5>
           <div class="d-flex align-items-baseline justify-content-center">
             <h2 class="display-4 fw-bold text-primary mb-0">{{ total_submissions }}</h2>
-            <span class="ms-2 text-secondary small">submissions</span>
           </div>
         </div>
       </div>
     </div>
-    <div class="col-md-6">
+    <div class="col-md-6 col-xl-3">
       <div class="card shadow-sm border-0 rounded-3 h-100">
         <div class="card-body p-4 text-center">
           <i class="fas fa-flag text-danger fa-2x mb-3"></i>
           <h5 class="text-danger fw-semibold mb-3">Flagged Not Codeable</h5>
           <div class="d-flex align-items-baseline justify-content-center">
-            <h2 class="display-4 fw-bold text-danger mb-0">{{ flagged_submissions }}</h2>
-            <span class="ms-2 text-secondary small">submissions</span>
+            <button type="button"
+                    id="dm-view-flagged-btn"
+                    class="display-4 fw-bold text-danger mb-0 dm-card-count-button"
+                    title="View flagged submissions">
+              {{ flagged_submissions }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4 text-center">
+          <i class="fas fa-triangle-exclamation text-warning fa-2x mb-3"></i>
+          <h5 class="text-warning-emphasis fw-semibold mb-3">ODK - Has Issues</h5>
+          <div class="d-flex align-items-baseline justify-content-center">
+            <button type="button"
+                    id="dm-view-odk-issues-btn"
+                    class="display-4 fw-bold text-warning-emphasis mb-0 dm-card-count-button"
+                    title="View ODK submissions with issues">
+              {{ odk_has_issues_submissions }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4 text-center">
+          <i class="fas fa-brain text-secondary fa-2x mb-3"></i>
+          <h5 class="text-secondary fw-semibold mb-3">SmartVA Missing</h5>
+          <div class="d-flex align-items-baseline justify-content-center">
+            <button type="button"
+                    id="dm-view-smartva-missing-btn"
+                    class="display-4 fw-bold text-secondary mb-0 dm-card-count-button"
+                    title="View submissions missing SmartVA results">
+              {{ smartva_missing_submissions }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="accordion mb-3" id="dm-filter-accordion">
+    <div class="accordion-item border-0 shadow-sm rounded-3 overflow-hidden">
+      <h2 class="accordion-header" id="dm-filter-heading">
+        <button class="accordion-button collapsed"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#dm-filter-collapse"
+                aria-expanded="false"
+                aria-controls="dm-filter-collapse">
+          <span>
+            <span class="d-block fw-semibold text-primary">Browse and Search Filters</span>
+            <span class="small text-muted">Filter by project, site, submitted date, ODK status, sync issues, and workflow state.</span>
+          </span>
+        </button>
+      </h2>
+      <div id="dm-filter-collapse"
+           class="accordion-collapse collapse"
+           aria-labelledby="dm-filter-heading"
+           data-bs-parent="#dm-filter-accordion">
+        <div class="accordion-body">
+          <div class="row g-3 align-items-end">
+            <div class="col-md-6 col-lg-2">
+              <label for="dm-table-project-filter" class="form-label mb-1"><strong>Project</strong></label>
+              <select id="dm-table-project-filter" class="form-select">
+                <option value="">All projects</option>
+                {% for form in scoped_forms|groupby('project_id') %}
+                <option value="{{ form.grouper }}">{{ form.grouper }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+              <label for="dm-table-site-filter" class="form-label mb-1"><strong>Site</strong></label>
+              <select id="dm-table-site-filter" class="form-select">
+                <option value="">All sites</option>
+                {% for form in scoped_forms|groupby('site_id') %}
+                <option value="{{ form.grouper }}">{{ form.grouper }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+              <label for="dm-table-date-from" class="form-label mb-1"><strong>Submitted From</strong></label>
+              <input type="date" id="dm-table-date-from" class="form-control">
+            </div>
+            <div class="col-md-6 col-lg-2">
+              <label for="dm-table-date-to" class="form-label mb-1"><strong>Submitted To</strong></label>
+              <input type="date" id="dm-table-date-to" class="form-control">
+            </div>
+            <div class="col-md-6 col-lg-2">
+              <label for="dm-table-odk-filter" class="form-label mb-1"><strong>ODK Status</strong></label>
+              <select id="dm-table-odk-filter" class="form-select">
+                <option value="">All ODK statuses</option>
+                <option value="Has Issues">Has Issues</option>
+                <option value="approved">Approved</option>
+                <option value="No review state">No review state</option>
+              </select>
+            </div>
+            <div class="col-md-6 col-lg-2">
+              <label for="dm-table-smartva-filter" class="form-label mb-1"><strong>SmartVA</strong></label>
+              <select id="dm-table-smartva-filter" class="form-select">
+                <option value="">All SmartVA statuses</option>
+                <option value="Available">Available</option>
+                <option value="Missing">Missing</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-3 align-items-end mt-1">
+            <div class="col-md-6 col-lg-3">
+              <label for="dm-table-sync-filter" class="form-label mb-1"><strong>ODK Sync</strong></label>
+              <select id="dm-table-sync-filter" class="form-select">
+                <option value="">All ODK sync statuses</option>
+                <option value="Missing In ODK">Missing In ODK</option>
+                <option value="In Sync">In Sync</option>
+              </select>
+            </div>
+            <div class="col-md-6 col-lg-3">
+              <label for="dm-table-workflow-filter" class="form-label mb-1"><strong>Workflow State</strong></label>
+              <select id="dm-table-workflow-filter" class="form-select">
+                <option value="">All workflow states</option>
+                <option value="Ready for Coding">Ready for Coding</option>
+                <option value="Screening Pending">Screening Pending</option>
+                <option value="Flagged by Data Manager">Flagged by Data Manager</option>
+                <option value="Not Codeable By Coder">Not Codeable By Coder</option>
+              </select>
+            </div>
+            <div class="col-md-8 col-lg-4">
+              <label for="dm-table-search" class="form-label mb-1"><strong>Search</strong></label>
+              <input type="search"
+                     id="dm-table-search"
+                     class="form-control"
+                     placeholder="Search form ID, collector, attachment count, or status">
+            </div>
+            <div class="col-md-4 col-lg-2">
+              <label class="form-label mb-1"><strong>Table Columns</strong></label>
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-between"
+                        type="button"
+                        id="dm-column-options-btn"
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false">
+                  <span>Optional Columns</span>
+                  <i class="fas fa-chevron-down small"></i>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end p-2 shadow-sm" id="dm-column-options-menu" aria-labelledby="dm-column-options-btn">
+                  <label class="form-check d-flex align-items-center">
+                    <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-project" data-column-index="0">
+                    <span class="form-check-label small">Project</span>
+                  </label>
+                  <label class="form-check d-flex align-items-center">
+                    <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-data-collector" data-column-index="4">
+                    <span class="form-check-label small">Data Collector</span>
+                  </label>
+                  <label class="form-check d-flex align-items-center">
+                    <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-flagged-at" data-column-index="9">
+                    <span class="form-check-label small">Flagged At</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="col-12 d-flex justify-content-end">
+              <button type="button" id="dm-table-clear-filters" class="btn btn-sm btn-outline-secondary">
+                Clear Filters
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -173,11 +505,19 @@
         <tr>
           <th>Project</th>
           <th>Site</th>
-          <th>Submission Date</th>
+          <th>Submitted</th>
           <th>VA Form ID</th>
           <th>Data Collector</th>
+          <th class="text-center"
+              data-bs-toggle="tooltip"
+              data-bs-placement="top"
+              title="Attachments">
+            <i class="fas fa-paperclip" aria-hidden="true"></i>
+            <span class="visually-hidden">Attachments</span>
+          </th>
+          <th>SmartVA</th>
           <th>ODK Status</th>
-          <th>Sync Issue</th>
+          <th>ODK Sync</th>
           <th>Workflow State</th>
           <th>Flagged At</th>
           <th>Action</th>
@@ -191,9 +531,32 @@
           <td>{{ row.va_submission_date }}</td>
           <td>{{ row.va_uniqueid_masked }}</td>
           <td>{{ row.va_data_collector or '-' }}</td>
+          <td class="text-center">
+            <span class="dm-attachment-count"
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  title="Expected attachment count from the latest DigitVA sync of ODK attachments.">
+              <i class="fas fa-paperclip text-muted" aria-hidden="true"></i>
+              <span>{{ row.attachment_count }}</span>
+            </span>
+          </td>
+          <td>
+            {% if row.smartva_result_sid %}
+            <span class="badge bg-success">Available</span>
+            {% else %}
+            <span class="badge bg-secondary">Missing</span>
+            {% endif %}
+          </td>
           <td>
             {% if row.va_odk_reviewstate == 'hasIssues' %}
-            <span class="badge bg-warning text-dark">Has Issues</span>
+            <span class="badge bg-warning text-dark"
+                  {% if row.va_odk_reviewcomments %}
+                  data-bs-toggle="tooltip"
+                  data-bs-placement="top"
+                  title="{% for comment in row.va_odk_reviewcomments %}{{ loop.index }}. {{ comment.body }}{% if not loop.last %}&#10;&#10;{% endif %}{% endfor %}"
+                  {% endif %}>
+              Has Issues
+            </span>
             {% elif row.va_odk_reviewstate %}
             <span class="badge bg-info text-dark">{{ row.va_odk_reviewstate }}</span>
             {% else %}
@@ -213,6 +576,8 @@
           <td>
             {% if row.workflow_state == 'not_codeable_by_data_manager' %}
             <span class="badge bg-danger">Flagged by Data Manager</span>
+            {% elif row.workflow_state == 'not_codeable_by_coder' %}
+            <span class="badge bg-warning text-dark">Not Codeable By Coder</span>
             {% elif row.workflow_state == 'ready_for_coding' %}
             <span class="badge bg-primary">Ready for Coding</span>
             {% elif row.workflow_state == 'screening_pending' %}
@@ -225,6 +590,12 @@
           <td>
             <a href="{{ url_for('va_cta.va_calltoaction', va_action='vadata', va_actiontype='vaview', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
               View
+            </a>
+            <a href="{{ url_for('va_main.va_data_manager_submission_odk_edit', va_sid=row.va_sid) }}"
+               class="btn btn-sm btn-outline-secondary"
+               target="_blank"
+               rel="noopener noreferrer">
+              Edit
             </a>
             <button type="button"
                     class="btn btn-sm btn-outline-secondary dm-refresh-submission-btn"
@@ -246,13 +617,39 @@
       const siteFilter = $('#dm-site-filter');
       const openSyncModalButton = $('#dm-open-sync-modal-btn');
       const syncConfirmModalEl = document.getElementById('dm-sync-confirm-modal');
+      const syncModalJq = $('#dm-sync-confirm-modal');
       const syncConfirmModal = new bootstrap.Modal(syncConfirmModalEl);
       const syncSummaryProjects = $('#dm-sync-summary-projects');
       const syncSummarySites = $('#dm-sync-summary-sites');
       const syncSummaryCount = $('#dm-sync-summary-count');
       const syncSummaryForms = $('#dm-sync-summary-forms');
       const syncConfirmButton = $('#dm-sync-confirm-btn');
+      const syncPreviewStatus = $('#dm-sync-preview-status');
+      const syncPreviewRows = $('#dm-sync-preview-rows');
+      const syncPreviewTotalForms = $('#dm-preview-total-forms');
+      const syncPreviewNewFetch = $('#dm-preview-new-fetch');
+      const syncPreviewUpdated = $('#dm-preview-updated');
+      const syncPreviewMissingInOdk = $('#dm-preview-missing-in-odk');
+      const syncResultsRows = $('#dm-sync-results-rows');
+      const syncResultsRefresh = $('#dm-sync-results-refresh');
+      const tableSearch = $('#dm-table-search');
+      const tableProjectFilter = $('#dm-table-project-filter');
+      const tableSiteFilter = $('#dm-table-site-filter');
+      const tableDateFrom = $('#dm-table-date-from');
+      const tableDateTo = $('#dm-table-date-to');
+      const tableOdkFilter = $('#dm-table-odk-filter');
+      const tableSmartvaFilter = $('#dm-table-smartva-filter');
+      const tableSyncFilter = $('#dm-table-sync-filter');
+      const tableWorkflowFilter = $('#dm-table-workflow-filter');
+      const tableClearFilters = $('#dm-table-clear-filters');
+      const viewFlaggedButton = $('#dm-view-flagged-btn');
+      const viewOdkIssuesButton = $('#dm-view-odk-issues-btn');
+      const viewSmartvaMissingButton = $('#dm-view-smartva-missing-btn');
+      const columnToggles = $('.dm-column-toggle');
+      const filterCollapseEl = document.getElementById('dm-filter-collapse');
       let pendingSyncForms = [];
+      let syncResultsPoll = null;
+      let workflowQuickFilter = '';
 
       function currentProjectSelection() {
         return projectFilter.val() || [];
@@ -303,6 +700,84 @@
         });
       }
 
+      function formatTimestamp(value) {
+        if (!value) {
+          return '-';
+        }
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return value;
+        }
+        return new Intl.DateTimeFormat([], {
+          year: 'numeric',
+          month: 'short',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZoneName: 'short'
+        }).format(date);
+      }
+
+      function renderSyncPreview(preview) {
+        syncPreviewTotalForms.text(preview.totals.forms || 0);
+        syncPreviewNewFetch.text(preview.totals.new_fetch_candidates || 0);
+        syncPreviewUpdated.text(preview.totals.updated_candidates || 0);
+        syncPreviewMissingInOdk.text(preview.totals.missing_in_odk_flags || 0);
+        syncPreviewRows.empty();
+
+        if (!preview.forms.length) {
+          syncPreviewRows.append('<tr><td colspan="6" class="text-muted">No forms match the selected scope.</td></tr>');
+          return;
+        }
+
+        preview.forms.forEach(function (form) {
+          syncPreviewRows.append(
+            '<tr>'
+            + '<td>' + form.project_id + ' / ' + form.site_id + ' (' + form.form_id + ')</td>'
+            + '<td>' + (form.local_submissions || 0) + '</td>'
+            + '<td>' + (form.odk_submissions || 0) + '</td>'
+            + '<td>' + (form.new_fetch_candidates || 0) + '</td>'
+            + '<td>' + (form.updated_candidates == null ? '-' : form.updated_candidates) + '</td>'
+            + '<td>' + (form.missing_in_odk_flags || 0) + '</td>'
+            + '</tr>'
+          );
+        });
+      }
+
+      function renderSyncResults(runs) {
+        syncResultsRows.empty();
+        if (!runs.length) {
+          syncResultsRows.append('<tr><td colspan="7" class="text-muted">No sync runs yet.</td></tr>');
+          return;
+        }
+
+        runs.forEach(function (run) {
+          const latestEntry = (run.entries && run.entries.length)
+            ? run.entries[run.entries.length - 1].msg
+            : '-';
+          const statusBadge = run.status === 'success'
+            ? '<span class="badge bg-success">Success</span>'
+            : run.status === 'running'
+              ? '<span class="badge bg-primary">Running</span>'
+              : run.status === 'partial'
+                ? '<span class="badge bg-warning text-dark">Partial</span>'
+                : '<span class="badge bg-danger">Error</span>';
+
+          syncResultsRows.append(
+            '<tr>'
+            + '<td>' + (run.target || '-') + '</td>'
+            + '<td>' + statusBadge + '</td>'
+            + '<td>' + formatTimestamp(run.started_at) + '</td>'
+            + '<td>' + formatTimestamp(run.finished_at) + '</td>'
+            + '<td>' + (run.records_added == null ? '-' : run.records_added) + '</td>'
+            + '<td>' + (run.records_updated == null ? '-' : run.records_updated) + '</td>'
+            + '<td class="small">' + (run.error_message || latestEntry || '-') + '</td>'
+            + '</tr>'
+          );
+        });
+      }
+
       function refreshSiteOptions() {
         const selectedProjects = currentProjectSelection();
         const previouslySelectedSites = new Set(currentSiteSelection());
@@ -337,14 +812,16 @@
         theme: 'bootstrap-5',
         width: '100%',
         placeholder: 'All projects',
-        closeOnSelect: false
+        closeOnSelect: false,
+        dropdownParent: syncModalJq
       });
 
       siteFilter.select2({
         theme: 'bootstrap-5',
         width: '100%',
         placeholder: 'All sites',
-        closeOnSelect: false
+        closeOnSelect: false,
+        dropdownParent: syncModalJq
       });
 
       $('[data-bs-toggle="tooltip"]').each(function () {
@@ -353,23 +830,145 @@
 
       const dmTable = $('#dmTable').DataTable({
         pageLength: 25,
-        order: [[0, 'asc'], [1, 'asc'], [2, 'desc']]
+        order: [[0, 'asc'], [1, 'asc'], [2, 'desc']],
+        columnDefs: [
+          { targets: [0, 4, 10], visible: false }
+        ]
+      });
+
+      columnToggles.each(function () {
+        const checkbox = $(this);
+        const columnIndex = Number(checkbox.data('column-index'));
+        checkbox.prop('checked', dmTable.column(columnIndex).visible());
+      });
+
+      columnToggles.on('change', function () {
+        const checkbox = $(this);
+        const columnIndex = Number(checkbox.data('column-index'));
+        dmTable.column(columnIndex).visible(checkbox.is(':checked'));
+      });
+
+      $.fn.dataTable.ext.search.push(function (settings, data) {
+        if (settings.nTable !== dmTable.table().node()) {
+          return true;
+        }
+        const fromValue = tableDateFrom.val();
+        const toValue = tableDateTo.val();
+        if (!fromValue && !toValue) {
+          return true;
+        }
+
+        const submissionDate = data[2];
+        if (!submissionDate) {
+          return false;
+        }
+
+        const rowDate = new Date(submissionDate + 'T00:00:00');
+        if (Number.isNaN(rowDate.getTime())) {
+          return false;
+        }
+
+        if (fromValue) {
+          const fromDate = new Date(fromValue + 'T00:00:00');
+          if (rowDate < fromDate) {
+            return false;
+          }
+        }
+
+        if (toValue) {
+          const toDate = new Date(toValue + 'T23:59:59');
+          if (rowDate > toDate) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+
+      function applyTableFilters() {
+        dmTable.search(tableSearch.val() || '');
+        dmTable.column(0).search(tableProjectFilter.val() || '', true, false);
+        dmTable.column(1).search(tableSiteFilter.val() || '', true, false);
+        dmTable.column(6).search(tableSmartvaFilter.val() || '', false, false);
+        dmTable.column(7).search(tableOdkFilter.val() || '', false, false);
+        dmTable.column(8).search(tableSyncFilter.val() || '', false, false);
+        dmTable.column(9).search(workflowQuickFilter || tableWorkflowFilter.val() || '', Boolean(workflowQuickFilter), false);
+        dmTable.draw();
+      }
+
+      function resetTableFilters() {
+        tableSearch.val('');
+        tableProjectFilter.val('');
+        tableSiteFilter.val('');
+        tableDateFrom.val('');
+        tableDateTo.val('');
+        tableOdkFilter.val('');
+        tableSmartvaFilter.val('');
+        tableSyncFilter.val('');
+        tableWorkflowFilter.val('');
+        workflowQuickFilter = '';
+        dmTable.column(6).search('', false, false);
+      }
+
+      tableSearch.on('input', applyTableFilters);
+      tableProjectFilter.on('change', applyTableFilters);
+      tableSiteFilter.on('change', applyTableFilters);
+      tableDateFrom.on('change', applyTableFilters);
+      tableDateTo.on('change', applyTableFilters);
+      tableOdkFilter.on('change', applyTableFilters);
+      tableSmartvaFilter.on('change', applyTableFilters);
+      tableSyncFilter.on('change', applyTableFilters);
+      tableWorkflowFilter.on('change', applyTableFilters);
+      tableClearFilters.on('click', function () {
+        resetTableFilters();
+        applyTableFilters();
+      });
+
+      viewFlaggedButton.on('click', function () {
+        resetTableFilters();
+        workflowQuickFilter = 'Flagged by Data Manager|Not Codeable By Coder';
+        applyTableFilters();
+        bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false }).show();
+      });
+
+      viewOdkIssuesButton.on('click', function () {
+        resetTableFilters();
+        tableOdkFilter.val('Has Issues');
+        applyTableFilters();
+        bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false }).show();
+      });
+
+      viewSmartvaMissingButton.on('click', function () {
+        resetTableFilters();
+        dmTable.column(6).search('Missing', false, false);
+        applyTableFilters();
+        bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false }).show();
       });
 
       projectFilter.on('change', function () {
         refreshSiteOptions();
         renderSyncSummary(formsMatchingSelection());
+        loadPreview();
       });
 
       siteFilter.on('change', function () {
         renderSyncSummary(formsMatchingSelection());
+        loadPreview();
       });
 
       openSyncModalButton.on('click', function () {
         refreshSiteOptions();
         renderSyncSummary(formsMatchingSelection());
+        loadPreview();
         syncConfirmModal.show();
       });
+
+      syncConfirmModalEl.addEventListener('shown.bs.modal', function () {
+        projectFilter.select2('close');
+        siteFilter.select2('close');
+      });
+
+      syncResultsRefresh.on('click', loadSyncResults);
 
       function postJson(url) {
         return fetch(url, {
@@ -383,6 +982,79 @@
             return payload;
           });
         });
+      }
+
+      function postPreview(projectIds, siteIds) {
+        return fetch('/vadashboard/data-manager/api/sync/preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+          },
+          body: JSON.stringify({
+            project_ids: projectIds,
+            site_ids: siteIds
+          })
+        }).then(function (response) {
+          return response.json().then(function (payload) {
+            if (!response.ok) {
+              throw new Error(payload.error || 'Preview failed.');
+            }
+            return payload;
+          });
+        });
+      }
+
+      function loadPreview() {
+        const selectedProjects = currentProjectSelection();
+        const selectedSites = currentSiteSelection();
+        if (!selectedProjects.length) {
+          syncPreviewStatus.text('Select at least one project to load preview.');
+          renderSyncPreview({ totals: { forms: 0, new_fetch_candidates: 0, updated_candidates: 0, missing_in_odk_flags: 0 }, forms: [] });
+          return;
+        }
+        syncPreviewStatus.text('Loading live ODK preview…');
+        postPreview(selectedProjects, selectedSites)
+          .then(function (payload) {
+            renderSyncPreview(payload);
+            syncPreviewStatus.text('Live preview loaded from timezone-aware current sync context.');
+          })
+          .catch(function (err) {
+            syncPreviewStatus.text(err.message);
+            syncPreviewRows.empty().append(
+              '<tr><td colspan="6" class="text-danger">' + err.message + '</td></tr>'
+            );
+          });
+      }
+
+      function loadSyncResults() {
+        return fetch('/vadashboard/data-manager/api/sync/runs')
+          .then(function (response) {
+            return response.json().then(function (payload) {
+              if (!response.ok) {
+                throw new Error(payload.error || 'Failed to load sync results.');
+              }
+              return payload;
+            });
+          })
+          .then(function (payload) {
+            const runs = payload.runs || [];
+            renderSyncResults(runs);
+            const hasRunning = runs.some(function (run) {
+              return run.status === 'running';
+            });
+            if (hasRunning && !syncResultsPoll) {
+              syncResultsPoll = window.setInterval(loadSyncResults, 5000);
+            } else if (!hasRunning && syncResultsPoll) {
+              window.clearInterval(syncResultsPoll);
+              syncResultsPoll = null;
+            }
+          })
+          .catch(function (err) {
+            syncResultsRows.empty().append(
+              '<tr><td colspan="7" class="text-danger">' + err.message + '</td></tr>'
+            );
+          });
       }
 
       async function syncFormsSequentially(forms) {
@@ -407,6 +1079,7 @@
         try {
           await syncFormsSequentially(pendingSyncForms);
           syncConfirmModal.hide();
+          loadSyncResults();
           if (window.showAppToast) {
             window.showAppToast(
               'Started sync for ' + pendingSyncForms.length + ' form' + (pendingSyncForms.length === 1 ? '' : 's') + '.',
@@ -434,6 +1107,8 @@
             if (window.showAppToast) window.showAppToast(err.message, 'danger');
           });
       });
+
+      loadSyncResults();
     });
   </script>
 {% endblock %}

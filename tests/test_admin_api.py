@@ -1,7 +1,7 @@
 import uuid
 import unittest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import sqlalchemy as sa
 
@@ -10,9 +10,12 @@ from app.models import (
     MasOdkConnections,
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaForms,
     VaProjectMaster,
     VaProjectSites,
+    VaResearchProjects,
     VaSiteMaster,
+    VaSites,
     VaStatuses,
     VaSyncRun,
     VaUserAccessGrants,
@@ -81,11 +84,56 @@ class AdminApiTests(BaseTestCase):
                     site_registered_at=now,
                     site_updated_at=now,
                 ),
+                VaResearchProjects(
+                    project_id=cls.project_id,
+                    project_code=cls.project_id,
+                    project_name="Admin API Test Project",
+                    project_nickname="AdminApiTest",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                ),
+                VaResearchProjects(
+                    project_id=cls.other_project_id,
+                    project_code=cls.other_project_id,
+                    project_name="Admin API Other Project",
+                    project_nickname="AdminApiOther",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                ),
             ]
         )
-        db.session.flush()
+        db.session.commit()
         db.session.add_all(
             [
+                VaSites(
+                    site_id=cls.site_a,
+                    project_id=cls.project_id,
+                    site_name="Admin API Site A",
+                    site_abbr=cls.site_a,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                ),
+                VaSites(
+                    site_id=cls.site_b,
+                    project_id=cls.project_id,
+                    site_name="Admin API Site B",
+                    site_abbr=cls.site_b,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                ),
+                VaSites(
+                    site_id=cls.other_site,
+                    project_id=cls.other_project_id,
+                    site_name="Admin API Other Site",
+                    site_abbr=cls.other_site,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                ),
                 VaProjectSites(
                     project_id=cls.project_id,
                     site_id=cls.site_a,
@@ -99,6 +147,22 @@ class AdminApiTests(BaseTestCase):
                     project_site_status=VaStatuses.active,
                     project_site_registered_at=now,
                     project_site_updated_at=now,
+                ),
+            ]
+        )
+        db.session.commit()
+        db.session.add_all(
+            [
+                VaForms(
+                    form_id="ADM001AA0101",
+                    project_id=cls.project_id,
+                    site_id=cls.site_a,
+                    odk_form_id="ADMIN_API_FORM_A",
+                    odk_project_id="11",
+                    form_type="WHO VA 2022",
+                    form_status=VaStatuses.active,
+                    form_registered_at=now,
+                    form_updated_at=now,
                 ),
             ]
         )
@@ -716,6 +780,74 @@ class AdminApiTests(BaseTestCase):
             "task-123",
             terminate=True,
             signal="SIGTERM",
+        )
+
+    def test_admin_can_trigger_attachment_cache_backfill(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        with patch(
+            "app.tasks.sync_tasks.run_attachment_cache_backfill.delay"
+        ) as mocked_delay:
+            mocked_delay.return_value.id = "task-attachment-backfill"
+
+            response = self.client.post(
+                "/admin/api/sync/attachment-backfill",
+                headers=headers,
+                json={"project_id": self.project_id, "site_id": self.site_a},
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(
+            response.get_json()["message"],
+            "Attachment cache backfill started.",
+        )
+        mocked_delay.assert_called_once()
+        self.assertEqual(
+            mocked_delay.call_args.kwargs["triggered_by"],
+            "attach_backfill",
+        )
+        self.assertEqual(
+            mocked_delay.call_args.kwargs["project_id"],
+            self.project_id,
+        )
+        self.assertEqual(
+            mocked_delay.call_args.kwargs["site_id"],
+            self.site_a,
+        )
+
+    def test_sync_status_returns_null_schedule_when_beat_tables_missing(self):
+        self._login(self.admin_user_id)
+
+        with patch("app.routes.admin.db.engine.connect") as mocked_connect:
+            mocked_conn = MagicMock()
+            mocked_connect.return_value.__enter__.return_value = mocked_conn
+            mocked_conn.execute.return_value.scalar.return_value = False
+
+            response = self.client.get("/admin/api/sync/status")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.get_json()["schedule_hours"])
+
+    def test_sync_schedule_returns_503_when_beat_tables_missing(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        with patch("app.routes.admin.db.engine.begin") as mocked_begin:
+            mocked_conn = MagicMock()
+            mocked_begin.return_value.__enter__.return_value = mocked_conn
+            mocked_conn.execute.return_value.scalar.return_value = False
+
+            response = self.client.post(
+                "/admin/api/sync/schedule",
+                headers=headers,
+                json={"interval_hours": 6},
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.get_json()["error"],
+            "Celery Beat schedule tables are not initialized yet.",
         )
 
     def test_sync_status_includes_odk_connection_alerts(self):

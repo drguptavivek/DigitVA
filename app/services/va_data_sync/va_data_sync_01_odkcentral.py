@@ -181,6 +181,52 @@ def _normalize_consent(raw_value) -> str:
     return str(raw_value).strip()
 
 
+def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=None):
+    """Attach all ODK review comments to fetched submissions.
+
+    Only submissions currently in ODK `hasIssues` state fetch comments.
+    The comments are stored in `OdkReviewComments` sorted newest first.
+    """
+    if not submissions:
+        return submissions
+
+    client = client or va_odk_clientsetup(project_id=va_form.project_id)
+    for submission in submissions:
+        submission["OdkReviewComments"] = []
+        if submission.get("ReviewState") != "hasIssues":
+            continue
+
+        instance_id = submission.get("KEY")
+        if not instance_id:
+            continue
+
+        comments = _run_with_odk_connectivity_backoff(
+            f"[{va_form.form_id}] review comments",
+            lambda _attempt: list(
+                client.submissions.list_comments(
+                    instance_id=instance_id,
+                    form_id=va_form.odk_form_id,
+                    project_id=int(va_form.odk_project_id),
+                )
+            ),
+            log_progress=log_progress,
+        )
+        if comments:
+            submission["OdkReviewComments"] = [
+                {
+                    "body": comment.body,
+                    "created_at": comment.createdAt.isoformat(),
+                }
+                for comment in sorted(
+                    comments,
+                    key=lambda comment: comment.createdAt,
+                    reverse=True,
+                )
+            ]
+
+    return submissions
+
+
 def _mark_form_sync_issues(va_form, odk_instance_ids: list[str], *, by_role: str = "vaadmin"):
     """Mark local submissions that no longer exist in ODK for a form."""
     expected_sids = {
@@ -254,6 +300,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
         )
         va_submission_datacollector  = va_submission.get("SubmitterName")
         va_submission_reviewstate    = va_submission.get("ReviewState")
+        va_submission_reviewcomments = va_submission.get("OdkReviewComments")
         va_submission_instancename   = va_submission.get("instanceName")
         va_submission_uniqueid       = va_submission.get("unique_id")
         va_submission_uniqueidmask   = va_submission.get("unique_id2")
@@ -282,6 +329,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             existing.va_odk_updatedat      = va_submission_updatedat
             existing.va_data_collector     = va_submission_datacollector
             existing.va_odk_reviewstate    = va_submission_reviewstate
+            existing.va_odk_reviewcomments = va_submission_reviewcomments
             existing.va_instance_name      = va_submission_instancename
             existing.va_uniqueid_real      = va_submission_uniqueid
             existing.va_uniqueid_masked    = va_submission_uniqueidmask
@@ -418,6 +466,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                     va_odk_updatedat=va_submission_updatedat,
                     va_data_collector=va_submission_datacollector,
                     va_odk_reviewstate=va_submission_reviewstate,
+                    va_odk_reviewcomments=va_submission_reviewcomments,
                     va_instance_name=va_submission_instancename,
                     va_uniqueid_real=va_submission_uniqueid,
                     va_uniqueid_masked=va_submission_uniqueidmask,
@@ -596,6 +645,12 @@ def va_data_sync_odkcentral(log_progress=None):
                             va_form, batch_ids, client=odk_client,
                         )
                         if batch_records:
+                            batch_records = _attach_all_odk_comments(
+                                va_form,
+                                batch_records,
+                                client=odk_client,
+                                log_progress=_progress,
+                            )
                             upserted_map_batch: dict[str, str] = {}
                             b_added, b_updated, b_discarded, b_skipped = _upsert_form_submissions(
                                 va_form, batch_records, amended_sids, upserted_map_batch
@@ -666,6 +721,12 @@ def va_data_sync_odkcentral(log_progress=None):
                 media_dir = os.path.join(form_dir, "media")
                 os.makedirs(media_dir, exist_ok=True)
                 va_odk_write_form_csv(va_submissions_raw, va_form, form_dir)
+                va_submissions_raw = _attach_all_odk_comments(
+                    va_form,
+                    va_submissions_raw,
+                    client=odk_client,
+                    log_progress=_progress,
+                )
 
                 # Upsert submissions for this form only
                 log.info("DataSync [Upserting submissions: %s].", va_form.form_id)

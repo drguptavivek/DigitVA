@@ -25,6 +25,7 @@ from app.models import (
     MapProjectOdk,
     MapProjectSiteOdk,
     VaForms,
+    VaSyncRun,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
@@ -3464,7 +3465,26 @@ def admin_panel_sync():
     user = _request_user()
     if not user.is_admin():
         return render_template("va_errors/va_403.html"), 403
-    return render_template("admin/panels/sync_dashboard.html")
+    sync_forms = [
+        {
+            "form_id": row.form_id,
+            "project_id": row.project_id,
+            "site_id": row.site_id,
+            "site_name": row.site_name or row.site_id,
+        }
+        for row in db.session.execute(
+            sa.select(
+                VaForms.form_id,
+                VaForms.project_id,
+                VaForms.site_id,
+                VaSiteMaster.site_name,
+            )
+            .select_from(VaForms)
+            .outerjoin(VaSiteMaster, VaSiteMaster.site_id == VaForms.site_id)
+            .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
+        ).mappings().all()
+    ]
+    return render_template("admin/panels/sync_dashboard.html", sync_forms=sync_forms)
 
 
 @admin.get("/panels/activity")
@@ -3609,7 +3629,6 @@ def admin_sync_history():
 @require_api_role("admin")
 def admin_sync_trigger():
     try:
-        from app.models.va_sync_runs import VaSyncRun
         from app.tasks.sync_tasks import run_odk_sync
 
         running = db.session.scalar(
@@ -3632,6 +3651,51 @@ def admin_sync_trigger():
         return _json_error(f"Failed to trigger sync: {str(e)}", 500)
 
 
+@admin.post("/api/sync/attachment-backfill")
+@require_api_role("admin")
+def admin_attachment_backfill_trigger():
+    try:
+        from app.tasks.sync_tasks import run_attachment_cache_backfill
+
+        running = db.session.scalar(
+            sa.select(VaSyncRun.sync_run_id)
+            .where(VaSyncRun.status == "running")
+            .limit(1)
+        )
+        if running:
+            return _json_error("A sync or backfill task is already in progress.", 409)
+
+        data = request.get_json(silent=True) or {}
+        project_id = (data.get("project_id") or "").strip().upper() or None
+        site_id = (data.get("site_id") or "").strip().upper() or None
+        form_id = (data.get("form_id") or "").strip().upper() or None
+
+        if form_id:
+            form_row = db.session.get(VaForms, form_id)
+            if form_row is None:
+                return _json_error("Selected form was not found.", 404)
+            project_id = form_row.project_id
+            site_id = form_row.site_id
+
+        user = _request_user()
+        task = run_attachment_cache_backfill.delay(
+            project_id=project_id,
+            site_id=site_id,
+            form_id=form_id,
+            triggered_by="attach_backfill",
+            user_id=str(user.user_id) if user else None,
+        )
+        return jsonify(
+            {
+                "message": "Attachment cache backfill started.",
+                "task_id": task.id,
+            }
+        ), 202
+    except Exception as e:
+        log.error("admin_attachment_backfill_trigger failed", exc_info=True)
+        return _json_error(f"Failed to trigger attachment backfill: {str(e)}", 500)
+
+
 @admin.post("/api/sync/stop")
 @require_api_role("admin")
 def admin_sync_stop():
@@ -3651,6 +3715,7 @@ def admin_sync_stop():
             "app.tasks.sync_tasks.run_smartva_pending",
             "app.tasks.sync_tasks.run_single_form_sync",
             "app.tasks.sync_tasks.run_single_submission_sync",
+            "app.tasks.sync_tasks.run_attachment_cache_backfill",
         }
         active_task_ids = []
         for tasks in active_by_worker.values():
@@ -3704,6 +3769,17 @@ def admin_sync_schedule():
 
     try:
         with db.engine.begin() as conn:
+            tables_ready = conn.execute(sa.text("""
+                SELECT
+                    to_regclass('public.celery_periodictask') IS NOT NULL
+                    AND to_regclass('public.celery_intervalschedule') IS NOT NULL
+                    AND to_regclass('public.celery_periodictaskchanged') IS NOT NULL
+            """)).scalar()
+            if not tables_ready:
+                return _json_error(
+                    "Celery Beat schedule tables are not initialized yet.",
+                    503,
+                )
             interval_id = conn.execute(sa.text(
                 "SELECT id FROM public.celery_intervalschedule "
                 "WHERE every = :h AND period = 'hours' LIMIT 1"
@@ -4062,6 +4138,13 @@ def _get_sync_schedule_hours() -> int | None:
     """Return the configured sync interval in hours, or None if not set."""
     try:
         with db.engine.connect() as conn:
+            tables_ready = conn.execute(sa.text("""
+                SELECT
+                    to_regclass('public.celery_periodictask') IS NOT NULL
+                    AND to_regclass('public.celery_intervalschedule') IS NOT NULL
+            """)).scalar()
+            if not tables_ready:
+                return None
             row = conn.execute(sa.text("""
                 SELECT i.every
                 FROM public.celery_periodictask t

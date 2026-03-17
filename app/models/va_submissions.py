@@ -24,6 +24,9 @@ class VaSubmissions(db.Model):
     va_odk_reviewstate: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(16), nullable=True, index=True
     )
+    va_odk_reviewcomments: so.Mapped[Optional[list[dict]]] = so.mapped_column(
+        JSONB, nullable=True
+    )
     va_sync_issue_code: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(32), nullable=True, index=True
     )

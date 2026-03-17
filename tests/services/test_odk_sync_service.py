@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 from app import db
 from app.models import (
@@ -13,6 +15,7 @@ from app.models import (
 )
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     SYNC_ISSUE_MISSING_IN_ODK,
+    _attach_all_odk_comments,
     _mark_form_sync_issues,
     _upsert_form_submissions,
 )
@@ -180,3 +183,64 @@ class OdkSyncServiceTests(BaseTestCase):
 
         stored = db.session.get(VaSubmissions, sid)
         self.assertEqual(stored.va_sync_issue_code, SYNC_ISSUE_MISSING_IN_ODK)
+
+    def test_attach_all_odk_comments_adds_all_has_issues_comments(self):
+        client = Mock()
+        client.submissions.list_comments.return_value = [
+            SimpleNamespace(
+                body="Older review note",
+                createdAt=datetime(2026, 3, 17, 10, 0, tzinfo=timezone.utc),
+            ),
+            SimpleNamespace(
+                body="Newest review note",
+                createdAt=datetime(2026, 3, 18, 12, 0, tzinfo=timezone.utc),
+            ),
+        ]
+
+        submissions = _attach_all_odk_comments(
+            db.session.get(VaForms, self.FORM_ID),
+            [self._record("uuid:sync-comment", "yes")],
+            client=client,
+        )
+
+        self.assertEqual(
+            submissions[0]["OdkReviewComments"],
+            [
+                {
+                    "body": "Newest review note",
+                    "created_at": "2026-03-18T12:00:00+00:00",
+                },
+                {
+                    "body": "Older review note",
+                    "created_at": "2026-03-17T10:00:00+00:00",
+                },
+            ],
+        )
+
+    def test_upsert_persists_all_odk_review_comments(self):
+        amended_sids = set()
+        record = self._record("uuid:sync-comment-store", "yes")
+        record["OdkReviewComments"] = [
+            {"body": "Field team should fix respondent age."},
+            {"body": "Village name is missing."},
+        ]
+
+        _upsert_form_submissions(
+            db.session.get(VaForms, self.FORM_ID),
+            [record],
+            amended_sids,
+            {},
+        )
+        db.session.commit()
+
+        stored = db.session.get(
+            VaSubmissions,
+            f"uuid:sync-comment-store-{self.FORM_ID.lower()}",
+        )
+        self.assertEqual(
+            stored.va_odk_reviewcomments,
+            [
+                {"body": "Field team should fix respondent age."},
+                {"body": "Village name is missing."},
+            ],
+        )

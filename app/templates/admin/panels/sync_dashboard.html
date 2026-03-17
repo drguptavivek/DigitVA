@@ -71,6 +71,45 @@
     </div>
   </div>
 
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-secondary">
+          <i class="fa-solid fa-paperclip me-1"></i>Backfill Attachment Cache
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" id="sync-attachment-backfill-btn">
+          <i class="fa-solid fa-database me-1"></i>Start Backfill
+        </button>
+      </div>
+      <div class="small text-muted mb-3">
+        Populate `va_submission_attachments` from attachment filenames already referenced in submission data and present in local form media folders.
+      </div>
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label small mb-1" for="sync-backfill-project">Project</label>
+          <select class="form-select form-select-sm" id="sync-backfill-project">
+            <option value="">All projects</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-1" for="sync-backfill-site">Site</label>
+          <select class="form-select form-select-sm" id="sync-backfill-site">
+            <option value="">All sites</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small mb-1" for="sync-backfill-form">Form</label>
+          <select class="form-select form-select-sm" id="sync-backfill-form">
+            <option value="">All forms in scope</option>
+          </select>
+        </div>
+      </div>
+      <div class="small text-muted mt-2" id="sync-backfill-scope-label">
+        Select a project, site, or exact form to scope the backfill.
+      </div>
+    </div>
+  </div>
+
   {# SmartVA status #}
   <div class="card mb-3">
     <div class="card-body py-3">
@@ -122,14 +161,7 @@
 (function () {
   'use strict';
 
-  // Prevent double initialization - use a persistent running flag
-  if (window._syncDashboardRunning) {
-    console.log('[sync_dashboard] Already running, skipping re-initialization');
-    return;
-  }
-  window._syncDashboardRunning = true;
-
-  // Clean up any previous intervals from prior script executions
+  // Always clear prior dashboard intervals before wiring the current panel.
   if (window._syncDashboardIntervals) {
     console.log('[sync_dashboard] Clearing ' + window._syncDashboardIntervals.length + ' old intervals');
     window._syncDashboardIntervals.forEach(function(id) { clearInterval(id); });
@@ -144,6 +176,7 @@
   }
 
   function csrf() { return window._adminCsrf || ''; }
+  var syncForms = {{ (sync_forms or [])|tojson }};
 
   function apiJson(url, method, body) {
     var m = method || 'GET';
@@ -158,6 +191,26 @@
 
   function esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function uniqueValues(values) {
+    return Array.from(new Set(values)).sort();
+  }
+
+  function setOptions(selectEl, items, placeholder, selectedValue) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '';
+    var first = document.createElement('option');
+    first.value = '';
+    first.textContent = placeholder;
+    selectEl.appendChild(first);
+    items.forEach(function (item) {
+      var opt = document.createElement('option');
+      opt.value = item.value;
+      opt.textContent = item.label;
+      if (selectedValue && selectedValue === item.value) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
   }
 
   function fmtDuration(secs) {
@@ -301,17 +354,17 @@
       wrap.innerHTML = '<div class="d-flex align-items-center gap-2 flex-wrap">' + parts.join('') + '</div>'
         + renderConnectionAlerts(d.odk_connection_alerts || []);
 
-      // Poll while running; otherwise check every 30s
+      // Poll faster while running; otherwise back off to reduce dashboard noise
       clearInterval(_statusInterval);
       _statusInterval = trackedInterval(function () {
         loadStatus();
         if (d.is_running) loadHistory();
-      }, d.is_running ? 5000 : 30000);
+      }, d.is_running ? 15000 : 60000);
 
       // Progress polling and SmartVA stats refresh on run state changes
-      if (d.is_running && !_wasRunning) {
+      if (d.is_running && !_progressInterval) {
         if (!_progressInterval) startProgressPolling();
-      } else if (!d.is_running && _wasRunning && Date.now() > _triggerGraceUntil) {
+      } else if (!d.is_running && _progressInterval && Date.now() > _triggerGraceUntil) {
         stopProgressPolling();
         loadSmartvaStats();
       }
@@ -341,6 +394,74 @@
       var wrap = document.getElementById('sync-status-wrap');
       if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
     });
+  }
+
+  function currentBackfillScope() {
+    var projectId = document.getElementById('sync-backfill-project')?.value || '';
+    var siteId = document.getElementById('sync-backfill-site')?.value || '';
+    var formId = document.getElementById('sync-backfill-form')?.value || '';
+    return { project_id: projectId, site_id: siteId, form_id: formId };
+  }
+
+  function formsMatchingBackfillScope(scope) {
+    return syncForms.filter(function (form) {
+      var projectMatch = !scope.project_id || form.project_id === scope.project_id;
+      var siteMatch = !scope.site_id || form.site_id === scope.site_id;
+      var formMatch = !scope.form_id || form.form_id === scope.form_id;
+      return projectMatch && siteMatch && formMatch;
+    });
+  }
+
+  function refreshBackfillSelectors() {
+    var projectSel = document.getElementById('sync-backfill-project');
+    var siteSel = document.getElementById('sync-backfill-site');
+    var formSel = document.getElementById('sync-backfill-form');
+    if (!projectSel || !siteSel || !formSel) return;
+
+    var projectValue = projectSel.value || '';
+    var siteValue = siteSel.value || '';
+    var formValue = formSel.value || '';
+
+    setOptions(
+      projectSel,
+      uniqueValues(syncForms.map(function (form) { return form.project_id; })).map(function (value) {
+        return { value: value, label: value };
+      }),
+      'All projects',
+      projectValue
+    );
+
+    var siteItems = uniqueValues(
+      syncForms
+        .filter(function (form) { return !projectSel.value || form.project_id === projectSel.value; })
+        .map(function (form) { return form.site_id + '||' + (form.site_name || form.site_id); })
+    ).map(function (value) {
+      var parts = value.split('||');
+      return { value: parts[0], label: parts[0] + ' - ' + parts[1] };
+    });
+    setOptions(siteSel, siteItems, 'All sites', siteValue);
+
+    var formItems = syncForms
+      .filter(function (form) {
+        return (!projectSel.value || form.project_id === projectSel.value)
+          && (!siteSel.value || form.site_id === siteSel.value);
+      })
+      .map(function (form) {
+        return {
+          value: form.form_id,
+          label: form.form_id + ' (' + form.project_id + ' / ' + form.site_id + ')'
+        };
+      });
+    setOptions(formSel, formItems, 'All forms in scope', formValue);
+
+    var scope = currentBackfillScope();
+    var matchedForms = formsMatchingBackfillScope(scope);
+    var label = document.getElementById('sync-backfill-scope-label');
+    if (label) {
+      label.textContent = matchedForms.length
+        ? matchedForms.length + ' form' + (matchedForms.length === 1 ? '' : 's') + ' matched for backfill.'
+        : 'No forms matched the selected scope.';
+    }
   }
 
   // ── Coverage ───────────────────────────────────────────────────────────────
@@ -627,7 +748,7 @@
 
   function startProgressPolling() {
     if (_progressInterval) clearInterval(_progressInterval);
-    _progressInterval = trackedInterval(loadProgress, 3000);
+    _progressInterval = trackedInterval(loadProgress, 5000);
     loadProgress();
   }
 
@@ -795,6 +916,58 @@
 
   document.getElementById('sync-coverage-refresh-btn').addEventListener('click', loadCoverage);
   document.getElementById('sync-smartva-refresh-btn').addEventListener('click', loadSmartvaStats);
+  document.getElementById('sync-backfill-project').addEventListener('change', refreshBackfillSelectors);
+  document.getElementById('sync-backfill-site').addEventListener('change', refreshBackfillSelectors);
+  document.getElementById('sync-backfill-form').addEventListener('change', refreshBackfillSelectors);
+  document.getElementById('sync-attachment-backfill-btn').addEventListener('click', function () {
+    var btn = this;
+    var scope = currentBackfillScope();
+    var matchedForms = formsMatchingBackfillScope(scope);
+    if (!matchedForms.length) {
+      showToast('No forms matched the selected scope.', 'warning');
+      return;
+    }
+    if (!confirm(
+      'Start attachment cache backfill for ' + matchedForms.length + ' form'
+      + (matchedForms.length === 1 ? '' : 's') + '?\n\n'
+      + 'This scans existing local media files and creates missing attachment cache rows.\n'
+      + 'It does not re-download from ODK or delete local files.'
+    )) {
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Starting…';
+    apiJson('/admin/api/sync/attachment-backfill', 'POST', scope).then(function (res) {
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-database me-1"></i>Start Backfill';
+        showToast(res.data.error || 'Failed to start attachment backfill.', 'danger');
+        return;
+      }
+      _lastProgressRunId = null;
+      _triggerGraceUntil = Date.now() + 15000;
+      var card = document.getElementById('sync-progress-card');
+      var wrap = document.getElementById('sync-progress-wrap');
+      var label = document.getElementById('sync-progress-run-label');
+      if (card) card.style.display = '';
+      if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Starting attachment backfill…</span>';
+      if (label) label.textContent = 'attach_backfill · starting…';
+      startProgressPolling();
+      _wasRunning = true;
+      loadStatus();
+      loadHistory();
+      showToast('Attachment cache backfill started.', 'success');
+      setTimeout(function () {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-database me-1"></i>Start Backfill';
+      }, 3000);
+    }).catch(function () {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-database me-1"></i>Start Backfill';
+      showToast('Network error.', 'danger');
+    });
+  });
 
   // ── Toast helper ───────────────────────────────────────────────────────────
 
@@ -812,6 +985,7 @@
   loadHistory();
   loadSmartvaStats();
   loadProgress();
+  refreshBackfillSelectors();
 
 }());
 </script>

@@ -19,7 +19,8 @@ import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
-from app import db
+from flask import request as flask_request
+from app import db, limiter, cache
 from app.services.submission_analytics_mv import (
     MV_NAME,
     get_dm_kpi_from_mv,
@@ -79,6 +80,24 @@ def _require_data_manager():
     return None
 
 
+def _user_cache_key():
+    """Per-user cache key: endpoint + query string, namespaced by user ID."""
+    qs = flask_request.query_string.decode()
+    return f"analytics_api:{current_user.id}:{flask_request.endpoint}:{qs}"
+
+
+def _bust_user_analytics_cache():
+    """Delete all analytics cache entries for the current user."""
+    pattern = f"{cache.config.get('CACHE_KEY_PREFIX', '')}analytics_api:{current_user.id}:*"
+    try:
+        redis_client = cache.cache._write_client
+        keys = redis_client.keys(pattern)
+        if keys:
+            redis_client.delete(*keys)
+    except Exception as exc:
+        log.warning("Could not bust analytics cache for user %s: %s", current_user.id, exc)
+
+
 # ---------------------------------------------------------------------------
 # Resource: KPI
 # ---------------------------------------------------------------------------
@@ -86,6 +105,7 @@ def _require_data_manager():
 
 @analytics_api.get("/kpi")
 @login_required
+@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def kpi():
     """Headline KPI counts from the analytics MV, scoped to the user's grants.
 
@@ -116,6 +136,7 @@ def kpi():
 
 @analytics_api.get("/submissions/by-date")
 @login_required
+@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def submissions_by_date():
     """Submission counts grouped by calendar date.
 
@@ -149,6 +170,7 @@ def submissions_by_date():
 
 @analytics_api.get("/submissions/by-week")
 @login_required
+@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def submissions_by_week():
     """Submission counts grouped by ISO week start (Monday).
 
@@ -184,6 +206,7 @@ def submissions_by_week():
 
 @analytics_api.get("/submissions/by-month")
 @login_required
+@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def submissions_by_month():
     """Submission counts grouped by month start.
 
@@ -224,6 +247,7 @@ def submissions_by_month():
 
 @analytics_api.get("/demographics")
 @login_required
+@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def demographics():
     """Age-band and sex distribution from the analytics MV.
 
@@ -274,6 +298,7 @@ def demographics():
 
 @analytics_api.get("/workflow")
 @login_required
+@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def workflow():
     """Workflow-state breakdown from the analytics MV.
 
@@ -306,6 +331,7 @@ def workflow():
 
 @analytics_api.get("/cod")
 @login_required
+@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def cod():
     """Top cause-of-death ICD codes from the analytics MV.
 
@@ -365,6 +391,7 @@ def cod():
 
 @analytics_api.post("/mv/refresh")
 @login_required
+@limiter.limit("1 per minute")
 def mv_refresh():
     """Refresh the submission analytics materialized view on demand.
 
@@ -376,9 +403,10 @@ def mv_refresh():
         return err
 
     try:
-        refresh_submission_analytics_mv(concurrently=False)
+        refresh_submission_analytics_mv(concurrently=True)
     except Exception as exc:
         log.exception("On-demand analytics MV refresh failed: %s", exc)
         return jsonify({"error": "Analytics refresh failed. Check server logs."}), 500
 
+    _bust_user_analytics_cache()
     return jsonify({"message": "Analytics data refreshed successfully."}), 200

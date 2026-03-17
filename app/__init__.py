@@ -15,6 +15,7 @@ from flask_session import Session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
+from flask_caching import Cache
 from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config
 from celery import Celery, Task
@@ -29,6 +30,7 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"],
 )
 talisman = Talisman()
+cache = Cache()
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -57,6 +59,13 @@ def create_app(config_class=Config):
     # Initialize rate limiter with Redis storage
     app.config.setdefault("RATELIMIT_STORAGE_URI", app.config.get("REDIS_URL", "redis://localhost:6379/0"))
     limiter.init_app(app)
+
+    # Initialize cache (Redis backend, 5-minute default TTL)
+    app.config.setdefault("CACHE_TYPE", "RedisCache")
+    app.config.setdefault("CACHE_REDIS_URL", app.config.get("REDIS_URL", "redis://localhost:6379/0"))
+    app.config.setdefault("CACHE_DEFAULT_TIMEOUT", 300)  # 5 minutes
+    app.config.setdefault("CACHE_KEY_PREFIX", "digitva_cache:")
+    cache.init_app(app)
 
     # Initialize security headers with Flask-Talisman
     # In development/testing, disable HTTPS enforcement

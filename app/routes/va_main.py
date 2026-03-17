@@ -16,6 +16,7 @@ from app.models import (
     VaAllocation,
     VaDataManagerReview,
     VaForms,
+    VaSiteMaster,
     VaSubmissionWorkflow,
 )
 from app.services.coder_dashboard_service import (
@@ -523,13 +524,16 @@ def va_dashboard(va_role):
                 "form_id": row.form_id,
                 "project_id": row.project_id,
                 "site_id": row.site_id,
+                "site_name": row.site_name or row.site_id,
             }
             for row in db.session.execute(
                 sa.select(
                     VaForms.form_id,
                     VaForms.project_id,
                     VaForms.site_id,
+                    VaSiteMaster.site_name,
                 )
+                .outerjoin(VaSiteMaster, VaSiteMaster.site_id == VaForms.site_id)
                 .where(scope_filter)
                 .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
             ).mappings().all()

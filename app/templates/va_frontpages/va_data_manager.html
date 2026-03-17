@@ -3,6 +3,40 @@
 {% block title %}DigitVA | Data Manager{% endblock %}
 
 {% block content %}
+  <style>
+    #dm-project-filter + .select2-container .select2-selection--multiple,
+    #dm-site-filter + .select2-container .select2-selection--multiple {
+      min-height: 38px;
+      max-height: 38px;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    #dm-project-filter + .select2-container .select2-selection__rendered,
+    #dm-site-filter + .select2-container .select2-selection__rendered {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 0.25rem;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-right: 0.5rem;
+      white-space: nowrap;
+    }
+
+    #dm-project-filter + .select2-container .select2-search--inline,
+    #dm-site-filter + .select2-container .select2-search--inline {
+      display: none;
+    }
+
+    #dm-project-filter + .select2-container .select2-selection__choice,
+    #dm-site-filter + .select2-container .select2-selection__choice {
+      margin-top: 0;
+      margin-bottom: 0;
+      white-space: nowrap;
+    }
+  </style>
+
   {% with messages = get_flashed_messages(with_categories = true) %}
   {% if messages %}
     <div class="container mt-4">
@@ -204,13 +238,19 @@
           }
           if (!seenSites.has(form.site_id)) {
             seenSites.add(form.site_id);
-            availableSites.push(form.site_id);
+            availableSites.push({
+              site_id: form.site_id,
+              site_name: form.site_name || form.site_id
+            });
           }
         });
 
         siteFilter.empty();
-        availableSites.sort().forEach(function (siteId) {
-          const option = new Option(siteId, siteId, false, previouslySelectedSites.has(siteId));
+        availableSites.sort(function (left, right) {
+          return left.site_id.localeCompare(right.site_id);
+        }).forEach(function (site) {
+          const label = site.site_id + ' - ' + site.site_name;
+          const option = new Option(label, site.site_id, false, previouslySelectedSites.has(site.site_id));
           siteFilter.append(option);
         });
         siteFilter.trigger('change.select2');

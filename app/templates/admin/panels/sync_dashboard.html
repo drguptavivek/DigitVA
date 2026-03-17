@@ -176,6 +176,34 @@
     return Math.floor(diff / 86400) + 'd ago';
   }
 
+  // Convert UTC ISO timestamp to local datetime string (YYYY-MM-DD HH:MM:SS)
+  function fmtLocalDateTime(isoStr) {
+    if (!isoStr) return '—';
+    try {
+      var dt = new Date(isoStr);
+      var y = dt.getFullYear();
+      var m = String(dt.getMonth() + 1).padStart(2, '0');
+      var d = String(dt.getDate()).padStart(2, '0');
+      var h = String(dt.getHours()).padStart(2, '0');
+      var min = String(dt.getMinutes()).padStart(2, '0');
+      var s = String(dt.getSeconds()).padStart(2, '0');
+      return y + '-' + m + '-' + d + ' ' + h + ':' + min + ':' + s;
+    } catch (e) {
+      return isoStr.replace('T', ' ').slice(0, 19);
+    }
+  }
+
+  // Convert UTC ISO timestamp to local time string (HH:MM:SS)
+  function fmtLocalTime(isoStr) {
+    if (!isoStr) return '';
+    try {
+      var dt = new Date(isoStr);
+      return dt.toLocaleTimeString('en-GB', { hour12: false });
+    } catch (e) {
+      return isoStr.replace('T', ' ').slice(11, 19);
+    }
+  }
+
   function statusBadge(status) {
     var map = {
       success: '<span class="badge text-bg-success">Success</span>',
@@ -435,7 +463,7 @@
       }
       var rows = runs.map(function (r) {
         return '<tr>'
-          + '<td class="small">' + esc(r.started_at ? r.started_at.replace('T', ' ').slice(0, 19) : '—') + '</td>'
+          + '<td class="small">' + esc(fmtLocalDateTime(r.started_at)) + '</td>'
           + '<td class="small text-center">' + fmtDuration(r.duration_seconds) + '</td>'
           + '<td class="small text-center">' + esc(r.triggered_by) + '</td>'
           + '<td class="small text-center">' + statusBadge(r.status) + '</td>'
@@ -451,7 +479,7 @@
         '<div class="table-responsive">'
         + '<table class="table table-sm table-hover mb-0">'
         + '<thead class="table-light"><tr>'
-        + '<th class="small">Started (UTC)</th>'
+        + '<th class="small">Started (Local)</th>'
         + '<th class="small text-center">Duration</th>'
         + '<th class="small text-center">Triggered by</th>'
         + '<th class="small text-center">Status</th>'
@@ -583,7 +611,7 @@
       }
 
       var lines = d.entries.map(function (e) {
-        var t = e.ts ? e.ts.replace('T', ' ').slice(11, 19) : '';
+        var t = fmtLocalTime(e.ts);
         var isErr = e.msg && e.msg.indexOf('FAILED') !== -1;
         var cls = isErr ? 'text-danger' : 'text-dark';
         return '<div class="' + cls + '" style="font-size:0.78rem;line-height:1.5;">'

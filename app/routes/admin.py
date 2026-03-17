@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import generate_csrf
 
-from app import db
+from app import db, limiter
 from app.services.odk_connection_guard_service import (
     OdkConnectionCooldownError,
     guarded_odk_call,
@@ -3537,6 +3537,7 @@ def admin_panel_activity():
 
 
 @admin.get("/api/sync/status")
+@limiter.exempt
 @require_api_role("admin")
 def admin_sync_status():
     try:
@@ -3581,6 +3582,7 @@ def admin_sync_status():
 
 
 @admin.get("/api/sync/history")
+@limiter.exempt
 @require_api_role("admin")
 def admin_sync_history():
     try:
@@ -3991,6 +3993,7 @@ def admin_sync_smartva_stats():
 
 
 @admin.get("/api/sync/progress")
+@limiter.exempt
 @require_api_role("admin")
 def admin_sync_progress():
     """Return live progress log for the currently running sync, or the last run."""

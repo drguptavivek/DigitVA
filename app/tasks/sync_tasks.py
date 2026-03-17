@@ -276,9 +276,9 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         if pending:
             with tempfile.TemporaryDirectory() as workspace_dir:
                 log_progress(f"SmartVA {form_id}: preparing input ({len(pending)} pending)…")
-                va_smartva_prepdata(va_form, workspace_dir=workspace_dir, pending_sids=pending)
-                va_smartva_runsmartva(va_form, workspace_dir=workspace_dir)
-                output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir=workspace_dir)
+                va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
+                va_smartva_runsmartva(va_form, workspace_dir)
+                output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
                 if output_file:
                     va_smartva_new_results, va_smartva_existingactive_results = (
                         va_smartva_appendsmartvaresults(db.session, {va_form: output_file})

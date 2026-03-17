@@ -122,6 +122,27 @@
 (function () {
   'use strict';
 
+  // Prevent double initialization - must check AND set atomically
+  if (window._syncDashboardInitializing) {
+    console.log('[sync_dashboard] Already initializing, skipping');
+    return;
+  }
+  window._syncDashboardInitializing = true;
+
+  // Clean up any previous intervals from prior script executions
+  if (window._syncDashboardIntervals) {
+    console.log('[sync_dashboard] Clearing ' + window._syncDashboardIntervals.length + ' old intervals');
+    window._syncDashboardIntervals.forEach(function(id) { clearInterval(id); });
+  }
+  window._syncDashboardIntervals = [];
+
+  function trackedInterval(fn, ms) {
+    var id = setInterval(fn, ms);
+    window._syncDashboardIntervals.push(id);
+    console.log('[sync_dashboard] Created interval #' + id + ' (' + ms + 'ms), total: ' + window._syncDashboardIntervals.length);
+    return id;
+  }
+
   function csrf() { return window._adminCsrf || ''; }
 
   function apiJson(url, method, body) {
@@ -254,7 +275,7 @@
 
       // Poll while running; otherwise check every 30s
       clearInterval(_statusInterval);
-      _statusInterval = setInterval(function () {
+      _statusInterval = trackedInterval(function () {
         loadStatus();
         if (d.is_running) loadHistory();
       }, d.is_running ? 5000 : 30000);
@@ -578,7 +599,7 @@
 
   function startProgressPolling() {
     if (_progressInterval) clearInterval(_progressInterval);
-    _progressInterval = setInterval(loadProgress, 3000);
+    _progressInterval = trackedInterval(loadProgress, 3000);
     loadProgress();
   }
 
@@ -763,6 +784,9 @@
   loadHistory();
   loadSmartvaStats();
   loadProgress();
+
+  // Allow re-initialization on future HTMX loads
+  window._syncDashboardInitializing = false;
 
 }());
 </script>

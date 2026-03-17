@@ -153,6 +153,13 @@ If-None-Match: <stored_etag>
 → 200 + binary      (download — write file, update ETag record)
 ```
 
+Current implementation detail:
+
+- attachment downloads are streamed to disk in chunks rather than buffered via
+  `response.content`
+- ODK attachment requests use explicit connect/read timeouts from
+  `ODK_CONNECT_TIMEOUT_SECONDS` and `ODK_READ_TIMEOUT_SECONDS`
+
 Implemented in:
 
 - [`va_odk_sync_submission_attachments()`](../../app/utils/va_odk/va_odk_07_syncattachments.py)

@@ -402,7 +402,8 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
 
 def va_data_sync_odkcentral(log_progress=None):
     def _progress(msg):
-        print(msg)
+        ts = datetime.now().strftime("%H:%M:%S")
+        print(f"{ts} {msg}")
         if log_progress:
             log_progress(msg)
 
@@ -635,6 +636,7 @@ def va_data_sync_odkcentral(log_progress=None):
                             va_form,
                             mapping,
                         ),
+                        progress_callback=_progress,
                     )
                     db.session.commit()  # commit ETag records
                     _progress(
@@ -747,15 +749,15 @@ def va_data_sync_odkcentral(log_progress=None):
                 with tempfile.TemporaryDirectory() as workspace_dir:
                     log.info("DataSync SmartVA [%s]: preparing input (%d pending).", va_form.form_id, len(pending))
                     _progress(f"SmartVA {va_form.form_id}: preparing input ({len(pending)} pending)…")
-                    va_smartva_prepdata(va_form, workspace_dir=workspace_dir, pending_sids=pending)
+                    va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
 
                     log.info("DataSync SmartVA [%s]: running analysis.", va_form.form_id)
                     _progress(f"SmartVA {va_form.form_id}: running analysis…")
-                    va_smartva_runsmartva(va_form, workspace_dir=workspace_dir)
+                    va_smartva_runsmartva(va_form, workspace_dir)
 
                     log.info("DataSync SmartVA [%s]: formatting output.", va_form.form_id)
                     _progress(f"SmartVA {va_form.form_id}: formatting results…")
-                    output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir=workspace_dir)
+                    output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
                     if not output_file:
                         log.warning("DataSync SmartVA [%s]: no output file produced, skipping.", va_form.form_id)
                         continue
@@ -865,7 +867,8 @@ def va_smartva_run_pending(log_progress=None):
     Does NOT download new data from ODK.
     """
     def _progress(msg):
-        print(msg)
+        ts = datetime.now().strftime("%H:%M:%S")
+        print(f"{ts} {msg}")
         if log_progress:
             log_progress(msg)
 

@@ -18,9 +18,17 @@ class _FakeResponse:
         self.text = text
         self.headers = headers or {}
         self.content = content
+        self.closed = False
 
     def json(self):
         return self._json_data
+
+    def iter_content(self, chunk_size=1):
+        for index in range(0, len(self.content), chunk_size):
+            yield self.content[index:index + chunk_size]
+
+    def close(self):
+        self.closed = True
 
 
 class _FakeSession:
@@ -99,14 +107,15 @@ class TestOdkClientReuse(TestCase):
         self.assertEqual(len(fake_client.session.calls), 1)
 
     def test_attachment_sync_uses_injected_client(self):
+        download_response = _FakeResponse(
+            headers={"ETag": "abc123", "Content-Type": "text/plain"},
+            content=b"hello",
+        )
         fake_client = SimpleNamespace(
             session=_FakeSession(
                 [
                     _FakeResponse(json_data=[{"name": "note.txt", "exists": True}]),
-                    _FakeResponse(
-                        headers={"ETag": "abc123", "Content-Type": "text/plain"},
-                        content=b"hello",
-                    ),
+                    download_response,
                 ]
             )
         )
@@ -135,6 +144,12 @@ class TestOdkClientReuse(TestCase):
 
         self.assertEqual(result["downloaded"], 1)
         self.assertEqual(len(fake_client.session.calls), 2)
+        _, list_kwargs = fake_client.session.calls[0]
+        self.assertEqual(list_kwargs["timeout"], (1.0, 5.0))
+        _, download_kwargs = fake_client.session.calls[1]
+        self.assertTrue(download_kwargs["stream"])
+        self.assertEqual(download_kwargs["timeout"], (1.0, 5.0))
+        self.assertTrue(download_response.closed)
 
     def test_form_attachment_sync_uses_client_factory_and_aggregates_results(self):
         fake_client = SimpleNamespace(
@@ -186,3 +201,39 @@ class TestOdkClientReuse(TestCase):
         self.assertEqual(result["errors"], 0)
         self.assertEqual(client_factory_calls, 1)
         self.assertEqual(len(fake_client.session.calls), 4)
+
+    def test_attachment_sync_skips_unchanged_files_with_streamed_request(self):
+        not_modified_response = _FakeResponse(status_code=304)
+        fake_client = SimpleNamespace(
+            session=_FakeSession(
+                [
+                    _FakeResponse(json_data=[{"name": "note.txt", "exists": True}]),
+                    not_modified_response,
+                ]
+            )
+        )
+        va_form = SimpleNamespace(
+            project_id="PROJ01",
+            odk_project_id="11",
+            odk_form_id="FORM_A",
+        )
+
+        with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
+            existing = SimpleNamespace(filename="note.txt", etag='"etag-old"')
+            mock_db.session.scalars.return_value.all.return_value = [existing]
+            mock_db.session.flush.return_value = None
+
+            result = va_odk_sync_submission_attachments(
+                va_form,
+                instance_id="uuid:abc",
+                va_sid="uuid:abc-form01",
+                media_dir=media_dir,
+                client=fake_client,
+            )
+
+        self.assertEqual(result["downloaded"], 0)
+        self.assertEqual(result["skipped"], 1)
+        _, download_kwargs = fake_client.session.calls[1]
+        self.assertEqual(download_kwargs["headers"]["If-None-Match"], '"etag-old"')
+        self.assertTrue(download_kwargs["stream"])
+        self.assertTrue(not_modified_response.closed)

@@ -26,6 +26,7 @@ from app.services.odk_connection_guard_service import guarded_odk_call
 
 log = logging.getLogger(__name__)
 _ATTACHMENT_SYNC_MAX_WORKERS = 3
+_STREAM_CHUNK_SIZE = 64 * 1024
 
 
 @dataclass(slots=True)
@@ -57,6 +58,10 @@ def _sync_submission_attachments_no_db(
 ) -> SubmissionAttachmentSyncResult:
     """Sync one submission's attachments without touching the ORM session."""
     os.makedirs(media_dir, exist_ok=True)
+    request_timeout = (
+        current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10),
+        current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60),
+    )
 
     list_url = (
         f"projects/{va_form.odk_project_id}"
@@ -64,7 +69,7 @@ def _sync_submission_attachments_no_db(
         f"/submissions/{instance_id}/attachments"
     )
     list_resp = guarded_odk_call(
-        lambda: client.session.get(list_url),
+        lambda: client.session.get(list_url, timeout=request_timeout),
         client=client,
     )
     if list_resp.status_code != 200:
@@ -99,9 +104,15 @@ def _sync_submission_attachments_no_db(
             f"/forms/{va_form.odk_form_id}"
             f"/submissions/{instance_id}/attachments/{filename}"
         )
+        dl_resp = None
         try:
             dl_resp = guarded_odk_call(
-                lambda: client.session.get(dl_url, headers=headers),
+                lambda: client.session.get(
+                    dl_url,
+                    headers=headers,
+                    stream=True,
+                    timeout=request_timeout,
+                ),
                 client=client,
             )
 
@@ -120,7 +131,9 @@ def _sync_submission_attachments_no_db(
 
             write_path = os.path.join(media_dir, filename)
             with open(write_path, "wb") as f:
-                f.write(dl_resp.content)
+                for chunk in dl_resp.iter_content(chunk_size=_STREAM_CHUNK_SIZE):
+                    if chunk:
+                        f.write(chunk)
 
             local_path = write_path
             if filename.lower().endswith(".amr"):
@@ -142,6 +155,9 @@ def _sync_submission_attachments_no_db(
             log.warning(
                 "Attachment sync error [%s/%s]: %s", va_sid, filename, exc, exc_info=True
             )
+        finally:
+            if dl_resp is not None and hasattr(dl_resp, "close"):
+                dl_resp.close()
 
     return SubmissionAttachmentSyncResult(
         va_sid=va_sid,
@@ -206,6 +222,7 @@ def va_odk_sync_form_attachments(
     *,
     client_factory,
     max_workers: int = _ATTACHMENT_SYNC_MAX_WORKERS,
+    progress_callback=None,
 ):
     """Sync attachments for all changed submissions in a form with bounded parallelism."""
     from app import db
@@ -250,6 +267,8 @@ def va_odk_sync_form_attachments(
         )
 
     results = []
+    total_count = len(upserted_map)
+    completed = 0
     worker_count = min(max_workers, max(1, len(upserted_map)))
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         future_map = {
@@ -280,6 +299,9 @@ def va_odk_sync_form_attachments(
                         changes=[],
                     )
                 )
+            completed += 1
+            if progress_callback and completed % 50 == 0:
+                progress_callback(f"[{va_form.form_id}] attachments: {completed}/{total_count}")
 
     totals = {"downloaded": 0, "skipped": 0, "errors": 0}
     for result in results:

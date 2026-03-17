@@ -39,8 +39,9 @@ from datetime import datetime
 
 va_main = Blueprint("va_main", __name__)
 
-@va_main.route('/health', methods=['GET'])  
-def health_check():  
+@va_main.route('/health', methods=['GET'])
+@limiter.exempt
+def health_check():
     return jsonify({"status": "healthy"}), 200
 
 @va_main.route("/")

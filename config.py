@@ -57,6 +57,12 @@ class Config:
     ODK_CONNECTION_TEST_TIMEOUT_SECONDS = int(
         os.environ.get("ODK_CONNECTION_TEST_TIMEOUT_SECONDS", "10")
     )
+    ODK_CONNECT_TIMEOUT_SECONDS = float(
+        os.environ.get("ODK_CONNECT_TIMEOUT_SECONDS", "10")
+    )
+    ODK_READ_TIMEOUT_SECONDS = float(
+        os.environ.get("ODK_READ_TIMEOUT_SECONDS", "60")
+    )
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     
@@ -98,6 +104,8 @@ class TestConfig(Config):
     WTF_CSRF_SECRET_KEY = "test-csrf-secret-key-not-for-production"
     ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS = 0.0
     ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS = 60
+    ODK_CONNECT_TIMEOUT_SECONDS = 1.0
+    ODK_READ_TIMEOUT_SECONDS = 5.0
 
     CELERY = Config.CELERY.copy()
     CELERY["beat_dburi"] = SQLALCHEMY_DATABASE_URI

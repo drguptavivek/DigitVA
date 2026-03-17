@@ -681,6 +681,11 @@ def va_dashboard(va_role):
             .group_by(VaSmartvaResults.va_sid)
             .subquery()
         )
+        _mv_ref = sa.table(
+            "va_submission_analytics_mv",
+            sa.column("va_sid"),
+            sa.column("analytics_age_band"),
+        )
         submission_rows = [
             va_render_serialisedates(
                 row,
@@ -706,6 +711,8 @@ def va_dashboard(va_role):
                     VaSubmissions.va_sync_issue_updated_at,
                     VaSubmissionWorkflow.workflow_state,
                     VaDataManagerReview.va_dmreview_createdat,
+                    _mv_ref.c.analytics_age_band,
+                    VaSubmissions.va_deceased_gender,
                 )
                 .select_from(VaSubmissions)
                 .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
@@ -727,6 +734,10 @@ def va_dashboard(va_role):
                         VaDataManagerReview.va_sid == VaSubmissions.va_sid,
                         VaDataManagerReview.va_dmreview_status == VaStatuses.active,
                     ),
+                )
+                .outerjoin(
+                    _mv_ref,
+                    _mv_ref.c.va_sid == VaSubmissions.va_sid,
                 )
                 .where(scope_filter)
                 .order_by(

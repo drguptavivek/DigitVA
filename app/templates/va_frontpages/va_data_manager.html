@@ -119,43 +119,192 @@
   {% endif %}
   {% endwith %}
 
-  <h2 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
-    Welcome, {{ current_user.name }}
-  </h2>
-
-  <div class="content-section mb-4">
-    <h4 class="content-section-title">
-      <i class="fas fa-folder-open"></i>
-      Data Manager Triage
-    </h4>
-    <p><b>Use this dashboard to review submissions in your scope before coder allocation.</b></p>
-    <ol class="mb-0">
-      <li>Browse submissions across your assigned project or project-site scope.</li>
-      <li>Open any submission in read-only mode.</li>
-      <li>Use the <b>Data Triage</b> panel inside a submission to mark it Not Codeable for coder allocation.</li>
-    </ol>
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <h2 class="text-primary mb-0" style="font-size:26px;font-weight:600;">Data Manager</h2>
+      <button type="button"
+              class="btn btn-link p-0 text-muted"
+              tabindex="0"
+              data-bs-toggle="popover"
+              data-bs-trigger="click focus"
+              data-bs-placement="bottom"
+              data-bs-title="Data Manager Triage"
+              data-bs-html="true"
+              data-bs-content="&lt;b&gt;Use this dashboard to review submissions before coder allocation.&lt;/b&gt;&lt;ol class=&quot;mb-0 mt-2 ps-3&quot;&gt;&lt;li&gt;Browse submissions across your assigned project or project-site scope.&lt;/li&gt;&lt;li&gt;Open any submission in read-only mode.&lt;/li&gt;&lt;li&gt;Use the &lt;b&gt;Data Triage&lt;/b&gt; panel inside a submission to mark it Not Codeable for coder allocation.&lt;/li&gt;&lt;/ol&gt;"
+              aria-label="Help">
+        <i class="fas fa-circle-question fa-lg"></i>
+      </button>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" id="dm-refresh-dashboard-btn" class="btn btn-sm btn-outline-primary">
+        <i class="fas fa-chart-bar me-1"></i>Refresh Dashboard
+      </button>
+      <button type="button"
+              class="btn btn-sm btn-outline-secondary"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#dm-operations-offcanvas"
+              aria-controls="dm-operations-offcanvas">
+        <i class="fas fa-sliders me-1"></i>Operations
+      </button>
+    </div>
   </div>
 
-  <div class="card shadow-sm border-0 rounded-3 mb-4">
-    <div class="card-body">
-      <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-        <div>
-          <div class="form-label mb-1">
-            <strong>Sync Forms For a Project and Site</strong>
-            <span class="ms-1 text-muted"
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  title="Opens a confirmation modal where you explicitly choose the project and site scope to resync. Matched forms are fetched from ODK to refresh new and updated submissions, attachments, and SmartVA inputs. Older unchanged submissions are not individually refetched unless they are part of the selected form-level resync.">
-              <i class="fas fa-circle-info"></i>
-            </span>
-          </div>
-          <div class="small text-muted">
-            Open the sync modal to choose projects, sites, and review the exact forms that will be queued.
-          </div>
+  <!-- Operations offcanvas ------------------------------------------------->
+  <div class="offcanvas offcanvas-end"
+       tabindex="-1"
+       id="dm-operations-offcanvas"
+       aria-labelledby="dm-operations-offcanvas-label"
+       style="width:420px;">
+    <div class="offcanvas-header border-bottom">
+      <h5 class="offcanvas-title" id="dm-operations-offcanvas-label">
+        <i class="fas fa-sliders me-2 text-secondary"></i>Operations
+      </h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div class="mb-4">
+        <h6 class="fw-semibold mb-1">Sync Forms</h6>
+        <p class="small text-muted mb-3">Choose project and site scope, review matched forms, then queue a sync from ODK. Attachments and SmartVA inputs are refreshed for matched forms.</p>
+        <button type="button" id="dm-open-sync-modal-btn" class="btn btn-outline-secondary w-100">
+          <i class="fas fa-rotate-right me-2"></i>Sync Latest Data
+        </button>
+      </div>
+      <hr class="my-3">
+      <div>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="fw-semibold mb-0">Recent Sync Results</h6>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="dm-sync-results-refresh">
+            <i class="fas fa-rotate-right me-1"></i>Refresh
+          </button>
         </div>
-        <div class="flex-shrink-0">
-          <button type="button" id="dm-open-sync-modal-btn" class="btn btn-outline-secondary">
-            <i class="fas fa-rotate-right me-2"></i>Sync Latest data
+        <p class="small text-muted mb-3">Latest data-manager initiated form sync runs in your timezone.</p>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Finished</th>
+                <th>Added</th>
+                <th>Updated</th>
+                <th>Latest Progress</th>
+              </tr>
+            </thead>
+            <tbody id="dm-sync-results-rows">
+              <tr>
+                <td colspan="7" class="text-muted">No sync runs yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter offcanvas ----------------------------------------------------->
+  <div class="offcanvas offcanvas-end"
+       tabindex="-1"
+       id="dm-filter-offcanvas"
+       aria-labelledby="dm-filter-offcanvas-label"
+       style="width:420px;">
+    <div class="offcanvas-header border-bottom">
+      <h5 class="offcanvas-title" id="dm-filter-offcanvas-label">
+        <i class="fas fa-filter me-2 text-secondary"></i>Filters
+      </h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <label for="dm-table-project-filter" class="form-label mb-1"><strong>Project</strong></label>
+          <select id="dm-table-project-filter" class="form-select">
+            <option value="">All projects</option>
+            {% for form in scoped_forms|groupby('project_id') %}
+            <option value="{{ form.grouper }}">{{ form.grouper }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label for="dm-table-site-filter" class="form-label mb-1"><strong>Site</strong></label>
+          <select id="dm-table-site-filter" class="form-select">
+            <option value="">All sites</option>
+            {% for form in scoped_forms|groupby('site_id') %}
+            <option value="{{ form.grouper }}">{{ form.grouper }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6">
+          <label for="dm-table-date-from" class="form-label mb-1"><strong>Submitted From</strong></label>
+          <input type="date" id="dm-table-date-from" class="form-control">
+        </div>
+        <div class="col-6">
+          <label for="dm-table-date-to" class="form-label mb-1"><strong>Submitted To</strong></label>
+          <input type="date" id="dm-table-date-to" class="form-control">
+        </div>
+        <div class="col-12">
+          <label for="dm-table-odk-filter" class="form-label mb-1"><strong>ODK Status</strong></label>
+          <select id="dm-table-odk-filter" class="form-select">
+            <option value="">All ODK statuses</option>
+            <option value="Has Issues">Has Issues</option>
+            <option value="approved">Approved</option>
+            <option value="No review state">No review state</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label for="dm-table-smartva-filter" class="form-label mb-1"><strong>SmartVA</strong></label>
+          <select id="dm-table-smartva-filter" class="form-select">
+            <option value="">All SmartVA statuses</option>
+            <option value="Available">Available</option>
+            <option value="Missing">Missing</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label for="dm-table-age-group-filter" class="form-label mb-1"><strong>Age Group</strong></label>
+          <select id="dm-table-age-group-filter" class="form-select">
+            <option value="">All age groups</option>
+            <option value="neonate">Neonate</option>
+            <option value="child">Child</option>
+            <option value="15_49y">15–49y</option>
+            <option value="50_64y">50–64y</option>
+            <option value="65_plus">65+</option>
+            <option value="unknown">Unknown</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label for="dm-table-gender-filter" class="form-label mb-1"><strong>Gender</strong></label>
+          <select id="dm-table-gender-filter" class="form-select">
+            <option value="">All genders</option>
+            {% set seen_genders = namespace(vals=[]) %}
+            {% for row in submission_rows %}
+              {% if row.va_deceased_gender and row.va_deceased_gender not in seen_genders.vals %}
+                {% set seen_genders.vals = seen_genders.vals + [row.va_deceased_gender] %}
+                <option value="{{ row.va_deceased_gender }}">{{ row.va_deceased_gender }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label for="dm-table-sync-filter" class="form-label mb-1"><strong>ODK Sync</strong></label>
+          <select id="dm-table-sync-filter" class="form-select">
+            <option value="">All ODK sync statuses</option>
+            <option value="Missing In ODK">Missing In ODK</option>
+            <option value="In Sync">In Sync</option>
+          </select>
+        </div>
+        <div class="col-12">
+          <label for="dm-table-workflow-filter" class="form-label mb-1"><strong>Workflow State</strong></label>
+          <select id="dm-table-workflow-filter" class="form-select">
+            <option value="">All workflow states</option>
+            <option value="Ready for Coding">Ready for Coding</option>
+            <option value="Screening Pending">Screening Pending</option>
+            <option value="Flagged by Data Manager">Flagged by Data Manager</option>
+            <option value="Not Codeable By Coder">Not Codeable By Coder</option>
+          </select>
+        </div>
+        <div class="col-12 d-flex justify-content-end mt-2">
+          <button type="button" id="dm-table-clear-filters" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-times me-1"></i>Clear Filters
           </button>
         </div>
       </div>
@@ -263,63 +412,6 @@
     </div>
   </div>
 
-  <div class="accordion mb-4" id="dm-sync-results-accordion">
-    <div class="accordion-item border-0 shadow-sm rounded-3 overflow-hidden">
-      <h2 class="accordion-header" id="dm-sync-results-heading">
-        <button class="accordion-button collapsed"
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#dm-sync-results-collapse"
-                aria-expanded="false"
-                aria-controls="dm-sync-results-collapse">
-          <span>
-            <span class="d-block fw-semibold text-primary">Recent Sync Results</span>
-            <span class="small text-muted">Latest data-manager initiated form sync runs in your timezone.</span>
-          </span>
-        </button>
-      </h2>
-      <div id="dm-sync-results-collapse"
-           class="accordion-collapse collapse"
-           aria-labelledby="dm-sync-results-heading"
-           data-bs-parent="#dm-sync-results-accordion">
-        <div class="accordion-body">
-          <div class="d-flex justify-content-end mb-3">
-            <button type="button" class="btn btn-sm btn-outline-secondary" id="dm-sync-results-refresh">
-              <i class="fas fa-rotate-right me-1"></i>Refresh
-            </button>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Target</th>
-                  <th>Status</th>
-                  <th>Started</th>
-                  <th>Finished</th>
-                  <th>Added</th>
-                  <th>Updated</th>
-                  <th>Latest Progress</th>
-                </tr>
-              </thead>
-              <tbody id="dm-sync-results-rows">
-                <tr>
-                  <td colspan="7" class="text-muted">No sync runs yet.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <h6 class="text-muted mb-0 small">Dashboard Analytics</h6>
-    <button type="button" id="dm-refresh-dashboard-btn" class="btn btn-sm btn-outline-primary">
-      <i class="fas fa-chart-bar me-1"></i>Refresh Dashboard
-    </button>
-  </div>
-
   <div class="row mb-4 g-3">
     <div class="col-md-6 col-xl-3">
       <div class="card shadow-sm border-0 rounded-3 h-100">
@@ -425,133 +517,65 @@
     </div>
   </div>
 
-  <div class="accordion mb-3" id="dm-filter-accordion">
-    <div class="accordion-item border-0 shadow-sm rounded-3 overflow-hidden">
-      <h2 class="accordion-header" id="dm-filter-heading">
-        <button class="accordion-button collapsed"
+  <div id="dm-filter-pills" class="d-flex flex-wrap gap-2 mb-2" style="min-height:0;"></div>
+
+  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+    <input type="search"
+           id="dm-table-search"
+           class="form-control form-control-sm"
+           style="max-width:280px;"
+           placeholder="Search submissions…">
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
                 type="button"
-                data-bs-toggle="collapse"
-                data-bs-target="#dm-filter-collapse"
-                aria-expanded="false"
-                aria-controls="dm-filter-collapse">
-          <span>
-            <span class="d-block fw-semibold text-primary">Browse and Search Filters</span>
-            <span class="small text-muted">Filter by project, site, submitted date, ODK status, sync issues, and workflow state.</span>
-          </span>
+                id="dm-column-options-btn"
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
+                aria-expanded="false">
+          <i class="fas fa-columns"></i>
+          <span>Columns</span>
+          <i class="fas fa-chevron-down small"></i>
         </button>
-      </h2>
-      <div id="dm-filter-collapse"
-           class="accordion-collapse collapse"
-           aria-labelledby="dm-filter-heading"
-           data-bs-parent="#dm-filter-accordion">
-        <div class="accordion-body">
-          <div class="row g-3 align-items-end">
-            <div class="col-md-6 col-lg-2">
-              <label for="dm-table-project-filter" class="form-label mb-1"><strong>Project</strong></label>
-              <select id="dm-table-project-filter" class="form-select">
-                <option value="">All projects</option>
-                {% for form in scoped_forms|groupby('project_id') %}
-                <option value="{{ form.grouper }}">{{ form.grouper }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-6 col-lg-2">
-              <label for="dm-table-site-filter" class="form-label mb-1"><strong>Site</strong></label>
-              <select id="dm-table-site-filter" class="form-select">
-                <option value="">All sites</option>
-                {% for form in scoped_forms|groupby('site_id') %}
-                <option value="{{ form.grouper }}">{{ form.grouper }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-6 col-lg-2">
-              <label for="dm-table-date-from" class="form-label mb-1"><strong>Submitted From</strong></label>
-              <input type="date" id="dm-table-date-from" class="form-control">
-            </div>
-            <div class="col-md-6 col-lg-2">
-              <label for="dm-table-date-to" class="form-label mb-1"><strong>Submitted To</strong></label>
-              <input type="date" id="dm-table-date-to" class="form-control">
-            </div>
-            <div class="col-md-6 col-lg-2">
-              <label for="dm-table-odk-filter" class="form-label mb-1"><strong>ODK Status</strong></label>
-              <select id="dm-table-odk-filter" class="form-select">
-                <option value="">All ODK statuses</option>
-                <option value="Has Issues">Has Issues</option>
-                <option value="approved">Approved</option>
-                <option value="No review state">No review state</option>
-              </select>
-            </div>
-            <div class="col-md-6 col-lg-2">
-              <label for="dm-table-smartva-filter" class="form-label mb-1"><strong>SmartVA</strong></label>
-              <select id="dm-table-smartva-filter" class="form-select">
-                <option value="">All SmartVA statuses</option>
-                <option value="Available">Available</option>
-                <option value="Missing">Missing</option>
-              </select>
-            </div>
-          </div>
-          <div class="row g-3 align-items-end mt-1">
-            <div class="col-md-6 col-lg-3">
-              <label for="dm-table-sync-filter" class="form-label mb-1"><strong>ODK Sync</strong></label>
-              <select id="dm-table-sync-filter" class="form-select">
-                <option value="">All ODK sync statuses</option>
-                <option value="Missing In ODK">Missing In ODK</option>
-                <option value="In Sync">In Sync</option>
-              </select>
-            </div>
-            <div class="col-md-6 col-lg-3">
-              <label for="dm-table-workflow-filter" class="form-label mb-1"><strong>Workflow State</strong></label>
-              <select id="dm-table-workflow-filter" class="form-select">
-                <option value="">All workflow states</option>
-                <option value="Ready for Coding">Ready for Coding</option>
-                <option value="Screening Pending">Screening Pending</option>
-                <option value="Flagged by Data Manager">Flagged by Data Manager</option>
-                <option value="Not Codeable By Coder">Not Codeable By Coder</option>
-              </select>
-            </div>
-            <div class="col-md-8 col-lg-4">
-              <label for="dm-table-search" class="form-label mb-1"><strong>Search</strong></label>
-              <input type="search"
-                     id="dm-table-search"
-                     class="form-control"
-                     placeholder="Search form ID, collector, attachment count, or status">
-            </div>
-            <div class="col-md-4 col-lg-2">
-              <label class="form-label mb-1"><strong>Table Columns</strong></label>
-              <div class="dropdown">
-                <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-between"
-                        type="button"
-                        id="dm-column-options-btn"
-                        data-bs-toggle="dropdown"
-                        data-bs-auto-close="outside"
-                        aria-expanded="false">
-                  <span>Optional Columns</span>
-                  <i class="fas fa-chevron-down small"></i>
-                </button>
-                <div class="dropdown-menu dropdown-menu-end p-2 shadow-sm" id="dm-column-options-menu" aria-labelledby="dm-column-options-btn">
-                  <label class="form-check d-flex align-items-center">
-                    <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-project" data-column-index="0">
-                    <span class="form-check-label small">Project</span>
-                  </label>
-                  <label class="form-check d-flex align-items-center">
-                    <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-data-collector" data-column-index="4">
-                    <span class="form-check-label small">Data Collector</span>
-                  </label>
-                  <label class="form-check d-flex align-items-center">
-                    <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-flagged-at" data-column-index="9">
-                    <span class="form-check-label small">Flagged At</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            <div class="col-12 d-flex justify-content-end">
-              <button type="button" id="dm-table-clear-filters" class="btn btn-sm btn-outline-secondary">
-                Clear Filters
-              </button>
-            </div>
-          </div>
+        <div class="dropdown-menu dropdown-menu-end p-2 shadow-sm" id="dm-column-options-menu" aria-labelledby="dm-column-options-btn">
+          <label class="form-check d-flex align-items-center">
+            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-project" data-column-index="0">
+            <span class="form-check-label small">Project</span>
+          </label>
+          <label class="form-check d-flex align-items-center">
+            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-data-collector" data-column-index="4">
+            <span class="form-check-label small">Data Collector</span>
+          </label>
+          <label class="form-check d-flex align-items-center">
+            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-attachments" data-column-index="5">
+            <span class="form-check-label small">Attachments</span>
+          </label>
+          <label class="form-check d-flex align-items-center">
+            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-age-group" data-column-index="7">
+            <span class="form-check-label small">Age Group</span>
+          </label>
+          <label class="form-check d-flex align-items-center">
+            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-gender" data-column-index="8">
+            <span class="form-check-label small">Gender</span>
+          </label>
+          <label class="form-check d-flex align-items-center">
+            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-odk-sync" data-column-index="10">
+            <span class="form-check-label small">ODK Sync</span>
+          </label>
+          <label class="form-check d-flex align-items-center">
+            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-flagged-at" data-column-index="12">
+            <span class="form-check-label small">Flagged At</span>
+          </label>
         </div>
       </div>
+      <button type="button"
+              class="btn btn-sm btn-outline-secondary"
+              id="dm-filter-offcanvas-btn"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#dm-filter-offcanvas"
+              aria-controls="dm-filter-offcanvas">
+        <i class="fas fa-filter me-1"></i>Filters
+      </button>
     </div>
   </div>
 
@@ -572,6 +596,8 @@
             <span class="visually-hidden">Attachments</span>
           </th>
           <th>SmartVA</th>
+          <th>Age Group</th>
+          <th>Gender</th>
           <th>ODK Status</th>
           <th>ODK Sync</th>
           <th>Workflow State</th>
@@ -581,7 +607,9 @@
       </thead>
       <tbody>
         {% for row in submission_rows %}
-        <tr>
+        <tr data-age-band="{{ row.analytics_age_band or '' }}"
+            data-gender="{{ row.va_deceased_gender or '' }}"
+            data-odk-sync="{{ 'Missing In ODK' if row.va_sync_issue_code == 'missing_in_odk' else 'In Sync' }}">
           <td>{{ row.project_id }}</td>
           <td>{{ row.site_id }}</td>
           <td>{{ row.va_submission_date }}</td>
@@ -603,6 +631,8 @@
             <span class="badge bg-secondary">Missing</span>
             {% endif %}
           </td>
+          <td>{{ row.analytics_age_band or '-' }}</td>
+          <td>{{ row.va_deceased_gender or '-' }}</td>
           <td>
             {% if row.va_odk_reviewstate == 'hasIssues' %}
             <span class="badge bg-warning text-dark"
@@ -696,6 +726,8 @@
       const tableDateTo = $('#dm-table-date-to');
       const tableOdkFilter = $('#dm-table-odk-filter');
       const tableSmartvaFilter = $('#dm-table-smartva-filter');
+      const tableAgeGroupFilter = $('#dm-table-age-group-filter');
+      const tableGenderFilter = $('#dm-table-gender-filter');
       const tableSyncFilter = $('#dm-table-sync-filter');
       const tableWorkflowFilter = $('#dm-table-workflow-filter');
       const tableClearFilters = $('#dm-table-clear-filters');
@@ -703,8 +735,8 @@
       const viewOdkIssuesButton = $('#dm-view-odk-issues-btn');
       const viewSmartvaMissingButton = $('#dm-view-smartva-missing-btn');
       const columnToggles = $('.dm-column-toggle');
-      const filterCollapseEl = document.getElementById('dm-filter-collapse');
-      const filterCollapse = bootstrap.Collapse.getOrCreateInstance(filterCollapseEl, { toggle: false });
+      const filterOffcanvasEl = document.getElementById('dm-filter-offcanvas');
+      const filterOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(filterOffcanvasEl);
       const filterStateKey = 'digitva.data_manager.table_state.v1';
       let pendingSyncForms = [];
       let syncResultsPoll = null;
@@ -909,11 +941,13 @@
         new bootstrap.Tooltip(this);
       });
 
+      $('[data-bs-toggle="popover"]').popover();
+
       const dmTable = $('#dmTable').DataTable({
         pageLength: 25,
         order: [[0, 'asc'], [1, 'asc'], [2, 'desc']],
         columnDefs: [
-          { targets: [0, 4, 10], visible: false }
+          { targets: [0, 4, 5, 7, 8, 10, 12], visible: false }
         ]
       });
 
@@ -926,12 +960,18 @@
           date_to: tableDateTo.val() || '',
           odk_status: tableOdkFilter.val() || '',
           smartva: tableSmartvaFilter.val() || '',
+          age_group: tableAgeGroupFilter.val() || '',
+          gender: tableGenderFilter.val() || '',
           odk_sync: tableSyncFilter.val() || '',
           workflow: tableWorkflowFilter.val() || '',
           columns: {
             project: dmTable.column(0).visible(),
             data_collector: dmTable.column(4).visible(),
-            flagged_at: dmTable.column(10).visible(),
+            attachments: dmTable.column(5).visible(),
+            age_group: dmTable.column(7).visible(),
+            gender: dmTable.column(8).visible(),
+            odk_sync: dmTable.column(10).visible(),
+            flagged_at: dmTable.column(12).visible(),
           },
         };
       }
@@ -966,19 +1006,18 @@
         tableDateTo.val(state.date_to || '');
         tableOdkFilter.val(state.odk_status || '');
         tableSmartvaFilter.val(state.smartva || '');
+        tableAgeGroupFilter.val(state.age_group || '');
+        tableGenderFilter.val(state.gender || '');
         tableSyncFilter.val(state.odk_sync || '');
         tableWorkflowFilter.val(state.workflow || '');
 
         const columnState = state.columns || {};
+        const columnKeyMap = { 0: 'project', 4: 'data_collector', 5: 'attachments', 7: 'age_group', 8: 'gender', 10: 'odk_sync', 12: 'flagged_at' };
         columnToggles.each(function () {
           const checkbox = $(this);
           const columnIndex = Number(checkbox.data('column-index'));
-          const key = columnIndex === 0
-            ? 'project'
-            : columnIndex === 4
-              ? 'data_collector'
-              : 'flagged_at';
-          const visible = Boolean(columnState[key]);
+          const key = columnKeyMap[columnIndex];
+          const visible = key ? Boolean(columnState[key]) : false;
           checkbox.prop('checked', visible);
           dmTable.column(columnIndex).visible(visible);
         });
@@ -995,9 +1034,7 @@
           state.odk_sync,
           state.workflow,
         ].some(Boolean);
-        if (hasAnyFilter) {
-          filterCollapse.show();
-        }
+        // filters restored silently; user can open the filter panel via the Filters button
       }
 
       columnToggles.each(function () {
@@ -1050,15 +1087,67 @@
         return true;
       });
 
+      function renderFilterPills() {
+        const container = $('#dm-filter-pills');
+        container.empty();
+
+        const filters = [
+          { label: 'Search',     value: tableSearch.val(),           clear: function() { tableSearch.val(''); } },
+          { label: 'Project',    value: tableProjectFilter.val(),     clear: function() { tableProjectFilter.val(''); } },
+          { label: 'Site',       value: tableSiteFilter.val(),        clear: function() { tableSiteFilter.val(''); } },
+          { label: 'From',       value: tableDateFrom.val(),          clear: function() { tableDateFrom.val(''); } },
+          { label: 'To',         value: tableDateTo.val(),            clear: function() { tableDateTo.val(''); } },
+          { label: 'ODK',        value: tableOdkFilter.val(),         clear: function() { tableOdkFilter.val(''); } },
+          { label: 'SmartVA',    value: tableSmartvaFilter.val(),     clear: function() { tableSmartvaFilter.val(''); } },
+          { label: 'Age Group',  value: tableAgeGroupFilter.val(),    clear: function() { tableAgeGroupFilter.val(''); } },
+          { label: 'Gender',     value: tableGenderFilter.val(),      clear: function() { tableGenderFilter.val(''); } },
+          { label: 'Sync',       value: tableSyncFilter.val(),        clear: function() { tableSyncFilter.val(''); } },
+          { label: 'Workflow',   value: tableWorkflowFilter.val() || workflowQuickFilter,
+            clear: function() { tableWorkflowFilter.val(''); workflowQuickFilter = ''; } },
+        ];
+
+        filters.forEach(function(f) {
+          if (!f.value) { return; }
+          const pill = $('<span class="badge rounded-pill d-inline-flex align-items-center gap-1" style="background:#e8f0fe;color:#1a56db;font-weight:500;font-size:0.8rem;padding:0.35em 0.65em;"></span>');
+          pill.text(f.label + ': ' + f.value);
+          const btn = $('<button type="button" class="btn-close btn-close-sm ms-1" style="font-size:0.6rem;" aria-label="Remove filter"></button>');
+          btn.on('click', function() {
+            f.clear();
+            applyTableFilters();
+          });
+          pill.append(btn);
+          container.append(pill);
+        });
+      }
+
+      // Demographic and other hideable-column filters use data-* row attributes
+      // so they work reliably regardless of column visibility state.
+      let activeAgeGroupFilter = '';
+      let activeGenderFilter = '';
+      let activeOdkSyncFilter = '';
+
+      $.fn.dataTable.ext.search.push(function (settings, _data, _idx, _rowData, counter) {
+        if (settings.nTable !== dmTable.table().node()) { return true; }
+        const row = dmTable.row(counter).node();
+        if (!row) { return true; }
+        if (activeAgeGroupFilter && $(row).data('age-band') !== activeAgeGroupFilter) { return false; }
+        if (activeGenderFilter && $(row).data('gender') !== activeGenderFilter) { return false; }
+        if (activeOdkSyncFilter && $(row).data('odk-sync') !== activeOdkSyncFilter) { return false; }
+        return true;
+      });
+
       function applyTableFilters() {
+        activeAgeGroupFilter = tableAgeGroupFilter.val() || '';
+        activeGenderFilter = tableGenderFilter.val() || '';
+        activeOdkSyncFilter = tableSyncFilter.val() || '';
         dmTable.search(tableSearch.val() || '');
         dmTable.column(0).search(tableProjectFilter.val() || '', true, false);
         dmTable.column(1).search(tableSiteFilter.val() || '', true, false);
         dmTable.column(6).search(tableSmartvaFilter.val() || '', false, false);
-        dmTable.column(7).search(tableOdkFilter.val() || '', false, false);
-        dmTable.column(8).search(tableSyncFilter.val() || '', false, false);
-        dmTable.column(9).search(workflowQuickFilter || tableWorkflowFilter.val() || '', Boolean(workflowQuickFilter), false);
+        dmTable.column(9).search(tableOdkFilter.val() || '', false, false);
+        dmTable.column(11).search(workflowQuickFilter || tableWorkflowFilter.val() || '', Boolean(workflowQuickFilter), false);
         dmTable.draw();
+        renderFilterPills();
         saveFilterState();
       }
 
@@ -1070,9 +1159,14 @@
         tableDateTo.val('');
         tableOdkFilter.val('');
         tableSmartvaFilter.val('');
+        tableAgeGroupFilter.val('');
+        tableGenderFilter.val('');
         tableSyncFilter.val('');
         tableWorkflowFilter.val('');
         workflowQuickFilter = '';
+        activeAgeGroupFilter = '';
+        activeGenderFilter = '';
+        activeOdkSyncFilter = '';
         dmTable.column(6).search('', false, false);
       }
 
@@ -1083,6 +1177,8 @@
       tableDateTo.on('change', applyTableFilters);
       tableOdkFilter.on('change', applyTableFilters);
       tableSmartvaFilter.on('change', applyTableFilters);
+      tableAgeGroupFilter.on('change', applyTableFilters);
+      tableGenderFilter.on('change', applyTableFilters);
       tableSyncFilter.on('change', applyTableFilters);
       tableWorkflowFilter.on('change', applyTableFilters);
       tableClearFilters.on('click', function () {
@@ -1094,21 +1190,21 @@
         resetTableFilters();
         workflowQuickFilter = 'Flagged by Data Manager|Not Codeable By Coder';
         applyTableFilters();
-        filterCollapse.show();
+        filterOffcanvas.show();
       });
 
       viewOdkIssuesButton.on('click', function () {
         resetTableFilters();
         tableOdkFilter.val('Has Issues');
         applyTableFilters();
-        filterCollapse.show();
+        filterOffcanvas.show();
       });
 
       viewSmartvaMissingButton.on('click', function () {
         resetTableFilters();
         dmTable.column(6).search('Missing', false, false);
         applyTableFilters();
-        filterCollapse.show();
+        filterOffcanvas.show();
       });
 
       projectFilter.on('change', function () {
@@ -1490,6 +1586,7 @@
 
       restoreFilterState();
       applyTableFilters();
+      renderFilterPills();
       loadProjectSiteSubmissionsChart();
       loadSyncResults();
     });

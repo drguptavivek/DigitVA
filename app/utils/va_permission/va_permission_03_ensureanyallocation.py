@@ -17,7 +17,7 @@ def va_permission_ensureanyallocation(role):
     if not alloc:
         if request.headers.get("HX-Request"):
             response = make_response("", 403)
-            response.headers["HX-Redirect"] = url_for("va_main.va_dashboard", va_role="coder")
+            response.headers["HX-Redirect"] = url_for("coding.dashboard")
             flash("Timeout: The VA form you are trying to access is no longer allocated to you. Coder may only hold / reserve a particular VA form for 1 hour only. Please start coding a new form.", "danger")
             abort(response)
         va_permission_abortwithflash("You have no active VA form allocation.", 403)

@@ -77,7 +77,7 @@ class VaUsers(UserMixin, db.Model):
         if self.landing_page == "sitepi" and self.is_site_pi():
             return url_for("va_main.va_dashboard", va_role=self.landing_page)
         if self.is_coder():
-            return url_for("va_main.va_dashboard", va_role="coder")
+            return url_for("coding.dashboard")
         if self.is_data_manager():
             return url_for("data_management.dashboard")
         if self.is_reviewer():

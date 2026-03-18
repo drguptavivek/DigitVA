@@ -32,7 +32,7 @@
 
         {% if current_user.is_authenticated and current_user.is_coder() %}
     <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('va_main.va_dashboard', va_role='coder') }}">
+      <a class="nav-link" href="{{ url_for('coding.dashboard') }}">
         <i class="fa-solid fa-user-check me-1"></i>
         VA Coding
       </a>
@@ -80,7 +80,7 @@
             <ul class="dropdown-menu" aria-labelledby="vaDropdown">
               {% if current_user.is_coder() %}
                 <li>
-                  <a class="dropdown-item" href="{{ url_for('va_main.va_dashboard', va_role='coder') }}">
+                  <a class="dropdown-item" href="{{ url_for('coding.dashboard') }}">
                     <i class="fa-solid fa-code me-2"></i>
                     VA CoDA
                   </a>

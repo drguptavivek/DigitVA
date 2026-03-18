@@ -16,7 +16,14 @@
       </h4>
     </div>
     <div>
-      <a href="{{ url_for('va_main.va_dashboard', va_role=back_dashboard_role or 'coder') }}" class="btn btn-outline-primary">
+      {% if back_dashboard_role == 'reviewer' %}
+        {% set _back_url = url_for('va_main.va_dashboard', va_role='reviewer') %}
+      {% elif back_dashboard_role == 'data_manager' %}
+        {% set _back_url = url_for('data_management.dashboard') %}
+      {% else %}
+        {% set _back_url = url_for('coding.dashboard') %}
+      {% endif %}
+      <a href="{{ _back_url }}" class="btn btn-outline-primary">
         <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
       </a>
     </div>

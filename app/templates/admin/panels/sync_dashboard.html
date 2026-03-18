@@ -127,6 +127,26 @@
     </div>
   </div>
 
+  {# Revoked submissions (pending DM review) #}
+  <div class="card mb-3" id="sync-revoked-card" style="display:none;">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-warning">
+          <i class="fa-solid fa-triangle-exclamation me-1"></i>Revoked Submissions (Pending Review)
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" id="sync-revoked-refresh-btn">
+          <i class="fa-solid fa-rotate-right me-1"></i>Refresh
+        </button>
+      </div>
+      <div class="small text-muted mb-2">
+        Protected submissions with upstream ODK data changes. Data managers must accept or reject before re-coding.
+      </div>
+      <div id="sync-revoked-wrap">
+        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>
+      </div>
+    </div>
+  </div>
+
   {# Live progress log #}
   <div class="card mb-3" id="sync-progress-card" style="display:none;">
     <div class="card-body py-3">
@@ -700,6 +720,65 @@
     });
   }
 
+  // ── Revoked submissions (pending DM review) ─────────────────────────────────
+
+  function loadRevokedStats() {
+    var card = document.getElementById('sync-revoked-card');
+    var wrap = document.getElementById('sync-revoked-wrap');
+    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>';
+
+    apiJson('/admin/api/sync/revoked-stats').then(function (res) {
+      if (!wrap) return;
+      if (!res.ok) {
+        wrap.innerHTML = '<span class="text-danger small">Failed to load revoked stats.</span>';
+        return;
+      }
+      var d = res.data;
+      if (!d.totals || d.totals.revoked === 0) {
+        if (card) card.style.display = 'none';
+        return;
+      }
+
+      if (card) card.style.display = '';
+
+      var html = '<table class="table table-sm table-bordered mb-1">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="small">Project / Site</th>'
+        + '<th class="small text-center">Revoked</th>'
+        + '</tr></thead><tbody>';
+
+      d.projects.forEach(function (proj) {
+        // Project row
+        html += '<tr class="table-light">'
+          + '<td class="small fw-semibold" colspan="1">'
+          +   '<i class="fa-solid fa-folder me-1 text-secondary"></i>' + esc(proj.project_name || proj.project_id)
+          + '</td>'
+          + '<td class="small text-center fw-semibold text-warning">' + proj.revoked + '</td>'
+          + '</tr>';
+
+        // Site rows
+        proj.sites.forEach(function (site) {
+          html += '<tr>'
+            + '<td class="small ps-4"><i class="fa-solid fa-building me-1 text-secondary"></i>' + esc(site.site_name || site.site_id) + '</td>'
+            + '<td class="small text-center text-warning">' + site.revoked + '</td>'
+            + '</tr>';
+        });
+      });
+
+      var t = d.totals;
+      html += '</tbody><tfoot class="table-light"><tr>'
+        + '<td class="small fw-semibold">Total</td>'
+        + '<td class="small text-center fw-semibold text-warning">' + t.revoked + '</td>'
+        + '</tr></tfoot></table>';
+
+      html += '<div class="small text-muted mt-2"><a href="/data-manager?workflow=revoked_va_data_changed">View in Data Manager →</a></div>';
+
+      wrap.innerHTML = html;
+    }).catch(function () {
+      if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
+    });
+  }
+
   // ── Progress log ───────────────────────────────────────────────────────────
 
   var _lastProgressRunId = null;
@@ -916,6 +995,7 @@
 
   document.getElementById('sync-coverage-refresh-btn').addEventListener('click', loadCoverage);
   document.getElementById('sync-smartva-refresh-btn').addEventListener('click', loadSmartvaStats);
+  document.getElementById('sync-revoked-refresh-btn').addEventListener('click', loadRevokedStats);
   document.getElementById('sync-backfill-project').addEventListener('change', refreshBackfillSelectors);
   document.getElementById('sync-backfill-site').addEventListener('change', refreshBackfillSelectors);
   document.getElementById('sync-backfill-form').addEventListener('change', refreshBackfillSelectors);
@@ -984,6 +1064,7 @@
   loadStatus();
   loadHistory();
   loadSmartvaStats();
+  loadRevokedStats();
   loadProgress();
   refreshBackfillSelectors();
 

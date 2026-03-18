@@ -587,6 +587,9 @@ def dm_reject_upstream_change(user, va_sid: str) -> None:
     intact. The new ODK data is retained in the submission record but
     the COD decision stands.
 
+    Posts a comment to ODK Central (best-effort) indicating the DM rejected
+    the change. The ODK reviewState stays as hasIssues.
+
     Raises ValueError / PermissionError on invalid input or access denial.
     Does NOT commit — caller is responsible.
     """
@@ -596,6 +599,7 @@ def dm_reject_upstream_change(user, va_sid: str) -> None:
         get_submission_workflow_state,
         set_submission_workflow_state,
     )
+    from app.services.odk_review_service import post_dm_rejection_comment
 
     _dm_submission_scope_check(user, va_sid)
 
@@ -604,6 +608,9 @@ def dm_reject_upstream_change(user, va_sid: str) -> None:
         raise ValueError(
             f"Submission is in state '{current_state}', not revoked_va_data_changed."
         )
+
+    # Post comment to ODK Central (best-effort, non-blocking)
+    post_dm_rejection_comment(va_sid)
 
     set_submission_workflow_state(
         va_sid,

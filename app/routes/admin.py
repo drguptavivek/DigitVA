@@ -4099,6 +4099,100 @@ def admin_sync_smartva_stats():
         return _json_error(f"Failed to load SmartVA stats: {str(e)}", 500)
 
 
+@admin.get("/api/sync/revoked-stats")
+@limiter.exempt
+@require_api_role("admin")
+def admin_sync_revoked_stats():
+    """Return counts of submissions in revoked_va_data_changed state.
+
+    These are protected submissions that had upstream ODK data changes
+    and are pending data-manager review.
+    """
+    try:
+        from app.models.va_submissions import VaSubmissions
+        from app.models.va_forms import VaForms
+        from app.models.va_project_master import VaProjectMaster
+        from app.models.va_sites import VaSites
+        from app.services.submission_workflow_service import WORKFLOW_REVOKED_VA_DATA_CHANGED
+
+        # Fetch revoked counts per form
+        revoked_by_form = dict(
+            db.session.execute(
+                sa.select(
+                    VaSubmissions.va_form_id,
+                    sa.func.count(VaSubmissions.va_sid).label("cnt"),
+                )
+                .where(VaSubmissions.va_workflow_state == WORKFLOW_REVOKED_VA_DATA_CHANGED)
+                .group_by(VaSubmissions.va_form_id)
+            ).all()
+        )
+
+        if not revoked_by_form:
+            return jsonify({
+                "projects": [],
+                "totals": {"revoked": 0},
+            })
+
+        forms = db.session.scalars(
+            sa.select(VaForms).where(VaForms.form_id.in_(revoked_by_form.keys()))
+        ).all()
+
+        # Group by project → site
+        projects_map = {}
+        total_revoked = 0
+
+        for form in forms:
+            revoked_count = revoked_by_form.get(form.form_id, 0)
+            if revoked_count == 0:
+                continue
+
+            total_revoked += revoked_count
+
+            proj = projects_map.setdefault(form.project_id, {
+                "project_id": form.project_id,
+                "project_name": None,
+                "sites": {},
+                "revoked": 0,
+            })
+            proj["revoked"] += revoked_count
+
+            site = proj["sites"].setdefault(form.site_id, {
+                "site_id": form.site_id,
+                "site_name": None,
+                "forms": {},
+                "revoked": 0,
+            })
+            site["revoked"] += revoked_count
+
+            site["forms"][form.form_id] = {
+                "form_id": form.form_id,
+                "revoked": revoked_count,
+            }
+
+        # Add names
+        project_names = {
+            r.project_id: r.project_name
+            for r in db.session.scalars(sa.select(VaProjectMaster)).all()
+        }
+        site_names = {
+            r.site_id: r.site_name
+            for r in db.session.scalars(sa.select(VaSites)).all()
+        }
+        for pid, proj in projects_map.items():
+            proj["project_name"] = project_names.get(pid, pid)
+            for sid, site in proj["sites"].items():
+                site["site_name"] = site_names.get(sid, sid)
+            proj["sites"] = list(proj["sites"].values())
+
+        return jsonify({
+            "projects": list(projects_map.values()),
+            "totals": {"revoked": total_revoked},
+        })
+    except Exception as e:
+        log.error("admin_sync_revoked_stats failed", exc_info=True)
+        return _json_error(f"Failed to load revoked stats: {str(e)}", 500)
+
+
 @admin.get("/api/sync/progress")
 @limiter.exempt
 @require_api_role("admin")

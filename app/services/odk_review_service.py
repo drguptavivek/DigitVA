@@ -111,3 +111,46 @@ def sync_not_codeable_review_state(
         review_state=review_state,
         comment=comment,
     )
+
+
+def post_dm_rejection_comment(va_sid: str) -> OdkReviewSyncResult:
+    """Post a comment to ODK Central when DM rejects upstream data change.
+
+    Keeps the submission in hasIssues state but adds a comment explaining
+    that the data manager rejected the ODK data update.
+
+    Local workflow completion must not depend on ODK Central availability.
+    """
+    submission = db.session.get(VaSubmissions, va_sid)
+    if submission is None:
+        return OdkReviewSyncResult(success=False, error_message=f"Submission not found for SID '{va_sid}'.")
+
+    va_form = db.session.get(VaForms, submission.va_form_id)
+    if va_form is None:
+        return OdkReviewSyncResult(success=False, error_message=f"Form not found for submission SID '{va_sid}'.")
+    if not va_form.project_id or not va_form.odk_form_id or not va_form.odk_project_id:
+        return OdkReviewSyncResult(success=False, error_message=f"ODK mapping is incomplete for form '{va_form.form_id}'.")
+
+    comment = "DigitVA data manager rejected the upstream data change. The original COD determination stands."
+    instance_id = resolve_odk_instance_id(va_sid)
+
+    try:
+        client = va_odk_clientsetup(project_id=va_form.project_id)
+        guarded_odk_call(
+            lambda: client.submissions.review(
+                instance_id=instance_id,
+                review_state=ODK_REVIEW_STATE_HAS_ISSUES,
+                form_id=va_form.odk_form_id,
+                project_id=int(va_form.odk_project_id),
+                comment=comment,
+            ),
+            client=client,
+        )
+    except Exception as exc:
+        return OdkReviewSyncResult(success=False, error_message=str(exc))
+
+    return OdkReviewSyncResult(
+        success=True,
+        review_state=ODK_REVIEW_STATE_HAS_ISSUES,
+        comment=comment,
+    )

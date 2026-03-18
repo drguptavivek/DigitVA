@@ -23,7 +23,7 @@
 
         {% if current_user.is_authenticated and current_user.is_site_pi() %}
           <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('va_main.va_dashboard', va_role='sitepi') }}">
+            <a class="nav-link" href="{{ url_for('sitepi.dashboard') }}">
               <i class="fa-solid fa-chart-line"></i>
               VA Dashboard
             </a>
@@ -88,7 +88,7 @@
               {% endif %}
               {% if current_user.is_reviewer() %}
                 <li>
-                  <a class="dropdown-item" href="{{ url_for('va_main.va_dashboard', va_role='reviewer') }}">
+                  <a class="dropdown-item" href="{{ url_for('reviewing.dashboard') }}">
                     <i class="fa-solid fa-user-check me-2"></i>
                     VA QA
                   </a>

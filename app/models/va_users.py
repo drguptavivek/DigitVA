@@ -71,19 +71,19 @@ class VaUsers(UserMixin, db.Model):
         if self.landing_page == "data_manager":
             return url_for("data_management.dashboard")
         if self.landing_page == "coder" and self.is_coder():
-            return url_for("va_main.va_dashboard", va_role=self.landing_page)
+            return url_for("coding.dashboard")
         if self.landing_page == "reviewer" and self.is_reviewer():
-            return url_for("va_main.va_dashboard", va_role=self.landing_page)
+            return url_for("reviewing.dashboard")
         if self.landing_page == "sitepi" and self.is_site_pi():
-            return url_for("va_main.va_dashboard", va_role=self.landing_page)
+            return url_for("sitepi.dashboard")
         if self.is_coder():
             return url_for("coding.dashboard")
         if self.is_data_manager():
             return url_for("data_management.dashboard")
         if self.is_reviewer():
-            return url_for("va_main.va_dashboard", va_role="reviewer")
+            return url_for("reviewing.dashboard")
         if self.is_site_pi():
-            return url_for("va_main.va_dashboard", va_role="sitepi")
+            return url_for("sitepi.dashboard")
         return url_for("va_main.va_index")
 
     def set_password(self, password):

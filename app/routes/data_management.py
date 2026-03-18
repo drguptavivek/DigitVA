@@ -149,6 +149,35 @@ def dashboard():
     )
 
 
+@data_management.get("/view/<va_sid>")
+@login_required
+def view_submission(va_sid):
+    """Data manager read-only view of a submission."""
+    import uuid
+    from app.models import VaSubmissionsAuditlog
+    from app.services.coding_service import render_va_coding_page
+    form = db.session.get(VaSubmissions, va_sid)
+    if not form:
+        va_permission_abortwithflash("Submission not found.", 404)
+    # Authorization check
+    form_meta = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form.va_form_id)
+    ).mappings().first()
+    if not form_meta or not current_user.has_data_manager_submission_access(form_meta["project_id"], form_meta["site_id"]):
+        va_permission_abortwithflash("You do not have data-manager access to this submission.", 403)
+    # Audit read
+    db.session.add(VaSubmissionsAuditlog(
+        va_sid=va_sid,
+        va_audit_byrole="data_manager",
+        va_audit_by=current_user.user_id,
+        va_audit_operation="r",
+        va_audit_action="data_manager_viewed_submission_read_only",
+        va_audit_entityid=uuid.uuid4(),
+    ))
+    db.session.commit()
+    return render_va_coding_page(form, "vadata", "vaview", "data_manager")
+
+
 @data_management.get("/submissions/<path:va_sid>/odk-edit")
 @login_required
 def submission_odk_edit(va_sid):

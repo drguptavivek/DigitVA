@@ -674,7 +674,7 @@
           </td>
           <td>{{ row.va_dmreview_createdat or '-' }}</td>
           <td>
-            <a href="{{ url_for('va_cta.va_calltoaction', va_action='vadata', va_actiontype='vaview', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
+            <a href="{{ url_for('data_management.view_submission', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
               View
             </a>
             <a href="{{ url_for('data_management.submission_odk_edit', va_sid=row.va_sid) }}"

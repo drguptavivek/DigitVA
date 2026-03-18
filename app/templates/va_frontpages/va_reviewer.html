@@ -75,7 +75,7 @@
   {% if va_has_allocation %}
   <!-- Continue Pending QA -->
   <div class="text-center mb-4">
-    <a href="{{ url_for('va_cta.va_calltoaction', va_action='vareview', va_actiontype='varesumereviewing', va_sid='varesumereviewing') }}" class="btn btn-warning">
+    <a href="{{ url_for('reviewing.resume') }}" class="btn btn-warning">
       <i class="fas fa-edit me-2"></i>Continue Pending VA QA
     </a>
   </div>
@@ -174,9 +174,9 @@
             orderable: false,
             render: row => {
               if (row.va_review_status === 'Reviewed') {
-                return `<a href="/vacta/vareview/vaview/${row.va_sid}" class="btn btn-sm btn-outline-primary">View</a>`;
+                return `<a href="/reviewing/view/${row.va_sid}" class="btn btn-sm btn-outline-primary">View</a>`;
               } else if (!hasAllocation) {
-                return `<a href="/vacta/vareview/vastartreviewing/${row.va_sid}" class="btn btn-sm btn-primary me-2" onclick="return confirm('Are you sure you want to initiate QA for this form?');">Initiate QA</a>`;
+                return `<a href="/reviewing/start/${row.va_sid}" class="btn btn-sm btn-primary me-2" onclick="return confirm('Are you sure you want to initiate QA for this form?');">Initiate QA</a>`;
               } else {
                 return '';
               }

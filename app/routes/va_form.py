@@ -779,7 +779,7 @@ def renderpartial(va_sid, va_partial):
             db.session.commit()
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
-                response.headers["HX-Redirect"] = url_for('va_main.va_dashboard', va_role="coder")
+                response.headers["HX-Redirect"] = url_for('coding.dashboard')
                 flash("VA Coding submitted successfully!", "success")
                 return response
         return _render_final_assessment_form()
@@ -899,7 +899,7 @@ def renderpartial(va_sid, va_partial):
                 flash(warning_message, "warning")
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
-                response.headers["HX-Redirect"] = url_for('va_main.va_dashboard', va_role="coder")
+                response.headers["HX-Redirect"] = url_for('coding.dashboard')
                 return response
         return _render_coder_review_form()
         

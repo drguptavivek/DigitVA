@@ -39,7 +39,7 @@ class SessionTests(BaseTestCase):
 
         # Target a page that requires login (or any page we want to return to)
         with self.app.test_request_context():
-            next_url = url_for("va_main.va_dashboard", va_role="coder")
+            next_url = url_for("coding.dashboard")
             login_url = url_for("va_auth.va_login", next=next_url)
 
         # Attempt to login

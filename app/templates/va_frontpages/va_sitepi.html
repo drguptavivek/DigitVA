@@ -50,7 +50,7 @@
   <div class="col-md-6">
     <label for="siteSelect" class="form-label"><strong>Select Site-Specific VA Form:</strong></label>
     <select id="siteSelect" name="siteSelect" class="form-select"
-            hx-get="{{ url_for('va_main.va_sitepi_data') }}"
+            hx-get="{{ url_for('sitepi.sitepi_data') }}"
             hx-target="#siteContent"
             hx-trigger="change"
             hx-indicator="#loading">

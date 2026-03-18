@@ -17,7 +17,7 @@
     </div>
     <div>
       {% if back_dashboard_role == 'reviewer' %}
-        {% set _back_url = url_for('va_main.va_dashboard', va_role='reviewer') %}
+        {% set _back_url = url_for('reviewing.dashboard') %}
       {% elif back_dashboard_role == 'data_manager' %}
         {% set _back_url = url_for('data_management.dashboard') %}
       {% else %}

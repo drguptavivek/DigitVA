@@ -44,16 +44,9 @@ def va_permission_ensurenotreviewed(sid):
     if coded1 or coded2:
         va_permission_abortwithflash("This VA form has already been coded.", 403)
     if alloc and current_user.user_id == alloc:
-        return redirect(
-            url_for(
-                "va_cta.va_calltoaction",
-                va_action="vareview",
-                va_actiontype="varesumereviewing",
-                va_sid=sid,
-            )
-        )
+        return redirect(url_for("reviewing.resume"))
     if alloc:
         flash(
             "This VA form is already allocated to someone for the review. Please select again."
         )
-        return redirect(url_for("va_main.va_dashboard", va_role="reviewer"))
+        return redirect(url_for("reviewing.dashboard"))

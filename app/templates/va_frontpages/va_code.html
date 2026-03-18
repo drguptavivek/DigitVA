@@ -138,19 +138,19 @@
   {% endif %}
   <div class="text-center mb-4">
     {% if va_has_allocation %}
-    <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='varesumecoding', va_sid='varesumecoding') }}" class="btn btn-primary">
+    <a href="{{ url_for('coding.resume') }}" class="btn btn-primary">
       <i class="fas fa-edit me-2"></i>Continue Pending VA Coding
     </a>
     {% else %}
     {% if va_random_ready_forms %}
-    <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vastartcoding', va_sid='vastartcoding') }}" class="btn btn-primary">
+    <a href="{{ url_for('coding.start') }}" class="btn btn-primary">
       <i class="fas fa-edit me-2"></i>Start Random Allocation Coding
     </a>
     {% endif %}
     {% endif %}
     {% if is_admin %}
     <form method="get"
-          action="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vademo_start_coding', va_sid='vademo_start_coding') }}"
+          action="{{ url_for('coding.demo') }}"
           class="d-inline-flex align-items-center ms-2 gap-2">
       <select name="project_id" class="form-select form-select-sm" style="min-width: 180px;">
         <option value="">All coder projects</option>
@@ -203,7 +203,7 @@
                 {% if va_has_allocation %}
                 <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Continue current coding first</button>
                 {% else %}
-                <a href="{{ url_for('va_cta.va_calltoaction', va_action='vacode', va_actiontype='vapickcoding', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
+                <a href="{{ url_for('coding.pick', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
                   Start Coding
                 </a>
                 {% endif %}
@@ -311,10 +311,10 @@
             render: row => {
                 const recodeableList = JSON.parse(document.getElementById("va-recodeable").textContent);
                 const context = JSON.parse(document.getElementById("va-context").textContent);
-                let html = `<a href="/vacta/vacode/vaview/${row.va_sid}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
+                let html = `<a href="/coding/view/${row.va_sid}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
                 const noAllocation = !context.hasAllocation;
                 if (noAllocation && recodeableList.includes(row.va_sid)) {
-                  html += `<a href="/vacta/vacode/varecode/${row.va_sid}" class="btn btn-sm btn-outline-danger">Recode</a>`;
+                  html += `<a href="/coding/recode/${row.va_sid}" class="btn btn-sm btn-outline-danger">Recode</a>`;
                 }
                 return html;
             }

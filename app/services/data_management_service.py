@@ -565,14 +565,14 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
         va_sid,
         WORKFLOW_READY_FOR_CODING,
         reason="data_manager_accepted_upstream_change",
-        by_user_id=current_user.user_id,
+        by_user_id=user.user_id,
         by_role="data_manager",
     )
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
             va_audit_byrole="data_manager",
-            va_audit_by=current_user.user_id,
+            va_audit_by=user.user_id,
             va_audit_operation="u",
             va_audit_action="data_manager_accepted_upstream_odk_change",
             va_audit_entityid=uuid.uuid4(),
@@ -616,14 +616,14 @@ def dm_reject_upstream_change(user, va_sid: str) -> None:
         va_sid,
         WORKFLOW_CODER_FINALIZED,
         reason="data_manager_rejected_upstream_change",
-        by_user_id=current_user.user_id,
+        by_user_id=user.user_id,
         by_role="data_manager",
     )
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
             va_audit_byrole="data_manager",
-            va_audit_by=current_user.user_id,
+            va_audit_by=user.user_id,
             va_audit_operation="u",
             va_audit_action="data_manager_rejected_upstream_odk_change",
             va_audit_entityid=uuid.uuid4(),

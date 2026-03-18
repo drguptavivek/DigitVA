@@ -125,49 +125,60 @@ class DataManagementAcceptRejectTests(BaseTestCase):
         submission = VaSubmissions(
             va_sid=va_sid,
             va_form_id=self.FORM_ID,
-            va_sub_odk_instance_id=va_sid,
-            va_sub_odk_version="1",
-            va_sub_json={"test": "data"},
-            va_workflow_state=WORKFLOW_CODER_FINALIZED,
-            va_sub_status=VaStatuses.active,
-            va_sub_createdat=now,
-            va_sub_updatedat=now,
+            va_submission_date=now,
+            va_odk_updatedat=now,
+            va_data_collector="tester",
+            va_odk_reviewstate=None,
+            va_instance_name=va_sid,
+            va_uniqueid_real=None,
+            va_uniqueid_masked=va_sid,
+            va_consent="yes",
+            va_narration_language="English",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_data={"test": "data"},
+            va_summary=[],
+            va_catcount={},
+            va_category_list=[],
         )
         db.session.add(submission)
         db.session.flush()
 
-        # Create workflow record
+        # Create workflow record (correct attribute names)
         db.session.add(VaSubmissionWorkflow(
             va_sid=va_sid,
-            va_workflow_state=WORKFLOW_CODER_FINALIZED,
-            va_workflow_createdat=now,
-            va_workflow_updatedat=now,
+            workflow_state=WORKFLOW_CODER_FINALIZED,
+            workflow_created_at=now,
+            workflow_updated_at=now,
         ))
 
         # Create active artifacts (these should be deactivated on accept)
+        # VaFinalAssessments requires va_finassess_by and va_conclusive_cod
         db.session.add(VaFinalAssessments(
             va_sid=va_sid,
+            va_finassess_by=self.base_admin_id,
+            va_conclusive_cod="A00",
             va_finassess_status=VaStatuses.active,
-            va_finassess_createdat=now,
-            va_finassess_updatedat=now,
         ))
+        # VaInitialAssessments requires va_iniassess_by, va_immediate_cod, va_antecedent_cod
         db.session.add(VaInitialAssessments(
             va_sid=va_sid,
+            va_iniassess_by=self.base_admin_id,
+            va_immediate_cod="A00",
+            va_antecedent_cod="B00",
             va_iniassess_status=VaStatuses.active,
-            va_iniassess_createdat=now,
-            va_iniassess_updatedat=now,
         ))
+        # VaCoderReview requires va_creview_by and va_creview_reason
         db.session.add(VaCoderReview(
             va_sid=va_sid,
+            va_creview_by=self.base_admin_id,
+            va_creview_reason="completed",
             va_creview_status=VaStatuses.active,
-            va_creview_createdat=now,
-            va_creview_updatedat=now,
         ))
+        # VaSmartvaResults - only va_sid and va_smartva_status are required
         db.session.add(VaSmartvaResults(
             va_sid=va_sid,
             va_smartva_status=VaStatuses.active,
-            va_smartva_createdat=now,
-            va_smartva_updatedat=now,
         ))
         db.session.flush()
 
@@ -185,30 +196,30 @@ class DataManagementAcceptRejectTests(BaseTestCase):
 
     def _create_dm_user(self) -> VaUsers:
         """Create a data manager user with access to the test project."""
-        now = datetime.now(timezone.utc)
+        # Use unique email to avoid conflicts between tests
+        unique_suffix = uuid.uuid4().hex[:8]
         user = VaUsers(
-            user_name="DM Test User",
-            user_email="dm_test@example.com",
+            name=f"DM Test User {unique_suffix}",
+            email=f"dm_test_{unique_suffix}@example.com",
+            vacode_language=["English"],
+            permission={},
+            landing_page="data_manager",
+            pw_reset_t_and_c=True,
+            email_verified=True,
             user_status=VaStatuses.active,
-            user_registered_at=now,
-            user_updatedat=now,
         )
         user.set_password("password")
         db.session.add(user)
         db.session.flush()
 
         # Grant data_manager role for the project
-        from app.models import VaAccessRoles, VaUserAccessGrants
-        dm_role = db.session.scalar(
-            sa.select(VaAccessRoles).where(VaAccessRoles.role_name == "data_manager")
-        )
+        from app.models import VaAccessRoles, VaUserAccessGrants, VaAccessScopeTypes
         db.session.add(VaUserAccessGrants(
             user_id=user.user_id,
-            role_id=dm_role.role_id,
-            scope_type="project",
-            scope_id=self.PROJECT_ID,
+            role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT_ID,
             grant_status=VaStatuses.active,
-            granted_at=now,
         ))
         db.session.commit()
         return user
@@ -411,7 +422,7 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
 
         self.assertIn("not revoked_va_data_changed", str(ctx.exception))
 
-    @patch("app.services.data_management_service.post_dm_rejection_comment")
+    @patch("app.services.odk_review_service.post_dm_rejection_comment")
     def test_posts_odk_comment(self, mock_post_comment):
         """Reject should post a comment to ODK Central."""
         mock_post_comment.return_value = MagicMock(success=True)
@@ -424,7 +435,7 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
 
         mock_post_comment.assert_called_once_with(va_sid)
 
-    @patch("app.services.data_management_service.post_dm_rejection_comment")
+    @patch("app.services.odk_review_service.post_dm_rejection_comment")
     def test_continues_on_odk_failure(self, mock_post_comment):
         """Reject should complete even if ODK comment post fails."""
         mock_post_comment.return_value = MagicMock(

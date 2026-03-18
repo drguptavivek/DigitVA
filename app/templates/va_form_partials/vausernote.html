@@ -1,5 +1,5 @@
 <form 
-  hx-post="{{ url_for('coding.renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vausernote') }}"
+  hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vausernote', action=va_action, actiontype=va_actiontype) }}"
   hx-swap="none"
   hx-target="this"
 >

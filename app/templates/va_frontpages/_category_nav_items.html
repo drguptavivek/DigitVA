@@ -1,11 +1,7 @@
 {% for category in category_nav %}
   <button
     class="list-group-item list-group-item-action d-flex align-items-center{% if category.render_mode == 'table_sections' and 'symptoms' in category.category_code %} position-relative{% endif %}"
-    hx-get="{{ url_for('coding.renderpartial',
-            va_action=va_action,
-            va_actiontype=va_actiontype,
-            va_sid=va_sid,
-            va_partial=category.category_code) }}"
+    hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=category.category_code, action=va_action, actiontype=va_actiontype) }}"
     hx-target="#form-content"
     hx-swap="innerHTML"
   >

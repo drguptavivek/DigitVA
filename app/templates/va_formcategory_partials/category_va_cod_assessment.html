@@ -14,7 +14,7 @@
     {% if va_previouscategory %}
       <button
         class="btn btn-secondary"
-        hx-get="{{ url_for('coding.renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial=va_previouscategory) }}"
+        hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_previouscategory, action=va_action, actiontype=va_actiontype) }}"
         hx-target="#form-content"
         hx-swap="innerHTML"
       >

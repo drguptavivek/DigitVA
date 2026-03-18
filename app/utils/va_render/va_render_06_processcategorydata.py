@@ -76,7 +76,7 @@ def va_render_processcategorydata(
                         )
                     ):
                         value = url_for(
-                            "coding.serve_media",
+                            "va_form.serve_media",
                             va_form_id=va_form_id,
                             va_filename=value,
                         )

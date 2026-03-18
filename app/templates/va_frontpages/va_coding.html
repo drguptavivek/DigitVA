@@ -142,11 +142,7 @@
     <div class="col-md-9">
       <div class="card" id="form-content"
           {% if default_category_code %}
-          hx-get="{{ url_for('coding.renderpartial',
-          va_action=va_action,
-          va_actiontype=va_actiontype,
-          va_sid = va_sid,
-          va_partial = default_category_code)}}"
+          hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=default_category_code, action=va_action, actiontype=va_actiontype)}}"
           hx-target="this"
           hx-trigger="load"
           hx-swap="innerHTML"
@@ -186,7 +182,7 @@
 
   <div 
     id="noteFormWrapper"
-    hx-get="{{ url_for('coding.renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vausernote') }}"
+    hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vausernote', action=va_action, actiontype=va_actiontype) }}"
     hx-trigger="load"
     hx-swap="innerHTML"
     hx-target="this"

@@ -30,8 +30,8 @@ def va_validate_permissions():
             if current_user.is_anonymous:
                 return redirect(url_for("va_auth.va_login", next=request.url))
             va_role = kwargs.get("va_role")
-            va_action = kwargs.get("va_action")
-            va_actiontype = kwargs.get("va_actiontype")
+            va_action = kwargs.get("va_action") or request.values.get("action")
+            va_actiontype = kwargs.get("va_actiontype") or request.values.get("actiontype")
             va_sid = kwargs.get("va_sid")
             va_partial = kwargs.get("va_partial")
             if va_role and not any([va_action, va_actiontype, va_sid, va_partial]):

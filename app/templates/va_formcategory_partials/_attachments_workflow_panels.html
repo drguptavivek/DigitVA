@@ -13,7 +13,7 @@
     <div class="card shadow-sm">
       <div class="card-body p-3">
         <div id="form-container">
-          <div hx-get="{{ url_for('coding.renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vareviewform') }}" hx-trigger="load" hx-swap="innerHTML"></div>
+          <div hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vareviewform', action=va_action, actiontype=va_actiontype) }}" hx-trigger="load" hx-swap="innerHTML"></div>
         </div>
       </div>
     </div>
@@ -364,7 +364,7 @@
             if (window.htmx) {
               htmx.ajax(
                 'GET',
-                "{{ url_for('coding.renderpartial', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid, va_partial='vanarrationanddocuments') }}",
+                "{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vanarrationanddocuments', action=va_action, actiontype=va_actiontype) }}",
                 '#form-content'
               );
             }

@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
-from flask import request as flask_request
+from flask import request as flask_request, request
 from app import db, limiter, cache
 from app.services.submission_analytics_mv import (
     MV_NAME,
@@ -80,22 +80,43 @@ def _require_data_manager():
     return None
 
 
-def _user_cache_key():
-    """Per-user cache key: endpoint + query string, namespaced by user ID."""
+_CACHE_TTL = 300  # 5 minutes
+
+
+def _cache_key(suffix: str) -> str:
+    """Per-user cache key for analytics data."""
     qs = flask_request.query_string.decode()
-    return f"analytics_api:{current_user.id}:{flask_request.endpoint}:{qs}"
+    return f"analytics_api:{current_user.user_id}:{suffix}:{qs}"
+
+
+def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
+    """Return cached dict data or compute it, store it, and return it."""
+    full_key = _cache_key(key)
+    try:
+        data = cache.get(full_key)
+    except Exception:
+        data = None
+    if data is not None and not isinstance(data, BaseException):
+        return data
+    data = compute_fn()
+    try:
+        cache.set(full_key, data, timeout=timeout)
+    except Exception as exc:
+        log.warning("Analytics cache set failed (%s): %s", full_key, exc)
+    return data
 
 
 def _bust_user_analytics_cache():
     """Delete all analytics cache entries for the current user."""
-    pattern = f"{cache.config.get('CACHE_KEY_PREFIX', '')}analytics_api:{current_user.id}:*"
+    prefix = cache.config.get("CACHE_KEY_PREFIX", "")
+    pattern = f"{prefix}analytics_api:{current_user.user_id}:*"
     try:
         redis_client = cache.cache._write_client
         keys = redis_client.keys(pattern)
         if keys:
             redis_client.delete(*keys)
     except Exception as exc:
-        log.warning("Could not bust analytics cache for user %s: %s", current_user.id, exc)
+        log.warning("Could not bust analytics cache for user %s: %s", current_user.user_id, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -105,28 +126,17 @@ def _bust_user_analytics_cache():
 
 @analytics_api.get("/kpi")
 @login_required
-@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def kpi():
-    """Headline KPI counts from the analytics MV, scoped to the user's grants.
-
-    Response:
-        {
-            "total_submissions": int,
-            "flagged_submissions": int,
-            "odk_has_issues_submissions": int,
-            "smartva_missing_submissions": int
-        }
-    """
+    """Headline KPI counts from the analytics MV, scoped to the user's grants."""
     err = _require_data_manager()
     if err:
         return err
 
-    return jsonify(
-        get_dm_kpi_from_mv(
-            project_ids=sorted(current_user.get_data_manager_projects()),
-            project_site_pairs=current_user.get_data_manager_project_sites(),
-        )
-    )
+    data = _cached("kpi", lambda: get_dm_kpi_from_mv(
+        project_ids=sorted(current_user.get_data_manager_projects()),
+        project_site_pairs=current_user.get_data_manager_project_sites(),
+    ))
+    return jsonify(data)
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +146,6 @@ def kpi():
 
 @analytics_api.get("/submissions/by-date")
 @login_required
-@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def submissions_by_date():
     """Submission counts grouped by calendar date.
 
@@ -151,26 +160,27 @@ def submissions_by_date():
         return err
 
     limit = min(int(request.args.get("limit", 90)), 365)
-    scope = _dm_scope_filter()
 
-    rows = db.session.execute(
-        sa.select(
-            _mv.c.submission_date.label("date"),
-            sa.func.count().label("count"),
-        )
-        .where(scope)
-        .where(_mv.c.submission_date.isnot(None))
-        .group_by(_mv.c.submission_date)
-        .order_by(_mv.c.submission_date.desc())
-        .limit(limit)
-    ).mappings().all()
+    def compute():
+        scope = _dm_scope_filter()
+        rows = db.session.execute(
+            sa.select(
+                _mv.c.submission_date.label("date"),
+                sa.func.count().label("count"),
+            )
+            .where(scope)
+            .where(_mv.c.submission_date.isnot(None))
+            .group_by(_mv.c.submission_date)
+            .order_by(_mv.c.submission_date.desc())
+            .limit(limit)
+        ).mappings().all()
+        return [{"date": str(r["date"]), "count": r["count"]} for r in rows]
 
-    return jsonify({"data": [{"date": str(r["date"]), "count": r["count"]} for r in rows]})
+    return jsonify({"data": _cached(f"submissions_by_date:{limit}", compute)})
 
 
 @analytics_api.get("/submissions/by-week")
 @login_required
-@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def submissions_by_week():
     """Submission counts grouped by ISO week start (Monday).
 
@@ -185,28 +195,27 @@ def submissions_by_week():
         return err
 
     limit = min(int(request.args.get("limit", 26)), 104)
-    scope = _dm_scope_filter()
 
-    rows = db.session.execute(
-        sa.select(
-            _mv.c.submission_week_start.label("week_start"),
-            sa.func.count().label("count"),
-        )
-        .where(scope)
-        .where(_mv.c.submission_week_start.isnot(None))
-        .group_by(_mv.c.submission_week_start)
-        .order_by(_mv.c.submission_week_start.desc())
-        .limit(limit)
-    ).mappings().all()
+    def compute():
+        scope = _dm_scope_filter()
+        rows = db.session.execute(
+            sa.select(
+                _mv.c.submission_week_start.label("week_start"),
+                sa.func.count().label("count"),
+            )
+            .where(scope)
+            .where(_mv.c.submission_week_start.isnot(None))
+            .group_by(_mv.c.submission_week_start)
+            .order_by(_mv.c.submission_week_start.desc())
+            .limit(limit)
+        ).mappings().all()
+        return [{"week_start": str(r["week_start"]), "count": r["count"]} for r in rows]
 
-    return jsonify(
-        {"data": [{"week_start": str(r["week_start"]), "count": r["count"]} for r in rows]}
-    )
+    return jsonify({"data": _cached(f"submissions_by_week:{limit}", compute)})
 
 
 @analytics_api.get("/submissions/by-month")
 @login_required
-@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def submissions_by_month():
     """Submission counts grouped by month start.
 
@@ -221,23 +230,23 @@ def submissions_by_month():
         return err
 
     limit = min(int(request.args.get("limit", 12)), 60)
-    scope = _dm_scope_filter()
 
-    rows = db.session.execute(
-        sa.select(
-            _mv.c.submission_month_start.label("month_start"),
-            sa.func.count().label("count"),
-        )
-        .where(scope)
-        .where(_mv.c.submission_month_start.isnot(None))
-        .group_by(_mv.c.submission_month_start)
-        .order_by(_mv.c.submission_month_start.desc())
-        .limit(limit)
-    ).mappings().all()
+    def compute():
+        scope = _dm_scope_filter()
+        rows = db.session.execute(
+            sa.select(
+                _mv.c.submission_month_start.label("month_start"),
+                sa.func.count().label("count"),
+            )
+            .where(scope)
+            .where(_mv.c.submission_month_start.isnot(None))
+            .group_by(_mv.c.submission_month_start)
+            .order_by(_mv.c.submission_month_start.desc())
+            .limit(limit)
+        ).mappings().all()
+        return [{"month_start": str(r["month_start"]), "count": r["count"]} for r in rows]
 
-    return jsonify(
-        {"data": [{"month_start": str(r["month_start"]), "count": r["count"]} for r in rows]}
-    )
+    return jsonify({"data": _cached(f"submissions_by_month:{limit}", compute)})
 
 
 # ---------------------------------------------------------------------------
@@ -247,7 +256,6 @@ def submissions_by_month():
 
 @analytics_api.get("/demographics")
 @login_required
-@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def demographics():
     """Age-band and sex distribution from the analytics MV.
 
@@ -261,34 +269,32 @@ def demographics():
     if err:
         return err
 
-    scope = _dm_scope_filter()
-
-    age_rows = db.session.execute(
-        sa.select(
-            _mv.c.analytics_age_band.label("band"),
-            sa.func.count().label("count"),
-        )
-        .where(scope)
-        .group_by(_mv.c.analytics_age_band)
-        .order_by(sa.func.count().desc())
-    ).mappings().all()
-
-    sex_rows = db.session.execute(
-        sa.select(
-            _mv.c.sex.label("sex"),
-            sa.func.count().label("count"),
-        )
-        .where(scope)
-        .group_by(_mv.c.sex)
-        .order_by(sa.func.count().desc())
-    ).mappings().all()
-
-    return jsonify(
-        {
+    def compute():
+        scope = _dm_scope_filter()
+        age_rows = db.session.execute(
+            sa.select(
+                _mv.c.analytics_age_band.label("band"),
+                sa.func.count().label("count"),
+            )
+            .where(scope)
+            .group_by(_mv.c.analytics_age_band)
+            .order_by(sa.func.count().desc())
+        ).mappings().all()
+        sex_rows = db.session.execute(
+            sa.select(
+                _mv.c.sex.label("sex"),
+                sa.func.count().label("count"),
+            )
+            .where(scope)
+            .group_by(_mv.c.sex)
+            .order_by(sa.func.count().desc())
+        ).mappings().all()
+        return {
             "age_bands": [{"band": r["band"], "count": r["count"]} for r in age_rows],
             "sex": [{"sex": r["sex"], "count": r["count"]} for r in sex_rows],
         }
-    )
+
+    return jsonify(_cached("demographics", compute))
 
 
 # ---------------------------------------------------------------------------
@@ -298,7 +304,6 @@ def demographics():
 
 @analytics_api.get("/workflow")
 @login_required
-@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def workflow():
     """Workflow-state breakdown from the analytics MV.
 
@@ -309,19 +314,20 @@ def workflow():
     if err:
         return err
 
-    scope = _dm_scope_filter()
+    def compute():
+        scope = _dm_scope_filter()
+        rows = db.session.execute(
+            sa.select(
+                _mv.c.workflow_state.label("state"),
+                sa.func.count().label("count"),
+            )
+            .where(scope)
+            .group_by(_mv.c.workflow_state)
+            .order_by(sa.func.count().desc())
+        ).mappings().all()
+        return [{"state": r["state"], "count": r["count"]} for r in rows]
 
-    rows = db.session.execute(
-        sa.select(
-            _mv.c.workflow_state.label("state"),
-            sa.func.count().label("count"),
-        )
-        .where(scope)
-        .group_by(_mv.c.workflow_state)
-        .order_by(sa.func.count().desc())
-    ).mappings().all()
-
-    return jsonify({"data": [{"state": r["state"], "count": r["count"]} for r in rows]})
+    return jsonify({"data": _cached("workflow", compute)})
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +337,6 @@ def workflow():
 
 @analytics_api.get("/cod")
 @login_required
-@cache.cached(timeout=300, make_cache_key=_user_cache_key)
 def cod():
     """Top cause-of-death ICD codes from the analytics MV.
 
@@ -348,40 +353,34 @@ def cod():
 
     cod_type = request.args.get("type", "final")
     limit = min(int(request.args.get("limit", 20)), 100)
-    scope = _dm_scope_filter()
 
-    if cod_type == "initial":
-        icd_col = _mv.c.initial_immediate_icd
-        text_col = sa.literal(None)
-        has_col = _mv.c.has_human_initial_cod
-    else:
-        icd_col = _mv.c.final_icd
-        text_col = _mv.c.final_cod_text
-        has_col = _mv.c.has_human_final_cod
+    def compute():
+        scope = _dm_scope_filter()
+        if cod_type == "initial":
+            icd_col = _mv.c.initial_immediate_icd
+            text_col = sa.literal(None)
+            has_col = _mv.c.has_human_initial_cod
+        else:
+            icd_col = _mv.c.final_icd
+            text_col = _mv.c.final_cod_text
+            has_col = _mv.c.has_human_final_cod
 
-    rows = db.session.execute(
-        sa.select(
-            icd_col.label("icd"),
-            sa.func.max(text_col).label("cod_text"),
-            sa.func.count().label("count"),
-        )
-        .where(scope)
-        .where(has_col.is_(True))
-        .where(icd_col.isnot(None))
-        .group_by(icd_col)
-        .order_by(sa.func.count().desc())
-        .limit(limit)
-    ).mappings().all()
+        rows = db.session.execute(
+            sa.select(
+                icd_col.label("icd"),
+                sa.func.max(text_col).label("cod_text"),
+                sa.func.count().label("count"),
+            )
+            .where(scope)
+            .where(has_col.is_(True))
+            .where(icd_col.isnot(None))
+            .group_by(icd_col)
+            .order_by(sa.func.count().desc())
+            .limit(limit)
+        ).mappings().all()
+        return [{"icd": r["icd"], "cod_text": r["cod_text"], "count": r["count"]} for r in rows]
 
-    return jsonify(
-        {
-            "type": cod_type,
-            "data": [
-                {"icd": r["icd"], "cod_text": r["cod_text"], "count": r["count"]}
-                for r in rows
-            ],
-        }
-    )
+    return jsonify({"type": cod_type, "data": _cached(f"cod:{cod_type}:{limit}", compute)})
 
 
 # ---------------------------------------------------------------------------

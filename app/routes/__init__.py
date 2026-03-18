@@ -6,9 +6,11 @@ from app.routes.admin import admin
 from app.routes.dashboard_api import dashboard_api
 from app.routes.analytics_api import analytics_api
 from app.routes.data_management import data_management
+from app.routes.health import health
 
 
 def register_blueprints(app):
+    app.register_blueprint(health)
     app.register_blueprint(va_main)
     app.register_blueprint(va_auth, url_prefix="/vaauth")
     app.register_blueprint(va_cta, url_prefix="/vacta")

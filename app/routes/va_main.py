@@ -42,11 +42,6 @@ va_main = Blueprint("va_main", __name__)
 log = logging.getLogger(__name__)
 
 
-@va_main.route('/health', methods=['GET'])
-@limiter.exempt
-def health_check():
-    return jsonify({"status": "healthy"}), 200
-
 @va_main.route("/")
 @va_main.route("/index")
 @va_main.route("/vaindex")

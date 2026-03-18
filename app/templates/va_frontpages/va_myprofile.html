@@ -2,124 +2,160 @@
 {% block title %}DigitVA | My Profile{% endblock %}
 {% block content %}
 <div class="container py-4">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="mb-4">
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
 
   <div class="d-flex align-items-center mb-4 pb-2 border-bottom">
     <i class="fas fa-user-circle fa-2x text-primary me-3"></i>
     <h3 class="mb-0">My Profile</h3>
   </div>
 
-  <form method="POST">
-    {{ form.hidden_tag() }}
-    
-    <div class="row g-4 d-flex align-items-stretch">
-      
-      <!-- Password Card -->
-      <div class="col-md-4 d-flex">
-        <div class="card shadow-sm w-100 border-0 h-100">
-          <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-            <h5 class="card-title text-primary"><i class="fa fa-key me-2"></i>Change Password</h5>
-          </div>
-          <div class="card-body d-flex flex-column">
+  <div class="row g-4 d-flex align-items-stretch">
+
+    <!-- Password Card -->
+    <div class="col-md-4 d-flex">
+      <div class="card shadow-sm w-100 border-0 h-100">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-primary"><i class="fa fa-key me-2"></i>Change Password</h5>
+        </div>
+        <div class="card-body d-flex flex-column">
+          <form id="pw-form" autocomplete="on" onsubmit="return false;">
+            <input type="text" name="username" value="{{ current_user.email }}" autocomplete="username" style="display:none;">
             <div class="mb-3">
-              {{ form.va_current_password.label(class="form-label text-muted small fw-bold") }}
-              {{ form.va_current_password(class="form-control form-control-sm") }}
-              {% for error in form.va_current_password.errors %}
-                <div class="text-danger small mt-1">{{ error }}</div>
-              {% endfor %}
+              <label class="form-label text-muted small fw-bold">Current Password</label>
+              <input type="password" id="pw-current" class="form-control form-control-sm" autocomplete="current-password">
             </div>
             <div class="mb-3">
-              {{ form.va_new_password.label(class="form-label text-muted small fw-bold") }}
-              {{ form.va_new_password(class="form-control form-control-sm") }}
-              {% for error in form.va_new_password.errors %}
-                <div class="text-danger small mt-1">{{ error }}</div>
-              {% endfor %}
+              <label class="form-label text-muted small fw-bold">New Password</label>
+              <input type="password" id="pw-new" class="form-control form-control-sm" autocomplete="new-password">
+              <div class="form-text small mt-1 text-muted">
+                Min 12 characters &bull; 1 uppercase &bull; 1 digit &bull; 1 special character
+              </div>
             </div>
-            <div class="mb-4 flex-grow-1">
-              {{ form.va_confirm_password.label(class="form-label text-muted small fw-bold") }}
-              {{ form.va_confirm_password(class="form-control form-control-sm") }}
-              {% for error in form.va_confirm_password.errors %}
-                <div class="text-danger small mt-1">{{ error }}</div>
-              {% endfor %}
+            <div class="mb-3 flex-grow-1">
+              <label class="form-label text-muted small fw-bold">Confirm New Password</label>
+              <input type="password" id="pw-confirm" class="form-control form-control-sm" autocomplete="new-password">
             </div>
-            <div class="mt-auto">
-              {{ form.va_update_password(class="btn btn-primary btn-sm w-100") }}
-            </div>
-          </div>
+            <div id="pw-msg" class="small mb-2"></div>
+            <button id="pw-btn" class="btn btn-primary btn-sm w-100">Update Password</button>
+          </form>
         </div>
       </div>
-
-      <!-- Languages Card -->
-      <div class="col-md-4 d-flex">
-        <div class="card shadow-sm w-100 border-0 h-100">
-          <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-            <h5 class="card-title text-primary"><i class="fa fa-language me-2"></i>VA Languages</h5>
-          </div>
-          <div class="card-body d-flex flex-column">
-            <div class="mb-4 flex-grow-1">
-              {{ form.va_languages.label(class="form-label text-muted small fw-bold") }}
-              {{ form.va_languages(class="form-select form-select-sm", multiple=True, id="vaLangSelect") }}
-              {% for error in form.va_languages.errors %}
-                <div class="text-danger small mt-1">{{ error }}</div>
-              {% endfor %}
-              <div class="form-text small mt-2">Select the languages you are comfortable coding in.</div>
-            </div>
-            <div class="mt-auto">
-              {{ form.va_update_languages(class="btn btn-primary btn-sm w-100") }}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Timezone Card -->
-      <div class="col-md-4 d-flex">
-        <div class="card shadow-sm w-100 border-0 h-100">
-          <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-            <h5 class="card-title text-primary"><i class="fa fa-clock me-2"></i>Time Zone</h5>
-          </div>
-          <div class="card-body d-flex flex-column">
-            <div class="mb-4 flex-grow-1">
-              {{ form.va_timezone.label(class="form-label text-muted small fw-bold") }}
-              {{ form.va_timezone(class="form-select form-select-sm", id="vaTimezoneSelect") }}
-              {% for error in form.va_timezone.errors %}
-                <div class="text-danger small mt-1">{{ error }}</div>
-              {% endfor %}
-              <div class="form-text small mt-2">All times in the system will be displayed in this time zone.</div>
-            </div>
-            <div class="mt-auto">
-              {{ form.va_update_timezone(class="btn btn-primary btn-sm w-100") }}
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
-  </form>
+
+    <!-- Languages Card -->
+    <div class="col-md-4 d-flex">
+      <div class="card shadow-sm w-100 border-0 h-100">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-primary"><i class="fa fa-language me-2"></i>VA Languages</h5>
+        </div>
+        <div class="card-body d-flex flex-column">
+          <div class="mb-4 flex-grow-1">
+            <label class="form-label text-muted small fw-bold">VA Languages</label>
+            <select id="lang-select" class="form-select form-select-sm" multiple></select>
+            <div class="form-text small mt-2">Select the languages you are comfortable coding in.</div>
+          </div>
+          <div id="lang-msg" class="small mb-2"></div>
+          <div class="mt-auto">
+            <button id="lang-btn" class="btn btn-primary btn-sm w-100">Update Languages</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timezone Card -->
+    <div class="col-md-4 d-flex">
+      <div class="card shadow-sm w-100 border-0 h-100">
+        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
+          <h5 class="card-title text-primary"><i class="fa fa-clock me-2"></i>Time Zone</h5>
+        </div>
+        <div class="card-body d-flex flex-column">
+          <div class="mb-4 flex-grow-1">
+            <label class="form-label text-muted small fw-bold">Time Zone</label>
+            <select id="tz-select" class="form-select form-select-sm"></select>
+            <div class="form-text small mt-2">All times in the system will be displayed in this time zone.</div>
+          </div>
+          <div id="tz-msg" class="small mb-2"></div>
+          <div class="mt-auto">
+            <button id="tz-btn" class="btn btn-primary btn-sm w-100">Update Time Zone</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
-  $(document).ready(function () {
-    $('#vaLangSelect').select2({
-      placeholder: "Select VA Languages",
-      width: '100%',
-      theme: 'bootstrap-5'
-    });
-    $('#vaTimezoneSelect').select2({
-      placeholder: "Select Time Zone",
-      width: '100%',
-      theme: 'bootstrap-5'
-    });
+const CSRF = '{{ csrf_token() }}';
+
+function apiFetch(url, method, body) {
+  return fetch(url, {
+    method: method || 'GET',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: body ? JSON.stringify(body) : undefined,
+  }).then(r => r.json().then(d => ({ ok: r.ok, data: d })));
+}
+
+function showMsg(id, message, ok) {
+  const el = document.getElementById(id);
+  el.className = `small mb-2 ${ok ? 'text-success' : 'text-danger'}`;
+  el.textContent = message;
+}
+
+$(document).ready(async function () {
+
+  // ── Load profile + languages in parallel ──────────────────────────────
+  const [{ data: profile }, { data: langData }] = await Promise.all([
+    apiFetch('/api/v1/profile/'),
+    apiFetch('/api/v1/profile/languages'),
+  ]);
+
+  // Populate language select
+  const $lang = $('#lang-select');
+  langData.languages.forEach(l => {
+    $lang.append(new Option(l.name, l.code, false, langData.selected.includes(l.code)));
   });
+  $lang.select2({ placeholder: 'Select VA Languages', width: '100%', theme: 'bootstrap-5' });
+
+  // Populate timezone select
+  const tzSel = document.getElementById('tz-select');
+  const timezones = {{ timezones | tojson }};
+  timezones.forEach(tz => {
+    const opt = new Option(tz, tz, false, tz === profile.timezone);
+    tzSel.appendChild(opt);
+  });
+  $('#tz-select').select2({ placeholder: 'Select Time Zone', width: '100%', theme: 'bootstrap-5' });
+
+  // ── Password ──────────────────────────────────────────────────────────
+  document.getElementById('pw-btn').addEventListener('click', async () => {
+    const { ok, data } = await apiFetch('/api/v1/profile/password', 'PATCH', {
+      current_password: document.getElementById('pw-current').value,
+      new_password:     document.getElementById('pw-new').value,
+      confirm_password: document.getElementById('pw-confirm').value,
+    });
+    showMsg('pw-msg', data.message || data.error, ok);
+    if (ok) {
+      document.getElementById('pw-current').value = '';
+      document.getElementById('pw-new').value = '';
+      document.getElementById('pw-confirm').value = '';
+    }
+  });
+
+  // ── Languages ─────────────────────────────────────────────────────────
+  document.getElementById('lang-btn').addEventListener('click', async () => {
+    const { ok, data } = await apiFetch('/api/v1/profile/language', 'PATCH', {
+      languages: $('#lang-select').val(),
+    });
+    showMsg('lang-msg', data.message || data.error, ok);
+  });
+
+  // ── Timezone ──────────────────────────────────────────────────────────
+  document.getElementById('tz-btn').addEventListener('click', async () => {
+    const { ok, data } = await apiFetch('/api/v1/profile/timezone', 'PATCH', {
+      timezone: document.getElementById('tz-select').value,
+    });
+    showMsg('tz-msg', data.message || data.error, ok);
+  });
+
+});
 </script>
 {% endblock %}

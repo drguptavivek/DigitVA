@@ -7,6 +7,7 @@ from app.routes.va_form import va_form
 from app.routes.admin import admin
 from app.routes.data_management import data_management
 from app.routes.health import health
+from app.routes.profile import profile
 from app.routes.api import api_v1
 
 
@@ -14,6 +15,7 @@ def register_blueprints(app):
     app.register_blueprint(health)
     app.register_blueprint(va_main)
     app.register_blueprint(va_auth, url_prefix="/vaauth")
+    app.register_blueprint(profile, url_prefix="/profile")
     app.register_blueprint(coding, url_prefix="/coding")
     app.register_blueprint(reviewing, url_prefix="/reviewing")
     app.register_blueprint(sitepi, url_prefix="/sitepi")

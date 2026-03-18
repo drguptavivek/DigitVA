@@ -165,11 +165,11 @@ def create_app(config_class=Config):
 
         allowed_endpoints = {
             'static',
-            'va_main.force_password_change',
+            'profile.force_password_change',
             'va_auth.va_logout',
             'va_auth.va_login',
         }
         if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
-            return redirect(url_for('va_main.force_password_change'))
+            return redirect(url_for('profile.force_password_change'))
 
     return app

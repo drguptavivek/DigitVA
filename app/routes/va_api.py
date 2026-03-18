@@ -4,9 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflow, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaIcdCodes, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis, VaSocialAutopsyAnalysisOption
-from app.models.va_project_master import VaProjectMaster
-from app.models.va_forms import VaForms
+from app.models import VaSubmissions, VaSubmissionWorkflow, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis
 from app.decorators import va_validate_permissions
 from flask_login import current_user, login_required
 from flask import Blueprint, render_template, current_app, send_from_directory, flash, redirect, url_for, jsonify, request, abort
@@ -25,10 +23,7 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.field_mapping_service import get_mapping_service
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
-from app.services.social_autopsy_analysis_service import (
-    SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
-    social_autopsy_option_set,
-)
+from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_summary_service import build_submission_summary
 from app.services.submission_workflow_service import (
     WORKFLOW_CODER_FINALIZED,

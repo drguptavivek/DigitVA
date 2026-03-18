@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-18
+last_updated: 2026-03-19
 ---
 
 # Policy Docs
@@ -23,6 +23,8 @@ Current policy docs:
 - [Final COD Authority Policy](final-cod-authority.md)
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)
+- [ODK Sync Policy](odk-sync-policy.md) — workflow state guards for ODK sync
+- [SmartVA Generation Policy](smartva-generation-policy.md) — when SmartVA runs
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [UI Notification Policy](ui-notifications.md)

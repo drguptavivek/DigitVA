@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-03-19
 ---
 
 # SmartVA Analysis
@@ -11,6 +11,14 @@ last_updated: 2026-03-13
 SmartVA is an automated cause-of-death classification tool for Verbal Autopsy (VA) data. This document covers how DigitVA integrates SmartVA: input preparation, execution, output parsing, result storage, and operational considerations.
 
 The SmartVA source code is available at `vendor/smartva-analyze` (git submodule, pinned to v3.0.0) for troubleshooting and reference.
+
+## Known Issue: Workflow State Guards
+
+> **WARNING**: The current implementation does NOT respect workflow state guards for `coder_finalized` submissions.
+>
+> SmartVA runs regardless of workflow state during sync operations.
+>
+> See [SmartVA Generation Policy](../policy/smartva-generation-policy.md) for the intended behavior and planned fixes.
 
 ---
 

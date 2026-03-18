@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-17
+last_updated: 2026-03-19
 ---
 
 # ODK Sync And Attachments
@@ -24,6 +24,14 @@ ODK sync is an incremental batch process that:
 10. Records `last_synced_at` on the mapping row after each successful form
 11. Marks local sync issues when a local submission is missing from active ODK submissions
 12. Runs SmartVA on any new or updated submissions
+
+## Known Issue: Workflow State Guards
+
+> **WARNING**: The current implementation does NOT respect workflow state guards for `coder_finalized` submissions.
+>
+> When ODK data changes, the system unconditionally destroys all workflow artifacts including finalized CODs.
+>
+> See [ODK Sync Policy](../policy/odk-sync-policy.md) for the intended behavior and planned fixes.
 
 ## Connection Model
 
@@ -327,6 +335,8 @@ When a submission is updated, the app deactivates related local workflow artifac
 - User notes
 
 ODK is treated as the source of truth for submission content.
+
+> **NOTE**: This behavior does NOT respect `coder_finalized` state. See [ODK Sync Policy](../policy/odk-sync-policy.md) for the intended behavior.
 
 ## Language Normalization
 

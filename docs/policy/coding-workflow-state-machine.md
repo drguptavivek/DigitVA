@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-15
+last_updated: 2026-03-19
 ---
 
 # Coding Workflow State Machine Policy
@@ -140,11 +140,22 @@ following business states:
 - `partial_coding_saved`
 - `coder_step1_saved`
 - `coder_finalized`
+- `revoked_va_data_changed`
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
 - `closed`
 
 These states describe the local business outcome for the submission.
+
+## Protected States
+
+The following states are **protected** from automatic data changes:
+
+- `coder_finalized` — Final COD has been submitted; ODK sync and SmartVA blocked
+- `revoked_va_data_changed` — Upstream data changed after finalization; pending review
+- `closed` — Terminal state; no further changes permitted
+
+See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartva-generation-policy.md) for details.
 
 ## ASCII Flowchart
 
@@ -180,14 +191,24 @@ These states describe the local business outcome for the submission.
                                 |              | final COD submitted
                                 |              v
                                 |   +----------------------+
-                                |   |   coder_finalized    |
+                                |   |   coder_finalized    |  <-- PROTECTED STATE
                                 |   +----------+-----------+
                                 |              |
-                                |              | revision window allows recode
-                                |              v
-                                |        +-----------+
-                                |        |  closed   |
-                                |        +-----------+
+                                |              +-------------------------+
+                                |              |                         |
+                                |              | revision window         | upstream ODK data changed
+                                |              | allows recode           | (automatic during sync)
+                                |              v                         v
+                                |        +-----------+        +---------------------------+
+                                |        |  closed   |        | revoked_va_data_changed   | <-- PROTECTED STATE
+                                |        +-----------+        +-------------+-------------+
+                                |                                           |
+                                |                                           | admin accepts change
+                                |                                           | (recode required)
+                                |                                           v
+                                |                                     +------------------+
+                                |                                     | ready_for_coding |
+                                |                                     +------------------+
                                 |
                                 | mark Not Codeable
                                 v
@@ -228,6 +249,20 @@ These states describe the local business outcome for the submission.
       window before cleanup
     - cleanup must also deactivate demo NQA and Social Autopsy artifacts tied
       to the same completed demo coding outcome
+
+
+  Upstream data change for finalized submission (NEW):
+
+    coder_finalized ----- ODK data changed -----> revoked_va_data_changed
+
+    Notes:
+    - ODK is source of truth, but finalized COD is protected
+    - Historical COD preserved as base_final_assessment
+    - Historical VA data snapshot preserved
+    - Notification sent to data managers/admins
+    - Requires manual intervention to resolve
+    - SmartVA NOT regenerated automatically
+    - See ODK Sync Policy for full details
 
 
   Optional data-manager triage:
@@ -423,6 +458,54 @@ The system must preserve auditability across:
 - recode attempts
 - superseded outcomes
 
+## Upstream Data Change (revoked_va_data_changed)
+
+When ODK submission data changes for a `coder_finalized` submission, the system
+must NOT automatically destroy the finalized COD or reset the workflow state.
+
+### State Transition
+
+`coder_finalized` -> `revoked_va_data_changed`
+
+This transition occurs automatically during ODK sync when:
+- The submission exists in `coder_finalized` state
+- ODK reports `updatedAt` newer than the local `va_odk_updatedat`
+- The sync is NOT running with admin `force=True` override
+
+### What Must Be Preserved
+
+| Artifact | Preservation Method |
+|---|---|
+| Final COD | Stored as `base_final_assessment` in `VaCodingEpisode` |
+| VA data snapshot | Preserved before ODK update |
+| Audit trail | `VaSubmissionsAuditlog` entries with full context |
+| SmartVA result | NOT regenerated, existing result retained |
+
+### Notification Requirements
+
+When this transition occurs:
+
+1. Immediate notification to data managers for the project/site and system admins
+2. Notification content includes submission identifier, timestamps, and action required
+3. Dashboard visibility: submissions appear in dedicated `revoked_va_data_changed` queue
+
+### Resolution Pathways
+
+| Action | Outcome |
+|---|---|
+| Accept upstream change | Transition to `ready_for_coding`, allow recode |
+| Reject upstream change | Restore to `coder_finalized`, discard ODK update |
+
+Only admins can resolve `revoked_va_data_changed` submissions.
+
+### Authorization
+
+| Operation | Coder | Data Manager | Admin |
+|---|---|---|---|
+| View revoked submissions | No | Yes (scoped) | Yes |
+| Accept upstream change | No | No | Yes |
+| Reject upstream change | No | No | Yes |
+
 ## Reviewer Oversight Workflow
 
 Reviewer workflow is optional and parallel.
@@ -498,8 +581,15 @@ A case is considered locally complete when one of these business outcomes is
 true:
 
 - `coder_finalized`
+- `revoked_va_data_changed` (pending resolution)
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
 
 Reviewer activity may happen later, but it does not determine whether the core
 coder workflow was completed.
+
+## Related Documents
+
+- [ODK Sync Policy](odk-sync-policy.md) — how sync interacts with workflow states
+- [SmartVA Generation Policy](smartva-generation-policy.md) — when SmartVA runs
+- [Final COD Authority Policy](final-cod-authority.md) — authoritative COD management

@@ -326,6 +326,11 @@ _AUDIT_ACTION_DISPLAY = {
     "va_partial_finassess_deletion due to recode": "Partial final assessment reset (recode)",
     "va_partial_iniasses_deletion due to recode": "Partial initial assessment reset (recode)",
     "va_partial_iniasses_deletion due to timeout": "Partial assessment reset (timeout)",
+    # Protected-submission upstream change actions
+    "upstream_odk_data_changed_on_protected_submission": "ODK data changed (protected — revoked)",
+    "data_manager_requested_submission_refresh": "Submission refresh requested (data manager)",
+    "data_manager_accepted_upstream_odk_change": "Upstream ODK change accepted (data manager)",
+    "data_manager_rejected_upstream_odk_change": "Upstream ODK change rejected (data manager)",
 }
 
 # Detailed explanations for each action type (for help modal)
@@ -490,6 +495,27 @@ _AUDIT_ACTION_EXPLANATIONS = {
         "label": "Partial Assessment Reset (Timeout)",
         "category": "Partial Reset",
         "explanation": "Partial assessment work was discarded because the allocation timed out before completion.",
+    },
+    # Protected Submission Data-Change Actions
+    "upstream_odk_data_changed_on_protected_submission": {
+        "label": "Protected Submission Revoked",
+        "category": "Protected Data",
+        "explanation": "A submission in a protected state (coder_finalized or closed) had its data changed in ODK Central. The submission has been moved to revoked_va_data_changed and is pending data-manager review.",
+    },
+    "data_manager_requested_submission_refresh": {
+        "label": "Submission Refresh Requested",
+        "category": "Protected Data",
+        "explanation": "A data manager has requested that the local submission data be refreshed from ODK Central. This triggers a re-sync of the submission's content.",
+    },
+    "data_manager_accepted_upstream_odk_change": {
+        "label": "Upstream Change Accepted",
+        "category": "Protected Data",
+        "explanation": "A data manager has accepted the upstream ODK data change for a revoked submission. The workflow has been reset and the submission is now ready for re-coding.",
+    },
+    "data_manager_rejected_upstream_odk_change": {
+        "label": "Upstream Change Rejected",
+        "category": "Protected Data",
+        "explanation": "A data manager has rejected the upstream ODK data change for a revoked submission. The submission has been restored to its previous coder_finalized state, preserving all coding work.",
     },
 }
 
@@ -3994,13 +4020,17 @@ def admin_sync_smartva_stats():
             ).all()
         )
 
-        # Fetch submission counts per form
+        # Fetch submission counts per form (excluding revoked_va_data_changed — pending SmartVA)
+        from app.services.submission_workflow_service import WORKFLOW_REVOKED_VA_DATA_CHANGED
+
         sub_by_form = dict(
             db.session.execute(
                 sa.select(
                     VaSubmissions.va_form_id,
                     sa.func.count(VaSubmissions.va_sid).label("cnt"),
-                ).group_by(VaSubmissions.va_form_id)
+                )
+                .where(VaSubmissions.va_workflow_state != WORKFLOW_REVOKED_VA_DATA_CHANGED)
+                .group_by(VaSubmissions.va_form_id)
             ).all()
         )
 

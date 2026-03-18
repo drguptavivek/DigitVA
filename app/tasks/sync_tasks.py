@@ -528,6 +528,33 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         raise
 
 
+@shared_task(
+    name="app.tasks.sync_tasks.run_smartva_for_submission",
+    bind=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def run_smartva_for_submission(self, va_sid: str, triggered_by: str = "manual"):
+    """Run SmartVA generation for a single submission.
+
+    Thin wrapper around smartva_service.generate_for_submission — used when
+    a data manager accepts an upstream ODK change and we want to immediately
+    re-queue SmartVA without a full ODK re-sync.
+    """
+    from app import db
+    from app.services import smartva_service
+
+    log.info("SmartVA task [%s]: starting (triggered_by=%s).", va_sid, triggered_by)
+    try:
+        saved = smartva_service.generate_for_submission(va_sid)
+        log.info("SmartVA task [%s]: %d result(s) saved.", va_sid, saved)
+        return {"va_sid": va_sid, "smartva_updated": saved}
+    except Exception as exc:
+        db.session.rollback()
+        log.warning("SmartVA task [%s]: failed — %s", va_sid, exc, exc_info=True)
+        raise
+
+
 def ensure_sync_scheduled():
     """Seed the default ODK sync periodic task (every 6 hours). Idempotent."""
     try:

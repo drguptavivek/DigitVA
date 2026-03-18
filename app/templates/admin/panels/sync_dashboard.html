@@ -540,7 +540,7 @@
         + '<th class="small text-center">Local</th>'
         + '<th class="small text-center">Status <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="ODK counts all submissions. Local only stores consent-granted (Id10013 ≠ no/null). Small gaps are normal."></i></th>'
         + '<th class="small text-center">Last synced</th>'
-        + '<th class="small text-center">Sync <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="Force-resync re-downloads ALL submissions. Use with caution — codings for ODK-edited submissions will be reset. Prefer normal Sync Now."></i></th>'
+        + '<th class="small text-center">Sync <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="Force-resync re-downloads ALL submissions. Finalized submissions edited in ODK are flagged as Revoked — Data Changed instead of being reset, preserving existing codings until a data manager accepts or rejects the change. Prefer normal Sync Now for routine use."></i></th>'
         + '</tr></thead>'
         + '<tbody>' + rows + '</tbody>'
         + '<tfoot class="table-light"><tr>'
@@ -767,8 +767,8 @@
     if (!confirm(
       'Force-resync ' + formId + '?\n\n'
       + 'This re-downloads ALL submissions from ODK.\n\n'
-      + '⚠️ WARNING: If any submission was edited in ODK since it was last synced, '
-      + 'all codings, reviews, and assessments for that submission will be RESET.\n\n'
+      + 'Finalized submissions with ODK edits will be flagged as "Revoked — Data Changed" '
+      + 'instead of being reset. A data manager must then accept or reject each change.\n\n'
       + 'Unchanged submissions are not affected.\n\n'
       + 'Prefer running a normal sync first — it uses gap detection to fetch only missing records safely.'
     )) return;

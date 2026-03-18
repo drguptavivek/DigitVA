@@ -353,7 +353,6 @@ def accept_upstream_change(va_sid: str):
     try:
         dm_accept_upstream_change(current_user, va_sid)
         db.session.commit()
-        return jsonify({"message": "Upstream change accepted. Submission reset to ready for coding."})
     except PermissionError as exc:
         return jsonify({"error": str(exc)}), 403
     except ValueError as exc:
@@ -362,6 +361,21 @@ def accept_upstream_change(va_sid: str):
         db.session.rollback()
         log.error("accept_upstream_change failed for %s", va_sid, exc_info=True)
         return jsonify({"error": str(exc)}), 500
+
+    # Fire SmartVA immediately so the submission doesn't wait for the next scheduled sync.
+    task_id = None
+    try:
+        from app.tasks.sync_tasks import run_smartva_for_submission
+        if current_app.extensions.get("celery"):
+            task = run_smartva_for_submission.delay(va_sid=va_sid, triggered_by="data-manager-accept")
+            task_id = task.id
+    except Exception:
+        log.warning("accept_upstream_change: could not enqueue SmartVA for %s", va_sid)
+
+    return jsonify({
+        "message": "Upstream change accepted. Submission reset to ready for coding.",
+        "smartva_task_id": task_id,
+    })
 
 
 @bp.post("/submissions/<va_sid>/reject-upstream-change")

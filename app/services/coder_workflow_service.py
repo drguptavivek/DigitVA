@@ -411,3 +411,20 @@ def get_pick_available_forms(user, pick_form_ids: list[str]) -> list[dict]:
         va_render_serialisedates(row, ["va_submission_date"])
         for row in db.session.execute(stmt).mappings().all()
     ]
+
+
+def is_upstream_recode(va_sid: str) -> bool:
+    """Check if this submission is a re-code due to accepted upstream data change.
+
+    Returns True if the submission has a recent data_manager_accepted_upstream_odk_change
+    audit action and no subsequent coding activity yet.
+    """
+    # Check for the DM accept action
+    accept_action = db.session.scalar(
+        sa.select(VaSubmissionsAuditlog.va_audit_id)
+        .where(VaSubmissionsAuditlog.va_sid == va_sid)
+        .where(VaSubmissionsAuditlog.va_audit_action == "data_manager_accepted_upstream_odk_change")
+        .order_by(VaSubmissionsAuditlog.va_audit_createdat.desc())
+        .limit(1)
+    )
+    return accept_action is not None

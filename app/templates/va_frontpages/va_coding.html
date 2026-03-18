@@ -68,6 +68,15 @@
         <i class="fas fa-clipboard-check me-1"></i>SID: {{ va_sid }}
       </span>
     </div>
+    {% if is_upstream_recode %}
+    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+      <i class="fas fa-triangle-exclamation me-2"></i>
+      <div>
+        <strong>Upstream Data Change:</strong> This VA was previously finalized but has new data from ODK Central.
+        Please review carefully and re-code as needed.
+      </div>
+    </div>
+    {% endif %}
     <hr class="my-3">
     <div class="row g-3">
       <div class="col-md-4 col-sm-6">

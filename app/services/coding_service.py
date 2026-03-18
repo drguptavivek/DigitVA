@@ -37,6 +37,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     from flask import render_template
     from app.utils import va_get_form_type_code_for_form
     from app.services.category_rendering_service import get_category_rendering_service, get_visible_category_codes
+    from app.services.coder_workflow_service import is_upstream_recode
 
     form_type_code = va_get_form_type_code_for_form(submission.va_form_id)
     category_service = get_category_rendering_service()
@@ -57,4 +58,5 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         va_age=submission.va_deceased_age,
         va_gender=submission.va_deceased_gender,
         back_dashboard_role=back_dashboard_role,
+        is_upstream_recode=is_upstream_recode(submission.va_sid),
     )

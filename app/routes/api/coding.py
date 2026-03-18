@@ -20,6 +20,7 @@ from app.services.coder_workflow_service import (
     get_active_coding_allocation,
     get_coder_ready_stats,
     get_pick_available_forms,
+    is_upstream_recode,
     start_demo_allocation,
     start_recode_allocation,
 )
@@ -56,6 +57,7 @@ def get_allocation():
         "va_deceased_age": form.va_deceased_age if form else None,
         "va_deceased_gender": form.va_deceased_gender if form else None,
         "actiontype": "varesumecoding",
+        "is_upstream_recode": is_upstream_recode(va_sid),
     }
     return jsonify({"allocation": row})
 
@@ -101,6 +103,7 @@ def allocate():
         "va_age": form.va_deceased_age if form else None,
         "va_gender": form.va_deceased_gender if form else None,
         "va_form_id": form.va_form_id if form else None,
+        "is_upstream_recode": is_upstream_recode(result.va_sid),
     }), 201
 
 

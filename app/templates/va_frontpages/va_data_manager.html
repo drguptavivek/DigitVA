@@ -250,7 +250,7 @@
    KPI CARDS
    ════════════════════════════════════════════════════════ #}
 <div class="row g-3 mb-3" id="dm-kpi-row">
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-2">
     <div class="dm-kpi-card card-primary">
       <div class="dm-kpi-icon bg-primary text-white">
         <i class="fa-solid fa-file-alt"></i>
@@ -261,7 +261,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-2">
     <div class="dm-kpi-card card-danger clickable" id="kpi-flagged-card" title="Filter: Flagged Not Codeable">
       <div class="dm-kpi-icon bg-danger text-white">
         <i class="fa-solid fa-flag"></i>
@@ -272,7 +272,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-2">
     <div class="dm-kpi-card card-warning clickable" id="kpi-odk-issues-card" title="Filter: ODK Has Issues">
       <div class="dm-kpi-icon bg-warning text-dark">
         <i class="fa-solid fa-triangle-exclamation"></i>
@@ -283,7 +283,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-2">
     <div class="dm-kpi-card card-secondary clickable" id="kpi-smartva-missing-card" title="Filter: SmartVA Missing">
       <div class="dm-kpi-icon bg-secondary text-white">
         <i class="fa-solid fa-brain"></i>
@@ -291,6 +291,17 @@
       <div>
         <div class="dm-kpi-value" id="kpi-smartva-missing">—</div>
         <div class="dm-kpi-label">SmartVA Missing</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="dm-kpi-card clickable" style="background:#fdf4ff;border-color:#d8b4fe;" id="kpi-revoked-card" title="Filter: Revoked — Data Changed">
+      <div class="dm-kpi-icon text-white" style="background:#9333ea;">
+        <i class="fa-solid fa-rotate-left"></i>
+      </div>
+      <div>
+        <div class="dm-kpi-value" style="color:#9333ea;" id="kpi-revoked">—</div>
+        <div class="dm-kpi-label">Revoked — Data Changed</div>
       </div>
     </div>
   </div>
@@ -468,6 +479,7 @@
           <option value="screening_pending">Screening Pending</option>
           <option value="not_codeable_by_data_manager">Not Codeable (DM)</option>
           <option value="not_codeable_by_coder">Not Codeable (Coder)</option>
+          <option value="revoked_va_data_changed">Revoked — Data Changed</option>
         </select>
       </div>
       <div class="d-grid gap-2 pt-1">
@@ -775,6 +787,10 @@
       this.eGui = document.createElement('span');
       const state = params.value;
       const label = (params.data && params.data.workflow_label) || state || '';
+      if (state === 'revoked_va_data_changed') {
+        this.eGui.innerHTML = `<span class="badge" style="background:#9333ea;">${label}</span>`;
+        return;
+      }
       let cls = 'bg-light text-dark border';
       if (state === 'not_codeable_by_data_manager') cls = 'bg-danger';
       else if (state === 'not_codeable_by_coder') cls = 'bg-warning text-dark';
@@ -800,14 +816,22 @@
       this.eGui = document.createElement('div');
       this.eGui.className = 'dm-action-cell';
       const sid = params.data ? params.data.va_sid : '';
+      const state = params.data ? params.data.workflow_state : '';
       if (!sid) {
         this.eGui.innerHTML = '—';
         return;
       }
-      this.eGui.innerHTML = `
-        <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
-        <a href="/data-management/submissions/${sid}/odk-edit" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1">Edit</a>
-        <button class="btn btn-sm btn-outline-secondary py-0 px-1 dm-refresh-btn" data-sid="${sid}">Refresh</button>`;
+      if (state === 'revoked_va_data_changed') {
+        this.eGui.innerHTML = `
+          <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
+          <button class="btn btn-sm btn-success py-0 px-1 dm-accept-upstream-btn" data-sid="${sid}" title="Accept upstream change — clear COD, recode">Accept</button>
+          <button class="btn btn-sm btn-outline-danger py-0 px-1 dm-reject-upstream-btn" data-sid="${sid}" title="Reject upstream change — keep existing COD">Reject</button>`;
+      } else {
+        this.eGui.innerHTML = `
+          <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
+          <a href="/data-management/submissions/${sid}/odk-edit" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1">Edit</a>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-1 dm-refresh-btn" data-sid="${sid}">Refresh</button>`;
+      }
     }
     getGui() { return this.eGui; }
   }
@@ -848,7 +872,7 @@
       { field: 'odk_sync_status', headerName: 'ODK Sync', width: 110, cellRenderer: OdkSyncRenderer, hide: colVisibility.odk_sync_status === false },
       { field: 'workflow_state', headerName: 'Workflow State', width: 150, cellRenderer: WorkflowRenderer },
       { field: 'va_dmreview_createdat', headerName: 'Flagged At', width: 115, cellRenderer: DateTimeRenderer, hide: colVisibility.va_dmreview_createdat === false },
-      { field: '_actions', headerName: 'Actions', width: 175, cellRenderer: ActionsRenderer, sortable: false },
+      { field: '_actions', headerName: 'Actions', width: 215, cellRenderer: ActionsRenderer, sortable: false },
     ];
   }
 
@@ -902,6 +926,50 @@
         .finally(() => {
           btn.disabled = false;
           btn.textContent = 'Refresh';
+        });
+    });
+
+    /* Accept upstream ODK change */
+    container.addEventListener('click', e => {
+      const btn = e.target.closest('.dm-accept-upstream-btn');
+      if (!btn) return;
+      const sid = btn.dataset.sid;
+      if (!sid) return;
+      if (!confirm('Accept upstream change?\n\nThis will clear the existing cause-of-death decision and return the submission to the coding queue.')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      jsonFetch(`/api/v1/data-management/submissions/${sid}/accept-upstream-change`, { method: 'POST' })
+        .then(() => {
+          toast('Upstream change accepted — submission reset to ready for coding.', 'success');
+          loadKPIs();
+          gridApi.refreshInfiniteCache();
+        })
+        .catch(err => toast('Accept failed: ' + err.message, 'danger'))
+        .finally(() => {
+          btn.disabled = false;
+          btn.textContent = 'Accept';
+        });
+    });
+
+    /* Reject upstream ODK change */
+    container.addEventListener('click', e => {
+      const btn = e.target.closest('.dm-reject-upstream-btn');
+      if (!btn) return;
+      const sid = btn.dataset.sid;
+      if (!sid) return;
+      if (!confirm('Reject upstream change?\n\nThe existing cause-of-death decision will be kept and the submission restored to Coder Finalized.')) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      jsonFetch(`/api/v1/data-management/submissions/${sid}/reject-upstream-change`, { method: 'POST' })
+        .then(() => {
+          toast('Upstream change rejected — submission restored to coder finalized.', 'success');
+          loadKPIs();
+          gridApi.refreshInfiniteCache();
+        })
+        .catch(err => toast('Reject failed: ' + err.message, 'danger'))
+        .finally(() => {
+          btn.disabled = false;
+          btn.textContent = 'Reject';
         });
     });
   }
@@ -1158,6 +1226,7 @@
         document.getElementById('kpi-flagged').textContent        = (d.flagged_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-odk-issues').textContent     = (d.odk_has_issues_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-smartva-missing').textContent= (d.smartva_missing_submissions ?? '—').toLocaleString();
+        document.getElementById('kpi-revoked').textContent        = (d.revoked_submissions ?? '—').toLocaleString();
       })
       .catch(err => toast('Failed to load KPIs: ' + err.message, 'danger'));
   }
@@ -1177,6 +1246,12 @@
   });
   document.getElementById('kpi-smartva-missing-card').addEventListener('click', () => {
     currentFilters.smartva = 'missing';
+    syncInputsFromState();
+    applyFilters();
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+  });
+  document.getElementById('kpi-revoked-card').addEventListener('click', () => {
+    currentFilters.workflow = 'revoked_va_data_changed';
     syncInputsFromState();
     applyFilters();
     bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();

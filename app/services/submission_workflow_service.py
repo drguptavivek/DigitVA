@@ -30,6 +30,7 @@ WORKFLOW_CODER_FINALIZED = "coder_finalized"
 WORKFLOW_NOT_CODEABLE_BY_CODER = "not_codeable_by_coder"
 WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER = "not_codeable_by_data_manager"
 WORKFLOW_CLOSED = "closed"
+WORKFLOW_REVOKED_VA_DATA_CHANGED = "revoked_va_data_changed"
 CODER_READY_POOL_STATES = (WORKFLOW_READY_FOR_CODING,)
 
 
@@ -182,3 +183,13 @@ def sync_submission_workflow_from_legacy_records(
         by_user_id=by_user_id,
         by_role=by_role,
     )
+
+
+def get_submission_workflow_state(va_sid: str) -> str | None:
+    """Return the current canonical workflow state for a submission, or None."""
+    record = db.session.scalar(
+        sa.select(VaSubmissionWorkflow.workflow_state).where(
+            VaSubmissionWorkflow.va_sid == va_sid
+        )
+    )
+    return record

@@ -22,10 +22,12 @@ from app import db
 from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
+    dm_accept_upstream_change,
     dm_filter_options,
     dm_form_in_scope,
     dm_kpi,
     dm_project_site_submission_stats,
+    dm_reject_upstream_change,
     dm_scoped_forms,
     dm_submissions_page,
     filter_scoped_forms,
@@ -40,6 +42,12 @@ log = logging.getLogger(__name__)
 def _require_data_manager():
     if not current_user.is_data_manager():
         return jsonify({"error": "Data-manager access is required."}), 403
+    return None
+
+
+def _require_data_manager_or_admin():
+    if not current_user.is_admin() and not current_user.is_data_manager():
+        return jsonify({"error": "Data-manager or admin access is required."}), 403
     return None
 
 
@@ -327,4 +335,51 @@ def sync_submission(va_sid: str):
         return jsonify({"message": f"Refresh started for submission {va_sid}.", "task_id": task.id}), 202
     except Exception as exc:
         log.error("sync_submission failed for %s", va_sid, exc_info=True)
+        return jsonify({"error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# POST /submissions/<sid>/accept-upstream-change
+# POST /submissions/<sid>/reject-upstream-change
+# ---------------------------------------------------------------------------
+
+@bp.post("/submissions/<va_sid>/accept-upstream-change")
+@login_required
+def accept_upstream_change(va_sid: str):
+    """Accept an upstream ODK data change: clear COD artifacts, reset to ready_for_coding."""
+    err = _require_data_manager_or_admin()
+    if err:
+        return err
+    try:
+        dm_accept_upstream_change(current_user, va_sid)
+        db.session.commit()
+        return jsonify({"message": "Upstream change accepted. Submission reset to ready for coding."})
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        log.error("accept_upstream_change failed for %s", va_sid, exc_info=True)
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.post("/submissions/<va_sid>/reject-upstream-change")
+@login_required
+def reject_upstream_change(va_sid: str):
+    """Reject an upstream ODK data change: restore coder_finalized, keep existing COD."""
+    err = _require_data_manager_or_admin()
+    if err:
+        return err
+    try:
+        dm_reject_upstream_change(current_user, va_sid)
+        db.session.commit()
+        return jsonify({"message": "Upstream change rejected. Submission restored to coder finalized."})
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        log.error("reject_upstream_change failed for %s", va_sid, exc_info=True)
         return jsonify({"error": str(exc)}), 500

@@ -73,6 +73,7 @@ ignore = ["E501"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+addopts = "-p no:xdist"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

@@ -322,12 +322,19 @@ def get_dm_kpi_from_mv(
         .where(scope)
         .where(mv.c.has_smartva.is_(False))
     ) or 0
+    revoked = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(mv)
+        .where(scope)
+        .where(mv.c.workflow_state == "revoked_va_data_changed")
+    ) or 0
 
     return {
         "total_submissions": total,
         "flagged_submissions": flagged,
         "odk_has_issues_submissions": odk_issues,
         "smartva_missing_submissions": smartva_missing,
+        "revoked_submissions": revoked,
     }
 
 

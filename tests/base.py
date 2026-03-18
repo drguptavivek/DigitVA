@@ -84,6 +84,7 @@ class BaseTestCase(unittest.TestCase):
     def tearDownClass(cls):
         db.session.remove()
         db.drop_all()
+        db.engine.dispose()   # close all pool connections so next class can acquire DDL locks
         cls.ctx.pop()
 
     @classmethod

@@ -16,8 +16,12 @@ from flask_login import current_user
 
 from app import db
 from app.models import (
+    VaAllocations,
+    VaCoderReview,
     VaDataManagerReview,
+    VaFinalAssessments,
     VaForms,
+    VaInitialAssessments,
     VaSiteMaster,
     VaSmartvaResults,
     VaStatuses,
@@ -251,6 +255,7 @@ _WORKFLOW_LABEL = {
     "screening_pending":            "Screening Pending",
     "coding_in_progress":           "Coding In Progress",
     "coder_finalized":              "Coder Finalized",
+    "revoked_va_data_changed":      "Revoked — Data Changed",
 }
 
 _SORT_FIELDS = {
@@ -458,3 +463,162 @@ def audit_dm_submission_action(
         )
     )
     db.session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Revoked submission resolution
+# ---------------------------------------------------------------------------
+
+def _dm_submission_scope_check(user, va_sid: str):
+    """Return (submission, form_row) or raise ValueError if out of scope."""
+    submission = db.session.get(VaSubmissions, va_sid)
+    if submission is None:
+        raise ValueError("Submission not found.")
+    form_row = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id).where(
+            VaForms.form_id == submission.va_form_id
+        )
+    ).first()
+    if not form_row:
+        raise ValueError("Form not found.")
+    if not user.is_admin() and not user.has_data_manager_submission_access(
+        form_row.project_id, form_row.site_id
+    ):
+        raise PermissionError("You do not have access to this submission.")
+    return submission, form_row
+
+
+def dm_accept_upstream_change(user, va_sid: str) -> None:
+    """Accept an upstream ODK data change for a revoked submission.
+
+    Destroys finalized coding artifacts and resets to ready_for_coding so
+    the submission can be re-coded against the new ODK data.
+
+    Raises ValueError / PermissionError on invalid input or access denial.
+    Does NOT commit — caller is responsible.
+    """
+    from app.services.submission_workflow_service import (
+        WORKFLOW_REVOKED_VA_DATA_CHANGED,
+        WORKFLOW_READY_FOR_CODING,
+        get_submission_workflow_state,
+        set_submission_workflow_state,
+    )
+
+    _dm_submission_scope_check(user, va_sid)
+
+    current_state = get_submission_workflow_state(va_sid)
+    if current_state != WORKFLOW_REVOKED_VA_DATA_CHANGED:
+        raise ValueError(
+            f"Submission is in state '{current_state}', not revoked_va_data_changed."
+        )
+
+    # Deactivate all coding artifacts so the submission re-enters the coding queue
+    for fa in db.session.scalars(
+        sa.select(VaFinalAssessments).where(
+            VaFinalAssessments.va_sid == va_sid,
+            VaFinalAssessments.va_finassess_status == VaStatuses.active,
+        )
+    ).all():
+        fa.va_finassess_status = VaStatuses.deactive
+
+    for ia in db.session.scalars(
+        sa.select(VaInitialAssessments).where(
+            VaInitialAssessments.va_sid == va_sid,
+            VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+        )
+    ).all():
+        ia.va_iniassess_status = VaStatuses.deactive
+
+    for cr in db.session.scalars(
+        sa.select(VaCoderReview).where(
+            VaCoderReview.va_sid == va_sid,
+            VaCoderReview.va_creview_status == VaStatuses.active,
+        )
+    ).all():
+        cr.va_creview_status = VaStatuses.deactive
+
+    for dmr in db.session.scalars(
+        sa.select(VaDataManagerReview).where(
+            VaDataManagerReview.va_sid == va_sid,
+            VaDataManagerReview.va_dmreview_status == VaStatuses.active,
+        )
+    ).all():
+        dmr.va_dmreview_status = VaStatuses.deactive
+
+    for alloc in db.session.scalars(
+        sa.select(VaAllocations).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    ).all():
+        alloc.va_allocation_status = VaStatuses.deactive
+
+    for sva in db.session.scalars(
+        sa.select(VaSmartvaResults).where(
+            VaSmartvaResults.va_sid == va_sid,
+            VaSmartvaResults.va_smartva_status == VaStatuses.active,
+        )
+    ).all():
+        sva.va_smartva_status = VaStatuses.deactive
+
+    set_submission_workflow_state(
+        va_sid,
+        WORKFLOW_READY_FOR_CODING,
+        reason="data_manager_accepted_upstream_change",
+        by_user_id=current_user.user_id,
+        by_role="data_manager",
+    )
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="data_manager",
+            va_audit_by=current_user.user_id,
+            va_audit_operation="u",
+            va_audit_action="data_manager_accepted_upstream_odk_change",
+            va_audit_entityid=uuid.uuid4(),
+        )
+    )
+
+
+def dm_reject_upstream_change(user, va_sid: str) -> None:
+    """Reject an upstream ODK data change for a revoked submission.
+
+    Restores the coder_finalized state, keeping existing COD artifacts
+    intact. The new ODK data is retained in the submission record but
+    the COD decision stands.
+
+    Raises ValueError / PermissionError on invalid input or access denial.
+    Does NOT commit — caller is responsible.
+    """
+    from app.services.submission_workflow_service import (
+        WORKFLOW_REVOKED_VA_DATA_CHANGED,
+        WORKFLOW_CODER_FINALIZED,
+        get_submission_workflow_state,
+        set_submission_workflow_state,
+    )
+
+    _dm_submission_scope_check(user, va_sid)
+
+    current_state = get_submission_workflow_state(va_sid)
+    if current_state != WORKFLOW_REVOKED_VA_DATA_CHANGED:
+        raise ValueError(
+            f"Submission is in state '{current_state}', not revoked_va_data_changed."
+        )
+
+    set_submission_workflow_state(
+        va_sid,
+        WORKFLOW_CODER_FINALIZED,
+        reason="data_manager_rejected_upstream_change",
+        by_user_id=current_user.user_id,
+        by_role="data_manager",
+    )
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="data_manager",
+            va_audit_by=current_user.user_id,
+            va_audit_operation="u",
+            va_audit_action="data_manager_rejected_upstream_odk_change",
+            va_audit_entityid=uuid.uuid4(),
+        )
+    )

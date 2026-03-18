@@ -5,7 +5,6 @@ in va_sync_runs so the admin dashboard can show history and current status.
 """
 import json
 import logging
-import tempfile
 import sqlalchemy as sa
 from celery import shared_task
 from datetime import datetime, timezone
@@ -218,17 +217,12 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         va_odk_write_form_csv,
         va_odk_rebuild_form_csv_from_db,
         va_odk_sync_form_attachments,
-        va_smartva_prepdata,
-        va_smartva_runsmartva,
-        va_smartva_formatsmartvaresult,
-        va_smartva_appendsmartvaresults,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
-        _mark_form_sync_issues, _pending_smartva_sids, _upsert_form_submissions,
+        _mark_form_sync_issues, _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
     )
-    from app.models import VaStatuses, VaSmartvaResults, VaSubmissionsAuditlog, VaSubmissions
-    import uuid
+    from app.models import VaStatuses, VaSubmissionsAuditlog, VaSubmissions
 
     run = VaSyncRun(
         triggered_by=triggered_by,
@@ -317,78 +311,12 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             db.session.commit()
 
         # SmartVA
-        pending = _pending_smartva_sids(form_id) | (
-            amended_sids & set(
-                db.session.scalars(
-                    sa.select(VaSubmissions.va_sid).where(
-                        VaSubmissions.va_form_id == form_id
-                    )
-                ).all()
-            )
+        from app.services import smartva_service
+        smartva_updated = smartva_service.generate_for_form(
+            va_form,
+            amended_sids=amended_sids,
+            log_progress=log_progress,
         )
-        smartva_updated = 0
-        if pending:
-            with tempfile.TemporaryDirectory() as workspace_dir:
-                log_progress(f"SmartVA {form_id}: preparing input ({len(pending)} pending)…")
-                va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
-                va_smartva_runsmartva(va_form, workspace_dir)
-                output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
-                if output_file:
-                    va_smartva_new_results, va_smartva_existingactive_results = (
-                        va_smartva_appendsmartvaresults(db.session, {va_form: output_file})
-                    )
-                if va_smartva_new_results is not None:
-                    for va_smartva_record in va_smartva_new_results.itertuples():
-                        va_sid = getattr(va_smartva_record, "sid", None)
-                        va_smartva_existing = va_smartva_existingactive_results.get(va_sid)
-                        if va_sid not in amended_sids and va_smartva_existing:
-                            continue
-                        if va_smartva_existing:
-                            va_smartva_existing.va_smartva_status = VaStatuses.deactive
-                            db.session.add(VaSubmissionsAuditlog(
-                                va_sid=va_sid,
-                                va_audit_entityid=va_smartva_existing.va_smartva_id,
-                                va_audit_byrole="vaadmin",
-                                va_audit_operation="d",
-                                va_audit_action="va_smartva_deletion_during_datasync",
-                            ))
-                        va_smartva_uuid = uuid.uuid4()
-                        db.session.add(VaSmartvaResults(
-                            va_smartva_id=va_smartva_uuid,
-                            va_sid=va_sid,
-                            va_smartva_age=(
-                                format(float(getattr(va_smartva_record, "age", None)), ".1f")
-                                if getattr(va_smartva_record, "age", None) is not None
-                                else None
-                            ),
-                            va_smartva_gender=getattr(va_smartva_record, "sex", None),
-                            va_smartva_cause1=getattr(va_smartva_record, "cause1", None),
-                            va_smartva_likelihood1=getattr(va_smartva_record, "likelihood1", None),
-                            va_smartva_keysymptom1=getattr(va_smartva_record, "key_symptom1", None),
-                            va_smartva_cause2=getattr(va_smartva_record, "cause2", None),
-                            va_smartva_likelihood2=getattr(va_smartva_record, "likelihood2", None),
-                            va_smartva_keysymptom2=getattr(va_smartva_record, "key_symptom2", None),
-                            va_smartva_cause3=getattr(va_smartva_record, "cause3", None),
-                            va_smartva_likelihood3=getattr(va_smartva_record, "likelihood3", None),
-                            va_smartva_keysymptom3=getattr(va_smartva_record, "key_symptom3", None),
-                            va_smartva_allsymptoms=getattr(va_smartva_record, "all_symptoms", None),
-                            va_smartva_resultfor=getattr(va_smartva_record, "result_for", None),
-                            va_smartva_cause1icd=getattr(va_smartva_record, "cause1_icd", None),
-                            va_smartva_cause2icd=getattr(va_smartva_record, "cause2_icd", None),
-                            va_smartva_cause3icd=getattr(va_smartva_record, "cause3_icd", None),
-                        ))
-                        db.session.add(VaSubmissionsAuditlog(
-                            va_sid=va_sid,
-                            va_audit_entityid=va_smartva_uuid,
-                            va_audit_byrole="vaadmin",
-                            va_audit_operation="c",
-                            va_audit_action="va_smartva_creation_during_datasync",
-                        ))
-                        smartva_updated += 1
-                    db.session.commit()
-            log_progress(f"SmartVA {form_id}: {smartva_updated} result(s) saved.")
-        else:
-            log_progress(f"SmartVA {form_id}: all results up to date, skipping.")
 
         run = db.session.get(VaSyncRun, run_id)
         run.status = "success"
@@ -490,10 +418,6 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         va_odk_fetch_submissions_by_ids,
         va_odk_rebuild_form_csv_from_db,
         va_odk_sync_form_attachments,
-        va_smartva_appendsmartvaresults,
-        va_smartva_formatsmartvaresult,
-        va_smartva_prepdata,
-        va_smartva_runsmartva,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
         _mark_form_sync_issues,
@@ -502,9 +426,7 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
     )
     import os
     from flask import current_app
-    import tempfile
-    import uuid
-    from app.models import VaSmartvaResults, VaStatuses, VaSubmissionsAuditlog
+    from app.models import VaStatuses, VaSubmissionsAuditlog
 
     run = VaSyncRun(
         triggered_by=triggered_by,
@@ -576,71 +498,10 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
             db.session.commit()
         va_odk_rebuild_form_csv_from_db(va_form, form_dir)
 
-        smartva_updated = 0
-        with tempfile.TemporaryDirectory() as workspace_dir:
-            va_smartva_prepdata(va_form, workspace_dir, pending_sids={va_sid})
-            va_smartva_runsmartva(va_form, workspace_dir)
-            output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
-            if output_file:
-                new_results, existingactive_results = va_smartva_appendsmartvaresults(
-                    db.session,
-                    {va_form: output_file},
-                )
-                if new_results is not None:
-                    for record in new_results.itertuples():
-                        result_sid = getattr(record, "sid", None)
-                        if result_sid != va_sid:
-                            continue
-                        existing = existingactive_results.get(result_sid)
-                        if existing:
-                            existing.va_smartva_status = VaStatuses.deactive
-                            db.session.add(
-                                VaSubmissionsAuditlog(
-                                    va_sid=result_sid,
-                                    va_audit_entityid=existing.va_smartva_id,
-                                    va_audit_byrole="vaadmin",
-                                    va_audit_operation="d",
-                                    va_audit_action="va_smartva_deletion_during_datasync",
-                                )
-                            )
-                        result_id = uuid.uuid4()
-                        db.session.add(
-                            VaSmartvaResults(
-                                va_smartva_id=result_id,
-                                va_sid=result_sid,
-                                va_smartva_age=(
-                                    format(float(getattr(record, "age", None)), ".1f")
-                                    if getattr(record, "age", None) is not None
-                                    else None
-                                ),
-                                va_smartva_gender=getattr(record, "sex", None),
-                                va_smartva_cause1=getattr(record, "cause1", None),
-                                va_smartva_likelihood1=getattr(record, "likelihood1", None),
-                                va_smartva_keysymptom1=getattr(record, "key_symptom1", None),
-                                va_smartva_cause2=getattr(record, "cause2", None),
-                                va_smartva_likelihood2=getattr(record, "likelihood2", None),
-                                va_smartva_keysymptom2=getattr(record, "key_symptom2", None),
-                                va_smartva_cause3=getattr(record, "cause3", None),
-                                va_smartva_likelihood3=getattr(record, "likelihood3", None),
-                                va_smartva_keysymptom3=getattr(record, "key_symptom3", None),
-                                va_smartva_allsymptoms=getattr(record, "all_symptoms", None),
-                                va_smartva_resultfor=getattr(record, "result_for", None),
-                                va_smartva_cause1icd=getattr(record, "cause1_icd", None),
-                                va_smartva_cause2icd=getattr(record, "cause2_icd", None),
-                                va_smartva_cause3icd=getattr(record, "cause3_icd", None),
-                            )
-                        )
-                        db.session.add(
-                            VaSubmissionsAuditlog(
-                                va_sid=result_sid,
-                                va_audit_entityid=result_id,
-                                va_audit_byrole="vaadmin",
-                                va_audit_operation="c",
-                                va_audit_action="va_smartva_creation_during_datasync",
-                            )
-                        )
-                        smartva_updated += 1
-                db.session.commit()
+        from app.services import smartva_service
+        smartva_updated = smartva_service.generate_for_submission(
+            va_sid, log_progress=log_progress
+        )
 
         run = db.session.get(VaSyncRun, run_id)
         run.status = "success"

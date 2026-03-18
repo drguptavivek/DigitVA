@@ -37,6 +37,13 @@ class Config:
         os.environ.get("DATABASE_URL")
         or "postgresql://minerva:minerva@localhost:5432/minerva"
     )
+    # Database connection pool settings - prevents connection leaks and pool exhaustion
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,  # Detect stale connections before use
+        "pool_size": 5,         # 5 connections per pool (default)
+        "max_overflow": 10,     # Allow 10 extra connections when pool is full
+        "pool_recycle": 300,    # Recycle connections after 5 minutes (good for Celery + cloud DBs)
+    }
     APP_BASEDIR = basedir
     APP_RESOURCE = os.path.join(basedir, "resource")
     APP_DATA = os.path.join(basedir, "data")

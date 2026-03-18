@@ -748,7 +748,7 @@
       $('#dm-refresh-dashboard-btn').on('click', function () {
         const btn = $(this);
         btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Refreshing…');
-        fetch('/vadashboard/api/data-manager/refresh-mv', {
+        fetch('/api/v1/analytics/mv/refresh', {
           method: 'POST',
           headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
         })
@@ -1403,7 +1403,7 @@
       }
 
       // -----------------------------------------------------------------------
-      // Demographics pie charts — Age Band and Sex from /api/analytics/demographics
+      // Demographics pie charts — Age Band and Sex from /api/v1/analytics/demographics
       // -----------------------------------------------------------------------
 
       const PIE_PALETTE = [
@@ -1447,7 +1447,7 @@
       }
 
       function loadDemographicsCharts() {
-        fetch('/api/analytics/demographics')
+        fetch('/api/v1/analytics/demographics')
           .then(function (resp) { return resp.json(); })
           .then(function (payload) {
             // Age band chart

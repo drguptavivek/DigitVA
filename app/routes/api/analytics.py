@@ -1,14 +1,16 @@
-"""Analytics API blueprint — resource-oriented analytics endpoints from the submissions MV.
+"""Analytics API — /api/v1/analytics/
 
-Routes are organised by resource:
-  /api/analytics/kpi               — headline KPI counts
-  /api/analytics/submissions       — submission volume aggregations
-  /api/analytics/demographics      — age-band and sex distribution
-  /api/analytics/workflow          — workflow-state breakdown
-  /api/analytics/cod               — cause-of-death (ICD) summary
-  /api/analytics/mv/refresh        — on-demand MV refresh (POST)
+Resources:
+  GET  kpi                    — headline KPI counts
+  GET  submissions/by-date    — daily submission volumes
+  GET  submissions/by-week    — weekly submission volumes
+  GET  submissions/by-month   — monthly submission volumes
+  GET  demographics           — age-band and sex distribution
+  GET  workflow               — workflow-state breakdown
+  GET  cod                    — cause-of-death (ICD) summary
+  POST mv/refresh             — on-demand MV refresh (rate-limited 1/min)
 
-All GET endpoints are scoped to the current user's data-manager grants.
+All endpoints scoped to the current user's data-manager grants.
 """
 
 from __future__ import annotations
@@ -19,7 +21,6 @@ import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 
-from flask import request as flask_request, request
 from app import db, limiter, cache
 from app.services.submission_analytics_mv import (
     MV_NAME,
@@ -27,7 +28,7 @@ from app.services.submission_analytics_mv import (
     refresh_submission_analytics_mv,
 )
 
-analytics_api = Blueprint("analytics_api", __name__)
+bp = Blueprint("analytics", __name__)
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -55,6 +56,18 @@ _mv = sa.table(
     sa.column("initial_immediate_icd"),
 )
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_CACHE_TTL = 300  # 5 minutes
+
+
+def _require_data_manager():
+    if not current_user.is_data_manager():
+        return jsonify({"error": "Data-manager access is required."}), 403
+    return None
+
 
 def _dm_scope_filter():
     """WHERE clause restricted to the current data-manager user's grants."""
@@ -74,23 +87,12 @@ def _dm_scope_filter():
     return sa.or_(project_clause, site_clause)
 
 
-def _require_data_manager():
-    if not current_user.is_data_manager():
-        return jsonify({"error": "Data-manager access is required."}), 403
-    return None
-
-
-_CACHE_TTL = 300  # 5 minutes
-
-
 def _cache_key(suffix: str) -> str:
-    """Per-user cache key for analytics data."""
-    qs = flask_request.query_string.decode()
-    return f"analytics_api:{current_user.user_id}:{suffix}:{qs}"
+    qs = request.query_string.decode()
+    return f"analytics:{current_user.user_id}:{suffix}:{qs}"
 
 
 def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
-    """Return cached dict data or compute it, store it, and return it."""
     full_key = _cache_key(key)
     try:
         data = cache.get(full_key)
@@ -107,9 +109,8 @@ def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
 
 
 def _bust_user_analytics_cache():
-    """Delete all analytics cache entries for the current user."""
     prefix = cache.config.get("CACHE_KEY_PREFIX", "")
-    pattern = f"{prefix}analytics_api:{current_user.user_id}:*"
+    pattern = f"{prefix}analytics:{current_user.user_id}:*"
     try:
         redis_client = cache.cache._write_client
         keys = redis_client.keys(pattern)
@@ -120,14 +121,12 @@ def _bust_user_analytics_cache():
 
 
 # ---------------------------------------------------------------------------
-# Resource: KPI
+# Routes
 # ---------------------------------------------------------------------------
 
-
-@analytics_api.get("/kpi")
+@bp.get("/kpi")
 @login_required
 def kpi():
-    """Headline KPI counts from the analytics MV, scoped to the user's grants."""
     err = _require_data_manager()
     if err:
         return err
@@ -139,22 +138,9 @@ def kpi():
     return jsonify(data)
 
 
-# ---------------------------------------------------------------------------
-# Resource: Submissions
-# ---------------------------------------------------------------------------
-
-
-@analytics_api.get("/submissions/by-date")
+@bp.get("/submissions/by-date")
 @login_required
 def submissions_by_date():
-    """Submission counts grouped by calendar date.
-
-    Query params:
-        limit (int, default 90): number of most-recent dates to return
-
-    Response:
-        {"data": [{"date": "YYYY-MM-DD", "count": int}, ...]}
-    """
     err = _require_data_manager()
     if err:
         return err
@@ -179,17 +165,9 @@ def submissions_by_date():
     return jsonify({"data": _cached(f"submissions_by_date:{limit}", compute)})
 
 
-@analytics_api.get("/submissions/by-week")
+@bp.get("/submissions/by-week")
 @login_required
 def submissions_by_week():
-    """Submission counts grouped by ISO week start (Monday).
-
-    Query params:
-        limit (int, default 26): number of most-recent weeks to return
-
-    Response:
-        {"data": [{"week_start": "YYYY-MM-DD", "count": int}, ...]}
-    """
     err = _require_data_manager()
     if err:
         return err
@@ -214,17 +192,9 @@ def submissions_by_week():
     return jsonify({"data": _cached(f"submissions_by_week:{limit}", compute)})
 
 
-@analytics_api.get("/submissions/by-month")
+@bp.get("/submissions/by-month")
 @login_required
 def submissions_by_month():
-    """Submission counts grouped by month start.
-
-    Query params:
-        limit (int, default 12): number of most-recent months to return
-
-    Response:
-        {"data": [{"month_start": "YYYY-MM-DD", "count": int}, ...]}
-    """
     err = _require_data_manager()
     if err:
         return err
@@ -249,22 +219,9 @@ def submissions_by_month():
     return jsonify({"data": _cached(f"submissions_by_month:{limit}", compute)})
 
 
-# ---------------------------------------------------------------------------
-# Resource: Demographics
-# ---------------------------------------------------------------------------
-
-
-@analytics_api.get("/demographics")
+@bp.get("/demographics")
 @login_required
 def demographics():
-    """Age-band and sex distribution from the analytics MV.
-
-    Response:
-        {
-            "age_bands": [{"band": str, "count": int}, ...],
-            "sex": [{"sex": str, "count": int}, ...]
-        }
-    """
     err = _require_data_manager()
     if err:
         return err
@@ -297,19 +254,9 @@ def demographics():
     return jsonify(_cached("demographics", compute))
 
 
-# ---------------------------------------------------------------------------
-# Resource: Workflow
-# ---------------------------------------------------------------------------
-
-
-@analytics_api.get("/workflow")
+@bp.get("/workflow")
 @login_required
 def workflow():
-    """Workflow-state breakdown from the analytics MV.
-
-    Response:
-        {"data": [{"state": str, "count": int}, ...]}
-    """
     err = _require_data_manager()
     if err:
         return err
@@ -330,23 +277,9 @@ def workflow():
     return jsonify({"data": _cached("workflow", compute)})
 
 
-# ---------------------------------------------------------------------------
-# Resource: Cause of Death (COD)
-# ---------------------------------------------------------------------------
-
-
-@analytics_api.get("/cod")
+@bp.get("/cod")
 @login_required
 def cod():
-    """Top cause-of-death ICD codes from the analytics MV.
-
-    Query params:
-        limit (int, default 20): max ICD codes to return per category
-        type ("final"|"initial", default "final"): which COD to aggregate
-
-    Response:
-        {"data": [{"icd": str, "cod_text": str, "count": int}, ...], "type": str}
-    """
     err = _require_data_manager()
     if err:
         return err
@@ -383,20 +316,11 @@ def cod():
     return jsonify({"type": cod_type, "data": _cached(f"cod:{cod_type}:{limit}", compute)})
 
 
-# ---------------------------------------------------------------------------
-# Resource: MV management
-# ---------------------------------------------------------------------------
-
-
-@analytics_api.post("/mv/refresh")
+@bp.post("/mv/refresh")
 @login_required
 @limiter.limit("1 per minute")
 def mv_refresh():
-    """Refresh the submission analytics materialized view on demand.
-
-    Response (200):  {"message": "..."}
-    Response (500):  {"error": "..."}
-    """
+    """Refresh the submission analytics materialized view on demand."""
     err = _require_data_manager()
     if err:
         return err

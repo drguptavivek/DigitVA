@@ -41,7 +41,7 @@
 
   {% if current_user.is_authenticated and current_user.is_data_manager() %}
     <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('va_main.va_dashboard', va_role='data_manager') }}">
+      <a class="nav-link" href="{{ url_for('data_management.dashboard') }}">
         <i class="fa-solid fa-folder-open me-1"></i>
         Data Manager
       </a>

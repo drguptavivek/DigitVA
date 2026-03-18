@@ -305,7 +305,7 @@ class DataManagerDashboardTests(BaseTestCase):
     def test_dashboard_shows_odk_state_and_sync_issue(self):
         self._login(self.dm_user_id)
 
-        response = self.client.get("/vadashboard/data_manager")
+        response = self.client.get("/data-management")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Has Issues", response.data)
@@ -361,7 +361,7 @@ class DataManagerDashboardTests(BaseTestCase):
         mocked_delta_count.return_value = 3
 
         response = self.client.post(
-            "/vadashboard/data-manager/api/sync/preview",
+            "/data-management/api/sync/preview",
             headers=headers,
             json={"project_ids": [self.BASE_PROJECT_ID], "site_ids": [self.BASE_SITE_ID]},
         )
@@ -389,7 +389,7 @@ class DataManagerDashboardTests(BaseTestCase):
         db.session.add(run)
         db.session.commit()
 
-        response = self.client.get("/vadashboard/data-manager/api/sync/runs")
+        response = self.client.get("/data-management/api/sync/runs")
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -400,7 +400,7 @@ class DataManagerDashboardTests(BaseTestCase):
     def test_data_manager_can_load_project_site_submission_stats(self):
         self._login(self.dm_user_id)
 
-        response = self.client.get("/vadashboard/data-manager/api/project-site-submissions")
+        response = self.client.get("/data-management/api/project-site-submissions")
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -421,7 +421,7 @@ class DataManagerDashboardTests(BaseTestCase):
             mocked_delay.return_value.id = "task-form-sync"
 
             response = self.client.post(
-                f"/vadashboard/data-manager/api/forms/{self.FORM_ID}/sync",
+                f"/data-management/api/forms/{self.FORM_ID}/sync",
                 headers=headers,
             )
 
@@ -438,7 +438,7 @@ class DataManagerDashboardTests(BaseTestCase):
             mocked_delay.return_value.id = "task-submission-sync"
 
             response = self.client.post(
-                f"/vadashboard/data-manager/api/submissions/{self.SID}/sync",
+                f"/data-management/api/submissions/{self.SID}/sync",
                 headers=headers,
             )
 
@@ -475,7 +475,7 @@ class DataManagerDashboardTests(BaseTestCase):
         )
 
         response = self.client.get(
-            f"/vadashboard/data-manager/submissions/{self.SID}/odk-edit",
+            f"/data-management/submissions/{self.SID}/odk-edit",
             follow_redirects=False,
         )
 

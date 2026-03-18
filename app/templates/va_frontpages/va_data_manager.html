@@ -677,7 +677,7 @@
             <a href="{{ url_for('va_cta.va_calltoaction', va_action='vadata', va_actiontype='vaview', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
               View
             </a>
-            <a href="{{ url_for('va_main.va_data_manager_submission_odk_edit', va_sid=row.va_sid) }}"
+            <a href="{{ url_for('data_management.submission_odk_edit', va_sid=row.va_sid) }}"
                class="btn btn-sm btn-outline-secondary"
                target="_blank"
                rel="noopener noreferrer">
@@ -1247,7 +1247,7 @@
       }
 
       function postPreview(projectIds, siteIds) {
-        return fetch('/vadashboard/data-manager/api/sync/preview', {
+        return fetch('/data-management/api/sync/preview', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1274,7 +1274,7 @@
           return;
         }
 
-        return fetch('/vadashboard/data-manager/api/project-site-submissions')
+        return fetch('/data-management/api/project-site-submissions')
           .then(function (response) {
             return response.json().then(function (payload) {
               if (!response.ok) {
@@ -1504,7 +1504,7 @@
       }
 
       function loadSyncResults() {
-        return fetch('/vadashboard/data-manager/api/sync/runs')
+        return fetch('/data-management/api/sync/runs')
           .then(function (response) {
             return response.json().then(function (payload) {
               if (!response.ok) {
@@ -1535,7 +1535,7 @@
 
       async function syncFormsSequentially(forms) {
         for (const form of forms) {
-          await postJson('/vadashboard/data-manager/api/forms/' + encodeURIComponent(form.form_id) + '/sync');
+          await postJson('/data-management/api/forms/' + encodeURIComponent(form.form_id) + '/sync');
         }
       }
 
@@ -1575,7 +1575,7 @@
 
       $('.dm-refresh-submission-btn').on('click', function () {
         const sid = $(this).data('sid');
-        postJson('/vadashboard/data-manager/api/submissions/' + encodeURIComponent(sid) + '/sync')
+        postJson('/data-management/api/submissions/' + encodeURIComponent(sid) + '/sync')
           .then(function (payload) {
             if (window.showAppToast) window.showAppToast(payload.message || 'Submission refresh started.', 'success');
           })

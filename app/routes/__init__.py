@@ -5,6 +5,7 @@ from app.routes.va_api import va_api
 from app.routes.admin import admin
 from app.routes.dashboard_api import dashboard_api
 from app.routes.analytics_api import analytics_api
+from app.routes.data_management import data_management
 
 
 def register_blueprints(app):
@@ -15,3 +16,4 @@ def register_blueprints(app):
     app.register_blueprint(admin, url_prefix="/admin")
     app.register_blueprint(dashboard_api, url_prefix="/vadashboard")
     app.register_blueprint(analytics_api, url_prefix="/api/analytics")
+    app.register_blueprint(data_management, url_prefix="/data-management")

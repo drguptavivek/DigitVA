@@ -69,7 +69,7 @@ class VaUsers(UserMixin, db.Model):
         if self.landing_page == "admin":
             return url_for("admin.admin_index")
         if self.landing_page == "data_manager":
-            return url_for("va_main.va_dashboard", va_role="data_manager")
+            return url_for("data_management.dashboard")
         if self.landing_page == "coder" and self.is_coder():
             return url_for("va_main.va_dashboard", va_role=self.landing_page)
         if self.landing_page == "reviewer" and self.is_reviewer():
@@ -79,7 +79,7 @@ class VaUsers(UserMixin, db.Model):
         if self.is_coder():
             return url_for("va_main.va_dashboard", va_role="coder")
         if self.is_data_manager():
-            return url_for("va_main.va_dashboard", va_role="data_manager")
+            return url_for("data_management.dashboard")
         if self.is_reviewer():
             return url_for("va_main.va_dashboard", va_role="reviewer")
         if self.is_site_pi():

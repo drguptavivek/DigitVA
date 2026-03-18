@@ -742,7 +742,7 @@
                 </span>
               </div>
               <button type="button" class="btn btn-primary btn-sm ms-auto" id="nqa-save-btn"
-                      onclick="nqaSave('{{ url_for('va_api.va_save_narrative_qa', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid) }}')">
+                      onclick="nqaSave('{{ url_for('api_v1.nqa_api.save_narrative_qa', va_sid=va_sid) }}', '{{ va_actiontype }}')">
                 <i class="fas fa-save me-1"></i>
                 {% if nqa %}Update NQA{% else %}Save NQA{% endif %}
               </button>
@@ -792,9 +792,10 @@
             nqaUpdateScore();
           })();
 
-          function nqaSave(url) {
+          function nqaSave(url, actiontype) {
             var fields = ['nqa_length', 'nqa_pos_symptoms', 'nqa_neg_symptoms', 'nqa_chronology', 'nqa_doc_review', 'nqa_comorbidity'];
             var payload = {};
+            if (actiontype) { payload.va_actiontype = actiontype; }
             var missing = [];
             var keyMap = { nqa_length: 'length', nqa_pos_symptoms: 'pos_symptoms', nqa_neg_symptoms: 'neg_symptoms', nqa_chronology: 'chronology', nqa_doc_review: 'doc_review', nqa_comorbidity: 'comorbidity' };
             fields.forEach(function (name) {

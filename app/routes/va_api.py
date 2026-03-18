@@ -24,6 +24,7 @@ from app.services.final_cod_authority_service import (
     upsert_final_cod_authority,
 )
 from app.services.field_mapping_service import get_mapping_service
+from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.social_autopsy_analysis_service import (
     SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
     social_autopsy_option_set,
@@ -44,6 +45,13 @@ from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderRevi
 
 va_api = Blueprint("va_api", __name__)
 DEMO_RETENTION_HOURS = 6
+
+
+def _demo_expiry_for_actiontype(va_actiontype: str):
+    """Return the demo artifact expiry timestamp for demo coding saves."""
+    if va_actiontype != "vademo_start_coding":
+        return None
+    return datetime.now(timezone.utc) + timedelta(hours=DEMO_RETENTION_HOURS)
 adult = [
     "I10 - Essential Hypertension",
     "E11 - Type 2 Diabetes Mellitus",
@@ -925,21 +933,6 @@ def va_servemedia(va_form_id, va_filename):
 
 
 
-@va_api.route("/icd-search")
-@login_required
-def icd_search():
-    query = request.args.get("q", "")
-    results = (
-        db.session.execute(
-            sa.select(VaIcdCodes.icd_code, VaIcdCodes.icd_to_display)
-            .where(VaIcdCodes.icd_to_display.ilike(f"%{query}%"))
-            .limit(20)
-        ).all()
-    )
-    return jsonify([
-        {"icd_code": r[0], "icd_to_display": r[1]} for r in results
-    ])
-
 
 
 # # * api call to fetch coding / smartva information for some sid / va form
@@ -1078,25 +1071,6 @@ def icd_search():
 #                 flash(f'{field}: {error}', 'danger')
 
 
-# ---------------------------------------------------------------------------
-# Narrative Quality Assessment (NQA)
-# ---------------------------------------------------------------------------
-
-def _get_project_for_submission(va_sid: str):
-    """Return the VaProjectMaster for a submission, or None."""
-    form_id = db.session.scalar(
-        sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == va_sid)
-    )
-    if not form_id:
-        return None
-    project_id = db.session.scalar(
-        sa.select(VaForms.project_id).where(VaForms.form_id == form_id)
-    )
-    if not project_id:
-        return None
-    return db.session.get(VaProjectMaster, project_id)
-
-
 def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str, va_actiontype: str):
     """Return a blocking message if the current category has an incomplete required form."""
     if va_action != "vacode":
@@ -1129,230 +1103,3 @@ def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str,
                 return "Complete the Narrative Quality Assessment before proceeding."
 
     return None
-
-
-def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity) -> int:
-    return length + pos_symptoms + neg_symptoms + chronology + doc_review + comorbidity
-
-
-def _demo_expiry_for_actiontype(va_actiontype: str):
-    """Return the demo artifact expiry timestamp for demo coding saves."""
-    if va_actiontype != "vademo_start_coding":
-        return None
-    return datetime.now(timezone.utc) + timedelta(hours=DEMO_RETENTION_HOURS)
-
-
-@va_api.route("/<va_action>/<va_actiontype>/<va_sid>/narrative-qa", methods=["POST"])
-@login_required
-@va_validate_permissions()
-def va_save_narrative_qa(va_action, va_actiontype, va_sid):
-    """Save or update the Narrative Quality Assessment for a coder on a submission."""
-    if va_action != "vacode":
-        return jsonify({"error": "NQA only available during coding."}), 403
-
-    project = _get_project_for_submission(va_sid)
-    if not project or not project.narrative_qa_enabled:
-        return jsonify({"error": "Narrative QA is not enabled for this project."}), 400
-
-    data = request.get_json(force=True) or {}
-
-    def _int(key, min_val, max_val):
-        try:
-            v = int(data[key])
-            if not (min_val <= v <= max_val):
-                raise ValueError
-            return v
-        except (KeyError, TypeError, ValueError):
-            return None
-
-    length       = _int("length",       1, 3)
-    pos_symptoms = _int("pos_symptoms", 1, 3)
-    neg_symptoms = _int("neg_symptoms", 0, 1)
-    chronology   = _int("chronology",   0, 1)
-    doc_review   = _int("doc_review",   0, 1)
-    comorbidity  = _int("comorbidity",  0, 1)
-
-    missing = [k for k, v in {
-        "length": length, "pos_symptoms": pos_symptoms,
-        "neg_symptoms": neg_symptoms, "chronology": chronology,
-        "doc_review": doc_review, "comorbidity": comorbidity,
-    }.items() if v is None]
-    if missing:
-        return jsonify({"error": f"Invalid or missing fields: {', '.join(missing)}"}), 400
-
-    score = _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity)
-
-    existing = db.session.scalar(
-        sa.select(VaNarrativeAssessment).where(
-            VaNarrativeAssessment.va_sid == va_sid,
-            VaNarrativeAssessment.va_nqa_by == current_user.user_id,
-            VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
-        )
-    )
-    if existing:
-        existing.va_nqa_length       = length
-        existing.va_nqa_pos_symptoms = pos_symptoms
-        existing.va_nqa_neg_symptoms = neg_symptoms
-        existing.va_nqa_chronology   = chronology
-        existing.va_nqa_doc_review   = doc_review
-        existing.va_nqa_comorbidity  = comorbidity
-        existing.va_nqa_score        = score
-        existing.demo_expires_at     = _demo_expiry_for_actiontype(va_actiontype)
-        nqa = existing
-        audit_operation = "u"
-        audit_action = "narrative quality assessment updated"
-    else:
-        nqa = VaNarrativeAssessment(
-            va_sid=va_sid,
-            va_nqa_by=current_user.user_id,
-            va_nqa_length=length,
-            va_nqa_pos_symptoms=pos_symptoms,
-            va_nqa_neg_symptoms=neg_symptoms,
-            va_nqa_chronology=chronology,
-            va_nqa_doc_review=doc_review,
-            va_nqa_comorbidity=comorbidity,
-            va_nqa_score=score,
-            va_nqa_status=VaStatuses.active,
-            demo_expires_at=_demo_expiry_for_actiontype(va_actiontype),
-        )
-        db.session.add(nqa)
-        audit_operation = "c"
-        audit_action = "narrative quality assessment saved"
-
-    db.session.flush()
-    db.session.add(
-        VaSubmissionsAuditlog(
-            va_sid=va_sid,
-            va_audit_byrole="vacoder",
-            va_audit_by=current_user.user_id,
-            va_audit_operation=audit_operation,
-            va_audit_action=audit_action,
-            va_audit_entityid=nqa.va_nqa_id,
-        )
-    )
-    db.session.commit()
-    return jsonify({
-        "saved": True,
-        "score": nqa.va_nqa_score,
-        "rating": nqa.rating,
-        "rating_class": nqa.rating_class,
-    })
-
-
-@va_api.route("/<va_action>/<va_actiontype>/<va_sid>/social-autopsy-analysis", methods=["POST"])
-@login_required
-@va_validate_permissions()
-def va_save_social_autopsy_analysis(va_action, va_actiontype, va_sid):
-    """Save or update the Social Autopsy analysis selections for a coder."""
-    if va_action != "vacode":
-        return jsonify({"error": "Social Autopsy analysis is only available during coding."}), 403
-
-    data = request.get_json(force=True) or {}
-    selected_options = data.get("selected_options") or []
-    remark = (data.get("remark") or "").strip() or None
-
-    if not isinstance(selected_options, list):
-        return jsonify({"error": "selected_options must be a list."}), 400
-
-    valid_pairs = social_autopsy_option_set()
-    normalized = []
-    seen = set()
-    for item in selected_options:
-        if not isinstance(item, dict):
-            return jsonify({"error": "Each selected option must be an object."}), 400
-        delay_level = (item.get("delay_level") or "").strip()
-        option_code = (item.get("option_code") or "").strip()
-        pair = (delay_level, option_code)
-        if pair not in valid_pairs:
-            return jsonify({"error": f"Invalid Social Autopsy option: {delay_level}/{option_code}"}), 400
-        if pair in seen:
-            continue
-        seen.add(pair)
-        normalized.append(pair)
-
-    # "None" is exclusive within a delay level. If it is selected along with
-    # other options for the same delay, keep only "none" for that delay.
-    by_delay = {}
-    for delay_level, option_code in normalized:
-        by_delay.setdefault(delay_level, set()).add(option_code)
-
-    normalized = []
-    for delay_level in sorted(by_delay.keys()):
-        option_codes = by_delay[delay_level]
-        if "none" in option_codes:
-            normalized.append((delay_level, "none"))
-            continue
-        for option_code in sorted(option_codes):
-            normalized.append((delay_level, option_code))
-
-    required_delay_levels = {
-        question["delay_level"] for question in SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
-    }
-    missing_delay_levels = sorted(required_delay_levels - set(by_delay.keys()))
-    if missing_delay_levels:
-        return jsonify({
-            "error": (
-                "Please answer every Social Autopsy delay question. "
-                "Use 'None' where no delay factor applies."
-            ),
-            "missing_delay_levels": missing_delay_levels,
-        }), 400
-
-    existing = db.session.scalar(
-        sa.select(VaSocialAutopsyAnalysis).where(
-            VaSocialAutopsyAnalysis.va_sid == va_sid,
-            VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
-            VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
-        )
-    )
-
-    created = False
-    if existing:
-        analysis = existing
-        analysis.va_saa_remark = remark
-        analysis.demo_expires_at = _demo_expiry_for_actiontype(va_actiontype)
-        analysis.selected_options.clear()
-        db.session.flush()
-        audit_operation = "u"
-        audit_action = "social autopsy analysis updated"
-    else:
-        analysis = VaSocialAutopsyAnalysis(
-            va_sid=va_sid,
-            va_saa_by=current_user.user_id,
-            va_saa_remark=remark,
-            va_saa_status=VaStatuses.active,
-            demo_expires_at=_demo_expiry_for_actiontype(va_actiontype),
-        )
-        db.session.add(analysis)
-        created = True
-        audit_operation = "c"
-        audit_action = "social autopsy analysis saved"
-
-    for delay_level, option_code in normalized:
-        analysis.selected_options.append(
-            VaSocialAutopsyAnalysisOption(
-                delay_level=delay_level,
-                option_code=option_code,
-            )
-        )
-
-    db.session.flush()
-    db.session.add(
-        VaSubmissionsAuditlog(
-            va_sid=va_sid,
-            va_audit_byrole="vacoder",
-            va_audit_by=current_user.user_id,
-            va_audit_operation=audit_operation,
-            va_audit_action=audit_action,
-            va_audit_entityid=analysis.va_saa_id,
-        )
-    )
-    db.session.commit()
-
-    return jsonify({
-        "saved": True,
-        "created": created,
-        "selection_count": len(normalized),
-        "remark": analysis.va_saa_remark,
-    })
-#         return redirect(url_for('main.vacoding', sid=sid))

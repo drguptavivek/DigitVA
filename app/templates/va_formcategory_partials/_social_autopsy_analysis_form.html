@@ -62,7 +62,7 @@
           type="button"
           class="btn btn-primary btn-sm ms-auto"
           id="saa-save-btn"
-          onclick="saveSocialAutopsyAnalysis('{{ url_for('va_api.va_save_social_autopsy_analysis', va_action=va_action, va_actiontype=va_actiontype, va_sid=va_sid) }}')"
+          onclick="saveSocialAutopsyAnalysis('{{ url_for('api_v1.so_api.save_social_autopsy', va_sid=va_sid) }}', '{{ va_actiontype }}')"
         >
           <i class="fas fa-save me-1"></i>{% if analysis %}Update Analysis{% else %}Save Analysis{% endif %}
         </button>
@@ -102,7 +102,7 @@
     });
   });
 
-  function saveSocialAutopsyAnalysis(url) {
+  function saveSocialAutopsyAnalysis(url, actiontype) {
     var selected = [];
     document.querySelectorAll('.saa-checkbox:checked').forEach(function (input) {
       selected.push({
@@ -115,6 +115,7 @@
       selected_options: selected,
       remark: document.getElementById('saa-remark').value
     };
+    if (actiontype) { payload.va_actiontype = actiontype; }
 
     var btn = document.getElementById('saa-save-btn');
     btn.disabled = true;

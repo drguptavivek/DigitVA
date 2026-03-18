@@ -88,7 +88,7 @@
         {{ form.va_not_codeable(class="btn btn-outline-danger px-4 py-2") }}
       </div>
 </form>
-<div id="select2-root" data-icd-url="{{ url_for('va_api.icd_search') }}"></div>
+<div id="select2-root" data-icd-url="{{ url_for('api_v1.icd10_api.icd10_search') }}"></div>
 <script>
 document.body.addEventListener("htmx:afterSwap", function (event) {
   const icdUrl = document.getElementById("select2-root")?.dataset.icdUrl;

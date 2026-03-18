@@ -140,8 +140,9 @@ def dashboard():
 def start():
     if not current_user.is_coder():
         va_permission_abortwithflash("Coder access is required.", 403)
+    project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
-        result = allocate_random_form(current_user)
+        result = allocate_random_form(current_user, project_id=project_id)
     except AllocationError as e:
         _handle_allocation_error(e)
     if result.actiontype == "varesumecoding":

@@ -3,7 +3,7 @@
 {% block title %}DigitVA | VA Code{% endblock %}
 
 {% block content %}
-  {% with messages = get_flashed_messages(with_categories = true) %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     <div class="container mt-4">
       {% for category, message in messages %}
@@ -15,167 +15,111 @@
     </div>
   {% endif %}
   {% endwith %}
-<h2 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
-      Welcome,
-      {{ current_user.name }}
+
+  <!-- Top bar: welcome + project filter + help -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <h2 class="text-primary mb-0" style="font-size: 28px; font-weight: 600;">
+      Welcome, {{ current_user.name }}
     </h2>
-  <!-- Welcome and Instructions -->
-  <div class="content-section mb-4">
-  <h4 class="content-section-title">
-    <i class="fas fa-info-circle"></i>
-    Verbal Autopsy - Cause of Death Ascertainment
-  </h4>
-  <p>
-    <b>Welcome to the Verbal Autopsy Coding Dashboard</b>
-  </p>
-  <ol class="mb-0">
-    <li>The stats below separate <b>Random Allocation</b> work from <b>Pick And Choose</b> work so you can see exactly which intake mode is available.</li>
-    <li>
-      Click
-      <b>"Start Random Allocation Coding"</b>
-      to let the system assign a case from projects that use random allocation. Once assigned, you are expected to complete its coding before picking another. If some VA Coding is already in progress and assigned to you, you'll see a
-      <b>"Continue Pending VA Coding"</b>
-      option instead. Please note that any assigned VA form will be
-      <b>revoked after an hour</b>
-      if the VA Coding is not completed.
-    </li>
-    <li>
-      Use the <b>"Pick And Choose Coding"</b> table only for projects that require manual case selection.
-    </li>
-    <li>
-      Use the
-      <b>"View"</b>
-      button to open any completed VA form.
-    </li>
-    <li>
-      Use the <b>"Recode"</b> button to update the coded VA form if necessary. Please note that a coded <b>VA form can only be recoded once</b>, and <b>only within 24 hours of its initial coding</b>.
-    </li>
-    <li>
-      For any assistance, kindly reach out to the
-      <b>Central Admin Team at AIIMS, New Delhi</b>.
-    </li>
-  </ol>
-</div>
-
-
-<!-- KPI cards -->
-<div class="row mb-4 g-3">
-  <div class="col-md-4">
-    <div class="card shadow-sm border-0 rounded-3 h-100">
-      <div class="card-body p-4">
-        <div class="d-flex flex-column align-items-center">
-          <div class="mb-3">
-            <i class="fas fa-clipboard-list text-primary fa-2x"></i>
-          </div>
-          <h5 class="text-primary fw-semibold mb-3">Random Allocation Forms Ready</h5>
-          <div class="d-flex align-items-baseline">
-            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_random_ready_forms }}</h2>
-            <span class="ms-2 text-secondary small">forms</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card shadow-sm border-0 rounded-3 h-100">
-      <div class="card-body p-4">
-        <div class="d-flex flex-column align-items-center">
-          <div class="mb-3">
-            <i class="fas fa-list-check text-primary fa-2x"></i>
-          </div>
-          <h5 class="text-primary fw-semibold mb-3">Pick And Choose Forms Ready</h5>
-          <div class="d-flex align-items-baseline">
-            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_pick_ready_forms_count }}</h2>
-            <span class="ms-2 text-secondary small">forms</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-4">
-    <div class="card shadow-sm border-0 rounded-3 h-100">
-      <div class="card-body p-4">
-        <div class="d-flex flex-column align-items-center">
-          <div class="mb-3">
-            <i class="fas fa-check-circle text-primary fa-2x"></i>
-          </div>
-          <h5 class="text-primary fw-semibold mb-3">Cumulative VA Forms Coded by {{ current_user.name }}</h5>
-          <div class="d-flex align-items-baseline">
-            <h2 class="display-4 fw-bold text-primary mb-0">{{ va_forms_completed }}</h2>
-            <span class="ms-2 text-secondary small">forms</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-  {% if has_random_mode and has_pick_mode %}
-  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
-    <i class="fas fa-circle-info mt-1"></i>
-    <div>
-      <strong>Two coding modes are active for your access scope.</strong>
-      Use <strong>Start Random Allocation Coding</strong> for system-assigned projects.
-      Use the <strong>Pick And Choose Coding</strong> table below for manual-selection projects.
-    </div>
-  </div>
-  {% elif has_pick_mode and not has_random_mode %}
-  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
-    <i class="fas fa-circle-info mt-1"></i>
-    <div>
-      <strong>Your current coding access uses Pick And Choose only.</strong>
-      Start work from the <strong>Pick And Choose Coding</strong> table below.
-      The random-allocation button will not appear because no random-allocation projects are in scope.
-    </div>
-  </div>
-  {% elif has_random_mode and not has_pick_mode %}
-  <div class="alert alert-info d-flex align-items-start gap-2 mb-4" role="alert">
-    <i class="fas fa-circle-info mt-1"></i>
-    <div>
-      <strong>Your current coding access uses Random Allocation only.</strong>
-      Use <strong>Start Random Allocation Coding</strong> to receive the next eligible case automatically.
-    </div>
-  </div>
-  {% endif %}
-  <div class="text-center mb-4">
-    {% if va_has_allocation %}
-    <a href="{{ url_for('coding.resume') }}" class="btn btn-primary">
-      <i class="fas fa-edit me-2"></i>Continue Pending VA Coding
-    </a>
-    {% else %}
-    {% if va_random_ready_forms %}
-    <a href="{{ url_for('coding.start') }}" class="btn btn-primary">
-      <i class="fas fa-edit me-2"></i>Start Random Allocation Coding
-    </a>
-    {% endif %}
-    {% endif %}
-    {% if is_admin %}
-    <form method="get"
-          action="{{ url_for('coding.demo') }}"
-          class="d-inline-flex align-items-center ms-2 gap-2">
-      <select name="project_id" class="form-select form-select-sm" style="min-width: 180px;">
-        <option value="">All coder projects</option>
-        {% for project_id in demo_projects %}
-        <option value="{{ project_id }}">{{ project_id }}</option>
-        {% endfor %}
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0 text-secondary small fw-semibold">Project:</label>
+      <select id="project-select-top" class="form-select form-select-sm" style="min-width:180px;">
+        <option value="">All projects</option>
       </select>
-      <button type="submit" class="btn btn-outline-secondary">
-        <i class="fas fa-flask me-2"></i>Start Demo Coding
+      <button class="btn btn-link p-0 text-secondary" data-bs-toggle="modal" data-bs-target="#codingHelpModal"
+              title="How does coding work?">
+        <i class="fas fa-circle-question"></i>
       </button>
-    </form>
-    {% endif %}
+    </div>
   </div>
 
-  {% if pick_ready_forms %}
-  <div class="card shadow-sm border-0 rounded-3 mb-4">
+  <!-- Help modal -->
+  <div class="modal fade" id="codingHelpModal" tabindex="-1" aria-labelledby="codingHelpModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="codingHelpModalLabel">
+            <i class="fas fa-stethoscope me-2 text-primary"></i>Verbal Autopsy Coding — How It Works
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <ol class="mb-0">
+            <li class="mb-2">The stats cards separate <strong>Random Allocation</strong> work from <strong>Pick And Choose</strong> work so you can see exactly which intake mode is available to you.</li>
+            <li class="mb-2">Click <strong>"Start Random Allocation Coding"</strong> to let the system assign you a case from projects that use random allocation. Once assigned, complete its coding before picking another. If a VA form is already in progress, you'll see <strong>"Continue Pending VA Coding"</strong> instead. Any assigned form is <strong>revoked after 1 hour</strong> if not completed.</li>
+            <li class="mb-2">Use the <strong>"Pick And Choose Coding"</strong> table only for projects that require manual case selection.</li>
+            <li class="mb-2">Use the <strong>"View"</strong> button to open any completed VA form in read-only mode.</li>
+            <li class="mb-2">Use the <strong>"Recode"</strong> button to update a coded VA form. A form can only be recoded <strong>once</strong>, and only <strong>within 24 hours</strong> of its initial coding.</li>
+            <li>For assistance, contact the <strong>Central Admin Team at AIIMS, New Delhi</strong>.</li>
+          </ol>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="row mb-4 g-3">
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex flex-column align-items-center">
+            <div class="mb-3"><i class="fas fa-clipboard-list text-primary fa-2x"></i></div>
+            <h5 class="text-primary fw-semibold mb-3">Random Allocation Forms Available</h5>
+            <div class="d-flex align-items-baseline">
+              <h2 class="display-4 fw-bold text-primary mb-0" id="kpi-random-ready">—</h2>
+              <span class="ms-2 text-secondary small">forms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex flex-column align-items-center">
+            <div class="mb-3"><i class="fas fa-list-check text-primary fa-2x"></i></div>
+            <h5 class="text-primary fw-semibold mb-3">Selection Based Forms Available</h5>
+            <div class="d-flex align-items-baseline">
+              <h2 class="display-4 fw-bold text-primary mb-0" id="kpi-pick-ready">—</h2>
+              <span class="ms-2 text-secondary small">forms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex flex-column align-items-center">
+            <div class="mb-3"><i class="fas fa-check-circle text-primary fa-2x"></i></div>
+            <h5 class="text-primary fw-semibold mb-3">Cumulative Forms Coded</h5>
+            <div class="d-flex align-items-baseline">
+              <h2 class="display-4 fw-bold text-primary mb-0" id="kpi-completed">—</h2>
+              <span class="ms-2 text-secondary small">forms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="text-center mb-4" id="action-buttons">
+    <!-- rendered by JS -->
+  </div>
+
+  <!-- Pick And Choose table -->
+  <div id="pick-section" class="card shadow-sm border-0 rounded-3 mb-4" style="display:none;">
     <div class="card-body p-4">
       <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
           <h4 class="text-primary mb-1">Pick And Choose Coding</h4>
-          <p class="text-secondary mb-0">
-            These submissions belong to projects configured for manual coder selection.
-          </p>
+          <p class="text-secondary mb-0">These submissions belong to projects configured for manual coder selection.</p>
         </div>
-        <span class="badge bg-light text-primary border">{{ pick_ready_forms|length }} ready</span>
+        <span class="badge bg-light text-primary border" id="pick-badge">0 ready</span>
       </div>
       <div class="table-responsive">
         <table id="pickCodingTable" class="table table-hover align-middle table-striped mb-0">
@@ -190,32 +134,11 @@
               <th>Action</th>
             </tr>
           </thead>
-          <tbody>
-            {% for row in pick_ready_forms %}
-            <tr>
-              <td>{{ row.project_id }}</td>
-              <td>{{ row.site_id }}</td>
-              <td>{{ row.va_submission_date }}</td>
-              <td>{{ row.va_uniqueid_masked }}</td>
-              <td>{{ row.va_data_collector or '-' }}</td>
-              <td>{{ row.va_deceased_age or '-' }} / {{ row.va_deceased_gender or '-' }}</td>
-              <td>
-                {% if va_has_allocation %}
-                <button type="button" class="btn btn-sm btn-outline-secondary" disabled>Continue current coding first</button>
-                {% else %}
-                <a href="{{ url_for('coding.pick', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
-                  Start Coding
-                </a>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
+          <tbody id="pick-tbody"></tbody>
         </table>
       </div>
     </div>
   </div>
-  {% endif %}
 
   <!-- Filters + Table Tools -->
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -257,122 +180,272 @@
       </div>
     </div>
   </div>
-  <h3 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
-      VA Coding History
-    </h3>
-  <!-- Table -->
+
+  <h3 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">VA Coding History</h3>
   <div class="table-responsive">
     <table id="vaTable" class="table table-hover align-middle table-striped nowrap" style="min-width: 1200px;"></table>
   </div>
 
-  <script id="table-data" type="application/json">
-    {{ va_forms | tojson }}
-  </script>
-
   <style>
-    .select2-container .select2-selection--multiple {
-      min-height: 38px;
-    }
+    .select2-container .select2-selection--multiple { min-height: 38px; }
   </style>
 
-  <script id="va-context" type="application/json">
-  {{ {
-    "hasAllocation": va_has_allocation,
-    "hasPickReadyForms": pick_ready_forms|length > 0
-  } | tojson }}
-</script>
-
-<script id="va-recodeable" type="application/json">
-  {{ va_recodeable | tojson }}
-</script>
-
   <script>
-    $(document).ready(function () {
-      const tableData = JSON.parse(document.getElementById("table-data").textContent);
-      const context = JSON.parse(document.getElementById('va-context').textContent);
+  const IS_ADMIN = {{ 'true' if current_user.is_admin() else 'false' }};
+  const CSRF_TOKEN = '{{ csrf_token() }}';
 
-      let table = $('#vaTable').DataTable({
-        data: tableData,
-        columns: [
-          { data: 'va_submission_date', title: 'Submission Date', visible: false }, // 0
-          { data: 'va_form_id', title: 'Site ID', visible: false },                                 // 1
-          { data: 'va_sid', title: 'SID', visible: false },                                       // 2
-          { data: 'va_uniqueid_masked', title: 'VA Form ID' },                  // 3
-          { data: 'va_data_collector', title: 'DataCollector' },                            // 4
-          { data: 'va_deceased_age', title:"H1", visible: false },    
-          { data: 'va_deceased_gender', title:"H2", visible: false },                          
-          { data: null, title: 'Age / Gender', render: row => `${row.va_deceased_age || '-'} / ${row.va_deceased_gender || '-'}` },  // 7
-          { data: 'va_code_status', title: 'VA Code Status', render: data => data === 'VA Coding Completed' ? '<span class="badge bg-success">VA Coding Completed</span>' : '<span class="badge bg-danger">Not Codeable</span>'}, 
-          { data: 'va_coding_date', title: 'VA Coding Date' },
-          {
-            data: null,
-            title: 'Action',
-            orderable: false,
-            render: row => {
-                const recodeableList = JSON.parse(document.getElementById("va-recodeable").textContent);
-                const context = JSON.parse(document.getElementById("va-context").textContent);
-                let html = `<a href="/coding/view/${row.va_sid}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
-                const noAllocation = !context.hasAllocation;
-                if (noAllocation && recodeableList.includes(row.va_sid)) {
-                  html += `<a href="/coding/recode/${row.va_sid}" class="btn btn-sm btn-outline-danger">Recode</a>`;
-                }
-                return html;
-            }
+  async function apiFetch(url) {
+    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!r.ok) throw new Error(`${url} → ${r.status}`);
+    return r.json();
+  }
+
+  // ── mode label ────────────────────────────────────────────────────────────
+  function modeLabel(hasRandom, hasPick) {
+    if (hasRandom && hasPick) return 'Modes: Random, Manual Selection';
+    if (hasPick)              return 'Mode: Manual Selection';
+    if (hasRandom)            return 'Mode: Random';
+    return '';
+  }
+
+  // ── project selector ──────────────────────────────────────────────────────
+  function populateProjectSelector(projects) {
+    const sel = document.getElementById('project-select-top');
+    projects.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p; opt.textContent = p;
+      sel.appendChild(opt);
+    });
+  }
+
+  // ── action buttons ────────────────────────────────────────────────────────
+  function renderActionButtons(allocation, randomReady, mode) {
+    const el = document.getElementById('action-buttons');
+    let html = '<div class="d-inline-flex align-items-center gap-2 flex-wrap justify-content-center">';
+
+    if (mode) {
+      html += `<span class="text-secondary small me-1"><i class="fas fa-layer-group me-1"></i>${mode}</span>`;
+    }
+
+    if (allocation) {
+      html += `<a href="/coding/resume" class="btn btn-primary">
+        <i class="fas fa-edit me-2"></i>Continue Pending VA Coding
+      </a>`;
+    } else if (randomReady > 0) {
+      html += `<button id="start-btn" class="btn btn-primary">
+        <i class="fas fa-edit me-2"></i>Start Random Allocation Coding
+      </button>`;
+    }
+
+    if (IS_ADMIN) {
+      html += `<button id="demo-btn" class="btn btn-outline-secondary">
+        <i class="fas fa-flask me-2"></i>Start Demo Coding
+      </button>`;
+    }
+
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  // ── pick table ────────────────────────────────────────────────────────────
+  let pickTableInstance = null;
+
+  function renderPickTable(forms, hasAllocation) {
+    const section = document.getElementById('pick-section');
+    const badge   = document.getElementById('pick-badge');
+    const tbody   = document.getElementById('pick-tbody');
+
+    if (!forms.length) { section.style.display = 'none'; return; }
+
+    section.style.display = '';
+    badge.textContent = `${forms.length} ready`;
+
+    tbody.innerHTML = forms.map(row => {
+      const actionCell = hasAllocation
+        ? `<button class="btn btn-sm btn-outline-secondary" disabled>Continue current coding first</button>`
+        : `<a href="/coding/pick/${row.va_sid}" class="btn btn-sm btn-outline-primary">Start Coding</a>`;
+      return `<tr>
+        <td>${row.project_id || ''}</td>
+        <td>${row.site_id || ''}</td>
+        <td>${row.va_submission_date || ''}</td>
+        <td>${row.va_uniqueid_masked || ''}</td>
+        <td>${row.va_data_collector || '-'}</td>
+        <td>${row.va_deceased_age || '-'} / ${row.va_deceased_gender || '-'}</td>
+        <td>${actionCell}</td>
+      </tr>`;
+    }).join('');
+
+    if (pickTableInstance) { pickTableInstance.destroy(); }
+    pickTableInstance = $('#pickCodingTable').DataTable({
+      pageLength: 10,
+      order: [[0, 'asc'], [1, 'asc'], [2, 'asc']],
+      columnDefs: [{ targets: 6, orderable: false, searchable: false }],
+    });
+  }
+
+  // ── history table ─────────────────────────────────────────────────────────
+  function initHistoryTable(history) {
+
+    $('#vaTable').DataTable({
+      data: history,
+      order: [[0, 'asc']],
+      columns: [
+        { data: '_priority',          title: '',                visible: false },
+        { data: 'va_submission_date', title: 'Submission Date', visible: false },
+        { data: 'va_form_id',         title: 'Site ID',         visible: false },
+        { data: 'va_sid',             title: 'SID',             visible: false },
+        { data: 'va_uniqueid_masked', title: 'VA Form ID' },
+        { data: 'va_data_collector',  title: 'Data Collector' },
+        { data: 'va_deceased_age',    title: 'H1',              visible: false },
+        { data: 'va_deceased_gender', title: 'H2',              visible: false },
+        { data: null, title: 'Age / Gender',
+          render: r => `${r.va_deceased_age || '-'} / ${r.va_deceased_gender || '-'}` },
+        { data: 'va_code_status', title: 'VA Code Status',
+          render: d => {
+            if (d === '__pending__') return '<span class="badge bg-warning text-dark">In Progress</span>';
+            if (d === 'VA Coding Completed') return '<span class="badge bg-success">VA Coding Completed</span>';
+            return '<span class="badge bg-danger">Not Codeable</span>';
           }
-        ],
-        initComplete: function () {
-          const api = this.api();
+        },
+        { data: 'va_coding_date', title: 'VA Coding Date',
+          render: d => d || '-' },
+        { data: null, title: 'Action', orderable: false,
+          render: (_, __, row) => {
+            if (row.va_code_status === '__pending__') {
+              return `<a href="/coding/resume" class="btn btn-sm btn-primary">Continue</a>`;
+            }
+            let html = `<a href="/coding/view/${row.va_sid}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
+            if (row.recodeable) {
+              html += `<a href="/coding/recode/${row.va_sid}" class="btn btn-sm btn-outline-danger">Recode</a>`;
+            }
+            return html;
+          }
+        },
+      ],
+      initComplete: function () {
+        const api = this.api();
+        $('#filterSubmissionDate, #filterFormID, #filterDataCollector, #filterAge, #filterGender').select2({ width: '100%' });
 
-          $('#filterSubmissionDate, #filterFormID, #filterDataCollector, #filterAge, #filterGender').select2({ width: '100%' });
+        api.columns().every(function () {
+          const col   = this;
+          const idx   = col.index();
+          const title = col.header().textContent;
+          if (['Action', 'H1', 'H2'].includes(title)) return;
+          $('#columnToggles').append(`
+            <div class="form-check form-check-inline">
+              <input type="checkbox" class="form-check-input me-1" data-col="${idx}" ${col.visible() ? 'checked' : ''}>
+              <label class="form-check-label me-3">${title}</label>
+            </div>`);
+        });
 
-          api.columns().every(function () {
-            const column = this;
-            const idx = column.index();
-            const title = column.header().textContent;
-            if (title === 'Action' || title === 'H1' || title === 'H2') return;
+        $('#columnToggles input[type=checkbox]').on('change', function () {
+          table.column($(this).data('col')).visible($(this).is(':checked'));
+        });
 
-            $('#columnToggles').append(`
-              <div class="form-check form-check-inline">
-                <input type="checkbox" class="form-check-input me-1" data-col="${idx}" ${column.visible() ? 'checked' : ''}>
-                <label class="form-check-label me-3">${title}</label>
-              </div>
-            `);
+        const filters = [
+          { idx: 1, sel: '#filterSubmissionDate' },
+          { idx: 2, sel: '#filterFormID' },
+          { idx: 5, sel: '#filterDataCollector' },
+          { idx: 6, sel: '#filterAge' },
+          { idx: 7, sel: '#filterGender' },
+        ];
+        filters.forEach(f => {
+          const col = api.column(f.idx);
+          const $s  = $(f.sel);
+          col.data().unique().sort().each(d => { if (d) $s.append(`<option value="${d}">${d}</option>`); });
+          $s.on('change', function () {
+            const val = $(this).val();
+            col.search(val && val.length ? `^(${val.join('|')})$` : '', true, false).draw();
           });
+        });
+      },
+    });
+  }
 
-          $('#columnToggles input[type=checkbox]').on('change', function () {
-            table.column($(this).data('col')).visible($(this).is(':checked'));
-          });
+  // ── bootstrap ─────────────────────────────────────────────────────────────
+  $(document).ready(async function () {
+    try {
+      const [statsData, allocData, availData, histData, projData] = await Promise.all([
+        apiFetch('/api/v1/coding/stats'),
+        apiFetch('/api/v1/coding/allocation'),
+        apiFetch('/api/v1/coding/available'),
+        apiFetch('/api/v1/coding/history'),
+        apiFetch('/api/v1/coding/projects'),
+      ]);
 
-          const filters = [
-            { idx: 0, selector: '#filterSubmissionDate' },
-            { idx: 1, selector: '#filterFormID' },
-            { idx: 4, selector: '#filterDataCollector' },
-            { idx: 5, selector: '#filterAge' },
-            { idx: 6, selector: '#filterGender' }
-          ];
+      // KPI cards
+      document.getElementById('kpi-random-ready').textContent = statsData.random_ready ?? 0;
+      document.getElementById('kpi-pick-ready').textContent   = statsData.pick_ready   ?? 0;
+      document.getElementById('kpi-completed').textContent    = statsData.completed    ?? 0;
 
-          filters.forEach(f => {
-            const column = api.column(f.idx);
-            const $select = $(f.selector);
-            column.data().unique().sort().each(d => { if (d) $select.append(`<option value="${d}">${d}</option>`); });
-            $select.on('change', function () {
-              const val = $(this).val();
-              const regex = val && val.length ? `^(${val.join('|')})$` : '';
-              column.search(regex, true, false).draw();
-            });
-          });
-        }
-      });
+      populateProjectSelector(projData.projects || []);
+      renderActionButtons(allocData.allocation, statsData.random_ready,
+                          modeLabel(statsData.has_random_mode, statsData.has_pick_mode));
 
-      if (context.hasPickReadyForms) {
-        $('#pickCodingTable').DataTable({
-          pageLength: 10,
-          order: [[0, 'asc'], [1, 'asc'], [2, 'asc']],
-          columnDefs: [
-            { targets: 6, orderable: false, searchable: false }
-          ]
+      function selectedProjectId() {
+        const sel = document.getElementById('project-select-top');
+        return sel ? sel.value.trim().toUpperCase() || null : null;
+      }
+
+      function startAllocationBtn(btn, body, label) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting…';
+        fetch('/api/v1/coding/allocation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+          body: JSON.stringify(body),
+        })
+        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+        .then(({ ok, data }) => {
+          if (!ok) { alert(data.error || 'Allocation failed.'); btn.disabled = false; btn.innerHTML = label; return; }
+          window.location.href = '/coding/resume';
+        })
+        .catch(() => { alert('Network error.'); btn.disabled = false; btn.innerHTML = label; });
+      }
+
+      const startBtn = document.getElementById('start-btn');
+      if (startBtn) {
+        startBtn.addEventListener('click', () => {
+          const pid = selectedProjectId();
+          const body = pid ? { project_id: pid } : {};
+          startAllocationBtn(startBtn, body, '<i class="fas fa-edit me-2"></i>Start Random Allocation Coding');
         });
       }
-    });
+
+      const demoBtn = document.getElementById('demo-btn');
+      if (demoBtn) {
+        demoBtn.addEventListener('click', () => {
+          const pid = selectedProjectId();
+          const body = { demo: true };
+          if (pid) body.project_id = pid;
+          startAllocationBtn(demoBtn, body, '<i class="fas fa-flask me-2"></i>Start Demo Coding');
+        });
+      }
+
+      renderPickTable(availData.forms || [], !!allocData.allocation);
+
+      const history = (histData.history || []).map(r => ({ ...r, _priority: 1 }));
+      if (allocData.allocation) {
+        const a = allocData.allocation;
+        history.unshift({
+          _priority: 0,
+          va_sid: a.va_sid,
+          va_form_id: a.va_form_id,
+          va_uniqueid_masked: a.va_uniqueid_masked,
+          va_data_collector: a.va_data_collector,
+          va_deceased_age: a.va_deceased_age,
+          va_deceased_gender: a.va_deceased_gender,
+          va_submission_date: a.va_submission_date,
+          va_coding_date: null,
+          va_code_status: '__pending__',
+          recodeable: false,
+        });
+      }
+      initHistoryTable(history);
+
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+    }
+  });
   </script>
 {% endblock %}

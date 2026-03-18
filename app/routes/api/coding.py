@@ -6,11 +6,19 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.models import VaSubmissions
+from app.services.coder_dashboard_service import (
+    get_coder_completed_count,
+    get_coder_completed_history,
+    get_coder_project_ids,
+    get_coder_recodeable_sids,
+)
+
 from app.services.coder_workflow_service import (
     AllocationError,
     allocate_pick_form,
     allocate_random_form,
     get_active_coding_allocation,
+    get_coder_ready_stats,
     get_pick_available_forms,
     start_demo_allocation,
     start_recode_allocation,
@@ -35,17 +43,21 @@ def get_allocation():
     va_sid = get_active_coding_allocation(current_user.user_id)
     if not va_sid:
         return jsonify({"allocation": None})
+    from app.utils import va_render_serialisedates
     form = db.session.get(VaSubmissions, va_sid)
-    return jsonify({
-        "allocation": {
-            "va_sid": va_sid,
-            "va_uniqueid": form.va_uniqueid_masked if form else None,
-            "va_age": form.va_deceased_age if form else None,
-            "va_gender": form.va_deceased_gender if form else None,
-            "va_form_id": form.va_form_id if form else None,
-            "actiontype": "varesumecoding",
-        }
-    })
+    row = {
+        "va_sid": va_sid,
+        "va_uniqueid_masked": form.va_uniqueid_masked if form else None,
+        "va_age": form.va_deceased_age if form else None,
+        "va_gender": form.va_deceased_gender if form else None,
+        "va_form_id": form.va_form_id if form else None,
+        "va_submission_date": str(form.va_submission_date.date()) if form and form.va_submission_date else None,
+        "va_data_collector": form.va_data_collector if form else None,
+        "va_deceased_age": form.va_deceased_age if form else None,
+        "va_deceased_gender": form.va_deceased_gender if form else None,
+        "actiontype": "varesumecoding",
+    }
+    return jsonify({"allocation": row})
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +89,7 @@ def allocate():
         else:
             if not current_user.is_coder():
                 return _error("Coder access is required.", 403)
-            result = allocate_random_form(current_user)
+            result = allocate_random_form(current_user, project_id=project_id)
     except AllocationError as e:
         return _error(e.message, e.status_code)
 
@@ -124,3 +136,55 @@ def available_forms():
     _, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access or [])
     forms = get_pick_available_forms(current_user, pick_form_ids)
     return jsonify({"forms": forms, "count": len(forms)})
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/coding/stats  — dashboard KPI counts
+# ---------------------------------------------------------------------------
+
+@bp.get("/stats")
+@login_required
+def stats():
+    """Return ready-pool counts and mode flags for the coder dashboard."""
+    if not current_user.is_coder() and not current_user.is_admin():
+        return _error("Coder access is required.", 403)
+
+    kpis = get_coder_ready_stats(current_user)
+    va_form_access = current_user.get_coder_va_forms() or []
+    kpis["completed"] = get_coder_completed_count(current_user.user_id, va_form_access)
+    return jsonify(kpis)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/coding/history  — coder's completed forms history
+# ---------------------------------------------------------------------------
+
+@bp.get("/history")
+@login_required
+def history():
+    """Return the coder's completed coding history with recodeable flags."""
+    if not current_user.is_coder() and not current_user.is_admin():
+        return _error("Coder access is required.", 403)
+
+    va_form_access = current_user.get_coder_va_forms() or []
+    rows = get_coder_completed_history(current_user.user_id, va_form_access)
+    recodeable_sids = set(get_coder_recodeable_sids(current_user.user_id, va_form_access))
+    for row in rows:
+        row["recodeable"] = row["va_sid"] in recodeable_sids
+    return jsonify({"history": rows, "count": len(rows)})
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/coding/projects  — distinct project IDs for current coder
+# ---------------------------------------------------------------------------
+
+@bp.get("/projects")
+@login_required
+def projects():
+    """Return distinct project IDs accessible to the current coder (admin: for demo selector)."""
+    if not current_user.is_coder() and not current_user.is_admin():
+        return _error("Coder or admin access is required.", 403)
+
+    va_form_access = current_user.get_coder_va_forms() or []
+    project_ids = get_coder_project_ids(va_form_access)
+    return jsonify({"projects": list(project_ids)})

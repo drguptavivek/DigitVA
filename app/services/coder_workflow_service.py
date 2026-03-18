@@ -38,6 +38,47 @@ from app.services.submission_workflow_service import (
 
 
 # ---------------------------------------------------------------------------
+# Stats / dashboard helpers
+# ---------------------------------------------------------------------------
+
+def get_coder_ready_stats(user) -> dict:
+    """Return ready-pool counts for the coder dashboard.
+
+    Returns a dict with:
+      random_ready   – submissions available for random allocation
+      pick_ready     – submissions available for pick-mode (len of pick list)
+      has_random_mode – bool
+      has_pick_mode   – bool
+    """
+    va_form_access = user.get_coder_va_forms()
+    if not va_form_access:
+        return {"random_ready": 0, "pick_ready": 0, "has_random_mode": False, "has_pick_mode": False}
+
+    random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access)
+
+    def _count_ready(form_ids):
+        filters = _available_submission_filters(form_ids, user=user)
+        if user.is_coder(va_form="UNSW01TR0101"):
+            filters.append(sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date())
+        return db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSubmissions)
+            .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+            .where(sa.and_(*filters))
+        ) or 0
+
+    random_ready = _count_ready(random_form_ids) if random_form_ids else 0
+    pick_ready = len(get_pick_available_forms(user, pick_form_ids)) if pick_form_ids else 0
+
+    return {
+        "random_ready": random_ready,
+        "pick_ready": pick_ready,
+        "has_random_mode": bool(random_form_ids),
+        "has_pick_mode": bool(pick_form_ids),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Result / error types
 # ---------------------------------------------------------------------------
 
@@ -118,10 +159,12 @@ def get_active_coding_allocation(user_id: str) -> str | None:
     )
 
 
-def allocate_random_form(user) -> AllocationResult:
+def allocate_random_form(user, project_id: str | None = None) -> AllocationResult:
     """Allocate a random available form for coding.
 
     If the user already has an active allocation returns it (resume).
+    If project_id is given, restricts the pool to that project only —
+    the caller must have already validated the user has access to it.
     Raises AllocationError if no forms are available.
     """
     release_stale_coding_allocations(timeout_hours=1)
@@ -134,12 +177,19 @@ def allocate_random_form(user) -> AllocationResult:
     if not random_form_ids:
         raise AllocationError("No random-allocation coding projects are available to you.")
 
-    base_filters = _available_submission_filters(random_form_ids, user=user)
+    if project_id:
+        allowed_projects = set(db.session.scalars(
+            sa.select(VaForms.project_id).where(VaForms.form_id.in_(random_form_ids))
+        ).all())
+        if project_id not in allowed_projects:
+            raise AllocationError("You do not have coder access to the selected project.")
+
+    base_filters = _available_submission_filters(random_form_ids, project_id=project_id, user=user)
 
     # Temporary: TR01 site restricted to submissions up to 2025-09-09
     if user.is_coder(va_form="UNSW01TR0101"):
         base_filters = [
-            *_available_submission_filters(random_form_ids, user=user),
+            *_available_submission_filters(random_form_ids, project_id=project_id, user=user),
             sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
         ]
 
@@ -149,7 +199,12 @@ def allocate_random_form(user) -> AllocationResult:
         .where(sa.and_(*base_filters))
     )
     if not va_new_sid:
-        raise AllocationError("No forms are available to you for VA coding.")
+        msg = (
+            f"No forms are available to you for VA coding in project {project_id}."
+            if project_id
+            else "No forms are available to you for VA coding."
+        )
+        raise AllocationError(msg)
 
     _create_coding_allocation(va_new_sid, user, "form allocated to coder", "vacoder")
     db.session.commit()

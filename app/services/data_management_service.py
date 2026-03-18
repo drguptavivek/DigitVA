@@ -16,8 +16,13 @@ from flask_login import current_user
 
 from app import db
 from app.models import (
+    VaDataManagerReview,
     VaForms,
     VaSiteMaster,
+    VaSmartvaResults,
+    VaStatuses,
+    VaSubmissionAttachments,
+    VaSubmissionWorkflow,
     VaSyncRun,
     VaSubmissions,
     VaSubmissionsAuditlog,
@@ -229,6 +234,207 @@ def sync_run_entries(run: VaSyncRun) -> list[dict]:
         return entries if isinstance(entries, list) else []
     except Exception:
         return []
+
+
+# ---------------------------------------------------------------------------
+# Audit
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Paginated submissions table
+# ---------------------------------------------------------------------------
+
+_WORKFLOW_LABEL = {
+    "not_codeable_by_data_manager": "Flagged by Data Manager",
+    "not_codeable_by_coder":        "Not Codeable By Coder",
+    "ready_for_coding":             "Ready for Coding",
+    "screening_pending":            "Screening Pending",
+    "coding_in_progress":           "Coding In Progress",
+    "coder_finalized":              "Coder Finalized",
+}
+
+_SORT_FIELDS = {
+    "va_submission_date": sa.func.date(VaSubmissions.va_submission_date),
+    "va_uniqueid_masked": VaSubmissions.va_uniqueid_masked,
+    "project_id":         VaForms.project_id,
+    "site_id":            VaForms.site_id,
+    "workflow_state":     VaSubmissionWorkflow.workflow_state,
+    "va_dmreview_createdat": VaDataManagerReview.va_dmreview_createdat,
+}
+
+
+def dm_submissions_page(
+    user,
+    *,
+    page: int = 1,
+    per_page: int = 25,
+    search: str = "",
+    project: str = "",
+    site: str = "",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    odk_status: str = "",
+    smartva: str = "",
+    age_group: str = "",
+    gender: str = "",
+    odk_sync: str = "",
+    workflow: str = "",
+    sort_field: str = "va_submission_date",
+    sort_dir: str = "desc",
+) -> dict:
+    """Return one page of submission rows for the data manager table."""
+    from app.utils import va_render_serialisedates
+
+    attachment_counts = (
+        sa.select(VaSubmissionAttachments.va_sid, sa.func.count().label("cnt"))
+        .where(VaSubmissionAttachments.exists_on_odk.is_(True))
+        .group_by(VaSubmissionAttachments.va_sid)
+        .subquery()
+    )
+    smartva_sids = (
+        sa.select(VaSmartvaResults.va_sid)
+        .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
+        .subquery()
+    )
+    _mv_ref = sa.table(
+        "va_submission_analytics_mv",
+        sa.column("va_sid"),
+        sa.column("analytics_age_band"),
+    )
+    scope = dm_scope_filter(user)
+    conditions = [scope]
+
+    if search:
+        like = f"%{search}%"
+        conditions.append(sa.or_(
+            VaSubmissions.va_uniqueid_masked.ilike(like),
+            VaSubmissions.va_data_collector.ilike(like),
+        ))
+    if project:
+        conditions.append(VaForms.project_id == project)
+    if site:
+        conditions.append(VaForms.site_id == site)
+    if date_from:
+        conditions.append(sa.func.date(VaSubmissions.va_submission_date) >= date_from)
+    if date_to:
+        conditions.append(sa.func.date(VaSubmissions.va_submission_date) <= date_to)
+    if odk_status == "hasIssues":
+        conditions.append(VaSubmissions.va_odk_reviewstate == "hasIssues")
+    elif odk_status == "approved":
+        conditions.append(VaSubmissions.va_odk_reviewstate == "approved")
+    elif odk_status == "no_review_state":
+        conditions.append(VaSubmissions.va_odk_reviewstate.is_(None))
+    if smartva == "available":
+        conditions.append(smartva_sids.c.va_sid.is_not(None))
+    elif smartva == "missing":
+        conditions.append(smartva_sids.c.va_sid.is_(None))
+    if age_group:
+        conditions.append(_mv_ref.c.analytics_age_band == age_group)
+    if gender:
+        conditions.append(VaSubmissions.va_deceased_gender == gender)
+    if odk_sync == "missing_in_odk":
+        conditions.append(VaSubmissions.va_sync_issue_code == "missing_in_odk")
+    elif odk_sync == "in_sync":
+        conditions.append(sa.or_(
+            VaSubmissions.va_sync_issue_code.is_(None),
+            VaSubmissions.va_sync_issue_code != "missing_in_odk",
+        ))
+    if workflow:
+        conditions.append(VaSubmissionWorkflow.workflow_state == workflow)
+
+    base_q = (
+        sa.select(
+            VaSubmissions.va_sid,
+            VaSubmissions.va_uniqueid_masked,
+            VaForms.project_id,
+            VaForms.site_id,
+            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            VaSubmissions.va_data_collector,
+            sa.func.coalesce(attachment_counts.c.cnt, 0).label("attachment_count"),
+            sa.case((smartva_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva"),
+            VaSubmissions.va_odk_reviewstate,
+            VaSubmissions.va_odk_reviewcomments,
+            VaSubmissions.va_sync_issue_code,
+            VaSubmissions.va_sync_issue_updated_at,
+            VaSubmissionWorkflow.workflow_state,
+            VaDataManagerReview.va_dmreview_createdat,
+            _mv_ref.c.analytics_age_band,
+            VaSubmissions.va_deceased_gender,
+        )
+        .select_from(VaSubmissions)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(VaDataManagerReview, sa.and_(
+            VaDataManagerReview.va_sid == VaSubmissions.va_sid,
+            VaDataManagerReview.va_dmreview_status == VaStatuses.active,
+        ))
+        .outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
+        .where(sa.and_(*conditions))
+    )
+
+    total = db.session.scalar(
+        sa.select(sa.func.count()).select_from(base_q.subquery())
+    ) or 0
+
+    sort_col = _SORT_FIELDS.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
+    order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
+    # secondary sorts for stable ordering
+    rows = db.session.execute(
+        base_q.order_by(order, VaForms.project_id, VaForms.site_id)
+        .limit(per_page)
+        .offset((page - 1) * per_page)
+    ).mappings().all()
+
+    data = []
+    for row in rows:
+        r = va_render_serialisedates(dict(row), ["va_submission_date", "va_dmreview_createdat"])
+        r["workflow_label"] = _WORKFLOW_LABEL.get(r.get("workflow_state", ""), r.get("workflow_state", ""))
+        r["odk_sync_status"] = "missing_in_odk" if r.get("va_sync_issue_code") == "missing_in_odk" else "in_sync"
+        data.append(r)
+
+    import math
+    last_page = max(1, math.ceil(total / per_page))
+    return {"data": data, "last_page": last_page, "total": total}
+
+
+def dm_kpi(user, project_ids, project_site_pairs) -> dict:
+    """Return KPI counts for the data manager dashboard."""
+    from app.services.submission_analytics_mv import get_dm_kpi_from_mv
+    return get_dm_kpi_from_mv(
+        project_ids=project_ids,
+        project_site_pairs=project_site_pairs,
+    )
+
+
+def dm_filter_options(user) -> dict:
+    """Return distinct filter values available to the data manager."""
+    scope = dm_scope_filter(user)
+    projects = db.session.scalars(
+        sa.select(VaForms.project_id)
+        .where(scope)
+        .distinct()
+        .order_by(VaForms.project_id)
+    ).all()
+    sites = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id)
+        .where(scope)
+        .distinct()
+        .order_by(VaForms.project_id, VaForms.site_id)
+    ).mappings().all()
+    genders = db.session.scalars(
+        sa.select(VaSubmissions.va_deceased_gender)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(scope, VaSubmissions.va_deceased_gender.is_not(None))
+        .distinct()
+        .order_by(VaSubmissions.va_deceased_gender)
+    ).all()
+    return {
+        "projects": list(projects),
+        "sites": [{"project_id": r["project_id"], "site_id": r["site_id"]} for r in sites],
+        "genders": list(genders),
+    }
 
 
 # ---------------------------------------------------------------------------

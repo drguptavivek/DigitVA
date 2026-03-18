@@ -80,7 +80,7 @@ def create_app(config_class=Config):
             'script-src': "'self' 'unsafe-inline'",  # unsafe-inline needed for HTMX
             'style-src': "'self' 'unsafe-inline'",
             'img-src': "'self' data:",
-            'font-src': "'self'",
+            'font-src': "'self' data:",
             'connect-src': "'self'",
         },
         frame_options='DENY',

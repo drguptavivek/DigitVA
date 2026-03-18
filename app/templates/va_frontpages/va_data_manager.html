@@ -3,1592 +3,1574 @@
 {% block title %}DigitVA | Data Manager{% endblock %}
 
 {% block content %}
-  <style>
-    #dm-sync-confirm-modal .modal-dialog {
-      margin-top: 1rem;
-      margin-bottom: 1rem;
-    }
+{# ── Local: AG Grid 33 + Tom Select 2.5 (page-scoped only) ── #}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/tom-select/tom-select.bootstrap5.min.css') }}"/>
 
-    #dm-sync-confirm-modal .modal-content {
-      max-height: calc(100vh - 2rem);
-    }
+<style>
+  /* ── Layout ── */
+  .dm-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
 
-    #dm-sync-confirm-modal .modal-body {
-      overflow-y: auto;
-    }
+  /* ── KPI cards ── */
+  .dm-kpi-card {
+    border-radius: 0.5rem;
+    border: 1px solid #dee2e6;
+    background: #fff;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: box-shadow 0.15s, transform 0.15s;
+  }
+  .dm-kpi-card.clickable {
+    cursor: pointer;
+  }
+  .dm-kpi-card.clickable:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    transform: translateY(-2px);
+  }
+  .dm-kpi-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .dm-kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .dm-kpi-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+  /* Card variants with filled backgrounds */
+  .dm-kpi-card.card-primary {
+    background: #f0f5ff;
+    border-color: #b6d4fe;
+  }
+  .dm-kpi-card.card-danger {
+    background: #fef2f2;
+    border-color: #fecaca;
+  }
+  .dm-kpi-card.card-warning {
+    background: #fffbeb;
+    border-color: #fde68a;
+  }
+  .dm-kpi-card.card-secondary {
+    background: #f9fafb;
+    border-color: #e5e7eb;
+  }
 
-    #dm-project-filter + .select2-container .select2-selection--multiple,
-    #dm-site-filter + .select2-container .select2-selection--multiple {
-      min-height: 38px;
-      max-height: 38px;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
+  /* ── Filter pills ── */
+  #dm-filter-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 1.5rem;
+  }
+  .dm-filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: #e7f1ff;
+    border: 1px solid #b6d4fe;
+    color: #0a58ca;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem 0.15rem 0.65rem;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .dm-filter-pill button {
+    background: none;
+    border: none;
+    color: inherit;
+    padding: 0;
+    line-height: 1;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
 
-    #dm-project-filter + .select2-container .select2-selection__rendered,
-    #dm-site-filter + .select2-container .select2-selection__rendered {
-      display: flex;
-      flex-wrap: nowrap;
-      align-items: center;
-      gap: 0.25rem;
-      overflow-x: auto;
-      overflow-y: hidden;
-      padding-right: 0.5rem;
-      white-space: nowrap;
-    }
+  /* ── Column visibility toggles ── */
+  #dm-col-visibility-panel {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+  }
+  .dm-col-toggle-btn {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+  }
 
-    #dm-project-filter + .select2-container .select2-search--inline,
-    #dm-site-filter + .select2-container .select2-search--inline {
-      display: none;
-    }
+  /* ── AG Grid overrides ── */
+  #dm-table {
+    height: 520px;
+    width: 100%;
+  }
+  #dm-table .ag-row {
+    font-size: 0.82rem;
+  }
+  #dm-table .ag-header-cell-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .dm-action-cell {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
 
-    #dm-project-filter + .select2-container .select2-selection__choice,
-    #dm-site-filter + .select2-container .select2-selection__choice {
-      margin-top: 0;
-      margin-bottom: 0;
-      white-space: nowrap;
-    }
+  /* ── Charts ── */
+  .dm-chart-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    background: #fff;
+    padding: 1rem;
+  }
+  .dm-chart-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.75rem;
+  }
 
-    .dm-attachment-count {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      white-space: nowrap;
-    }
+  /* ── Sync modal ── */
+  #dm-sync-confirm-modal .modal-dialog {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    max-width: 860px;
+  }
+  #dm-sync-confirm-modal .modal-content {
+    max-height: calc(100vh - 2rem);
+  }
+  #dm-sync-confirm-modal .modal-body {
+    overflow-y: auto;
+  }
+  .dm-sync-stat-box {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.4rem;
+    padding: 0.65rem 0.75rem;
+    text-align: center;
+  }
+  .dm-sync-stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .dm-sync-stat-label {
+    font-size: 0.73rem;
+    color: #6c757d;
+  }
 
-    .dm-card-count-button {
-      background: none;
-      border: 0;
-      padding: 0;
-      color: inherit;
-      line-height: 1;
-    }
+  /* ── Tom Select sizing in offcanvas / modal ── */
+  .ts-wrapper.form-control,
+  .ts-wrapper.form-select {
+    padding: 0;
+    height: auto;
+  }
+  .ts-control {
+    border: none !important;
+    box-shadow: none !important;
+  }
 
-    .dm-card-count-button:hover,
-    .dm-card-count-button:focus {
-      color: inherit;
-      opacity: 0.85;
-    }
+  /* ── Ops offcanvas table ── */
+  #dm-sync-runs-tbody tr td {
+    font-size: 0.78rem;
+    vertical-align: middle;
+  }
 
-    #dm-column-options-menu .dropdown-item {
-      cursor: default;
-    }
+  /* ── Attachment count ── */
+  .dm-attachment-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+  }
 
-    #dm-column-options-menu {
-      min-width: 220px;
-      margin-top: 0.35rem;
-    }
+  /* ── Loading spinner overlay ── */
+  #dm-table-spinner {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,.55);
+    z-index: 10;
+    align-items: center;
+    justify-content: center;
+  }
+  #dm-table-wrapper {
+    position: relative;
+    min-height: 200px;
+  }
+</style>
 
-    #dm-column-options-menu .form-check {
-      margin-bottom: 0;
-      padding: 0.35rem 0.5rem 0.35rem 1.85rem;
-    }
-
-    #dm-column-options-menu .form-check:hover {
-      background-color: var(--bs-light);
-      border-radius: 0.375rem;
-    }
-
-    #dm-column-options-menu .form-check-input {
-      float: none;
-      margin-left: -1.35rem;
-      margin-right: 0.5rem;
-    }
-
-    #dm-column-options-menu .form-check-label {
-      cursor: pointer;
-    }
-
-    .dm-submission-chart-wrap {
-      position: relative;
-      height: 300px;
-      margin-top: 0.5rem;
-    }
-  </style>
-
-  {% with messages = get_flashed_messages(with_categories = true) %}
-  {% if messages %}
-    <div class="container mt-4">
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-  {% endwith %}
-
-  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-2">
-    <div class="d-flex align-items-center gap-2">
-      <h2 class="text-primary mb-0" style="font-size:26px;font-weight:600;">Data Manager</h2>
-      <button type="button"
-              class="btn btn-link p-0 text-muted"
-              tabindex="0"
-              data-bs-toggle="popover"
-              data-bs-trigger="click focus"
-              data-bs-placement="bottom"
-              data-bs-title="Data Manager Triage"
-              data-bs-html="true"
-              data-bs-content="&lt;b&gt;Use this dashboard to review submissions before coder allocation.&lt;/b&gt;&lt;ol class=&quot;mb-0 mt-2 ps-3&quot;&gt;&lt;li&gt;Browse submissions across your assigned project or project-site scope.&lt;/li&gt;&lt;li&gt;Open any submission in read-only mode.&lt;/li&gt;&lt;li&gt;Use the &lt;b&gt;Data Triage&lt;/b&gt; panel inside a submission to mark it Not Codeable for coder allocation.&lt;/li&gt;&lt;/ol&gt;"
-              aria-label="Help">
-        <i class="fas fa-circle-question fa-lg"></i>
-      </button>
-    </div>
-    <div class="d-flex align-items-center gap-2">
-      <button type="button" id="dm-refresh-dashboard-btn" class="btn btn-sm btn-outline-primary">
-        <i class="fas fa-chart-bar me-1"></i>Refresh Dashboard
-      </button>
-      <button type="button"
-              class="btn btn-sm btn-outline-secondary"
-              data-bs-toggle="offcanvas"
-              data-bs-target="#dm-operations-offcanvas"
-              aria-controls="dm-operations-offcanvas">
-        <i class="fas fa-sliders me-1"></i>Operations
-      </button>
-    </div>
+{# ════════════════════════════════════════════════════════
+   PAGE HEADER
+   ════════════════════════════════════════════════════════ #}
+<div class="dm-page-header">
+  <div>
+    <h4 class="mb-0 fw-semibold">
+      <i class="fa-solid fa-database text-primary me-2"></i>Data Management
+    </h4>
+    <small class="text-muted">{{ current_user.email }}</small>
   </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-sm btn-outline-secondary"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#dm-filter-offcanvas">
+      <i class="fa-solid fa-filter me-1"></i>Filters
+    </button>
+    <button class="btn btn-sm btn-outline-secondary"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#dm-ops-offcanvas">
+      <i class="fa-solid fa-gear me-1"></i>Operations
+    </button>
+    <button id="dm-refresh-dashboard-btn" class="btn btn-sm btn-outline-primary" type="button">
+      <i class="fa-solid fa-arrows-rotate me-1"></i>Refresh Dashboard
+    </button>
+  </div>
+</div>
 
-  <!-- Operations offcanvas ------------------------------------------------->
-  <div class="offcanvas offcanvas-end"
-       tabindex="-1"
-       id="dm-operations-offcanvas"
-       aria-labelledby="dm-operations-offcanvas-label"
-       style="width:420px;">
-    <div class="offcanvas-header border-bottom">
-      <h5 class="offcanvas-title" id="dm-operations-offcanvas-label">
-        <i class="fas fa-sliders me-2 text-secondary"></i>Operations
-      </h5>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-      <div class="mb-4">
-        <h6 class="fw-semibold mb-1">Sync Forms</h6>
-        <p class="small text-muted mb-3">Choose project and site scope, review matched forms, then queue a sync from ODK. Attachments and SmartVA inputs are refreshed for matched forms.</p>
-        <button type="button" id="dm-open-sync-modal-btn" class="btn btn-outline-secondary w-100">
-          <i class="fas fa-rotate-right me-2"></i>Sync Latest Data
-        </button>
+{# ════════════════════════════════════════════════════════
+   KPI CARDS
+   ════════════════════════════════════════════════════════ #}
+<div class="row g-3 mb-3" id="dm-kpi-row">
+  <div class="col-6 col-md-3">
+    <div class="dm-kpi-card card-primary">
+      <div class="dm-kpi-icon bg-primary text-white">
+        <i class="fa-solid fa-file-alt"></i>
       </div>
-      <hr class="my-3">
       <div>
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="fw-semibold mb-0">Recent Sync Results</h6>
-          <button type="button" class="btn btn-sm btn-outline-secondary" id="dm-sync-results-refresh">
-            <i class="fas fa-rotate-right me-1"></i>Refresh
-          </button>
-        </div>
-        <p class="small text-muted mb-3">Latest data-manager initiated form sync runs in your timezone.</p>
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead>
-              <tr>
-                <th>Target</th>
-                <th>Status</th>
-                <th>Started</th>
-                <th>Finished</th>
-                <th>Added</th>
-                <th>Updated</th>
-                <th>Latest Progress</th>
-              </tr>
-            </thead>
-            <tbody id="dm-sync-results-rows">
-              <tr>
-                <td colspan="7" class="text-muted">No sync runs yet.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <div class="dm-kpi-value text-primary" id="kpi-total">—</div>
+        <div class="dm-kpi-label">Submissions</div>
       </div>
     </div>
   </div>
-
-  <!-- Filter offcanvas ----------------------------------------------------->
-  <div class="offcanvas offcanvas-end"
-       tabindex="-1"
-       id="dm-filter-offcanvas"
-       aria-labelledby="dm-filter-offcanvas-label"
-       style="width:420px;">
-    <div class="offcanvas-header border-bottom">
-      <h5 class="offcanvas-title" id="dm-filter-offcanvas-label">
-        <i class="fas fa-filter me-2 text-secondary"></i>Filters
-      </h5>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-      <div class="row g-3">
-        <div class="col-12">
-          <label for="dm-table-project-filter" class="form-label mb-1"><strong>Project</strong></label>
-          <select id="dm-table-project-filter" class="form-select">
-            <option value="">All projects</option>
-            {% for form in scoped_forms|groupby('project_id') %}
-            <option value="{{ form.grouper }}">{{ form.grouper }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12">
-          <label for="dm-table-site-filter" class="form-label mb-1"><strong>Site</strong></label>
-          <select id="dm-table-site-filter" class="form-select">
-            <option value="">All sites</option>
-            {% for form in scoped_forms|groupby('site_id') %}
-            <option value="{{ form.grouper }}">{{ form.grouper }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-6">
-          <label for="dm-table-date-from" class="form-label mb-1"><strong>Submitted From</strong></label>
-          <input type="date" id="dm-table-date-from" class="form-control">
-        </div>
-        <div class="col-6">
-          <label for="dm-table-date-to" class="form-label mb-1"><strong>Submitted To</strong></label>
-          <input type="date" id="dm-table-date-to" class="form-control">
-        </div>
-        <div class="col-12">
-          <label for="dm-table-odk-filter" class="form-label mb-1"><strong>ODK Status</strong></label>
-          <select id="dm-table-odk-filter" class="form-select">
-            <option value="">All ODK statuses</option>
-            <option value="Has Issues">Has Issues</option>
-            <option value="approved">Approved</option>
-            <option value="No review state">No review state</option>
-          </select>
-        </div>
-        <div class="col-12">
-          <label for="dm-table-smartva-filter" class="form-label mb-1"><strong>SmartVA</strong></label>
-          <select id="dm-table-smartva-filter" class="form-select">
-            <option value="">All SmartVA statuses</option>
-            <option value="Available">Available</option>
-            <option value="Missing">Missing</option>
-          </select>
-        </div>
-        <div class="col-12">
-          <label for="dm-table-age-group-filter" class="form-label mb-1"><strong>Age Group</strong></label>
-          <select id="dm-table-age-group-filter" class="form-select">
-            <option value="">All age groups</option>
-            <option value="neonate">Neonate</option>
-            <option value="child">Child</option>
-            <option value="15_49y">15–49y</option>
-            <option value="50_64y">50–64y</option>
-            <option value="65_plus">65+</option>
-            <option value="unknown">Unknown</option>
-          </select>
-        </div>
-        <div class="col-12">
-          <label for="dm-table-gender-filter" class="form-label mb-1"><strong>Gender</strong></label>
-          <select id="dm-table-gender-filter" class="form-select">
-            <option value="">All genders</option>
-            {% set seen_genders = namespace(vals=[]) %}
-            {% for row in submission_rows %}
-              {% if row.va_deceased_gender and row.va_deceased_gender not in seen_genders.vals %}
-                {% set seen_genders.vals = seen_genders.vals + [row.va_deceased_gender] %}
-                <option value="{{ row.va_deceased_gender }}">{{ row.va_deceased_gender }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-12">
-          <label for="dm-table-sync-filter" class="form-label mb-1"><strong>ODK Sync</strong></label>
-          <select id="dm-table-sync-filter" class="form-select">
-            <option value="">All ODK sync statuses</option>
-            <option value="Missing In ODK">Missing In ODK</option>
-            <option value="In Sync">In Sync</option>
-          </select>
-        </div>
-        <div class="col-12">
-          <label for="dm-table-workflow-filter" class="form-label mb-1"><strong>Workflow State</strong></label>
-          <select id="dm-table-workflow-filter" class="form-select">
-            <option value="">All workflow states</option>
-            <option value="Ready for Coding">Ready for Coding</option>
-            <option value="Screening Pending">Screening Pending</option>
-            <option value="Flagged by Data Manager">Flagged by Data Manager</option>
-            <option value="Not Codeable By Coder">Not Codeable By Coder</option>
-          </select>
-        </div>
-        <div class="col-12 d-flex justify-content-end mt-2">
-          <button type="button" id="dm-table-clear-filters" class="btn btn-sm btn-outline-secondary">
-            <i class="fas fa-times me-1"></i>Clear Filters
-          </button>
-        </div>
+  <div class="col-6 col-md-3">
+    <div class="dm-kpi-card card-danger clickable" id="kpi-flagged-card" title="Filter: Flagged Not Codeable">
+      <div class="dm-kpi-icon bg-danger text-white">
+        <i class="fa-solid fa-flag"></i>
+      </div>
+      <div>
+        <div class="dm-kpi-value text-danger" id="kpi-flagged">—</div>
+        <div class="dm-kpi-label">Flagged Not Codeable</div>
       </div>
     </div>
   </div>
-
-  <div class="modal fade" id="dm-sync-confirm-modal" tabindex="-1" aria-labelledby="dm-sync-confirm-title" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="dm-sync-confirm-title">Confirm Form Sync</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p class="mb-3">Choose the exact sync scope, then review the matched forms before starting.</p>
-          <div class="row g-3 align-items-end mb-4">
-            <div class="col-md-6">
-              <label for="dm-project-filter" class="form-label mb-1"><strong>Projects</strong></label>
-              <select id="dm-project-filter" class="form-select" multiple>
-                {% for form in scoped_forms|groupby('project_id') %}
-                <option value="{{ form.grouper }}">{{ form.grouper }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-6">
-              <label for="dm-site-filter" class="form-label mb-1"><strong>Sites</strong></label>
-              <select id="dm-site-filter" class="form-select" multiple></select>
-            </div>
-          </div>
-          <div class="mb-3">
-            <div class="fw-semibold">Selected Projects</div>
-            <div id="dm-sync-summary-projects" class="small text-muted">None</div>
-          </div>
-          <div class="mb-3">
-            <div class="fw-semibold">Selected Sites</div>
-            <div id="dm-sync-summary-sites" class="small text-muted">All sites in selected projects</div>
-          </div>
-          <div class="mb-3">
-            <div class="fw-semibold">Matched Forms</div>
-            <div id="dm-sync-summary-count" class="small text-muted mb-2"></div>
-            <ul id="dm-sync-summary-forms" class="list-group list-group-flush"></ul>
-          </div>
-          <div class="alert alert-light border small mb-4">
-            Missing ODK records will be flagged locally as sync issues. They will not be deleted from DigitVA.
-          </div>
-          <div>
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              <div class="fw-semibold">Live Sync Preview</div>
-              <div id="dm-sync-preview-status" class="small text-muted">Select project/site scope to load preview.</div>
-            </div>
-            <div class="row g-3 mb-3">
-              <div class="col-md-3">
-                <div class="border rounded-3 p-3 h-100">
-                  <div class="small text-muted">Matched Forms</div>
-                  <div id="dm-preview-total-forms" class="fw-bold fs-5">0</div>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="border rounded-3 p-3 h-100">
-                  <div class="small text-muted">ODK New To Fetch</div>
-                  <div id="dm-preview-new-fetch" class="fw-bold fs-5">0</div>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="border rounded-3 p-3 h-100">
-                  <div class="small text-muted">ODK Updated Candidates</div>
-                  <div id="dm-preview-updated" class="fw-bold fs-5">0</div>
-                </div>
-              </div>
-              <div class="col-md-3">
-                <div class="border rounded-3 p-3 h-100">
-                  <div class="small text-muted">Local Missing In ODK</div>
-                  <div id="dm-preview-missing-in-odk" class="fw-bold fs-5">0</div>
-                </div>
-              </div>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>Form</th>
-                    <th>Local</th>
-                    <th>ODK</th>
-                    <th>New To Fetch</th>
-                    <th>Updated Candidates</th>
-                    <th>Missing In ODK</th>
-                  </tr>
-                </thead>
-                <tbody id="dm-sync-preview-rows">
-                  <tr>
-                    <td colspan="6" class="text-muted">No preview loaded yet.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" id="dm-sync-confirm-btn">
-            Start Sync
-          </button>
-        </div>
+  <div class="col-6 col-md-3">
+    <div class="dm-kpi-card card-warning clickable" id="kpi-odk-issues-card" title="Filter: ODK Has Issues">
+      <div class="dm-kpi-icon bg-warning text-dark">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <div>
+        <div class="dm-kpi-value text-warning" id="kpi-odk-issues">—</div>
+        <div class="dm-kpi-label">ODK Has Issues</div>
       </div>
     </div>
   </div>
-
-  <div class="row mb-4 g-3">
-    <div class="col-md-6 col-xl-3">
-      <div class="card shadow-sm border-0 rounded-3 h-100">
-        <div class="card-body p-4 text-center">
-          <i class="fas fa-file-alt text-primary fa-2x mb-3"></i>
-          <h5 class="text-primary fw-semibold mb-3">Submissions</h5>
-          <div class="d-flex align-items-baseline justify-content-center">
-            <h2 class="display-4 fw-bold text-primary mb-0">{{ total_submissions }}</h2>
-          </div>
-        </div>
+  <div class="col-6 col-md-3">
+    <div class="dm-kpi-card card-secondary clickable" id="kpi-smartva-missing-card" title="Filter: SmartVA Missing">
+      <div class="dm-kpi-icon bg-secondary text-white">
+        <i class="fa-solid fa-brain"></i>
       </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="card shadow-sm border-0 rounded-3 h-100">
-        <div class="card-body p-4 text-center">
-          <i class="fas fa-flag text-danger fa-2x mb-3"></i>
-          <h5 class="text-danger fw-semibold mb-3">Flagged Not Codeable</h5>
-          <div class="d-flex align-items-baseline justify-content-center">
-            <button type="button"
-                    id="dm-view-flagged-btn"
-                    class="display-4 fw-bold text-danger mb-0 dm-card-count-button"
-                    title="View flagged submissions">
-              {{ flagged_submissions }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="card shadow-sm border-0 rounded-3 h-100">
-        <div class="card-body p-4 text-center">
-          <i class="fas fa-triangle-exclamation text-warning fa-2x mb-3"></i>
-          <h5 class="text-warning-emphasis fw-semibold mb-3">ODK - Has Issues</h5>
-          <div class="d-flex align-items-baseline justify-content-center">
-            <button type="button"
-                    id="dm-view-odk-issues-btn"
-                    class="display-4 fw-bold text-warning-emphasis mb-0 dm-card-count-button"
-                    title="View ODK submissions with issues">
-              {{ odk_has_issues_submissions }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-6 col-xl-3">
-      <div class="card shadow-sm border-0 rounded-3 h-100">
-        <div class="card-body p-4 text-center">
-          <i class="fas fa-brain text-secondary fa-2x mb-3"></i>
-          <h5 class="text-secondary fw-semibold mb-3">SmartVA Missing</h5>
-          <div class="d-flex align-items-baseline justify-content-center">
-            <button type="button"
-                    id="dm-view-smartva-missing-btn"
-                    class="display-4 fw-bold text-secondary mb-0 dm-card-count-button"
-                    title="View submissions missing SmartVA results">
-              {{ smartva_missing_submissions }}
-            </button>
-          </div>
-        </div>
+      <div>
+        <div class="dm-kpi-value" id="kpi-smartva-missing">—</div>
+        <div class="dm-kpi-label">SmartVA Missing</div>
       </div>
     </div>
   </div>
+</div>
 
-  <div class="row mb-4 g-3 align-items-stretch">
-    <div class="col-lg-7">
-      <div class="card shadow-sm border-0 rounded-3 h-100">
-        <div class="card-body">
-          <h5 class="text-primary fw-semibold mb-1">Project - Site Submissions</h5>
-          <div class="small text-muted mb-3">Compact project-site view of total, this week, and today.</div>
-          <div class="dm-submission-chart-wrap">
-            <canvas id="dm-project-site-submissions-chart"></canvas>
-          </div>
-          <div id="dm-project-site-submissions-empty" class="text-muted small d-none">No scoped submissions found.</div>
-        </div>
+{# ════════════════════════════════════════════════════════
+   CHARTS ROW
+   ════════════════════════════════════════════════════════ #}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-6">
+    <div class="dm-chart-card">
+      <div class="dm-chart-title">
+        <i class="fa-solid fa-chart-bar me-1 text-primary"></i>Submissions by Project / Site
       </div>
-    </div>
-    <div class="col-lg-5">
-      <div class="row g-3 h-100">
-        <div class="col-12">
-          <div class="card shadow-sm border-0 rounded-3 h-100">
-            <div class="card-body">
-              <h6 class="text-primary fw-semibold mb-1">Age Group</h6>
-              <div class="small text-muted mb-2">Breakdown by analytics age band.</div>
-              <div style="position:relative;height:165px;">
-                <canvas id="dm-age-band-chart"></canvas>
-              </div>
-              <div id="dm-age-band-empty" class="text-muted small d-none text-center mt-1">No age data.</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-12">
-          <div class="card shadow-sm border-0 rounded-3 h-100">
-            <div class="card-body">
-              <h6 class="text-primary fw-semibold mb-1">Sex / Gender</h6>
-              <div class="small text-muted mb-2">Breakdown by reported sex.</div>
-              <div style="position:relative;height:165px;">
-                <canvas id="dm-sex-chart"></canvas>
-              </div>
-              <div id="dm-sex-empty" class="text-muted small d-none text-center mt-1">No sex data.</div>
-            </div>
-          </div>
-        </div>
+      <div style="position:relative; height:220px;">
+        <canvas id="dm-project-site-submissions-chart"></canvas>
       </div>
     </div>
   </div>
-
-  <div id="dm-filter-pills" class="d-flex flex-wrap gap-2 mb-2" style="min-height:0;"></div>
-
-  <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
-    <input type="search"
-           id="dm-table-search"
-           class="form-control form-control-sm"
-           style="max-width:280px;"
-           placeholder="Search submissions…">
-    <div class="ms-auto d-flex align-items-center gap-2">
-      <div class="dropdown">
-        <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
-                type="button"
-                id="dm-column-options-btn"
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="outside"
-                aria-expanded="false">
-          <i class="fas fa-columns"></i>
-          <span>Columns</span>
-          <i class="fas fa-chevron-down small"></i>
-        </button>
-        <div class="dropdown-menu dropdown-menu-end p-2 shadow-sm" id="dm-column-options-menu" aria-labelledby="dm-column-options-btn">
-          <label class="form-check d-flex align-items-center">
-            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-project" data-column-index="0">
-            <span class="form-check-label small">Project</span>
-          </label>
-          <label class="form-check d-flex align-items-center">
-            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-data-collector" data-column-index="4">
-            <span class="form-check-label small">Data Collector</span>
-          </label>
-          <label class="form-check d-flex align-items-center">
-            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-attachments" data-column-index="5">
-            <span class="form-check-label small">Attachments</span>
-          </label>
-          <label class="form-check d-flex align-items-center">
-            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-age-group" data-column-index="7">
-            <span class="form-check-label small">Age Group</span>
-          </label>
-          <label class="form-check d-flex align-items-center">
-            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-gender" data-column-index="8">
-            <span class="form-check-label small">Gender</span>
-          </label>
-          <label class="form-check d-flex align-items-center">
-            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-odk-sync" data-column-index="10">
-            <span class="form-check-label small">ODK Sync</span>
-          </label>
-          <label class="form-check d-flex align-items-center">
-            <input class="form-check-input dm-column-toggle" type="checkbox" id="dm-toggle-flagged-at" data-column-index="12">
-            <span class="form-check-label small">Flagged At</span>
-          </label>
-        </div>
+  <div class="col-6 col-lg-3">
+    <div class="dm-chart-card h-100">
+      <div class="dm-chart-title">
+        <i class="fa-solid fa-chart-pie me-1 text-info"></i>Age Groups
       </div>
-      <button type="button"
-              class="btn btn-sm btn-outline-secondary"
-              id="dm-filter-offcanvas-btn"
-              data-bs-toggle="offcanvas"
-              data-bs-target="#dm-filter-offcanvas"
-              aria-controls="dm-filter-offcanvas">
-        <i class="fas fa-filter me-1"></i>Filters
+      <div style="position:relative; height:200px;">
+        <canvas id="dm-age-band-chart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="dm-chart-card h-100">
+      <div class="dm-chart-title">
+        <i class="fa-solid fa-venus-mars me-1 text-success"></i>Sex Distribution
+      </div>
+      <div style="position:relative; height:200px;">
+        <canvas id="dm-sex-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   TABLE TOOLBAR
+   ════════════════════════════════════════════════════════ #}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <input id="dm-search-input"
+             type="search"
+             class="form-control form-control-sm"
+             style="width:220px;"
+             placeholder="Search VA ID, collector…">
+      <button id="dm-apply-filters-btn" class="btn btn-sm btn-primary">
+        <i class="fa-solid fa-magnifying-glass me-1"></i>Search
+      </button>
+      <button id="dm-clear-filters-btn" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-xmark me-1"></i>Clear
+      </button>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary"
+              type="button"
+              id="dm-col-toggle-btn"
+              data-bs-toggle="collapse"
+              data-bs-target="#dm-col-visibility-collapse">
+        <i class="fa-solid fa-table-columns me-1"></i>Columns
       </button>
     </div>
   </div>
 
-  <div class="table-responsive">
-    <table id="dmTable" class="table table-hover align-middle table-striped nowrap" style="width: 100%; min-width: 1100px;">
-      <thead>
-        <tr>
-          <th>Project</th>
-          <th>Site</th>
-          <th>Submitted</th>
-          <th>VA Form ID</th>
-          <th>Data Collector</th>
-          <th class="text-center"
-              data-bs-toggle="tooltip"
-              data-bs-placement="top"
-              title="Attachments">
-            <i class="fas fa-paperclip" aria-hidden="true"></i>
-            <span class="visually-hidden">Attachments</span>
-          </th>
-          <th>SmartVA</th>
-          <th>Age Group</th>
-          <th>Gender</th>
-          <th>ODK Status</th>
-          <th>ODK Sync</th>
-          <th>Workflow State</th>
-          <th>Flagged At</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in submission_rows %}
-        <tr data-age-band="{{ row.analytics_age_band or '' }}"
-            data-gender="{{ row.va_deceased_gender or '' }}"
-            data-odk-sync="{{ 'Missing In ODK' if row.va_sync_issue_code == 'missing_in_odk' else 'In Sync' }}">
-          <td>{{ row.project_id }}</td>
-          <td>{{ row.site_id }}</td>
-          <td>{{ row.va_submission_date }}</td>
-          <td>{{ row.va_uniqueid_masked }}</td>
-          <td>{{ row.va_data_collector or '-' }}</td>
-          <td class="text-center">
-            <span class="dm-attachment-count"
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  title="Expected attachment count from the latest DigitVA sync of ODK attachments.">
-              <i class="fas fa-paperclip text-muted" aria-hidden="true"></i>
-              <span>{{ row.attachment_count }}</span>
-            </span>
-          </td>
-          <td>
-            {% if row.smartva_result_sid %}
-            <span class="badge bg-success">Available</span>
-            {% else %}
-            <span class="badge bg-secondary">Missing</span>
-            {% endif %}
-          </td>
-          <td>{{ row.analytics_age_band or '-' }}</td>
-          <td>{{ row.va_deceased_gender or '-' }}</td>
-          <td>
-            {% if row.va_odk_reviewstate == 'hasIssues' %}
-            <span class="badge bg-warning text-dark"
-                  {% if row.va_odk_reviewcomments %}
-                  data-bs-toggle="tooltip"
-                  data-bs-placement="top"
-                  title="{% for comment in row.va_odk_reviewcomments %}{{ loop.index }}. {{ comment.body }}{% if not loop.last %}&#10;&#10;{% endif %}{% endfor %}"
-                  {% endif %}>
-              Has Issues
-            </span>
-            {% elif row.va_odk_reviewstate %}
-            <span class="badge bg-info text-dark">{{ row.va_odk_reviewstate }}</span>
-            {% else %}
-            <span class="badge bg-light text-dark border">No review state</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if row.va_sync_issue_code == 'missing_in_odk' %}
-            <span class="badge bg-danger">Missing In ODK</span>
-            {% if row.va_sync_issue_updated_at %}
-            <div class="small text-muted mt-1">{{ row.va_sync_issue_updated_at }}</div>
-            {% endif %}
-            {% else %}
-            <span class="badge bg-success">In Sync</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if row.workflow_state == 'not_codeable_by_data_manager' %}
-            <span class="badge bg-danger">Flagged by Data Manager</span>
-            {% elif row.workflow_state == 'not_codeable_by_coder' %}
-            <span class="badge bg-warning text-dark">Not Codeable By Coder</span>
-            {% elif row.workflow_state == 'ready_for_coding' %}
-            <span class="badge bg-primary">Ready for Coding</span>
-            {% elif row.workflow_state == 'screening_pending' %}
-            <span class="badge bg-secondary">Screening Pending</span>
-            {% else %}
-            <span class="badge bg-light text-dark border">{{ row.workflow_state }}</span>
-            {% endif %}
-          </td>
-          <td>{{ row.va_dmreview_createdat or '-' }}</td>
-          <td>
-            <a href="{{ url_for('data_management.view_submission', va_sid=row.va_sid) }}" class="btn btn-sm btn-outline-primary">
-              View
-            </a>
-            <a href="{{ url_for('data_management.submission_odk_edit', va_sid=row.va_sid) }}"
-               class="btn btn-sm btn-outline-secondary"
-               target="_blank"
-               rel="noopener noreferrer">
-              Edit
-            </a>
-            <button type="button"
-                    class="btn btn-sm btn-outline-secondary dm-refresh-submission-btn"
-                    data-sid="{{ row.va_sid }}">
-              Refresh
-            </button>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {# Active filter pills #}
+  <div class="card-body py-2 px-3 border-bottom" id="dm-filter-pills-container" style="display:none;">
+    <div id="dm-filter-pills"></div>
   </div>
 
-  <script src="{{ url_for('static', filename='vendors/chartjs/chart.umd.min.js') }}"></script>
-  <script>
-    $(document).ready(function () {
-      const csrfToken = '{{ csrf_token() }}';
-      const scopedForms = {{ scoped_forms|tojson }};
-      const projectFilter = $('#dm-project-filter');
-      const siteFilter = $('#dm-site-filter');
-      const openSyncModalButton = $('#dm-open-sync-modal-btn');
-      const syncConfirmModalEl = document.getElementById('dm-sync-confirm-modal');
-      const syncModalJq = $('#dm-sync-confirm-modal');
-      const syncConfirmModal = new bootstrap.Modal(syncConfirmModalEl);
-      const syncSummaryProjects = $('#dm-sync-summary-projects');
-      const syncSummarySites = $('#dm-sync-summary-sites');
-      const syncSummaryCount = $('#dm-sync-summary-count');
-      const syncSummaryForms = $('#dm-sync-summary-forms');
-      const syncConfirmButton = $('#dm-sync-confirm-btn');
-      const syncPreviewStatus = $('#dm-sync-preview-status');
-      const syncPreviewRows = $('#dm-sync-preview-rows');
-      const syncPreviewTotalForms = $('#dm-preview-total-forms');
-      const syncPreviewNewFetch = $('#dm-preview-new-fetch');
-      const syncPreviewUpdated = $('#dm-preview-updated');
-      const syncPreviewMissingInOdk = $('#dm-preview-missing-in-odk');
-      const syncResultsRows = $('#dm-sync-results-rows');
-      const syncResultsRefresh = $('#dm-sync-results-refresh');
-      const tableSearch = $('#dm-table-search');
-      const tableProjectFilter = $('#dm-table-project-filter');
-      const tableSiteFilter = $('#dm-table-site-filter');
-      const tableDateFrom = $('#dm-table-date-from');
-      const tableDateTo = $('#dm-table-date-to');
-      const tableOdkFilter = $('#dm-table-odk-filter');
-      const tableSmartvaFilter = $('#dm-table-smartva-filter');
-      const tableAgeGroupFilter = $('#dm-table-age-group-filter');
-      const tableGenderFilter = $('#dm-table-gender-filter');
-      const tableSyncFilter = $('#dm-table-sync-filter');
-      const tableWorkflowFilter = $('#dm-table-workflow-filter');
-      const tableClearFilters = $('#dm-table-clear-filters');
-      const viewFlaggedButton = $('#dm-view-flagged-btn');
-      const viewOdkIssuesButton = $('#dm-view-odk-issues-btn');
-      const viewSmartvaMissingButton = $('#dm-view-smartva-missing-btn');
-      const columnToggles = $('.dm-column-toggle');
-      const filterOffcanvasEl = document.getElementById('dm-filter-offcanvas');
-      const filterOffcanvas = bootstrap.Offcanvas.getOrCreateInstance(filterOffcanvasEl);
-      const filterStateKey = 'digitva.data_manager.table_state.v1';
-      let pendingSyncForms = [];
-      let syncResultsPoll = null;
-      let workflowQuickFilter = '';
-      let suppressFilterStateSave = false;
-      let projectSiteSubmissionsChart = null;
+  {# Column visibility collapse #}
+  <div class="collapse" id="dm-col-visibility-collapse">
+    <div class="card-body py-2 px-3 border-bottom bg-light">
+      <div id="dm-col-visibility-panel"></div>
+    </div>
+  </div>
 
-      // Refresh Dashboard button — triggers on-demand MV refresh then reloads
-      $('#dm-refresh-dashboard-btn').on('click', function () {
-        const btn = $(this);
-        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Refreshing…');
-        fetch('/api/v1/analytics/mv/refresh', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+  <div class="card-body p-2">
+    <div id="dm-table-wrapper">
+      <div id="dm-table-spinner" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,.55); z-index:10; align-items:center; justify-content:center;">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading…</span>
+        </div>
+      </div>
+      <div id="dm-table"></div>
+    </div>
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   FILTER OFFCANVAS
+   ════════════════════════════════════════════════════════ #}
+<div class="offcanvas offcanvas-end"
+     tabindex="-1"
+     id="dm-filter-offcanvas"
+     style="width:340px;"
+     aria-labelledby="dm-filter-offcanvas-label">
+  <div class="offcanvas-header border-bottom">
+    <h6 class="offcanvas-title" id="dm-filter-offcanvas-label">
+      <i class="fa-solid fa-filter me-2"></i>Filters
+    </h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="dm-filter-form" novalidate>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Project</label>
+        <select id="dm-project-filter" class="form-select form-select-sm" multiple placeholder="All projects…"></select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Site</label>
+        <select id="dm-site-filter" class="form-select form-select-sm" multiple placeholder="All sites…"></select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Date From</label>
+        <input type="date" id="dm-date-from" class="form-control form-control-sm">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Date To</label>
+        <input type="date" id="dm-date-to" class="form-control form-control-sm">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">ODK Status</label>
+        <select id="dm-odk-status-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="hasIssues">Has Issues</option>
+          <option value="approved">Approved</option>
+          <option value="no_review_state">No Review State</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">SmartVA</label>
+        <select id="dm-smartva-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="available">Available</option>
+          <option value="missing">Missing</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Age Group</label>
+        <select id="dm-age-group-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="neonate">Neonate</option>
+          <option value="child">Child</option>
+          <option value="15_49y">15–49y</option>
+          <option value="50_64y">50–64y</option>
+          <option value="65_plus">65+</option>
+          <option value="unknown">Unknown</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Gender</label>
+        <select id="dm-gender-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">ODK Sync</label>
+        <select id="dm-odk-sync-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="missing_in_odk">Missing In ODK</option>
+          <option value="in_sync">In Sync</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Workflow State</label>
+        <select id="dm-workflow-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="ready_for_coding">Ready For Coding</option>
+          <option value="screening_pending">Screening Pending</option>
+          <option value="not_codeable_by_data_manager">Not Codeable (DM)</option>
+          <option value="not_codeable_by_coder">Not Codeable (Coder)</option>
+        </select>
+      </div>
+      <div class="d-grid gap-2 pt-1">
+        <button type="button" id="dm-offcanvas-apply-btn" class="btn btn-primary btn-sm">
+          <i class="fa-solid fa-check me-1"></i>Apply Filters
+        </button>
+        <button type="button" id="dm-offcanvas-clear-btn" class="btn btn-outline-secondary btn-sm">
+          <i class="fa-solid fa-xmark me-1"></i>Clear Filters
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   OPERATIONS OFFCANVAS
+   ════════════════════════════════════════════════════════ #}
+<div class="offcanvas offcanvas-end"
+     tabindex="-1"
+     id="dm-ops-offcanvas"
+     style="width:420px;"
+     aria-labelledby="dm-ops-offcanvas-label">
+  <div class="offcanvas-header border-bottom">
+    <h6 class="offcanvas-title" id="dm-ops-offcanvas-label">
+      <i class="fa-solid fa-gear me-2"></i>Operations
+    </h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="d-grid mb-4">
+      <button id="dm-open-sync-modal-btn" class="btn btn-outline-primary btn-sm">
+        <i class="fa-solid fa-cloud-arrow-down me-1"></i>Sync Latest Data
+      </button>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h6 class="mb-0 small fw-semibold">Recent Sync Results</h6>
+      <button id="dm-refresh-sync-runs-btn" class="btn btn-sm btn-outline-secondary py-0 px-2">
+        <i class="fa-solid fa-arrows-rotate"></i>
+      </button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="table table-sm table-bordered mb-0" id="dm-sync-runs-table">
+        <thead class="table-light">
+          <tr>
+            <th style="font-size:.72rem;">Target</th>
+            <th style="font-size:.72rem;">Started</th>
+            <th style="font-size:.72rem;">Status</th>
+            <th style="font-size:.72rem;">Added</th>
+            <th style="font-size:.72rem;">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="dm-sync-runs-tbody">
+          <tr><td colspan="5" class="text-muted text-center small">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   SYNC CONFIRM MODAL
+   ════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="dm-sync-confirm-modal" tabindex="-1" aria-labelledby="dm-sync-confirm-modal-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dm-sync-confirm-modal-label">
+          <i class="fa-solid fa-cloud-arrow-down me-2 text-primary"></i>Sync Data
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Projects</label>
+            <select id="dm-sync-project-select" multiple placeholder="All projects…"></select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Sites</label>
+            <select id="dm-sync-site-select" multiple placeholder="All sites…"></select>
+          </div>
+        </div>
+
+        <div class="row g-2 mb-3" id="dm-sync-stats-row">
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value" id="sync-stat-total">—</div>
+              <div class="dm-sync-stat-label">Total Forms</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value text-success" id="sync-stat-new">—</div>
+              <div class="dm-sync-stat-label">New To Fetch</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value text-warning" id="sync-stat-updated">—</div>
+              <div class="dm-sync-stat-label">Updated</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value text-danger" id="sync-stat-missing">—</div>
+              <div class="dm-sync-stat-label">Missing In ODK</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="dm-sync-preview-container">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" id="dm-sync-preview-table">
+              <thead class="table-light">
+                <tr>
+                  <th style="font-size:.75rem;">Form ID</th>
+                  <th style="font-size:.75rem;">Project</th>
+                  <th style="font-size:.75rem;">Site</th>
+                  <th style="font-size:.75rem;">Local</th>
+                  <th style="font-size:.75rem;">ODK</th>
+                  <th style="font-size:.75rem;">New</th>
+                  <th style="font-size:.75rem;">Missing</th>
+                  <th style="font-size:.75rem;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="dm-sync-preview-tbody">
+                <tr><td colspan="8" class="text-muted text-center small">Select projects / sites to preview</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="dm-sync-confirm-btn" class="btn btn-primary btn-sm" disabled>
+          <i class="fa-solid fa-cloud-arrow-down me-1"></i>Sync All
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   JAVASCRIPT
+   ════════════════════════════════════════════════════════ #}
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/ag-grid/ag-grid-community.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/tom-select/tom-select.complete.min.js') }}"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Constants ── */
+  const CSRF = '{{ csrf_token() }}';
+  const LS_KEY = 'digitva.data_manager.table_state.v2';
+
+  /* ── Column definitions (toggleable metadata) ── */
+  const TOGGLEABLE_COLS = [
+    { field: 'project_id',        label: 'Project' },
+    { field: 'va_data_collector', label: 'Data Collector' },
+    { field: 'attachment_count',  label: 'Attachments' },
+    { field: 'analytics_age_band',label: 'Age Group' },
+    { field: 'va_deceased_gender',label: 'Gender' },
+    { field: 'odk_sync_status',   label: 'ODK Sync' },
+    { field: 'va_dmreview_createdat', label: 'Flagged At' },
+  ];
+  /* fields hidden by default */
+  const DEFAULT_HIDDEN = new Set([
+    'project_id', 'va_data_collector', 'attachment_count',
+    'analytics_age_band', 'va_deceased_gender', 'odk_sync_status',
+    'va_dmreview_createdat'
+  ]);
+
+  /* ── Filter state ── */
+  let currentFilters = {
+    search: '',
+    project: '',
+    site: '',
+    date_from: '',
+    date_to: '',
+    odk_status: '',
+    smartva: '',
+    age_group: '',
+    gender: '',
+    odk_sync: '',
+    workflow: '',
+  };
+
+  /* ── Column visibility state ── */
+  let colVisibility = {};
+  TOGGLEABLE_COLS.forEach(c => {
+    colVisibility[c.field] = !DEFAULT_HIDDEN.has(c.field);
+  });
+
+  /* ── Load persisted state ── */
+  function loadPersistedState() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved.filters) Object.assign(currentFilters, saved.filters);
+      if (saved.colVisibility) Object.assign(colVisibility, saved.colVisibility);
+    } catch (_) { /* ignore */ }
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        filters: currentFilters,
+        colVisibility,
+      }));
+    } catch (_) { /* ignore */ }
+  }
+
+  /* ── Filter-options cache ── */
+  let filterOptions = { projects: [], sites: [], genders: [] };
+
+  /* ── Tom Select instances ── */
+  let tsProjectFilter = null;
+  let tsSiteFilter = null;
+  let tsSyncProject = null;
+  let tsSyncSite = null;
+
+  /* ── Chart instances ── */
+  let chartProjectSite = null;
+  let chartAgeBand = null;
+  let chartSex = null;
+
+  /* ── AG Grid instance ── */
+  let gridApi = null;
+
+  /* ── Poll handles ── */
+  let syncRunsPollInterval = null;
+
+  /* ════════════════════════════════════════════════════
+     UTILITY
+     ════════════════════════════════════════════════════ */
+  function toast(msg, type) {
+    if (window.showAppToast) window.showAppToast(msg, type || 'info');
+  }
+
+  function jsonFetch(url, opts) {
+    const defaults = {
+      headers: {
+        'Accept': 'application/json',
+        'X-CSRFToken': CSRF,
+      }
+    };
+    return fetch(url, Object.assign({}, defaults, opts)).then(r => {
+      if (!r.ok) return r.json().catch(() => ({})).then(body => {
+        throw new Error(body.error || body.message || `HTTP ${r.status}`);
+      });
+      return r.json();
+    });
+  }
+
+  /* ════════════════════════════════════════════════════
+     AG GRID CELL RENDERERS
+     ════════════════════════════════════════════════════ */
+  class SmartVARenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      this.eGui.innerHTML = params.value
+        ? '<span class="badge bg-success">Available</span>'
+        : '<span class="badge bg-secondary">Missing</span>';
+    }
+    getGui() { return this.eGui; }
+  }
+
+  class OdkStatusRenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      const v = params.value;
+      const row = params.data || {};
+      if (v === 'hasIssues') {
+        let tip = '';
+        if (Array.isArray(row.va_odk_reviewcomments) && row.va_odk_reviewcomments.length) {
+          tip = row.va_odk_reviewcomments.map(c => c.body || '').filter(Boolean).join(' | ');
+        }
+        const esc = tip.replace(/"/g, '&quot;');
+        this.eGui.innerHTML = `<span class="badge bg-warning text-dark dm-has-issues-badge"${esc ? ` title="${esc}"` : ''}>Has Issues</span>`;
+      } else if (v === 'approved') {
+        this.eGui.innerHTML = '<span class="badge bg-info text-dark">Approved</span>';
+      } else {
+        this.eGui.innerHTML = '<span class="badge bg-light text-dark border">No review state</span>';
+      }
+    }
+    getGui() { return this.eGui; }
+  }
+
+  class OdkSyncRenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      this.eGui.innerHTML = params.value === 'missing_in_odk'
+        ? '<span class="badge bg-danger">Missing In ODK</span>'
+        : '<span class="badge bg-success">In Sync</span>';
+    }
+    getGui() { return this.eGui; }
+  }
+
+  class WorkflowRenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      const state = params.value;
+      const label = (params.data && params.data.workflow_label) || state || '';
+      let cls = 'bg-light text-dark border';
+      if (state === 'not_codeable_by_data_manager') cls = 'bg-danger';
+      else if (state === 'not_codeable_by_coder') cls = 'bg-warning text-dark';
+      else if (state === 'ready_for_coding') cls = 'bg-primary';
+      else if (state === 'screening_pending') cls = 'bg-secondary';
+      this.eGui.innerHTML = `<span class="badge ${cls}">${label}</span>`;
+    }
+    getGui() { return this.eGui; }
+  }
+
+  class AttachmentsRenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      const v = parseInt(params.value, 10) || 0;
+      this.eGui.className = 'dm-attachment-count';
+      this.eGui.innerHTML = `<i class="fa-regular fa-paperclip text-muted"></i>${v}`;
+    }
+    getGui() { return this.eGui; }
+  }
+
+  class ActionsRenderer {
+    init(params) {
+      this.eGui = document.createElement('div');
+      this.eGui.className = 'dm-action-cell';
+      const sid = params.data ? params.data.va_sid : '';
+      if (!sid) {
+        this.eGui.innerHTML = '—';
+        return;
+      }
+      this.eGui.innerHTML = `
+        <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
+        <a href="/data-management/submissions/${sid}/odk-edit" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1">Edit</a>
+        <button class="btn btn-sm btn-outline-secondary py-0 px-1 dm-refresh-btn" data-sid="${sid}">Refresh</button>`;
+    }
+    getGui() { return this.eGui; }
+  }
+
+  class DateRenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      const v = params.value;
+      this.eGui.textContent = v ? String(v).slice(0, 10) : '—';
+    }
+    getGui() { return this.eGui; }
+  }
+
+  class DateTimeRenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      const v = params.value;
+      this.eGui.textContent = v ? String(v).slice(0, 16).replace('T', ' ') : '—';
+    }
+    getGui() { return this.eGui; }
+  }
+
+  /* ════════════════════════════════════════════════════
+     AG GRID SETUP
+     ════════════════════════════════════════════════════ */
+  function buildColumnDefs() {
+    return [
+      { field: 'project_id', headerName: 'Project', width: 90, hide: colVisibility.project_id === false },
+      { field: 'site_id', headerName: 'Site', width: 90 },
+      { field: 'va_submission_date', headerName: 'Submitted', width: 105, cellRenderer: DateRenderer },
+      { field: 'va_uniqueid_masked', headerName: 'VA Form ID', width: 130 },
+      { field: 'va_data_collector', headerName: 'Data Collector', width: 130, hide: colVisibility.va_data_collector === false },
+      { field: 'attachment_count', headerName: 'Attachments', width: 100, cellRenderer: AttachmentsRenderer, hide: colVisibility.attachment_count === false },
+      { field: 'has_smartva', headerName: 'SmartVA', width: 95, cellRenderer: SmartVARenderer },
+      { field: 'analytics_age_band', headerName: 'Age Group', width: 100, hide: colVisibility.analytics_age_band === false },
+      { field: 'va_deceased_gender', headerName: 'Gender', width: 85, hide: colVisibility.va_deceased_gender === false },
+      { field: 'va_odk_reviewstate', headerName: 'ODK Status', width: 120, cellRenderer: OdkStatusRenderer },
+      { field: 'odk_sync_status', headerName: 'ODK Sync', width: 110, cellRenderer: OdkSyncRenderer, hide: colVisibility.odk_sync_status === false },
+      { field: 'workflow_state', headerName: 'Workflow State', width: 150, cellRenderer: WorkflowRenderer },
+      { field: 'va_dmreview_createdat', headerName: 'Flagged At', width: 115, cellRenderer: DateTimeRenderer, hide: colVisibility.va_dmreview_createdat === false },
+      { field: '_actions', headerName: 'Actions', width: 175, cellRenderer: ActionsRenderer, sortable: false },
+    ];
+  }
+
+  function initTable() {
+    const container = document.getElementById('dm-table');
+    const gridOptions = {
+      theme: agGrid.themeAlpine,
+      columnDefs: buildColumnDefs(),
+      defaultColDef: {
+        sortable: true,
+        resizable: true,
+        filter: false,
+      },
+      pagination: true,
+      paginationPageSize: 25,
+      paginationPageSizeSelector: [10, 25, 50, 100],
+      rowModelType: 'infinite',
+      cacheBlockSize: 25,
+      infiniteInitialRowCount: 1,
+      maxBlocksInCache: 10,
+      onGridReady: (params) => {
+        const ds = createDataSource();
+        params.api.setGridOption('datasource', ds);
+      },
+      onBodyScrollEnd: () => {
+        // Lazy-init tooltips for visible rows
+        document.querySelectorAll('.dm-has-issues-badge[title]').forEach(badge => {
+          if (!badge._bsTooltip) {
+            badge._bsTooltip = new bootstrap.Tooltip(badge, { placement: 'top', trigger: 'hover' });
+          }
+        });
+      },
+    };
+
+    gridApi = agGrid.createGrid(container, gridOptions);
+
+    /* row-level refresh button delegation */
+    container.addEventListener('click', e => {
+      const btn = e.target.closest('.dm-refresh-btn');
+      if (!btn) return;
+      const sid = btn.dataset.sid;
+      if (!sid) return;
+      btn.disabled = true;
+      btn.textContent = '…';
+      jsonFetch(`/api/v1/data-management/submissions/${sid}/sync`, { method: 'POST' })
+        .then(() => {
+          toast('Submission refreshed', 'success');
+          gridApi.refreshInfiniteCache();
         })
-          .then(function (resp) {
-            if (!resp.ok) {
-              return resp.json().then(function (d) { throw new Error(d.error || 'Refresh failed.'); });
-            }
-            window.location.reload();
+        .catch(err => toast('Refresh failed: ' + err.message, 'danger'))
+        .finally(() => {
+          btn.disabled = false;
+          btn.textContent = 'Refresh';
+        });
+    });
+  }
+
+  function createDataSource() {
+    return {
+      getRows: (params) => {
+        const sp = document.getElementById('dm-table-spinner');
+        if (sp) sp.style.display = 'flex';
+
+        const page = Math.floor(params.startRow / 25) + 1;
+        const size = params.endRow - params.startRow;
+
+        const url = new URL('/api/v1/data-management/submissions', window.location.origin);
+        url.searchParams.set('page', page);
+        url.searchParams.set('size', size);
+
+        // Add filters
+        Object.entries(currentFilters).forEach(([k, v]) => {
+          if (v !== '' && v != null) url.searchParams.set(k, v);
+        });
+
+        // Add sort
+        if (params.sortModel && params.sortModel.length) {
+          const s = params.sortModel[0];
+          url.searchParams.set('sort[0][field]', s.colId);
+          url.searchParams.set('sort[0][dir]', s.sort);
+        }
+
+        fetch(url.toString(), {
+          headers: { 'Accept': 'application/json', 'X-CSRFToken': CSRF }
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (sp) sp.style.display = 'none';
+            const rows = data.data || [];
+            const lastRow = data.total || rows.length;
+            params.successCallback(rows, lastRow);
           })
-          .catch(function (err) {
-            btn.prop('disabled', false).html('<i class="fas fa-chart-bar me-1"></i>Refresh Dashboard');
-            alert('Dashboard refresh failed: ' + err.message);
-          });
-      });
-
-      function currentProjectSelection() {
-        return projectFilter.val() || [];
-      }
-
-      function currentSiteSelection() {
-        return siteFilter.val() || [];
-      }
-
-      function formsMatchingSelection() {
-        const selectedProjects = currentProjectSelection();
-        const selectedSites = currentSiteSelection();
-
-        return scopedForms.filter(function (form) {
-          const matchesProject = !selectedProjects.length || selectedProjects.includes(form.project_id);
-          const matchesSite = !selectedSites.length || selectedSites.includes(form.site_id);
-          return matchesProject && matchesSite;
-        });
-      }
-
-      function selectedSiteLabels() {
-        return siteFilter.find(':selected').map(function () {
-          return $(this).text();
-        }).get();
-      }
-
-      function renderSyncSummary(matchedForms) {
-        const selectedProjects = currentProjectSelection();
-        const selectedSites = selectedSiteLabels();
-
-        syncSummaryProjects.text(
-          selectedProjects.length ? selectedProjects.join(', ') : 'None selected'
-        );
-        syncSummarySites.text(
-          selectedSites.length ? selectedSites.join(', ') : 'All sites in selected projects'
-        );
-        syncSummaryCount.text(
-          matchedForms.length + ' form' + (matchedForms.length === 1 ? '' : 's') + ' will be queued.'
-        );
-        syncSummaryForms.empty();
-
-        matchedForms.forEach(function (form) {
-          syncSummaryForms.append(
-            $('<li class="list-group-item px-0 py-2"></li>').text(
-              form.project_id + ' / ' + form.site_id + ' - ' + form.site_name + ' (' + form.form_id + ')'
-            )
-          );
-        });
-      }
-
-      function formatTimestamp(value) {
-        if (!value) {
-          return '-';
-        }
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) {
-          return value;
-        }
-        return new Intl.DateTimeFormat([], {
-          year: 'numeric',
-          month: 'short',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          timeZoneName: 'short'
-        }).format(date);
-      }
-
-      function renderSyncPreview(preview) {
-        syncPreviewTotalForms.text(preview.totals.forms || 0);
-        syncPreviewNewFetch.text(preview.totals.new_fetch_candidates || 0);
-        syncPreviewUpdated.text(preview.totals.updated_candidates || 0);
-        syncPreviewMissingInOdk.text(preview.totals.missing_in_odk_flags || 0);
-        syncPreviewRows.empty();
-
-        if (!preview.forms.length) {
-          syncPreviewRows.append('<tr><td colspan="6" class="text-muted">No forms match the selected scope.</td></tr>');
-          return;
-        }
-
-        preview.forms.forEach(function (form) {
-          syncPreviewRows.append(
-            '<tr>'
-            + '<td>' + form.project_id + ' / ' + form.site_id + ' (' + form.form_id + ')</td>'
-            + '<td>' + (form.local_submissions || 0) + '</td>'
-            + '<td>' + (form.odk_submissions || 0) + '</td>'
-            + '<td>' + (form.new_fetch_candidates || 0) + '</td>'
-            + '<td>' + (form.updated_candidates == null ? '-' : form.updated_candidates) + '</td>'
-            + '<td>' + (form.missing_in_odk_flags || 0) + '</td>'
-            + '</tr>'
-          );
-        });
-      }
-
-      function renderSyncResults(runs) {
-        syncResultsRows.empty();
-        if (!runs.length) {
-          syncResultsRows.append('<tr><td colspan="7" class="text-muted">No sync runs yet.</td></tr>');
-          return;
-        }
-
-        runs.forEach(function (run) {
-          const latestEntry = (run.entries && run.entries.length)
-            ? run.entries[run.entries.length - 1].msg
-            : '-';
-          const statusBadge = run.status === 'success'
-            ? '<span class="badge bg-success">Success</span>'
-            : run.status === 'running'
-              ? '<span class="badge bg-primary">Running</span>'
-              : run.status === 'partial'
-                ? '<span class="badge bg-warning text-dark">Partial</span>'
-                : '<span class="badge bg-danger">Error</span>';
-
-          syncResultsRows.append(
-            '<tr>'
-            + '<td>' + (run.target || '-') + '</td>'
-            + '<td>' + statusBadge + '</td>'
-            + '<td>' + formatTimestamp(run.started_at) + '</td>'
-            + '<td>' + formatTimestamp(run.finished_at) + '</td>'
-            + '<td>' + (run.records_added == null ? '-' : run.records_added) + '</td>'
-            + '<td>' + (run.records_updated == null ? '-' : run.records_updated) + '</td>'
-            + '<td class="small">' + (run.error_message || latestEntry || '-') + '</td>'
-            + '</tr>'
-          );
-        });
-      }
-
-      function refreshSiteOptions() {
-        const selectedProjects = currentProjectSelection();
-        const previouslySelectedSites = new Set(currentSiteSelection());
-        const availableSites = [];
-        const seenSites = new Set();
-
-        scopedForms.forEach(function (form) {
-          if (selectedProjects.length && !selectedProjects.includes(form.project_id)) {
-            return;
-          }
-          if (!seenSites.has(form.site_id)) {
-            seenSites.add(form.site_id);
-            availableSites.push({
-              site_id: form.site_id,
-              site_name: form.site_name || form.site_id
-            });
-          }
-        });
-
-        siteFilter.empty();
-        availableSites.sort(function (left, right) {
-          return left.site_id.localeCompare(right.site_id);
-        }).forEach(function (site) {
-          const label = site.site_id + ' - ' + site.site_name;
-          const option = new Option(label, site.site_id, false, previouslySelectedSites.has(site.site_id));
-          siteFilter.append(option);
-        });
-        siteFilter.trigger('change.select2');
-      }
-
-      projectFilter.select2({
-        theme: 'bootstrap-5',
-        width: '100%',
-        placeholder: 'All projects',
-        closeOnSelect: false,
-        dropdownParent: syncModalJq
-      });
-
-      siteFilter.select2({
-        theme: 'bootstrap-5',
-        width: '100%',
-        placeholder: 'All sites',
-        closeOnSelect: false,
-        dropdownParent: syncModalJq
-      });
-
-      $('[data-bs-toggle="tooltip"]').each(function () {
-        new bootstrap.Tooltip(this);
-      });
-
-      $('[data-bs-toggle="popover"]').popover();
-
-      const dmTable = $('#dmTable').DataTable({
-        pageLength: 25,
-        order: [[0, 'asc'], [1, 'asc'], [2, 'desc']],
-        columnDefs: [
-          { targets: [0, 4, 5, 7, 8, 10, 12], visible: false }
-        ]
-      });
-
-      function currentFilterState() {
-        return {
-          search: tableSearch.val() || '',
-          project: tableProjectFilter.val() || '',
-          site: tableSiteFilter.val() || '',
-          date_from: tableDateFrom.val() || '',
-          date_to: tableDateTo.val() || '',
-          odk_status: tableOdkFilter.val() || '',
-          smartva: tableSmartvaFilter.val() || '',
-          age_group: tableAgeGroupFilter.val() || '',
-          gender: tableGenderFilter.val() || '',
-          odk_sync: tableSyncFilter.val() || '',
-          workflow: tableWorkflowFilter.val() || '',
-          columns: {
-            project: dmTable.column(0).visible(),
-            data_collector: dmTable.column(4).visible(),
-            attachments: dmTable.column(5).visible(),
-            age_group: dmTable.column(7).visible(),
-            gender: dmTable.column(8).visible(),
-            odk_sync: dmTable.column(10).visible(),
-            flagged_at: dmTable.column(12).visible(),
-          },
-        };
-      }
-
-      function saveFilterState() {
-        if (suppressFilterStateSave) {
-          return;
-        }
-        try {
-          window.localStorage.setItem(filterStateKey, JSON.stringify(currentFilterState()));
-        } catch (err) {
-          console.warn('Could not persist data-manager filter state.', err);
-        }
-      }
-
-      function restoreFilterState() {
-        let state = null;
-        try {
-          state = JSON.parse(window.localStorage.getItem(filterStateKey) || 'null');
-        } catch (err) {
-          state = null;
-        }
-        if (!state) {
-          return;
-        }
-
-        suppressFilterStateSave = true;
-        tableSearch.val(state.search || '');
-        tableProjectFilter.val(state.project || '');
-        tableSiteFilter.val(state.site || '');
-        tableDateFrom.val(state.date_from || '');
-        tableDateTo.val(state.date_to || '');
-        tableOdkFilter.val(state.odk_status || '');
-        tableSmartvaFilter.val(state.smartva || '');
-        tableAgeGroupFilter.val(state.age_group || '');
-        tableGenderFilter.val(state.gender || '');
-        tableSyncFilter.val(state.odk_sync || '');
-        tableWorkflowFilter.val(state.workflow || '');
-
-        const columnState = state.columns || {};
-        const columnKeyMap = { 0: 'project', 4: 'data_collector', 5: 'attachments', 7: 'age_group', 8: 'gender', 10: 'odk_sync', 12: 'flagged_at' };
-        columnToggles.each(function () {
-          const checkbox = $(this);
-          const columnIndex = Number(checkbox.data('column-index'));
-          const key = columnKeyMap[columnIndex];
-          const visible = key ? Boolean(columnState[key]) : false;
-          checkbox.prop('checked', visible);
-          dmTable.column(columnIndex).visible(visible);
-        });
-        suppressFilterStateSave = false;
-
-        const hasAnyFilter = [
-          state.search,
-          state.project,
-          state.site,
-          state.date_from,
-          state.date_to,
-          state.odk_status,
-          state.smartva,
-          state.odk_sync,
-          state.workflow,
-        ].some(Boolean);
-        // filters restored silently; user can open the filter panel via the Filters button
-      }
-
-      columnToggles.each(function () {
-        const checkbox = $(this);
-        const columnIndex = Number(checkbox.data('column-index'));
-        checkbox.prop('checked', dmTable.column(columnIndex).visible());
-      });
-
-      columnToggles.on('change', function () {
-        const checkbox = $(this);
-        const columnIndex = Number(checkbox.data('column-index'));
-        dmTable.column(columnIndex).visible(checkbox.is(':checked'));
-        saveFilterState();
-      });
-
-      $.fn.dataTable.ext.search.push(function (settings, data) {
-        if (settings.nTable !== dmTable.table().node()) {
-          return true;
-        }
-        const fromValue = tableDateFrom.val();
-        const toValue = tableDateTo.val();
-        if (!fromValue && !toValue) {
-          return true;
-        }
-
-        const submissionDate = data[2];
-        if (!submissionDate) {
-          return false;
-        }
-
-        const rowDate = new Date(submissionDate + 'T00:00:00');
-        if (Number.isNaN(rowDate.getTime())) {
-          return false;
-        }
-
-        if (fromValue) {
-          const fromDate = new Date(fromValue + 'T00:00:00');
-          if (rowDate < fromDate) {
-            return false;
-          }
-        }
-
-        if (toValue) {
-          const toDate = new Date(toValue + 'T23:59:59');
-          if (rowDate > toDate) {
-            return false;
-          }
-        }
-
-        return true;
-      });
-
-      function renderFilterPills() {
-        const container = $('#dm-filter-pills');
-        container.empty();
-
-        const filters = [
-          { label: 'Search',     value: tableSearch.val(),           clear: function() { tableSearch.val(''); } },
-          { label: 'Project',    value: tableProjectFilter.val(),     clear: function() { tableProjectFilter.val(''); } },
-          { label: 'Site',       value: tableSiteFilter.val(),        clear: function() { tableSiteFilter.val(''); } },
-          { label: 'From',       value: tableDateFrom.val(),          clear: function() { tableDateFrom.val(''); } },
-          { label: 'To',         value: tableDateTo.val(),            clear: function() { tableDateTo.val(''); } },
-          { label: 'ODK',        value: tableOdkFilter.val(),         clear: function() { tableOdkFilter.val(''); } },
-          { label: 'SmartVA',    value: tableSmartvaFilter.val(),     clear: function() { tableSmartvaFilter.val(''); } },
-          { label: 'Age Group',  value: tableAgeGroupFilter.val(),    clear: function() { tableAgeGroupFilter.val(''); } },
-          { label: 'Gender',     value: tableGenderFilter.val(),      clear: function() { tableGenderFilter.val(''); } },
-          { label: 'Sync',       value: tableSyncFilter.val(),        clear: function() { tableSyncFilter.val(''); } },
-          { label: 'Workflow',   value: tableWorkflowFilter.val() || workflowQuickFilter,
-            clear: function() { tableWorkflowFilter.val(''); workflowQuickFilter = ''; } },
-        ];
-
-        filters.forEach(function(f) {
-          if (!f.value) { return; }
-          const pill = $('<span class="badge rounded-pill d-inline-flex align-items-center gap-1" style="background:#e8f0fe;color:#1a56db;font-weight:500;font-size:0.8rem;padding:0.35em 0.65em;"></span>');
-          pill.text(f.label + ': ' + f.value);
-          const btn = $('<button type="button" class="btn-close btn-close-sm ms-1" style="font-size:0.6rem;" aria-label="Remove filter"></button>');
-          btn.on('click', function() {
-            f.clear();
-            applyTableFilters();
-          });
-          pill.append(btn);
-          container.append(pill);
-        });
-      }
-
-      // Demographic and other hideable-column filters use data-* row attributes
-      // so they work reliably regardless of column visibility state.
-      let activeAgeGroupFilter = '';
-      let activeGenderFilter = '';
-      let activeOdkSyncFilter = '';
-
-      $.fn.dataTable.ext.search.push(function (settings, _data, _idx, _rowData, counter) {
-        if (settings.nTable !== dmTable.table().node()) { return true; }
-        const row = dmTable.row(counter).node();
-        if (!row) { return true; }
-        if (activeAgeGroupFilter && $(row).data('age-band') !== activeAgeGroupFilter) { return false; }
-        if (activeGenderFilter && $(row).data('gender') !== activeGenderFilter) { return false; }
-        if (activeOdkSyncFilter && $(row).data('odk-sync') !== activeOdkSyncFilter) { return false; }
-        return true;
-      });
-
-      function applyTableFilters() {
-        activeAgeGroupFilter = tableAgeGroupFilter.val() || '';
-        activeGenderFilter = tableGenderFilter.val() || '';
-        activeOdkSyncFilter = tableSyncFilter.val() || '';
-        dmTable.search(tableSearch.val() || '');
-        dmTable.column(0).search(tableProjectFilter.val() || '', true, false);
-        dmTable.column(1).search(tableSiteFilter.val() || '', true, false);
-        dmTable.column(6).search(tableSmartvaFilter.val() || '', false, false);
-        dmTable.column(9).search(tableOdkFilter.val() || '', false, false);
-        dmTable.column(11).search(workflowQuickFilter || tableWorkflowFilter.val() || '', Boolean(workflowQuickFilter), false);
-        dmTable.draw();
-        renderFilterPills();
-        saveFilterState();
-      }
-
-      function resetTableFilters() {
-        tableSearch.val('');
-        tableProjectFilter.val('');
-        tableSiteFilter.val('');
-        tableDateFrom.val('');
-        tableDateTo.val('');
-        tableOdkFilter.val('');
-        tableSmartvaFilter.val('');
-        tableAgeGroupFilter.val('');
-        tableGenderFilter.val('');
-        tableSyncFilter.val('');
-        tableWorkflowFilter.val('');
-        workflowQuickFilter = '';
-        activeAgeGroupFilter = '';
-        activeGenderFilter = '';
-        activeOdkSyncFilter = '';
-        dmTable.column(6).search('', false, false);
-      }
-
-      tableSearch.on('input', applyTableFilters);
-      tableProjectFilter.on('change', applyTableFilters);
-      tableSiteFilter.on('change', applyTableFilters);
-      tableDateFrom.on('change', applyTableFilters);
-      tableDateTo.on('change', applyTableFilters);
-      tableOdkFilter.on('change', applyTableFilters);
-      tableSmartvaFilter.on('change', applyTableFilters);
-      tableAgeGroupFilter.on('change', applyTableFilters);
-      tableGenderFilter.on('change', applyTableFilters);
-      tableSyncFilter.on('change', applyTableFilters);
-      tableWorkflowFilter.on('change', applyTableFilters);
-      tableClearFilters.on('click', function () {
-        resetTableFilters();
-        applyTableFilters();
-      });
-
-      viewFlaggedButton.on('click', function () {
-        resetTableFilters();
-        workflowQuickFilter = 'Flagged by Data Manager|Not Codeable By Coder';
-        applyTableFilters();
-        filterOffcanvas.show();
-      });
-
-      viewOdkIssuesButton.on('click', function () {
-        resetTableFilters();
-        tableOdkFilter.val('Has Issues');
-        applyTableFilters();
-        filterOffcanvas.show();
-      });
-
-      viewSmartvaMissingButton.on('click', function () {
-        resetTableFilters();
-        dmTable.column(6).search('Missing', false, false);
-        applyTableFilters();
-        filterOffcanvas.show();
-      });
-
-      projectFilter.on('change', function () {
-        refreshSiteOptions();
-        renderSyncSummary(formsMatchingSelection());
-        loadPreview();
-      });
-
-      siteFilter.on('change', function () {
-        renderSyncSummary(formsMatchingSelection());
-        loadPreview();
-      });
-
-      openSyncModalButton.on('click', function () {
-        refreshSiteOptions();
-        renderSyncSummary(formsMatchingSelection());
-        loadPreview();
-        syncConfirmModal.show();
-      });
-
-      syncConfirmModalEl.addEventListener('shown.bs.modal', function () {
-        projectFilter.select2('close');
-        siteFilter.select2('close');
-      });
-
-      syncResultsRefresh.on('click', loadSyncResults);
-
-      function postJson(url) {
-        return fetch(url, {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrfToken }
-        }).then(function (response) {
-          return response.json().then(function (payload) {
-            if (!response.ok) {
-              throw new Error(payload.error || 'Request failed.');
-            }
-            return payload;
-          });
-        });
-      }
-
-      function postPreview(projectIds, siteIds) {
-        return fetch('/api/v1/data-management/sync/preview', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken
-          },
-          body: JSON.stringify({
-            project_ids: projectIds,
-            site_ids: siteIds
-          })
-        }).then(function (response) {
-          return response.json().then(function (payload) {
-            if (!response.ok) {
-              throw new Error(payload.error || 'Preview failed.');
-            }
-            return payload;
-          });
-        });
-      }
-
-      function loadProjectSiteSubmissionsChart() {
-        const chartCanvas = document.getElementById('dm-project-site-submissions-chart');
-        const emptyState = document.getElementById('dm-project-site-submissions-empty');
-        if (!chartCanvas || !window.Chart) {
-          return;
-        }
-
-        return fetch('/api/v1/data-management/project-site-submissions')
-          .then(function (response) {
-            return response.json().then(function (payload) {
-              if (!response.ok) {
-                throw new Error(payload.error || 'Failed to load project-site submission stats.');
-              }
-              return payload;
-            });
-          })
-          .then(function (payload) {
-            const stats = payload.stats || [];
-            if (!stats.length) {
-              chartCanvas.classList.add('d-none');
-              if (emptyState) {
-                emptyState.classList.remove('d-none');
-              }
-              if (projectSiteSubmissionsChart) {
-                projectSiteSubmissionsChart.destroy();
-                projectSiteSubmissionsChart = null;
-              }
-              return;
-            }
-
-            chartCanvas.classList.remove('d-none');
-            if (emptyState) {
-              emptyState.classList.add('d-none');
-            }
-
-            const chartLabels = stats.map(function (row) {
-              return row.project_id + ' / ' + row.site_id;
-            });
-            const chartData = {
-              labels: chartLabels,
-              datasets: [
-                {
-                  label: 'Total',
-                  data: stats.map(function (row) { return row.total_submissions || 0; }),
-                  backgroundColor: '#b7d7ff',
-                  borderColor: '#9ec8fb',
-                  borderWidth: 1,
-                  borderRadius: 10,
-                  barThickness: 10,
-                },
-                {
-                  label: 'This Week',
-                  data: stats.map(function (row) { return row.this_week_submissions || 0; }),
-                  backgroundColor: '#bfe8df',
-                  borderColor: '#a5dccf',
-                  borderWidth: 1,
-                  borderRadius: 10,
-                  barThickness: 10,
-                },
-                {
-                  label: 'Today',
-                  data: stats.map(function (row) { return row.today_submissions || 0; }),
-                  backgroundColor: '#f6d7e6',
-                  borderColor: '#edc2d7',
-                  borderWidth: 1,
-                  borderRadius: 10,
-                  barThickness: 10,
-                },
-              ],
-            };
-
-            if (projectSiteSubmissionsChart) {
-              projectSiteSubmissionsChart.data = chartData;
-              projectSiteSubmissionsChart.update();
-              return;
-            }
-
-            projectSiteSubmissionsChart = new Chart(chartCanvas, {
-              type: 'bar',
-              data: chartData,
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                plugins: {
-                  legend: {
-                    position: 'top',
-                    align: 'start',
-                    labels: {
-                      usePointStyle: true,
-                      pointStyle: 'rectRounded',
-                      boxWidth: 10,
-                      color: '#607080',
-                    },
-                  },
-                  tooltip: {
-                    backgroundColor: '#ffffff',
-                    titleColor: '#334155',
-                    bodyColor: '#475569',
-                    borderColor: '#dbe5ef',
-                    borderWidth: 1,
-                    displayColors: true,
-                  },
-                },
-                scales: {
-                  x: {
-                    beginAtZero: true,
-                    ticks: {
-                      precision: 0,
-                      color: '#6b7280',
-                    },
-                    grid: {
-                      color: '#eef3f7',
-                    },
-                    border: {
-                      display: false,
-                    },
-                  },
-                  y: {
-                    ticks: {
-                      color: '#475569',
-                    },
-                    grid: {
-                      display: false,
-                    },
-                    border: {
-                      display: false,
-                    },
-                  },
-                },
-              },
-            });
+          .catch(err => {
+            if (sp) sp.style.display = 'none';
+            console.error('AG Grid data load error:', err);
+            params.failCallback();
           });
       }
+    };
+  }
 
-      // -----------------------------------------------------------------------
-      // Demographics pie charts — Age Band and Sex from /api/v1/analytics/demographics
-      // -----------------------------------------------------------------------
+  /* ════════════════════════════════════════════════════
+     COLUMN VISIBILITY UI
+     ════════════════════════════════════════════════════ */
+  function renderColVisibilityPanel() {
+    const panel = document.getElementById('dm-col-visibility-panel');
+    if (!panel) return;
+    panel.innerHTML = '';
+    TOGGLEABLE_COLS.forEach(col => {
+      const visible = colVisibility[col.field] !== false;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `btn btn-sm dm-col-toggle-btn ${visible ? 'btn-primary' : 'btn-outline-secondary'}`;
+      btn.textContent = col.label;
+      btn.dataset.field = col.field;
+      btn.addEventListener('click', () => {
+        colVisibility[col.field] = !colVisibility[col.field];
+        if (gridApi) {
+          gridApi.setColumnsVisible([col.field], colVisibility[col.field]);
+        }
+        saveState();
+        renderColVisibilityPanel();
+      });
+      panel.appendChild(btn);
+    });
+  }
 
-      const PIE_PALETTE = [
-        '#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6',
-        '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1',
-      ];
+  /* ════════════════════════════════════════════════════
+     FILTER PILLS
+     ════════════════════════════════════════════════════ */
+  const FILTER_LABELS = {
+    search: 'Search',
+    project: 'Project',
+    site: 'Site',
+    date_from: 'From',
+    date_to: 'To',
+    odk_status: 'ODK Status',
+    smartva: 'SmartVA',
+    age_group: 'Age Group',
+    gender: 'Gender',
+    odk_sync: 'ODK Sync',
+    workflow: 'Workflow',
+  };
 
-      let ageBandChart = null;
-      let sexChart = null;
+  function renderFilterPills() {
+    const container = document.getElementById('dm-filter-pills-container');
+    const pills = document.getElementById('dm-filter-pills');
+    if (!container || !pills) return;
+    pills.innerHTML = '';
+    let hasAny = false;
+    Object.entries(currentFilters).forEach(([key, val]) => {
+      if (!val) return;
+      hasAny = true;
+      const pill = document.createElement('span');
+      pill.className = 'dm-filter-pill';
+      pill.innerHTML = `<strong>${FILTER_LABELS[key] || key}:</strong>&nbsp;${val}
+        <button type="button" aria-label="Remove filter" data-filter-key="${key}">&#x2715;</button>`;
+      pills.appendChild(pill);
+    });
+    container.style.display = hasAny ? 'block' : 'none';
 
-      function buildPieConfig(labels, data) {
-        return {
-          type: 'pie',
+    pills.querySelectorAll('button[data-filter-key]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.filterKey;
+        currentFilters[key] = '';
+        syncInputsFromState();
+        applyFilters();
+      });
+    });
+  }
+
+  /* ════════════════════════════════════════════════════
+     SYNC INPUTS → STATE → TABLE
+     ════════════════════════════════════════════════════ */
+  function readInputsToFilters() {
+    currentFilters.search    = document.getElementById('dm-search-input').value.trim();
+    currentFilters.project   = tsProjectFilter ? tsProjectFilter.getValue().join(',') : '';
+    currentFilters.site      = tsSiteFilter    ? tsSiteFilter.getValue().join(',')    : '';
+    currentFilters.date_from = document.getElementById('dm-date-from').value;
+    currentFilters.date_to   = document.getElementById('dm-date-to').value;
+    currentFilters.odk_status= document.getElementById('dm-odk-status-filter').value;
+    currentFilters.smartva   = document.getElementById('dm-smartva-filter').value;
+    currentFilters.age_group = document.getElementById('dm-age-group-filter').value;
+    currentFilters.gender    = document.getElementById('dm-gender-filter').value;
+    currentFilters.odk_sync  = document.getElementById('dm-odk-sync-filter').value;
+    currentFilters.workflow  = document.getElementById('dm-workflow-filter').value;
+  }
+
+  function syncInputsFromState() {
+    document.getElementById('dm-search-input').value = currentFilters.search || '';
+    document.getElementById('dm-date-from').value    = currentFilters.date_from || '';
+    document.getElementById('dm-date-to').value      = currentFilters.date_to || '';
+    document.getElementById('dm-odk-status-filter').value = currentFilters.odk_status || '';
+    document.getElementById('dm-smartva-filter').value    = currentFilters.smartva || '';
+    document.getElementById('dm-age-group-filter').value  = currentFilters.age_group || '';
+    document.getElementById('dm-gender-filter').value     = currentFilters.gender || '';
+    document.getElementById('dm-odk-sync-filter').value   = currentFilters.odk_sync || '';
+    document.getElementById('dm-workflow-filter').value   = currentFilters.workflow || '';
+
+    if (tsProjectFilter) {
+      const vals = currentFilters.project ? currentFilters.project.split(',') : [];
+      tsProjectFilter.clear(true);
+      vals.forEach(v => tsProjectFilter.addItem(v, true));
+    }
+    if (tsSiteFilter) {
+      const vals = currentFilters.site ? currentFilters.site.split(',') : [];
+      tsSiteFilter.clear(true);
+      vals.forEach(v => tsSiteFilter.addItem(v, true));
+    }
+  }
+
+  function applyFilters() {
+    readInputsToFilters();
+    saveState();
+    renderFilterPills();
+    if (gridApi) gridApi.refreshInfiniteCache();
+  }
+
+  function clearAllFilters() {
+    Object.keys(currentFilters).forEach(k => { currentFilters[k] = ''; });
+    syncInputsFromState();
+    saveState();
+    renderFilterPills();
+    if (gridApi) gridApi.refreshInfiniteCache();
+  }
+
+  /* ════════════════════════════════════════════════════
+     FILTER OPTIONS — Tom Select init
+     ════════════════════════════════════════════════════ */
+  function initProjectTomSelect(opts) {
+    const el = document.getElementById('dm-project-filter');
+    if (!el) return;
+    if (tsProjectFilter) tsProjectFilter.destroy();
+    tsProjectFilter = new TomSelect(el, {
+      plugins: ['remove_button'],
+      maxOptions: 500,
+      options: opts.map(p => ({ value: p, text: p })),
+      placeholder: 'All projects…',
+      onChange: () => cascadeSiteFilter(),
+    });
+  }
+
+  function initSiteTomSelect(siteOpts) {
+    const el = document.getElementById('dm-site-filter');
+    if (!el) return;
+    if (tsSiteFilter) tsSiteFilter.destroy();
+    tsSiteFilter = new TomSelect(el, {
+      plugins: ['remove_button'],
+      maxOptions: 500,
+      options: siteOpts.map(s => ({ value: s.site_id, text: s.site_id, project: s.project_id })),
+      placeholder: 'All sites…',
+    });
+  }
+
+  function cascadeSiteFilter() {
+    if (!tsSiteFilter) return;
+    const selectedProjects = tsProjectFilter ? tsProjectFilter.getValue() : [];
+    const allSites = filterOptions.sites || [];
+    const filtered = selectedProjects.length
+      ? allSites.filter(s => selectedProjects.includes(s.project_id))
+      : allSites;
+
+    const current = tsSiteFilter.getValue();
+    tsSiteFilter.clearOptions();
+    filtered.forEach(s => tsSiteFilter.addOption({ value: s.site_id, text: s.site_id, project: s.project_id }));
+    tsSiteFilter.refreshOptions(false);
+
+    /* preserve selections that are still valid */
+    const validSiteIds = new Set(filtered.map(s => s.site_id));
+    const stillValid = current.filter(v => validSiteIds.has(v));
+    tsSiteFilter.clear(true);
+    stillValid.forEach(v => tsSiteFilter.addItem(v, true));
+  }
+
+  function populateGenderFilter(genders) {
+    const sel = document.getElementById('dm-gender-filter');
+    if (!sel) return;
+    /* keep "All" option */
+    while (sel.options.length > 1) sel.remove(1);
+    genders.forEach(g => {
+      const opt = document.createElement('option');
+      opt.value = g;
+      opt.textContent = g;
+      sel.appendChild(opt);
+    });
+  }
+
+  function loadFilterOptions() {
+    return jsonFetch('/api/v1/data-management/filter-options')
+      .then(data => {
+        filterOptions = data;
+        initProjectTomSelect(data.projects || []);
+        initSiteTomSelect(data.sites || []);
+        populateGenderFilter(data.genders || []);
+        syncInputsFromState();
+      })
+      .catch(err => toast('Failed to load filter options: ' + err.message, 'danger'));
+  }
+
+  /* ════════════════════════════════════════════════════
+     KPI
+     ════════════════════════════════════════════════════ */
+  function loadKPIs() {
+    return jsonFetch('/api/v1/data-management/kpi')
+      .then(d => {
+        document.getElementById('kpi-total').textContent          = (d.total_submissions ?? '—').toLocaleString();
+        document.getElementById('kpi-flagged').textContent        = (d.flagged_submissions ?? '—').toLocaleString();
+        document.getElementById('kpi-odk-issues').textContent     = (d.odk_has_issues_submissions ?? '—').toLocaleString();
+        document.getElementById('kpi-smartva-missing').textContent= (d.smartva_missing_submissions ?? '—').toLocaleString();
+      })
+      .catch(err => toast('Failed to load KPIs: ' + err.message, 'danger'));
+  }
+
+  /* KPI card click quick-filters */
+  document.getElementById('kpi-flagged-card').addEventListener('click', () => {
+    currentFilters.workflow = 'not_codeable_by_data_manager';
+    syncInputsFromState();
+    applyFilters();
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+  });
+  document.getElementById('kpi-odk-issues-card').addEventListener('click', () => {
+    currentFilters.odk_status = 'hasIssues';
+    syncInputsFromState();
+    applyFilters();
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+  });
+  document.getElementById('kpi-smartva-missing-card').addEventListener('click', () => {
+    currentFilters.smartva = 'missing';
+    syncInputsFromState();
+    applyFilters();
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+  });
+
+  /* ════════════════════════════════════════════════════
+     CHARTS
+     ════════════════════════════════════════════════════ */
+  const CHART_COLORS = [
+    '#4e73df','#1cc88a','#36b9cc','#f6c23e','#e74a3b',
+    '#858796','#5a5c69','#2e59d9','#17a673','#2c9faf',
+  ];
+
+  function loadProjectSiteChart() {
+    return jsonFetch('/api/v1/data-management/project-site-submissions')
+      .then(data => {
+        const stats = data.stats || [];
+        const labels = stats.map(s => `${s.site_id}`);
+        const totals = stats.map(s => s.total_submissions || 0);
+        const weekCounts = stats.map(s => s.this_week_submissions || 0);
+        const todayCounts = stats.map(s => s.today_submissions || 0);
+
+        const ctx = document.getElementById('dm-project-site-submissions-chart');
+        if (!ctx) return;
+        if (chartProjectSite) chartProjectSite.destroy();
+        chartProjectSite = new window.Chart(ctx, {
+          type: 'bar',
           data: {
-            labels: labels,
-            datasets: [{
-              data: data,
-              backgroundColor: PIE_PALETTE.slice(0, labels.length),
-              borderWidth: 1,
-              borderColor: '#ffffff',
-            }],
+            labels,
+            datasets: [
+              { label: 'Total',     data: totals,      backgroundColor: '#4e73df' },
+              { label: 'This Week', data: weekCounts,  backgroundColor: '#1cc88a' },
+              { label: 'Today',     data: todayCounts, backgroundColor: '#f6c23e' },
+            ],
           },
           options: {
+            indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'right',
-                labels: { boxWidth: 10, font: { size: 11 }, color: '#475569' },
-              },
-              tooltip: {
-                backgroundColor: '#ffffff',
-                titleColor: '#334155',
-                bodyColor: '#475569',
-                borderColor: '#dbe5ef',
-                borderWidth: 1,
-              },
-            },
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+            scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 10 } } } },
           },
-        };
-      }
+        });
+      })
+      .catch(err => toast('Project/site chart error: ' + err.message, 'warning'));
+  }
 
-      function loadDemographicsCharts() {
-        fetch('/api/v1/analytics/demographics')
-          .then(function (resp) { return resp.json(); })
-          .then(function (payload) {
-            // Age band chart
-            const ageBands = payload.age_bands || [];
-            const ageBandCanvas = document.getElementById('dm-age-band-chart');
-            if (!ageBands.length) {
-              $('#dm-age-band-empty').removeClass('d-none');
-            } else {
-              const labels = ageBands.map(function (r) { return r.band || 'unknown'; });
-              const counts = ageBands.map(function (r) { return r.count; });
-              if (ageBandChart) { ageBandChart.destroy(); }
-              ageBandChart = new Chart(ageBandCanvas, buildPieConfig(labels, counts));
-            }
-
-            // Sex chart
-            const sexData = payload.sex || [];
-            const sexCanvas = document.getElementById('dm-sex-chart');
-            if (!sexData.length) {
-              $('#dm-sex-empty').removeClass('d-none');
-            } else {
-              const sexLabels = sexData.map(function (r) { return r.sex || 'unknown'; });
-              const sexCounts = sexData.map(function (r) { return r.count; });
-              if (sexChart) { sexChart.destroy(); }
-              sexChart = new Chart(sexCanvas, buildPieConfig(sexLabels, sexCounts));
-            }
-          })
-          .catch(function (err) {
-            console.warn('Demographics chart load failed:', err);
+  function loadDemographicsCharts() {
+    return jsonFetch('/api/v1/analytics/demographics')
+      .then(data => {
+        /* Age band chart */
+        const ageBands = data.age_bands || [];
+        const ageCtx = document.getElementById('dm-age-band-chart');
+        if (ageCtx) {
+          if (chartAgeBand) chartAgeBand.destroy();
+          chartAgeBand = new window.Chart(ageCtx, {
+            type: 'pie',
+            data: {
+              labels: ageBands.map(b => b.band),
+              datasets: [{
+                data: ageBands.map(b => b.count),
+                backgroundColor: CHART_COLORS.slice(0, ageBands.length),
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            },
           });
-      }
-
-      loadDemographicsCharts();
-
-      function loadPreview() {
-        const selectedProjects = currentProjectSelection();
-        const selectedSites = currentSiteSelection();
-        if (!selectedProjects.length) {
-          syncPreviewStatus.text('Select at least one project to load preview.');
-          renderSyncPreview({ totals: { forms: 0, new_fetch_candidates: 0, updated_candidates: 0, missing_in_odk_flags: 0 }, forms: [] });
-          return;
         }
-        syncPreviewStatus.text('Loading live ODK preview…');
-        postPreview(selectedProjects, selectedSites)
-          .then(function (payload) {
-            renderSyncPreview(payload);
-            syncPreviewStatus.text('Live preview loaded from timezone-aware current sync context.');
-          })
-          .catch(function (err) {
-            syncPreviewStatus.text(err.message);
-            syncPreviewRows.empty().append(
-              '<tr><td colspan="6" class="text-danger">' + err.message + '</td></tr>'
-            );
+
+        /* Sex chart */
+        const sex = data.sex || [];
+        const sexCtx = document.getElementById('dm-sex-chart');
+        if (sexCtx) {
+          if (chartSex) chartSex.destroy();
+          chartSex = new window.Chart(sexCtx, {
+            type: 'pie',
+            data: {
+              labels: sex.map(s => s.sex),
+              datasets: [{
+                data: sex.map(s => s.count),
+                backgroundColor: ['#4e73df', '#1cc88a', '#f6c23e', '#e74a3b', '#858796'].slice(0, sex.length),
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+            },
           });
-      }
-
-      function loadSyncResults() {
-        return fetch('/api/v1/data-management/sync/runs')
-          .then(function (response) {
-            return response.json().then(function (payload) {
-              if (!response.ok) {
-                throw new Error(payload.error || 'Failed to load sync results.');
-              }
-              return payload;
-            });
-          })
-          .then(function (payload) {
-            const runs = payload.runs || [];
-            renderSyncResults(runs);
-            const hasRunning = runs.some(function (run) {
-              return run.status === 'running';
-            });
-            if (hasRunning && !syncResultsPoll) {
-              syncResultsPoll = window.setInterval(loadSyncResults, 5000);
-            } else if (!hasRunning && syncResultsPoll) {
-              window.clearInterval(syncResultsPoll);
-              syncResultsPoll = null;
-            }
-          })
-          .catch(function (err) {
-            syncResultsRows.empty().append(
-              '<tr><td colspan="7" class="text-danger">' + err.message + '</td></tr>'
-            );
-          });
-      }
-
-      async function syncFormsSequentially(forms) {
-        for (const form of forms) {
-          await postJson('/api/v1/data-management/forms/' + encodeURIComponent(form.form_id) + '/sync');
         }
-      }
+      })
+      .catch(err => toast('Demographics chart error: ' + err.message, 'warning'));
+  }
 
-      syncConfirmButton.on('click', async function () {
-        const selectedProjects = currentProjectSelection();
-        const matchedForms = formsMatchingSelection();
-        if (!selectedProjects.length) {
-          if (window.showAppToast) window.showAppToast('Select at least one project before starting sync.', 'warning');
-          return;
+  /* ════════════════════════════════════════════════════
+     SYNC RUNS
+     ════════════════════════════════════════════════════ */
+  function renderSyncRunRow(run) {
+    const statusBadge = run.status === 'running'
+      ? '<span class="badge bg-primary">Running</span>'
+      : run.status === 'completed'
+        ? '<span class="badge bg-success">Done</span>'
+        : '<span class="badge bg-danger">Failed</span>';
+    const started = run.started_at ? String(run.started_at).slice(0, 16).replace('T', ' ') : '—';
+    return `<tr>
+      <td title="${run.target || ''}">${(run.target || '').slice(0, 20)}</td>
+      <td>${started}</td>
+      <td>${statusBadge}</td>
+      <td>${run.records_added ?? '—'}</td>
+      <td>${run.records_updated ?? '—'}</td>
+    </tr>`;
+  }
+
+  function loadSyncRuns() {
+    return jsonFetch('/api/v1/data-management/sync/runs')
+      .then(data => {
+        const runs = data.runs || [];
+        const tbody = document.getElementById('dm-sync-runs-tbody');
+        if (!tbody) return runs;
+        if (!runs.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center small">No sync runs yet</td></tr>';
+          return runs;
         }
-        if (!matchedForms.length) {
-          if (window.showAppToast) window.showAppToast('No forms match the selected project and site scope.', 'warning');
-          return;
-        }
-        pendingSyncForms = matchedForms;
-        syncConfirmButton.prop('disabled', true);
-        try {
-          await syncFormsSequentially(pendingSyncForms);
-          syncConfirmModal.hide();
-          loadSyncResults();
-          if (window.showAppToast) {
-            window.showAppToast(
-              'Started sync for ' + pendingSyncForms.length + ' form' + (pendingSyncForms.length === 1 ? '' : 's') + '.',
-              'success'
-            );
-          }
-        } catch (err) {
-          if (window.showAppToast) window.showAppToast(err.message, 'danger');
-        } finally {
-          syncConfirmButton.prop('disabled', false);
+        tbody.innerHTML = runs.map(renderSyncRunRow).join('');
+        return runs;
+      })
+      .catch(err => {
+        toast('Failed to load sync runs: ' + err.message, 'danger');
+        return [];
+      });
+  }
+
+  function startSyncRunsPolling() {
+    if (syncRunsPollInterval) return;
+    syncRunsPollInterval = setInterval(() => {
+      loadSyncRuns().then(runs => {
+        const anyRunning = runs.some(r => r.status === 'running');
+        if (!anyRunning) {
+          clearInterval(syncRunsPollInterval);
+          syncRunsPollInterval = null;
         }
       });
+    }, 5000);
+  }
 
-      syncConfirmModalEl.addEventListener('hidden.bs.modal', function () {
-        pendingSyncForms = [];
-      });
+  /* ════════════════════════════════════════════════════
+     SYNC MODAL — Tom Select
+     ════════════════════════════════════════════════════ */
+  function initSyncModalSelects() {
+    const projEl = document.getElementById('dm-sync-project-select');
+    const siteEl = document.getElementById('dm-sync-site-select');
+    if (!projEl || !siteEl) return;
 
-      $('.dm-refresh-submission-btn').on('click', function () {
-        const sid = $(this).data('sid');
-        postJson('/api/v1/data-management/submissions/' + encodeURIComponent(sid) + '/sync')
-          .then(function (payload) {
-            if (window.showAppToast) window.showAppToast(payload.message || 'Submission refresh started.', 'success');
-          })
-          .catch(function (err) {
-            if (window.showAppToast) window.showAppToast(err.message, 'danger');
-          });
-      });
+    if (tsSyncProject) tsSyncProject.destroy();
+    if (tsSyncSite) tsSyncSite.destroy();
 
-      restoreFilterState();
-      applyTableFilters();
-      renderFilterPills();
-      loadProjectSiteSubmissionsChart();
-      loadSyncResults();
+    tsSyncProject = new TomSelect(projEl, {
+      plugins: ['remove_button'],
+      options: (filterOptions.projects || []).map(p => ({ value: p, text: p })),
+      placeholder: 'All projects…',
+      onChange: () => {
+        cascadeSyncSiteSelect();
+        loadSyncPreview();
+      },
     });
-  </script>
+
+    tsSyncSite = new TomSelect(siteEl, {
+      plugins: ['remove_button'],
+      options: (filterOptions.sites || []).map(s => ({ value: s.site_id, text: s.site_id })),
+      placeholder: 'All sites…',
+      onChange: () => loadSyncPreview(),
+    });
+  }
+
+  function cascadeSyncSiteSelect() {
+    if (!tsSyncSite) return;
+    const selected = tsSyncProject ? tsSyncProject.getValue() : [];
+    const allSites = filterOptions.sites || [];
+    const filtered = selected.length
+      ? allSites.filter(s => selected.includes(s.project_id))
+      : allSites;
+    const current = tsSyncSite.getValue();
+    tsSyncSite.clearOptions();
+    filtered.forEach(s => tsSyncSite.addOption({ value: s.site_id, text: s.site_id }));
+    tsSyncSite.refreshOptions(false);
+    const valid = new Set(filtered.map(s => s.site_id));
+    tsSyncSite.clear(true);
+    current.filter(v => valid.has(v)).forEach(v => tsSyncSite.addItem(v, true));
+  }
+
+  function loadSyncPreview() {
+    const projectIds = tsSyncProject ? tsSyncProject.getValue() : [];
+    const siteIds    = tsSyncSite    ? tsSyncSite.getValue()    : [];
+
+    const confirmBtn = document.getElementById('dm-sync-confirm-btn');
+    if (confirmBtn) confirmBtn.disabled = true;
+
+    /* reset stats */
+    ['sync-stat-total','sync-stat-new','sync-stat-updated','sync-stat-missing']
+      .forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '…';
+      });
+
+    const tbody = document.getElementById('dm-sync-preview-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-center small text-muted">Loading preview…</td></tr>';
+
+    jsonFetch('/api/v1/data-management/sync/preview', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRFToken': CSRF,
+      },
+      body: JSON.stringify({ project_ids: projectIds, site_ids: siteIds }),
+    })
+      .then(data => {
+        const totals = data.totals || {};
+        document.getElementById('sync-stat-total').textContent   = totals.forms ?? 0;
+        document.getElementById('sync-stat-new').textContent     = totals.new_fetch_candidates ?? 0;
+        document.getElementById('sync-stat-updated').textContent = totals.updated_candidates ?? 0;
+        document.getElementById('sync-stat-missing').textContent = totals.missing_in_odk_flags ?? 0;
+
+        const forms = data.forms || [];
+        if (!forms.length) {
+          if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="text-muted text-center small">No forms matched</td></tr>';
+          return;
+        }
+        if (tbody) {
+          tbody.innerHTML = forms.map(f => `<tr>
+            <td class="small">${f.form_id || ''}</td>
+            <td class="small">${f.project_id || ''}</td>
+            <td class="small">${f.site_id || ''}</td>
+            <td class="small">${f.local_submissions ?? '—'}</td>
+            <td class="small">${f.odk_submissions ?? '—'}</td>
+            <td class="small">${f.new_fetch_candidates ?? '—'}</td>
+            <td class="small">${f.missing_in_odk_flags ?? '—'}</td>
+            <td class="small">${f.preview_status || ''}</td>
+          </tr>`).join('');
+        }
+        if (confirmBtn) confirmBtn.disabled = false;
+
+        /* stash form ids for confirm */
+        confirmBtn._formIds = forms.map(f => f.form_id).filter(Boolean);
+      })
+      .catch(err => {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-danger small">${err.message}</td></tr>`;
+      });
+  }
+
+  /* ════════════════════════════════════════════════════
+     SYNC CONFIRM
+     ════════════════════════════════════════════════════ */
+  async function runSyncForForms(formIds) {
+    const confirmBtn = document.getElementById('dm-sync-confirm-btn');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing…';
+    }
+
+    let succeeded = 0;
+    let failed = 0;
+    for (const formId of formIds) {
+      try {
+        await jsonFetch(`/api/v1/data-management/forms/${formId}/sync`, { method: 'POST' });
+        succeeded++;
+      } catch (err) {
+        failed++;
+        console.warn(`Sync failed for form ${formId}:`, err.message);
+      }
+    }
+
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down me-1"></i>Sync All';
+    }
+
+    if (failed === 0) {
+      toast(`Sync complete: ${succeeded} form(s) synced`, 'success');
+    } else {
+      toast(`Sync finished: ${succeeded} succeeded, ${failed} failed`, 'warning');
+    }
+
+    /* close modal, reload runs, start polling */
+    const modal = bootstrap.Modal.getInstance(document.getElementById('dm-sync-confirm-modal'));
+    if (modal) modal.hide();
+    loadSyncRuns().then(runs => {
+      if (runs.some(r => r.status === 'running')) startSyncRunsPolling();
+    });
+    if (gridApi) gridApi.refreshInfiniteCache();
+  }
+
+  /* ════════════════════════════════════════════════════
+     EVENT WIRING
+     ════════════════════════════════════════════════════ */
+  function wireEvents() {
+    /* toolbar search */
+    document.getElementById('dm-apply-filters-btn').addEventListener('click', applyFilters);
+    document.getElementById('dm-clear-filters-btn').addEventListener('click', clearAllFilters);
+    document.getElementById('dm-search-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') applyFilters();
+    });
+
+    /* offcanvas filter buttons */
+    document.getElementById('dm-offcanvas-apply-btn').addEventListener('click', () => {
+      applyFilters();
+      bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+    });
+    document.getElementById('dm-offcanvas-clear-btn').addEventListener('click', clearAllFilters);
+
+    /* refresh dashboard */
+    document.getElementById('dm-refresh-dashboard-btn').addEventListener('click', () => {
+      const btn = document.getElementById('dm-refresh-dashboard-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Refreshing…';
+      jsonFetch('/api/v1/analytics/mv/refresh', { method: 'POST' })
+        .then(() => {
+          toast('Dashboard refreshed', 'success');
+          return Promise.all([loadKPIs(), loadProjectSiteChart(), loadDemographicsCharts()]);
+        })
+        .catch(err => toast('Refresh error: ' + err.message, 'danger'))
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1"></i>Refresh Dashboard';
+          if (gridApi) gridApi.refreshInfiniteCache();
+        });
+    });
+
+    /* sync modal open */
+    document.getElementById('dm-open-sync-modal-btn').addEventListener('click', () => {
+      const modal = new bootstrap.Modal(document.getElementById('dm-sync-confirm-modal'));
+      modal.show();
+      initSyncModalSelects();
+      loadSyncPreview();
+    });
+
+    /* sync confirm */
+    document.getElementById('dm-sync-confirm-btn').addEventListener('click', () => {
+      const btn = document.getElementById('dm-sync-confirm-btn');
+      const formIds = btn._formIds || [];
+      if (!formIds.length) {
+        toast('No forms to sync', 'warning');
+        return;
+      }
+      runSyncForForms(formIds);
+    });
+
+    /* refresh sync runs */
+    document.getElementById('dm-refresh-sync-runs-btn').addEventListener('click', () => {
+      loadSyncRuns().then(runs => {
+        if (runs.some(r => r.status === 'running')) startSyncRunsPolling();
+      });
+    });
+
+    /* ops offcanvas: load runs on open */
+    document.getElementById('dm-ops-offcanvas').addEventListener('show.bs.offcanvas', () => {
+      loadSyncRuns().then(runs => {
+        if (runs.some(r => r.status === 'running')) startSyncRunsPolling();
+      });
+    });
+  }
+
+  /* ════════════════════════════════════════════════════
+     BOOTSTRAP
+     ════════════════════════════════════════════════════ */
+  function init() {
+    loadPersistedState();
+    initTable();
+    renderColVisibilityPanel();
+    wireEvents();
+
+    /* apply filters after grid is ready */
+    loadFilterOptions().then(() => {
+      syncInputsFromState();
+      const hasFilters = Object.values(currentFilters).some(v => v !== '' && v != null);
+      if (hasFilters) {
+        renderFilterPills();
+        // Grid will load with filters via createDataSource
+      }
+    });
+
+    Promise.all([
+      loadKPIs(),
+      loadProjectSiteChart(),
+      loadDemographicsCharts(),
+    ]);
+
+    renderFilterPills();
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
 {% endblock %}

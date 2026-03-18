@@ -22,9 +22,12 @@ from app import db
 from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
+    dm_filter_options,
     dm_form_in_scope,
+    dm_kpi,
     dm_project_site_submission_stats,
     dm_scoped_forms,
+    dm_submissions_page,
     filter_scoped_forms,
     sync_run_entries,
     sync_run_target_label,
@@ -39,6 +42,78 @@ def _require_data_manager():
         return jsonify({"error": "Data-manager access is required."}), 403
     return None
 
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/data-management/submissions  — paginated submission table
+# ---------------------------------------------------------------------------
+
+@bp.get("/submissions")
+@login_required
+def submissions():
+    err = _require_data_manager()
+    if err:
+        return err
+
+    page     = max(1, request.args.get("page", 1, type=int))
+    per_page = min(100, max(10, request.args.get("size", 25, type=int)))
+
+    # Tabulator sends sort as sort[0][field] / sort[0][dir]
+    sort_field = request.args.get("sort[0][field]", "va_submission_date")
+    sort_dir   = request.args.get("sort[0][dir]", "desc")
+
+    result = dm_submissions_page(
+        current_user,
+        page=page,
+        per_page=per_page,
+        search=request.args.get("search", ""),
+        project=request.args.get("project", ""),
+        site=request.args.get("site", ""),
+        date_from=request.args.get("date_from") or None,
+        date_to=request.args.get("date_to") or None,
+        odk_status=request.args.get("odk_status", ""),
+        smartva=request.args.get("smartva", ""),
+        age_group=request.args.get("age_group", ""),
+        gender=request.args.get("gender", ""),
+        odk_sync=request.args.get("odk_sync", ""),
+        workflow=request.args.get("workflow", ""),
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+    )
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/data-management/kpi  — dashboard KPI counts
+# ---------------------------------------------------------------------------
+
+@bp.get("/kpi")
+@login_required
+def kpi():
+    err = _require_data_manager()
+    if err:
+        return err
+
+    project_ids        = sorted(current_user.get_data_manager_projects())
+    project_site_pairs = current_user.get_data_manager_project_sites()
+    return jsonify(dm_kpi(current_user, project_ids, project_site_pairs))
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/data-management/filter-options  — distinct filter values
+# ---------------------------------------------------------------------------
+
+@bp.get("/filter-options")
+@login_required
+def filter_options():
+    err = _require_data_manager()
+    if err:
+        return err
+    return jsonify(dm_filter_options(current_user))
+
+
+# ---------------------------------------------------------------------------
+# (existing endpoints below)
+# ---------------------------------------------------------------------------
 
 @bp.post("/forms/<form_id>/sync")
 @login_required

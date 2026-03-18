@@ -1247,7 +1247,7 @@
       }
 
       function postPreview(projectIds, siteIds) {
-        return fetch('/data-management/api/sync/preview', {
+        return fetch('/api/v1/data-management/sync/preview', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1274,7 +1274,7 @@
           return;
         }
 
-        return fetch('/data-management/api/project-site-submissions')
+        return fetch('/api/v1/data-management/project-site-submissions')
           .then(function (response) {
             return response.json().then(function (payload) {
               if (!response.ok) {
@@ -1504,7 +1504,7 @@
       }
 
       function loadSyncResults() {
-        return fetch('/data-management/api/sync/runs')
+        return fetch('/api/v1/data-management/sync/runs')
           .then(function (response) {
             return response.json().then(function (payload) {
               if (!response.ok) {
@@ -1535,7 +1535,7 @@
 
       async function syncFormsSequentially(forms) {
         for (const form of forms) {
-          await postJson('/data-management/api/forms/' + encodeURIComponent(form.form_id) + '/sync');
+          await postJson('/api/v1/data-management/forms/' + encodeURIComponent(form.form_id) + '/sync');
         }
       }
 
@@ -1575,7 +1575,7 @@
 
       $('.dm-refresh-submission-btn').on('click', function () {
         const sid = $(this).data('sid');
-        postJson('/data-management/api/submissions/' + encodeURIComponent(sid) + '/sync')
+        postJson('/api/v1/data-management/submissions/' + encodeURIComponent(sid) + '/sync')
           .then(function (payload) {
             if (window.showAppToast) window.showAppToast(payload.message || 'Submission refresh started.', 'success');
           })

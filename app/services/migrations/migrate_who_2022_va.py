@@ -314,7 +314,7 @@ class Who2022VaMigrator:
                 "render_mode": defaults.get("render_mode", "table_sections"),
                 "show_to_coder": defaults.get("show_to_coder", True),
                 "show_to_reviewer": defaults.get("show_to_reviewer", True),
-                "show_to_site_pi": defaults.get("show_to_site_pi", True),
+                "show_to_site_pi_datamanager": defaults.get("show_to_site_pi_datamanager", True),
                 "always_include": defaults.get("always_include", False),
                 "is_default_start": defaults.get("is_default_start", False),
                 "is_active": category.is_active,

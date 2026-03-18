@@ -41,8 +41,8 @@ class CategoryRenderingService:
     ROLE_VISIBILITY_COLUMN = {
         "coder": "show_to_coder",
         "reviewer": "show_to_reviewer",
-        "site_pi": "show_to_site_pi",
-        "data_manager": "show_to_site_pi",
+        "site_pi": "show_to_site_pi_datamanager",
+        "data_manager": "show_to_site_pi_datamanager",
     }
 
     WORKFLOW_NAV_ITEMS = {

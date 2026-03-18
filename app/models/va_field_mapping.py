@@ -101,7 +101,7 @@ class MasCategoryDisplayConfig(db.Model):
     )
     show_to_coder: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
     show_to_reviewer: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
-    show_to_site_pi: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
+    show_to_site_pi_datamanager: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
     always_include: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=False)
     is_default_start: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=False)
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)

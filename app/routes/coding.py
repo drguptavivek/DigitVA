@@ -38,7 +38,7 @@ from app.services.odk_review_service import sync_not_codeable_review_state
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaDataManagerReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
-va_api = Blueprint("va_api", __name__)
+coding = Blueprint("coding", __name__)
 DEMO_RETENTION_HOURS = 6
 
 
@@ -154,10 +154,10 @@ def _data_manager_reason_label(reason_code: str) -> str:
     return label_map.get(reason_code, reason_code)
 
 
-@va_api.route("/<va_action>/<va_actiontype>/<va_sid>/<va_partial>", methods=["GET", "POST"])
+@coding.route("/<va_action>/<va_actiontype>/<va_sid>/<va_partial>", methods=["GET", "POST"])
 @login_required
 @va_validate_permissions()
-def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
+def renderpartial(va_action, va_actiontype, va_sid, va_partial):
     va_submission = db.session.get(VaSubmissions, va_sid)
     _form_type_code = va_get_form_type_code_for_form(
         va_submission.va_form_id if va_submission else None
@@ -902,9 +902,9 @@ def va_renderpartial(va_action, va_actiontype, va_sid, va_partial):
         
         
 
-@va_api.route('/vaservemedia/<va_form_id>/<va_filename>')
+@coding.route('/media/<va_form_id>/<va_filename>')
 @login_required
-def va_servemedia(va_form_id, va_filename):
+def serve_media(va_form_id, va_filename):
     # Validate form_id format to prevent path traversal
     if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
         abort(400, description="Invalid form ID format")
@@ -931,7 +931,7 @@ def va_servemedia(va_form_id, va_filename):
 
 
 # # * api call to fetch coding / smartva information for some sid / va form
-# @va_api.route("/form/<sid>/coding", methods=['GET', 'POST'])
+# @coding.route("/form/<sid>/coding", methods=['GET', 'POST'])
 # def get_smartva(sid):
 #     # check if form exists
 #     form_va = db.session.scalar(sa.select(VaSubmissions).where(VaSubmissions.sid == sid))
@@ -964,7 +964,7 @@ def va_servemedia(va_form_id, va_filename):
 
 
 # # * api call to search for allotable ICD codes
-# @va_api.route('/search_icd_codes')
+# @coding.route('/search_icd_codes')
 # def search_icd_codes():
 #     search_term = request.args.get('q', '')
 #     page = int(request.args.get('page', 1))
@@ -997,7 +997,7 @@ def va_servemedia(va_form_id, va_filename):
 #         }
 #     })
 
-# @va_api.route("/api/<sid>/save-assessment", methods=['POST'])
+# @coding.route("/api/<sid>/save-assessment", methods=['POST'])
 # def save_assessment(sid):
 #     """POST - Save assessment data"""
 #     form = VaFinalAssessmentForm()

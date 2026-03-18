@@ -1,4 +1,4 @@
-<form method="POST" hx-post="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vareviewform') }}" hx-target="#form-container" hx-swap="innerHTML">
+<form method="POST" hx-post="{{ url_for('coding.renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vareviewform') }}" hx-target="#form-container" hx-swap="innerHTML">
   {{ form.hidden_tag() }}
 
   <div class="mb-3">

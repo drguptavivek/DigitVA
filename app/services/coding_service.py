@@ -1,7 +1,7 @@
 """Coding service — shared helpers for VA coding routes.
 
 Used by:
-  app/routes/va_api.py          (HTMX rendering routes)
+  app/routes/coding.py          (HTMX rendering routes)
   app/routes/api/va.py          (JSON API routes)
 """
 

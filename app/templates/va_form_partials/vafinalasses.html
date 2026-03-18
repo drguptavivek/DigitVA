@@ -1,5 +1,5 @@
 <form method="POST" id="finalAssessmentForm"
-      hx-post="{{ url_for('va_api.va_renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vafinalasses') }}"
+      hx-post="{{ url_for('coding.renderpartial', va_action = va_action, va_actiontype = va_actiontype, va_sid = va_sid, va_partial = 'vafinalasses') }}"
       hx-target="#form-container2" hx-swap="innerHTML">
 
       {# SmartVA results section #}

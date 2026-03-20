@@ -25,13 +25,34 @@ ODK sync is an incremental batch process that:
 11. Marks local sync issues when a local submission is missing from active ODK submissions
 12. Runs SmartVA on any new or updated submissions
 
-## Known Issue: Workflow State Guards
+## Current State: Workflow State Guards
 
-> **WARNING**: The current implementation does NOT respect workflow state guards for `coder_finalized` submissions.
->
-> When ODK data changes, the system unconditionally destroys all workflow artifacts including finalized CODs.
->
-> See [ODK Sync Policy](../policy/odk-sync-policy.md) for the intended behavior and planned fixes.
+The current implementation now respects protected-state sync guards for
+finalized submissions.
+
+Current behavior:
+
+- ODK updates on protected submissions do not automatically destroy active COD artifacts
+- the submission transitions to `revoked_va_data_changed`
+- SmartVA is not regenerated automatically for that protected state
+- the current runtime/API still allows data managers to accept or reject that protected-state transition
+
+Remaining gaps:
+
+- the prior ODK payload is not stored as a dedicated pre-update snapshot before
+  `va_submissions.va_data` is overwritten
+- explicit historical-COD linkage for upstream-change review is not yet modeled
+- notification artifacts for data managers/admins are not yet created
+- policy and implementation are not yet aligned on whether accept/reject must be admin-only
+
+Target naming cleanup:
+
+- current implemented state key: `revoked_va_data_changed`
+- preferred future key: `finalized_upstream_changed`
+- preferred UI label: `Finalized - ODK Data Changed`
+
+See [ODK Sync Policy](../policy/odk-sync-policy.md) for the policy baseline and
+remaining implementation work.
 
 ## Connection Model
 
@@ -321,7 +342,7 @@ Related policy:
 During upsert:
 
 - Submission exists with same `va_odk_updatedat` → skipped (no DB write, no attachment call)
-- Submission exists with changed `va_odk_updatedat` + protected state → metadata updated, transitions to `revoked_va_data_changed`
+- Submission exists with changed `va_odk_updatedat` + protected state → metadata updated, transitions to `revoked_va_data_changed` (target future rename: `finalized_upstream_changed`)
 - Submission exists with changed `va_odk_updatedat` + non-protected state → updated; active workflow artifacts deactivated; consent re-evaluated to set new workflow state
 - Submission does not exist → inserted unconditionally; consent evaluated to set initial workflow state
 

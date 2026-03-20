@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-19
+last_updated: 2026-03-20
 ---
 
 # Coding Workflow State Machine Policy
@@ -147,12 +147,18 @@ following business states:
 
 These states describe the local business outcome for the submission.
 
+Target naming cleanup:
+
+- current implemented state key: `revoked_va_data_changed`
+- preferred future state key: `finalized_upstream_changed`
+- preferred UI label: `Finalized - ODK Data Changed`
+
 ## Protected States
 
 The following states are **protected** from automatic data changes:
 
 - `coder_finalized` — Final COD has been submitted; ODK sync and SmartVA blocked
-- `revoked_va_data_changed` — Upstream data changed after finalization; pending review
+- `revoked_va_data_changed` — Current implemented key for finalized cases whose upstream ODK data changed; pending resolution
 - `closed` — Terminal state; no further changes permitted
 
 See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartva-generation-policy.md) for details.
@@ -196,8 +202,8 @@ See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartv
                                 |              |
                                 |              +-------------------------+
                                 |              |                         |
-                                |              | revision window         | upstream ODK data changed
-                                |              | allows recode           | (automatic during sync)
+                                |              | recode window expires   | upstream ODK data changed
+                                |              | automatically           | (automatic during sync)
                                 |              v                         v
                                 |        +-----------+        +---------------------------+
                                 |        |  closed   |        | revoked_va_data_changed   | <-- PROTECTED STATE
@@ -251,18 +257,30 @@ See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartv
       to the same completed demo coding outcome
 
 
-  Upstream data change for finalized submission (NEW):
+  Upstream data change for finalized submission:
 
     coder_finalized ----- ODK data changed -----> revoked_va_data_changed
 
+    Target naming cleanup:
+
+    coder_finalized ----- ODK data changed -----> finalized_upstream_changed
+
     Notes:
     - ODK is source of truth, but finalized COD is protected
-    - Historical COD preserved as base_final_assessment
-    - Historical VA data snapshot preserved
-    - Notification sent to data managers/admins
+    - Current implementation preserves active coding artifacts and writes audit logs
+    - Historical COD linkage, VA payload snapshotting, and notification artifacts are still incomplete
     - Requires manual intervention to resolve
     - SmartVA NOT regenerated automatically
     - See ODK Sync Policy for full details
+
+
+  Optional admin override:
+
+    coder_finalized ----- admin overrides final COD -----> ready_for_coding
+
+    Notes:
+    - this is separate from upstream ODK-change handling
+    - this returns the case to the normal coding-ready queue
 
 
   Optional data-manager triage:
@@ -436,7 +454,7 @@ That means:
 
 Only coder-finalized cases may be recoded.
 
-During the configured revision window:
+During the configured recode window:
 
 - a coder-finalized case may be reopened for recode
 - the existing finalized COD remains the operative result until a replacement
@@ -458,14 +476,20 @@ The system must preserve auditability across:
 - recode attempts
 - superseded outcomes
 
-## Upstream Data Change (revoked_va_data_changed)
+## Upstream Data Change (`revoked_va_data_changed` / target `finalized_upstream_changed`)
 
 When ODK submission data changes for a `coder_finalized` submission, the system
 must NOT automatically destroy the finalized COD or reset the workflow state.
 
 ### State Transition
 
+Current implemented transition:
+
 `coder_finalized` -> `revoked_va_data_changed`
+
+Preferred target naming:
+
+`coder_finalized` -> `finalized_upstream_changed`
 
 This transition occurs automatically during ODK sync when:
 - The submission exists in `coder_finalized` state
@@ -476,35 +500,38 @@ This transition occurs automatically during ODK sync when:
 
 | Artifact | Preservation Method |
 |---|---|
-| Final COD | Stored as `base_final_assessment` in `VaCodingEpisode` |
-| VA data snapshot | Preserved before ODK update |
-| Audit trail | `VaSubmissionsAuditlog` entries with full context |
-| SmartVA result | NOT regenerated, existing result retained |
+| Final COD | Current implementation keeps existing final assessment rows active; explicit preserved-link model still needed |
+| VA data snapshot | Gap: current implementation overwrites `va_submissions.va_data` without a dedicated pre-update snapshot |
+| Audit trail | Implemented via `VaSubmissionsAuditlog` and workflow-state audit entries |
+| SmartVA result | Protected from automatic regeneration while in this protected state |
 
 ### Notification Requirements
 
 When this transition occurs:
 
-1. Immediate notification to data managers for the project/site and system admins
-2. Notification content includes submission identifier, timestamps, and action required
-3. Dashboard visibility: submissions appear in dedicated `revoked_va_data_changed` queue
+1. Dashboard visibility is implemented through the dedicated protected-state queue/filter
+2. Immediate notification artifacts for data managers/admins are still a gap
+3. Notification content requirements remain a target-state requirement
 
 ### Resolution Pathways
 
 | Action | Outcome |
 |---|---|
-| Accept upstream change | Transition to `ready_for_coding`, allow recode |
-| Reject upstream change | Restore to `coder_finalized`, discard ODK update |
+| Accept upstream change | Transition to `ready_for_coding`, allow recode against the new ODK data |
+| Reject upstream change | Restore to `coder_finalized`, keep current COD authoritative |
+| Admin override final COD | Transition from `coder_finalized` to `ready_for_coding` without requiring an upstream ODK change |
 
-Only admins can resolve `revoked_va_data_changed` submissions.
+Policy target: only admins can resolve finalized-upstream-change submissions.
+
+Current implementation gap: data managers can currently perform accept/reject actions.
 
 ### Authorization
 
 | Operation | Coder | Data Manager | Admin |
 |---|---|---|---|
 | View revoked submissions | No | Yes (scoped) | Yes |
-| Accept upstream change | No | No | Yes |
-| Reject upstream change | No | No | Yes |
+| Accept upstream change | No | Current implementation: Yes | Policy target: Yes (Admin only) |
+| Reject upstream change | No | Current implementation: Yes | Policy target: Yes (Admin only) |
 
 ## Reviewer Oversight Workflow
 
@@ -581,7 +608,7 @@ A case is considered locally complete when one of these business outcomes is
 true:
 
 - `coder_finalized`
-- `revoked_va_data_changed` (pending resolution)
+- `revoked_va_data_changed` (pending resolution; target name `finalized_upstream_changed`)
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
 

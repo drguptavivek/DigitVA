@@ -16,7 +16,7 @@ This policy defines how ODK data synchronization interacts with the coding workf
 
 ODK is the source of truth for submission content. All submissions present in ODK are stored in DigitVA — including those with refused or missing consent. This ensures complete auditability and allows consent corrections made in ODK to be picked up automatically on the next sync.
 
-**Coder-finalized submissions have protected status** that prevents automatic data refresh without explicit authorization.
+**Coder-finalized submissions have protected status** that prevents automatic destructive refresh without explicit authorization.
 
 **Consent determines workflow routing, not storage.** Submissions without valid explicit consent are stored but never enter the coding workflow.
 
@@ -55,7 +55,13 @@ Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refu
 The following workflow states are **protected** from automatic ODK data refresh:
 
 - `coder_finalized` — Final COD has been submitted and is authoritative
+- `revoked_va_data_changed` — Current implemented state key for finalized cases whose ODK data changed after finalization
 - `closed` — Terminal state, no further changes permitted
+
+Target naming cleanup:
+
+- preferred future state key: `finalized_upstream_changed`
+- preferred UI label: `Finalized - ODK Data Changed`
 
 `consent_refused` is **not** protected — ODK updates flow through freely so that consent corrections are picked up automatically.
 
@@ -99,7 +105,7 @@ For each submission in the form:
 |---|---|---|---|
 | Non-protected | Yes | Fetch, upsert, run SmartVA | Fetch, upsert, run SmartVA |
 | Non-protected | No | Skip (no change) | Skip (no change) |
-| Protected | Yes | **Mark as `revoked_va_data_changed`**, preserve history | Fetch, upsert, reset workflow |
+| Protected | Yes | **Mark as `revoked_va_data_changed`**, preserve workflow artifacts, require manual resolution | Admin-only explicit override path required |
 | Protected | No | Skip | Skip |
 
 ### Bulk Sync (`fetch_all`)
@@ -110,13 +116,24 @@ Same behavior as form-level sync, applied across all active forms.
 
 When ODK data changes for a `coder_finalized` submission:
 
-### Current Behavior (PROBLEM)
+### Current Implemented Baseline
 
-The system unconditionally:
-1. Destroys ALL workflow artifacts (VaFinalAssessments, VaCoderReview, etc.)
-2. Clears final COD authority
-3. Resets workflow to `ready_for_coding`
-4. No notification, no audit trail of the destruction
+The current runtime behavior is partially aligned with this policy:
+
+1. Protected submissions are **not** auto-reset to `ready_for_coding`
+2. Existing coding artifacts are **not** destroyed on protected-state ODK update
+3. The submission transitions to `revoked_va_data_changed`
+4. Audit logging is written for the state transition
+
+### Remaining Gaps
+
+The current implementation does **not yet** complete the full target behavior:
+
+1. Historical COD is not explicitly preserved through a dedicated upstream-change linkage like `base_final_assessment`
+2. The prior ODK payload is not snapshotted before `va_submissions.va_data` is overwritten
+3. No explicit notification artifact is created for data managers/admins
+4. The state key remains `revoked_va_data_changed`; the preferred future name is `finalized_upstream_changed`
+5. Authorization is not yet aligned with the admin-only policy target for accept/reject resolution
 
 ### Required Behavior
 
@@ -124,7 +141,9 @@ When upstream data changes for a finalized submission:
 
 1. **Do NOT destroy workflow artifacts**
 2. **Do NOT reset workflow state automatically**
-3. **Transition to `revoked_va_data_changed`** state
+3. **Transition to the finalized-upstream-change state**
+   Current implemented key: `revoked_va_data_changed`
+   Preferred target key: `finalized_upstream_changed`
 4. **Preserve historical COD** as `base_final_assessment` (like recode does)
 5. **Preserve historical VA data** snapshot
 6. **Create notification** for data managers/admins
@@ -134,6 +153,10 @@ When upstream data changes for a finalized submission:
 
 ```
 coder_finalized --[ODK data changed]--> revoked_va_data_changed
+
+Target naming cleanup:
+
+coder_finalized --[ODK data changed]--> finalized_upstream_changed
 ```
 
 This state indicates:
@@ -146,14 +169,14 @@ This state indicates:
 
 ## Historical Data Preservation
 
-When transitioning to `revoked_va_data_changed`:
+When transitioning to the finalized-upstream-change state:
 
 | What | How |
 |---|---|
-| Final COD | Preserved via `VaCodingEpisode.base_final_assessment_id` |
-| VA data snapshot | Stored before ODK update, referenceable |
+| Final COD | Preserve explicit linkage to the previously authoritative final assessment; current code only preserves final COD implicitly by leaving active rows in place |
+| VA data snapshot | Stored before ODK update, referenceable; current code does not yet store a dedicated pre-update snapshot |
 | Audit trail | `VaSubmissionsAuditlog` entries with full context |
-| Notification | Created for data managers and admins |
+| Notification | Created for data managers and admins; current code does not yet create a durable notification artifact |
 
 ## Notification Requirements
 
@@ -171,7 +194,7 @@ When a finalized submission's upstream data changes:
    - Action required (review and decide)
 
 3. **Dashboard visibility**:
-   - Submissions in `revoked_va_data_changed` appear in a dedicated queue
+   - Submissions in the finalized-upstream-change state appear in a dedicated queue
    - Count shown on data manager dashboard
    - Filterable in submission lists
 
@@ -184,8 +207,31 @@ When a finalized submission's upstream data changes:
 | Form sync | No | Yes | Yes |
 | Form sync (force on protected) | No | No | Yes |
 | Bulk sync | No | No | Yes |
-| Accept upstream change | No | No | Yes |
-| Reject upstream change (restore finalized) | No | No | Yes |
+| Accept upstream change | No | Current implementation: Yes | Policy target: Yes (Admin only) |
+| Reject upstream change (restore finalized) | No | Current implementation: Yes | Policy target: Yes (Admin only) |
+
+## Current Authorization Gap
+
+The current runtime/API implementation still allows data managers to resolve
+`revoked_va_data_changed` submissions.
+
+That is a known gap relative to the policy target above. Until resolved:
+
+- treat data-manager resolution as transitional behavior
+- do not assume the admin-only authorization matrix is fully enforced in code
+
+## Desired State Snapshot
+
+```text
+coder_finalized -- ODK data changed during sync --> finalized_upstream_changed
+                                                  UI: Finalized - ODK Data Changed
+
+finalized_upstream_changed -- admin accepts upstream change --> ready_for_coding
+finalized_upstream_changed -- admin rejects upstream change --> coder_finalized
+
+coder_finalized -- recode window expires automatically --> closed
+coder_finalized -- admin override final COD -----------> ready_for_coding
+```
 
 ## Service Architecture
 

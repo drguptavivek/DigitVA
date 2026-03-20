@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
 
-from app import db
+from app import db, limiter
 from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
@@ -57,6 +57,7 @@ def _require_data_manager_or_admin():
 
 @bp.get("/submissions")
 @login_required
+@limiter.limit("20 per minute")
 def submissions():
     err = _require_data_manager()
     if err:
@@ -96,6 +97,7 @@ def submissions():
 
 @bp.get("/kpi")
 @login_required
+@limiter.limit("20 per minute")
 def kpi():
     err = _require_data_manager()
     if err:
@@ -112,6 +114,7 @@ def kpi():
 
 @bp.get("/filter-options")
 @login_required
+@limiter.limit("20 per minute")
 def filter_options():
     err = _require_data_manager()
     if err:

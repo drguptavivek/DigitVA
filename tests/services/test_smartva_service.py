@@ -36,6 +36,8 @@ from app.services.submission_workflow_service import (
     WORKFLOW_CLOSED,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVOKED_VA_DATA_CHANGED,
+    WORKFLOW_SMARTVA_PENDING,
+    get_submission_workflow_state,
     set_submission_workflow_state,
 )
 from tests.base import BaseTestCase
@@ -366,7 +368,7 @@ class GenerateForSubmissionTests(BaseTestCase):
         """For an allowed state, SmartVA utilities are called and a result is saved."""
         sub = self._make_submission("uuid:gen-proceed")
         set_submission_workflow_state(
-            sub.va_sid, WORKFLOW_READY_FOR_CODING, reason="test", by_role="test"
+            sub.va_sid, WORKFLOW_SMARTVA_PENDING, reason="test", by_role="test"
         )
         db.session.flush()
 
@@ -413,6 +415,10 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
         self.assertIsNotNone(result_row)
         self.assertEqual(result_row.va_smartva_cause1, "Cardiovascular")
+        self.assertEqual(
+            get_submission_workflow_state(sub.va_sid),
+            WORKFLOW_READY_FOR_CODING,
+        )
 
     def test_does_not_call_smartva_utilities_for_protected_state(self):
         """SmartVA binary must never be invoked for protected submissions."""

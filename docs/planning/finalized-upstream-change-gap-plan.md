@@ -106,7 +106,8 @@ Needed:
 coder_finalized -- ODK data changed during sync --> finalized_upstream_changed
                                                   UI: Finalized - ODK Data Changed
 
-finalized_upstream_changed -- admin accepts upstream change --> ready_for_coding
+finalized_upstream_changed -- admin accepts upstream change --> smartva_pending
+smartva_pending ----------- SmartVA generated / regenerated / recorded failure --> ready_for_coding
 finalized_upstream_changed -- admin rejects upstream change --> coder_finalized
 
 coder_finalized -- admin overrides final COD --> ready_for_coding
@@ -119,6 +120,8 @@ Operational intent:
 - preserve both the prior authoritative COD and the prior ODK payload
 - require explicit operator resolution
 - keep `ready_for_coding` as the re-entry queue when a case legitimately needs recoding
+- require SmartVA rerun only when the accepted path introduces a changed
+  payload; same-payload returns do not require SmartVA rerun
 
 Out of scope for this specific gap plan:
 
@@ -193,7 +196,7 @@ the rename does not obscure functional gaps.
 Confirm:
 
 - SmartVA is still blocked while the case is in the protected upstream-change state
-- accept path returns the case to `ready_for_coding`
+- accept path returns the case to `smartva_pending` and then `ready_for_coding`
 - reject path keeps the prior COD authoritative
 - dashboard counts, filters, and labels use the resolved state name consistently
 

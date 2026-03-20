@@ -35,6 +35,7 @@ from app.models import (
 from app.services.submission_workflow_service import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_SMARTVA_PENDING,
     WORKFLOW_REVOKED_VA_DATA_CHANGED,
     get_submission_workflow_state,
     set_submission_workflow_state,
@@ -228,8 +229,8 @@ class DataManagementAcceptRejectTests(BaseTestCase):
 class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
     """Tests for dm_accept_upstream_change."""
 
-    def test_transitions_to_ready_for_coding(self):
-        """Accept should transition submission to ready_for_coding."""
+    def test_transitions_to_smartva_pending(self):
+        """Accept should transition submission to smartva_pending."""
         va_sid = self._create_revoked_submission("accept-1")
         dm_user = self._create_dm_user()
 
@@ -237,7 +238,7 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
         db.session.commit()
 
         state = get_submission_workflow_state(va_sid)
-        self.assertEqual(state, WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(state, WORKFLOW_SMARTVA_PENDING)
 
     def test_deactivates_final_assessments(self):
         """Accept should deactivate all active final assessments."""
@@ -325,7 +326,7 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
         va_sid = self._create_revoked_submission("accept-7")
         dm_user = self._create_dm_user()
 
-        # First accept it (moves to ready_for_coding)
+        # First accept it (moves to smartva_pending)
         dm_accept_upstream_change(dm_user, va_sid)
         db.session.commit()
 

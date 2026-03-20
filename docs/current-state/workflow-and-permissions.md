@@ -58,6 +58,7 @@ full policy target.
 Implemented in current runtime:
 
 - `consent_refused`
+- `smartva_pending`
 - `ready_for_coding`
 - `coding_in_progress`
 - `partial_coding_saved`
@@ -70,10 +71,6 @@ Implemented in current runtime:
 Defined in constants but not currently written by an implemented transition:
 
 - `closed`
-
-Desired target states not yet written by runtime:
-
-- `smartva_pending`
 
 Desired target states are documented in
 [Coding Workflow State Machine Policy](../policy/coding-workflow-state-machine.md).
@@ -195,9 +192,14 @@ The `closed` state exists as a defined constant and is treated as a protected
 state by some services, but there is currently no implemented runtime path that
 transitions a submission into `closed`.
 
-The desired SmartVA gating state `smartva_pending` is also not yet implemented.
-Today the runtime still moves consent-valid submissions directly to
-`ready_for_coding` before SmartVA finishes.
+`smartva_pending` is now written for newly synced and payload-changed
+submissions before SmartVA completes.
+
+Current remaining SmartVA-gate gap:
+
+- explicit SmartVA-failure recording that would allow a documented
+  failure-handled transition from `smartva_pending` to `ready_for_coding`
+  is not yet implemented
 
 ## Data Manager Workflow
 

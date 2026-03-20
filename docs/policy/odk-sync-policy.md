@@ -36,7 +36,7 @@ Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refu
 
 | Condition | Workflow state set |
 |---|---|
-| Consent valid | `ready_for_coding` in current runtime; target state `smartva_pending` until SmartVA is generated, regenerated, or explicitly failed-and-recorded |
+| Consent valid | `smartva_pending` in current runtime for newly synced or payload-changed submissions; target state remains `smartva_pending` until SmartVA is generated, regenerated, or explicitly failed-and-recorded |
 | Consent = `"no"` | `consent_refused` |
 | Consent missing / empty | `consent_refused` |
 
@@ -46,7 +46,7 @@ Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refu
 - The submission never enters the coding queue.
 - SmartVA is not run on `consent_refused` submissions.
 - If consent is corrected in ODK Central, the next sync automatically re-evaluates and transitions the submission into the coding-eligibility path.
-  Current runtime: `ready_for_coding`
+  Current runtime: `smartva_pending` before `ready_for_coding`
   Desired target: `smartva_pending` before `ready_for_coding`
 - Data managers can see and filter `consent_refused` submissions and view their count on the dashboard.
 
@@ -143,7 +143,7 @@ The current implementation does **not yet** complete the full target behavior:
 3. No explicit notification artifact is created for data managers/admins
 4. The state key remains `revoked_va_data_changed`; the preferred future name is `finalized_upstream_changed`
 5. Authorization is not yet aligned with the admin-only policy target for accept/reject resolution
-6. Consent-valid submissions still become `ready_for_coding` before SmartVA completes; target behavior is to gate them through `smartva_pending`
+6. Explicit SmartVA-failure recording is not yet implemented, so failure-handled transition from `smartva_pending` to `ready_for_coding` remains incomplete
 
 ### Required Behavior
 
@@ -241,15 +241,16 @@ smartva_pending ----------- SmartVA generated / regenerated / recorded failure -
 finalized_upstream_changed -- admin rejects upstream change --> coder_finalized
 
 coder_finalized -- recode window expires automatically --> closed
-coder_finalized -- admin override final COD -----------> smartva_pending
+coder_finalized -- admin override final COD -----------> ready_for_coding
 ```
 
 SmartVA gate note:
 
-- in the desired target model, any path that would newly enter
-  `ready_for_coding` must first pass through `smartva_pending`
-- that includes initial sync eligibility, accept-upstream-change, and admin
-  override flows
+- in the desired target model, any path that introduces a new or changed
+  payload into the coding queue must first pass through `smartva_pending`
+- that includes initial sync eligibility and accept-upstream-change
+- same-payload returns such as timeout cleanup, demo cleanup, or admin override
+  do not require a SmartVA rerun
 
 ## Service Architecture
 

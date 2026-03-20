@@ -472,7 +472,7 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
     """
     from app.services.submission_workflow_service import (
         WORKFLOW_REVOKED_VA_DATA_CHANGED,
-        WORKFLOW_READY_FOR_CODING,
+        WORKFLOW_SMARTVA_PENDING,
         get_submission_workflow_state,
         set_submission_workflow_state,
     )
@@ -536,7 +536,7 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
 
     set_submission_workflow_state(
         va_sid,
-        WORKFLOW_READY_FOR_CODING,
+        WORKFLOW_SMARTVA_PENDING,
         reason="data_manager_accepted_upstream_change",
         by_user_id=user.user_id,
         by_role="data_manager",

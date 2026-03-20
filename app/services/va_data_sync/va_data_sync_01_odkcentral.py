@@ -22,6 +22,7 @@ from app.services.submission_workflow_service import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_REVOKED_VA_DATA_CHANGED,
     WORKFLOW_CLOSED,
+    WORKFLOW_SMARTVA_PENDING,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_CONSENT_REFUSED,
     get_submission_workflow_state,
@@ -226,7 +227,11 @@ def _consent_is_valid(consent_value: str) -> bool:
 
 def _workflow_state_for_consent(consent_value: str) -> str:
     """Return the appropriate initial workflow state based on consent."""
-    return WORKFLOW_READY_FOR_CODING if _consent_is_valid(consent_value) else WORKFLOW_CONSENT_REFUSED
+    return (
+        WORKFLOW_SMARTVA_PENDING
+        if _consent_is_valid(consent_value)
+        else WORKFLOW_CONSENT_REFUSED
+    )
 
 
 def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=None):

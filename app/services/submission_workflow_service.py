@@ -22,6 +22,7 @@ from app.models import (
 
 
 WORKFLOW_SCREENING_PENDING = "screening_pending"
+WORKFLOW_SMARTVA_PENDING = "smartva_pending"
 WORKFLOW_READY_FOR_CODING = "ready_for_coding"
 WORKFLOW_CODING_IN_PROGRESS = "coding_in_progress"
 WORKFLOW_PARTIAL_CODING_SAVED = "partial_coding_saved"

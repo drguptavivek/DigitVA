@@ -3,7 +3,7 @@ title: "Plan: Coding Workflow State Machine Migration"
 doc_type: planning
 status: draft
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-20
 ---
 
 # Plan: Coding Workflow State Machine Migration
@@ -163,6 +163,20 @@ Missing relative to policy:
 - explicit override authority tracking for reviewer decisions
 - reporting that consistently exposes only the authoritative final COD
 
+### 11. SmartVA gating is only partially implemented
+
+Current implementation now writes `smartva_pending` for newly synced and
+payload-changed submissions, and successful SmartVA generation transitions those
+submissions to `ready_for_coding`.
+
+Remaining gaps:
+
+- explicit SmartVA-failure recording is not yet implemented
+- same-payload returns and changed-payload returns are not yet documented and
+  enforced uniformly across every workflow entry path
+- admin override versus upstream-change acceptance still needs a finalized
+  state-machine cleanup pass
+
 ## Migration Strategy
 
 ### Phase 1. Introduce explicit workflow metadata
@@ -234,6 +248,16 @@ This phase must handle:
 - superseded finalized COD history
 - reporting/export cutover to authoritative final COD only
 
+### Phase 8. Complete SmartVA-gated coding readiness
+
+Finish the SmartVA gate so workflow semantics are explicit and uniform:
+
+- keep `smartva_pending` for new and changed payloads
+- keep same-payload cleanup returns direct to `ready_for_coding`
+- add explicit SmartVA-failure recording for the current payload
+- align admin-override and upstream-change acceptance paths with the same rule
+- keep coder allocation restricted to `ready_for_coding`
+
 ## Recommended Delivery Order
 
 1. canonical workflow-state model
@@ -244,7 +268,8 @@ This phase must handle:
 6. non-destructive recode
 7. reviewer overlay state model
 8. authoritative final-COD model
-9. parity verification and cleanup
+9. complete SmartVA-gated coding readiness
+10. parity verification and cleanup
 
 ## Data Safety Notes
 

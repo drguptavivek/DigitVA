@@ -12,6 +12,7 @@ from app.models import (
     VaSiteMaster,
     VaSites,
     VaStatuses,
+    VaSubmissionWorkflow,
     VaSubmissions,
 )
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
@@ -20,6 +21,7 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     _mark_form_sync_issues,
     _upsert_form_submissions,
 )
+from app.services.submission_workflow_service import WORKFLOW_SMARTVA_PENDING
 from tests.base import BaseTestCase
 
 
@@ -155,6 +157,25 @@ class OdkSyncServiceTests(BaseTestCase):
         self.assertEqual(
             consent_map[f"uuid:sync-consent-missing-{self.FORM_ID.lower()}"], ""
         )
+
+    def test_upsert_sets_consented_submission_to_smartva_pending(self):
+        amended_sids = set()
+        sid = f"uuid:sync-consent-yes-{self.FORM_ID.lower()}"
+
+        _upsert_form_submissions(
+            db.session.get(VaForms, self.FORM_ID),
+            [self._record("uuid:sync-consent-yes", "yes")],
+            amended_sids,
+            {},
+        )
+        db.session.commit()
+
+        workflow_state = db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+        self.assertEqual(workflow_state, WORKFLOW_SMARTVA_PENDING)
 
     def test_mark_form_sync_issues_flags_local_records_missing_in_odk(self):
         sid = f"uuid:sync-orphan-{self.FORM_ID.lower()}"

@@ -25,11 +25,16 @@ Desired gating rule:
     recorded
 - in the target workflow model, SmartVA is therefore a pre-coding gate, not a
   purely downstream side effect of sync
+- this gate applies to new payloads and changed payloads
+- same-payload workflow returns do not require a fresh SmartVA rerun
 
-Current implementation gap:
+Current implementation note:
 
-- the current runtime still places consent-valid submissions into
-  `ready_for_coding` before SmartVA completes
+- current sync now places consent-valid new/changed submissions into
+  `smartva_pending`
+- successful SmartVA generation transitions `smartva_pending` submissions to
+  `ready_for_coding`
+- explicit recorded SmartVA-failure handling is not yet implemented
 
 ## Workflow State Guards
 

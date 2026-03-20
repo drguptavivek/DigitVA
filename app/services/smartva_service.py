@@ -21,6 +21,26 @@ from app.models import (
 log = logging.getLogger(__name__)
 
 
+def _transition_to_ready_after_smartva_if_pending(va_sid: str) -> None:
+    """Mark a submission coding-ready after SmartVA if it was awaiting SmartVA."""
+    from app.services.submission_workflow_service import (
+        WORKFLOW_READY_FOR_CODING,
+        WORKFLOW_SMARTVA_PENDING,
+        get_submission_workflow_state,
+        set_submission_workflow_state,
+    )
+
+    if get_submission_workflow_state(va_sid) != WORKFLOW_SMARTVA_PENDING:
+        return
+
+    set_submission_workflow_state(
+        va_sid,
+        WORKFLOW_READY_FOR_CODING,
+        reason="smartva_completed_for_current_payload",
+        by_role="vaadmin",
+    )
+
+
 def _protected_states():
     from app.services.submission_workflow_service import (
         WORKFLOW_CODER_FINALIZED,
@@ -220,6 +240,7 @@ def generate_for_form(
             continue
 
         _save_smartva_result(va_sid, record, existing=existing)
+        _transition_to_ready_after_smartva_if_pending(va_sid)
         saved += 1
 
     db.session.commit()
@@ -284,6 +305,7 @@ def generate_for_submission(va_sid: str, *, log_progress=None) -> int:
             continue
         existing = existing_active.get(result_sid)
         _save_smartva_result(result_sid, record, existing=existing)
+        _transition_to_ready_after_smartva_if_pending(result_sid)
         saved += 1
 
     db.session.commit()

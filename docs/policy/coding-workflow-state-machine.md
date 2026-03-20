@@ -385,8 +385,10 @@ current submission payload:
 
 Design rule:
 
-- every path that newly enters or re-enters `ready_for_coding` must first pass
-  through the SmartVA gate again for the current payload
+- every path that introduces a new payload or changed payload into the coding
+  queue must first pass through the SmartVA gate for that payload
+- same-payload workflow returns, such as timeout cleanup or demo-retention
+  cleanup, do not require a fresh SmartVA rerun
 - `ready_for_coding` therefore means the current payload has already undergone a
   SmartVA attempt, not merely that the submission is synced and consent-valid
 
@@ -588,7 +590,7 @@ When this transition occurs:
 |---|---|
 | Accept upstream change | Transition to `smartva_pending`, rerun SmartVA for the new ODK data, and return to `ready_for_coding` only after generate/regenerate/failure-recording |
 | Reject upstream change | Restore to `coder_finalized`, keep current COD authoritative |
-| Admin override final COD | Transition from `coder_finalized` to `smartva_pending`; rerun SmartVA for the current payload and return to `ready_for_coding` only after generate/regenerate/failure-recording |
+| Admin override final COD | Transition from `coder_finalized` to `ready_for_coding` for recoding against the same payload; no SmartVA rerun required unless the payload has changed |
 
 Policy target: only admins can resolve finalized-upstream-change submissions.
 

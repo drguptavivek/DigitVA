@@ -27,6 +27,8 @@
     align-items: center;
     gap: 1rem;
     transition: box-shadow 0.15s, transform 0.15s;
+    height: 100%;
+    min-height: 5.5rem;
   }
   .dm-kpi-card.clickable {
     cursor: pointer;
@@ -54,6 +56,10 @@
     font-size: 0.8rem;
     color: #6c757d;
     margin-top: 0.25rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* Card variants with filled backgrounds */
   .dm-kpi-card.card-primary {
@@ -249,8 +255,8 @@
 {# ════════════════════════════════════════════════════════
    KPI CARDS
    ════════════════════════════════════════════════════════ #}
-<div class="row g-3 mb-3" id="dm-kpi-row">
-  <div class="col-6 col-md-2">
+<div class="d-flex flex-wrap g-3 mb-3 gap-3" id="dm-kpi-row">
+  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
     <div class="dm-kpi-card card-primary">
       <div class="dm-kpi-icon bg-primary text-white">
         <i class="fa-solid fa-file-alt"></i>
@@ -261,7 +267,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
     <div class="dm-kpi-card card-danger clickable" id="kpi-flagged-card" title="Filter: Flagged Not Codeable">
       <div class="dm-kpi-icon bg-danger text-white">
         <i class="fa-solid fa-flag"></i>
@@ -272,7 +278,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
     <div class="dm-kpi-card card-warning clickable" id="kpi-odk-issues-card" title="Filter: ODK Has Issues">
       <div class="dm-kpi-icon bg-warning text-dark">
         <i class="fa-solid fa-triangle-exclamation"></i>
@@ -283,7 +289,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
     <div class="dm-kpi-card card-secondary clickable" id="kpi-smartva-missing-card" title="Filter: SmartVA Missing">
       <div class="dm-kpi-icon bg-secondary text-white">
         <i class="fa-solid fa-brain"></i>
@@ -294,7 +300,7 @@
       </div>
     </div>
   </div>
-  <div class="col-6 col-md-4">
+  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
     <div class="dm-kpi-card clickable" style="background:#fdf4ff;border-color:#d8b4fe;" id="kpi-revoked-card" title="Filter: Revoked — Data Changed">
       <div class="dm-kpi-icon text-white" style="background:#9333ea;">
         <i class="fa-solid fa-rotate-left"></i>

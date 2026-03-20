@@ -91,7 +91,16 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         finally:
             super().tearDownClass()
 
-    def _add_submission(self, sid: str, payload: dict, *, gender: str = "female"):
+    def _add_submission(
+        self,
+        sid: str,
+        payload: dict,
+        *,
+        gender: str = "female",
+        normalized_days: Decimal | None = None,
+        normalized_years: Decimal | None = None,
+        normalized_source: str | None = None,
+    ):
         now = datetime.now(timezone.utc)
         db.session.add(
             VaSubmissions(
@@ -107,6 +116,9 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 va_consent="yes",
                 va_narration_language="English",
                 va_deceased_age=0,
+                va_deceased_age_normalized_days=normalized_days,
+                va_deceased_age_normalized_years=normalized_years,
+                va_deceased_age_source=normalized_source,
                 va_deceased_gender=gender,
                 va_data=payload,
                 va_summary=[],
@@ -145,6 +157,9 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 "isAdult": "0",
             },
             gender="male",
+            normalized_days=Decimal("0"),
+            normalized_years=Decimal("0"),
+            normalized_source="age_neonate_hours",
         )
         self._add_submission(
             child_sid,
@@ -162,6 +177,9 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 "isAdult": "0",
             },
             gender="female",
+            normalized_days=Decimal("45"),
+            normalized_years=Decimal("45") / Decimal("365.25"),
+            normalized_source="ageInDays",
         )
         self._add_submission(
             adult_sid,
@@ -170,7 +188,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 "age_neonate_hours": "",
                 "ageInDays": "16050",
                 "ageInMonths": "11",
-                "ageInYears": "43",
+                "ageInYears": "99",
                 "ageInYears2": "43",
                 "finalAgeInYears": "43",
                 "age_group": "adult",
@@ -179,6 +197,9 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 "isAdult": "1",
             },
             gender="male",
+            normalized_days=Decimal("43") * Decimal("365.25"),
+            normalized_years=Decimal("43"),
+            normalized_source="ageInYears2",
         )
         db.session.flush()
 
@@ -276,7 +297,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertAlmostEqual(float(child["normalized_age_months"]), 45 / 30.4375, places=4)
 
         adult = row_by_sid[adult_sid]
-        self.assertEqual(adult["normalized_age_source"], "ageInYears")
+        self.assertEqual(adult["normalized_age_source"], "ageInYears2")
         self.assertEqual(adult["age_precision"], "years")
         self.assertEqual(adult["analytics_age_band"], "15_49y")
         self.assertEqual(adult["final_cod_text"], "I21-Acute myocardial infarction")

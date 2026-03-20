@@ -129,6 +129,9 @@ Key fields:
 - `va_consent`
 - `va_narration_language`
 - `va_deceased_age`
+- `va_deceased_age_normalized_days`
+- `va_deceased_age_normalized_years`
+- `va_deceased_age_source`
 - `va_deceased_gender`
 - `va_data`
 - `va_summary`
@@ -140,6 +143,7 @@ Current behavior:
 - `va_form_id` points to `va_forms.form_id`
 - `va_data` holds the processed ODK row as JSONB
 - additional structured and derived fields are extracted for workflow and UI use
+- normalized age fields store sync-time WHO age precedence outputs for downstream analytics
 - `va_odk_reviewstate` mirrors ODK Central review state locally for dashboard visibility
 - `va_sync_issue_*` captures local sync-health markers such as `missing_in_odk`
 

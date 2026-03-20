@@ -3,7 +3,7 @@ title: WHO 2022 Age Derivation Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-18
+last_updated: 2026-03-20
 ---
 
 # WHO 2022 Age Derivation Policy
@@ -215,6 +215,19 @@ It must not be treated as the only authoritative age field for:
 - future materialized views
 
 Any new analytics work must prefer raw WHO 2022 age fields from `va_submissions.va_data`.
+
+DigitVA now also stores sync-time normalized age fields on `va_submissions`:
+
+- `va_deceased_age_normalized_days`
+- `va_deceased_age_normalized_years`
+- `va_deceased_age_source`
+
+These fields:
+
+- are derived from the same WHO 2022 precedence rules used for analytics
+- preserve one chosen source per record for auditability
+- do not replace the need to retain raw WHO age fields in `va_data`
+- do not change the legacy meaning of `va_deceased_age`, which remains a coarse year field derived from `finalAgeInYears`
 
 ## Verification Expectations
 

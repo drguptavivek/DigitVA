@@ -2,6 +2,7 @@ import sqlalchemy as sa
 import sqlalchemy.orm as so
 from app import db
 from typing import Optional
+from decimal import Decimal
 from datetime import datetime, timezone
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
 
@@ -46,6 +47,15 @@ class VaSubmissions(db.Model):
         sa.String(32), nullable=False, index=True
     )
     va_deceased_age: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False)
+    va_deceased_age_normalized_days: so.Mapped[Optional[Decimal]] = so.mapped_column(
+        sa.Numeric, nullable=True
+    )
+    va_deceased_age_normalized_years: so.Mapped[Optional[Decimal]] = so.mapped_column(
+        sa.Numeric, nullable=True
+    )
+    va_deceased_age_source: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(32), nullable=True
+    )
     va_deceased_gender: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False)
     va_data: so.Mapped[dict] = so.mapped_column(JSONB, nullable=False)
     va_summary: so.Mapped[Optional[list[str]]] = so.mapped_column(

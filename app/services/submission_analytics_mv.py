@@ -31,6 +31,9 @@ WITH base AS (
         s.va_sync_issue_code AS odk_sync_issue_code,
         (s.va_sync_issue_code IS NOT NULL) AS has_sync_issue,
         s.va_deceased_gender AS sex,
+        s.va_deceased_age_normalized_days,
+        s.va_deceased_age_normalized_years,
+        s.va_deceased_age_source,
         LOWER(NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_group', '')), '')) AS age_group_raw,
         CASE
             WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_neonate_hours', '')), '') ~ '^-?\\d+(\\.\\d+)?$'
@@ -77,25 +80,28 @@ WITH base AS (
 age_source AS (
     SELECT
         b.*,
-        CASE
-            WHEN b.age_neonate_hours_num IS NOT NULL THEN 'age_neonate_hours'
-            WHEN b.age_neonate_days_num IS NOT NULL THEN 'age_neonate_days'
-            WHEN b.is_neonatal AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
-            WHEN b.is_child AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
-            WHEN b.is_child AND b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
-            WHEN b.is_child AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
-            WHEN b.is_child AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
-            WHEN b.is_child AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
-            WHEN b.is_adult AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
-            WHEN b.is_adult AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
-            WHEN b.is_adult AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
-            WHEN b.age_in_years_num IS NOT NULL THEN 'ageInYears'
-            WHEN b.age_in_days_num IS NOT NULL THEN 'ageInDays'
-            WHEN b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
-            WHEN b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
-            WHEN b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
-            ELSE NULL
-        END AS normalized_age_source
+        COALESCE(
+            b.va_deceased_age_source,
+            CASE
+                WHEN b.age_neonate_hours_num IS NOT NULL THEN 'age_neonate_hours'
+                WHEN b.age_neonate_days_num IS NOT NULL THEN 'age_neonate_days'
+                WHEN b.is_neonatal AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
+                WHEN b.is_child AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
+                WHEN b.is_child AND b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
+                WHEN b.is_child AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
+                WHEN b.is_child AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
+                WHEN b.is_child AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
+                WHEN b.is_adult AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
+                WHEN b.is_adult AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
+                WHEN b.is_adult AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
+                WHEN b.age_in_years_num IS NOT NULL THEN 'ageInYears'
+                WHEN b.age_in_days_num IS NOT NULL THEN 'ageInDays'
+                WHEN b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
+                WHEN b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
+                WHEN b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
+                ELSE NULL
+            END
+        ) AS normalized_age_source
     FROM base b
 ),
 age_normalized AS (
@@ -105,36 +111,58 @@ age_normalized AS (
             WHEN a.normalized_age_source = 'age_neonate_hours' THEN a.age_neonate_hours_num
             ELSE NULL
         END AS normalized_age_hours,
+        COALESCE(
+            a.va_deceased_age_normalized_days,
+            CASE
+                WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
+                WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num
+                WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num
+                WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num * {_DAYS_PER_MONTH}
+                WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num * {_DAYS_PER_YEAR}
+                WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num * {_DAYS_PER_YEAR}
+                WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num * {_DAYS_PER_YEAR}
+                ELSE NULL
+            END
+        ) AS normalized_age_days,
         CASE
             WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
-            WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num
-            WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num
-            WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num * {_DAYS_PER_MONTH}
-            WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num * {_DAYS_PER_YEAR}
-            WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num * {_DAYS_PER_YEAR}
-            WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num * {_DAYS_PER_YEAR}
-            ELSE NULL
-        END AS normalized_age_days,
-        CASE
-            WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
-            WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num / {_DAYS_PER_MONTH}
-            WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num / {_DAYS_PER_MONTH}
-            WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num
-            WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num * 12
-            WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num * 12
-            WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num * 12
+            WHEN a.normalized_age_source = 'age_neonate_days' THEN COALESCE(
+                a.va_deceased_age_normalized_days,
+                a.age_neonate_days_num
+            ) / {_DAYS_PER_MONTH}
+            WHEN a.normalized_age_source = 'ageInDays' THEN COALESCE(
+                a.va_deceased_age_normalized_days,
+                a.age_in_days_num
+            ) / {_DAYS_PER_MONTH}
+            WHEN a.normalized_age_source = 'ageInMonths' THEN COALESCE(
+                a.va_deceased_age_normalized_days / {_DAYS_PER_MONTH},
+                a.age_in_months_num
+            )
+            WHEN a.normalized_age_source IN ('ageInYears', 'ageInYears2', 'finalAgeInYears')
+                THEN COALESCE(
+                    a.va_deceased_age_normalized_years,
+                    CASE
+                        WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num
+                        WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num
+                        WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num
+                        ELSE NULL
+                    END
+                ) * 12
             ELSE NULL
         END AS normalized_age_months,
-        CASE
-            WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
-            WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num / {_DAYS_PER_YEAR}
-            WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num / {_DAYS_PER_YEAR}
-            WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num / 12
-            WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num
-            WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num
-            WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num
-            ELSE NULL
-        END AS normalized_age_years,
+        COALESCE(
+            a.va_deceased_age_normalized_years,
+            CASE
+                WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
+                WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num / {_DAYS_PER_YEAR}
+                WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num / {_DAYS_PER_YEAR}
+                WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num / 12
+                WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num
+                WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num
+                WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num
+                ELSE NULL
+            END
+        ) AS normalized_age_years,
         CASE
             WHEN a.normalized_age_source = 'age_neonate_hours' THEN 'hours'
             WHEN a.normalized_age_source IN ('age_neonate_days', 'ageInDays') THEN 'days'

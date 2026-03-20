@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-18
+last_updated: 2026-03-20
 ---
 
 # Submission Analytics Materialized View
@@ -49,9 +49,11 @@ The view includes:
 
 ## Age Normalization
 
-The view does not expose raw WHO 2022 age source fields.
+The view prefers sync-time normalized age fields from `va_submissions` and
+falls back to raw WHO 2022 age fields only when those normalized columns are
+missing.
 
-Instead it stores normalized analytics-ready age outputs:
+It stores analytics-ready age outputs:
 
 - `normalized_age_hours`
 - `normalized_age_days`
@@ -67,6 +69,7 @@ The derivation rules follow the policy in
 Important current behavior:
 
 - same-day neonatal deaths preserve hour-level age resolution
+- the winning WHO age source is stored on `va_submissions.va_deceased_age_source`
 - child and adult ages are normalized using source precedence, not additive combination
 - raw `age_group` from the XLSForm is retained only indirectly through derived analytics logic and is not treated as the final reporting age band
 

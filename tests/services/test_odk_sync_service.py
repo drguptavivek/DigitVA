@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -117,6 +118,9 @@ class OdkSyncServiceTests(BaseTestCase):
             "language": "English",
             "finalAgeInYears": "42",
             "Id10019": "male",
+            "isNeonatal": "0",
+            "isChild": "0",
+            "isAdult": "1",
         }
 
     def test_upsert_includes_submissions_without_positive_consent(self):
@@ -165,6 +169,9 @@ class OdkSyncServiceTests(BaseTestCase):
                 va_consent="yes",
                 va_narration_language="English",
                 va_deceased_age=42,
+                va_deceased_age_normalized_days=Decimal("15340.5"),
+                va_deceased_age_normalized_years=Decimal("42"),
+                va_deceased_age_source="finalAgeInYears",
                 va_deceased_gender="male",
                 va_uniqueid_masked="masked",
                 va_data={"sid": sid},
@@ -243,4 +250,42 @@ class OdkSyncServiceTests(BaseTestCase):
                 {"body": "Field team should fix respondent age."},
                 {"body": "Village name is missing."},
             ],
+        )
+
+    def test_upsert_populates_normalized_age_fields_with_policy_precedence(self):
+        amended_sids = set()
+        record = self._record("uuid:sync-age-normalized", "yes")
+        record.update(
+            {
+                "age_neonate_days": "",
+                "age_neonate_hours": "",
+                "ageInDays": "45",
+                "ageInMonths": "1",
+                "ageInYears": "99",
+                "ageInYears2": "2",
+                "finalAgeInYears": "2.0",
+                "isNeonatal": "0",
+                "isChild": "1",
+                "isAdult": "0",
+            }
+        )
+
+        _upsert_form_submissions(
+            db.session.get(VaForms, self.FORM_ID),
+            [record],
+            amended_sids,
+            {},
+        )
+        db.session.commit()
+
+        stored = db.session.get(
+            VaSubmissions,
+            f"uuid:sync-age-normalized-{self.FORM_ID.lower()}",
+        )
+        self.assertEqual(stored.va_deceased_age, 2)
+        self.assertEqual(stored.va_deceased_age_source, "ageInDays")
+        self.assertEqual(stored.va_deceased_age_normalized_days, Decimal("45"))
+        self.assertEqual(
+            stored.va_deceased_age_normalized_years,
+            Decimal("45") / Decimal("365.25"),
         )

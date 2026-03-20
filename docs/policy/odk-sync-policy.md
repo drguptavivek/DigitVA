@@ -36,7 +36,7 @@ Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refu
 
 | Condition | Workflow state set |
 |---|---|
-| Consent valid | `ready_for_coding` |
+| Consent valid | `ready_for_coding` in current runtime; target state `smartva_pending` until SmartVA is generated, regenerated, or explicitly failed-and-recorded |
 | Consent = `"no"` | `consent_refused` |
 | Consent missing / empty | `consent_refused` |
 
@@ -45,7 +45,9 @@ Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refu
 - Submissions are stored in full — ODK data, attachments, and metadata are all synced normally.
 - The submission never enters the coding queue.
 - SmartVA is not run on `consent_refused` submissions.
-- If consent is corrected in ODK Central, the next sync automatically re-evaluates and transitions the submission to `ready_for_coding`.
+- If consent is corrected in ODK Central, the next sync automatically re-evaluates and transitions the submission into the coding-eligibility path.
+  Current runtime: `ready_for_coding`
+  Desired target: `smartva_pending` before `ready_for_coding`
 - Data managers can see and filter `consent_refused` submissions and view their count on the dashboard.
 
 ## Workflow State Guards
@@ -76,6 +78,7 @@ Current implementation note:
 These states allow normal ODK sync behavior (consent re-evaluated on each update):
 
 - `screening_pending`
+- `smartva_pending` (target state)
 - `ready_for_coding`
 - `coding_in_progress`
 - `partial_coding_saved`
@@ -140,6 +143,7 @@ The current implementation does **not yet** complete the full target behavior:
 3. No explicit notification artifact is created for data managers/admins
 4. The state key remains `revoked_va_data_changed`; the preferred future name is `finalized_upstream_changed`
 5. Authorization is not yet aligned with the admin-only policy target for accept/reject resolution
+6. Consent-valid submissions still become `ready_for_coding` before SmartVA completes; target behavior is to gate them through `smartva_pending`
 
 ### Required Behavior
 
@@ -232,12 +236,20 @@ That is a known gap relative to the policy target above. Until resolved:
 coder_finalized -- ODK data changed during sync --> finalized_upstream_changed
                                                   UI: Finalized - ODK Data Changed
 
-finalized_upstream_changed -- admin accepts upstream change --> ready_for_coding
+finalized_upstream_changed -- admin accepts upstream change --> smartva_pending
+smartva_pending ----------- SmartVA generated / regenerated / recorded failure --> ready_for_coding
 finalized_upstream_changed -- admin rejects upstream change --> coder_finalized
 
 coder_finalized -- recode window expires automatically --> closed
-coder_finalized -- admin override final COD -----------> ready_for_coding
+coder_finalized -- admin override final COD -----------> smartva_pending
 ```
+
+SmartVA gate note:
+
+- in the desired target model, any path that would newly enter
+  `ready_for_coding` must first pass through `smartva_pending`
+- that includes initial sync eligibility, accept-upstream-change, and admin
+  override flows
 
 ## Service Architecture
 

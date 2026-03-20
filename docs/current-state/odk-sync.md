@@ -350,7 +350,7 @@ All submissions from ODK are stored regardless of consent value. Consent determi
 
 | Consent value | Workflow state |
 |---|---|
-| Present and not `"no"` (e.g. `"yes"`, `"telephonic_consent"`) | `ready_for_coding` |
+| Present and not `"no"` (e.g. `"yes"`, `"telephonic_consent"`) | `ready_for_coding` in current runtime; desired target is `smartva_pending` until SmartVA is generated, regenerated, or explicitly failed-and-recorded |
 | `"no"` | `consent_refused` |
 | Empty / missing | `consent_refused` |
 
@@ -389,6 +389,14 @@ Current behavior:
 - updated submissions refresh their canonical workflow row after local
   workflow artifacts are deactivated
 
+Desired target behavior:
+
+- consent-valid submissions should enter `smartva_pending` first
+- only after SmartVA is generated, regenerated, or explicitly failed-and-recorded,
+  should the submission become `ready_for_coding`
+- the same SmartVA gate should apply to any path that re-enters coding
+  readiness
+
 These are derived from mapping-driven preprocessing and drive UI rendering and workflow logic.
 
 ## Per-Form Isolation
@@ -406,6 +414,13 @@ After all forms complete, SmartVA runs on any submissions without results:
 - Prepares input CSV
 - Runs SmartVA analysis
 - Formats and stores results tied to the submission
+
+Current implementation gap:
+
+- SmartVA currently runs after submissions have already been placed into
+  `ready_for_coding`
+- desired target behavior is for SmartVA generate/regenerate/failure recording
+  to be a prerequisite for entering `ready_for_coding`
 
 ## Sync Scheduling
 

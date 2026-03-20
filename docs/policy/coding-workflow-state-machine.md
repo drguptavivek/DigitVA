@@ -135,6 +135,7 @@ The canonical submission-level workflow state should be modeled with one of the
 following business states:
 
 - `screening_pending`
+- `smartva_pending`
 - `ready_for_coding`
 - `coding_in_progress`
 - `partial_coding_saved`
@@ -157,6 +158,9 @@ Current implementation note:
 
 - `closed` is part of the desired state machine, but the current runtime does
   not yet implement any transition that writes `closed`
+- `smartva_pending` is part of the desired state machine, but the current
+  runtime still places consent-valid submissions directly into
+  `ready_for_coding`
 - until that transition exists, `closed` should be read as target-state policy,
   not current runtime behavior
 
@@ -181,6 +185,14 @@ Desired target state machine:
                                       |
                      data manager     | pass / no flag
                      may inspect      v
+                           +----------------------+
+                           |    smartva_pending   |
+                           +----------+-----------+
+                                      |
+                                      | SmartVA generated,
+                                      | regenerated, or
+                                      | failed-recorded
+                                      v
                            +----------------------+
                            |   ready_for_coding   |
                            +----------+-----------+
@@ -336,7 +348,9 @@ Current implementation note:
 
 - the runtime currently writes `revoked_va_data_changed`, but does not yet
   transition any submission into `closed`
-- the `closed` branches in the diagram therefore represent desired target
+- the runtime also does not yet write `smartva_pending`; consent-valid cases
+  currently go directly to `ready_for_coding`
+- the `smartva_pending` and `closed` branches in the diagram therefore represent desired target
   behavior, not current runtime behavior
 
 ## Data Manager Workflow
@@ -350,11 +364,36 @@ the deployment enables data-manager screening before coding.
 
 Screening is optional.
 
-If a case is not screened, it may move directly to `ready_for_coding`.
+If a case is not screened, it may move into `smartva_pending`.
+
+### SmartVA Gate
+
+`screening_pending` or newly eligible case -> `smartva_pending`
+
+This state means the submission is eligible for coding workflow, but must not
+be released to coders until SmartVA has been attempted for the current payload.
+
+`smartva_pending` -> `ready_for_coding`
+
+This transition happens only after one of these outcomes is recorded for the
+current submission payload:
+
+- SmartVA was generated
+- SmartVA was regenerated
+- SmartVA explicitly failed and that failure was recorded for the current
+  payload
+
+Design rule:
+
+- every path that newly enters or re-enters `ready_for_coding` must first pass
+  through the SmartVA gate again for the current payload
+- `ready_for_coding` therefore means the current payload has already undergone a
+  SmartVA attempt, not merely that the submission is synced and consent-valid
 
 ### Data-manager Not Codeable
 
-`screening_pending` or `ready_for_coding` -> `not_codeable_by_data_manager`
+`screening_pending`, `smartva_pending`, or `ready_for_coding` ->
+`not_codeable_by_data_manager`
 
 This state means the submission is blocked from coder allocation because of a
 data-quality or operational issue discovered by a data manager.
@@ -378,6 +417,13 @@ authorized workflow.
 `ready_for_coding` -> `coding_in_progress`
 
 Triggered when a coder starts coding and receives an allocation.
+
+Precondition for `ready_for_coding`:
+
+- SmartVA was generated for the current payload, or
+- SmartVA was regenerated for the current payload, or
+- SmartVA failed for the current payload and that failure was explicitly
+  recorded
 
 Coder entry into this state depends on the configured intake mode:
 
@@ -540,9 +586,9 @@ When this transition occurs:
 
 | Action | Outcome |
 |---|---|
-| Accept upstream change | Transition to `ready_for_coding`, allow recode against the new ODK data |
+| Accept upstream change | Transition to `smartva_pending`, rerun SmartVA for the new ODK data, and return to `ready_for_coding` only after generate/regenerate/failure-recording |
 | Reject upstream change | Restore to `coder_finalized`, keep current COD authoritative |
-| Admin override final COD | Transition from `coder_finalized` to `ready_for_coding` without requiring an upstream ODK change |
+| Admin override final COD | Transition from `coder_finalized` to `smartva_pending`; rerun SmartVA for the current payload and return to `ready_for_coding` only after generate/regenerate/failure-recording |
 
 Policy target: only admins can resolve finalized-upstream-change submissions.
 

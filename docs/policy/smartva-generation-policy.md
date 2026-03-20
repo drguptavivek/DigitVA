@@ -16,6 +16,21 @@ This policy defines when SmartVA cause-of-death analysis should run, how it inte
 
 SmartVA is an **advisory tool** that provides automated COD suggestions to coders. It must respect the workflow state machine and **not regenerate results for finalized submissions** unless explicitly authorized.
 
+Desired gating rule:
+
+- a submission must not enter `ready_for_coding` until SmartVA has either:
+  - been generated for the current payload, or
+  - been regenerated for the current payload, or
+  - failed for the current payload and that failure has been explicitly
+    recorded
+- in the target workflow model, SmartVA is therefore a pre-coding gate, not a
+  purely downstream side effect of sync
+
+Current implementation gap:
+
+- the current runtime still places consent-valid submissions into
+  `ready_for_coding` before SmartVA completes
+
 ## Workflow State Guards
 
 ### Protected States
@@ -38,12 +53,20 @@ Current implementation note:
 SmartVA runs normally for these states:
 
 - `screening_pending`
-- `ready_for_coding`
+- `smartva_pending` (target state)
 - `coding_in_progress`
 - `partial_coding_saved`
 - `coder_step1_saved`
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
+
+Target workflow meaning:
+
+- `smartva_pending` = synced and workflow-eligible, but not yet cleared for
+  coding because SmartVA has not yet been generated, regenerated, or explicitly
+  failed-and-recorded for the current payload
+- `ready_for_coding` = coding queue eligible only after the current payload has
+  undergone a SmartVA attempt and the outcome is recorded
 
 ## Generation Operations
 
@@ -136,6 +159,14 @@ SmartVA runs **after** ODK sync (Phase 2), but only for submissions that:
 1. Were added or updated in Phase 1, AND
 2. Are in an allowed workflow state
 
+Desired target sequencing:
+
+1. ODK sync stores or updates the submission
+2. consent-valid coding candidates enter `smartva_pending`
+3. SmartVA runs
+4. on SmartVA generate/regenerate, or explicit recorded failure, the submission
+   may transition to `ready_for_coding`
+
 ```
 Phase 1: ODK Sync
 ├── fetch_submissions()
@@ -148,7 +179,10 @@ Phase 2: SmartVA
 ├── get_pending_sids() — excludes protected
 ├── prep_input_csv()
 ├── run_smartva_binary()
-└── save_results()
+└── save_results() / record explicit failure
+
+Phase 3: Coding readiness
+└── transition eligible submissions to ready_for_coding
 ```
 
 ## Protected Submission Handling

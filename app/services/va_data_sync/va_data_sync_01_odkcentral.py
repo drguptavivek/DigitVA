@@ -330,12 +330,12 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             if va_submission.get("updatedAt")
             else None
         )
-        va_submission_datacollector  = va_submission.get("SubmitterName")
+        va_submission_datacollector  = va_submission.get("SubmitterName") or "unknown"
         va_submission_reviewstate    = va_submission.get("ReviewState")
         va_submission_reviewcomments = va_submission.get("OdkReviewComments")
         va_submission_instancename   = va_submission.get("instanceName")
         va_submission_uniqueid       = va_submission.get("unique_id")
-        va_submission_uniqueidmask   = va_submission.get("unique_id2")
+        va_submission_uniqueidmask   = va_submission.get("unique_id2") or "Unavailable"
         va_submission_consent        = _normalize_consent(va_submission.get("Id10013"))
         _raw_lang = (
             va_submission.get("narr_language")
@@ -348,7 +348,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             va_submission_age = int(_raw_age) if _raw_age else 0
         except (ValueError, TypeError):
             va_submission_age = 0
-        va_submission_gender = va_submission.get("Id10019")
+        va_submission_gender = va_submission.get("Id10019") or "unknown"
 
         existing = db.session.scalar(
             sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_submission_sid)

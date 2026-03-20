@@ -1293,6 +1293,9 @@
         document.getElementById('kpi-smartva-missing').textContent= (d.smartva_missing_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-revoked').textContent        = (d.revoked_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-consent-refused').textContent = (d.consent_refused_submissions ?? '—').toLocaleString();
+        if (typeof __dm_update_workflow_counts === 'function') {
+          __dm_update_workflow_counts(d.workflow_counts || {});
+        }
       })
       .catch(err => toast('Failed to load KPIs: ' + err.message, 'danger'));
   }
@@ -1759,80 +1762,72 @@
 <script>
 (function () {
   /* ── Mermaid flowchart ─────────────────────────────────────────────── */
-  const CHART_DEF = `flowchart TD
+  let mermaidReady = false;
+  let workflowCounts = {};  /* populated from KPI response */
+
+  function buildChartDef() {
+    const c = state => (workflowCounts[state] ?? 0).toLocaleString();
+    return `flowchart LR
     ODK(["🔄 ODK Sync"])
 
-    subgraph intake ["Intake"]
-      RFC["ready_for_coding"]
-      CR["consent_refused"]
-      SP["screening_pending"]
+    subgraph consent_gate ["Consent Gate"]
+      CR["Consent Refused (${c('consent_refused')})"]
+      RFC["Not Started (${c('ready_for_coding')})"]
     end
 
-    subgraph coding ["Coding Workflow"]
-      CIP["coding_in_progress"]
-      CSS["coder_step1_saved"]
-      PCS["partial_coding_saved"]
-      NCC["not_codeable_by_coder"]
-      CF["coder_finalized ✓"]
+    subgraph coding_pipeline ["Coding Pipeline"]
+      CIP["In Progress (${c('coding_in_progress')})"]
+      CSS["Step 1 Saved (${c('coder_step1_saved')})"]
+      PCS["Step 2 Saved (${c('partial_coding_saved')})"]
+      NCC["Not Codeable — Coder (${c('not_codeable_by_coder')})"]
     end
 
-    subgraph review ["Data Manager Review"]
-      NCDM["not_codeable_by_data_manager"]
-      RVK["revoked_va_data_changed"]
-    end
+    CF(["Coded ✓ (${c('coder_finalized')})"])
+    NCDM(["Not Codeable (${c('not_codeable_by_data_manager')})"])
+    RVK(["Coded — Upstream Updated (${c('revoked_va_data_changed')})"])
 
-    CLOSED(["closed ⛔"])
-
+    ODK -->|"no / missing consent"| CR
     ODK -->|"consent valid"| RFC
-    ODK -->|"consent = no / missing"| CR
-    CR -->|"consent corrected in ODK"| RFC
+    CR -.->|"consent corrected in ODK"| RFC
 
-    RFC --> CIP
-    RFC --> NCDM
+    RFC -->|"DM flags"| NCDM
+    RFC -->|"coder allocated"| CIP
 
-    CIP --> CSS
-    CIP --> PCS
-    CIP --> NCC
-    CIP --> CF
+    CIP -->|"step 1 saved"| CSS
+    CIP -->|"partial save"| PCS
+    CIP -->|"not codeable"| NCC
+    CIP -->|"finalize COD"| CF
 
-    CSS --> CIP
-    CSS --> CF
-    CSS --> NCC
+    CSS -->|"continue"| CIP
+    CSS -->|"finalize COD"| CF
+    PCS -->|"continue"| CIP
+    PCS -->|"finalize COD"| CF
 
-    PCS --> CIP
-    PCS --> CF
-    PCS --> NCC
-
-    NCC --> RFC
-    NCC --> NCDM
-
-    NCDM --> CLOSED
+    NCC -->|"DM overrides"| RFC
+    NCC -->|"DM confirms"| NCDM
 
     CF -->|"ODK data changed"| RVK
-    RVK -->|"accept change"| RFC
-    RVK -->|"reject / restore"| CF
+    RVK -.->|"accept — recode"| RFC
+    RVK -.->|"reject — restore"| CF
 
-    click RFC        "workflow:ready_for_coding"
-    click CR         "workflow:consent_refused"
-    click SP         "workflow:screening_pending"
-    click CIP        "workflow:coding_in_progress"
-    click CSS        "workflow:coder_step1_saved"
-    click PCS        "workflow:partial_coding_saved"
-    click NCC        "workflow:not_codeable_by_coder"
-    click CF         "workflow:coder_finalized"
-    click NCDM       "workflow:not_codeable_by_data_manager"
-    click RVK        "workflow:revoked_va_data_changed"
-    click CLOSED     "workflow:closed"
+    click RFC call __dm_workflow_click("ready_for_coding")
+    click CR call __dm_workflow_click("consent_refused")
+    click CIP call __dm_workflow_click("coding_in_progress")
+    click CSS call __dm_workflow_click("coder_step1_saved")
+    click PCS call __dm_workflow_click("partial_coding_saved")
+    click NCC call __dm_workflow_click("not_codeable_by_coder")
+    click CF call __dm_workflow_click("coder_finalized")
+    click NCDM call __dm_workflow_click("not_codeable_by_data_manager")
+    click RVK call __dm_workflow_click("revoked_va_data_changed")
 
-    style CF   fill:#d1fae5,stroke:#059669,color:#065f46
     style CR   fill:#fff7ed,stroke:#ea580c,color:#9a3412
-    style CLOSED fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
-    style RVK  fill:#fdf4ff,stroke:#9333ea,color:#581c87
+    style RFC  fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
+    style NCC  fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    style CF   fill:#d1fae5,stroke:#059669,color:#065f46
     style NCDM fill:#fef3c7,stroke:#d97706,color:#78350f
-    style NCC  fill:#fef3c7,stroke:#d97706,color:#78350f
+    style RVK  fill:#fdf4ff,stroke:#9333ea,color:#581c87
 `;
-
-  let mermaidReady = false;
+  }
 
   function initMermaid() {
     if (mermaidReady) return;
@@ -1849,9 +1844,11 @@
   function renderChart() {
     const container = document.getElementById('dm-mermaid-container');
     if (!container) return;
-    mermaid.render('dm-workflow-svg', CHART_DEF).then(({ svg }) => {
+    const def = buildChartDef();
+    /* unique id required each re-render */
+    const renderId = 'dm-workflow-svg-' + Date.now();
+    mermaid.render(renderId, def).then(({ svg }) => {
       container.innerHTML = svg;
-      /* make SVG responsive */
       const svgEl = container.querySelector('svg');
       if (svgEl) {
         svgEl.removeAttribute('width');
@@ -1862,6 +1859,16 @@
       container.innerHTML = `<p class="text-danger small">Flowchart render error: ${err.message}</p>`;
     });
   }
+
+  /* Called from loadKPIs() after counts arrive */
+  window.__dm_update_workflow_counts = function(counts) {
+    workflowCounts = counts || {};
+    /* Re-render only if the panel is already open */
+    const collapseEl = document.getElementById('dm-workflow-chart-body');
+    if (collapseEl && collapseEl.classList.contains('show')) {
+      renderChart();
+    }
+  };
 
   /* ── Click handler injected via mermaid securityLevel:loose ────────── */
   window.__dm_workflow_click = function (state) {
@@ -1881,15 +1888,6 @@
     const tbl = document.getElementById('dm-table');
     if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-
-  /* Intercept Mermaid click href="workflow:state" links */
-  document.addEventListener('click', function (e) {
-    const a = e.target.closest('a[href^="workflow:"]');
-    if (!a) return;
-    e.preventDefault();
-    const state = a.getAttribute('href').replace('workflow:', '');
-    window.__dm_workflow_click(state);
-  });
 
   /* Lazy-init: only render when panel is first opened */
   const toggleBtn = document.getElementById('dm-workflow-chart-toggle');

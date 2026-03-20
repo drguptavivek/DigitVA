@@ -489,6 +489,15 @@ def get_dm_kpi_from_mv(
         .where(mv.c.workflow_state == "consent_refused")
     ) or 0
 
+    # Per-state counts for the workflow flowchart — single GROUP BY query
+    state_rows = db.session.execute(
+        sa.select(mv.c.workflow_state, sa.func.count().label("cnt"))
+        .select_from(mv)
+        .where(sa.and_(*conditions))
+        .group_by(mv.c.workflow_state)
+    ).all()
+    workflow_counts = {row.workflow_state: row.cnt for row in state_rows}
+
     return {
         "total_submissions": total,
         "coded_submissions": coded,
@@ -498,6 +507,7 @@ def get_dm_kpi_from_mv(
         "smartva_missing_submissions": smartva_missing,
         "revoked_submissions": revoked,
         "consent_refused_submissions": consent_refused,
+        "workflow_counts": workflow_counts,
     }
 
 

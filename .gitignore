@@ -32,3 +32,16 @@ private/
 .beads/hooks/post-merge
 docs/Samplemanuscripts/
 docs/Samplemanuscripts/*.*
+.beads/.beads-credential-key
+.gitignore
+.beads/dolt-corrupt-*
+.gitignore
+.beads/hooks/post-checkout
+.beads/hooks/post-checkout
+.beads/hooks/post-merge
+.beads/hooks/pre-commit
+.beads/hooks/pre-push
+.beads/hooks/prepare-commit-msg
+.beads/dolt-server.activity
+.gitignore
+.beads/dolt-pre-restore-*

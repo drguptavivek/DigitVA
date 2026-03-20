@@ -31,6 +31,7 @@ WORKFLOW_NOT_CODEABLE_BY_CODER = "not_codeable_by_coder"
 WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER = "not_codeable_by_data_manager"
 WORKFLOW_CLOSED = "closed"
 WORKFLOW_REVOKED_VA_DATA_CHANGED = "revoked_va_data_changed"
+WORKFLOW_CONSENT_REFUSED = "consent_refused"
 CODER_READY_POOL_STATES = (WORKFLOW_READY_FOR_CODING,)
 
 

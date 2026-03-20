@@ -26,8 +26,14 @@ def _protected_states():
         WORKFLOW_CODER_FINALIZED,
         WORKFLOW_REVOKED_VA_DATA_CHANGED,
         WORKFLOW_CLOSED,
+        WORKFLOW_CONSENT_REFUSED,
     )
-    return frozenset({WORKFLOW_CODER_FINALIZED, WORKFLOW_REVOKED_VA_DATA_CHANGED, WORKFLOW_CLOSED})
+    return frozenset({
+        WORKFLOW_CODER_FINALIZED,
+        WORKFLOW_REVOKED_VA_DATA_CHANGED,
+        WORKFLOW_CLOSED,
+        WORKFLOW_CONSENT_REFUSED,
+    })
 
 
 def pending_smartva_sids(form_id: str) -> set[str]:

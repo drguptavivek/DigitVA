@@ -215,6 +215,7 @@ _WORKFLOW_LABEL = {
     "coding_in_progress":           "Coding In Progress",
     "coder_finalized":              "Coder Finalized",
     "revoked_va_data_changed":      "Revoked — Data Changed",
+    "consent_refused":              "Consent Refused",
 }
 
 _SORT_FIELDS = {
@@ -336,6 +337,7 @@ def dm_submissions_page(
             VaDataManagerReview.va_dmreview_createdat,
             _mv_ref.c.analytics_age_band,
             VaSubmissions.va_deceased_gender,
+            VaSubmissions.va_consent,
         )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)

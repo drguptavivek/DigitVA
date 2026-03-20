@@ -23,6 +23,7 @@ from app.services.submission_workflow_service import (
     WORKFLOW_REVOKED_VA_DATA_CHANGED,
     WORKFLOW_CLOSED,
     WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_CONSENT_REFUSED,
     get_submission_workflow_state,
     set_submission_workflow_state,
     sync_submission_workflow_from_legacy_records,
@@ -212,6 +213,20 @@ def _normalize_consent(raw_value) -> str:
     if raw_value is None:
         return ""
     return str(raw_value).strip()
+
+
+def _consent_is_valid(consent_value: str) -> bool:
+    """Return True only when explicit, non-refused consent is present.
+
+    Consent must be explicitly given. Empty/missing = refused.
+    Accepts any value except "no" (e.g. "yes", "telephonic_consent").
+    """
+    return bool(consent_value) and consent_value.lower() != "no"
+
+
+def _workflow_state_for_consent(consent_value: str) -> str:
+    """Return the appropriate initial workflow state based on consent."""
+    return WORKFLOW_READY_FOR_CODING if _consent_is_valid(consent_value) else WORKFLOW_CONSENT_REFUSED
 
 
 def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=None):
@@ -491,8 +506,9 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                     ))
                 va_submission_amended = True
                 updated += 1
-                sync_submission_workflow_from_legacy_records(
+                set_submission_workflow_state(
                     va_submission_sid,
+                    _workflow_state_for_consent(va_submission_consent),
                     reason="odk_submission_updated",
                     by_role="vaadmin",
                 )
@@ -536,7 +552,7 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             db.session.flush()
             set_submission_workflow_state(
                 va_submission_sid,
-                WORKFLOW_READY_FOR_CODING,
+                _workflow_state_for_consent(va_submission_consent),
                 reason="submission_created_during_sync",
                 by_role="vaadmin",
             )

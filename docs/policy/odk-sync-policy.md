@@ -1,9 +1,9 @@
 ---
 title: ODK Sync Policy
 doc_type: policy
-status: draft
+status: active
 owner: engineering
-last_updated: 2026-03-19
+last_updated: 2026-03-20
 ---
 
 # ODK Sync Policy
@@ -12,9 +12,41 @@ last_updated: 2026-03-19
 
 This policy defines how ODK data synchronization interacts with the coding workflow state machine. The core principle is that **finalized COD decisions must be protected from inadvertent data changes** while still allowing authorized overrides.
 
-## Core Principle
+## Core Principles
 
-ODK is the source of truth for submission content, but **coder-finalized submissions have protected status** that prevents automatic data refresh without explicit authorization.
+ODK is the source of truth for submission content. All submissions present in ODK are stored in DigitVA — including those with refused or missing consent. This ensures complete auditability and allows consent corrections made in ODK to be picked up automatically on the next sync.
+
+**Coder-finalized submissions have protected status** that prevents automatic data refresh without explicit authorization.
+
+**Consent determines workflow routing, not storage.** Submissions without valid explicit consent are stored but never enter the coding workflow.
+
+## Consent Routing
+
+Consent is evaluated on every upsert (insert and update). The `Id10013` field is the consent field.
+
+### Consent validity
+
+Consent is considered **valid** when:
+- the field is present and non-empty, **and**
+- the value is not `"no"`
+
+Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refused.
+
+### Workflow state assignment
+
+| Condition | Workflow state set |
+|---|---|
+| Consent valid | `ready_for_coding` |
+| Consent = `"no"` | `consent_refused` |
+| Consent missing / empty | `consent_refused` |
+
+### `consent_refused` state
+
+- Submissions are stored in full — ODK data, attachments, and metadata are all synced normally.
+- The submission never enters the coding queue.
+- SmartVA is not run on `consent_refused` submissions.
+- If consent is corrected in ODK Central, the next sync automatically re-evaluates and transitions the submission to `ready_for_coding`.
+- Data managers can see and filter `consent_refused` submissions and view their count on the dashboard.
 
 ## Workflow State Guards
 
@@ -25,9 +57,11 @@ The following workflow states are **protected** from automatic ODK data refresh:
 - `coder_finalized` — Final COD has been submitted and is authoritative
 - `closed` — Terminal state, no further changes permitted
 
+`consent_refused` is **not** protected — ODK updates flow through freely so that consent corrections are picked up automatically.
+
 ### Non-Protected States
 
-These states allow normal ODK sync behavior:
+These states allow normal ODK sync behavior (consent re-evaluated on each update):
 
 - `screening_pending`
 - `ready_for_coding`
@@ -36,6 +70,7 @@ These states allow normal ODK sync behavior:
 - `coder_step1_saved`
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
+- `consent_refused`
 
 ## Sync Operations
 

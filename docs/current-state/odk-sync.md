@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-19
+last_updated: 2026-03-20
 ---
 
 # ODK Sync And Attachments
@@ -321,11 +321,19 @@ Related policy:
 During upsert:
 
 - Submission exists with same `va_odk_updatedat` → skipped (no DB write, no attachment call)
-- Submission exists with changed `va_odk_updatedat` → updated; active workflow artifacts deactivated
-- Submission does not exist and consent is present and ≠ `no` → inserted (accepts `yes`, `telephonic_consent`, etc.)
-- Submission does not exist and consent = `no` or is null → ignored
+- Submission exists with changed `va_odk_updatedat` + protected state → metadata updated, transitions to `revoked_va_data_changed`
+- Submission exists with changed `va_odk_updatedat` + non-protected state → updated; active workflow artifacts deactivated; consent re-evaluated to set new workflow state
+- Submission does not exist → inserted unconditionally; consent evaluated to set initial workflow state
 
-When a submission is updated, the app deactivates related local workflow artifacts:
+All submissions from ODK are stored regardless of consent value. Consent determines workflow routing:
+
+| Consent value | Workflow state |
+|---|---|
+| Present and not `"no"` (e.g. `"yes"`, `"telephonic_consent"`) | `ready_for_coding` |
+| `"no"` | `consent_refused` |
+| Empty / missing | `consent_refused` |
+
+When a non-protected submission is updated, the app deactivates related local workflow artifacts:
 
 - Active coder allocations
 - Coder review records
@@ -334,9 +342,7 @@ When a submission is updated, the app deactivates related local workflow artifac
 - Reviewer reviews
 - User notes
 
-ODK is treated as the source of truth for submission content.
-
-> **NOTE**: This behavior does NOT respect `coder_finalized` state. See [ODK Sync Policy](../policy/odk-sync-policy.md) for the intended behavior.
+ODK is treated as the source of truth for submission content. See [ODK Sync Policy](../policy/odk-sync-policy.md).
 
 ## Language Normalization
 

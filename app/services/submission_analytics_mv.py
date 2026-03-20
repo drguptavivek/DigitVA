@@ -482,6 +482,13 @@ def get_dm_kpi_from_mv(
         ]))
     ) or 0
 
+    consent_refused = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(mv)
+        .where(sa.and_(*conditions))
+        .where(mv.c.workflow_state == "consent_refused")
+    ) or 0
+
     return {
         "total_submissions": total,
         "coded_submissions": coded,
@@ -490,6 +497,7 @@ def get_dm_kpi_from_mv(
         "odk_has_issues_submissions": odk_issues,
         "smartva_missing_submissions": smartva_missing,
         "revoked_submissions": revoked,
+        "consent_refused_submissions": consent_refused,
     }
 
 

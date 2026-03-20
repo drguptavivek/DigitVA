@@ -333,6 +333,17 @@
       </div>
     </div>
   </div>
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
+    <div class="dm-kpi-card clickable" style="background:#fff7ed;border-color:#fdba74;" id="kpi-consent-refused-card" title="Filter: Consent Refused">
+      <div class="dm-kpi-icon text-white" style="background:#ea580c;">
+        <i class="fa-solid fa-ban"></i>
+      </div>
+      <div>
+        <div class="dm-kpi-value" style="color:#ea580c;" id="kpi-consent-refused">—</div>
+        <div class="dm-kpi-label">No Consent</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 {# ════════════════════════════════════════════════════════
@@ -508,6 +519,7 @@
           <option value="not_codeable_by_data_manager">Not Codeable (DM)</option>
           <option value="not_codeable_by_coder">Not Codeable (Coder)</option>
           <option value="revoked_va_data_changed">Revoked — Data Changed</option>
+          <option value="consent_refused">Consent Refused</option>
         </select>
       </div>
       <div class="d-grid gap-2 pt-1">
@@ -675,12 +687,13 @@
     { field: 'va_deceased_gender',label: 'Gender' },
     { field: 'odk_sync_status',   label: 'ODK Sync' },
     { field: 'va_dmreview_createdat', label: 'Flagged At' },
+    { field: 'va_consent',           label: 'Consent' },
   ];
   /* fields hidden by default */
   const DEFAULT_HIDDEN = new Set([
     'project_id', 'va_data_collector', 'attachment_count',
     'analytics_age_band', 'va_deceased_gender', 'odk_sync_status',
-    'va_dmreview_createdat'
+    'va_dmreview_createdat', 'va_consent'
   ]);
 
   /* ── Filter state ── */
@@ -900,6 +913,7 @@
       { field: 'odk_sync_status', headerName: 'ODK Sync', width: 110, cellRenderer: OdkSyncRenderer, hide: colVisibility.odk_sync_status === false },
       { field: 'workflow_state', headerName: 'Workflow State', width: 150, cellRenderer: WorkflowRenderer },
       { field: 'va_dmreview_createdat', headerName: 'Flagged At', width: 115, cellRenderer: DateTimeRenderer, hide: colVisibility.va_dmreview_createdat === false },
+      { field: 'va_consent', headerName: 'Consent', width: 120, hide: colVisibility.va_consent === false },
       { field: '_actions', headerName: 'Actions', width: 215, cellRenderer: ActionsRenderer, sortable: false },
     ];
   }
@@ -1278,6 +1292,7 @@
         document.getElementById('kpi-odk-issues').textContent     = (d.odk_has_issues_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-smartva-missing').textContent= (d.smartva_missing_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-revoked').textContent        = (d.revoked_submissions ?? '—').toLocaleString();
+        document.getElementById('kpi-consent-refused').textContent = (d.consent_refused_submissions ?? '—').toLocaleString();
       })
       .catch(err => toast('Failed to load KPIs: ' + err.message, 'danger'));
   }
@@ -1315,6 +1330,12 @@
   });
   document.getElementById('kpi-revoked-card').addEventListener('click', () => {
     currentFilters.workflow = 'revoked_va_data_changed';
+    syncInputsFromState();
+    applyFilters();
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+  });
+  document.getElementById('kpi-consent-refused-card').addEventListener('click', () => {
+    currentFilters.workflow = 'consent_refused';
     syncInputsFromState();
     applyFilters();
     bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();

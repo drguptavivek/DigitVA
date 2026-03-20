@@ -310,28 +310,135 @@ def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs):
     return sa.or_(project_clause, site_clause)
 
 
+def _csv_values(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    return [value.strip() for value in raw.split(",") if value.strip()]
+
+
+def build_dm_mv_filter_conditions(
+    mv,
+    *,
+    project_ids: list[str],
+    project_site_pairs,
+    project: str = "",
+    site: str = "",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    odk_status: str = "",
+    smartva: str = "",
+    age_group: str = "",
+    gender: str = "",
+    odk_sync: str = "",
+    workflow: str = "",
+):
+    """Return MV filter conditions for the data-manager dashboard."""
+    conditions = [_mv_scope_filter(mv, project_ids, project_site_pairs)]
+
+    project_values = _csv_values(project)
+    if project_values:
+        conditions.append(mv.c.project_id.in_(project_values))
+
+    site_values = _csv_values(site)
+    if site_values:
+        conditions.append(mv.c.site_id.in_(site_values))
+
+    if date_from:
+        conditions.append(mv.c.submission_date >= date_from)
+    if date_to:
+        conditions.append(mv.c.submission_date <= date_to)
+
+    if odk_status == "hasIssues":
+        conditions.append(mv.c.odk_review_state == "hasIssues")
+    elif odk_status == "approved":
+        conditions.append(mv.c.odk_review_state == "approved")
+    elif odk_status == "no_review_state":
+        conditions.append(mv.c.odk_review_state.is_(None))
+
+    if smartva == "available":
+        conditions.append(mv.c.has_smartva.is_(True))
+    elif smartva == "missing":
+        conditions.append(mv.c.has_smartva.is_(False))
+
+    if age_group:
+        conditions.append(mv.c.analytics_age_band == age_group)
+    if gender:
+        conditions.append(mv.c.sex == gender)
+
+    if odk_sync == "missing_in_odk":
+        conditions.append(mv.c.odk_sync_issue_code == "missing_in_odk")
+    elif odk_sync == "in_sync":
+        conditions.append(sa.or_(
+            mv.c.odk_sync_issue_code.is_(None),
+            mv.c.odk_sync_issue_code != "missing_in_odk",
+        ))
+
+    if workflow:
+        if workflow == "pending_coding":
+            conditions.append(mv.c.workflow_state.in_([
+                "screening_pending",
+                "ready_for_coding",
+                "coding_in_progress",
+                "partial_coding_saved",
+                "coder_step1_saved",
+            ]))
+        else:
+            conditions.append(mv.c.workflow_state == workflow)
+
+    return conditions
+
+
 def get_dm_kpi_from_mv(
     project_ids: list[str],
     project_site_pairs,
+    *,
+    project: str = "",
+    site: str = "",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    odk_status: str = "",
+    smartva: str = "",
+    age_group: str = "",
+    gender: str = "",
+    odk_sync: str = "",
+    workflow: str = "",
 ) -> dict:
     """Return scoped KPI counts for the data-manager dashboard from the analytics MV."""
     mv = sa.table(
         MV_NAME,
         sa.column("project_id"),
         sa.column("site_id"),
+        sa.column("submission_date"),
         sa.column("workflow_state"),
         sa.column("odk_review_state"),
         sa.column("has_smartva"),
+        sa.column("analytics_age_band"),
+        sa.column("sex"),
+        sa.column("odk_sync_issue_code"),
     )
-    scope = _mv_scope_filter(mv, project_ids, project_site_pairs)
+    conditions = build_dm_mv_filter_conditions(
+        mv,
+        project_ids=project_ids,
+        project_site_pairs=project_site_pairs,
+        project=project,
+        site=site,
+        date_from=date_from,
+        date_to=date_to,
+        odk_status=odk_status,
+        smartva=smartva,
+        age_group=age_group,
+        gender=gender,
+        odk_sync=odk_sync,
+        workflow=workflow,
+    )
 
     total = db.session.scalar(
-        sa.select(sa.func.count()).select_from(mv).where(scope)
+        sa.select(sa.func.count()).select_from(mv).where(sa.and_(*conditions))
     ) or 0
     flagged = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
-        .where(scope)
+        .where(sa.and_(*conditions))
         .where(
             mv.c.workflow_state.in_(
                 ["not_codeable_by_data_manager", "not_codeable_by_coder"]
@@ -341,31 +448,31 @@ def get_dm_kpi_from_mv(
     odk_issues = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
-        .where(scope)
+        .where(sa.and_(*conditions))
         .where(mv.c.odk_review_state == "hasIssues")
     ) or 0
     smartva_missing = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
-        .where(scope)
+        .where(sa.and_(*conditions))
         .where(mv.c.has_smartva.is_(False))
     ) or 0
     revoked = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
-        .where(scope)
+        .where(sa.and_(*conditions))
         .where(mv.c.workflow_state == "revoked_va_data_changed")
     ) or 0
     coded = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
-        .where(scope)
+        .where(sa.and_(*conditions))
         .where(mv.c.workflow_state == "coder_finalized")
     ) or 0
     pending = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
-        .where(scope)
+        .where(sa.and_(*conditions))
         .where(mv.c.workflow_state.in_([
             "screening_pending",
             "ready_for_coding",
@@ -384,6 +491,93 @@ def get_dm_kpi_from_mv(
         "smartva_missing_submissions": smartva_missing,
         "revoked_submissions": revoked,
     }
+
+
+def get_dm_project_site_stats_from_mv(
+    *,
+    project_ids: list[str],
+    project_site_pairs,
+    timezone_name: str,
+    project: str = "",
+    site: str = "",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    odk_status: str = "",
+    smartva: str = "",
+    age_group: str = "",
+    gender: str = "",
+    odk_sync: str = "",
+    workflow: str = "",
+) -> list[dict]:
+    """Return project/site submission stats for the data-manager dashboard."""
+    import pytz
+    from datetime import datetime, timedelta
+
+    mv = sa.table(
+        MV_NAME,
+        sa.column("project_id"),
+        sa.column("site_id"),
+        sa.column("submission_at"),
+        sa.column("submission_date"),
+        sa.column("workflow_state"),
+        sa.column("odk_review_state"),
+        sa.column("has_smartva"),
+        sa.column("analytics_age_band"),
+        sa.column("sex"),
+        sa.column("odk_sync_issue_code"),
+    )
+
+    user_tz = pytz.timezone(timezone_name or "Asia/Kolkata")
+    now_local = datetime.now(user_tz)
+    today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start_local = today_start_local - timedelta(days=today_start_local.weekday())
+    today_start_utc = today_start_local.astimezone(pytz.UTC)
+    week_start_utc = week_start_local.astimezone(pytz.UTC)
+
+    conditions = build_dm_mv_filter_conditions(
+        mv,
+        project_ids=project_ids,
+        project_site_pairs=project_site_pairs,
+        project=project,
+        site=site,
+        date_from=date_from,
+        date_to=date_to,
+        odk_status=odk_status,
+        smartva=smartva,
+        age_group=age_group,
+        gender=gender,
+        odk_sync=odk_sync,
+        workflow=workflow,
+    )
+
+    rows = db.session.execute(
+        sa.select(
+            mv.c.project_id,
+            mv.c.site_id,
+            sa.func.count().label("total_submissions"),
+            sa.func.sum(
+                sa.case((mv.c.submission_at >= week_start_utc, 1), else_=0)
+            ).label("this_week_submissions"),
+            sa.func.sum(
+                sa.case((mv.c.submission_at >= today_start_utc, 1), else_=0)
+            ).label("today_submissions"),
+        )
+        .select_from(mv)
+        .where(sa.and_(*conditions))
+        .group_by(mv.c.project_id, mv.c.site_id)
+        .order_by(mv.c.project_id, mv.c.site_id)
+    ).mappings().all()
+
+    return [
+        {
+            "project_id": row["project_id"],
+            "site_id": row["site_id"],
+            "total_submissions": row["total_submissions"] or 0,
+            "this_week_submissions": row["this_week_submissions"] or 0,
+            "today_submissions": row["today_submissions"] or 0,
+        }
+        for row in rows
+    ]
 
 
 def refresh_submission_analytics_mv(*, concurrently: bool = False) -> None:

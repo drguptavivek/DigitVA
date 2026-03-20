@@ -1160,6 +1160,11 @@
     readInputsToFilters();
     saveState();
     renderFilterPills();
+    Promise.all([
+      loadKPIs(),
+      loadProjectSiteChart(),
+      loadDemographicsCharts(),
+    ]).catch(() => {});
     if (gridApi) gridApi.refreshInfiniteCache();
   }
 
@@ -1168,7 +1173,23 @@
     syncInputsFromState();
     saveState();
     renderFilterPills();
+    Promise.all([
+      loadKPIs(),
+      loadProjectSiteChart(),
+      loadDemographicsCharts(),
+    ]).catch(() => {});
     if (gridApi) gridApi.refreshInfiniteCache();
+  }
+
+  function buildDashboardQuery() {
+    const params = new URLSearchParams();
+    ['project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
+      .forEach(key => {
+        const value = currentFilters[key];
+        if (value) params.set(key, value);
+      });
+    const query = params.toString();
+    return query ? `?${query}` : '';
   }
 
   /* ════════════════════════════════════════════════════
@@ -1248,7 +1269,7 @@
      KPI
      ════════════════════════════════════════════════════ */
   function loadKPIs() {
-    return jsonFetch('/api/v1/data-management/kpi')
+    return jsonFetch(`/api/v1/data-management/kpi${buildDashboardQuery()}`)
       .then(d => {
         document.getElementById('kpi-total').textContent          = (d.total_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-coded').textContent          = (d.coded_submissions ?? '—').toLocaleString();
@@ -1308,7 +1329,7 @@
   ];
 
   function loadProjectSiteChart() {
-    return jsonFetch('/api/v1/data-management/project-site-submissions')
+    return jsonFetch(`/api/v1/data-management/project-site-submissions${buildDashboardQuery()}`)
       .then(data => {
         const stats = data.stats || [];
         const labels = stats.map(s => `${s.site_id}`);
@@ -1342,7 +1363,7 @@
   }
 
   function loadDemographicsCharts() {
-    return jsonFetch('/api/v1/analytics/demographics')
+    return jsonFetch(`/api/v1/analytics/demographics${buildDashboardQuery()}`)
       .then(data => {
         /* Age band chart */
         const ageBands = data.age_bands || [];
@@ -1674,15 +1695,13 @@
       const hasFilters = Object.values(currentFilters).some(v => v !== '' && v != null);
       if (hasFilters) {
         renderFilterPills();
-        // Grid will load with filters via createDataSource
       }
+      Promise.all([
+        loadKPIs(),
+        loadProjectSiteChart(),
+        loadDemographicsCharts(),
+      ]).catch(() => {});
     });
-
-    Promise.all([
-      loadKPIs(),
-      loadProjectSiteChart(),
-      loadDemographicsCharts(),
-    ]);
 
     renderFilterPills();
   }

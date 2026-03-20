@@ -19,6 +19,8 @@ from app.models import (
 from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.submission_analytics_mv import (
     build_submission_analytics_mv_sql,
+    get_dm_kpi_from_mv,
+    get_dm_project_site_stats_from_mv,
     refresh_submission_analytics_mv,
 )
 from tests.base import BaseTestCase
@@ -100,6 +102,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         normalized_days: Decimal | None = None,
         normalized_years: Decimal | None = None,
         normalized_source: str | None = None,
+        workflow_state: str = "coding_in_progress",
     ):
         now = datetime.now(timezone.utc)
         db.session.add(
@@ -130,7 +133,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         db.session.add(
             VaSubmissionWorkflow(
                 va_sid=sid,
-                workflow_state="coding_in_progress",
+                workflow_state=workflow_state,
                 workflow_reason="test",
                 workflow_updated_by_role="vasystem",
             )
@@ -304,3 +307,80 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(adult["final_icd"], "I21")
         self.assertEqual(adult["initial_immediate_icd"], "I21")
         self.assertEqual(adult["smartva_cause1_icd"], "I21")
+
+    def test_mv_helpers_apply_dashboard_filters(self):
+        filtered_sid = "uuid:mv-filtered"
+        nonmatching_sid = "uuid:mv-nonmatching"
+
+        self._add_submission(
+            filtered_sid,
+            {
+                "age_neonate_days": "",
+                "age_neonate_hours": "",
+                "ageInDays": "",
+                "ageInMonths": "",
+                "ageInYears": "43",
+                "ageInYears2": "43",
+                "finalAgeInYears": "43",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            gender="male",
+            normalized_days=Decimal("43") * Decimal("365.25"),
+            normalized_years=Decimal("43"),
+            normalized_source="ageInYears",
+            workflow_state="coder_finalized",
+        )
+        self._add_submission(
+            nonmatching_sid,
+            {
+                "age_neonate_days": "",
+                "age_neonate_hours": "",
+                "ageInDays": "10",
+                "ageInMonths": "",
+                "ageInYears": "",
+                "ageInYears2": "",
+                "finalAgeInYears": "0",
+                "age_group": "child",
+                "isNeonatal": "0",
+                "isChild": "1",
+                "isAdult": "0",
+            },
+            gender="female",
+            normalized_days=Decimal("10"),
+            normalized_years=Decimal("10") / Decimal("365.25"),
+            normalized_source="ageInDays",
+            workflow_state="ready_for_coding",
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        filtered_kpi = get_dm_kpi_from_mv(
+            [self.PROJECT_ID],
+            [],
+            workflow="coder_finalized",
+            gender="male",
+        )
+        self.assertEqual(filtered_kpi["total_submissions"], 1)
+        self.assertEqual(filtered_kpi["coded_submissions"], 1)
+
+        filtered_stats = get_dm_project_site_stats_from_mv(
+            project_ids=[self.PROJECT_ID],
+            project_site_pairs=[],
+            timezone_name="Asia/Kolkata",
+            workflow="coder_finalized",
+            gender="male",
+        )
+        self.assertEqual(len(filtered_stats), 1)
+        self.assertEqual(filtered_stats[0]["project_id"], self.PROJECT_ID)
+        self.assertEqual(filtered_stats[0]["site_id"], self.SITE_ID)
+
+        nonmatching_kpi = get_dm_kpi_from_mv(
+            [self.PROJECT_ID],
+            [],
+            workflow="revoked_va_data_changed",
+        )
+        self.assertEqual(nonmatching_kpi["total_submissions"], 0)

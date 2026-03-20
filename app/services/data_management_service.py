@@ -9,8 +9,6 @@ Imported by:
 import json
 import re
 import uuid
-from datetime import datetime, timedelta
-import pytz
 import sqlalchemy as sa
 from flask_login import current_user
 
@@ -124,49 +122,10 @@ def filter_scoped_forms(
 # Stats
 # ---------------------------------------------------------------------------
 
-def dm_project_site_submission_stats(user) -> list[dict]:
-    scope_filter = dm_scope_filter(user)
-    tz_name = getattr(user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
-    user_tz = pytz.timezone(tz_name)
-    now_local = datetime.now(user_tz)
-    today_start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start_local = today_start_local - timedelta(days=today_start_local.weekday())
-    today_start_utc = today_start_local.astimezone(pytz.UTC)
-    week_start_utc = week_start_local.astimezone(pytz.UTC)
-
-    return [
-        {
-            "project_id": row["project_id"],
-            "site_id": row["site_id"],
-            "total_submissions": row["total_submissions"] or 0,
-            "this_week_submissions": row["this_week_submissions"] or 0,
-            "today_submissions": row["today_submissions"] or 0,
-        }
-        for row in db.session.execute(
-            sa.select(
-                VaForms.project_id,
-                VaForms.site_id,
-                sa.func.count(VaSubmissions.va_sid).label("total_submissions"),
-                sa.func.sum(
-                    sa.case(
-                        (VaSubmissions.va_submission_date >= week_start_utc, 1),
-                        else_=0,
-                    )
-                ).label("this_week_submissions"),
-                sa.func.sum(
-                    sa.case(
-                        (VaSubmissions.va_submission_date >= today_start_utc, 1),
-                        else_=0,
-                    )
-                ).label("today_submissions"),
-            )
-            .select_from(VaSubmissions)
-            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(scope_filter)
-            .group_by(VaForms.project_id, VaForms.site_id)
-            .order_by(VaForms.project_id, VaForms.site_id)
-        ).mappings().all()
-    ]
+def _csv_values(raw: str) -> list[str]:
+    if not raw:
+        return []
+    return [value.strip() for value in raw.split(",") if value.strip()]
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +267,8 @@ def dm_submissions_page(
     )
     scope = dm_scope_filter(user)
     conditions = [scope]
+    project_values = _csv_values(project)
+    site_values = _csv_values(site)
 
     if search:
         like = f"%{search}%"
@@ -315,10 +276,10 @@ def dm_submissions_page(
             VaSubmissions.va_uniqueid_masked.ilike(like),
             VaSubmissions.va_data_collector.ilike(like),
         ))
-    if project:
-        conditions.append(VaForms.project_id == project)
-    if site:
-        conditions.append(VaForms.site_id == site)
+    if project_values:
+        conditions.append(VaForms.project_id.in_(project_values))
+    if site_values:
+        conditions.append(VaForms.site_id.in_(site_values))
     if date_from:
         conditions.append(sa.func.date(VaSubmissions.va_submission_date) >= date_from)
     if date_to:

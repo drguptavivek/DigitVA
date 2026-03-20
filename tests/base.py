@@ -42,6 +42,7 @@ from datetime import datetime, timezone
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from itsdangerous import URLSafeTimedSerializer
+import sqlalchemy as sa
 
 from app import create_app, db
 from app.models import (
@@ -72,10 +73,18 @@ class BaseTestCase(unittest.TestCase):
     BASE_SITE_ID = "BS01"
 
     @classmethod
+    def _drop_test_materialized_views(cls):
+        db.session.execute(
+            sa.text("DROP MATERIALIZED VIEW IF EXISTS va_submission_analytics_mv CASCADE")
+        )
+        db.session.commit()
+
+    @classmethod
     def setUpClass(cls):
         cls.app = create_app(cls.config_class)
         cls.ctx = cls.app.app_context()
         cls.ctx.push()
+        cls._drop_test_materialized_views()
         db.drop_all()
         db.create_all()
         cls._seed_base_fixtures()
@@ -83,6 +92,7 @@ class BaseTestCase(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         db.session.remove()
+        cls._drop_test_materialized_views()
         db.drop_all()
         db.engine.dispose()   # close all pool connections so next class can acquire DDL locks
         cls.ctx.pop()

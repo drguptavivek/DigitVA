@@ -25,14 +25,16 @@ from app.services.data_management_service import (
     dm_accept_upstream_change,
     dm_filter_options,
     dm_form_in_scope,
-    dm_kpi,
-    dm_project_site_submission_stats,
     dm_reject_upstream_change,
     dm_scoped_forms,
     dm_submissions_page,
     filter_scoped_forms,
     sync_run_entries,
     sync_run_target_label,
+)
+from app.services.submission_analytics_mv import (
+    get_dm_kpi_from_mv,
+    get_dm_project_site_stats_from_mv,
 )
 
 bp = Blueprint("data_management_api", __name__)
@@ -103,9 +105,24 @@ def kpi():
     if err:
         return err
 
-    project_ids        = sorted(current_user.get_data_manager_projects())
+    project_ids = sorted(current_user.get_data_manager_projects())
     project_site_pairs = current_user.get_data_manager_project_sites()
-    return jsonify(dm_kpi(current_user, project_ids, project_site_pairs))
+    return jsonify(
+        get_dm_kpi_from_mv(
+            project_ids,
+            project_site_pairs,
+            project=request.args.get("project", ""),
+            site=request.args.get("site", ""),
+            date_from=request.args.get("date_from") or None,
+            date_to=request.args.get("date_to") or None,
+            odk_status=request.args.get("odk_status", ""),
+            smartva=request.args.get("smartva", ""),
+            age_group=request.args.get("age_group", ""),
+            gender=request.args.get("gender", ""),
+            odk_sync=request.args.get("odk_sync", ""),
+            workflow=request.args.get("workflow", ""),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -294,9 +311,26 @@ def project_site_submissions():
     if err:
         return err
 
+    timezone_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    project_ids = sorted(current_user.get_data_manager_projects())
+    project_site_pairs = current_user.get_data_manager_project_sites()
     return jsonify({
-        "stats": dm_project_site_submission_stats(current_user),
-        "timezone": getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata",
+        "stats": get_dm_project_site_stats_from_mv(
+            project_ids=project_ids,
+            project_site_pairs=project_site_pairs,
+            timezone_name=timezone_name,
+            project=request.args.get("project", ""),
+            site=request.args.get("site", ""),
+            date_from=request.args.get("date_from") or None,
+            date_to=request.args.get("date_to") or None,
+            odk_status=request.args.get("odk_status", ""),
+            smartva=request.args.get("smartva", ""),
+            age_group=request.args.get("age_group", ""),
+            gender=request.args.get("gender", ""),
+            odk_sync=request.args.get("odk_sync", ""),
+            workflow=request.args.get("workflow", ""),
+        ),
+        "timezone": timezone_name,
     })
 
 

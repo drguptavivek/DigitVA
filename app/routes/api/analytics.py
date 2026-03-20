@@ -24,6 +24,7 @@ from flask_login import login_required, current_user
 from app import db, limiter, cache
 from app.services.submission_analytics_mv import (
     MV_NAME,
+    build_dm_mv_filter_conditions,
     get_dm_kpi_from_mv,
     refresh_submission_analytics_mv,
 )
@@ -227,7 +228,23 @@ def demographics():
         return err
 
     def compute():
-        scope = _dm_scope_filter()
+        scope = sa.and_(
+            *build_dm_mv_filter_conditions(
+                _mv,
+                project_ids=sorted(current_user.get_data_manager_projects()),
+                project_site_pairs=current_user.get_data_manager_project_sites(),
+                project=request.args.get("project", ""),
+                site=request.args.get("site", ""),
+                date_from=request.args.get("date_from") or None,
+                date_to=request.args.get("date_to") or None,
+                odk_status=request.args.get("odk_status", ""),
+                smartva=request.args.get("smartva", ""),
+                age_group=request.args.get("age_group", ""),
+                gender=request.args.get("gender", ""),
+                odk_sync=request.args.get("odk_sync", ""),
+                workflow=request.args.get("workflow", ""),
+            )
+        )
         age_rows = db.session.execute(
             sa.select(
                 _mv.c.analytics_age_band.label("band"),
@@ -321,15 +338,13 @@ def cod():
 @limiter.limit("1 per minute")
 def mv_refresh():
     """Refresh the submission analytics materialized view on demand."""
-    err = _require_data_manager()
-    if err:
-        return err
-
     try:
+        err = _require_data_manager()
+        if err:
+            return err
         refresh_submission_analytics_mv(concurrently=True)
+        _bust_user_analytics_cache()
+        return jsonify({"message": "Analytics data refreshed successfully."}), 200
     except Exception as exc:
         log.exception("On-demand analytics MV refresh failed: %s", exc)
         return jsonify({"error": "Analytics refresh failed. Check server logs."}), 500
-
-    _bust_user_analytics_cache()
-    return jsonify({"message": "Analytics data refreshed successfully."}), 200

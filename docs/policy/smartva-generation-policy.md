@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-19
+last_updated: 2026-03-20
 ---
 
 # SmartVA Generation Policy
@@ -24,7 +24,14 @@ SmartVA generation is **blocked** for these states (unless forced):
 
 - `coder_finalized` — Final COD is authoritative, SmartVA should not change
 - `revoked_va_data_changed` — Pending review, no new SmartVA until resolved
-- `closed` — Terminal state, no further changes
+- `closed` — Terminal target state, no further changes once implemented
+
+Current implementation note:
+
+- `closed` is defined as a workflow constant and SmartVA treats it as protected
+- the current runtime does not yet implement a transition that writes `closed`
+- so this branch is target-state protection rather than an active operational
+  path today
 
 ### Allowed States
 

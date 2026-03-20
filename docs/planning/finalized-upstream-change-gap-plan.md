@@ -120,6 +120,13 @@ Operational intent:
 - require explicit operator resolution
 - keep `ready_for_coding` as the re-entry queue when a case legitimately needs recoding
 
+Out of scope for this specific gap plan:
+
+- implementing the separate `closed` terminal-state transition
+
+That remains a broader workflow-state-machine item. Today `closed` is defined
+in code but is not written by any implemented runtime transition.
+
 ## Proposed Delivery Order
 
 ### Phase 1. Decide and lock the authorization baseline

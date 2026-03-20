@@ -153,17 +153,26 @@ Target naming cleanup:
 - preferred future state key: `finalized_upstream_changed`
 - preferred UI label: `Finalized - ODK Data Changed`
 
+Current implementation note:
+
+- `closed` is part of the desired state machine, but the current runtime does
+  not yet implement any transition that writes `closed`
+- until that transition exists, `closed` should be read as target-state policy,
+  not current runtime behavior
+
 ## Protected States
 
 The following states are **protected** from automatic data changes:
 
 - `coder_finalized` — Final COD has been submitted; ODK sync and SmartVA blocked
 - `revoked_va_data_changed` — Current implemented key for finalized cases whose upstream ODK data changed; pending resolution
-- `closed` — Terminal state; no further changes permitted
+- `closed` — Terminal target state; no further changes permitted once implemented
 
 See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartva-generation-policy.md) for details.
 
 ## ASCII Flowchart
+
+Desired target state machine:
 
 ```text
                            +----------------------+
@@ -323,6 +332,13 @@ See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartv
       +------------------+
 ```
 
+Current implementation note:
+
+- the runtime currently writes `revoked_va_data_changed`, but does not yet
+  transition any submission into `closed`
+- the `closed` branches in the diagram therefore represent desired target
+  behavior, not current runtime behavior
+
 ## Data Manager Workflow
 
 Data-manager workflow is optional and separate from coder activity.
@@ -476,6 +492,13 @@ The system must preserve auditability across:
 - recode attempts
 - superseded outcomes
 
+Current implementation gap:
+
+- the recode window exists as a business rule for reopening/recode eligibility
+- but expiry of that window does not currently auto-transition submissions to
+  `closed`
+- that auto-close behavior remains target-state work
+
 ## Upstream Data Change (`revoked_va_data_changed` / target `finalized_upstream_changed`)
 
 When ODK submission data changes for a `coder_finalized` submission, the system
@@ -611,6 +634,10 @@ true:
 - `revoked_va_data_changed` (pending resolution; target name `finalized_upstream_changed`)
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
+
+Target-state addition once implemented:
+
+- `closed`
 
 Reviewer activity may happen later, but it does not determine whether the core
 coder workflow was completed.

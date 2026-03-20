@@ -56,12 +56,18 @@ The following workflow states are **protected** from automatic ODK data refresh:
 
 - `coder_finalized` — Final COD has been submitted and is authoritative
 - `revoked_va_data_changed` — Current implemented state key for finalized cases whose ODK data changed after finalization
-- `closed` — Terminal state, no further changes permitted
+- `closed` — Terminal target state, no further changes permitted once implemented
 
 Target naming cleanup:
 
 - preferred future state key: `finalized_upstream_changed`
 - preferred UI label: `Finalized - ODK Data Changed`
+
+Current implementation note:
+
+- `closed` is not currently written by an implemented runtime transition
+- sync should still treat it as protected if such rows exist, but operationally
+  it remains a target-state workflow branch
 
 `consent_refused` is **not** protected — ODK updates flow through freely so that consent corrections are picked up automatically.
 

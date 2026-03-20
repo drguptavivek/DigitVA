@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-17
+last_updated: 2026-03-20
 ---
 
 # Workflow And Permissions
@@ -49,6 +49,32 @@ Current cutover status:
   `va_final_cod_authority`
 - recode now starts a separate non-destructive episode in `va_coding_episodes`
   instead of immediately discarding the current finalized coder outcome
+
+## Current State vs Desired State
+
+Current implemented workflow states written by the runtime are a subset of the
+full policy target.
+
+Implemented in current runtime:
+
+- `consent_refused`
+- `ready_for_coding`
+- `coding_in_progress`
+- `partial_coding_saved`
+- `coder_step1_saved`
+- `coder_finalized`
+- `revoked_va_data_changed`
+- `not_codeable_by_coder`
+- `not_codeable_by_data_manager`
+
+Defined in constants but not currently written by an implemented transition:
+
+- `closed`
+
+Desired target states are documented in
+[Coding Workflow State Machine Policy](../policy/coding-workflow-state-machine.md).
+The planned gap-closure sequence is documented in
+[Plan: Finalized Upstream Change Gap Closure](../planning/finalized-upstream-change-gap-plan.md).
 
 ## Main Workflow Sequence
 
@@ -151,11 +177,19 @@ Timeout cleanup:
 
 Canonical state values currently written in the runtime path include:
 
+- `consent_refused`
 - `ready_for_coding`
 - `coding_in_progress`
+- `partial_coding_saved`
 - `coder_step1_saved`
 - `coder_finalized`
+- `revoked_va_data_changed`
 - `not_codeable_by_coder`
+- `not_codeable_by_data_manager`
+
+The `closed` state exists as a defined constant and is treated as a protected
+state by some services, but there is currently no implemented runtime path that
+transitions a submission into `closed`.
 
 ## Data Manager Workflow
 

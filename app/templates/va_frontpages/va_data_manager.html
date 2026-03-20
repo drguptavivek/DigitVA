@@ -1730,4 +1730,182 @@
   document.addEventListener('DOMContentLoaded', init);
 })();
 </script>
+
+{# ════════════════════════════════════════════════════════
+   WORKFLOW FLOWCHART — collapsible panel at bottom
+   ════════════════════════════════════════════════════════ #}
+<div class="mt-3 mb-4" id="dm-workflow-chart-panel">
+  <button
+    class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-between px-3 py-2"
+    type="button"
+    data-bs-toggle="collapse"
+    data-bs-target="#dm-workflow-chart-body"
+    aria-expanded="false"
+    aria-controls="dm-workflow-chart-body"
+    id="dm-workflow-chart-toggle"
+  >
+    <span><i class="fa-solid fa-diagram-project me-2"></i>Workflow State Guide</span>
+    <i class="fa-solid fa-chevron-down" id="dm-workflow-chevron" style="transition:transform 0.2s;"></i>
+  </button>
+  <div class="collapse" id="dm-workflow-chart-body">
+    <div class="card card-body border-top-0 rounded-0 rounded-bottom pt-3 pb-2" style="background:#fafafa;">
+      <p class="text-muted small mb-2">Click any state node to filter the table to that workflow state.</p>
+      <div id="dm-mermaid-container" class="text-center overflow-auto" style="min-height:320px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
+<script>
+(function () {
+  /* ── Mermaid flowchart ─────────────────────────────────────────────── */
+  const CHART_DEF = `flowchart TD
+    ODK(["🔄 ODK Sync"])
+
+    subgraph intake ["Intake"]
+      RFC["ready_for_coding"]
+      CR["consent_refused"]
+      SP["screening_pending"]
+    end
+
+    subgraph coding ["Coding Workflow"]
+      CIP["coding_in_progress"]
+      CSS["coder_step1_saved"]
+      PCS["partial_coding_saved"]
+      NCC["not_codeable_by_coder"]
+      CF["coder_finalized ✓"]
+    end
+
+    subgraph review ["Data Manager Review"]
+      NCDM["not_codeable_by_data_manager"]
+      RVK["revoked_va_data_changed"]
+    end
+
+    CLOSED(["closed ⛔"])
+
+    ODK -->|"consent valid"| RFC
+    ODK -->|"consent = no / missing"| CR
+    CR -->|"consent corrected in ODK"| RFC
+
+    RFC --> CIP
+    RFC --> NCDM
+
+    CIP --> CSS
+    CIP --> PCS
+    CIP --> NCC
+    CIP --> CF
+
+    CSS --> CIP
+    CSS --> CF
+    CSS --> NCC
+
+    PCS --> CIP
+    PCS --> CF
+    PCS --> NCC
+
+    NCC --> RFC
+    NCC --> NCDM
+
+    NCDM --> CLOSED
+
+    CF -->|"ODK data changed"| RVK
+    RVK -->|"accept change"| RFC
+    RVK -->|"reject / restore"| CF
+
+    click RFC        "workflow:ready_for_coding"
+    click CR         "workflow:consent_refused"
+    click SP         "workflow:screening_pending"
+    click CIP        "workflow:coding_in_progress"
+    click CSS        "workflow:coder_step1_saved"
+    click PCS        "workflow:partial_coding_saved"
+    click NCC        "workflow:not_codeable_by_coder"
+    click CF         "workflow:coder_finalized"
+    click NCDM       "workflow:not_codeable_by_data_manager"
+    click RVK        "workflow:revoked_va_data_changed"
+    click CLOSED     "workflow:closed"
+
+    style CF   fill:#d1fae5,stroke:#059669,color:#065f46
+    style CR   fill:#fff7ed,stroke:#ea580c,color:#9a3412
+    style CLOSED fill:#fee2e2,stroke:#dc2626,color:#7f1d1d
+    style RVK  fill:#fdf4ff,stroke:#9333ea,color:#581c87
+    style NCDM fill:#fef3c7,stroke:#d97706,color:#78350f
+    style NCC  fill:#fef3c7,stroke:#d97706,color:#78350f
+`;
+
+  let mermaidReady = false;
+
+  function initMermaid() {
+    if (mermaidReady) return;
+    mermaidReady = true;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      flowchart: { curve: 'basis', useMaxWidth: true },
+      securityLevel: 'loose',   /* required for click callbacks */
+    });
+    renderChart();
+  }
+
+  function renderChart() {
+    const container = document.getElementById('dm-mermaid-container');
+    if (!container) return;
+    mermaid.render('dm-workflow-svg', CHART_DEF).then(({ svg }) => {
+      container.innerHTML = svg;
+      /* make SVG responsive */
+      const svgEl = container.querySelector('svg');
+      if (svgEl) {
+        svgEl.removeAttribute('width');
+        svgEl.style.maxWidth = '100%';
+        svgEl.style.height = 'auto';
+      }
+    }).catch(err => {
+      container.innerHTML = `<p class="text-danger small">Flowchart render error: ${err.message}</p>`;
+    });
+  }
+
+  /* ── Click handler injected via mermaid securityLevel:loose ────────── */
+  window.__dm_workflow_click = function (state) {
+    if (!state) return;
+    /* update filter state and reload table */
+    if (typeof currentFilters !== 'undefined') {
+      currentFilters.workflow = state;
+      if (typeof syncInputsFromState === 'function') syncInputsFromState();
+      if (typeof applyFilters === 'function') applyFilters();
+    }
+    /* collapse the chart panel */
+    const collapseEl = document.getElementById('dm-workflow-chart-body');
+    if (collapseEl) {
+      bootstrap.Collapse.getOrCreateInstance(collapseEl).hide();
+    }
+    /* scroll to table */
+    const tbl = document.getElementById('dm-table');
+    if (tbl) tbl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  /* Intercept Mermaid click href="workflow:state" links */
+  document.addEventListener('click', function (e) {
+    const a = e.target.closest('a[href^="workflow:"]');
+    if (!a) return;
+    e.preventDefault();
+    const state = a.getAttribute('href').replace('workflow:', '');
+    window.__dm_workflow_click(state);
+  });
+
+  /* Lazy-init: only render when panel is first opened */
+  const toggleBtn = document.getElementById('dm-workflow-chart-toggle');
+  const collapseEl = document.getElementById('dm-workflow-chart-body');
+  let rendered = false;
+
+  collapseEl.addEventListener('show.bs.collapse', function () {
+    toggleBtn.querySelector('#dm-workflow-chevron').style.transform = 'rotate(180deg)';
+    if (!rendered) {
+      rendered = true;
+      initMermaid();
+    }
+  });
+  collapseEl.addEventListener('hide.bs.collapse', function () {
+    toggleBtn.querySelector('#dm-workflow-chevron').style.transform = 'rotate(0deg)';
+  });
+})();
+</script>
 {% endblock %}

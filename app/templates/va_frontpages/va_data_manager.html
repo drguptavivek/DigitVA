@@ -256,58 +256,80 @@
    KPI CARDS
    ════════════════════════════════════════════════════════ #}
 <div class="d-flex flex-wrap g-3 mb-3 gap-3" id="dm-kpi-row">
-  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
     <div class="dm-kpi-card card-primary">
       <div class="dm-kpi-icon bg-primary text-white">
         <i class="fa-solid fa-file-alt"></i>
       </div>
       <div>
         <div class="dm-kpi-value text-primary" id="kpi-total">—</div>
-        <div class="dm-kpi-label">Submissions</div>
+        <div class="dm-kpi-label">Total</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
+    <div class="dm-kpi-card" style="background:#ecfdf5;border-color:#a7f3d0;" id="kpi-coded-card" title="Filter: Coder Finalized">
+      <div class="dm-kpi-icon text-white" style="background:#059669;">
+        <i class="fa-solid fa-check-circle"></i>
+      </div>
+      <div>
+        <div class="dm-kpi-value" style="color:#059669;" id="kpi-coded">—</div>
+        <div class="dm-kpi-label">Coded</div>
+      </div>
+    </div>
+  </div>
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
+    <div class="dm-kpi-card" style="background:#fefce8;border-color:#fde047;" id="kpi-pending-card" title="Filter: Pending Coding">
+      <div class="dm-kpi-icon text-dark" style="background:#facc15;">
+        <i class="fa-solid fa-clock"></i>
+      </div>
+      <div>
+        <div class="dm-kpi-value" style="color:#a16207;" id="kpi-pending">—</div>
+        <div class="dm-kpi-label">Pending</div>
+      </div>
+    </div>
+  </div>
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
     <div class="dm-kpi-card card-warning clickable" id="kpi-odk-issues-card" title="Filter: ODK Has Issues">
       <div class="dm-kpi-icon bg-warning text-dark">
         <i class="fa-solid fa-triangle-exclamation"></i>
       </div>
       <div>
         <div class="dm-kpi-value text-warning" id="kpi-odk-issues">—</div>
-        <div class="dm-kpi-label">ODK Has Issues</div>
+        <div class="dm-kpi-label">ODK Issues</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
-    <div class="dm-kpi-card clickable" style="background:#fdf4ff;border-color:#d8b4fe;" id="kpi-revoked-card" title="Filter: Revoked — Data Changed">
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
+    <div class="dm-kpi-card clickable" style="background:#fdf4ff;border-color:#d8b4fe;" id="kpi-revoked-card" title="Filter: Revoked ODK Changed">
       <div class="dm-kpi-icon text-white" style="background:#9333ea;">
         <i class="fa-solid fa-rotate-left"></i>
       </div>
       <div>
         <div class="dm-kpi-value" style="color:#9333ea;" id="kpi-revoked">—</div>
-        <div class="dm-kpi-label">Revoked ODK Changed</div>
+        <div class="dm-kpi-label">Revoked</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
     <div class="dm-kpi-card card-secondary clickable" id="kpi-smartva-missing-card" title="Filter: SmartVA Missing">
       <div class="dm-kpi-icon bg-secondary text-white">
         <i class="fa-solid fa-brain"></i>
       </div>
       <div>
         <div class="dm-kpi-value" id="kpi-smartva-missing">—</div>
-        <div class="dm-kpi-label">SmartVA Missing</div>
+        <div class="dm-kpi-label">SmartVA</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 150px; max-width: 220px;">
+  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
     <div class="dm-kpi-card card-danger clickable" id="kpi-flagged-card" title="Filter: Flagged Not Codeable">
       <div class="dm-kpi-icon bg-danger text-white">
         <i class="fa-solid fa-flag"></i>
       </div>
       <div>
         <div class="dm-kpi-value text-danger" id="kpi-flagged">—</div>
-        <div class="dm-kpi-label">Flagged Not Codeable</div>
+        <div class="dm-kpi-label">Flagged</div>
       </div>
     </div>
   </div>
@@ -1229,6 +1251,8 @@
     return jsonFetch('/api/v1/data-management/kpi')
       .then(d => {
         document.getElementById('kpi-total').textContent          = (d.total_submissions ?? '—').toLocaleString();
+        document.getElementById('kpi-coded').textContent          = (d.coded_submissions ?? '—').toLocaleString();
+        document.getElementById('kpi-pending').textContent        = (d.pending_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-flagged').textContent        = (d.flagged_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-odk-issues').textContent     = (d.odk_has_issues_submissions ?? '—').toLocaleString();
         document.getElementById('kpi-smartva-missing').textContent= (d.smartva_missing_submissions ?? '—').toLocaleString();
@@ -1238,6 +1262,18 @@
   }
 
   /* KPI card click quick-filters */
+  document.getElementById('kpi-coded-card').addEventListener('click', () => {
+    currentFilters.workflow = 'coder_finalized';
+    syncInputsFromState();
+    applyFilters();
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+  });
+  document.getElementById('kpi-pending-card').addEventListener('click', () => {
+    currentFilters.workflow = 'pending_coding';
+    syncInputsFromState();
+    applyFilters();
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
+  });
   document.getElementById('kpi-flagged-card').addEventListener('click', () => {
     currentFilters.workflow = 'not_codeable_by_data_manager';
     syncInputsFromState();

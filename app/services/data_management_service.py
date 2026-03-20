@@ -345,7 +345,17 @@ def dm_submissions_page(
             VaSubmissions.va_sync_issue_code != "missing_in_odk",
         ))
     if workflow:
-        conditions.append(VaSubmissionWorkflow.workflow_state == workflow)
+        if workflow == "pending_coding":
+            # Special case: pending includes multiple workflow states
+            conditions.append(VaSubmissionWorkflow.workflow_state.in_([
+                "screening_pending",
+                "ready_for_coding",
+                "coding_in_progress",
+                "partial_coding_saved",
+                "coder_step1_saved",
+            ]))
+        else:
+            conditions.append(VaSubmissionWorkflow.workflow_state == workflow)
 
     base_q = (
         sa.select(

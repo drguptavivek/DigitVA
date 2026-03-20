@@ -328,9 +328,29 @@ def get_dm_kpi_from_mv(
         .where(scope)
         .where(mv.c.workflow_state == "revoked_va_data_changed")
     ) or 0
+    coded = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(mv)
+        .where(scope)
+        .where(mv.c.workflow_state == "coder_finalized")
+    ) or 0
+    pending = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(mv)
+        .where(scope)
+        .where(mv.c.workflow_state.in_([
+            "screening_pending",
+            "ready_for_coding",
+            "coding_in_progress",
+            "partial_coding_saved",
+            "coder_step1_saved",
+        ]))
+    ) or 0
 
     return {
         "total_submissions": total,
+        "coded_submissions": coded,
+        "pending_submissions": pending,
         "flagged_submissions": flagged,
         "odk_has_issues_submissions": odk_issues,
         "smartva_missing_submissions": smartva_missing,

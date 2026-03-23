@@ -518,7 +518,7 @@
           <option value="screening_pending">Screening Pending</option>
           <option value="not_codeable_by_data_manager">Not Codeable (DM)</option>
           <option value="not_codeable_by_coder">Not Codeable (Coder)</option>
-          <option value="revoked_va_data_changed">Revoked — Data Changed</option>
+          <option value="finalized_upstream_changed">Finalized - ODK Data Changed</option>
           <option value="consent_refused">Consent Refused</option>
         </select>
       </div>
@@ -828,7 +828,7 @@
       this.eGui = document.createElement('span');
       const state = params.value;
       const label = (params.data && params.data.workflow_label) || state || '';
-      if (state === 'revoked_va_data_changed') {
+      if (state === 'finalized_upstream_changed') {
         this.eGui.innerHTML = `<span class="badge" style="background:#9333ea;">${label}</span>`;
         return;
       }
@@ -862,7 +862,7 @@
         this.eGui.innerHTML = '—';
         return;
       }
-      if (state === 'revoked_va_data_changed') {
+      if (state === 'finalized_upstream_changed') {
         this.eGui.innerHTML = `
           <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
           <button class="btn btn-sm btn-success py-0 px-1 dm-accept-upstream-btn" data-sid="${sid}" title="Accept upstream change — clear COD, recode">Accept</button>
@@ -1332,7 +1332,7 @@
     bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
   });
   document.getElementById('kpi-revoked-card').addEventListener('click', () => {
-    currentFilters.workflow = 'revoked_va_data_changed';
+    currentFilters.workflow = 'finalized_upstream_changed';
     syncInputsFromState();
     applyFilters();
     bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
@@ -1784,7 +1784,7 @@
 
     CF(["Coded ✓ (${c('coder_finalized')})"])
     NCDM(["Not Codeable (${c('not_codeable_by_data_manager')})"])
-    RVK(["Coded — Upstream Updated (${c('revoked_va_data_changed')})"])
+    RVK(["Coded — Upstream Updated (${c('finalized_upstream_changed')})"])
 
     ODK -->|"no / missing consent"| CR
     ODK -->|"consent valid"| RFC
@@ -1818,7 +1818,7 @@
     click NCC call __dm_workflow_click("not_codeable_by_coder")
     click CF call __dm_workflow_click("coder_finalized")
     click NCDM call __dm_workflow_click("not_codeable_by_data_manager")
-    click RVK call __dm_workflow_click("revoked_va_data_changed")
+    click RVK call __dm_workflow_click("finalized_upstream_changed")
 
     style CR   fill:#fff7ed,stroke:#ea580c,color:#9a3412
     style RFC  fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a

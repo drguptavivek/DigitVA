@@ -26,6 +26,10 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services.workflow.definition import (
+    WORKFLOW_NOT_CODEABLE_BY_CODER,
+    WORKFLOW_READY_FOR_CODING,
+)
 from tests.base import BaseTestCase
 
 
@@ -159,7 +163,7 @@ class DataManagerDashboardTests(BaseTestCase):
         db.session.add(
             VaSubmissionWorkflow(
                 va_sid=cls.SID,
-                workflow_state="not_codeable_by_coder",
+                workflow_state=WORKFLOW_NOT_CODEABLE_BY_CODER,
                 workflow_reason="test_seed",
                 workflow_updated_by_role="vasystem",
             )
@@ -258,7 +262,7 @@ class DataManagerDashboardTests(BaseTestCase):
         db.session.add(
             VaSubmissionWorkflow(
                 va_sid=cls.OUT_SID,
-                workflow_state="ready_for_coding",
+                workflow_state=WORKFLOW_READY_FOR_CODING,
                 workflow_reason="test_seed",
                 workflow_updated_by_role="vasystem",
             )
@@ -454,6 +458,64 @@ class DataManagerDashboardTests(BaseTestCase):
             audit_row.va_audit_action,
             "data_manager_requested_submission_refresh",
         )
+        self.assertEqual(audit_row.va_audit_byrole, "data_manager")
+
+    @patch("app.routes.va_form.sync_not_codeable_review_state")
+    @patch("app.routes.va_form.get_category_rendering_service")
+    def test_dm_not_codeable_posts_odk_review_state_update(
+        self,
+        mocked_category_service,
+        mocked_sync_not_codeable,
+    ):
+        self._login(self.dm_user_id)
+        headers = self._csrf_headers()
+        workflow = db.session.scalar(
+            sa.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == self.SID
+            )
+        )
+        workflow.workflow_state = WORKFLOW_READY_FOR_CODING
+        db.session.commit()
+
+        mocked_sync_not_codeable.return_value = SimpleNamespace(
+            success=True,
+            review_state="hasIssues",
+            comment="DigitVA data manager marked this submission as not codeable.",
+            error_message=None,
+        )
+        mocked_category_service.return_value = SimpleNamespace(
+            is_category_enabled=lambda *args, **kwargs: True,
+            get_category_neighbours=lambda *args, **kwargs: (None, None),
+            get_category_config=lambda *args, **kwargs: {},
+        )
+
+        response = self.client.post(
+            f"/vaform/{self.SID}/vadmtriage?action=vadata&actiontype=vaview",
+            data={
+                "va_dmreview_reason": "duplicate_submission",
+                "va_dmreview_other": "Duplicate in site register.",
+                "va_mark_not_codeable": "1",
+            },
+            headers={**headers, "HX-Request": "true"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_sync_not_codeable.assert_called_once_with(
+            self.SID,
+            "duplicate_submission",
+            "Duplicate in site register.",
+            actor_role="data_manager",
+        )
+        audit_row = db.session.scalar(
+            sa.select(VaSubmissionsAuditlog)
+            .where(VaSubmissionsAuditlog.va_sid == self.SID)
+            .where(
+                VaSubmissionsAuditlog.va_audit_action
+                == "odk review state set to hasIssues"
+            )
+            .order_by(VaSubmissionsAuditlog.va_audit_createdat.desc())
+        )
+        self.assertIsNotNone(audit_row)
         self.assertEqual(audit_row.va_audit_byrole, "data_manager")
 
     @patch("app.routes.va_main.va_odk_clientsetup")

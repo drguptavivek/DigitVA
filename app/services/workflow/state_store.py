@@ -1,4 +1,4 @@
-"""Canonical submission workflow-state helpers."""
+"""Canonical submission workflow-state persistence helpers."""
 
 from __future__ import annotations
 
@@ -17,23 +17,38 @@ from app.models import (
     VaInitialAssessments,
     VaStatuses,
     VaSubmissionWorkflow,
-    VaSubmissionsAuditlog,
+)
+from app.services.workflow.events import (
+    DIRECT_STATE_SET_TRANSITION_ID,
+    actor_kind_from_role,
+    record_workflow_event,
+)
+from app.services.workflow.definition import (
+    CODER_READY_POOL_STATES,
+    WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_CONSENT_REFUSED,
+    WORKFLOW_CLOSED,
+    WORKFLOW_NOT_CODEABLE_BY_CODER,
+    WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+    WORKFLOW_PARTIAL_CODING_SAVED,
+    WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+    WORKFLOW_SCREENING_PENDING,
+    WORKFLOW_SMARTVA_PENDING,
 )
 
-
-WORKFLOW_SCREENING_PENDING = "screening_pending"
-WORKFLOW_SMARTVA_PENDING = "smartva_pending"
-WORKFLOW_READY_FOR_CODING = "ready_for_coding"
-WORKFLOW_CODING_IN_PROGRESS = "coding_in_progress"
-WORKFLOW_PARTIAL_CODING_SAVED = "partial_coding_saved"
-WORKFLOW_CODER_STEP1_SAVED = "coder_step1_saved"
-WORKFLOW_CODER_FINALIZED = "coder_finalized"
-WORKFLOW_NOT_CODEABLE_BY_CODER = "not_codeable_by_coder"
-WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER = "not_codeable_by_data_manager"
-WORKFLOW_CLOSED = "closed"
-WORKFLOW_REVOKED_VA_DATA_CHANGED = "revoked_va_data_changed"
-WORKFLOW_CONSENT_REFUSED = "consent_refused"
-CODER_READY_POOL_STATES = (WORKFLOW_READY_FOR_CODING,)
+def get_submission_workflow_record(
+    va_sid: str,
+    *,
+    for_update: bool = False,
+) -> VaSubmissionWorkflow | None:
+    """Return the canonical workflow row for a submission, optionally locked."""
+    stmt = sa.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == va_sid)
+    if for_update:
+        stmt = stmt.with_for_update()
+    return db.session.scalar(stmt)
 
 
 def set_submission_workflow_state(
@@ -43,11 +58,13 @@ def set_submission_workflow_state(
     reason: str | None = None,
     by_user_id: UUID | None = None,
     by_role: str | None = None,
+    record: VaSubmissionWorkflow | None = None,
+    emit_event: bool = True,
 ) -> VaSubmissionWorkflow:
     """Upsert the canonical workflow state for a submission."""
-    record = db.session.scalar(
-        sa.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == va_sid)
-    )
+    if record is None:
+        record = get_submission_workflow_record(va_sid, for_update=True)
+    previous_state = record.workflow_state if record else None
     changed = False
     if not record:
         record = VaSubmissionWorkflow(
@@ -58,6 +75,7 @@ def set_submission_workflow_state(
             workflow_updated_by_role=by_role,
         )
         db.session.add(record)
+        db.session.flush()
         changed = True
     else:
         if record.workflow_state != workflow_state:
@@ -73,16 +91,16 @@ def set_submission_workflow_state(
             record.workflow_updated_by_role = by_role
             changed = True
 
-    if changed:
-        db.session.add(
-            VaSubmissionsAuditlog(
-                va_sid=va_sid,
-                va_audit_byrole=by_role or "vasystem",
-                va_audit_by=by_user_id,
-                va_audit_operation="u",
-                va_audit_action=f"workflow state set to {workflow_state}",
-                va_audit_entityid=record.workflow_id if record else None,
-            )
+    if changed and emit_event:
+        record_workflow_event(
+            va_sid,
+            transition_id=DIRECT_STATE_SET_TRANSITION_ID,
+            previous_state=previous_state,
+            current_state=workflow_state,
+            actor_kind=actor_kind_from_role(by_role),
+            actor_role=by_role or "vasystem",
+            actor_user_id=by_user_id,
+            reason=reason,
         )
     return record
 
@@ -189,9 +207,5 @@ def sync_submission_workflow_from_legacy_records(
 
 def get_submission_workflow_state(va_sid: str) -> str | None:
     """Return the current canonical workflow state for a submission, or None."""
-    record = db.session.scalar(
-        sa.select(VaSubmissionWorkflow.workflow_state).where(
-            VaSubmissionWorkflow.va_sid == va_sid
-        )
-    )
-    return record
+    record = get_submission_workflow_record(va_sid)
+    return record.workflow_state if record else None

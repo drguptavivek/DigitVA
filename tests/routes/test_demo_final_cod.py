@@ -14,6 +14,10 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
+from app.services.workflow.definition import (
+    WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_CODER_FINALIZED,
+)
 from tests.base import BaseTestCase
 
 
@@ -112,10 +116,19 @@ class TestDemoFinalCodRoute(BaseTestCase):
                 va_iniassess_status=VaStatuses.active,
             )
         )
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=self.sid,
+                workflow_state=WORKFLOW_CODING_IN_PROGRESS,
+            )
+        )
         db.session.commit()
 
         response = self.client.post(
-            f"/vaapi/vacode/vademo_start_coding/{self.sid}/vafinalasses",
+            (
+                f"/vaform/{self.sid}/vafinalasses"
+                "?action=vacode&actiontype=vademo_start_coding"
+            ),
             data={
                 "va_conclusive_cod": "I24-Other acute ischaemic heart diseases",
                 "va_finassess_remark": "demo final cod",
@@ -152,5 +165,5 @@ class TestDemoFinalCodRoute(BaseTestCase):
         self.assertIsNotNone(final_row)
         self.assertEqual(final_row.va_finassess_status, VaStatuses.active)
         self.assertIsNotNone(final_row.demo_expires_at)
-        self.assertEqual(workflow.workflow_state, "coder_finalized")
+        self.assertEqual(workflow.workflow_state, WORKFLOW_CODER_FINALIZED)
         self.assertEqual(allocation.va_allocation_status, VaStatuses.deactive)

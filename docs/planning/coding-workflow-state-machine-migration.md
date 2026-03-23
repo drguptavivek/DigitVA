@@ -3,7 +3,7 @@ title: "Plan: Coding Workflow State Machine Migration"
 doc_type: planning
 status: draft
 owner: engineering
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # Plan: Coding Workflow State Machine Migration
@@ -111,17 +111,30 @@ Policy target:
   successfully saved
 - incomplete recode work must not replace the current finalized COD
 
-### 7. Reviewer workflow is not explicitly modeled as a parallel overlay
+### 7. Reviewer workflow is not yet implemented as delayed secondary coding
 
-Policy defines reviewer oversight as optional and parallel.
+Policy now defines reviewer participation as:
 
-Current implementation uses reviewer records and allocations, but the
-application does not yet expose a formal reviewer overlay state model with
-clear statuses such as:
+- optional and sample-based
+- a secondary coding path rather than accept/reject QA
+- available only after the coder's 24-hour recode window closes
 
-- `under_review`
-- `review_complete`
-- `override_recorded`
+Current implementation now writes the post-window state `reviewer_eligible`,
+and now also supports reviewer coding transitions plus reviewer final-COD
+authority in the runtime core.
+
+Important design note:
+
+- the existing `va_reviewer_review` table is a legacy QA/review artifact
+- it should not be reused as the reviewer final-COD store for the new model
+- additive reviewer final-COD storage now exists in
+  `va_reviewer_final_assessments`
+- reviewer coding runtime now exists through dedicated service/API paths:
+  - `reviewer_coding_in_progress`
+  - `reviewer_finalized`
+- reviewer final-COD authority now has service-level cutover support
+- reviewer-aware analytics MV cutover is now implemented
+- remaining work is legacy reader/reporting cleanup outside the analytics MV
 
 ### 8. Not Codeable pathways are not split by actor class
 
@@ -231,10 +244,26 @@ This phase requires clear audit linkage between:
 - recode episode
 - superseding finalized coding
 
-### Phase 6. Overlay reviewer workflow explicitly
+Current status:
 
-Add explicit reviewer overlay states and reporting so reviewer activity becomes
-visible without changing coder-completion semantics.
+- implemented
+- recode now preserves the authoritative final COD until replacement final COD
+  is submitted
+- explicit recode workflow transitions are now used for start/finalization
+
+### Phase 6. Add delayed reviewer secondary-coding workflow
+
+Add explicit reviewer workflow states and transitions so optional sampled
+reviewer coding can start only after a submission becomes
+`reviewer_eligible`.
+
+Current status:
+
+- partially implemented
+- `reviewer_eligible` now exists in runtime and is written by the hourly
+  recode-window maintenance path
+- reviewer start/finalization transitions and reviewer-owned final COD
+  authority are not yet implemented
 
 ### Phase 7. Add explicit final-COD authority model
 
@@ -244,7 +273,7 @@ submission.
 This phase must handle:
 
 - coder-finalized COD authority
-- reviewer override authority
+- reviewer final-COD authority
 - superseded finalized COD history
 - reporting/export cutover to authoritative final COD only
 
@@ -258,6 +287,19 @@ Finish the SmartVA gate so workflow semantics are explicit and uniform:
 - align admin-override and upstream-change acceptance paths with the same rule
 - keep coder allocation restricted to `ready_for_coding`
 
+Current status:
+
+- implemented for the current workflow core
+- `smartva_pending` gates new/changed payloads
+- same-payload cleanup returns do not rerun SmartVA
+- `ready_for_coding` now means SmartVA was attempted for the current payload
+
+Additional runtime note:
+
+- `closed` remains defined only as a legacy compatibility state
+- the hourly coding-maintenance path now lands on `reviewer_eligible` instead
+  of writing `closed`
+
 ## Recommended Delivery Order
 
 1. canonical workflow-state model
@@ -270,6 +312,13 @@ Finish the SmartVA gate so workflow semantics are explicit and uniform:
 8. authoritative final-COD model
 9. complete SmartVA-gated coding readiness
 10. parity verification and cleanup
+
+Current completion note:
+
+- delivery order items 1, 2, 3, 4, 5, 6, 8, 9, and 10 are substantially
+  complete in the current workflow runtime
+- reviewer secondary-coding workflow remains the main workflow-design item
+  still open, especially downstream reader/reporting parity
 
 ## Data Safety Notes
 
@@ -296,6 +345,6 @@ The migration should be verified against these scenarios:
 - data-manager Not Codeable exclusion
 - recode inside revision window
 - incomplete recode not replacing prior final COD
-- reviewer override over coder-finalized case
+- reviewer final over coder-finalized case
 - authoritative final COD selection after recode
-- authoritative final COD selection after reviewer override
+- authoritative final COD selection after reviewer finalization

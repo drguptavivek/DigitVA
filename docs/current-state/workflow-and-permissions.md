@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # Workflow And Permissions
@@ -20,11 +20,20 @@ Primary roles:
 - site PI
 - admin
 
-The current workflow is built around form-based permissions and per-submission allocation.
+Current admin scope rule:
+
+- `admin` is global-only in the implemented grant model
+- project- or site-scoped admin grants are not supported
+- admin-only workflow actions such as override-to-recode therefore rely on
+  global admin membership, not submission scope checks
+
+The current workflow is built around form-based permissions and per-submission
+allocation.
 
 An additive canonical workflow-state table now exists:
 
 - `va_submission_workflow`
+- `va_submission_workflow_events`
 
 This table stores one local business-state row per submission, but the
 application is still in migration. Legacy workflow tables still drive
@@ -49,6 +58,19 @@ Current cutover status:
   `va_final_cod_authority`
 - recode now starts a separate non-destructive episode in `va_coding_episodes`
   instead of immediately discarding the current finalized coder outcome
+- workflow state ownership is being consolidated under `app/services/workflow/`
+- runtime state transitions now flow through `app/services/workflow/transitions.py`
+  using explicit actor types:
+  - `vasystem`
+  - `vaadmin`
+  - `vacoder`
+  - `data_manager`
+- canonical state persistence is handled in
+  `app/services/workflow/state_store.py`
+- canonical workflow events are now written to
+  `va_submission_workflow_events`
+- transition execution now takes a row lock on the submission workflow record
+  before validating and writing state, reducing concurrent transition races
 
 ## Current State vs Desired State
 
@@ -58,32 +80,45 @@ full policy target.
 Implemented in current runtime:
 
 - `consent_refused`
+- `screening_pending`
 - `smartva_pending`
 - `ready_for_coding`
 - `coding_in_progress`
 - `partial_coding_saved`
 - `coder_step1_saved`
 - `coder_finalized`
-- `revoked_va_data_changed`
+- `reviewer_eligible`
+- `reviewer_coding_in_progress`
+- `reviewer_finalized`
+- `finalized_upstream_changed`
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
-
-Defined in constants but not currently written by an implemented transition:
-
-- `closed`
 
 Desired target states are documented in
 [Coding Workflow State Machine Policy](../policy/coding-workflow-state-machine.md).
 The planned gap-closure sequence is documented in
 [Plan: Finalized Upstream Change Gap Closure](../planning/finalized-upstream-change-gap-plan.md).
 
+Current rename note:
+
+- runtime/data now use `finalized_upstream_changed`
+- legacy migrated key: `revoked_va_data_changed`
+- UI target label remains `Finalized - ODK Data Changed`
+
 ## Main Workflow Sequence
 
 1. ODK sync writes or updates `va_submissions`.
-2. Eligible submissions become visible in role dashboards.
-3. A user starts coding or review, which creates an allocation.
-4. The user works through the category UI and submits outcomes.
-5. The allocation is released when work is completed or a terminal workflow decision is recorded.
+2. The workflow layer routes new or payload-changed submissions to:
+   - `consent_refused`, or
+   - `smartva_pending`
+3. SmartVA completion for the current payload moves the submission to
+   `ready_for_coding`.
+4. Eligible submissions become visible in coding dashboards only after they are
+   `ready_for_coding`.
+5. A user starts coding or review, which creates an allocation.
+6. The user works through the category UI and submits outcomes.
+7. The allocation is released when work is completed or a terminal workflow
+   decision is recorded.
 
 ## Coder Workflow
 
@@ -93,6 +128,15 @@ Project-level intake setting:
 - supported values:
   - `random_form_allocation`
   - `pick_and_choose`
+
+Project-level screening note:
+
+- `screening_pending` is an optional project-configured gate
+- screening-enabled projects may route submissions through
+  `screening_pending -> smartva_pending` or
+  `screening_pending -> not_codeable_by_data_manager`
+- projects without screening bypass that state and route directly to
+  `smartva_pending`
 
 Current implementation status:
 
@@ -140,6 +184,8 @@ Coding steps:
 - initial assessment creates a `va_initial_assessments` row
 - initial assessment also records `coder_step1_saved` in `va_submission_workflow`
 - final coding creates a `va_final_assessments` row
+- final coding stamps that row with the submission's current
+  `active_payload_version_id`
 - final coding also records `coder_finalized` in `va_submission_workflow`
 - not-codeable path creates a `va_coder_review` row
 - coder Not Codeable also records `not_codeable_by_coder` in
@@ -153,6 +199,10 @@ Completion behavior:
 - demo final coding now keeps the saved NQA, Social Autopsy, and final COD rows
   active immediately after submission so they remain visible in the dashboard
   during the demo-retention window
+- reviewer final coding creates a `va_reviewer_final_assessments` row stamped
+  with the submission's current `active_payload_version_id`
+- final COD authority resolution now ignores stale coder/reviewer final rows
+  from older payload versions
 
 Timeout cleanup:
 
@@ -169,9 +219,14 @@ Timeout cleanup:
 - recode timeout reversion preserves the authoritative final COD plus recode NQA
   and Social Autopsy analysis rows, abandons the active recode episode, and
   returns canonical workflow state to `coder_finalized`
+- recode start/finalization now require an active recode episode as a workflow
+  precondition, not just route/service branching
 - the same hourly maintenance task now also deactivates expired demo-created
   NQA, Social Autopsy, and final COD rows whose `demo_expires_at` timestamp is
   older than the current time
+- that hourly maintenance path now moves
+  `coder_finalized -> reviewer_eligible` once the authoritative final COD is
+  older than the 24-hour recode window and there is no active recode episode
 - when demo-retention cleanup deactivates an authoritative demo final COD, it
   also clears or repoints `va_final_cod_authority` and restores canonical
   workflow state based on the remaining active records
@@ -184,22 +239,25 @@ Canonical state values currently written in the runtime path include:
 - `partial_coding_saved`
 - `coder_step1_saved`
 - `coder_finalized`
-- `revoked_va_data_changed`
+- `reviewer_eligible`
+- `finalized_upstream_changed`
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
 
-The `closed` state exists as a defined constant and is treated as a protected
-state by some services, but there is currently no implemented runtime path that
-transitions a submission into `closed`.
+The `closed` state still exists as a defined legacy compatibility constant for
+historical rows and protection logic, but current runtime does not write it in
+normal case handling. Current runtime treats `reviewer_eligible` as the
+post-24-hour resting state for coder-finalized submissions.
 
 `smartva_pending` is now written for newly synced and payload-changed
 submissions before SmartVA completes.
 
-Current remaining SmartVA-gate gap:
+Current remaining reader/reporting gap:
 
-- explicit SmartVA-failure recording that would allow a documented
-  failure-handled transition from `smartva_pending` to `ready_for_coding`
-  is not yet implemented
+- analytics MV and Site PI reporting now honor reviewer authority
+- some older coder-participation detail slices still read coder-owned tables
+  directly because they are measuring coder activity, not authoritative final
+  COD
 
 ## Data Manager Workflow
 
@@ -228,12 +286,15 @@ Data-manager triage:
 - the `Data Triage` panel can mark a submission Not Codeable only while the
   canonical workflow state is:
   - `screening_pending`
+  - `smartva_pending`
   - `ready_for_coding`
   - `not_codeable_by_data_manager`
 - a successful triage write creates or updates `va_data_manager_review`
 - the canonical workflow state is updated to `not_codeable_by_data_manager`
 - coder availability excludes those submissions automatically because coder pool
   selection now requires `ready_for_coding`
+- the POST path now also enforces an explicit `current_user.is_data_manager()`
+  check before it records the transition
 
 Data-manager sync controls:
 
@@ -245,7 +306,9 @@ Data-manager sync controls:
 
 Audit trail:
 
-- coder workflow milestones are recorded in `va_submissions_auditlog`
+- canonical workflow state changes are recorded in
+  `va_submission_workflow_events`
+- `va_submissions_auditlog` is now the non-workflow operational audit trail
 - current milestone examples include:
   - `form allocated to coder`
   - `social autopsy analysis saved` / `updated`
@@ -310,19 +373,66 @@ Review submission:
 - the reviewer submits a `va_reviewer_review` record
 - the active reviewing allocation is then released
 
+Current reviewer model note:
+
+- current runtime now marks post-24-hour coder-finalized submissions as
+  `reviewer_eligible`
+- runtime now also supports reviewer secondary-coding workflow states:
+  - `reviewer_coding_in_progress`
+  - `reviewer_finalized`
+- reviewer JSON API now exists for reviewer allocation and reviewer final-COD
+  submission
+- the server-rendered reviewer start path now also goes through the reviewer
+  coding service and canonical workflow transitions instead of creating
+  allocations ad hoc
+- the older `va_reviewer_review` flow remains legacy reviewer QA/review data,
+  but it is no longer the only reviewer entry path
+- reviewer secondary coding opens only after the coder's 24-hour recode window
+  closes
+- admin may still reset/reopen a case at any time and return it to the coder
+  pool
+- reviewer final COD authority now resolves ahead of coder final COD in the
+  authority service and main submission display path
+- `va_reviewer_review` is therefore legacy relative to the new reviewer policy,
+  not the future reviewer final-COD artifact
+- additive reviewer final-COD storage now exists in
+  `va_reviewer_final_assessments`, but reviewer submission flow and authority
+  cutover is now aligned in the analytics materialized view and the legacy
+  site-PI total-coded KPI; some older reporting slices still read coder-only
+  tables directly for coder participation detail
+- `va_final_cod_authority` now has reviewer-pointer support and reviewer
+  submission updates that authority row
+
 ## Site PI Behavior
 
-Site PI currently has a reporting-oriented dashboard rather than a full operational workflow.
+Site PI currently has a reporting-oriented dashboard rather than a full
+operational workflow.
 
 Current site PI capabilities:
 
 - site-level KPI viewing
-- coder participation and coding status reporting
-- some access-controlled view/recode paths depending on workflow state
+- authoritative-coded totals that now include reviewer-finalized cases
+- workflow outcome counts, including:
+  - `reviewer_eligible`
+  - `reviewer_finalized`
+  - `finalized_upstream_changed`
+- workflow repair-cycle totals sourced from canonical workflow events,
+  including:
+  - admin resets
+  - upstream-change detection and acceptance
+  - recode starts and finalizations
+  - reviewer coding starts and finalizations
+- per-submission workflow-cycle rows showing current state, authority source,
+  and event counts
+- coder participation reporting, which still intentionally uses coder-owned
+  tables because it measures coder activity rather than final authority
 
-Important note:
+Implementation note:
 
-- current Site PI logic mixes site and form assumptions in places and should be treated carefully when refactoring
+- Site PI dashboard reporting now resolves through
+  `app/services/sitepi_reporting_service.py`
+- that service is site-scoped through `va_forms.site_id` and no longer relies
+  on the earlier mixed site/form assumptions
 
 ## Permissions Model
 

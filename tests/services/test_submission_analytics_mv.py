@@ -10,13 +10,17 @@ from app.models import (
     VaForms,
     VaInitialAssessments,
     VaResearchProjects,
+    VaReviewerFinalAssessments,
     VaSites,
     VaSmartvaResults,
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.final_cod_authority_service import upsert_final_cod_authority
+from app.services.final_cod_authority_service import (
+    upsert_final_cod_authority,
+    upsert_reviewer_final_cod_authority,
+)
 from app.services.submission_analytics_mv import (
     build_submission_analytics_mv_sql,
     get_dm_kpi_from_mv,
@@ -381,6 +385,96 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         nonmatching_kpi = get_dm_kpi_from_mv(
             [self.PROJECT_ID],
             [],
-            workflow="revoked_va_data_changed",
+            workflow="finalized_upstream_changed",
         )
         self.assertEqual(nonmatching_kpi["total_submissions"], 0)
+
+    def test_mv_prefers_reviewer_authority_and_counts_reviewer_states_as_coded(self):
+        sid = "uuid:mv-reviewer-final"
+
+        self._add_submission(
+            sid,
+            {
+                "age_neonate_days": "",
+                "age_neonate_hours": "",
+                "ageInDays": "",
+                "ageInMonths": "",
+                "ageInYears": "52",
+                "ageInYears2": "52",
+                "finalAgeInYears": "52",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            gender="male",
+            normalized_days=Decimal("52") * Decimal("365.25"),
+            normalized_years=Decimal("52"),
+            normalized_source="ageInYears",
+            workflow_state="reviewer_finalized",
+        )
+        coder_final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="I21-Acute myocardial infarction",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(coder_final)
+        db.session.flush()
+        upsert_final_cod_authority(
+            sid,
+            coder_final,
+            reason="test_mv_reviewer_base",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        reviewer_user = self._make_user(
+            "base.reviewer.analytics@test.local",
+            "BaseReviewerAnalytics123",
+        )
+        reviewer_final = VaReviewerFinalAssessments(
+            va_sid=sid,
+            va_rfinassess_by=reviewer_user.user_id,
+            va_conclusive_cod="J18-Pneumonia, unspecified organism",
+            va_rfinassess_remark="Reviewer override",
+            supersedes_coder_final_assessment_id=coder_final.va_finassess_id,
+            va_rfinassess_status=VaStatuses.active,
+        )
+        db.session.add(reviewer_final)
+        db.session.flush()
+        upsert_reviewer_final_cod_authority(
+            sid,
+            reviewer_final,
+            reason="test_mv_reviewer_override",
+            updated_by=reviewer_user.user_id,
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        row = db.session.execute(
+            sa.text(
+                """
+                SELECT
+                    workflow_state,
+                    final_cod_text,
+                    final_icd,
+                    final_cod_authority_source
+                FROM va_submission_analytics_mv
+                WHERE va_sid = :sid
+                """
+            ),
+            {"sid": sid},
+        ).mappings().one()
+
+        self.assertEqual(row["workflow_state"], "reviewer_finalized")
+        self.assertEqual(
+            row["final_cod_text"],
+            "J18-Pneumonia, unspecified organism",
+        )
+        self.assertEqual(row["final_icd"], "J18")
+        self.assertEqual(row["final_cod_authority_source"], "reviewer")
+
+        kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [], workflow="reviewer_finalized")
+        self.assertEqual(kpi["total_submissions"], 1)
+        self.assertEqual(kpi["coded_submissions"], 1)

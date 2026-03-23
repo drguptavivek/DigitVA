@@ -10,6 +10,9 @@ from app.models.va_selectives import VaStatuses
 class VaSmartvaResults(db.Model):
     __tablename__ = "va_smartva_results"
 
+    OUTCOME_SUCCESS = "success"
+    OUTCOME_FAILED = "failed"
+
     va_smartva_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, index=True, primary_key=True
     )
@@ -19,6 +22,21 @@ class VaSmartvaResults(db.Model):
         sa.ForeignKey("va_submissions.va_sid"),
         index=True,
         nullable=False,
+    )
+    payload_version_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey(
+            "va_submission_payload_versions.payload_version_id",
+            ondelete="SET NULL",
+        ),
+        index=True,
+        nullable=True,
+    )
+    smartva_run_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_smartva_runs.va_smartva_run_id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
     )
     va_smartva_age: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(8), nullable=True
@@ -67,6 +85,18 @@ class VaSmartvaResults(db.Model):
     )
     va_smartva_cause3icd: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(8), nullable=True
+    )
+    va_smartva_outcome: so.Mapped[str] = so.mapped_column(
+        sa.String(16),
+        default=OUTCOME_SUCCESS,
+        nullable=False,
+        index=True,
+    )
+    va_smartva_failure_stage: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(32), nullable=True
+    )
+    va_smartva_failure_detail: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.Text, nullable=True
     )
 
     va_smartva_status: so.Mapped[VaStatuses] = so.mapped_column(

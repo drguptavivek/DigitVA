@@ -10,8 +10,8 @@ from app.services.coder_dashboard_service import (
     get_coder_project_ids,
     get_coder_recodeable_sids,
 )
-from app.services.project_workflow_service import split_form_ids_by_coding_intake_mode
-from app.services.submission_workflow_service import CODER_READY_POOL_STATES
+from app.services.workflow.definition import CODER_READY_POOL_STATES
+from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.coding_service import render_va_coding_page
 from app.services.coder_workflow_service import (
     AllocationError,

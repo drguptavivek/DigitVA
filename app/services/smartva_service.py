@@ -1,17 +1,23 @@
 """Centralized SmartVA generation service.
 
 All SmartVA operations go through this module. Protected workflow states
-(coder_finalized, revoked_va_data_changed, closed) are excluded from
+(coder_finalized, finalized_upstream_changed, closed) are excluded from
 automatic generation unless force=True is passed (admin only).
 """
 import uuid
 import tempfile
 import logging
+import math
+import os
+from datetime import datetime, timezone
 
+import pandas as pd
 import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    VaSmartvaRun,
+    VaSmartvaRunOutput,
     VaSmartvaResults,
     VaStatuses,
     VaSubmissions,
@@ -21,36 +27,179 @@ from app.models import (
 log = logging.getLogger(__name__)
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _normalize_json_value(value):
+    if value is None:
+        return None
+    if hasattr(value, "item"):
+        try:
+            value = value.item()
+        except Exception:
+            pass
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    return value
+
+
+def _smartva_output_payload(record) -> dict:
+    if hasattr(record, "_asdict"):
+        payload = {
+            key: _normalize_json_value(value)
+            for key, value in record._asdict().items()
+            if key != "Index"
+        }
+        return payload
+    return {}
+
+
+def _smartva_source_name(result_for: str | None) -> str | None:
+    if result_for == "for_adult":
+        return "adult-likelihoods.csv"
+    if result_for == "for_child":
+        return "child-likelihoods.csv"
+    if result_for == "for_neonate":
+        return "neonate-likelihoods.csv"
+    return None
+
+
+def _likelihood_output_path_map(workspace_dir: str) -> dict[str, str]:
+    output_dir = os.path.join(
+        workspace_dir,
+        "smartva_output",
+        "4-monitoring-and-quality",
+        "intermediate-files",
+    )
+    return {
+        "for_adult": os.path.join(output_dir, "adult-likelihoods.csv"),
+        "for_child": os.path.join(output_dir, "child-likelihoods.csv"),
+        "for_neonate": os.path.join(output_dir, "neonate-likelihoods.csv"),
+    }
+
+
+def _read_raw_likelihood_outputs(
+    workspace_dir: str,
+    pending_sids: set[str],
+) -> dict[str, list[tuple[str | None, dict]]]:
+    outputs_by_sid: dict[str, list[tuple[str | None, dict]]] = {}
+    for result_for, file_path in _likelihood_output_path_map(workspace_dir).items():
+        if not os.path.exists(file_path):
+            continue
+        df = pd.read_csv(file_path)
+        df = df.replace({pd.NA: None, float("nan"): None})
+        for record in df.itertuples():
+            payload = _smartva_output_payload(record)
+            sid = payload.get("sid")
+            if sid is None or sid not in pending_sids:
+                continue
+            payload["result_for"] = result_for
+            outputs_by_sid.setdefault(sid, []).append(
+                (_smartva_source_name(result_for), payload)
+            )
+    return outputs_by_sid
+
+
+def _create_smartva_run(
+    va_sid: str,
+    *,
+    payload_version_id,
+    trigger_source: str,
+    outcome: str,
+    failure_stage: str | None = None,
+    failure_detail: str | None = None,
+    run_metadata: dict | None = None,
+) -> VaSmartvaRun:
+    now = _utcnow()
+    smartva_run = VaSmartvaRun(
+        va_smartva_run_id=uuid.uuid4(),
+        va_sid=va_sid,
+        payload_version_id=payload_version_id,
+        trigger_source=trigger_source,
+        va_smartva_outcome=outcome,
+        va_smartva_failure_stage=failure_stage[:32] if failure_stage else None,
+        va_smartva_failure_detail=failure_detail[:4000] if failure_detail else None,
+        run_metadata=run_metadata,
+        va_smartva_run_started_at=now,
+        va_smartva_run_completed_at=now,
+        va_smartva_run_updated_at=now,
+    )
+    db.session.add(smartva_run)
+    db.session.flush()
+    return smartva_run
+
+
+def _create_smartva_run_output(
+    smartva_run_id: uuid.UUID,
+    *,
+    payload: dict,
+    output_source_name: str | None,
+    output_kind: str,
+) -> None:
+    db.session.add(
+        VaSmartvaRunOutput(
+            va_smartva_run_output_id=uuid.uuid4(),
+            va_smartva_run_id=smartva_run_id,
+            output_kind=output_kind,
+            output_source_name=output_source_name,
+            output_row_index=0,
+            output_sid=payload.get("sid"),
+            output_resultfor=payload.get("result_for"),
+            output_payload=payload,
+        )
+    )
+
+
 def _transition_to_ready_after_smartva_if_pending(va_sid: str) -> None:
     """Mark a submission coding-ready after SmartVA if it was awaiting SmartVA."""
-    from app.services.submission_workflow_service import (
-        WORKFLOW_READY_FOR_CODING,
-        WORKFLOW_SMARTVA_PENDING,
-        get_submission_workflow_state,
-        set_submission_workflow_state,
+    from app.services.workflow.definition import WORKFLOW_SMARTVA_PENDING
+    from app.services.workflow.state_store import get_submission_workflow_state
+    from app.services.workflow.transitions import mark_smartva_completed, system_actor
+
+    if get_submission_workflow_state(va_sid) != WORKFLOW_SMARTVA_PENDING:
+        return
+
+    mark_smartva_completed(
+        va_sid,
+        reason="smartva_completed_for_current_payload",
+        actor=system_actor(),
+    )
+
+
+def _transition_to_ready_after_smartva_failure_if_pending(va_sid: str) -> None:
+    """Mark a submission coding-ready after a recorded SmartVA failure."""
+    from app.services.workflow.definition import WORKFLOW_SMARTVA_PENDING
+    from app.services.workflow.state_store import get_submission_workflow_state
+    from app.services.workflow.transitions import (
+        mark_smartva_failed_recorded,
+        system_actor,
     )
 
     if get_submission_workflow_state(va_sid) != WORKFLOW_SMARTVA_PENDING:
         return
 
-    set_submission_workflow_state(
+    mark_smartva_failed_recorded(
         va_sid,
-        WORKFLOW_READY_FOR_CODING,
-        reason="smartva_completed_for_current_payload",
-        by_role="vaadmin",
+        reason="smartva_failed_for_current_payload",
+        actor=system_actor(),
     )
 
 
 def _protected_states():
-    from app.services.submission_workflow_service import (
+    from app.services.workflow.definition import (
         WORKFLOW_CODER_FINALIZED,
-        WORKFLOW_REVOKED_VA_DATA_CHANGED,
+        WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+        WORKFLOW_REVIEWER_ELIGIBLE,
+        WORKFLOW_REVIEWER_FINALIZED,
         WORKFLOW_CLOSED,
         WORKFLOW_CONSENT_REFUSED,
     )
     return frozenset({
         WORKFLOW_CODER_FINALIZED,
-        WORKFLOW_REVOKED_VA_DATA_CHANGED,
+        WORKFLOW_REVIEWER_ELIGIBLE,
+        WORKFLOW_REVIEWER_FINALIZED,
+        WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
         WORKFLOW_CLOSED,
         WORKFLOW_CONSENT_REFUSED,
     })
@@ -73,10 +222,21 @@ def pending_smartva_sids(form_id: str) -> set[str]:
     if not all_sids:
         return set()
 
-    done_sids = set(
+    current_payload_done = set(
         db.session.scalars(
-            sa.select(VaSmartvaResults.va_sid).where(
-                VaSmartvaResults.va_sid.in_(all_sids),
+            sa.select(VaSubmissions.va_sid)
+            .join(
+                VaSmartvaResults,
+                sa.and_(
+                    VaSmartvaResults.va_sid == VaSubmissions.va_sid,
+                    VaSmartvaResults.payload_version_id
+                    == VaSubmissions.active_payload_version_id,
+                ),
+            )
+            .where(
+                VaSubmissions.va_form_id == form_id,
+                VaSubmissions.va_sid.in_(all_sids),
+                VaSubmissions.active_payload_version_id.is_not(None),
                 VaSmartvaResults.va_smartva_status == VaStatuses.active,
             )
         ).all()
@@ -91,13 +251,16 @@ def pending_smartva_sids(form_id: str) -> set[str]:
         ).all()
     )
 
-    return all_sids - done_sids - protected_sids
+    return all_sids - current_payload_done - protected_sids
 
 
 def _save_smartva_result(
     va_sid: str,
     record,
     *,
+    payload_version_id,
+    trigger_source: str,
+    raw_outputs: list[tuple[str | None, dict]] | None = None,
     existing=None,
     audit_action: str = "va_smartva_creation_during_datasync",
 ) -> uuid.UUID:
@@ -118,11 +281,33 @@ def _save_smartva_result(
             )
         )
 
+    smartva_run = _create_smartva_run(
+        va_sid,
+        payload_version_id=payload_version_id,
+        trigger_source=trigger_source,
+        outcome=VaSmartvaRun.OUTCOME_SUCCESS,
+    )
+    for output_source_name, raw_payload in raw_outputs or []:
+        _create_smartva_run_output(
+            smartva_run.va_smartva_run_id,
+            payload=raw_payload,
+            output_source_name=output_source_name,
+            output_kind="likelihood_row",
+        )
+    _create_smartva_run_output(
+        smartva_run.va_smartva_run_id,
+        payload=_smartva_output_payload(record),
+        output_source_name=_smartva_source_name(getattr(record, "result_for", None)),
+        output_kind="formatted_result_row",
+    )
+
     result_id = uuid.uuid4()
     db.session.add(
         VaSmartvaResults(
             va_smartva_id=result_id,
             va_sid=va_sid,
+            payload_version_id=payload_version_id,
+            smartva_run_id=smartva_run.va_smartva_run_id,
             va_smartva_age=(
                 format(float(getattr(record, "age", None)), ".1f")
                 if getattr(record, "age", None) is not None
@@ -143,6 +328,9 @@ def _save_smartva_result(
             va_smartva_cause1icd=getattr(record, "cause1_icd", None),
             va_smartva_cause2icd=getattr(record, "cause2_icd", None),
             va_smartva_cause3icd=getattr(record, "cause3_icd", None),
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
+            va_smartva_failure_stage=None,
+            va_smartva_failure_detail=None,
         )
     )
     db.session.add(
@@ -155,6 +343,124 @@ def _save_smartva_result(
         )
     )
     return result_id
+
+
+def _active_smartva_results_for_sids(
+    active_payload_by_sid: dict[str, uuid.UUID],
+) -> dict[str, VaSmartvaResults]:
+    """Return active SmartVA rows for the current active payload versions."""
+    if not active_payload_by_sid:
+        return {}
+    return {
+        row.va_sid: row
+        for row in db.session.scalars(
+            sa.select(VaSmartvaResults)
+            .join(
+                VaSubmissions,
+                sa.and_(
+                    VaSubmissions.va_sid == VaSmartvaResults.va_sid,
+                    VaSubmissions.active_payload_version_id
+                    == VaSmartvaResults.payload_version_id,
+                ),
+            )
+            .where(
+                VaSmartvaResults.va_sid.in_(set(active_payload_by_sid)),
+                VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            )
+        ).all()
+    }
+
+
+def _save_smartva_failure(
+    va_sid: str,
+    *,
+    payload_version_id,
+    trigger_source: str,
+    failure_stage: str,
+    failure_detail: str,
+    existing=None,
+    audit_action: str = "va_smartva_failure_recorded",
+) -> uuid.UUID:
+    """Deactivate any existing active row and persist a failure record."""
+    if existing:
+        existing.va_smartva_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=existing.va_smartva_id,
+                va_audit_byrole="vaadmin",
+                va_audit_operation="d",
+                va_audit_action="va_smartva_deletion_during_datasync",
+            )
+        )
+
+    smartva_run = _create_smartva_run(
+        va_sid,
+        payload_version_id=payload_version_id,
+        trigger_source=trigger_source,
+        outcome=VaSmartvaRun.OUTCOME_FAILED,
+        failure_stage=failure_stage,
+        failure_detail=failure_detail,
+    )
+    result_id = uuid.uuid4()
+    db.session.add(
+        VaSmartvaResults(
+            va_smartva_id=result_id,
+            va_sid=va_sid,
+            payload_version_id=payload_version_id,
+            smartva_run_id=smartva_run.va_smartva_run_id,
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_FAILED,
+            va_smartva_failure_stage=failure_stage[:32],
+            va_smartva_failure_detail=failure_detail[:4000],
+        )
+    )
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_entityid=result_id,
+            va_audit_byrole="vaadmin",
+            va_audit_operation="c",
+            va_audit_action=audit_action,
+        )
+    )
+    return result_id
+
+
+def _record_smartva_failures(
+    va_sids: set[str],
+    *,
+    trigger_source: str,
+    failure_stage: str,
+    failure_detail: str,
+) -> int:
+    """Persist failure records and release pending submissions for coding."""
+    active_payload_by_sid = _active_payload_versions_by_sid(va_sids)
+    existing_active = _active_smartva_results_for_sids(active_payload_by_sid)
+    recorded = 0
+    for va_sid in sorted(va_sids):
+        payload_version_id = active_payload_by_sid.get(va_sid)
+        _save_smartva_failure(
+            va_sid,
+            payload_version_id=payload_version_id,
+            trigger_source=trigger_source,
+            failure_stage=failure_stage,
+            failure_detail=failure_detail,
+            existing=existing_active.get(va_sid),
+        )
+        _transition_to_ready_after_smartva_failure_if_pending(va_sid)
+        recorded += 1
+    return recorded
+
+
+def _active_payload_versions_by_sid(va_sids: set[str]) -> dict[str, uuid.UUID | None]:
+    if not va_sids:
+        return {}
+    rows = db.session.execute(
+        sa.select(VaSubmissions.va_sid, VaSubmissions.active_payload_version_id).where(
+            VaSubmissions.va_sid.in_(va_sids)
+        )
+    ).all()
+    return {va_sid: payload_version_id for va_sid, payload_version_id in rows}
 
 
 def generate_for_form(
@@ -214,34 +520,95 @@ def generate_for_form(
     if log_progress:
         log_progress(f"SmartVA {va_form.form_id}: preparing input ({len(pending)} pending)…")
 
-    with tempfile.TemporaryDirectory() as workspace_dir:
-        va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
-        va_smartva_runsmartva(va_form, workspace_dir)
-        output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
-        if not output_file:
-            log.warning("SmartVA [%s]: no output file produced.", va_form.form_id)
-            return 0
+    active_payload_by_sid = _active_payload_versions_by_sid(pending)
 
-        new_results, existing_active = va_smartva_appendsmartvaresults(
-            db.session, {va_form: output_file}
+    try:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
+            va_smartva_runsmartva(va_form, workspace_dir)
+            raw_outputs_by_sid = _read_raw_likelihood_outputs(workspace_dir, pending)
+            output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
+            if not output_file:
+                log.warning("SmartVA [%s]: no output file produced.", va_form.form_id)
+                failure_count = _record_smartva_failures(
+                    pending,
+                    trigger_source="form_batch",
+                    failure_stage="format_output",
+                    failure_detail="SmartVA produced no output file for the current payload.",
+                )
+                db.session.commit()
+                return failure_count
+
+            new_results, _existing_active = va_smartva_appendsmartvaresults(
+                db.session, {va_form: output_file}
+            )
+    except Exception as exc:
+        db.session.rollback()
+        failure_count = _record_smartva_failures(
+            pending,
+            trigger_source="form_batch",
+            failure_stage="execution",
+            failure_detail=str(exc),
         )
+        db.session.commit()
+        log.warning(
+            "SmartVA [%s]: recorded %d failure row(s) after exception: %s",
+            va_form.form_id,
+            failure_count,
+            exc,
+            exc_info=True,
+        )
+        if log_progress:
+            log_progress(
+                f"SmartVA {va_form.form_id}: {failure_count} failure record(s) saved."
+            )
+        return failure_count
 
     if new_results is None:
         log.info("SmartVA [%s]: no new results.", va_form.form_id)
-        return 0
+        failure_count = _record_smartva_failures(
+            pending,
+            trigger_source="form_batch",
+            failure_stage="append_results",
+            failure_detail="SmartVA returned no result rows for the current payload.",
+        )
+        db.session.commit()
+        return failure_count
 
+    current_existing = _active_smartva_results_for_sids(active_payload_by_sid)
     saved = 0
+    seen_sids = set()
     for record in new_results.itertuples():
         va_sid = getattr(record, "sid", None)
-        existing = existing_active.get(va_sid)
+        if va_sid is None or va_sid not in pending:
+            continue
+        seen_sids.add(va_sid)
+        existing = current_existing.get(va_sid)
+        payload_version_id = active_payload_by_sid.get(va_sid)
 
         # Skip if not amended and result already exists
         if va_sid not in amended_sids and existing:
             continue
 
-        _save_smartva_result(va_sid, record, existing=existing)
+        _save_smartva_result(
+            va_sid,
+            record,
+            payload_version_id=payload_version_id,
+            trigger_source="form_batch",
+            raw_outputs=raw_outputs_by_sid.get(va_sid),
+            existing=existing,
+        )
         _transition_to_ready_after_smartva_if_pending(va_sid)
         saved += 1
+
+    missing_sids = pending - seen_sids
+    if missing_sids:
+        saved += _record_smartva_failures(
+            missing_sids,
+            trigger_source="form_batch",
+            failure_stage="missing_row",
+            failure_detail="SmartVA completed but returned no row for this submission.",
+        )
 
     db.session.commit()
     log.info("SmartVA [%s]: committed %d result(s).", va_form.form_id, saved)
@@ -284,29 +651,82 @@ def generate_for_submission(va_sid: str, *, log_progress=None) -> int:
         log.warning("SmartVA generate_for_submission: form %s not found.", submission.va_form_id)
         return 0
 
-    with tempfile.TemporaryDirectory() as workspace_dir:
-        va_smartva_prepdata(va_form, workspace_dir, pending_sids={va_sid})
-        va_smartva_runsmartva(va_form, workspace_dir)
-        output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
-        if not output_file:
-            return 0
+    try:
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            va_smartva_prepdata(va_form, workspace_dir, pending_sids={va_sid})
+            va_smartva_runsmartva(va_form, workspace_dir)
+            raw_outputs_by_sid = _read_raw_likelihood_outputs(
+                workspace_dir,
+                {va_sid},
+            )
+            output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
+            if not output_file:
+                failure_count = _record_smartva_failures(
+                    {va_sid},
+                    trigger_source="single_submission",
+                    failure_stage="format_output",
+                    failure_detail="SmartVA produced no output file for the current payload.",
+                )
+                db.session.commit()
+                return failure_count
 
-        new_results, existing_active = va_smartva_appendsmartvaresults(
-            db.session, {va_form: output_file}
+            new_results, _existing_active = va_smartva_appendsmartvaresults(
+                db.session, {va_form: output_file}
+            )
+    except Exception as exc:
+        db.session.rollback()
+        failure_count = _record_smartva_failures(
+            {va_sid},
+            trigger_source="single_submission",
+            failure_stage="execution",
+            failure_detail=str(exc),
         )
+        db.session.commit()
+        log.warning(
+            "SmartVA [%s]: recorded submission failure for %s: %s",
+            va_form.form_id,
+            va_sid,
+            exc,
+            exc_info=True,
+        )
+        return failure_count
 
     if new_results is None:
-        return 0
+        failure_count = _record_smartva_failures(
+            {va_sid},
+            trigger_source="single_submission",
+            failure_stage="append_results",
+            failure_detail="SmartVA returned no result rows for the current payload.",
+        )
+        db.session.commit()
+        return failure_count
 
     saved = 0
+    active_payload_by_sid = _active_payload_versions_by_sid({va_sid})
+    current_existing = _active_smartva_results_for_sids(active_payload_by_sid)
     for record in new_results.itertuples():
         result_sid = getattr(record, "sid", None)
         if result_sid != va_sid:
             continue
-        existing = existing_active.get(result_sid)
-        _save_smartva_result(result_sid, record, existing=existing)
+        existing = current_existing.get(result_sid)
+        _save_smartva_result(
+            result_sid,
+            record,
+            payload_version_id=active_payload_by_sid.get(result_sid),
+            trigger_source="single_submission",
+            raw_outputs=raw_outputs_by_sid.get(result_sid),
+            existing=existing,
+        )
         _transition_to_ready_after_smartva_if_pending(result_sid)
         saved += 1
+
+    if saved == 0:
+        saved = _record_smartva_failures(
+            {va_sid},
+            trigger_source="single_submission",
+            failure_stage="missing_row",
+            failure_detail="SmartVA completed but returned no row for this submission.",
+        )
 
     db.session.commit()
     return saved

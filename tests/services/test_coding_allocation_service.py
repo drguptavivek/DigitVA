@@ -16,6 +16,7 @@ from app.models import (
     VaResearchProjects,
     VaSites,
     VaStatuses,
+    VaSubmissionWorkflowEvent,
     VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
@@ -24,13 +25,19 @@ from app.services.coding_allocation_service import (
     cleanup_expired_demo_coding_artifacts,
     release_stale_coding_allocations,
 )
+from app.services.coder_workflow_service import (
+    mark_reviewer_eligible_after_recode_window_submissions,
+)
 from app.services.final_cod_authority_service import (
     EPISODE_STATUS_ACTIVE,
     EPISODE_TYPE_RECODE,
     upsert_final_cod_authority,
 )
-from app.services.submission_workflow_service import (
+from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+)
+from app.services.workflow.state_store import (
     set_submission_workflow_state,
 )
 from tests.base import BaseTestCase
@@ -425,23 +432,89 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertIsNone(authority.authoritative_final_assessment_id)
         self.assertEqual(workflow.workflow_state, "ready_for_coding")
 
-        audit_actions = {
-            row.va_audit_action
-            for row in db.session.scalars(
-                db.select(VaSubmissionsAuditlog).where(
-                    VaSubmissionsAuditlog.va_sid == stale_sid
+    def test_mark_reviewer_eligible_after_recode_window_submissions_transitions_old_finalized_cases(self):
+        stale_sid = "uuid:close-expired"
+        fresh_sid = "uuid:close-fresh"
+        self._add_submission(stale_sid)
+        self._add_submission(fresh_sid)
+        db.session.flush()
+
+        stale_final = VaFinalAssessments(
+            va_sid=stale_sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+        )
+        fresh_final = VaFinalAssessments(
+            va_sid=fresh_sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add_all([stale_final, fresh_final])
+        db.session.flush()
+
+        stale_final.va_finassess_createdat = datetime.now(timezone.utc) - timedelta(days=2)
+        upsert_final_cod_authority(
+            stale_sid,
+            stale_final,
+            reason="test_authority",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        upsert_final_cod_authority(
+            fresh_sid,
+            fresh_final,
+            reason="test_authority",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        set_submission_workflow_state(
+            stale_sid,
+            WORKFLOW_CODER_FINALIZED,
+            reason="test_setup",
+            by_user_id=self.base_coder_user.user_id,
+            by_role="vacoder",
+        )
+        set_submission_workflow_state(
+            fresh_sid,
+            WORKFLOW_CODER_FINALIZED,
+            reason="test_setup",
+            by_user_id=self.base_coder_user.user_id,
+            by_role="vacoder",
+        )
+        db.session.commit()
+
+        transitioned = mark_reviewer_eligible_after_recode_window_submissions()
+
+        self.assertEqual(transitioned, 1)
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == stale_sid
                 )
-            ).all()
-        }
-        self.assertIn("final cod expired after demo retention", audit_actions)
-        self.assertIn(
-            "narrative quality assessment expired after demo retention",
-            audit_actions,
+            ),
+            WORKFLOW_REVIEWER_ELIGIBLE,
         )
-        self.assertIn(
-            "social autopsy analysis expired after demo retention",
-            audit_actions,
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == fresh_sid
+                )
+            ),
+            WORKFLOW_CODER_FINALIZED,
         )
+
+        event = db.session.scalar(
+            db.select(VaSubmissionWorkflowEvent).where(
+                VaSubmissionWorkflowEvent.va_sid == stale_sid,
+                VaSubmissionWorkflowEvent.transition_id
+                == "reviewer_eligible_after_recode_window",
+            )
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(event.previous_state, WORKFLOW_CODER_FINALIZED)
+        self.assertEqual(event.current_state, WORKFLOW_REVIEWER_ELIGIBLE)
 
     def test_no_commit_path_when_nothing_is_stale(self):
         fresh_sid = "uuid:no_stale"

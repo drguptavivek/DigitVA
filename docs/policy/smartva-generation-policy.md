@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # SmartVA Generation Policy
@@ -34,7 +34,16 @@ Current implementation note:
   `smartva_pending`
 - successful SmartVA generation transitions `smartva_pending` submissions to
   `ready_for_coding`
-- explicit recorded SmartVA-failure handling is not yet implemented
+- handled SmartVA failure now also transitions `smartva_pending` submissions to
+  `ready_for_coding`, but only after a durable failure record is stored for the
+  current payload
+- SmartVA rows are now linked to `payload_version_id`, and readiness is checked
+  against the current active payload version rather than any active result for
+  the `va_sid`
+- current runtime now stores SmartVA in three layers:
+  - `va_smartva_runs` for durable attempt history
+  - `va_smartva_run_outputs` for emitted per-run output rows
+  - `va_smartva_results` for the active projection row used by the UI
 
 ## Workflow State Guards
 
@@ -43,22 +52,33 @@ Current implementation note:
 SmartVA generation is **blocked** for these states (unless forced):
 
 - `coder_finalized` — Final COD is authoritative, SmartVA should not change
-- `revoked_va_data_changed` — Pending review, no new SmartVA until resolved
-- `closed` — Terminal target state, no further changes once implemented
+- `reviewer_eligible` — Post-24-hour resting state, no automatic SmartVA rerun
+- `reviewer_finalized` — Reviewer final COD is authoritative
+- `finalized_upstream_changed` — Pending review, no new SmartVA until resolved
+- `closed` — Legacy compatibility state only; if such rows exist they remain protected
 
 Current implementation note:
 
-- `closed` is defined as a workflow constant and SmartVA treats it as protected
-- the current runtime does not yet implement a transition that writes `closed`
-- so this branch is target-state protection rather than an active operational
-  path today
+- runtime now writes `reviewer_eligible` rather than `closed` after coder
+  recode-window expiry
+- `closed` is still defined as a compatibility constant and SmartVA treats it
+  as protected if such legacy rows exist
 
-### Allowed States
+### Automatic Pre-Coding Gate
 
-SmartVA runs normally for these states:
+Automatic SmartVA gating for the current payload belongs on:
 
-- `screening_pending`
-- `smartva_pending` (target state)
+- `smartva_pending`
+
+`screening_pending` is an optional project-configured step before
+`smartva_pending`. Automatic SmartVA should not run until the submission
+actually enters `smartva_pending`.
+
+### Allowed Manual/Admin Regeneration States
+
+Manual or explicitly triggered regeneration may run for eligible non-protected
+states such as:
+
 - `coding_in_progress`
 - `partial_coding_saved`
 - `coder_step1_saved`
@@ -96,7 +116,7 @@ generate_pending(form_id)
 ```
 
 Finds submissions for the form that:
-1. Have NO active SmartVA result
+1. Have NO active SmartVA result for the current active payload version
 2. Are in an **allowed** workflow state
 
 Protected submissions are excluded from the pending set.
@@ -119,19 +139,83 @@ SmartVA can be triggered from:
 
 ## Result Lifecycle
 
+## Storage Baseline
+
+SmartVA storage must be payload-version aware.
+
+Required target behavior:
+
+- every SmartVA attempt must be tied to a specific `payload_version_id`
+- every SmartVA attempt must be durably stored, including failures
+- SmartVA history must preserve multiple runs for the same `va_sid` across
+  payload changes and manual reruns
+- SmartVA output storage must not be limited to the flattened top-3 summary row
+
+Required target storage layers:
+
+1. SmartVA run history
+   - one row per execution attempt for a `payload_version_id`
+   - success/failure outcome
+   - execution metadata and timestamps
+2. SmartVA per-run outputs
+   - normalized storage for emitted likelihood outputs
+   - enough detail to reconstruct or analyse the SmartVA result later
+3. Active projection
+   - one current active result per active payload version used by the app UI
+   - this is a projection concern, not the whole SmartVA history
+
+Current implementation note:
+
+- DigitVA now persists durable SmartVA run history in `va_smartva_runs`
+- DigitVA now persists emitted raw likelihood rows in `va_smartva_run_outputs`
+- DigitVA also persists the formatted result row per run in
+  `va_smartva_run_outputs`
+- `va_smartva_results` remains the active/inactive projection used by the app
+
 ### Active vs Inactive Results
 
 - **Active**: `va_smartva_status = 'active'` — current result shown to coders
 - **Inactive**: `va_smartva_status = 'deactive'` — superseded by newer result
+- each SmartVA row should be tied to the payload version it applies to via
+  `payload_version_id`
+
+Target refinement:
+
+- active/inactive status should describe the current projection row only
+- SmartVA run history must remain durable even when a run is no longer the
+  active projection
+
+### Success vs Failure Outcome
+
+- **Success**: `va_smartva_outcome = 'success'`
+- **Failure**: `va_smartva_outcome = 'failed'`
+- failure rows also store:
+  - `va_smartva_failure_stage`
+  - `va_smartva_failure_detail`
+
+Failure rows are durable SmartVA attempt records for the current payload. They
+use the same active/inactive lifecycle as successful SmartVA rows so that a
+later payload change or successful rerun can supersede them cleanly.
+
+Target refinement:
+
+- failures must also be preserved in SmartVA run history, not only in the
+  current projection layer
 
 ### When Results Are Regenerated
 
 | Condition | Action |
 |---|---|
 | New submission (no result) | Create new active result |
-| ODK data changed + allowed state | Deactivate old, create new active |
+| ODK data changed + allowed state | Deactivate old current-payload result if any, create new active result for the new payload version |
 | ODK data changed + protected state | **DO NOT regenerate** |
 | Manual force regenerate | Deactivate old, create new active |
+
+Target refinement:
+
+- regeneration creates a new SmartVA run for the same or new
+  `payload_version_id`
+- regeneration must not erase prior SmartVA run history
 
 ### Audit Trail
 
@@ -139,6 +223,7 @@ Every SmartVA result change creates `VaSubmissionsAuditlog` entries:
 
 - `va_smartva_creation_during_datasync` — new result created
 - `va_smartva_deletion_during_datasync` — old result deactivated
+- `va_smartva_failure_recorded` — failure recorded for the current payload
 
 ## Service Architecture
 
@@ -169,15 +254,15 @@ Desired target sequencing:
 1. ODK sync stores or updates the submission
 2. consent-valid coding candidates enter `smartva_pending`
 3. SmartVA runs
-4. on SmartVA generate/regenerate, or explicit recorded failure, the submission
-   may transition to `ready_for_coding`
+4. on SmartVA generate/regenerate, or on durable failure recording, the
+   submission may transition to `ready_for_coding`
 
 ```
 Phase 1: ODK Sync
 ├── fetch_submissions()
 ├── upsert_submissions()
 │   ├── Non-protected: normal upsert
-│   └── Protected + changed: mark revoked_va_data_changed
+│   └── Protected + changed: mark finalized_upstream_changed
 └── sync_attachments()
 
 Phase 2: SmartVA
@@ -192,7 +277,7 @@ Phase 3: Coding readiness
 
 ## Protected Submission Handling
 
-When a submission is in `coder_finalized` or `revoked_va_data_changed`:
+When a submission is in `coder_finalized` or `finalized_upstream_changed`:
 
 1. **Do NOT regenerate SmartVA** during sync
 2. **Do NOT modify existing SmartVA result**

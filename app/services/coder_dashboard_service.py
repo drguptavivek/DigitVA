@@ -15,7 +15,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.submission_workflow_service import (
+from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
 )

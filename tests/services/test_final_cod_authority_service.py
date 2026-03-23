@@ -6,6 +6,7 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaResearchProjects,
+    VaReviewerFinalAssessments,
     VaSites,
     VaStatuses,
     VaSubmissions,
@@ -13,13 +14,16 @@ from app.models import (
 from app.services.final_cod_authority_service import (
     EPISODE_STATUS_ABANDONED,
     EPISODE_STATUS_COMPLETED,
+    get_authoritative_final_cod_record,
     get_active_recode_episode,
     get_authoritative_final_assessment,
     start_recode_episode,
     complete_recode_episode,
     abandon_active_recode_episode,
     upsert_final_cod_authority,
+    upsert_reviewer_final_cod_authority,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 
@@ -78,41 +82,49 @@ class TestFinalCodAuthorityService(BaseTestCase):
 
     def _add_submission(self, sid: str):
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaSubmissions(
-                va_sid=sid,
-                va_form_id=self.FORM_ID,
-                va_submission_date=now,
-                va_odk_updatedat=now,
-                va_data_collector="tester",
-                va_odk_reviewstate=None,
-                va_instance_name=sid,
-                va_uniqueid_real=None,
-                va_uniqueid_masked=sid,
-                va_consent="yes",
-                va_narration_language="English",
-                va_deceased_age=42,
-                va_deceased_gender="male",
-                va_data={},
-                va_summary=[],
-                va_catcount={},
-                va_category_list=[],
-            )
+        submission = VaSubmissions(
+            va_sid=sid,
+            va_form_id=self.FORM_ID,
+            va_submission_date=now,
+            va_odk_updatedat=now,
+            va_data_collector="tester",
+            va_odk_reviewstate=None,
+            va_instance_name=sid,
+            va_uniqueid_real=None,
+            va_uniqueid_masked=sid,
+            va_consent="yes",
+            va_narration_language="English",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_data={},
+            va_summary=[],
+            va_catcount={},
+            va_category_list=[],
+        )
+        db.session.add(submission)
+        db.session.flush()
+        ensure_active_payload_version(
+            submission,
+            payload_data=submission.va_data or {},
+            source_updated_at=submission.va_odk_updatedat,
         )
         db.session.commit()
+        return submission
 
     def test_authority_prefers_explicit_authority_row(self):
         sid = "uuid:final-authority"
-        self._add_submission(sid)
+        submission = self._add_submission(sid)
 
         final_one = VaFinalAssessments(
             va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
             va_finassess_by=self.base_coder_user.user_id,
             va_conclusive_cod="R99",
             va_finassess_status=VaStatuses.active,
         )
         final_two = VaFinalAssessments(
             va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
             va_finassess_by=self.base_coder_user.user_id,
             va_conclusive_cod="I21",
             va_finassess_status=VaStatuses.active,
@@ -135,10 +147,11 @@ class TestFinalCodAuthorityService(BaseTestCase):
 
     def test_recode_episode_lifecycle(self):
         sid = "uuid:recode-episode"
-        self._add_submission(sid)
+        submission = self._add_submission(sid)
 
         final_row = VaFinalAssessments(
             va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
             va_finassess_by=self.base_coder_user.user_id,
             va_conclusive_cod="R99",
             va_finassess_status=VaStatuses.active,
@@ -157,6 +170,7 @@ class TestFinalCodAuthorityService(BaseTestCase):
 
         replacement = VaFinalAssessments(
             va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
             va_finassess_by=self.base_coder_user.user_id,
             va_conclusive_cod="I21",
             va_finassess_status=VaStatuses.active,
@@ -173,12 +187,108 @@ class TestFinalCodAuthorityService(BaseTestCase):
             replacement.va_finassess_id,
         )
 
+    def test_authoritative_final_cod_record_prefers_reviewer_final(self):
+        sid = "uuid:reviewer-authority"
+        submission = self._add_submission(sid)
+
+        coder_final = VaFinalAssessments(
+            va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(coder_final)
+        db.session.flush()
+        upsert_final_cod_authority(
+            sid,
+            coder_final,
+            reason="coder_final_cod_submitted",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+
+        reviewer_final = VaReviewerFinalAssessments(
+            va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
+            va_rfinassess_by=self.base_admin_user.user_id,
+            va_conclusive_cod="I21",
+            va_rfinassess_remark="reviewer cod",
+            supersedes_coder_final_assessment_id=coder_final.va_finassess_id,
+            va_rfinassess_status=VaStatuses.active,
+        )
+        db.session.add(reviewer_final)
+        db.session.flush()
+        upsert_reviewer_final_cod_authority(
+            sid,
+            reviewer_final,
+            reason="reviewer_final_cod_submitted",
+            updated_by=self.base_admin_user.user_id,
+        )
+        db.session.commit()
+
+        record = get_authoritative_final_cod_record(sid)
+
+        self.assertEqual(record.source_role, "reviewer")
+        self.assertEqual(record.va_conclusive_cod, "I21")
+        self.assertEqual(record.reviewer_final_assessment_id, reviewer_final.va_rfinassess_id)
+        self.assertEqual(record.coder_final_assessment_id, coder_final.va_finassess_id)
+
+    def test_authority_ignores_stale_payload_version_rows(self):
+        sid = "uuid:stale-payload-authority"
+        submission = self._add_submission(sid)
+        old_payload_version_id = submission.active_payload_version_id
+
+        stale_final = VaFinalAssessments(
+            va_sid=sid,
+            payload_version_id=old_payload_version_id,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(stale_final)
+        db.session.flush()
+        upsert_final_cod_authority(
+            sid,
+            stale_final,
+            reason="stale_test_setup",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+
+        submission.va_data = {"updated": True}
+        submission.va_odk_updatedat = datetime.now(timezone.utc)
+        ensure_active_payload_version(
+            submission,
+            payload_data=submission.va_data,
+            source_updated_at=submission.va_odk_updatedat,
+        )
+        db.session.flush()
+
+        fresh_final = VaFinalAssessments(
+            va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="I21",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(fresh_final)
+        db.session.commit()
+
+        authoritative = get_authoritative_final_assessment(sid)
+        record = get_authoritative_final_cod_record(sid)
+
+        self.assertEqual(authoritative.va_finassess_id, fresh_final.va_finassess_id)
+        self.assertEqual(record.coder_final_assessment_id, fresh_final.va_finassess_id)
+        self.assertEqual(record.payload_version_id, submission.active_payload_version_id)
+
     def test_abandon_active_recode_episode(self):
         sid = "uuid:recode-abandon"
-        self._add_submission(sid)
+        submission = self._add_submission(sid)
 
         final_row = VaFinalAssessments(
             va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
             va_finassess_by=self.base_coder_user.user_id,
             va_conclusive_cod="R99",
             va_finassess_status=VaStatuses.active,

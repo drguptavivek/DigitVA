@@ -16,7 +16,7 @@ changes after finalization.
 
 This plan covers the current implemented state key:
 
-- `revoked_va_data_changed`
+- `finalized_upstream_changed`
 
 It also tracks the preferred future rename:
 
@@ -29,7 +29,7 @@ Today the runtime already does the following:
 - treats finalized submissions as protected during ODK sync
 - preserves active coding artifacts on protected-state ODK updates
 - updates `va_submissions.va_data` to the new ODK payload
-- transitions workflow to `revoked_va_data_changed`
+- transitions workflow to `finalized_upstream_changed`
 - blocks automatic SmartVA regeneration while in the protected state
 - exposes the state in the data-manager dashboard
 
@@ -87,7 +87,7 @@ Needed:
 
 ### 5. State-name cleanup
 
-`revoked_va_data_changed` is serviceable but unclear.
+`finalized_upstream_changed` is the adopted clearer state name.
 
 Preferred target:
 
@@ -111,7 +111,7 @@ smartva_pending ----------- SmartVA generated / regenerated / recorded failure -
 finalized_upstream_changed -- admin rejects upstream change --> coder_finalized
 
 coder_finalized -- admin overrides final COD --> ready_for_coding
-coder_finalized -- recode window expires automatically --> closed
+coder_finalized -- recode window expires automatically --> reviewer_eligible
 ```
 
 Operational intent:
@@ -125,10 +125,9 @@ Operational intent:
 
 Out of scope for this specific gap plan:
 
-- implementing the separate `closed` terminal-state transition
+- broader reviewer secondary-coding workflow after `reviewer_eligible`
 
-That remains a broader workflow-state-machine item. Today `closed` is defined
-in code but is not written by any implemented runtime transition.
+`closed` is no longer the active post-24-hour target state in current runtime.
 
 ## Proposed Delivery Order
 
@@ -177,7 +176,7 @@ Create a durable notification model and expose it in:
 
 Rename:
 
-- `revoked_va_data_changed` -> `finalized_upstream_changed`
+- migration/backfill completed from `revoked_va_data_changed` -> `finalized_upstream_changed`
 
 Update:
 

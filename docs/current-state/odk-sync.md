@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # ODK Sync And Attachments
@@ -25,6 +25,19 @@ ODK sync is an incremental batch process that:
 11. Marks local sync issues when a local submission is missing from active ODK submissions
 12. Runs SmartVA on any new or updated submissions
 
+## Current State: Not Codeable ODK Write-Back
+
+Current behavior:
+
+- coder Not Codeable attempts to write ODK review state `hasIssues` with a
+  coder-specific comment after the local workflow save succeeds
+- data-manager Not Codeable now follows the same pattern:
+  - local `not_codeable_by_data_manager` save first
+  - ODK `hasIssues` write-back second
+  - role-specific comment text recorded in ODK
+- ODK write-back failure does not roll back the local Not Codeable outcome
+- success and failure are both auditable locally
+
 ## Current State: Workflow State Guards
 
 The current implementation now respects protected-state sync guards for
@@ -33,26 +46,81 @@ finalized submissions.
 Current behavior:
 
 - ODK updates on protected submissions do not automatically destroy active COD artifacts
-- the submission transitions to `revoked_va_data_changed`
+- the submission transitions to `finalized_upstream_changed`
 - SmartVA is not regenerated automatically for that protected state
-- the current runtime/API still allows data managers to accept or reject that protected-state transition
+- the current runtime/API allows data managers or admins to accept or reject
+  that protected-state transition
+- the sync path now stores a durable upstream-change record with:
+  - prior workflow state
+  - prior authoritative final-assessment id when present
+  - previous VA payload snapshot
+  - incoming VA payload snapshot
+- the sync path now creates pending notification rows for:
+  - `vaadmin`
+  - `data_manager`
 
-Remaining gaps:
+Current lineage note:
 
-- the prior ODK payload is not stored as a dedicated pre-update snapshot before
-  `va_submissions.va_data` is overwritten
-- explicit historical-COD linkage for upstream-change review is not yet modeled
-- notification artifacts for data managers/admins are not yet created
-- policy and implementation are not yet aligned on whether accept/reject must be admin-only
+- runtime still treats `va_submissions` as the active submission row
+- additive payload-version schema now exists:
+  - `va_submission_payload_versions`
+  - `va_submissions.active_payload_version_id`
+- sync now writes active payload versions for newly created and payload-changed
+  non-protected submissions
+- sync now writes pending upstream payload versions for protected finalized
+  submissions when upstream ODK data changes
+- existing rows have been backfilled into initial active payload versions
+- current protected-state lineage is preserved through
+  `va_submission_upstream_changes`, which stores:
+  - previous payload-version id
+  - incoming payload-version id
+  - previous VA payload snapshot
+  - incoming changed VA payload snapshot
+  - previous authoritative final-assessment id when present
+- upstream accept now promotes the pending payload version to active and
+  updates the active summary row
+- upstream reject now marks the pending payload version rejected and restores
+  the prior finalized workflow state
+- protected sync updates no longer overwrite the active summary row before the
+  accept decision
+- this gives current accept/reject lineage for protected updates, while the new
+  payload-version schema is now the active lineage model for sync writes and
+  protected upstream resolution
+- SmartVA rows now also bind to `payload_version_id`
+- coder and reviewer final-COD artifacts now also bind to `payload_version_id`
+- final COD authority resolution now ignores stale coder/reviewer final rows
+  from superseded payload versions
 
-Target naming cleanup:
+Current workflow follow-through after sync:
 
-- current implemented state key: `revoked_va_data_changed`
-- preferred future key: `finalized_upstream_changed`
+- screening-enabled projects may route submissions through
+  `screening_pending -> smartva_pending` or
+  `screening_pending -> not_codeable_by_data_manager`
+- admin override and recode now use explicit workflow transitions
+- the hourly coding-maintenance path now writes `reviewer_eligible` after the
+  coder recode window expires when no active recode episode exists
+
+Current naming:
+
+- current implemented state key: `finalized_upstream_changed`
+- legacy migrated key: `revoked_va_data_changed`
 - preferred UI label: `Finalized - ODK Data Changed`
 
 See [ODK Sync Policy](../policy/odk-sync-policy.md) for the policy baseline and
 remaining implementation work.
+
+## Current Workflow Execution Layer
+
+ODK sync no longer writes canonical workflow states ad hoc.
+
+Current runtime behavior:
+
+- sync calls named transitions in `app/services/workflow/transitions.py`
+- sync-originated transitions use the typed `vasystem` actor
+- transition execution locks the target workflow row before validation and write
+- `route_synced_submission()` now explicitly excludes protected source states,
+  so finalized, reviewer-eligible, reviewer-finalized, and legacy-closed cases
+  cannot be silently rerouted by a generic sync transition
 
 ## Connection Model
 
@@ -342,7 +410,7 @@ Related policy:
 During upsert:
 
 - Submission exists with same `va_odk_updatedat` → skipped (no DB write, no attachment call)
-- Submission exists with changed `va_odk_updatedat` + protected state → metadata updated, transitions to `revoked_va_data_changed` (target future rename: `finalized_upstream_changed`)
+- Submission exists with changed `va_odk_updatedat` + protected state → metadata updated, transitions to `finalized_upstream_changed`
 - Submission exists with changed `va_odk_updatedat` + non-protected state → updated; active workflow artifacts deactivated; consent re-evaluated to set new workflow state
 - Submission does not exist → inserted unconditionally; consent evaluated to set initial workflow state
 

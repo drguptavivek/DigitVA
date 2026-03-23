@@ -119,14 +119,20 @@ May:
 
 ### `reviewer`
 
-Review role within assigned scope.
+Secondary coding role within assigned scope.
 
 May:
 
-- start review
-- resume owned review
-- submit review outcomes
-- view review records when allowed by workflow policy
+- start reviewer coding when allowed by workflow policy
+- resume owned reviewer coding
+- submit reviewer COD outcomes
+- view reviewer records when allowed by workflow policy
+
+Current workflow-policy note:
+
+- reviewer participation is optional and sample-based
+- reviewer coding opens only after the coder's 24-hour recode window closes
+- reviewer is a coding authority, not just an accept/reject QA overlay
 
 ## Scope Model
 

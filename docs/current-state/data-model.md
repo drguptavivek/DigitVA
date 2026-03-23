@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-18
+last_updated: 2026-03-23
 ---
 
 # Current Data Model
@@ -221,6 +221,7 @@ Purpose:
 Key fields:
 
 - `va_sid`
+- `payload_version_id`
 - `va_finassess_by`
 - `va_conclusive_cod`
 - `va_finassess_remark`
@@ -232,11 +233,84 @@ Current behavior:
 - this table still stores the underlying coder final-COD records
 - multiple historical rows may now exist for the same submission across recode
   episodes
+- coder final-COD rows are now stamped with the submission's current
+  `active_payload_version_id`
 - the active row alone is no longer the sole authority signal during the
   workflow migration
 - normal coding leaves `demo_expires_at` null
 - demo coding stamps a 6-hour expiry timestamp so completed demo finals remain
   visible briefly and are then deactivated by hourly cleanup
+
+### `va_reviewer_final_assessments`
+
+Purpose:
+
+- reviewer-owned final coding outcome after reviewer secondary coding
+
+Key fields:
+
+- `va_sid`
+- `payload_version_id`
+- `va_rfinassess_by`
+- `va_conclusive_cod`
+- `supersedes_coder_final_assessment_id`
+- `va_rfinassess_status`
+
+Current behavior:
+
+- reviewer final-COD rows are now stamped with the submission's current
+  `active_payload_version_id`
+- reviewer final-COD history is stored separately from coder final-COD history
+- active reviewer final-COD rows may supersede coder final-COD rows in
+  authority resolution
+
+### `va_smartva_runs`
+
+Purpose:
+
+- stores one durable SmartVA execution attempt per submission payload version
+
+Key fields:
+
+- `va_smartva_run_id`
+- `va_sid`
+- `payload_version_id`
+- `trigger_source`
+- `va_smartva_outcome`
+- `va_smartva_failure_stage`
+- `va_smartva_failure_detail`
+- `run_metadata`
+- run timestamps
+
+Current behavior:
+
+- one row is written per SmartVA attempt
+- both successful and failed attempts are preserved
+- each run is linked to the submission payload lineage through
+  `payload_version_id`
+
+### `va_smartva_run_outputs`
+
+Purpose:
+
+- stores emitted SmartVA output rows for a SmartVA run
+
+Key fields:
+
+- `va_smartva_run_output_id`
+- `va_smartva_run_id`
+- `output_kind`
+- `output_source_name`
+- `output_sid`
+- `output_resultfor`
+- `output_payload`
+
+Current behavior:
+
+- stores the emitted SmartVA likelihood/output row as JSONB
+- preserves per-run emitted output separately from the active projection row
+- currently stores the formatted result row derived from the age-group
+  likelihood CSVs
 
 ## Analytics Materialized View
 
@@ -274,6 +348,7 @@ Key fields:
 
 - `va_sid`
 - `authoritative_final_assessment_id`
+- `authoritative_reviewer_final_assessment_id`
 - `authority_source_role`
 - `authority_reason`
 - `effective_at`
@@ -287,8 +362,13 @@ Current behavior:
   COD to show as current
 - when a recode replacement final COD is submitted, the authority row is moved
   to the replacement final assessment
+- when reviewer final COD exists, the authority row may instead point to
+  `authoritative_reviewer_final_assessment_id`
 - when sync invalidates a submission's finalized COD, the authority row is
   cleared instead of relying only on `va_finassess_status`
+- service-level authority resolution now rejects stale coder/reviewer final-COD
+  rows whose `payload_version_id` does not match the submission's current
+  `active_payload_version_id`
 
 ### `va_coding_episodes`
 
@@ -361,7 +441,7 @@ Current behavior:
 
 Purpose:
 
-- reviewer quality/review outcome over a submission
+- legacy reviewer quality/review outcome over a submission
 
 Key fields:
 
@@ -370,6 +450,36 @@ Key fields:
 - review flags and remarks
 - `va_rreview`
 - `va_rreview_status`
+
+Current behavior:
+
+- this table stores the current legacy reviewer QA/quality-review form
+- it does not store reviewer final COD
+- it should not be treated as the target reviewer secondary-coding artifact
+
+### `va_reviewer_final_assessments`
+
+Purpose:
+
+- stores the additive reviewer-owned final COD artifact for the new reviewer
+  secondary-coding model
+
+Key fields:
+
+- `va_sid`
+- `va_rfinassess_by`
+- `va_conclusive_cod`
+- `va_rfinassess_remark`
+- `supersedes_coder_final_assessment_id`
+- `va_rfinassess_status`
+
+Current behavior:
+
+- this table now exists in runtime schema
+- reviewer final COD rows may coexist with coder final COD rows
+- service-level authoritative-final-COD resolution can now prefer reviewer
+  final COD from this table
+- not all downstream readers have been cut over yet
 
 ### `va_narrative_assessments`
 
@@ -436,6 +546,8 @@ Other important tables:
 - `va_project_sites`
 - `va_user_access_grants`
 - `va_usernotes`
+- `va_smartva_runs`
+- `va_smartva_run_outputs`
 - `va_smartva_results`
 - `va_submissions_auditlog`
 - `va_icd_codes`

@@ -1,12 +1,16 @@
-import uuid
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaAllocations, VaAllocation, VaStatuses, VaReviewerReview, VaSubmissionsAuditlog, VaSubmissionWorkflow
+from app.models import VaSubmissions, VaAllocations, VaAllocation, VaStatuses, VaReviewerReview
 from flask_login import current_user, login_required
-from flask import Blueprint, render_template, url_for
+from flask import Blueprint, render_template
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
-from app.utils import va_permission_ensurenotreviewed, va_permission_ensureanyallocation, va_permission_ensurereviewed
+from app.utils import va_permission_ensureanyallocation, va_permission_ensurereviewed
 from app.services.coding_service import render_va_coding_page
+from app.services.reviewer_coding_service import (
+    ReviewerCodingError,
+    get_active_reviewing_allocation,
+    start_reviewer_coding,
+)
 
 reviewing = Blueprint("reviewing", __name__)
 
@@ -111,32 +115,13 @@ def dashboard():
 @reviewing.get("/start/<va_sid>")
 @login_required
 def start(va_sid):
-    form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    if not current_user.has_va_form_access(form.va_form_id, "reviewer"):
-        va_permission_abortwithflash("Reviewer access is required.", 403)
-    if form.va_narration_language not in current_user.vacode_language:
-        va_permission_abortwithflash(f"Your profile does not support reviewing forms in {form.va_narration_language}.", 403)
-    va_permission_ensurenotreviewed(va_sid)
-    # Create allocation
-    gen_uuid = uuid.uuid4()
-    db.session.add(VaAllocations(
-        va_allocation_id=gen_uuid,
-        va_sid=va_sid,
-        va_allocated_to=current_user.user_id,
-        va_allocation_for=VaAllocation.reviewing,
-    ))
-    db.session.add(VaSubmissionsAuditlog(
-        va_sid=va_sid,
-        va_audit_byrole="vacoder",
-        va_audit_by=current_user.user_id,
-        va_audit_operation="c",
-        va_audit_action="form allocated to reviewer",
-        va_audit_entityid=gen_uuid,
-    ))
-    db.session.commit()
-    return render_va_coding_page(form, "vareview", "vastartreviewing", "reviewer")
+    try:
+        result = start_reviewer_coding(current_user, va_sid)
+    except ReviewerCodingError as exc:
+        va_permission_abortwithflash(exc.message, exc.status_code)
+
+    form = db.session.get(VaSubmissions, result.va_sid)
+    return render_va_coding_page(form, "vareview", result.actiontype, "reviewer")
 
 
 @reviewing.get("/resume")
@@ -145,13 +130,7 @@ def resume():
     if not current_user.is_reviewer():
         va_permission_abortwithflash("Reviewer access is required.", 403)
     va_permission_ensureanyallocation("reviewing")
-    va_sid = db.session.scalar(
-        sa.select(VaAllocations.va_sid).where(
-            (VaAllocations.va_allocated_to == current_user.user_id) &
-            (VaAllocations.va_allocation_for == VaAllocation.reviewing) &
-            (VaAllocations.va_allocation_status == VaStatuses.active)
-        )
-    )
+    va_sid = get_active_reviewing_allocation(current_user.user_id)
     form = db.session.get(VaSubmissions, va_sid)
     return render_va_coding_page(form, "vareview", "varesumereviewing", "reviewer")
 

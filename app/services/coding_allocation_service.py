@@ -20,9 +20,12 @@ from app.services.final_cod_authority_service import (
     get_active_recode_episode,
     upsert_final_cod_authority,
 )
-from app.services.submission_workflow_service import (
-    infer_workflow_state_after_coding_release,
-    set_submission_workflow_state,
+from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
+from app.services.workflow.transitions import (
+    reset_demo_state,
+    reset_incomplete_first_pass,
+    reset_incomplete_recode,
+    system_actor,
 )
 
 
@@ -113,12 +116,19 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
                 by_role="vasystem",
                 audit_action="recode episode abandoned due to timeout",
             )
-        set_submission_workflow_state(
-            record.va_sid,
-            infer_workflow_state_after_coding_release(record.va_sid),
-            reason="allocation_timeout_release",
-            by_role="vasystem",
-        )
+        if recode_episode is None:
+            reset_incomplete_first_pass(
+                record.va_sid,
+                reason="allocation_timeout_release",
+                actor=system_actor(),
+            )
+        else:
+            reset_incomplete_recode(
+                record.va_sid,
+                target_state=WORKFLOW_CODER_FINALIZED,
+                reason="allocation_timeout_release",
+                actor=system_actor(),
+            )
         db.session.add(
             VaSubmissionsAuditlog(
                 va_sid=record.va_sid,
@@ -222,11 +232,10 @@ def cleanup_expired_demo_coding_artifacts(
         expired_count += 1
 
     for va_sid in affected_sids:
-        set_submission_workflow_state(
+        reset_demo_state(
             va_sid,
-            infer_workflow_state_after_coding_release(va_sid),
             reason="demo_retention_cleanup",
-            by_role="vasystem",
+            actor=system_actor(),
         )
 
     if expired_count:

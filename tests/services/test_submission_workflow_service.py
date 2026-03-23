@@ -13,20 +13,57 @@ from app.models import (
     VaResearchProjects,
     VaSites,
     VaStatuses,
+    VaSubmissionWorkflowEvent,
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.submission_workflow_service import (
+from app.services.workflow.definition import (
+    ALL_WORKFLOW_STATES,
+    PROTECTED_WORKFLOW_STATES,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
+    WORKFLOW_SCREENING_PENDING,
+    WORKFLOW_SMARTVA_PENDING,
+    TRANSITIONS,
+    TRANSITION_REVIEWER_ELIGIBLE_AFTER_RECODE_WINDOW,
+)
+from app.services.workflow.state_store import (
     infer_workflow_state_from_legacy_records,
     set_submission_workflow_state,
     sync_submission_workflow_from_legacy_records,
 )
+from app.services.workflow.transitions import (
+    WorkflowTransitionError,
+    admin_actor,
+    accept_upstream_change,
+    coder_actor,
+    data_manager_actor,
+    mark_admin_override_to_recode,
+    mark_coder_finalized,
+    mark_coding_started,
+    mark_data_manager_not_codeable,
+    mark_recode_finalized,
+    mark_recode_started,
+    mark_reviewer_eligible_after_recode_window,
+    mark_reviewer_coding_started,
+    mark_reviewer_finalized,
+    reviewer_actor,
+    mark_screening_passed,
+    mark_screening_rejected,
+    mark_smartva_failed_recorded,
+    mark_smartva_completed,
+    reset_demo_state,
+    system_actor,
+)
+from app.services.final_cod_authority_service import start_recode_episode
 from tests.base import BaseTestCase
 
 
@@ -114,6 +151,16 @@ class TestSubmissionWorkflowService(BaseTestCase):
         inferred = infer_workflow_state_from_legacy_records(sid)
 
         self.assertEqual(inferred, WORKFLOW_READY_FOR_CODING)
+
+    def test_reviewer_eligible_is_registered_as_canonical_protected_state(self):
+        self.assertIn(WORKFLOW_REVIEWER_ELIGIBLE, ALL_WORKFLOW_STATES)
+        self.assertIn(WORKFLOW_REVIEWER_ELIGIBLE, PROTECTED_WORKFLOW_STATES)
+        self.assertEqual(
+            TRANSITIONS[
+                TRANSITION_REVIEWER_ELIGIBLE_AFTER_RECODE_WINDOW
+            ].target_state,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+        )
 
     def test_infer_coding_in_progress_from_active_allocation(self):
         sid = "uuid:wf-alloc"
@@ -230,6 +277,432 @@ class TestSubmissionWorkflowService(BaseTestCase):
         stored = db.session.scalar(
             db.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == sid)
         )
+        events = db.session.scalars(
+            db.select(VaSubmissionWorkflowEvent)
+            .where(VaSubmissionWorkflowEvent.va_sid == sid)
+            .order_by(VaSubmissionWorkflowEvent.event_created_at.asc())
+        ).all()
         self.assertEqual(updated.workflow_id, stored.workflow_id)
         self.assertEqual(stored.workflow_state, WORKFLOW_CODING_IN_PROGRESS)
         self.assertEqual(stored.workflow_reason, "manual_transition")
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0].transition_id, "state_set_direct")
+        self.assertIsNone(events[0].previous_state)
+        self.assertEqual(events[0].current_state, WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(events[1].transition_id, "state_set_direct")
+        self.assertEqual(events[1].previous_state, WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(events[1].current_state, WORKFLOW_CODING_IN_PROGRESS)
+
+    def test_mark_coding_started_records_structured_workflow_event(self):
+        sid = "uuid:wf-event-coding-started"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_READY_FOR_CODING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_coding_started(
+            sid,
+            actor=coder_actor(self.base_coder_user.user_id),
+        )
+        db.session.commit()
+
+        event = db.session.scalar(
+            db.select(VaSubmissionWorkflowEvent)
+            .where(
+                VaSubmissionWorkflowEvent.va_sid == sid,
+                VaSubmissionWorkflowEvent.transition_id == "coding_started",
+            )
+            .order_by(VaSubmissionWorkflowEvent.event_created_at.desc())
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(event.previous_state, WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(event.current_state, WORKFLOW_CODING_IN_PROGRESS)
+        self.assertEqual(event.actor_kind, "coder")
+        self.assertEqual(event.actor_role, "vacoder")
+        self.assertEqual(event.actor_user_id, self.base_coder_user.user_id)
+
+    def test_mark_coding_started_rejects_non_coder_roles(self):
+        sid = "uuid:wf-role-coding"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_READY_FOR_CODING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        with self.assertRaises(WorkflowTransitionError):
+            mark_coding_started(
+                sid,
+                actor=data_manager_actor(self.base_admin_user.user_id),
+            )
+
+    def test_mark_smartva_completed_rejects_non_system_roles(self):
+        sid = "uuid:wf-role-smartva"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_SMARTVA_PENDING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        with self.assertRaises(WorkflowTransitionError):
+            mark_smartva_completed(
+                sid,
+                actor=coder_actor(self.base_coder_user.user_id),
+            )
+
+    def test_mark_smartva_failed_recorded_moves_pending_to_ready(self):
+        sid = "uuid:wf-smartva-failed"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_SMARTVA_PENDING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_smartva_failed_recorded(
+            sid,
+            actor=system_actor(),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_READY_FOR_CODING,
+        )
+
+    def test_mark_screening_passed_moves_submission_to_smartva_pending(self):
+        sid = "uuid:wf-screen-pass"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_SCREENING_PENDING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_screening_passed(
+            sid,
+            actor=data_manager_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_SMARTVA_PENDING,
+        )
+
+    def test_mark_screening_rejected_moves_submission_to_dm_not_codeable(self):
+        sid = "uuid:wf-screen-reject"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_SCREENING_PENDING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_screening_rejected(
+            sid,
+            actor=admin_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+        )
+
+    def test_accept_upstream_change_rejects_coder_role(self):
+        sid = "uuid:wf-role-upstream"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        with self.assertRaises(WorkflowTransitionError):
+            accept_upstream_change(
+                sid,
+                actor=coder_actor(self.base_coder_user.user_id),
+            )
+
+    def test_mark_data_manager_not_codeable_allows_admin_role(self):
+        sid = "uuid:wf-role-dm"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_READY_FOR_CODING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_data_manager_not_codeable(
+            sid,
+            actor=admin_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+        )
+
+    def test_mark_coder_finalized_allows_admin_role(self):
+        sid = "uuid:wf-role-admin-finalize"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODING_IN_PROGRESS,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_coder_finalized(
+            sid,
+            actor=admin_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_CODER_FINALIZED,
+        )
+
+    def test_mark_recode_started_moves_submission_to_coding_in_progress(self):
+        sid = "uuid:wf-role-recode-start"
+        self._add_submission(sid)
+        start_recode_episode(sid, self.base_admin_user.user_id)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_recode_started(
+            sid,
+            actor=admin_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_CODING_IN_PROGRESS,
+        )
+
+    def test_mark_recode_finalized_returns_submission_to_coder_finalized(self):
+        sid = "uuid:wf-role-recode-finalized"
+        self._add_submission(sid)
+        start_recode_episode(sid, self.base_coder_user.user_id)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODING_IN_PROGRESS,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_recode_finalized(
+            sid,
+            actor=coder_actor(self.base_coder_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_CODER_FINALIZED,
+        )
+
+    def test_admin_override_to_recode_returns_submission_to_ready_for_coding(self):
+        sid = "uuid:wf-role-admin-override"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_admin_override_to_recode(
+            sid,
+            actor=admin_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_READY_FOR_CODING,
+        )
+
+    def test_mark_reviewer_eligible_after_recode_window_moves_submission_post_window(self):
+        sid = "uuid:wf-role-reviewer-eligible"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_reviewer_eligible_after_recode_window(
+            sid,
+            actor=system_actor(),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_REVIEWER_ELIGIBLE,
+        )
+
+    def test_mark_reviewer_coding_started_moves_submission_to_reviewer_in_progress(self):
+        sid = "uuid:wf-reviewer-start"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_reviewer_coding_started(
+            sid,
+            actor=reviewer_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+        )
+
+    def test_mark_reviewer_finalized_moves_submission_to_reviewer_finalized(self):
+        sid = "uuid:wf-reviewer-finalized"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        mark_reviewer_finalized(
+            sid,
+            actor=reviewer_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_REVIEWER_FINALIZED,
+        )
+
+    def test_accept_upstream_change_allows_admin_role(self):
+        sid = "uuid:wf-role-upstream-admin"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        accept_upstream_change(
+            sid,
+            actor=admin_actor(self.base_admin_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_SMARTVA_PENDING,
+        )
+
+    def test_reset_demo_state_rejects_illegal_source_state(self):
+        sid = "uuid:wf-role-demo-reset"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_SMARTVA_PENDING,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        with self.assertRaises(WorkflowTransitionError):
+            reset_demo_state(
+                sid,
+                actor=system_actor(),
+            )

@@ -1,4 +1,8 @@
-"""Project-level workflow settings helpers."""
+"""Project-level coding intake mode helpers.
+
+Intake mode controls how a coder enters work. It is not a submission workflow
+state and must remain separate from the submission state machine.
+"""
 
 import sqlalchemy as sa
 

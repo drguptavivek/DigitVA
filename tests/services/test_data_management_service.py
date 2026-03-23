@@ -3,7 +3,7 @@
 Critical behavior under test:
 - dm_accept_upstream_change: deactivates artifacts, transitions to ready_for_coding
 - dm_reject_upstream_change: restores coder_finalized, preserves artifacts
-- Both functions require the submission to be in revoked_va_data_changed state
+- Both functions require the submission to be in finalized_upstream_changed state
 - Permission/scope checks are enforced
 """
 import uuid
@@ -23,20 +23,32 @@ from app.models import (
     VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
+    VaReviewerFinalAssessments,
     VaSiteMaster,
     VaSites,
     VaSmartvaResults,
     VaStatuses,
+    VaSubmissionPayloadVersion,
+    VaSubmissionUpstreamChange,
+    VaSubmissionWorkflowEvent,
     VaSubmissionWorkflow,
     VaSubmissions,
-    VaSubmissionsAuditlog,
     VaUsers,
 )
-from app.services.submission_workflow_service import (
+from app.models.va_submission_payload_versions import (
+    PAYLOAD_VERSION_STATUS_ACTIVE,
+    PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+    PAYLOAD_VERSION_STATUS_REJECTED,
+    PAYLOAD_VERSION_STATUS_SUPERSEDED,
+)
+from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_SMARTVA_PENDING,
-    WORKFLOW_REVOKED_VA_DATA_CHANGED,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+)
+from app.services.workflow.state_store import (
     get_submission_workflow_state,
     set_submission_workflow_state,
 )
@@ -44,6 +56,11 @@ from app.services.data_management_service import (
     dm_accept_upstream_change,
     dm_reject_upstream_change,
 )
+from app.services.submission_payload_version_service import (
+    create_or_update_pending_upstream_payload_version,
+    ensure_active_payload_version,
+)
+from app.services.workflow.upstream_changes import record_protected_upstream_change
 from tests.base import BaseTestCase
 
 
@@ -117,10 +134,38 @@ class DataManagementAcceptRejectTests(BaseTestCase):
         ))
         db.session.commit()
 
-    def _create_revoked_submission(self, sid_suffix: str) -> str:
-        """Create a submission in revoked_va_data_changed state with artifacts."""
+    def _create_revoked_submission(
+        self,
+        sid_suffix: str,
+        *,
+        workflow_state_before: str = WORKFLOW_CODER_FINALIZED,
+        with_reviewer_final: bool = False,
+    ) -> str:
+        """Create a submission in finalized_upstream_changed state with artifacts."""
         now = datetime.now(timezone.utc)
         va_sid = f"uuid:dm-test-{sid_suffix}"
+        active_payload = {
+            "sid": va_sid,
+            "form_def": self.FORM_ID,
+            "SubmissionDate": now.isoformat(),
+            "updatedAt": now.isoformat(),
+            "SubmitterName": "tester",
+            "ReviewState": None,
+            "OdkReviewComments": [],
+            "instanceName": va_sid,
+            "unique_id": va_sid,
+            "unique_id2": va_sid,
+            "Id10013": "yes",
+            "language": "English",
+            "finalAgeInYears": "42",
+            "Id10019": "male",
+        }
+        incoming_payload = {
+            **active_payload,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+            "finalAgeInYears": "47",
+            "test": "updated-data",
+        }
 
         # Create submission
         submission = VaSubmissions(
@@ -137,7 +182,7 @@ class DataManagementAcceptRejectTests(BaseTestCase):
             va_narration_language="English",
             va_deceased_age=42,
             va_deceased_gender="male",
-            va_data={"test": "data"},
+            va_data=active_payload,
             va_summary=[],
             va_catcount={},
             va_category_list=[],
@@ -145,10 +190,17 @@ class DataManagementAcceptRejectTests(BaseTestCase):
         db.session.add(submission)
         db.session.flush()
 
+        active_version = ensure_active_payload_version(
+            submission,
+            payload_data=active_payload,
+            source_updated_at=now,
+            created_by_role="vasystem",
+        )
+
         # Create workflow record (correct attribute names)
         db.session.add(VaSubmissionWorkflow(
             va_sid=va_sid,
-            workflow_state=WORKFLOW_CODER_FINALIZED,
+            workflow_state=workflow_state_before,
             workflow_created_at=now,
             workflow_updated_at=now,
         ))
@@ -183,13 +235,39 @@ class DataManagementAcceptRejectTests(BaseTestCase):
         ))
         db.session.flush()
 
-        # Transition to revoked_va_data_changed
+        if with_reviewer_final:
+            db.session.add(
+                VaReviewerFinalAssessments(
+                    va_sid=va_sid,
+                    va_rfinassess_by=self.base_admin_id,
+                    va_conclusive_cod="R55",
+                    va_rfinassess_status=VaStatuses.active,
+                )
+            )
+            db.session.flush()
+
+        pending_version = create_or_update_pending_upstream_payload_version(
+            submission,
+            payload_data=incoming_payload,
+            source_updated_at=now,
+            created_by_role="vasystem",
+        )
+        record_protected_upstream_change(
+            submission,
+            incoming_payload,
+            workflow_state_before=workflow_state_before,
+            detected_odk_updatedat=now,
+            previous_payload_version_id=active_version.payload_version_id,
+            incoming_payload_version_id=pending_version.payload_version_id,
+        )
+
+        # Transition to finalized_upstream_changed
         set_submission_workflow_state(
             va_sid,
-            WORKFLOW_REVOKED_VA_DATA_CHANGED,
+            WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
             reason="test_setup",
             by_user_id=self.base_admin_id,
-            by_role="admin",
+            by_role="vaadmin",
         )
         db.session.commit()
 
@@ -313,13 +391,96 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
         db.session.commit()
 
         audit = db.session.scalar(
-            sa.select(VaSubmissionsAuditlog)
-            .where(VaSubmissionsAuditlog.va_sid == va_sid)
-            .where(VaSubmissionsAuditlog.va_audit_action == "data_manager_accepted_upstream_odk_change")
+            sa.select(VaSubmissionWorkflowEvent)
+            .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
+            .where(
+                VaSubmissionWorkflowEvent.transition_id == "upstream_change_accepted"
+            )
         )
         self.assertIsNotNone(audit)
-        self.assertEqual(audit.va_audit_by, dm_user.user_id)
-        self.assertEqual(audit.va_audit_byrole, "data_manager")
+        self.assertEqual(audit.actor_user_id, dm_user.user_id)
+        self.assertEqual(audit.actor_role, "data_manager")
+        self.assertEqual(audit.previous_state, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        self.assertEqual(audit.current_state, WORKFLOW_SMARTVA_PENDING)
+
+    def test_admin_accept_records_admin_actor_role(self):
+        """Admin accept should stamp vaadmin rather than data_manager."""
+        va_sid = self._create_revoked_submission("accept-6-admin")
+
+        dm_accept_upstream_change(self.base_admin_user, va_sid)
+        db.session.commit()
+
+        workflow = db.session.scalar(
+            sa.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == va_sid)
+        )
+        self.assertEqual(workflow.workflow_updated_by_role, "vaadmin")
+
+        audit = db.session.scalar(
+            sa.select(VaSubmissionWorkflowEvent)
+            .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
+            .where(
+                VaSubmissionWorkflowEvent.transition_id == "upstream_change_accepted"
+            )
+            .order_by(VaSubmissionWorkflowEvent.event_created_at.desc())
+        )
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit.actor_role, "vaadmin")
+
+    def test_accept_promotes_pending_payload_version_and_updates_active_summary(self):
+        va_sid = self._create_revoked_submission("accept-payload")
+        dm_user = self._create_dm_user()
+
+        previous_active = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
+            )
+        )
+        pending = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status
+                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+            )
+        )
+
+        dm_accept_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        refreshed_submission = db.session.get(VaSubmissions, va_sid)
+        refreshed_previous = db.session.get(
+            VaSubmissionPayloadVersion, previous_active.payload_version_id
+        )
+        refreshed_pending = db.session.get(
+            VaSubmissionPayloadVersion, pending.payload_version_id
+        )
+
+        self.assertEqual(refreshed_pending.version_status, PAYLOAD_VERSION_STATUS_ACTIVE)
+        self.assertEqual(
+            refreshed_submission.active_payload_version_id,
+            refreshed_pending.payload_version_id,
+        )
+        self.assertEqual(refreshed_previous.version_status, PAYLOAD_VERSION_STATUS_SUPERSEDED)
+        self.assertEqual(refreshed_submission.va_data["test"], "updated-data")
+
+    def test_accept_deactivates_reviewer_final_assessments(self):
+        va_sid = self._create_revoked_submission(
+            "accept-reviewer-final",
+            workflow_state_before=WORKFLOW_REVIEWER_ELIGIBLE,
+            with_reviewer_final=True,
+        )
+        dm_user = self._create_dm_user()
+
+        dm_accept_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        active_count = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaReviewerFinalAssessments)
+            .where(VaReviewerFinalAssessments.va_sid == va_sid)
+            .where(VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
+        )
+        self.assertEqual(active_count, 0)
 
     def test_raises_for_wrong_state(self):
         """Accept should raise ValueError if submission is not in revoked state."""
@@ -334,7 +495,7 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
         with self.assertRaises(ValueError) as ctx:
             dm_accept_upstream_change(dm_user, va_sid)
 
-        self.assertIn("not revoked_va_data_changed", str(ctx.exception))
+        self.assertIn("not finalized_upstream_changed", str(ctx.exception))
 
     def test_raises_for_non_dm_user(self):
         """Accept should raise for user without DM scope."""
@@ -347,6 +508,18 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
 
 class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
     """Tests for dm_reject_upstream_change."""
+
+    def setUp(self):
+        super().setUp()
+        self.post_comment_patcher = patch(
+            "app.services.odk_review_service.post_dm_rejection_comment",
+            return_value=MagicMock(success=True),
+        )
+        self.post_comment_patcher.start()
+
+    def tearDown(self):
+        self.post_comment_patcher.stop()
+        super().tearDown()
 
     def test_transitions_to_coder_finalized(self):
         """Reject should restore submission to coder_finalized."""
@@ -400,13 +573,75 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         db.session.commit()
 
         audit = db.session.scalar(
-            sa.select(VaSubmissionsAuditlog)
-            .where(VaSubmissionsAuditlog.va_sid == va_sid)
-            .where(VaSubmissionsAuditlog.va_audit_action == "data_manager_rejected_upstream_odk_change")
+            sa.select(VaSubmissionWorkflowEvent)
+            .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
+            .where(
+                VaSubmissionWorkflowEvent.transition_id == "upstream_change_rejected"
+            )
         )
         self.assertIsNotNone(audit)
-        self.assertEqual(audit.va_audit_by, dm_user.user_id)
-        self.assertEqual(audit.va_audit_byrole, "data_manager")
+        self.assertEqual(audit.actor_user_id, dm_user.user_id)
+        self.assertEqual(audit.actor_role, "data_manager")
+        self.assertEqual(audit.previous_state, WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        self.assertEqual(audit.current_state, WORKFLOW_CODER_FINALIZED)
+
+    def test_admin_reject_records_admin_actor_role(self):
+        """Admin reject should stamp vaadmin rather than data_manager."""
+        va_sid = self._create_revoked_submission("reject-4-admin")
+
+        dm_reject_upstream_change(self.base_admin_user, va_sid)
+        db.session.commit()
+
+        workflow = db.session.scalar(
+            sa.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == va_sid)
+        )
+        self.assertEqual(workflow.workflow_updated_by_role, "vaadmin")
+
+        audit = db.session.scalar(
+            sa.select(VaSubmissionWorkflowEvent)
+            .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
+            .where(
+                VaSubmissionWorkflowEvent.transition_id == "upstream_change_rejected"
+            )
+            .order_by(VaSubmissionWorkflowEvent.event_created_at.desc())
+        )
+        self.assertIsNotNone(audit)
+        self.assertEqual(audit.actor_role, "vaadmin")
+
+    def test_reject_marks_pending_payload_version_rejected(self):
+        va_sid = self._create_revoked_submission("reject-payload")
+        dm_user = self._create_dm_user()
+
+        pending = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status
+                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+            )
+        )
+
+        dm_reject_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        refreshed_pending = db.session.get(
+            VaSubmissionPayloadVersion, pending.payload_version_id
+        )
+        self.assertEqual(
+            refreshed_pending.version_status, PAYLOAD_VERSION_STATUS_REJECTED
+        )
+
+    def test_reject_restores_prior_finalized_state(self):
+        va_sid = self._create_revoked_submission(
+            "reject-reviewer-eligible",
+            workflow_state_before=WORKFLOW_REVIEWER_ELIGIBLE,
+        )
+        dm_user = self._create_dm_user()
+
+        dm_reject_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        state = get_submission_workflow_state(va_sid)
+        self.assertEqual(state, WORKFLOW_REVIEWER_ELIGIBLE)
 
     def test_raises_for_wrong_state(self):
         """Reject should raise ValueError if submission is not in revoked state."""
@@ -421,7 +656,7 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         with self.assertRaises(ValueError) as ctx:
             dm_reject_upstream_change(dm_user, va_sid)
 
-        self.assertIn("not revoked_va_data_changed", str(ctx.exception))
+        self.assertIn("not finalized_upstream_changed", str(ctx.exception))
 
     @patch("app.services.odk_review_service.post_dm_rejection_comment")
     def test_posts_odk_comment(self, mock_post_comment):

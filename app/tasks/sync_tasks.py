@@ -690,8 +690,13 @@ def refresh_submission_analytics_mv_task(self):
 def release_stale_coding_allocations_task(self):
     """Release stale coding allocations older than the configured timeout."""
     from app.services.coding_allocation_service import release_stale_coding_allocations
+    from app.services.coder_workflow_service import (
+        mark_reviewer_eligible_after_recode_window_submissions,
+    )
 
-    return {"released": release_stale_coding_allocations(timeout_hours=1)}
+    released = release_stale_coding_allocations(timeout_hours=1)
+    reviewer_eligible = mark_reviewer_eligible_after_recode_window_submissions()
+    return {"released": released, "reviewer_eligible": reviewer_eligible}
 
 
 def ensure_coding_timeout_cleanup_scheduled():

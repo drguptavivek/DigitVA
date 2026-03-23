@@ -76,6 +76,16 @@ class TestOdkReviewService(BaseTestCase):
         self.assertIn("Narrative language is not readable by the coder.", comment)
         self.assertIn("Audio is only in an unsupported language.", comment)
 
+    def test_build_not_codeable_review_comment_for_data_manager(self):
+        comment = build_not_codeable_review_comment(
+            "duplicate_submission",
+            "Duplicate of another household record.",
+            actor_role="data_manager",
+        )
+        self.assertIn("data manager marked this submission as not codeable", comment)
+        self.assertIn("This appears to be a duplicate submission.", comment)
+        self.assertIn("Duplicate of another household record.", comment)
+
     def test_resolve_odk_instance_id_strips_local_form_suffix(self):
         self.assertEqual(
             resolve_odk_instance_id(
@@ -165,6 +175,43 @@ class TestOdkReviewService(BaseTestCase):
         self.assertEqual(result.review_state, ODK_REVIEW_STATE_HAS_ISSUES)
         self.assertIsNotNone(result.comment)
         self.assertIsNone(result.error_message)
+
+    def test_sync_not_codeable_review_state_supports_data_manager_actor(self):
+        sid = f"uuid:test-odk-sync-dm-{_RUN_SUFFIX.lower()}"
+        submission = VaSubmissions(
+            va_sid=sid,
+            va_form_id=self.FORM_ID,
+            va_submission_date=datetime.now(timezone.utc),
+            va_odk_updatedat=datetime.now(timezone.utc),
+            va_data_collector="tester",
+            va_odk_reviewstate=None,
+            va_instance_name=sid,
+            va_uniqueid_real=sid,
+            va_uniqueid_masked=sid,
+            va_consent="yes",
+            va_narration_language="English",
+            va_deceased_age=50,
+            va_deceased_gender="male",
+            va_data={},
+            va_summary=[],
+            va_catcount={},
+            va_category_list=[],
+        )
+        db.session.add(submission)
+        db.session.commit()
+
+        fake_client = MagicMock()
+        with patch("app.services.odk_review_service.va_odk_clientsetup", return_value=fake_client):
+            result = sync_not_codeable_review_state(
+                sid,
+                "duplicate_submission",
+                "Duplicate in site register.",
+                actor_role="data_manager",
+            )
+
+        self.assertTrue(result.success)
+        self.assertIn("data manager marked this submission as not codeable", result.comment)
+        self.assertIn("Duplicate in site register.", result.comment)
 
     def test_sync_not_codeable_review_state_returns_failure_result(self):
         sid = f"uuid:test-odk-sync-fail-{_RUN_SUFFIX.lower()}"

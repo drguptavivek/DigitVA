@@ -18,21 +18,31 @@ from app.services.category_rendering_service import (
 from app.services.final_cod_authority_service import (
     complete_recode_episode,
     get_active_recode_episode,
+    get_authoritative_final_cod_record,
     get_authoritative_final_assessment,
     upsert_final_cod_authority,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.field_mapping_service import get_mapping_service
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_summary_service import build_submission_summary
-from app.services.submission_workflow_service import (
+from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_SCREENING_PENDING,
-    set_submission_workflow_state,
+)
+from app.services.workflow.transitions import (
+    coder_actor,
+    data_manager_actor,
+    mark_coder_finalized,
+    mark_coder_not_codeable,
+    mark_coder_step1_saved,
+    mark_data_manager_not_codeable,
+    mark_recode_finalized,
 )
 from app.services.odk_review_service import sync_not_codeable_review_state
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaDataManagerReviewForm, VaFinalAssessmentForm, VaUsernoteForm
@@ -193,6 +203,8 @@ def renderpartial(va_sid, va_partial):
             success_message = None
 
             if request.method == "POST":
+                if not current_user.is_data_manager():
+                    abort(403)
                 if submission_workflow not in DATA_MANAGER_TRIAGE_ALLOWED_STATES:
                     return render_template(
                         "va_formcategory_partials/category_data_manager_triage.html",
@@ -254,15 +266,51 @@ def renderpartial(va_sid, va_partial):
                             va_audit_entityid=entity_id,
                         )
                     )
-                    set_submission_workflow_state(
+                    mark_data_manager_not_codeable(
                         va_sid,
-                        WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
                         reason="data_manager_marked_not_codeable",
-                        by_user_id=current_user.user_id,
-                        by_role="data_manager",
+                        actor=data_manager_actor(current_user.user_id),
                     )
+                    odk_sync_result = sync_not_codeable_review_state(
+                        va_sid,
+                        form.va_dmreview_reason.data,
+                        other_reason,
+                        actor_role="data_manager",
+                    )
+                    if odk_sync_result.success:
+                        db.session.add(
+                            VaSubmissionsAuditlog(
+                                va_sid=va_sid,
+                                va_audit_byrole="data_manager",
+                                va_audit_by=current_user.user_id,
+                                va_audit_operation="u",
+                                va_audit_action=(
+                                    "odk review state set to "
+                                    f"{odk_sync_result.review_state}"
+                                ),
+                            )
+                        )
+                    else:
+                        db.session.add(
+                            VaSubmissionsAuditlog(
+                                va_sid=va_sid,
+                                va_audit_byrole="data_manager",
+                                va_audit_by=current_user.user_id,
+                                va_audit_operation="u",
+                                va_audit_action="odk review state update failed",
+                            )
+                        )
                     db.session.commit()
                     success_message = "Submission marked Not Codeable by data manager."
+                    if odk_sync_result.success:
+                        success_message += " ODK Central was flagged for revision."
+                    else:
+                        flash(
+                            "Submission was saved locally, but ODK Central "
+                            "could not be updated automatically. "
+                            f"{odk_sync_result.error_message}",
+                            "warning",
+                        )
                     flash(success_message, "success")
                     form = VaDataManagerReviewForm()
                     active_dm_review = db.session.scalar(
@@ -348,7 +396,7 @@ def renderpartial(va_sid, va_partial):
             va_actiontype,
         )
         reviewobject = db.session.scalar(sa.select(VaReviewerReview).where((VaReviewerReview.va_rreview_status == VaStatuses.active)&(VaReviewerReview.va_sid == va_sid)))
-        authoritative_final_assess = get_authoritative_final_assessment(va_sid)
+        authoritative_final_assess = get_authoritative_final_cod_record(va_sid)
         vafinexists = authoritative_final_assess.va_sid if authoritative_final_assess else None
         vaerrexists = db.session.scalar(sa.select(VaCoderReview.va_sid).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
         vainiexists = db.session.scalar(sa.select(VaInitialAssessments.va_sid).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
@@ -581,12 +629,10 @@ def renderpartial(va_sid, va_partial):
                     va_audit_entityid = gen_uuid
                 )
             )
-            set_submission_workflow_state(
+            mark_coder_step1_saved(
                 va_sid,
-                WORKFLOW_CODER_STEP1_SAVED,
                 reason="initial_cod_submitted",
-                by_user_id=current_user.user_id,
-                by_role="vacoder",
+                actor=coder_actor(current_user.user_id),
             )
             db.session.commit()
             va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
@@ -674,17 +720,28 @@ def renderpartial(va_sid, va_partial):
                     flash(message, "warning")
                 return redirect(request.referrer or url_for("coding.dashboard"))
             gen_uuid = uuid.uuid4()
+            submission = db.session.get(VaSubmissions, va_sid)
+            active_payload_version = ensure_active_payload_version(
+                submission,
+                payload_data=submission.va_data or {},
+                source_updated_at=submission.va_odk_updatedat,
+                created_by_role="vacoder",
+                created_by=current_user.user_id,
+            )
             active_recode_episode = get_active_recode_episode(va_sid)
             prior_authoritative_final = get_authoritative_final_assessment(va_sid)
             existing_active_finals = db.session.scalars(
                 sa.select(VaFinalAssessments).where(
                     VaFinalAssessments.va_sid == va_sid,
+                    VaFinalAssessments.payload_version_id
+                    == active_payload_version.payload_version_id,
                     VaFinalAssessments.va_finassess_status == VaStatuses.active,
                 )
             ).all()
             new_review1 = VaFinalAssessments(
                 va_finassess_id=gen_uuid,
                 va_sid=va_sid,
+                payload_version_id=active_payload_version.payload_version_id,
                 va_finassess_by=current_user.user_id,
                 va_conclusive_cod=form1.va_conclusive_cod.data,
                 va_finassess_remark=form1.va_finassess_remark.data.strip() or None,
@@ -743,7 +800,14 @@ def renderpartial(va_sid, va_partial):
                     va_audit_entityid = gen_uuid
                 )
             )
-            va_has_allocation = db.session.scalar(sa.select(VaAllocations).where((VaAllocations.va_allocated_to == current_user.user_id)&(VaAllocations.va_allocation_for == VaAllocation.coding)&(VaAllocations.va_allocation_status == VaStatuses.active)))
+            va_has_allocation = db.session.scalar(
+                sa.select(VaAllocations).where(
+                    VaAllocations.va_sid == va_sid,
+                    VaAllocations.va_allocated_to == current_user.user_id,
+                    VaAllocations.va_allocation_for == VaAllocation.coding,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            )
             va_has_allocation.va_allocation_status = VaStatuses.deactive
             db.session.add(
                 VaSubmissionsAuditlog(
@@ -769,13 +833,17 @@ def renderpartial(va_sid, va_partial):
             )
             if active_recode_episode:
                 complete_recode_episode(active_recode_episode, new_review1)
-            set_submission_workflow_state(
-                va_sid,
-                WORKFLOW_CODER_FINALIZED,
-                reason="final_cod_submitted",
-                by_user_id=current_user.user_id,
-                by_role="vacoder",
-            )
+                mark_recode_finalized(
+                    va_sid,
+                    reason="replacement_final_cod_submitted",
+                    actor=coder_actor(current_user.user_id),
+                )
+            else:
+                mark_coder_finalized(
+                    va_sid,
+                    reason="final_cod_submitted",
+                    actor=coder_actor(current_user.user_id),
+                )
             db.session.commit()
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
@@ -839,7 +907,14 @@ def renderpartial(va_sid, va_partial):
                     va_audit_entityid = gen_uuid
                 )
             )
-            va_has_allocation = db.session.scalar(sa.select(VaAllocations).where((VaAllocations.va_allocated_to == current_user.user_id)&(VaAllocations.va_allocation_for == VaAllocation.coding)&(VaAllocations.va_allocation_status == VaStatuses.active)))
+            va_has_allocation = db.session.scalar(
+                sa.select(VaAllocations).where(
+                    VaAllocations.va_sid == va_sid,
+                    VaAllocations.va_allocated_to == current_user.user_id,
+                    VaAllocations.va_allocation_for == VaAllocation.coding,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            )
             va_has_allocation.va_allocation_status = VaStatuses.deactive
             db.session.add(
                 VaSubmissionsAuditlog(
@@ -852,12 +927,10 @@ def renderpartial(va_sid, va_partial):
                 )
             )
             db.session.add(new_coder_review)
-            set_submission_workflow_state(
+            mark_coder_not_codeable(
                 va_sid,
-                WORKFLOW_NOT_CODEABLE_BY_CODER,
                 reason="coder_marked_not_codeable",
-                by_user_id=current_user.user_id,
-                by_role="vacoder",
+                actor=coder_actor(current_user.user_id),
             )
             odk_sync_result = sync_not_codeable_review_state(
                 va_sid,

@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # Coding Workflow State Machine Policy
@@ -16,7 +16,7 @@ that:
 - coding progress is traceable
 - partial work is distinguishable from completed work
 - Not Codeable outcomes are explicit
-- reviewer activity is modeled as optional parallel oversight
+- reviewer activity is modeled as optional delayed secondary coding
 - data-manager triage does not masquerade as coder activity
 
 This policy defines the intended workflow states and transition rules.
@@ -36,12 +36,12 @@ absence.
 DigitVA operates three related but distinct tracks:
 
 1. coder workflow
-2. optional reviewer oversight workflow
+2. optional reviewer coding workflow
 3. optional data-manager triage workflow
 
 Only the coder workflow is required for normal COD completion.
 
-Reviewer activity is optional and may be initiated independently.
+Reviewer activity is optional and applies only to a selected subset of cases.
 
 Data-manager triage is optional and acts as an upstream gating or exclusion
 mechanism for problematic submissions.
@@ -141,36 +141,49 @@ following business states:
 - `partial_coding_saved`
 - `coder_step1_saved`
 - `coder_finalized`
-- `revoked_va_data_changed`
+- `reviewer_eligible`
+- `reviewer_coding_in_progress`
+- `reviewer_finalized`
+- `finalized_upstream_changed`
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
-- `closed`
 
 These states describe the local business outcome for the submission.
 
-Target naming cleanup:
+Current naming:
 
-- current implemented state key: `revoked_va_data_changed`
-- preferred future state key: `finalized_upstream_changed`
-- preferred UI label: `Finalized - ODK Data Changed`
+- current persisted key: `finalized_upstream_changed`
+- legacy migrated key: `revoked_va_data_changed`
+- UI label: `Finalized - ODK Data Changed`
 
 Current implementation note:
 
-- `closed` is part of the desired state machine, but the current runtime does
-  not yet implement any transition that writes `closed`
-- `smartva_pending` is part of the desired state machine, but the current
-  runtime still places consent-valid submissions directly into
-  `ready_for_coding`
-- until that transition exists, `closed` should be read as target-state policy,
-  not current runtime behavior
+- current runtime now writes `reviewer_eligible` after coder recode-window
+  expiry
+- reviewer selection remains optional and open-ended; there is no active
+  runtime terminal close endpoint for ordinary cases
+- `screening_pending` is now supported as an optional project-configured gate
+  with explicit pass/reject transitions
+- `smartva_pending` is now written in current runtime for newly synced and
+  payload-changed consent-valid submissions
+
+Legacy compatibility note:
+
+- `closed` remains defined as a legacy compatibility state for historical rows
+  and protection logic
+- it is not part of the active target BPMN for normal ongoing case handling
 
 ## Protected States
 
 The following states are **protected** from automatic data changes:
 
 - `coder_finalized` — Final COD has been submitted; ODK sync and SmartVA blocked
-- `revoked_va_data_changed` — Current implemented key for finalized cases whose upstream ODK data changed; pending resolution
-- `closed` — Terminal target state; no further changes permitted once implemented
+- `reviewer_eligible` — Coder recode window has closed; waiting for optional
+-  reviewer-coding selection
+- `reviewer_finalized` — Reviewer has submitted a reviewer-owned final COD
+- `finalized_upstream_changed` — Finalized cases whose upstream ODK data
+  changed; pending resolution
+- `closed` — legacy compatibility only; if old rows exist they remain protected
 
 See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartva-generation-policy.md) for details.
 
@@ -196,9 +209,11 @@ Desired target state machine:
                            +----------------------+
                            |   ready_for_coding   |
                            +----------+-----------+
-                                      |
-                                      | random coder allocation
-                                      v
+                               +------+------+
+                               |             |
+                               | random      | pick-and-choose
+                               | allocation  | start selected form
+                               v             v
                            +----------------------+
                            |  coding_in_progress  |
                            +----+-----------+-----+
@@ -224,10 +239,10 @@ Desired target state machine:
                                 |              +-------------------------+
                                 |              |                         |
                                 |              | recode window expires   | upstream ODK data changed
-                                |              | automatically           | (automatic during sync)
+                                |              | via hourly maintenance  | (automatic during sync)
                                 |              v                         v
-                                |        +-----------+        +---------------------------+
-                                |        |  closed   |        | revoked_va_data_changed   | <-- PROTECTED STATE
+                                |        +--------------------+ +---------------------------+
+                                |        | reviewer_eligible  | | finalized_upstream_changed| <-- PROTECTED STATE
                                 |        +-----------+        +-------------+-------------+
                                 |                                           |
                                 |                                           | admin accepts change
@@ -242,12 +257,10 @@ Desired target state machine:
                      +---------------------------+
                      |   not_codeable_by_coder   |
                      +-------------+-------------+
-                                   |
-                                   | local save + ODK hasIssues sync
-                                   v
-                             +-----------+
-                             |  closed   |
-                             +-----------+
+
+    Notes:
+    - local save + ODK hasIssues sync
+    - coder not-codeable is itself the resting exclusion state
 
 
   Allocation timeout / abandonment:
@@ -280,10 +293,6 @@ Desired target state machine:
 
   Upstream data change for finalized submission:
 
-    coder_finalized ----- ODK data changed -----> revoked_va_data_changed
-
-    Target naming cleanup:
-
     coder_finalized ----- ODK data changed -----> finalized_upstream_changed
 
     Notes:
@@ -302,6 +311,10 @@ Desired target state machine:
     Notes:
     - this is separate from upstream ODK-change handling
     - this returns the case to the normal coding-ready queue
+    - this uses the existing `admin` role semantics from the access-control
+      policy
+    - current policy defines `admin` as global-only, not project- or
+      site-scoped
 
 
   Optional data-manager triage:
@@ -313,45 +326,57 @@ Desired target state machine:
       +-------------------------------+
       | not_codeable_by_data_manager  |
       +---------------+---------------+
-                      |
-                      | excluded from automatic coder allocation pool
-                      v
-                +-----------+
-                |  closed   |
-                +-----------+
+
+    Notes:
+    - excluded from automatic coder allocation pool
+    - data-manager not-codeable is itself the resting exclusion state
 
 
-  Optional reviewer oversight (parallel, not mandatory mainline state):
+  Optional reviewer coding (sample-based, after coder recode window):
 
       coder_finalized
             |
-            | reviewer initiates review
+            | 24h coder recode window closes
             v
-      +------------------+
-      |   under_review   |
-      +----+--------+----+
-           |        |
-           |        | reviewer overrides
-           |        v
-           |   +-------------------+
-           |   | override_recorded |
-           |   +-------------------+
+      +--------------------+
+      | reviewer_eligible  |
+      +----+-----------+---+
+           |           |
+           | not in sample / no reviewer action yet
+           | remain reviewer_eligible
            |
-           | review completed without override
+           | selected for reviewer coding
            v
-      +------------------+
-      | review_complete  |
-      +------------------+
+      +--------------------------+
+      | reviewer_coding_in_      |
+      | progress                 |
+      +------------+-------------+
+                   |
+                   | reviewer final COD submitted
+                   v
+             +----------------------+
+             |  reviewer_finalized  |
+             +----------------------+
 ```
 
 Current implementation note:
 
-- the runtime currently writes `revoked_va_data_changed`, but does not yet
-  transition any submission into `closed`
-- the runtime also does not yet write `smartva_pending`; consent-valid cases
-  currently go directly to `ready_for_coding`
-- the `smartva_pending` and `closed` branches in the diagram therefore represent desired target
-  behavior, not current runtime behavior
+- the runtime currently writes both `finalized_upstream_changed` and
+  `reviewer_eligible`
+- the runtime now also writes:
+  - `reviewer_coding_in_progress`
+  - `reviewer_finalized`
+- the runtime now writes `smartva_pending` for newly synced and payload-changed
+  consent-valid submissions
+- screening-enabled projects may explicitly transition
+  `screening_pending -> smartva_pending` or
+  `screening_pending -> not_codeable_by_data_manager`
+- reviewer delayed secondary coding is now partially modeled in runtime
+- `reviewer_eligible` is now current runtime behavior for the post-24-hour
+  timer path
+- reviewer final-COD authority now prefers reviewer-owned final COD over coder
+  final COD in the authority service
+- active runtime does not use `closed` as a normal terminal state
 
 ## Data Manager Workflow
 
@@ -543,22 +568,15 @@ The system must preserve auditability across:
 Current implementation gap:
 
 - the recode window exists as a business rule for reopening/recode eligibility
-- but expiry of that window does not currently auto-transition submissions to
-  `closed`
-- that auto-close behavior remains target-state work
+- and expiry of that window now transitions submissions to `reviewer_eligible`
+- the active BPMN no longer relies on an automatic `closed` transition
 
-## Upstream Data Change (`revoked_va_data_changed` / target `finalized_upstream_changed`)
+## Upstream Data Change (`finalized_upstream_changed`)
 
 When ODK submission data changes for a `coder_finalized` submission, the system
 must NOT automatically destroy the finalized COD or reset the workflow state.
 
 ### State Transition
-
-Current implemented transition:
-
-`coder_finalized` -> `revoked_va_data_changed`
-
-Preferred target naming:
 
 `coder_finalized` -> `finalized_upstream_changed`
 
@@ -573,7 +591,7 @@ This transition occurs automatically during ODK sync when:
 |---|---|
 | Final COD | Current implementation keeps existing final assessment rows active; explicit preserved-link model still needed |
 | VA data snapshot | Gap: current implementation overwrites `va_submissions.va_data` without a dedicated pre-update snapshot |
-| Audit trail | Implemented via `VaSubmissionsAuditlog` and workflow-state audit entries |
+| Audit trail | Implemented via canonical `va_submission_workflow_events`; `VaSubmissionsAuditlog` remains for non-workflow operational audit |
 | SmartVA result | Protected from automatic regeneration while in this protected state |
 
 ### Notification Requirements
@@ -592,17 +610,16 @@ When this transition occurs:
 | Reject upstream change | Restore to `coder_finalized`, keep current COD authoritative |
 | Admin override final COD | Transition from `coder_finalized` to `ready_for_coding` for recoding against the same payload; no SmartVA rerun required unless the payload has changed |
 
-Policy target: only admins can resolve finalized-upstream-change submissions.
-
-Current implementation gap: data managers can currently perform accept/reject actions.
+Policy baseline: data managers and admins may resolve
+`finalized_upstream_changed` submissions.
 
 ### Authorization
 
 | Operation | Coder | Data Manager | Admin |
 |---|---|---|---|
-| View revoked submissions | No | Yes (scoped) | Yes |
-| Accept upstream change | No | Current implementation: Yes | Policy target: Yes (Admin only) |
-| Reject upstream change | No | Current implementation: Yes | Policy target: Yes (Admin only) |
+| View upstream-changed submissions | No | Yes (scoped) | Yes |
+| Accept upstream change | No | Yes (scoped) | Yes |
+| Reject upstream change | No | Yes (scoped) | Yes |
 
 ## Reviewer Oversight Workflow
 
@@ -611,41 +628,60 @@ Reviewer workflow is optional and parallel.
 It must not be treated as a mandatory successor stage for every
 coder-finalized case.
 
-Review may be initiated by:
+Reviewer coding may be initiated by:
 
 - random selection
-- browse-list selection
-- filtered search and manual pick
+- browse-list selection of a reviewer sample
+- filtered search and manual pick of a reviewer sample
 
 ### Reviewer precondition
 
-Only cases already in `coder_finalized` should normally enter reviewer
-oversight.
+Reviewer coding must not overlap with the coder's 24-hour recode window.
+
+Only cases that have:
+
+- reached `coder_finalized`
+- completed the 24-hour coder recode window
+- not been reset back into the coder pool by admin
+
+should become `reviewer_eligible`.
 
 ### Reviewer activity model
 
-Reviewer activity should be modeled separately from the canonical coder state.
+Reviewer is not an accept/reject QA overlay.
+
+Reviewer is an optional secondary coding path with its own COD submission.
 
 Recommended reviewer statuses:
 
-- `not_reviewed`
-- `under_review`
-- `review_complete`
-- `override_recorded`
-- `returned_for_revision`
+- `not_selected_for_reviewer`
+- `reviewer_eligible`
+- `reviewer_coding_in_progress`
+- `reviewer_finalized`
 
-### Reviewer override
+### Reviewer authority
 
-Reviewer override does not erase coder history.
+Reviewer coding does not erase coder history.
 
 Instead it must:
 
 - preserve the coder decision as historical record
-- create a distinct reviewer decision record
-- make the override auditable
+- create a distinct reviewer final-COD record
+- make the reviewer submission auditable
 
-Reviewer activity is an overlay on top of coder completion, not a replacement
-for the core coder workflow state machine.
+Authoritative final COD precedence must be:
+
+1. latest active reviewer final COD
+2. otherwise latest active coder final COD
+
+### Admin reset interaction
+
+Admin may reset/reopen a submission at any time.
+
+Admin does not author COD.
+
+Admin reset returns the submission to the coder pool, including after a case
+has become `reviewer_eligible`.
 
 ## Allocation Rules
 
@@ -669,8 +705,9 @@ Important milestones that must remain visible:
 - Step 1 COD saved
 - final COD submitted
 - coder marked Not Codeable
-- reviewer review started
-- reviewer override recorded
+- reviewer became eligible
+- reviewer coding started
+- reviewer final COD submitted
 - stale allocation released
 
 ## Completion Rule
@@ -679,16 +716,12 @@ A case is considered locally complete when one of these business outcomes is
 true:
 
 - `coder_finalized`
-- `revoked_va_data_changed` (pending resolution; target name `finalized_upstream_changed`)
+- `finalized_upstream_changed` (pending resolution)
 - `not_codeable_by_coder`
 - `not_codeable_by_data_manager`
 
-Target-state addition once implemented:
-
-- `closed`
-
-Reviewer activity may happen later, but it does not determine whether the core
-coder workflow was completed.
+Reviewer activity may happen later, but it does affect final COD authority if a
+reviewer final COD is later submitted.
 
 ## Related Documents
 

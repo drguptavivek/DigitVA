@@ -5,6 +5,20 @@ from __future__ import annotations
 import sqlalchemy as sa
 
 from app import db
+from app.services.workflow.definition import (
+    WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_CONSENT_REFUSED,
+    WORKFLOW_NOT_CODEABLE_BY_CODER,
+    WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+    WORKFLOW_PARTIAL_CODING_SAVED,
+    WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
+    WORKFLOW_SCREENING_PENDING,
+)
 
 
 MV_NAME = "va_submission_analytics_mv"
@@ -205,10 +219,20 @@ SELECT
     substring(init_assess.va_immediate_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)') AS initial_immediate_icd,
     init_assess.va_antecedent_cod AS initial_antecedent_cod_text,
     substring(init_assess.va_antecedent_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)') AS initial_antecedent_icd,
-    (final_assess.va_finassess_id IS NOT NULL) AS has_human_final_cod,
-    final_assess.va_conclusive_cod AS final_cod_text,
-    substring(final_assess.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)') AS final_icd,
-    COALESCE(final_assess.authority_source_role, 'latest_active_fallback') AS final_cod_authority_source,
+    (
+        reviewer_final.va_rfinassess_id IS NOT NULL
+        OR coder_final.va_finassess_id IS NOT NULL
+    ) AS has_human_final_cod,
+    COALESCE(reviewer_final.va_conclusive_cod, coder_final.va_conclusive_cod) AS final_cod_text,
+    substring(
+        COALESCE(reviewer_final.va_conclusive_cod, coder_final.va_conclusive_cod)
+        from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
+    ) AS final_icd,
+    COALESCE(
+        reviewer_final.authority_source_role,
+        coder_final.authority_source_role,
+        'latest_active_fallback'
+    ) AS final_cod_authority_source,
     (smartva.va_smartva_id IS NOT NULL) AS has_smartva,
     smartva.va_smartva_age AS smartva_age,
     smartva.va_smartva_gender AS smartva_gender,
@@ -234,9 +258,39 @@ LEFT JOIN LATERAL (
 ) AS init_assess ON TRUE
 LEFT JOIN LATERAL (
     SELECT
+        rf.va_rfinassess_id,
+        rf.va_conclusive_cod,
+        COALESCE(a.authority_source_role, 'reviewer_latest_active_fallback') AS authority_source_role
+    FROM va_reviewer_final_assessments rf
+    LEFT JOIN va_final_cod_authority a
+        ON a.authoritative_reviewer_final_assessment_id = rf.va_rfinassess_id
+    WHERE rf.va_rfinassess_id = (
+        COALESCE(
+            (
+                SELECT a2.authoritative_reviewer_final_assessment_id
+                FROM va_final_cod_authority a2
+                WHERE
+                    a2.va_sid = an.va_sid
+                    AND a2.authoritative_reviewer_final_assessment_id IS NOT NULL
+                LIMIT 1
+            ),
+            (
+                SELECT rf2.va_rfinassess_id
+                FROM va_reviewer_final_assessments rf2
+                WHERE
+                    rf2.va_sid = an.va_sid
+                    AND rf2.va_rfinassess_status = 'active'
+                ORDER BY rf2.va_rfinassess_createdat DESC, rf2.va_rfinassess_id DESC
+                LIMIT 1
+            )
+        )
+    )
+) AS reviewer_final ON TRUE
+LEFT JOIN LATERAL (
+    SELECT
         f.va_finassess_id,
         f.va_conclusive_cod,
-        a.authority_source_role
+        COALESCE(a.authority_source_role, 'latest_active_fallback') AS authority_source_role
     FROM va_final_assessments f
     LEFT JOIN va_final_cod_authority a
         ON a.authoritative_final_assessment_id = f.va_finassess_id
@@ -261,7 +315,7 @@ LEFT JOIN LATERAL (
             )
         )
     )
-) AS final_assess ON TRUE
+) AS coder_final ON TRUE
 LEFT JOIN LATERAL (
     SELECT
         sv.va_smartva_id,
@@ -376,11 +430,11 @@ def build_dm_mv_filter_conditions(
     if workflow:
         if workflow == "pending_coding":
             conditions.append(mv.c.workflow_state.in_([
-                "screening_pending",
-                "ready_for_coding",
-                "coding_in_progress",
-                "partial_coding_saved",
-                "coder_step1_saved",
+                WORKFLOW_SCREENING_PENDING,
+                WORKFLOW_READY_FOR_CODING,
+                WORKFLOW_CODING_IN_PROGRESS,
+                WORKFLOW_PARTIAL_CODING_SAVED,
+                WORKFLOW_CODER_STEP1_SAVED,
             ]))
         else:
             conditions.append(mv.c.workflow_state == workflow)
@@ -441,7 +495,7 @@ def get_dm_kpi_from_mv(
         .where(sa.and_(*conditions))
         .where(
             mv.c.workflow_state.in_(
-                ["not_codeable_by_data_manager", "not_codeable_by_coder"]
+                [WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER, WORKFLOW_NOT_CODEABLE_BY_CODER]
             )
         )
     ) or 0
@@ -461,24 +515,32 @@ def get_dm_kpi_from_mv(
         sa.select(sa.func.count())
         .select_from(mv)
         .where(sa.and_(*conditions))
-        .where(mv.c.workflow_state == "revoked_va_data_changed")
+        .where(mv.c.workflow_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
     ) or 0
     coded = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
         .where(sa.and_(*conditions))
-        .where(mv.c.workflow_state == "coder_finalized")
+        .where(
+            mv.c.workflow_state.in_(
+                [
+                    WORKFLOW_CODER_FINALIZED,
+                    WORKFLOW_REVIEWER_ELIGIBLE,
+                    WORKFLOW_REVIEWER_FINALIZED,
+                ]
+            )
+        )
     ) or 0
     pending = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(mv)
         .where(sa.and_(*conditions))
         .where(mv.c.workflow_state.in_([
-            "screening_pending",
-            "ready_for_coding",
-            "coding_in_progress",
-            "partial_coding_saved",
-            "coder_step1_saved",
+            WORKFLOW_SCREENING_PENDING,
+            WORKFLOW_READY_FOR_CODING,
+            WORKFLOW_CODING_IN_PROGRESS,
+            WORKFLOW_PARTIAL_CODING_SAVED,
+            WORKFLOW_CODER_STEP1_SAVED,
         ]))
     ) or 0
 
@@ -486,7 +548,7 @@ def get_dm_kpi_from_mv(
         sa.select(sa.func.count())
         .select_from(mv)
         .where(sa.and_(*conditions))
-        .where(mv.c.workflow_state == "consent_refused")
+        .where(mv.c.workflow_state == WORKFLOW_CONSENT_REFUSED)
     ) or 0
 
     # Per-state counts for the workflow flowchart — single GROUP BY query

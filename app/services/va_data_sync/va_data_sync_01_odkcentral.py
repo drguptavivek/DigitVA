@@ -18,19 +18,38 @@ from app.services.final_cod_authority_service import (
     abandon_active_recode_episode,
     upsert_final_cod_authority,
 )
-from app.services.submission_workflow_service import (
+from app.services.workflow.definition import (
+    WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_REVOKED_VA_DATA_CHANGED,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_CLOSED,
+    WORKFLOW_PARTIAL_CODING_SAVED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
     WORKFLOW_SMARTVA_PENDING,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_CONSENT_REFUSED,
+)
+from app.services.workflow.state_store import (
     get_submission_workflow_state,
-    set_submission_workflow_state,
-    sync_submission_workflow_from_legacy_records,
+)
+from app.services.workflow.transitions import (
+    mark_upstream_change_detected,
+    reset_incomplete_first_pass,
+    route_synced_submission,
+    system_actor,
+)
+from app.services.workflow.upstream_changes import record_protected_upstream_change
+from app.services.submission_payload_version_service import (
+    canonical_payload_fingerprint,
+    create_or_update_pending_upstream_payload_version,
+    ensure_active_payload_version,
+    get_active_payload_version,
 )
 from app.models import (
     VaAllocations,
+    VaAllocation,
     VaCoderReview,
     VaFinalAssessments,
     VaInitialAssessments,
@@ -152,39 +171,55 @@ def _run_with_odk_connectivity_backoff(label: str, callback, log_progress=None):
 
 SYNC_PROTECTED_STATES = frozenset({
     WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_REVOKED_VA_DATA_CHANGED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_CLOSED,
 })
 
 
 def _handle_protected_submission_update(existing, va_submission: dict) -> None:
-    """Update ODK metadata for a protected submission and transition to revoked_va_data_changed.
+    """Update ODK metadata for a protected submission and transition to finalized_upstream_changed.
 
     Preserves all workflow artifacts (VaFinalAssessments, VaCoderReview, etc.).
     Only updates ODK-sourced metadata fields and the stored submission data.
     """
     from dateutil import parser as _parser
     va_sid = existing.va_sid
-
-    existing.va_odk_updatedat = (
+    current_workflow_state = get_submission_workflow_state(va_sid) or WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+    incoming_updatedat = (
         _parser.isoparse(va_submission.get("updatedAt")).replace(tzinfo=None)
         if va_submission.get("updatedAt")
         else None
     )
-    existing.va_odk_reviewstate = va_submission.get("ReviewState")
-    existing.va_odk_reviewcomments = va_submission.get("OdkReviewComments")
-    existing.va_instance_name = va_submission.get("instanceName")
+
+    if existing.active_payload_version_id is None and existing.va_data:
+        ensure_active_payload_version(
+            existing,
+            payload_data=existing.va_data,
+            source_updated_at=existing.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
+
+    previous_payload_version_id = existing.active_payload_version_id
+    pending_payload_version = create_or_update_pending_upstream_payload_version(
+        existing,
+        payload_data=va_submission,
+        source_updated_at=incoming_updatedat,
+        created_by_role="vasystem",
+    )
+    record_protected_upstream_change(
+        existing,
+        va_submission,
+        workflow_state_before=current_workflow_state,
+        detected_odk_updatedat=incoming_updatedat,
+        previous_payload_version_id=previous_payload_version_id,
+        incoming_payload_version_id=pending_payload_version.payload_version_id,
+    )
+
     existing.va_sync_issue_code = None
     existing.va_sync_issue_detail = None
     existing.va_sync_issue_updated_at = None
-    existing.va_data = va_submission
-    (
-        existing.va_summary,
-        existing.va_catcount,
-    ) = va_preprocess_summcatenotification(va_submission)
-    existing.va_category_list = va_preprocess_categoriestodisplay(
-        va_submission, existing.va_form_id
-    )
 
     db.session.add(
         VaSubmissionsAuditlog(
@@ -195,16 +230,23 @@ def _handle_protected_submission_update(existing, va_submission: dict) -> None:
         )
     )
 
-    set_submission_workflow_state(
+    if current_workflow_state == WORKFLOW_CLOSED:
+        log.warning(
+            "DataSync [%s]: upstream ODK data changed on closed submission — "
+            "preserved closed state",
+            va_sid,
+        )
+        return
+
+    mark_upstream_change_detected(
         va_sid,
-        WORKFLOW_REVOKED_VA_DATA_CHANGED,
         reason="upstream_odk_data_changed",
-        by_role="vaadmin",
+        actor=system_actor(),
     )
 
     log.warning(
         "DataSync [%s]: upstream ODK data changed on protected submission — "
-        "transitioned to revoked_va_data_changed",
+        "transitioned to finalized_upstream_changed",
         va_sid,
     )
 
@@ -367,12 +409,27 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
         normalized_age = normalize_who_2022_age(va_submission)
         va_submission_age = normalized_age.legacy_age_years
         va_submission_gender = va_submission.get("Id10019") or "unknown"
+        incoming_payload_fingerprint = canonical_payload_fingerprint(va_submission)
 
         existing = db.session.scalar(
             sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_submission_sid)
         )
 
-        if existing and va_submission_updatedat != existing.va_odk_updatedat:
+        if existing:
+            active_payload_version = get_active_payload_version(va_submission_sid)
+            existing_payload_fingerprint = (
+                active_payload_version.payload_fingerprint
+                if active_payload_version is not None
+                else canonical_payload_fingerprint(existing.va_data or {})
+            )
+            active_payload_changed = (
+                existing.active_payload_version_id is None
+                or existing_payload_fingerprint != incoming_payload_fingerprint
+            )
+        else:
+            active_payload_changed = True
+
+        if existing and active_payload_changed:
             current_state = get_submission_workflow_state(va_submission_sid)
             if current_state in SYNC_PROTECTED_STATES:
                 _handle_protected_submission_update(existing, va_submission)
@@ -414,6 +471,12 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                 ) = va_preprocess_summcatenotification(va_submission)
                 existing.va_category_list = va_preprocess_categoriestodisplay(
                     va_submission, va_submission_formid
+                )
+                ensure_active_payload_version(
+                    existing,
+                    payload_data=va_submission,
+                    source_updated_at=va_submission_updatedat,
+                    created_by_role="vasystem",
                 )
                 db.session.add(
                     VaSubmissionsAuditlog(
@@ -511,11 +574,11 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                     ))
                 va_submission_amended = True
                 updated += 1
-                set_submission_workflow_state(
+                route_synced_submission(
                     va_submission_sid,
-                    _workflow_state_for_consent(va_submission_consent),
+                    consent_valid=_consent_is_valid(va_submission_consent),
                     reason="odk_submission_updated",
-                    by_role="vaadmin",
+                    actor=system_actor(),
                 )
                 print(f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']")
 
@@ -555,11 +618,18 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                 )
             )
             db.session.flush()
-            set_submission_workflow_state(
+            created_submission = db.session.get(VaSubmissions, va_submission_sid)
+            ensure_active_payload_version(
+                created_submission,
+                payload_data=va_submission,
+                source_updated_at=va_submission_updatedat,
+                created_by_role="vasystem",
+            )
+            route_synced_submission(
                 va_submission_sid,
-                _workflow_state_for_consent(va_submission_consent),
+                consent_valid=_consent_is_valid(va_submission_consent),
                 reason="submission_created_during_sync",
-                by_role="vaadmin",
+                actor=system_actor(),
             )
             va_submission_amended = True
             added += 1
@@ -573,12 +643,88 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
             )
             print(f"DataSync Process [Added VA submission '{va_submission_formid}: {va_submission_sid}']")
 
+        elif existing and va_submission_updatedat != existing.va_odk_updatedat:
+            existing.va_odk_updatedat = va_submission_updatedat
+            existing.va_odk_reviewstate = va_submission_reviewstate
+            existing.va_odk_reviewcomments = va_submission_reviewcomments
+            existing.va_instance_name = va_submission_instancename
+            existing.va_sync_issue_code = None
+            existing.va_sync_issue_detail = None
+            existing.va_sync_issue_updated_at = None
+            db.session.add(
+                VaSubmissionsAuditlog(
+                    va_sid=va_submission_sid,
+                    va_audit_byrole="vaadmin",
+                    va_audit_operation="u",
+                    va_audit_action="va_submission_metadata_refresh_during_datasync",
+                )
+            )
+            va_submission_amended = True
+            updated += 1
+
         if va_submission_amended:
             amended_sids.add(va_submission_sid)
             if upserted_map is not None:
                 upserted_map[va_submission_sid] = va_submission.get("KEY", "")
 
     return added, updated, discarded, skipped
+
+
+def _release_active_allocations_after_sync() -> None:
+    """Release active allocations after sync without bypassing the workflow layer."""
+    active_allocations = db.session.scalars(
+        sa.select(VaAllocations).where(
+            VaAllocations.va_allocation_status == VaStatuses.active
+        )
+    ).all()
+
+    for record in active_allocations:
+        record.va_allocation_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=record.va_sid,
+                va_audit_entityid=record.va_allocation_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="d",
+                va_audit_action="va_allocation_deletion_during_datasync",
+            )
+        )
+
+        if record.va_allocation_for != VaAllocation.coding:
+            continue
+
+        va_initialassess = db.session.scalar(
+            sa.select(VaInitialAssessments).where(
+                VaInitialAssessments.va_sid == record.va_sid,
+                VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+            )
+        )
+        if va_initialassess:
+            va_initialassess.va_iniassess_status = VaStatuses.deactive
+            db.session.add(
+                VaSubmissionsAuditlog(
+                    va_sid=va_initialassess.va_sid,
+                    va_audit_entityid=va_initialassess.va_iniassess_id,
+                    va_audit_byrole="vasystem",
+                    va_audit_operation="d",
+                    va_audit_action="va_partial_iniasses_deletion_during_datasync",
+                )
+            )
+
+        current_state = get_submission_workflow_state(record.va_sid)
+        if current_state in {
+            None,
+            WORKFLOW_CODING_IN_PROGRESS,
+            WORKFLOW_PARTIAL_CODING_SAVED,
+            WORKFLOW_CODER_STEP1_SAVED,
+        }:
+            reset_incomplete_first_pass(
+                record.va_sid,
+                reason="sync_reset_after_submission_update",
+                actor=system_actor(),
+            )
+
+    db.session.commit()
 
 
 def va_data_sync_odkcentral(log_progress=None):
@@ -875,45 +1021,7 @@ def va_data_sync_odkcentral(log_progress=None):
         # ── Release allocations (global — runs after all forms) ─────────────────
 
         _progress("Releasing active coding allocations…")
-        for record in db.session.scalars(
-            sa.select(VaAllocations).where(
-                VaAllocations.va_allocation_status == VaStatuses.active
-            )
-        ).all():
-            record.va_allocation_status = VaStatuses.deactive
-            db.session.add(
-                VaSubmissionsAuditlog(
-                    va_sid=record.va_sid,
-                    va_audit_entityid=record.va_allocation_id,
-                    va_audit_byrole="vaadmin",
-                    va_audit_operation="d",
-                    va_audit_action="va_allocation_deletion_during_datasync",
-                )
-            )
-            va_initialassess = db.session.scalar(
-                sa.select(VaInitialAssessments).where(
-                    (VaInitialAssessments.va_sid == record.va_sid)
-                    & (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
-                )
-            )
-            if va_initialassess:
-                va_initialassess.va_iniassess_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_initialassess.va_sid,
-                        va_audit_entityid=va_initialassess.va_iniassess_id,
-                        va_audit_byrole="vaadmin",
-                        va_audit_operation="d",
-                        va_audit_action="va_partial_iniasses_deletion_during_datasync",
-                    )
-                )
-            sync_submission_workflow_from_legacy_records(
-                record.va_sid,
-                reason="sync_reset_after_submission_update",
-                by_role="vaadmin",
-            )
-
-        db.session.commit()
+        _release_active_allocations_after_sync()
 
         phase1_msg = (
             f"Downloads complete — added: {va_submissions_added}, "

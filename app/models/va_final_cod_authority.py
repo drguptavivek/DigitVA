@@ -27,6 +27,14 @@ class VaFinalCodAuthority(db.Model):
         nullable=True,
         unique=True,
     )
+    authoritative_reviewer_final_assessment_id: so.Mapped[Optional[uuid.UUID]] = (
+        so.mapped_column(
+            sa.Uuid(as_uuid=True),
+            sa.ForeignKey("va_reviewer_final_assessments.va_rfinassess_id"),
+            nullable=True,
+            unique=True,
+        )
+    )
     authority_source_role: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(32), nullable=True
     )
@@ -55,5 +63,6 @@ class VaFinalCodAuthority(db.Model):
     def __repr__(self) -> str:
         return (
             "VA Final COD Authority -> "
-            f"{self.va_sid}: {self.authoritative_final_assessment_id}"
+            f"{self.va_sid}: coder={self.authoritative_final_assessment_id} "
+            f"reviewer={self.authoritative_reviewer_final_assessment_id}"
         )

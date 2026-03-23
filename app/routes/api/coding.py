@@ -15,16 +15,19 @@ from app.services.coder_dashboard_service import (
 
 from app.services.coder_workflow_service import (
     AllocationError,
+    admin_override_to_recode,
     allocate_pick_form,
     allocate_random_form,
     get_active_coding_allocation,
     get_coder_ready_stats,
     get_pick_available_forms,
     is_upstream_recode,
+    mark_reviewer_eligible_after_recode_window_submissions,
     start_demo_allocation,
     start_recode_allocation,
 )
-from app.services.project_workflow_service import split_form_ids_by_coding_intake_mode
+from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
+from app.services.workflow.transitions import admin_actor
 
 bp = Blueprint("coding_api", __name__)
 
@@ -122,6 +125,31 @@ def recode(va_sid):
     except AllocationError as e:
         return _error(e.message, e.status_code)
     return jsonify({"va_sid": result.va_sid, "actiontype": result.actiontype}), 201
+
+
+@bp.post("/admin-override-recode/<va_sid>")
+@login_required
+def admin_override_recode(va_sid):
+    """Return a finalized submission to ready_for_coding for recode."""
+    if not current_user.is_admin():
+        return _error("Admin access is required.", 403)
+    try:
+        admin_override_to_recode(current_user, va_sid)
+    except AllocationError as e:
+        return _error(e.message, e.status_code)
+    return jsonify({"va_sid": va_sid, "workflow_state": "ready_for_coding"}), 200
+
+
+@bp.post("/reviewer-eligible-after-recode-window")
+@login_required
+def mark_reviewer_eligible_after_recode_window():
+    """Move coder-finalized submissions into reviewer_eligible after 24 hours."""
+    if not current_user.is_admin():
+        return _error("Admin access is required.", 403)
+    transitioned = mark_reviewer_eligible_after_recode_window_submissions(
+        actor=admin_actor(current_user.user_id)
+    )
+    return jsonify({"reviewer_eligible": transitioned}), 200
 
 
 # ---------------------------------------------------------------------------

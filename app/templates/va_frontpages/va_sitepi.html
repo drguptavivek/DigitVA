@@ -69,157 +69,9 @@
 
 <!-- Dynamic Content Area -->
 <div id="siteContent">
-  {% if default_site_data %}
-    <h3 class="text-primary mb-3 mt-4" style="font-size: 24px; font-weight: 600;">
-       <i class="fas fa-hospital me-2"></i> Site & VA Form: AIIMS, ND (ICMR - Telephonic WHO VA 2022)
-    </h3>
-    <!-- KPI cards -->
-    <div class="row mb-4 g-3">
-      <div class="col-md-4">
-        <div class="card shadow-sm border-0 rounded-3 h-100">
-          <div class="card-body p-4">
-            <div class="d-flex flex-column align-items-center">
-              <div class="mb-3">
-                <i class="fas fa-file-alt text-primary fa-2x"></i>
-              </div>
-              <h5 class="text-primary fw-semibold mb-3">Total VA Submissions ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})</h5>
-              <div class="d-flex align-items-baseline">
-                <h2 class="display-4 fw-bold text-primary mb-0">{{ default_site_data.total_submissions if default_site_data else 0 }}</h2>
-                <span class="ms-2 text-secondary small">submissions</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card shadow-sm border-0 rounded-3 h-100">
-          <div class="card-body p-4">
-            <div class="d-flex flex-column align-items-center">
-              <div class="mb-3">
-                <i class="fas fa-check-circle text-success fa-2x"></i>
-              </div>
-              <h5 class="text-success fw-semibold mb-3">Total VA Submissions Coded ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})</h5>
-              <div class="d-flex align-items-baseline">
-                <h2 class="display-4 fw-bold text-success mb-0">{{ default_site_data.total_coded if default_site_data else 0 }}</h2>
-                <span class="ms-2 text-secondary small">submissions</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card shadow-sm border-0 rounded-3 h-100">
-          <div class="card-body p-4">
-            <div class="d-flex flex-column align-items-center">
-              <div class="mb-3">
-                <i class="fas fa-times-circle text-danger fa-2x"></i>
-              </div>
-              <h5 class="text-danger fw-semibold mb-3">Total VA Submissions Not Codeable ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})</h5>
-              <div class="d-flex align-items-baseline">
-                <h2 class="display-4 fw-bold text-danger mb-0">{{ default_site_data.total_not_codeable if default_site_data else 0 }}</h2>
-                <span class="ms-2 text-secondary small">submissions</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!--
-    <h3 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
-        VA Forms Marked as Not Codeable ({{ sitepi_sites[0] if sitepi_sites else 'N/A' }})
-    </h3>
-    -->
-
-    <!-- Table -->
-     <!--
-    <div class="table-responsive">
-      <table id="sitepiTable" class="table table-hover align-middle table-striped nowrap" style="min-width: 800px;">
-        <thead>
-          <tr>
-            <th>VA SID</th>
-            <th>Review Reason</th>
-            <th>Review Date</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for record in default_site_data.review_records %}
-          <tr>
-            <td>{{ record.va_sid }}</td>
-            <td>{{ record.va_creview_reason }}</td>
-            <td>{{ record.va_creview_created_at.strftime('%Y-%m-%d %H:%M') if record.va_creview_created_at else 'N/A' }}</td>
-            <td>
-              <a href="#" class="btn btn-sm btn-outline-primary">Review</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% else %}
-    <div class="text-center py-5">
-      <p class="text-muted">No data available for the selected site.</p>
-    </div>
-  {% endif %}
-</div>
--->
-<h3 class="text-primary mb-3 mt-4" style="font-size: 24px; font-weight: 600;">
-   <i class="fas fa-users-cog me-2"></i> VA Coder Participation
-</h3>
-
-<div class="card shadow-sm border-0 rounded-3 mb-4">
-  <div class="card-body"> 
-    <div class="table-responsive">
-      <table id="sitepiTable" class="table table-hover align-middle table-striped nowrap" style="width: 100%; min-width: 800px;">
-        <thead class="table-light">
-          <tr>
-            <th class="ps-3 py-3">VA Coder</th>
-            <th class="py-3">VA Coder Onboarded DigitVA</th>
-            <th class="py-3 text-center">VA Submissions Coded</th>
-            <th class="py-3 text-center">VA Submissions Marked as Not-Codeable</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in default_site_data.coder_kpis %}
-          <tr>
-            <td class="ps-3 fw-bold text-secondary">
-              <div class="d-flex align-items-center">
-                <div class="bg-primary text-white me-2 rounded-circle d-flex justify-content-center align-items-center" style="width: 32px; height: 32px; font-size: 14px;">
-                  {{ row[0][0] | upper if row[0] else 'U' }}
-                </div>
-                {{ row[0] }}
-              </div>
-            </td>
-            
-            <td>
-              {% if row[1] %}
-                <span class="badge bg-success text-white px-3 py-2 rounded-pill shadow-sm">
-                  <i class="fas fa-check me-1"></i> Onboarded
-                </span>
-              {% else %}
-                <span class="badge bg-warning text-dark px-3 py-2 rounded-pill shadow-sm">
-                  <i class="fas fa-clock me-1"></i> Pending
-                </span>
-              {% endif %}
-            </td>
-
-            <td class="text-center">
-              <span class="fw-bold text-dark">{{ row[2] }}</span>
-            </td>
-            
-            <td class="text-center">
-              {% if row[3] > 0 %}
-                <span class="fw-bold text-danger">{{ row[3] }}</span>
-              {% else %}
-                <span class="fw-bold text-muted">{{ row[3] }}</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+  {% with site_data=default_site_data, site_label=default_site %}
+    {% include 'va_intermediate_partials/sitepi_dashboard_content.html' %}
+  {% endwith %}
 </div>
 
 <style>
@@ -237,14 +89,16 @@
 
 <script>
   $(document).ready(function () {
-    // Initialize DataTable if there's data
-    if ($('#sitepiTable tbody tr').length > 0) {
-      $('#sitepiTable').DataTable({
+    if ($('#sitepiCoderTable tbody tr').length > 0) {
+      $('#sitepiCoderTable').DataTable({
         pageLength: 10,
-        order: [[2, 'desc']], // Sort by review date descending
-        columnDefs: [
-          { orderable: false, targets: [3] } // Action column not sortable
-        ]
+        order: [[2, 'desc']]
+      });
+    }
+    if ($('#sitepiWorkflowTable tbody tr').length > 0) {
+      $('#sitepiWorkflowTable').DataTable({
+        pageLength: 10,
+        order: [[11, 'desc']]
       });
     }
   });
@@ -252,19 +106,23 @@
   // Re-initialize DataTable when HTMX updates content
   document.addEventListener('htmx:afterSwap', function(event) {
     if (event.target.id === 'siteContent') {
-      // Destroy existing DataTable if it exists
-      if ($.fn.DataTable.isDataTable('#sitepiTable')) {
-        $('#sitepiTable').DataTable().destroy();
+      if ($.fn.DataTable.isDataTable('#sitepiCoderTable')) {
+        $('#sitepiCoderTable').DataTable().destroy();
       }
-      
-      // Re-initialize DataTable if there's data
-      if ($('#sitepiTable tbody tr').length > 0) {
-        $('#sitepiTable').DataTable({
+      if ($.fn.DataTable.isDataTable('#sitepiWorkflowTable')) {
+        $('#sitepiWorkflowTable').DataTable().destroy();
+      }
+
+      if ($('#sitepiCoderTable tbody tr').length > 0) {
+        $('#sitepiCoderTable').DataTable({
           pageLength: 10,
-          order: [[2, 'desc']], // Sort by review date descending
-          columnDefs: [
-            { orderable: false, targets: [3] } // Action column not sortable
-          ]
+          order: [[2, 'desc']]
+        });
+      }
+      if ($('#sitepiWorkflowTable tbody tr').length > 0) {
+        $('#sitepiWorkflowTable').DataTable({
+          pageLength: 10,
+          order: [[11, 'desc']]
         });
       }
     }

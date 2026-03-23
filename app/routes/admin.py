@@ -500,7 +500,7 @@ _AUDIT_ACTION_EXPLANATIONS = {
     "upstream_odk_data_changed_on_protected_submission": {
         "label": "Protected Submission Revoked",
         "category": "Protected Data",
-        "explanation": "A submission in a protected state (coder_finalized or closed) had its data changed in ODK Central. The submission has been moved to revoked_va_data_changed and is pending data-manager review.",
+        "explanation": "A submission in a protected state (coder_finalized or closed) had its data changed in ODK Central. The submission has been moved to finalized_upstream_changed and is pending data-manager review.",
     },
     "data_manager_requested_submission_refresh": {
         "label": "Submission Refresh Requested",
@@ -4020,8 +4020,9 @@ def admin_sync_smartva_stats():
             ).all()
         )
 
-        # Fetch submission counts per form (excluding revoked_va_data_changed — pending SmartVA)
-        from app.services.submission_workflow_service import WORKFLOW_REVOKED_VA_DATA_CHANGED
+        # Fetch submission counts per form (excluding finalized_upstream_changed — pending SmartVA)
+        from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        from app.models.va_submission_workflow import VaSubmissionWorkflow
 
         sub_by_form = dict(
             db.session.execute(
@@ -4029,7 +4030,8 @@ def admin_sync_smartva_stats():
                     VaSubmissions.va_form_id,
                     sa.func.count(VaSubmissions.va_sid).label("cnt"),
                 )
-                .where(VaSubmissions.va_workflow_state != WORKFLOW_REVOKED_VA_DATA_CHANGED)
+                .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+                .where(VaSubmissionWorkflow.workflow_state != WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
                 .group_by(VaSubmissions.va_form_id)
             ).all()
         )
@@ -4103,17 +4105,18 @@ def admin_sync_smartva_stats():
 @limiter.exempt
 @require_api_role("admin")
 def admin_sync_revoked_stats():
-    """Return counts of submissions in revoked_va_data_changed state.
+    """Return counts of submissions in finalized_upstream_changed state.
 
     These are protected submissions that had upstream ODK data changes
     and are pending data-manager review.
     """
     try:
         from app.models.va_submissions import VaSubmissions
+        from app.models.va_submission_workflow import VaSubmissionWorkflow
         from app.models.va_forms import VaForms
         from app.models.va_project_master import VaProjectMaster
         from app.models.va_sites import VaSites
-        from app.services.submission_workflow_service import WORKFLOW_REVOKED_VA_DATA_CHANGED
+        from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
 
         # Fetch revoked counts per form
         revoked_by_form = dict(
@@ -4122,7 +4125,11 @@ def admin_sync_revoked_stats():
                     VaSubmissions.va_form_id,
                     sa.func.count(VaSubmissions.va_sid).label("cnt"),
                 )
-                .where(VaSubmissions.va_workflow_state == WORKFLOW_REVOKED_VA_DATA_CHANGED)
+                .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+                .where(
+                    VaSubmissionWorkflow.workflow_state
+                    == WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+                )
                 .group_by(VaSubmissions.va_form_id)
             ).all()
         )

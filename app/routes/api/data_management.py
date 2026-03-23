@@ -25,6 +25,8 @@ from app.services.data_management_service import (
     dm_accept_upstream_change,
     dm_filter_options,
     dm_form_in_scope,
+    dm_screening_pass,
+    dm_screening_reject,
     dm_reject_upstream_change,
     dm_scoped_forms,
     dm_submissions_page,
@@ -383,7 +385,7 @@ def sync_submission(va_sid: str):
 @bp.post("/submissions/<va_sid>/accept-upstream-change")
 @login_required
 def accept_upstream_change(va_sid: str):
-    """Accept an upstream ODK data change: clear COD artifacts, reset to ready_for_coding."""
+    """Accept an upstream ODK data change: clear COD artifacts, move to smartva_pending."""
     err = _require_data_manager_or_admin()
     if err:
         return err
@@ -410,9 +412,51 @@ def accept_upstream_change(va_sid: str):
         log.warning("accept_upstream_change: could not enqueue SmartVA for %s", va_sid)
 
     return jsonify({
-        "message": "Upstream change accepted. Submission reset to ready for coding.",
+        "message": "Upstream change accepted. Submission moved to SmartVA pending.",
         "smartva_task_id": task_id,
     })
+
+
+@bp.post("/submissions/<va_sid>/screening-pass")
+@login_required
+def screening_pass(va_sid: str):
+    """Pass a screening-pending submission into SmartVA processing."""
+    err = _require_data_manager_or_admin()
+    if err:
+        return err
+    try:
+        dm_screening_pass(current_user, va_sid)
+        db.session.commit()
+        return jsonify({"message": "Screening passed. Submission moved to SmartVA pending."})
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        log.error("screening_pass failed for %s", va_sid, exc_info=True)
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.post("/submissions/<va_sid>/screening-reject")
+@login_required
+def screening_reject(va_sid: str):
+    """Reject a screening-pending submission before SmartVA/coding."""
+    err = _require_data_manager_or_admin()
+    if err:
+        return err
+    try:
+        dm_screening_reject(current_user, va_sid)
+        db.session.commit()
+        return jsonify({"message": "Screening rejected. Submission marked not codeable."})
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        log.error("screening_reject failed for %s", va_sid, exc_info=True)
+        return jsonify({"error": str(exc)}), 500
 
 
 @bp.post("/submissions/<va_sid>/reject-upstream-change")

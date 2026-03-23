@@ -19,6 +19,12 @@ class VaFinalAssessments(db.Model):
         index=True,
         nullable=False,
     )
+    payload_version_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_submission_payload_versions.payload_version_id"),
+        index=True,
+        nullable=True,
+    )
     va_finassess_by: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True),
         sa.ForeignKey("va_users.user_id"),

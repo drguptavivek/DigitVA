@@ -4,11 +4,11 @@ from functools import wraps
 from flask import redirect, url_for, request
 from flask_login import current_user
 from app.models import VaForms, VaSubmissions, VaSubmissionWorkflow
-from app.services.project_workflow_service import (
+from app.services.workflow.definition import CODER_READY_POOL_STATES
+from app.services.workflow.intake_modes import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )
-from app.services.submission_workflow_service import CODER_READY_POOL_STATES
 from app.utils import (
     va_permission_abortwithflash,
     va_permission_ensureallocation,

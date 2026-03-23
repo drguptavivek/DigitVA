@@ -4,16 +4,29 @@ from app import db
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime, timezone
-from sqlalchemy.dialects.postgresql import JSONB, ARRAY
+from sqlalchemy.dialects.postgresql import JSONB, ARRAY, UUID
 
 
 class VaSubmissions(db.Model):
     __tablename__ = "va_submissions"
+    __table_args__ = (
+        sa.ForeignKeyConstraint(
+            ["active_payload_version_id"],
+            ["va_submission_payload_versions.payload_version_id"],
+            name="fk_va_submissions_active_payload_version_id",
+            use_alter=True,
+        ),
+    )
     va_sid: so.Mapped[str] = so.mapped_column(
         sa.String(64), primary_key=True, index=True
     )
     va_form_id: so.Mapped[str] = so.mapped_column(
         sa.String(12), sa.ForeignKey("va_forms.form_id"), index=True
+    )
+    active_payload_version_id: so.Mapped[UUID | None] = so.mapped_column(
+        UUID(as_uuid=True),
+        nullable=True,
+        index=True,
     )
     va_submission_date: so.Mapped[Optional[datetime]] = so.mapped_column(
         sa.DateTime, nullable=True, index=True

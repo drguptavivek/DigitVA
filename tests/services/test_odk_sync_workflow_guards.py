@@ -1,9 +1,9 @@
 """Tests for the workflow state guard in _upsert_form_submissions.
 
 Critical behavior under test:
-- Submissions in protected states (coder_finalized, revoked_va_data_changed, closed)
+- Submissions in protected states (coder_finalized, finalized_upstream_changed, closed)
   must NOT have their workflow artifacts destroyed when ODK data changes.
-- They must be transitioned to revoked_va_data_changed instead.
+- They must be transitioned to finalized_upstream_changed instead.
 - Non-protected submissions follow the existing destructive update path.
 """
 import uuid
@@ -21,15 +21,23 @@ from app.models import (
     VaSiteMaster,
     VaSites,
     VaStatuses,
+    VaSubmissionPayloadVersion,
     VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.submission_workflow_service import (
+from app.models.va_submission_payload_versions import (
+    PAYLOAD_VERSION_STATUS_ACTIVE,
+    PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+)
+from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CLOSED,
     WORKFLOW_READY_FOR_CODING,
-    WORKFLOW_REVOKED_VA_DATA_CHANGED,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+)
+from app.services.workflow.state_store import (
     set_submission_workflow_state,
 )
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
@@ -192,7 +200,7 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         self.assertEqual(refreshed_fa.va_finassess_status, VaStatuses.active)
 
     def test_coder_finalized_submission_transitions_to_revoked_on_odk_data_change(self):
-        """Workflow state must be revoked_va_data_changed after upstream ODK change."""
+        """Workflow state must be finalized_upstream_changed after upstream ODK change."""
         sub = self._make_submission("uuid:guard-finalized-state")
         set_submission_workflow_state(
             sub.va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test"
@@ -206,7 +214,7 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         db.session.flush()
 
         self.assertEqual(updated, 1)
-        self.assertEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_REVOKED_VA_DATA_CHANGED)
+        self.assertEqual(self._get_workflow_state(sub.va_sid), WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
 
     def test_coder_finalized_update_creates_audit_log_entry(self):
         """An audit entry must be created when a protected submission is flagged."""
@@ -248,11 +256,11 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         self.assertEqual(refreshed_fa.va_finassess_status, VaStatuses.active)
 
     def test_already_revoked_submission_stays_revoked_on_further_odk_change(self):
-        """A revoked_va_data_changed submission encountering another ODK change
+        """A finalized_upstream_changed submission encountering another ODK change
         must remain in revoked state, not be double-reset."""
         sub = self._make_submission("uuid:guard-already-revoked")
         set_submission_workflow_state(
-            sub.va_sid, WORKFLOW_REVOKED_VA_DATA_CHANGED, reason="test", by_role="test"
+            sub.va_sid, WORKFLOW_FINALIZED_UPSTREAM_CHANGED, reason="test", by_role="test"
         )
         db.session.flush()
 
@@ -263,7 +271,35 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         db.session.flush()
 
         self.assertEqual(
-            self._get_workflow_state(sub.va_sid), WORKFLOW_REVOKED_VA_DATA_CHANGED
+            self._get_workflow_state(sub.va_sid), WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        )
+
+    def test_reviewer_eligible_submission_creates_pending_upstream_payload_version(self):
+        sub = self._make_submission("uuid:guard-reviewer-eligible")
+        set_submission_workflow_state(
+            sub.va_sid, WORKFLOW_REVIEWER_ELIGIBLE, reason="test", by_role="test"
+        )
+        db.session.flush()
+
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        _upsert_form_submissions(
+            va_form, [self._updated_record("uuid:guard-reviewer-eligible")], set(), {}
+        )
+        db.session.flush()
+
+        versions = db.session.scalars(
+            sa.select(VaSubmissionPayloadVersion)
+            .where(VaSubmissionPayloadVersion.va_sid == sub.va_sid)
+            .order_by(VaSubmissionPayloadVersion.version_created_at.asc())
+        ).all()
+
+        self.assertEqual(len(versions), 2)
+        self.assertEqual(versions[0].version_status, PAYLOAD_VERSION_STATUS_ACTIVE)
+        self.assertEqual(
+            versions[1].version_status, PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM
+        )
+        self.assertEqual(
+            self._get_workflow_state(sub.va_sid), WORKFLOW_FINALIZED_UPSTREAM_CHANGED
         )
 
     def test_ready_for_coding_submission_is_updated_normally(self):
@@ -285,7 +321,7 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         self.assertEqual(updated, 1)
         # Workflow state must NOT be revoked — it reinfers from cleared artifacts
         self.assertNotEqual(
-            self._get_workflow_state(sub.va_sid), WORKFLOW_REVOKED_VA_DATA_CHANGED
+            self._get_workflow_state(sub.va_sid), WORKFLOW_FINALIZED_UPSTREAM_CHANGED
         )
         # Final assessment must be deactivated on normal update path
         refreshed_fa = db.session.get(VaFinalAssessments, fa_id)
@@ -305,5 +341,5 @@ class UpsertWorkflowGuardTests(BaseTestCase):
 
         self.assertEqual(updated, 1)
         self.assertNotEqual(
-            self._get_workflow_state(sub.va_sid), WORKFLOW_REVOKED_VA_DATA_CHANGED
+            self._get_workflow_state(sub.va_sid), WORKFLOW_FINALIZED_UPSTREAM_CHANGED
         )

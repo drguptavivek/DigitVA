@@ -4,7 +4,7 @@ from flask import Blueprint
 
 api_v1 = Blueprint("api_v1", __name__)
 
-from app.routes.api import analytics, coding, data_management, icd10, nqa, profile, so  # noqa: E402, F401
+from app.routes.api import analytics, coding, data_management, icd10, nqa, profile, reviewing, so  # noqa: E402, F401
 
 api_v1.register_blueprint(analytics.bp, url_prefix="/analytics")
 api_v1.register_blueprint(coding.bp, url_prefix="/coding")
@@ -12,4 +12,5 @@ api_v1.register_blueprint(data_management.bp, url_prefix="/data-management")
 api_v1.register_blueprint(icd10.bp, url_prefix="/icd10")
 api_v1.register_blueprint(nqa.bp, url_prefix="/va")
 api_v1.register_blueprint(profile.bp, url_prefix="/profile")
+api_v1.register_blueprint(reviewing.bp, url_prefix="/reviewing")
 api_v1.register_blueprint(so.bp, url_prefix="/va")

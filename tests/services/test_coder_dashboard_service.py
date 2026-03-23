@@ -16,10 +16,12 @@ from app.services.coder_dashboard_service import (
     get_coder_completed_history,
     get_coder_recodeable_sids,
 )
-from app.services.submission_workflow_service import (
+from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
+)
+from app.services.workflow.state_store import (
     set_submission_workflow_state,
 )
 from tests.base import BaseTestCase

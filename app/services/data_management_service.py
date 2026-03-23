@@ -20,6 +20,7 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
+    VaReviewerFinalAssessments,
     VaSiteMaster,
     VaSmartvaResults,
     VaStatuses,
@@ -30,8 +31,33 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
+from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.odk_connection_guard_service import guarded_odk_call
 from app.services.odk_review_service import resolve_odk_instance_id
+from app.services.submission_payload_projection_service import (
+    apply_payload_to_submission_summary,
+)
+from app.services.submission_payload_version_service import (
+    get_payload_version,
+    promote_pending_upstream_payload_version,
+    reject_pending_upstream_payload_version,
+)
+from app.services.workflow.transitions import admin_actor, data_manager_actor
+from app.services.workflow.state_store import get_submission_workflow_record
+from app.services.workflow.definition import (
+    WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_PARTIAL_CODING_SAVED,
+    WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_SCREENING_PENDING,
+)
+from app.services.workflow.upstream_changes import (
+    UPSTREAM_CHANGE_STATUS_ACCEPTED,
+    UPSTREAM_CHANGE_STATUS_REJECTED,
+    get_latest_pending_upstream_change,
+    resolve_pending_upstream_change,
+)
 from app.utils import va_odk_clientsetup
 
 
@@ -214,7 +240,7 @@ _WORKFLOW_LABEL = {
     "screening_pending":            "Screening Pending",
     "coding_in_progress":           "Coding In Progress",
     "coder_finalized":              "Coder Finalized",
-    "revoked_va_data_changed":      "Revoked — Data Changed",
+    "finalized_upstream_changed":   "Finalized - ODK Data Changed",
     "consent_refused":              "Consent Refused",
 }
 
@@ -310,11 +336,11 @@ def dm_submissions_page(
         if workflow == "pending_coding":
             # Special case: pending includes multiple workflow states
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([
-                "screening_pending",
-                "ready_for_coding",
-                "coding_in_progress",
-                "partial_coding_saved",
-                "coder_step1_saved",
+                WORKFLOW_SCREENING_PENDING,
+                WORKFLOW_READY_FOR_CODING,
+                WORKFLOW_CODING_IN_PROGRESS,
+                WORKFLOW_PARTIAL_CODING_SAVED,
+                WORKFLOW_CODER_STEP1_SAVED,
             ]))
         else:
             conditions.append(VaSubmissionWorkflow.workflow_state == workflow)
@@ -461,29 +487,95 @@ def _dm_submission_scope_check(user, va_sid: str):
     return submission, form_row
 
 
+def _upstream_resolution_actor(user):
+    """Return the canonical workflow actor for upstream-change resolution."""
+    return admin_actor(user.user_id) if user.is_admin() else data_manager_actor(user.user_id)
+
+
+def _data_manager_workflow_actor(user):
+    """Return canonical workflow actor for DM/admin workflow actions."""
+    return admin_actor(user.user_id) if user.is_admin() else data_manager_actor(user.user_id)
+
+
+def dm_screening_pass(user, va_sid: str) -> None:
+    """Move a screening-pending submission into SmartVA processing."""
+    from app.services.workflow.definition import WORKFLOW_SCREENING_PENDING
+    from app.services.workflow.state_store import get_submission_workflow_state
+    from app.services.workflow.transitions import mark_screening_passed
+
+    _dm_submission_scope_check(user, va_sid)
+    current_state = get_submission_workflow_state(va_sid)
+    if current_state != WORKFLOW_SCREENING_PENDING:
+        raise ValueError(
+            f"Submission is in state '{current_state}', not screening_pending."
+        )
+    actor = _data_manager_workflow_actor(user)
+    mark_screening_passed(
+        va_sid,
+        reason="data_manager_screening_passed",
+        actor=actor,
+    )
+
+
+def dm_screening_reject(user, va_sid: str) -> None:
+    """Reject a screening-pending submission before SmartVA/coding."""
+    from app.services.workflow.definition import WORKFLOW_SCREENING_PENDING
+    from app.services.workflow.state_store import get_submission_workflow_state
+    from app.services.workflow.transitions import mark_screening_rejected
+
+    _dm_submission_scope_check(user, va_sid)
+    current_state = get_submission_workflow_state(va_sid)
+    if current_state != WORKFLOW_SCREENING_PENDING:
+        raise ValueError(
+            f"Submission is in state '{current_state}', not screening_pending."
+        )
+    actor = _data_manager_workflow_actor(user)
+    mark_screening_rejected(
+        va_sid,
+        reason="data_manager_screening_rejected",
+        actor=actor,
+    )
+
+
 def dm_accept_upstream_change(user, va_sid: str) -> None:
     """Accept an upstream ODK data change for a revoked submission.
 
-    Destroys finalized coding artifacts and resets to ready_for_coding so
-    the submission can be re-coded against the new ODK data.
+    Destroys finalized coding artifacts and returns the submission to
+    smartva_pending so the new payload undergoes SmartVA before coding.
 
     Raises ValueError / PermissionError on invalid input or access denial.
     Does NOT commit — caller is responsible.
     """
-    from app.services.submission_workflow_service import (
-        WORKFLOW_REVOKED_VA_DATA_CHANGED,
-        WORKFLOW_SMARTVA_PENDING,
-        get_submission_workflow_state,
-        set_submission_workflow_state,
-    )
+    from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+    from app.services.workflow.transitions import accept_upstream_change
 
     _dm_submission_scope_check(user, va_sid)
 
-    current_state = get_submission_workflow_state(va_sid)
-    if current_state != WORKFLOW_REVOKED_VA_DATA_CHANGED:
+    workflow_record = get_submission_workflow_record(va_sid, for_update=True)
+    current_state = workflow_record.workflow_state if workflow_record else None
+    if current_state != WORKFLOW_FINALIZED_UPSTREAM_CHANGED:
         raise ValueError(
-            f"Submission is in state '{current_state}', not revoked_va_data_changed."
+            f"Submission is in state '{current_state}', not finalized_upstream_changed."
         )
+
+    pending_change = get_latest_pending_upstream_change(va_sid)
+    if pending_change is None or pending_change.incoming_payload_version_id is None:
+        raise ValueError("Submission has no pending upstream payload version.")
+
+    submission = db.session.scalar(
+        sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_sid).with_for_update()
+    )
+    if submission is None:
+        raise ValueError("Submission not found.")
+
+    pending_payload_version = get_payload_version(
+        pending_change.incoming_payload_version_id
+    )
+    if pending_payload_version is None:
+        raise ValueError("Pending upstream payload version not found.")
+
+    actor = _upstream_resolution_actor(user)
+    actor_role = actor.audit_role
 
     # Deactivate all coding artifacts so the submission re-enters the coding queue
     for fa in db.session.scalars(
@@ -534,22 +626,38 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
     ).all():
         sva.va_smartva_status = VaStatuses.deactive
 
-    set_submission_workflow_state(
-        va_sid,
-        WORKFLOW_SMARTVA_PENDING,
-        reason="data_manager_accepted_upstream_change",
-        by_user_id=user.user_id,
-        by_role="data_manager",
-    )
-    db.session.add(
-        VaSubmissionsAuditlog(
-            va_sid=va_sid,
-            va_audit_byrole="data_manager",
-            va_audit_by=user.user_id,
-            va_audit_operation="u",
-            va_audit_action="data_manager_accepted_upstream_odk_change",
-            va_audit_entityid=uuid.uuid4(),
+    for rfa in db.session.scalars(
+        sa.select(VaReviewerFinalAssessments).where(
+            VaReviewerFinalAssessments.va_sid == va_sid,
+            VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
         )
+    ).all():
+        rfa.va_rfinassess_status = VaStatuses.deactive
+
+    promote_pending_upstream_payload_version(submission, pending_payload_version)
+    apply_payload_to_submission_summary(
+        submission,
+        pending_payload_version.payload_data,
+        source_updated_at=pending_payload_version.source_updated_at,
+    )
+
+    accept_upstream_change(
+        va_sid,
+        reason="data_manager_accepted_upstream_change",
+        actor=actor,
+    )
+    upsert_final_cod_authority(
+        va_sid,
+        None,
+        reason="data_manager_accepted_upstream_change",
+        source_role=actor_role,
+        updated_by=user.user_id,
+    )
+    resolve_pending_upstream_change(
+        va_sid,
+        resolution_status=UPSTREAM_CHANGE_STATUS_ACCEPTED,
+        resolved_by=user.user_id,
+        resolved_by_role=actor_role,
     )
 
 
@@ -566,39 +674,49 @@ def dm_reject_upstream_change(user, va_sid: str) -> None:
     Raises ValueError / PermissionError on invalid input or access denial.
     Does NOT commit — caller is responsible.
     """
-    from app.services.submission_workflow_service import (
-        WORKFLOW_REVOKED_VA_DATA_CHANGED,
-        WORKFLOW_CODER_FINALIZED,
-        get_submission_workflow_state,
-        set_submission_workflow_state,
-    )
+    from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+    from app.services.workflow.transitions import reject_upstream_change
     from app.services.odk_review_service import post_dm_rejection_comment
 
     _dm_submission_scope_check(user, va_sid)
 
-    current_state = get_submission_workflow_state(va_sid)
-    if current_state != WORKFLOW_REVOKED_VA_DATA_CHANGED:
+    workflow_record = get_submission_workflow_record(va_sid, for_update=True)
+    current_state = workflow_record.workflow_state if workflow_record else None
+    if current_state != WORKFLOW_FINALIZED_UPSTREAM_CHANGED:
         raise ValueError(
-            f"Submission is in state '{current_state}', not revoked_va_data_changed."
+            f"Submission is in state '{current_state}', not finalized_upstream_changed."
         )
+
+    pending_change = get_latest_pending_upstream_change(va_sid)
+    if pending_change is None:
+        raise ValueError("Submission has no pending upstream change record.")
+
+    restore_state = pending_change.workflow_state_before or WORKFLOW_CODER_FINALIZED
+    pending_payload_version = get_payload_version(
+        pending_change.incoming_payload_version_id
+    )
+
+    actor = _upstream_resolution_actor(user)
+    actor_role = actor.audit_role
 
     # Post comment to ODK Central (best-effort, non-blocking)
     post_dm_rejection_comment(va_sid)
 
-    set_submission_workflow_state(
-        va_sid,
-        WORKFLOW_CODER_FINALIZED,
-        reason="data_manager_rejected_upstream_change",
-        by_user_id=user.user_id,
-        by_role="data_manager",
-    )
-    db.session.add(
-        VaSubmissionsAuditlog(
-            va_sid=va_sid,
-            va_audit_byrole="data_manager",
-            va_audit_by=user.user_id,
-            va_audit_operation="u",
-            va_audit_action="data_manager_rejected_upstream_odk_change",
-            va_audit_entityid=uuid.uuid4(),
+    if pending_payload_version is not None:
+        reject_pending_upstream_payload_version(
+            pending_payload_version,
+            reason="upstream_change_rejected",
         )
+
+    reject_upstream_change(
+        va_sid,
+        target_state=restore_state,
+        reason="data_manager_rejected_upstream_change",
+        actor=actor,
+    )
+    resolve_pending_upstream_change(
+        va_sid,
+        resolution_status=UPSTREAM_CHANGE_STATUS_REJECTED,
+        resolved_by=user.user_id,
+        resolved_by_role=actor_role,
     )

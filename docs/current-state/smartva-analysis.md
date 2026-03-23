@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-19
+last_updated: 2026-03-23
 ---
 
 # SmartVA Analysis
@@ -12,19 +12,60 @@ SmartVA is an automated cause-of-death classification tool for Verbal Autopsy (V
 
 The SmartVA source code is available at `vendor/smartva-analyze` (git submodule, pinned to v3.0.0) for troubleshooting and reference.
 
-## Known Issue: Workflow State Guards
+## Workflow-State Guards
 
-> **WARNING**: The current implementation does NOT respect workflow state guards for `coder_finalized` submissions.
->
-> SmartVA runs regardless of workflow state during sync operations.
->
-> See [SmartVA Generation Policy](../policy/smartva-generation-policy.md) for the intended behavior and planned fixes.
+Current runtime behavior:
+
+- SmartVA excludes protected workflow states during automatic generation:
+  - `coder_finalized`
+  - `reviewer_eligible`
+  - `reviewer_finalized`
+  - `finalized_upstream_changed`
+  - `closed` if legacy rows exist
+  - `consent_refused`
+- new and payload-changed coding-eligible submissions are first routed to
+  `smartva_pending`
+- a successful SmartVA result transitions `smartva_pending -> ready_for_coding`
+- a handled SmartVA failure also transitions
+  `smartva_pending -> ready_for_coding`, but only after a durable failure row
+  is recorded in `va_smartva_results`
+- SmartVA readiness is now keyed to the current active payload version, not
+  just to `va_sid`
+- `va_smartva_results` now stores `payload_version_id`
+- existing SmartVA rows were backfilled to the current
+  `va_submissions.active_payload_version_id` during migration
+- current runtime now stores SmartVA in three layers:
+  - `va_smartva_runs` for durable attempt history
+  - `va_smartva_run_outputs` for emitted per-run output rows
+  - `va_smartva_results` for the active projection shown in the UI
+
+See [SmartVA Generation Policy](../policy/smartva-generation-policy.md) for the
+policy baseline.
 
 ---
 
 ## Overview
 
-SmartVA is run as a subprocess via a bundled x86-64 binary (`resource/smartva`). It consumes a CSV exported from ODK submissions and produces a multi-age-group cause-of-death ranking per submission. Results are stored in `va_smartva_results` and surfaced to coders in the VA coding interface.
+SmartVA is run as a subprocess via a bundled x86-64 binary (`resource/smartva`).
+It consumes a CSV exported from ODK submissions and produces a multi-age-group
+cause-of-death ranking per submission. Current runtime stores the active
+summary result in `va_smartva_results` and surfaces that record to coders in
+the VA coding interface.
+
+Current lineage note:
+
+- each active SmartVA row points to the payload version it was generated or
+  failure-recorded for
+- pending selection excludes a submission only when an active SmartVA row
+  exists for the current active payload version
+- an older active SmartVA row tied to a superseded payload version no longer
+  satisfies the SmartVA gate for a newer payload
+- the emitted raw likelihood row is now persisted in
+  `va_smartva_run_outputs`
+- the formatted result row used by the app projection is also persisted in
+  `va_smartva_run_outputs`
+- `va_smartva_results` now acts as the current projection layer for the latest
+  active run on the current payload version
 
 SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions have been downloaded and upserted (Phase 1). It can also be triggered independently via the admin dashboard "Gen SmartVA" button.
 
@@ -259,21 +300,55 @@ SmartVA produces age-group-specific result CSVs under `smartva_output/`. The for
 | `result_for` | Age group (adult / child / neonate) |
 | `cause1_icd` / `cause2_icd` / `cause3_icd` | ICD-10 codes |
 
+Current storage behavior:
+
+- SmartVA emits age-group likelihood files under
+  `smartva_output/4-monitoring-and-quality/intermediate-files/`
+- DigitVA reads those files through the formatter, persists the emitted row for
+  each submission run in `va_smartva_run_outputs`, persists the formatted row
+  as a separate output record, and then projects the active summary into
+  `va_smartva_results`
+
 ---
 
 ## Result Storage (`va_data_sync_01_odkcentral.py`)
 
-Results are persisted in `va_smartva_results`. The save logic per row:
+SmartVA attempts are persisted in `va_smartva_results`. The save logic per row:
 
 | Condition | Action |
 |---|---|
 | Submission was amended this sync run (Phase 1 added/updated it) | Deactivate old result, write new one |
 | Submission has no existing active result (gap fill) | Write new result regardless of Phase 1 |
 | Submission has an existing active result and was not amended | Skip — result is current |
+| SmartVA attempt fails for the current payload | Write an active failure row with `va_smartva_outcome = 'failed'` and failure metadata |
 
 This means every sync run — including SmartVA-only runs — fills in missing results without overwriting results for unchanged submissions.
 
-Each saved result creates a `va_submissions_auditlog` entry. Each form's results are committed independently so a failure on one form does not roll back others.
+Current storage semantics:
+
+- successful rows use `va_smartva_outcome = 'success'`
+- failure rows use `va_smartva_outcome = 'failed'`
+- both success and failure rows now carry `payload_version_id`
+- failure rows also carry:
+  - `va_smartva_failure_stage`
+  - `va_smartva_failure_detail`
+- both success and failure rows follow the same active/inactive lifecycle, so a
+  later payload change or successful rerun supersedes the old row cleanly
+
+Current architectural behavior:
+
+- `va_smartva_results` now serves as the active projection layer
+- durable run history is stored in `va_smartva_runs`
+- emitted per-run output rows are stored in `va_smartva_run_outputs`
+- each successful run now stores both:
+  - the raw emitted likelihood row
+  - the formatted result row used for the active projection
+- each active projection row points back to the originating run via
+  `smartva_run_id`
+
+Each saved result or failure record creates a `va_submissions_auditlog` entry.
+Each form's results are committed independently so a failure on one form does
+not roll back others.
 
 ---
 

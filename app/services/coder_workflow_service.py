@@ -26,14 +26,26 @@ from app.models import (
 from app.services.coding_allocation_service import release_stale_coding_allocations
 from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
+    get_active_recode_episode,
     start_recode_episode,
 )
-from app.services.project_workflow_service import split_form_ids_by_coding_intake_mode
-from app.services.submission_workflow_service import (
+from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_CODING_IN_PROGRESS,
-    infer_workflow_state_after_coding_release,
-    set_submission_workflow_state,
+    WORKFLOW_CODER_FINALIZED,
+)
+from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
+from app.services.workflow.state_store import get_submission_workflow_state
+from app.services.workflow.transitions import (
+    admin_actor,
+    coder_actor,
+    mark_coding_started,
+    mark_demo_started,
+    mark_reviewer_eligible_after_recode_window,
+    mark_recode_started,
+    mark_admin_override_to_recode,
+    reset_demo_state,
+    system_actor,
 )
 
 
@@ -117,6 +129,21 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
     return filters
 
 
+def _require_submission_exists(va_sid: str):
+    row = db.session.execute(
+        sa.select(
+            VaSubmissions.va_sid,
+            VaForms.project_id,
+            VaForms.site_id,
+        )
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(VaSubmissions.va_sid == va_sid)
+    ).first()
+    if not row:
+        raise AllocationError("Submission not found.", 404)
+    return row
+
+
 def _create_coding_allocation(va_sid: str, user, audit_action: str, by_role: str):
     """Create allocation row, bump formcount, write audit, advance workflow state."""
     gen_uuid = uuid.uuid4()
@@ -135,13 +162,19 @@ def _create_coding_allocation(va_sid: str, user, audit_action: str, by_role: str
         va_audit_action=audit_action,
         va_audit_entityid=gen_uuid,
     ))
-    set_submission_workflow_state(
-        va_sid,
-        WORKFLOW_CODING_IN_PROGRESS,
-        reason="coder_allocation_created",
-        by_user_id=user.user_id,
-        by_role=by_role,
-    )
+    actor = coder_actor(user.user_id) if by_role == "vacoder" else admin_actor(user.user_id)
+    if get_active_recode_episode(va_sid):
+        mark_recode_started(
+            va_sid,
+            reason="recode_allocation_created",
+            actor=actor,
+        )
+    else:
+        mark_coding_started(
+            va_sid,
+            reason="coder_allocation_created",
+            actor=actor,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +270,10 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     """
     from datetime import timedelta
 
+    current_state = get_submission_workflow_state(va_sid)
+    if current_state != WORKFLOW_CODER_FINALIZED:
+        raise AllocationError("Only coder-finalized submissions can be reopened for recode.")
+
     authoritative_final = get_authoritative_final_assessment(va_sid)
     if not authoritative_final:
         raise AllocationError("Only coder-finalized submissions can be reopened for recode.")
@@ -273,15 +310,92 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
         va_audit_action="recode episode started",
         va_audit_entityid=episode.episode_id,
     ))
-    set_submission_workflow_state(
-        va_sid, WORKFLOW_CODING_IN_PROGRESS,
+    mark_recode_started(
+        va_sid,
         reason="recode_allocation_created",
-        by_user_id=user.user_id,
-        by_role="vacoder",
+        actor=coder_actor(user.user_id),
     )
     db.session.commit()
     # After recode setup, coder resumes on the same form
     return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
+
+
+def admin_override_to_recode(user, va_sid: str) -> None:
+    """Prepare a finalized submission for recode without allocating it yet.
+
+    Current policy uses global-only admin grants, so this action is restricted
+    by admin role membership rather than project/site-scoped admin access.
+    """
+    _require_submission_exists(va_sid)
+    current_state = get_submission_workflow_state(va_sid)
+    if current_state != WORKFLOW_CODER_FINALIZED:
+        raise AllocationError("Only coder-finalized submissions can be overridden for recode.")
+
+    authoritative_final = get_authoritative_final_assessment(va_sid)
+    if not authoritative_final:
+        raise AllocationError("Only coder-finalized submissions can be overridden for recode.")
+
+    start_recode_episode(
+        va_sid,
+        user.user_id,
+        base_final_assessment=authoritative_final,
+    )
+    mark_admin_override_to_recode(
+        va_sid,
+        reason="admin_override_to_recode",
+        actor=admin_actor(user.user_id),
+    )
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="vaadmin",
+            va_audit_by=user.user_id,
+            va_audit_operation="u",
+            va_audit_action="admin override to recode",
+            va_audit_entityid=uuid.uuid4(),
+        )
+    )
+    db.session.commit()
+
+
+def mark_reviewer_eligible_after_recode_window_submissions(
+    *,
+    now: datetime | None = None,
+    actor=None,
+) -> int:
+    """Transition coder-finalized submissions to reviewer_eligible after 24 hours."""
+    from datetime import timedelta, timezone
+
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=24)
+    finalized_sids = db.session.scalars(
+        sa.select(VaSubmissionWorkflow.va_sid).where(
+            VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED
+        )
+    ).all()
+
+    transitioned = 0
+    for va_sid in finalized_sids:
+        if get_active_recode_episode(va_sid):
+            continue
+        authoritative_final = get_authoritative_final_assessment(va_sid)
+        if authoritative_final is None:
+            continue
+        final_created_at = authoritative_final.va_finassess_createdat
+        if final_created_at.tzinfo is None:
+            final_created_at = final_created_at.replace(tzinfo=timezone.utc)
+        if final_created_at > cutoff:
+            continue
+        mark_reviewer_eligible_after_recode_window(
+            va_sid,
+            reason="reviewer_eligible_after_recode_window",
+            actor=actor or system_actor(),
+        )
+        transitioned += 1
+
+    if transitioned:
+        db.session.commit()
+    return transitioned
 
 
 def start_demo_allocation(user, project_id: str | None = None) -> AllocationResult:
@@ -312,12 +426,10 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
         released_sid = existing_alloc.va_sid
         existing_alloc.va_allocation_status = VaStatuses.deactive
         db.session.flush()
-        set_submission_workflow_state(
+        reset_demo_state(
             existing_alloc.va_sid,
-            infer_workflow_state_after_coding_release(existing_alloc.va_sid),
             reason="demo_allocation_reset",
-            by_user_id=user.user_id,
-            by_role="vaadmin",
+            actor=admin_actor(user.user_id),
         )
         db.session.add(VaSubmissionsAuditlog(
             va_sid=existing_alloc.va_sid,
@@ -352,21 +464,18 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
         va_audit_action="form allocated to admin for demo coding",
         va_audit_entityid=gen_uuid,
     ))
-    set_submission_workflow_state(
-        va_new_sid, WORKFLOW_CODING_IN_PROGRESS,
+    mark_demo_started(
+        va_new_sid,
         reason="demo_coder_allocation_created",
-        by_user_id=user.user_id,
-        by_role="vaadmin",
+        actor=admin_actor(user.user_id),
     )
     db.session.commit()
 
     if released_sid:
-        set_submission_workflow_state(
+        reset_demo_state(
             released_sid,
-            infer_workflow_state_after_coding_release(released_sid),
             reason="demo_allocation_reset_finalized",
-            by_user_id=user.user_id,
-            by_role="vaadmin",
+            actor=admin_actor(user.user_id),
         )
         db.session.commit()
 

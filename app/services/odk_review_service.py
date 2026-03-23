@@ -14,6 +14,28 @@ _UUID_INSTANCE_ID_PATTERN = re.compile(
     r"^(uuid:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})"
 )
 
+_CODER_REASON_LABELS = {
+    "narration_language": "Narrative language is not readable by the coder.",
+    "narration_doesnt_match": (
+        "Narrative content does not match the deceased whose VA form was filled."
+    ),
+    "no_info": "There is no useful information available in questions or narration.",
+    "form_is_empty": "The VA form is empty.",
+    "others": "Other issue reported by coder.",
+}
+
+_DATA_MANAGER_REASON_LABELS = {
+    "submission_incomplete": "Submission information is incomplete or unusable.",
+    "source_data_mismatch": (
+        "Submission content does not match the expected deceased or source data."
+    ),
+    "duplicate_submission": "This appears to be a duplicate submission.",
+    "language_unreadable": (
+        "Narrative or key data cannot be understood for coding preparation."
+    ),
+    "others": "Other issue reported by data manager.",
+}
+
 
 @dataclass(slots=True)
 class OdkReviewSyncResult:
@@ -31,27 +53,39 @@ def resolve_odk_instance_id(local_sid: str) -> str:
     return local_sid
 
 
-def build_not_codeable_review_comment(reason_code: str, other_text: str | None = None) -> str:
+def build_not_codeable_review_comment(
+    reason_code: str,
+    other_text: str | None = None,
+    *,
+    actor_role: str = "coder",
+) -> str:
     """Return the comment sent to ODK Central for a not-codeable decision."""
-    label_map = {
-        "narration_language": "Narrative language is not readable by the coder.",
-        "narration_doesnt_match": (
-            "Narrative content does not match the deceased whose VA form was filled."
-        ),
-        "no_info": "There is no useful information available in questions or narration.",
-        "form_is_empty": "The VA form is empty.",
-        "others": "Other issue reported by coder.",
-    }
+    if actor_role == "data_manager":
+        label_map = _DATA_MANAGER_REASON_LABELS
+        actor_label = "data manager"
+    else:
+        label_map = _CODER_REASON_LABELS
+        actor_label = "coder"
     reason_label = label_map.get(reason_code, reason_code)
     if other_text:
-        return f"DigitVA coder marked this submission as not codeable. Reason: {reason_label} Details: {other_text}"
-    return f"DigitVA coder marked this submission as not codeable. Reason: {reason_label}"
+        return (
+            "DigitVA "
+            f"{actor_label} marked this submission as not codeable. "
+            f"Reason: {reason_label} Details: {other_text}"
+        )
+    return (
+        "DigitVA "
+        f"{actor_label} marked this submission as not codeable. "
+        f"Reason: {reason_label}"
+    )
 
 
 def mark_submission_needs_revision(
     va_sid: str,
     reason_code: str,
     other_text: str | None = None,
+    *,
+    actor_role: str = "coder",
 ) -> tuple[str, str]:
     """Mark the ODK Central submission as needing revision.
 
@@ -71,7 +105,11 @@ def mark_submission_needs_revision(
             f"ODK mapping is incomplete for form '{va_form.form_id}'."
         )
 
-    comment = build_not_codeable_review_comment(reason_code, other_text)
+    comment = build_not_codeable_review_comment(
+        reason_code,
+        other_text,
+        actor_role=actor_role,
+    )
     instance_id = resolve_odk_instance_id(va_sid)
     client = va_odk_clientsetup(project_id=va_form.project_id)
     guarded_odk_call(
@@ -92,6 +130,8 @@ def sync_not_codeable_review_state(
     va_sid: str,
     reason_code: str,
     other_text: str | None = None,
+    *,
+    actor_role: str = "coder",
 ) -> OdkReviewSyncResult:
     """Attempt to sync not-codeable review state to ODK Central.
 
@@ -103,6 +143,7 @@ def sync_not_codeable_review_state(
             va_sid,
             reason_code,
             other_text,
+            actor_role=actor_role,
         )
     except Exception as exc:  # pragma: no cover - exercised by tests via wrapper
         return OdkReviewSyncResult(success=False, error_message=str(exc))

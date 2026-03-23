@@ -3,7 +3,7 @@ title: Final COD Authority Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-23
 ---
 
 # Final COD Authority Policy
@@ -16,7 +16,7 @@ time:
 - initial COD assessment
 - finalized coder COD
 - recode attempts
-- reviewer review and possible override
+- finalized reviewer COD after reviewer secondary coding
 
 This policy defines which COD is considered the operative final COD for the
 submission at any given time.
@@ -44,8 +44,8 @@ For any submission, DigitVA must be able to answer:
 
 The intended authority order is:
 
-1. reviewer override COD, if an override has been recorded and is active
-2. coder finalized COD, if active and not superseded
+1. reviewer finalized COD, if an active reviewer final COD exists
+2. coder finalized COD, if active and not superseded by reviewer final COD
 3. no final COD yet
 
 Initial COD is never the authoritative final COD.
@@ -57,7 +57,7 @@ It is an intermediate working assessment only.
 A coder-finalized COD becomes authoritative when:
 
 - final COD has been successfully submitted
-- no active reviewer override supersedes it
+- no active reviewer final COD supersedes it
 
 The authoritative record should identify:
 
@@ -66,16 +66,19 @@ The authoritative record should identify:
 - finalized COD value
 - effective timestamp
 
-## Reviewer Override COD
+## Reviewer Final COD
 
-If reviewer workflow records an override, the reviewer override becomes the
-authoritative final COD.
+Reviewer is not an accept/reject QA overlay. Reviewer is an optional secondary
+coding path that opens only after the coder's 24-hour recode window closes.
 
-This override must:
+If reviewer workflow later records a reviewer final COD, that reviewer final
+COD becomes authoritative.
+
+This reviewer finalization must:
 
 - preserve the original coder-finalized COD in history
 - clearly identify that the coder COD was superseded
-- make the reviewer decision the current operative COD
+- make the reviewer COD the current operative COD
 
 ## Recode Rule
 
@@ -88,7 +91,7 @@ During recode:
 Once replacement final COD is successfully saved:
 
 - the previous authoritative coder COD becomes superseded
-- the replacement coder COD becomes authoritative unless a reviewer override
+- the replacement coder COD becomes authoritative unless a reviewer final COD
   later supersedes it
 
 ## Not Codeable Rule
@@ -120,13 +123,30 @@ The system should preserve enough information to reconstruct:
 
 - original finalized coder COD
 - superseded finalized coder CODs
-- reviewer override CODs
+- reviewer finalized CODs
 - timestamps and actors for every authority change
 
 ## Migration Implication
 
 Current implementation may infer final COD from active rows in
-`va_final_assessments` and reviewer records.
+`va_final_assessments`.
+
+Current implementation note:
+
+- `va_reviewer_review` is a legacy reviewer QA/quality-review artifact
+- it is not the target reviewer final-COD artifact
+- additive reviewer final-COD storage now exists in
+  `va_reviewer_final_assessments`
+- reviewer runtime can now create reviewer final-COD rows in that table
+- `va_final_cod_authority` now has reviewer-pointer support and service-level
+  precedence can resolve reviewer final COD over coder final COD
+- coder and reviewer final-COD rows are now stamped with the submission's
+  current `payload_version_id`
+- authority resolution ignores stale coder/reviewer final-COD rows from older
+  payload versions and prefers only artifacts from the current active payload
+  lineage
+- remaining cutover is downstream reader parity across analytics/reporting and
+  any direct artifact readers
 
 The workflow-state migration should introduce an explicit way to identify the
 single authoritative COD for each submission so reporting and downstream

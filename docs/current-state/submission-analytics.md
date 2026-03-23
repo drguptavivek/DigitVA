@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # Submission Analytics Materialized View
@@ -31,6 +31,7 @@ The materialized view reads from:
 - `va_submission_workflow`
 - `va_initial_assessments`
 - `va_final_assessments`
+- `va_reviewer_final_assessments`
 - `va_final_cod_authority`
 - `va_smartva_results`
 
@@ -84,8 +85,10 @@ The view includes:
 
 Final human COD resolution follows the current authority model:
 
-- explicit `va_final_cod_authority` pointer when present
-- latest active final assessment fallback when no authority row is present
+- reviewer final COD pointed to by `va_final_cod_authority` when present
+- otherwise coder final COD pointed to by `va_final_cod_authority`
+- fallback to latest active reviewer final COD, then latest active coder final
+  assessment, if no authority row is present
 
 ## Refresh Model
 
@@ -125,6 +128,8 @@ The materialized view is intended for:
 
 Not all existing dashboard endpoints have been migrated to use the view yet.
 Some current operational dashboard queries still read directly from live tables.
+The analytics MV itself is now reviewer-authority-aware; remaining legacy
+reporting cleanup is outside the view.
 
 ## Verification
 
@@ -137,4 +142,5 @@ The tested cases include:
 - same-day neonatal deaths with hour-level age
 - child normalization from `ageInDays`
 - authoritative final human COD selection
+- reviewer final COD precedence over coder final COD in analytics output
 - ICD parsing for human and SmartVA outputs

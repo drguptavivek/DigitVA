@@ -138,7 +138,8 @@ following business states:
 - `smartva_pending`
 - `ready_for_coding`
 - `coding_in_progress`
-- `partial_coding_saved`
+- `partial_coding_saved` (legacy compatibility only; current runtime does not
+  create new entries in this state)
 - `coder_step1_saved`
 - `coder_finalized`
 - `reviewer_eligible`

@@ -63,6 +63,7 @@ from app.services.workflow.transitions import (
     mark_smartva_failed_recorded,
     mark_smartva_completed,
     reset_demo_state,
+    reset_incomplete_recode,
     system_actor,
 )
 from app.services.final_cod_authority_service import start_recode_episode
@@ -555,6 +556,33 @@ class TestSubmissionWorkflowService(BaseTestCase):
         mark_recode_finalized(
             sid,
             actor=coder_actor(self.base_coder_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_CODER_FINALIZED,
+        )
+
+    def test_reset_incomplete_recode_returns_submission_to_coder_finalized(self):
+        sid = "uuid:wf-role-recode-reset"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODING_IN_PROGRESS,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        reset_incomplete_recode(
+            sid,
+            actor=system_actor(),
+            reason="allocation_timeout_release",
         )
         db.session.commit()
 

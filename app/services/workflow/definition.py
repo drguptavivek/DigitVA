@@ -14,6 +14,9 @@ WORKFLOW_SCREENING_PENDING = "screening_pending"
 WORKFLOW_SMARTVA_PENDING = "smartva_pending"
 WORKFLOW_READY_FOR_CODING = "ready_for_coding"
 WORKFLOW_CODING_IN_PROGRESS = "coding_in_progress"
+# Legacy compatibility state for older in-progress coder drafts. New runtime
+# flows currently transition directly from coding_in_progress to
+# coder_step1_saved and do not create new partial_coding_saved rows.
 WORKFLOW_PARTIAL_CODING_SAVED = "partial_coding_saved"
 WORKFLOW_CODER_STEP1_SAVED = "coder_step1_saved"
 WORKFLOW_CODER_FINALIZED = "coder_finalized"

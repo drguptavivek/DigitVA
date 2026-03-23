@@ -587,14 +587,13 @@ def reset_incomplete_first_pass(
 def reset_incomplete_recode(
     va_sid: str,
     *,
-    target_state: str,
     actor: WorkflowActor | None = None,
     reason: str = "allocation_timeout_release",
 ) -> TransitionResult:
     return _apply_transition(
         va_sid,
         transition_id=wd.TRANSITION_INCOMPLETE_RECODE_RESET,
-        target_state=target_state,
+        target_state=wd.WORKFLOW_CODER_FINALIZED,
         allowed_from=(
             None,
             wd.WORKFLOW_CODING_IN_PROGRESS,

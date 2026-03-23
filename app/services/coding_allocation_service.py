@@ -20,7 +20,6 @@ from app.services.final_cod_authority_service import (
     get_active_recode_episode,
     upsert_final_cod_authority,
 )
-from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
 from app.services.workflow.transitions import (
     reset_demo_state,
     reset_incomplete_first_pass,
@@ -125,7 +124,6 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
         else:
             reset_incomplete_recode(
                 record.va_sid,
-                target_state=WORKFLOW_CODER_FINALIZED,
                 reason="allocation_timeout_release",
                 actor=system_actor(),
             )

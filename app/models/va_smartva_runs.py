@@ -21,6 +21,12 @@ class VaSmartvaRun(db.Model):
         primary_key=True,
         index=True,
     )
+    form_run_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_smartva_form_runs.form_run_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     va_sid: so.Mapped[str] = so.mapped_column(
         sa.String(64),
         sa.ForeignKey("va_submissions.va_sid"),
@@ -77,4 +83,3 @@ class VaSmartvaRun(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
-

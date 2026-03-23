@@ -20,6 +20,8 @@ from app.models import (
 from app.services.workflow.definition import (
     ALL_WORKFLOW_STATES,
     PROTECTED_WORKFLOW_STATES,
+    SMARTVA_BLOCKED_WORKFLOW_STATES,
+    WORKFLOW_CONSENT_REFUSED,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -161,6 +163,11 @@ class TestSubmissionWorkflowService(BaseTestCase):
             ].target_state,
             WORKFLOW_REVIEWER_ELIGIBLE,
         )
+
+    def test_consent_refused_is_smartva_blocked_but_not_finalized_protected(self):
+        self.assertIn(WORKFLOW_CONSENT_REFUSED, ALL_WORKFLOW_STATES)
+        self.assertNotIn(WORKFLOW_CONSENT_REFUSED, PROTECTED_WORKFLOW_STATES)
+        self.assertIn(WORKFLOW_CONSENT_REFUSED, SMARTVA_BLOCKED_WORKFLOW_STATES)
 
     def test_infer_coding_in_progress_from_active_allocation(self):
         sid = "uuid:wf-alloc"

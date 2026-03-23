@@ -214,8 +214,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
     from app.utils import (
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions,
-        va_odk_write_form_csv,
-        va_odk_rebuild_form_csv_from_db,
         va_odk_sync_form_attachments,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
@@ -263,8 +261,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             since=None,
             client=odk_client,
         )
-        va_odk_write_form_csv(va_submissions_raw, va_form, form_dir)
-
         # Upsert
         upserted_map: dict[str, str] = {}
         added, updated, discarded, skipped = _upsert_form_submissions(
@@ -295,9 +291,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
                     else ""
                 )
             )
-
-        # Rebuild full CSV from DB
-        va_odk_rebuild_form_csv_from_db(va_form, form_dir)
 
         # Update last_synced_at
         mapping = db.session.scalar(
@@ -416,7 +409,6 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
     from app.utils import (
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions_by_ids,
-        va_odk_rebuild_form_csv_from_db,
         va_odk_sync_form_attachments,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
@@ -496,8 +488,6 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
                 client_factory=lambda: _get_single_form_odk_client(va_form),
             )
             db.session.commit()
-        va_odk_rebuild_form_csv_from_db(va_form, form_dir)
-
         from app.services import smartva_service
         smartva_updated = smartva_service.generate_for_submission(
             va_sid, log_progress=log_progress

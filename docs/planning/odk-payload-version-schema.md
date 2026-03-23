@@ -248,6 +248,16 @@ Current status:
   - `tests/services/test_smartva_service.py`
   - `18 passed`
 
+Next SmartVA redesign step:
+
+- add `va_smartva_form_runs`
+- add `va_smartva_runs.form_run_id`
+- move exact raw SmartVA file retention to disk under `APP_DATA`
+- stop storing `va_smartva_run_artifacts`
+- keep `va_smartva_run_outputs` for likelihood rows only
+- make `va_smartva_prepdata` read from
+  `VaSubmissionPayloadVersion.payload_data`
+
 ### Phase F
 
 - bind human final-COD artifacts to payload-version ids

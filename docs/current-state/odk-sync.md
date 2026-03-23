@@ -247,9 +247,15 @@ OData returns nested group objects. The fetch utility flattens them to leaf fiel
 
 Nested group objects are recursively flattened to leaf names. Because WHO VA 2022 field names are globally unique, name collisions from flattening are not a concern in practice.
 
-### CSV rebuild for SmartVA
+### SmartVA input lineage
 
-After each form sync, [`va_odk_rebuild_form_csv_from_db()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py) regenerates the full CSV from all `va_submissions.va_data` records. This ensures SmartVA-only runs have complete data even after an incremental sync that only fetched recent changes.
+ODK sync no longer rebuilds a flat CSV for SmartVA. Instead:
+
+- sync writes normalized submission content into `va_submissions`
+- each submission also carries an active `VaSubmissionPayloadVersion`
+- SmartVA prep reads from `VaSubmissionPayloadVersion.payload_data` for the pending `va_sid` set
+
+This means incremental syncs do not need a form-wide CSV rebuild step. SmartVA input is derived directly from the active payload-version records for the submissions being processed.
 
 ## Attachment Sync (Phase 2)
 

@@ -3,7 +3,7 @@ title: WHO 2022 Age Derivation Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # WHO 2022 Age Derivation Policy
@@ -228,6 +228,51 @@ These fields:
 - preserve one chosen source per record for auditability
 - do not replace the need to retain raw WHO age fields in `va_data`
 - do not change the legacy meaning of `va_deceased_age`, which remains a coarse year field derived from `finalAgeInYears`
+
+## SmartVA Preprocessing Requirements
+
+### Problem
+
+SmartVA WHO 2022 uses `age_neonate_days` and `age_neonate_hours` to classify neonate
+cases and derive its internal age-group flags (`gen_5_4*`). It does not fall back to
+`ageInDays` alone for very young deaths (≤ 28 days).
+
+When submissions go through the **date-derived path**, `ageInDays` is correctly
+populated (e.g. 3, 13 days) but `age_neonate_days`, `age_neonate_hours`, and
+`age_group` are all null — because the form only sets these on the manual path.
+
+SmartVA rejects such submissions with:
+> "does not have valid age data and is being removed from the analysis"
+
+Empirically confirmed across UNSW01 forms:
+- 24 submissions rejected across UNSW01KA0101 (15) and UNSW01NC0101 (9)
+- All had `ageInDays` ≤ 28 with null `age_neonate_days` / `age_group`
+- Submissions with `ageInDays` > 28 and null `age_group` were processed correctly
+
+### Required Preprocessing Rule
+
+Before writing `smartva_input.csv`, `va_smartva_prepdata` must synthesize
+`age_neonate_days` from `ageInDays` when all of the following are true:
+
+1. `ageInDays` is present and numeric
+2. `ageInDays` ≤ 28
+3. `age_group` is blank
+4. `age_neonate_days` is blank
+5. `age_adult` is blank (confirms this is not a misclassified adult)
+
+Synthesis rule:
+```
+age_neonate_days = int(ageInDays)
+```
+
+Zero-day cases (`ageInDays = 0`) are synthesized the same way. SmartVA may still
+reject them as stillbirths — this is acceptable and should be recorded as
+`smartva_rejected` failure with reason from `report.txt`, not as a missing-row failure.
+
+### Non-neonate Cases
+
+Submissions with `ageInDays` > 28 and null `age_group` do not require synthesis.
+SmartVA correctly classifies child and adult cases from `ageInDays` alone.
 
 ## Verification Expectations
 

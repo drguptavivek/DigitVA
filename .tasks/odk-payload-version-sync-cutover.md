@@ -59,9 +59,12 @@ Suggested Delivery Order:
    version rejected and restores the prior finalized workflow state.
 6. Focused tests for unchanged vs changed payload behavior
 7. SmartVA run linkage
-   Current status: implemented for `va_smartva_results.payload_version_id`,
-   `va_smartva_runs`, `va_smartva_run_outputs`, migration backfill, and
-   active-payload-aware readiness checks.
+   Current status: implemented with:
+   - `va_smartva_form_runs` for form-level execution metadata
+   - `va_smartva_runs.form_run_id` linkage
+   - on-disk raw SmartVA outputs under `APP_DATA`
+   - `va_smartva_run_outputs` for likelihood rows only
+   - `va_smartva_results` as the active projection
 8. Human coding artifact linkage
    Current status: implemented for coder final, reviewer final, and
    final-COD-authority lineage checks.
@@ -82,7 +85,9 @@ Current progress:
 - Phase B backfill: implemented
 - Phase C sync write cutover: implemented and verified with focused tests
 - Phase D accept/reject promotion: implemented and verified with focused tests
-- Phase E SmartVA payload-version linkage: implemented and verified with
-  focused tests, including durable run-history persistence
+- Phase E SmartVA payload-version linkage: implemented and verified
+- SmartVA form-run redesign: implemented
+- `va_smartva_prepdata` DB payload cutover: implemented
+- `va_smartva_run_artifacts` retirement in active runtime path: implemented
 - Phase F human coding artifact linkage: implemented and verified with focused
   tests

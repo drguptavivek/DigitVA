@@ -21,9 +21,9 @@ from app.models.va_icd_codes import VaIcdCodes
 from app.models.va_allocations import VaAllocations
 from app.models.va_coder_review import VaCoderReview
 from app.models.va_data_manager_review import VaDataManagerReview
+from app.models.va_smartva_form_runs import VaSmartvaFormRun
 from app.models.va_smartva_runs import VaSmartvaRun
 from app.models.va_smartva_run_outputs import VaSmartvaRunOutput
-from app.models.va_smartva_run_artifacts import VaSmartvaRunArtifact
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_reviewer_review import VaReviewerReview
 from app.models.va_narrative_assessments import VaNarrativeAssessment
@@ -78,9 +78,9 @@ __all__ = [
     "VaAllocations",
     "VaCoderReview",
     "VaDataManagerReview",
+    "VaSmartvaFormRun",
     "VaSmartvaRun",
     "VaSmartvaRunOutput",
-    "VaSmartvaRunArtifact",
     "VaFinalAssessments",
     "VaReviewerFinalAssessments",
     "VaFinalCodAuthority",

@@ -309,8 +309,30 @@ Current behavior:
 
 - stores the emitted SmartVA likelihood/output row as JSONB
 - preserves per-run emitted output separately from the active projection row
-- currently stores the formatted result row derived from the age-group
-  likelihood CSVs
+- currently stores likelihood rows only
+
+### `va_smartva_form_runs`
+
+Purpose:
+
+- stores one SmartVA execution batch per form run
+
+Key fields:
+
+- `form_run_id`
+- `form_id`
+- `project_id`
+- `trigger_source`
+- `pending_sid_count`
+- `outcome`
+- `disk_path`
+- `run_started_at`
+- `run_completed_at`
+
+Current behavior:
+
+- stores the persisted on-disk workspace path for exact raw SmartVA files
+- groups multiple `va_smartva_runs` created during the same form execution
 
 ## Analytics Materialized View
 
@@ -546,6 +568,7 @@ Other important tables:
 - `va_project_sites`
 - `va_user_access_grants`
 - `va_usernotes`
+- `va_smartva_form_runs`
 - `va_smartva_runs`
 - `va_smartva_run_outputs`
 - `va_smartva_results`

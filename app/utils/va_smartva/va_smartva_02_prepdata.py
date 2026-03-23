@@ -1,150 +1,175 @@
-import os
 import csv
-from flask import current_app
+import math
+import os
+
+import sqlalchemy as sa
+
+from app import db
+from app.models import VaSubmissionPayloadVersion, VaSubmissions
+
 
 # Columns that SmartVA does not understand and must be excluded from input.
 # Social-autopsy (sa*) modules and telephonic-consent fields added by some
 # ICMR training forms cause SmartVA's header mapper to fail with
 # "Cannot process data without: gen_5_4*".
-_SMARTVA_DROP_PREFIXES = ("sa01", "sa02", "sa03", "sa04", "sa05", "sa06",
-                          "sa07", "sa08", "sa09", "sa10", "sa11", "sa12",
-                          "sa13", "sa14", "sa15", "sa16", "sa17", "sa18",
-                          "sa19", "sa_", "sa_note", "sa_tu",
-                          "survey_block", "telephonic_consent")
+_SMARTVA_DROP_PREFIXES = (
+    "sa01",
+    "sa02",
+    "sa03",
+    "sa04",
+    "sa05",
+    "sa06",
+    "sa07",
+    "sa08",
+    "sa09",
+    "sa10",
+    "sa11",
+    "sa12",
+    "sa13",
+    "sa14",
+    "sa15",
+    "sa16",
+    "sa17",
+    "sa18",
+    "sa19",
+    "sa_",
+    "sa_note",
+    "sa_tu",
+    "survey_block",
+    "telephonic_consent",
+)
+
+_NAN_CHECK_COLUMNS = (
+    "ageInDays",
+    "ageInDays2",
+    "ageInYears",
+    "ageInYearsRemain",
+    "ageInMonths",
+    "ageInMonthsRemain",
+)
 
 
 def _should_drop(header: str) -> bool:
-    h = header.strip()
-    return any(
-        h == p or h.startswith(p)
-        for p in _SMARTVA_DROP_PREFIXES
+    clean_header = header.strip()
+    return any(clean_header == prefix or clean_header.startswith(prefix)
+               for prefix in _SMARTVA_DROP_PREFIXES)
+
+
+def _is_blank(value) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return True
+    if isinstance(value, str) and value.strip().lower() in {"", "nan"}:
+        return True
+    return False
+
+
+def _stringify(value) -> str:
+    if _is_blank(value):
+        return ""
+    return str(value)
+
+
+def _prepared_payload_rows(va_form, pending_sids=None) -> list[tuple[str, dict]]:
+    stmt = (
+        sa.select(
+            VaSubmissions.va_sid,
+            VaSubmissionPayloadVersion.payload_data,
+        )
+        .join(
+            VaSubmissionPayloadVersion,
+            VaSubmissionPayloadVersion.payload_version_id
+            == VaSubmissions.active_payload_version_id,
+        )
+        .where(VaSubmissions.va_form_id == va_form.form_id)
+        .order_by(VaSubmissions.va_sid)
     )
+    if pending_sids is not None:
+        if not pending_sids:
+            return []
+        stmt = stmt.where(VaSubmissions.va_sid.in_(pending_sids))
+
+    return list(db.session.execute(stmt).all())
+
+
+def _clean_payload_for_smartva(payload_data: dict, *, va_sid: str) -> dict:
+    row = dict(payload_data or {})
+
+    for column_name in _NAN_CHECK_COLUMNS:
+        if column_name in row and _is_blank(row[column_name]):
+            row[column_name] = ""
+
+    if (
+        "ageInDays" in row
+        and "finalAgeInYears" in row
+        and _is_blank(row.get("ageInDays"))
+        and not _is_blank(row.get("finalAgeInYears"))
+    ):
+        try:
+            row["ageInDays"] = str(round(float(row["finalAgeInYears"]) * 365))
+        except (ValueError, TypeError):
+            pass
+
+    if (
+        not _is_blank(row.get("ageInDays"))
+        and _is_blank(row.get("age_neonate_days"))
+        and _is_blank(row.get("age_group"))
+        and _is_blank(row.get("age_adult"))
+    ):
+        try:
+            age_in_days = float(row["ageInDays"])
+            if age_in_days <= 28:
+                row["age_neonate_days"] = str(int(age_in_days))
+        except (ValueError, TypeError):
+            pass
+
+    filtered_row = {
+        key: _stringify(value)
+        for key, value in row.items()
+        if not _should_drop(key)
+    }
+    filtered_row["sid"] = va_sid
+    return filtered_row
 
 
 def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
-    """Prepare the SmartVA input CSV for va_form within an isolated workspace.
+    """Prepare SmartVA input CSV from active payload versions.
 
     Args:
-        va_form: VAForm instance.
+        va_form: VaForms instance.
         workspace_dir: Path to the ephemeral workspace directory.
-        pending_sids: Optional set of sid strings. When provided, only rows
-            whose computed sid is in this set are written to the input file.
-            Pass None (default) to include all rows (e.g. full re-analysis).
+        pending_sids: Optional set of submission ids to include.
     """
-    va_formdir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
-    vacsv_path = os.path.join(va_formdir, f"{va_form.odk_form_id}.csv")
-    va_smartvainputfile_path = os.path.join(workspace_dir, "smartva_input.csv")
+    smartva_input_path = os.path.join(workspace_dir, "smartva_input.csv")
+    payload_rows = _prepared_payload_rows(va_form, pending_sids=pending_sids)
 
-    if os.path.exists(vacsv_path):
-        try:
-            nan_check_columns = [
-                "ageInDays",
-                "ageInDays2",
-                "ageInYears",
-                "ageInYearsRemain",
-                "ageInMonths",
-                "ageInMonthsRemain",
-            ]
-            nan_values = ["nan"]
+    prepared_rows: list[dict] = []
+    skipped = 0
+    for va_sid, payload_data in payload_rows:
+        if pending_sids is not None and va_sid not in pending_sids:
+            skipped += 1
+            continue
+        prepared_rows.append(
+            _clean_payload_for_smartva(payload_data or {}, va_sid=va_sid)
+        )
 
-            with open(vacsv_path, "r", newline="") as f:
-                reader = csv.reader(f)
-                headers = next(reader)
+    if pending_sids is not None:
+        print(
+            f"SmartVA prep [{va_form.form_id}]: "
+            f"{len(prepared_rows)} pending, {skipped} already complete — skipped."
+        )
 
-                # ── Locate columns of interest (original indices) ──────────
-                key_index = next(
-                    (i for i, h in enumerate(headers) if h == "KEY"), -1
-                )
-                nan_check_indices = []
-                for col_name in nan_check_columns:
-                    try:
-                        nan_check_indices.append(headers.index(col_name))
-                    except ValueError:
-                        print(
-                            f"Warning: could not find column '{col_name}' while "
-                            f"preparing SmartVA input file for VA Form - {va_form.form_id}."
-                        )
-                try:
-                    age_in_days_idx = headers.index("ageInDays")
-                    final_age_years_idx = headers.index("finalAgeInYears")
-                except ValueError:
-                    age_in_days_idx = -1
-                    final_age_years_idx = -1
+    headers: list[str] = []
+    for row in prepared_rows:
+        for key in row.keys():
+            if key not in headers and key != "sid":
+                headers.append(key)
 
-                # ── Decide which columns to keep (drop SA / non-standard) ──
-                keep_mask = [not _should_drop(h) for h in headers]
-                keep_indices = [i for i, keep in enumerate(keep_mask) if keep]
-                filtered_headers = [headers[i] for i in keep_indices]
+    with open(smartva_input_path, "w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=headers + ["sid"])
+        writer.writeheader()
+        for row in prepared_rows:
+            writer.writerow(row)
 
-                # Remap key_index to filtered position
-                filtered_key_index = (
-                    keep_indices.index(key_index)
-                    if key_index >= 0 and key_index in keep_indices
-                    else -1
-                )
-
-                # ── Process rows ───────────────────────────────────────────
-                original_rows = list(reader)
-                new_rows = []
-                skipped = 0
-                for row in original_rows:
-                    # 1. Replace "nan" strings with "" in age columns
-                    for idx in nan_check_indices:
-                        if idx < len(row) and row[idx].lower() in nan_values:
-                            row[idx] = ""
-
-                    # 2. Derive ageInDays from finalAgeInYears when missing.
-                    #    SmartVA needs ageInDays to compute gen_5_4* age-group
-                    #    flags. Some form versions (e.g. training forms where
-                    #    birth/death dates are unknown) omit ageInDays but still
-                    #    capture finalAgeInYears.
-                    if (
-                        age_in_days_idx >= 0
-                        and final_age_years_idx >= 0
-                        and age_in_days_idx < len(row)
-                        and final_age_years_idx < len(row)
-                        and row[age_in_days_idx] == ""
-                        and row[final_age_years_idx] not in ("", "nan")
-                    ):
-                        try:
-                            row[age_in_days_idx] = str(
-                                round(float(row[final_age_years_idx]) * 365)
-                            )
-                        except (ValueError, TypeError):
-                            pass
-
-                    # 3. Drop non-standard columns
-                    filtered_row = [row[i] if i < len(row) else "" for i in keep_indices]
-
-                    # 4. Compute sid
-                    if filtered_key_index >= 0:
-                        sid_value = (
-                            f"{filtered_row[filtered_key_index]}-{va_form.form_id.lower()}"
-                        )
-                    else:
-                        sid_value = ""
-
-                    # 5. Skip rows that already have an active SmartVA result
-                    if pending_sids is not None and sid_value not in pending_sids:
-                        skipped += 1
-                        continue
-
-                    new_rows.append(filtered_row + [sid_value])
-
-                if pending_sids is not None:
-                    print(
-                        f"SmartVA prep [{va_form.form_id}]: "
-                        f"{len(new_rows)} pending, {skipped} already complete — skipped."
-                    )
-
-            with open(va_smartvainputfile_path, "w", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(filtered_headers + ["sid"])
-                writer.writerows(new_rows)
-
-            return va_smartvainputfile_path
-
-        except Exception as e:
-            raise Exception(
-                f"VA Form ({va_form.form_id}): Could not prepare the input .csv file for SmartVA. Error: {e}"
-            )
+    return smartva_input_path

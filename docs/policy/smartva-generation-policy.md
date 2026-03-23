@@ -40,10 +40,12 @@ Current implementation note:
 - SmartVA rows are now linked to `payload_version_id`, and readiness is checked
   against the current active payload version rather than any active result for
   the `va_sid`
-- current runtime now stores SmartVA in three layers:
-  - `va_smartva_runs` for durable attempt history
-  - `va_smartva_run_outputs` for emitted per-run output rows
+- the current storage model is:
+  - `va_smartva_form_runs` for form-level execution metadata
+  - `va_smartva_runs` for per-submission attempt history
+  - `va_smartva_run_outputs` for likelihood-row storage
   - `va_smartva_results` for the active projection row used by the UI
+  - raw SmartVA-generated files stored on disk under `APP_DATA`, not in DB
 
 ## Workflow State Guards
 
@@ -153,24 +155,30 @@ Required target behavior:
 
 Required target storage layers:
 
-1. SmartVA run history
-   - one row per execution attempt for a `payload_version_id`
+1. Form run history
+   - one row per SmartVA execution batch for a form
+   - execution metadata, disk path, and timestamps
+2. Submission run history
+   - one row per submission attempt for a `payload_version_id`
    - success/failure outcome
-   - execution metadata and timestamps
-2. SmartVA per-run outputs
-   - normalized storage for emitted likelihood outputs
+   - linked back to the form run
+3. SmartVA per-run outputs
+   - normalized storage for emitted likelihood outputs only
    - enough detail to reconstruct or analyse the SmartVA result later
-3. Active projection
+4. Active projection
    - one current active result per active payload version used by the app UI
    - this is a projection concern, not the whole SmartVA history
+5. Raw SmartVA files on disk
+   - exact generated files retained under `APP_DATA`
+   - not stored as DB artifact blobs
 
 Current implementation note:
 
-- DigitVA now persists durable SmartVA run history in `va_smartva_runs`
-- DigitVA now persists emitted raw likelihood rows in `va_smartva_run_outputs`
-- DigitVA also persists the formatted result row per run in
-  `va_smartva_run_outputs`
+- `va_smartva_form_runs` captures batch-level SmartVA execution metadata
+- `va_smartva_runs` links each submission attempt to a `form_run_id`
+- `va_smartva_run_outputs` keeps likelihood rows only
 - `va_smartva_results` remains the active/inactive projection used by the app
+- `va_smartva_run_artifacts` has been retired from the active design
 
 ### Active vs Inactive Results
 
@@ -289,6 +297,13 @@ If an admin forces regeneration:
 2. Run SmartVA
 3. Create new active result (audit logged)
 4. Do NOT change workflow state
+
+One-time operational note:
+
+- a one-time recompute/backfill may explicitly rerun SmartVA for current active
+  payloads in protected states when the purpose is to populate missing
+  run-output artifacts
+- such runs must be clearly marked, e.g. `trigger_source='backfill_recompute'`
 
 ## Authorization Matrix
 

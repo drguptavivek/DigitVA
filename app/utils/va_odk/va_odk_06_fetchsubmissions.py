@@ -2,8 +2,8 @@
 
 Replaces the CSV ZIP download for submission metadata. Returns normalized
 flat dicts with the same field-name structure as the CSV groupPaths=false
-export, so the rest of the pipeline (SmartVA prep, upsert, rendering) is
-unchanged.
+export, so the rest of the pipeline (upsert, rendering, and SmartVA prep
+from payload-version data) is unchanged.
 
 Key normalizations:
   __id                    → KEY (CSV column name)
@@ -20,9 +20,7 @@ Computed fields added to each record:
   unique_id2 = derived from unique_id + start timestamp
 """
 
-import csv
 import logging
-import os
 from datetime import datetime, timezone
 
 from app.services.odk_connection_guard_service import guarded_odk_call
@@ -203,98 +201,6 @@ def va_odk_fetch_submissions(
         va_form.form_id, len(all_records),
     )
     return all_records
-
-
-def va_odk_write_form_csv(records: list[dict], va_form, form_dir: str) -> str | None:
-    """Write normalized submission records to the form's CSV file.
-
-    The CSV is used by va_smartva_prepdata (SmartVA input preparation),
-    which reads it the same way as the ZIP-extracted CSV. Writing from
-    OData-normalized records produces the same flat column structure.
-
-    Returns the CSV path, or None if records is empty.
-    """
-    if not records:
-        log.info("va_odk_write_form_csv [%s]: no records — CSV not written", va_form.form_id)
-        return None
-
-    os.makedirs(form_dir, exist_ok=True)
-    csv_path = os.path.join(form_dir, f"{va_form.odk_form_id}.csv")
-
-    # Collect all keys across all records for a complete header set
-    all_keys: list[str] = []
-    seen: set[str] = set()
-    for record in records:
-        for k in record.keys():
-            if k not in seen:
-                all_keys.append(k)
-                seen.add(k)
-
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(records)
-
-    log.info(
-        "va_odk_write_form_csv [%s]: wrote %d row(s) to %s",
-        va_form.form_id, len(records), csv_path,
-    )
-    return csv_path
-
-
-def va_odk_rebuild_form_csv_from_db(va_form, form_dir: str) -> str | None:
-    """Regenerate the full form CSV from va_submissions.va_data in the DB.
-
-    Called after incremental sync (when the fetched CSV only has changed
-    submissions) so that va_smartva_prepdata can see all submissions for
-    SmartVA-only runs.
-
-    Returns the CSV path, or None if no submissions exist.
-    """
-    import sqlalchemy as sa
-    from app import db
-    from app.models.va_submissions import VaSubmissions
-
-    rows = db.session.scalars(
-        sa.select(VaSubmissions.va_data).where(
-            VaSubmissions.va_form_id == va_form.form_id
-        )
-    ).all()
-
-    if not rows:
-        return None
-
-    # Collect union of all keys to build a complete header
-    all_keys: list[str] = []
-    seen: set[str] = set()
-    for data in rows:
-        if not data:
-            continue
-        for k in data.keys():
-            if k not in seen:
-                all_keys.append(k)
-                seen.add(k)
-
-    if not all_keys:
-        return None
-
-    os.makedirs(form_dir, exist_ok=True)
-    csv_path = os.path.join(form_dir, f"{va_form.odk_form_id}.csv")
-
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction="ignore")
-        writer.writeheader()
-        for data in rows:
-            if data:
-                writer.writerow(data)
-
-    log.info(
-        "va_odk_rebuild_form_csv_from_db [%s]: wrote %d row(s) from DB to %s",
-        va_form.form_id, len(rows), csv_path,
-    )
-    return csv_path
-
-
 def _normalize_odata_record(record: dict, form_id: str) -> dict:
     """Normalize an OData submission record to flat dict matching CSV groupPaths=false.
 

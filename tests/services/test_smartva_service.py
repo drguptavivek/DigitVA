@@ -6,10 +6,10 @@ Critical behavior under test:
 - generate_for_submission() skips protected states and returns 0
 - generate_for_submission() proceeds for allowed states (SmartVA utilities mocked)
 """
+import os
 import uuid
 from datetime import datetime, timezone
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import sqlalchemy as sa
@@ -22,6 +22,7 @@ from app.models import (
     VaResearchProjects,
     VaSiteMaster,
     VaSites,
+    VaSmartvaFormRun,
     VaSmartvaRun,
     VaSmartvaRunOutput,
     VaSmartvaResults,
@@ -38,6 +39,7 @@ from app.services.smartva_service import (
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CLOSED,
+    WORKFLOW_CONSENT_REFUSED,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
     WORKFLOW_READY_FOR_CODING,
@@ -202,6 +204,16 @@ class PendingSmartVaSidsTests(BaseTestCase):
         sub = self._make_submission("uuid:sva-closed")
         set_submission_workflow_state(
             sub.va_sid, WORKFLOW_CLOSED, reason="test", by_role="test"
+        )
+        db.session.flush()
+
+        pending = pending_smartva_sids(self.FORM_ID)
+        self.assertNotIn(sub.va_sid, pending)
+
+    def test_excludes_submission_in_consent_refused_state(self):
+        sub = self._make_submission("uuid:sva-consent-refused")
+        set_submission_workflow_state(
+            sub.va_sid, WORKFLOW_CONSENT_REFUSED, reason="test", by_role="test"
         )
         db.session.flush()
 
@@ -420,7 +432,6 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
         db.session.commit()
 
-        # Build a minimal DataFrame row that generate_for_submission expects
         new_result_df = pd.DataFrame([{
             "sid": sub.va_sid,
             "age": 45.0,
@@ -460,17 +471,19 @@ class GenerateForSubmissionTests(BaseTestCase):
                     ]
                 },
             ),
-            patch("app.utils.va_smartva_formatsmartvaresult", return_value="/fake/output.csv"),
             patch(
-                "app.utils.va_smartva_appendsmartvaresults",
-                return_value=(new_result_df, {}),
+                "app.utils.va_smartva_formatsmartvaresult",
+                return_value="/fake/output.csv",
+            ),
+            patch(
+                "app.services.smartva_service._read_formatted_results",
+                return_value=new_result_df,
             ),
         ):
             saved = generate_for_submission(sub.va_sid)
 
         self.assertEqual(saved, 1)
 
-        # Confirm the result was persisted
         result_row = db.session.scalar(
             sa.select(VaSmartvaResults).where(
                 VaSmartvaResults.va_sid == sub.va_sid,
@@ -480,16 +493,7 @@ class GenerateForSubmissionTests(BaseTestCase):
         run_row = db.session.scalar(
             sa.select(VaSmartvaRun).where(VaSmartvaRun.va_sid == sub.va_sid)
         )
-        output_row = db.session.scalar(
-            sa.select(VaSmartvaRunOutput)
-            .join(
-                VaSmartvaRun,
-                VaSmartvaRun.va_smartva_run_id
-                == VaSmartvaRunOutput.va_smartva_run_id,
-            )
-            .where(VaSmartvaRun.va_sid == sub.va_sid)
-            .where(VaSmartvaRunOutput.output_kind == "formatted_result_row")
-        )
+        form_run = db.session.get(VaSmartvaFormRun, run_row.form_run_id)
         likelihood_row = db.session.scalar(
             sa.select(VaSmartvaRunOutput)
             .join(
@@ -502,14 +506,18 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
         self.assertIsNotNone(result_row)
         self.assertIsNotNone(run_row)
-        self.assertIsNotNone(output_row)
+        self.assertIsNotNone(form_run)
         self.assertIsNotNone(likelihood_row)
         self.assertEqual(result_row.va_smartva_cause1, "Cardiovascular")
         self.assertEqual(result_row.smartva_run_id, run_row.va_smartva_run_id)
         self.assertEqual(run_row.payload_version_id, sub.active_payload_version_id)
         self.assertEqual(run_row.va_smartva_outcome, VaSmartvaRun.OUTCOME_SUCCESS)
-        self.assertEqual(output_row.output_sid, sub.va_sid)
-        self.assertEqual(output_row.output_payload["cause1"], "Cardiovascular")
+        self.assertEqual(run_row.form_run_id, form_run.form_run_id)
+        self.assertEqual(form_run.form_id, self.FORM_ID)
+        self.assertEqual(form_run.project_id, self.PROJECT_ID)
+        self.assertEqual(form_run.pending_sid_count, 1)
+        self.assertEqual(form_run.outcome, VaSmartvaFormRun.OUTCOME_SUCCESS)
+        self.assertTrue(form_run.disk_path)
         self.assertEqual(likelihood_row.output_source_name, "adult-likelihoods.csv")
         self.assertEqual(likelihood_row.output_payload["result_for"], "for_adult")
         self.assertEqual(
@@ -535,6 +543,9 @@ class GenerateForSubmissionTests(BaseTestCase):
             sub.va_sid, WORKFLOW_SMARTVA_PENDING, reason="test", by_role="test"
         )
         db.session.commit()
+        initial_form_run_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaSmartvaFormRun)
+        )
 
         with (
             patch("app.utils.va_smartva_prepdata"),
@@ -552,14 +563,22 @@ class GenerateForSubmissionTests(BaseTestCase):
         run_row = db.session.scalar(
             sa.select(VaSmartvaRun).where(VaSmartvaRun.va_sid == sub.va_sid)
         )
+        form_run = db.session.get(VaSmartvaFormRun, run_row.form_run_id)
+        form_run_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaSmartvaFormRun)
+        )
         self.assertIsNotNone(result_row)
         self.assertIsNotNone(run_row)
+        self.assertIsNotNone(form_run)
         self.assertEqual(result_row.va_smartva_outcome, VaSmartvaResults.OUTCOME_FAILED)
         self.assertEqual(result_row.va_smartva_failure_stage, "execution")
         self.assertIn("smartva crashed", result_row.va_smartva_failure_detail)
         self.assertEqual(result_row.smartva_run_id, run_row.va_smartva_run_id)
         self.assertEqual(run_row.va_smartva_outcome, VaSmartvaRun.OUTCOME_FAILED)
         self.assertEqual(run_row.payload_version_id, sub.active_payload_version_id)
+        self.assertEqual(form_run.outcome, VaSmartvaFormRun.OUTCOME_FAILED)
+        self.assertTrue(form_run.disk_path)
+        self.assertEqual(form_run_count, initial_form_run_count + 1)
         self.assertEqual(
             get_submission_workflow_state(sub.va_sid),
             WORKFLOW_READY_FOR_CODING,
@@ -595,10 +614,13 @@ class GenerateForSubmissionTests(BaseTestCase):
         with (
             patch("app.utils.va_smartva_prepdata"),
             patch("app.utils.va_smartva_runsmartva"),
-            patch("app.utils.va_smartva_formatsmartvaresult", return_value="/fake/output.csv"),
             patch(
-                "app.utils.va_smartva_appendsmartvaresults",
-                return_value=(other_result_df, {}),
+                "app.utils.va_smartva_formatsmartvaresult",
+                return_value="/fake/output.csv",
+            ),
+            patch(
+                "app.services.smartva_service._read_formatted_results",
+                return_value=other_result_df,
             ),
         ):
             saved = generate_for_submission(sub.va_sid)
@@ -610,9 +632,80 @@ class GenerateForSubmissionTests(BaseTestCase):
                 VaSmartvaResults.va_smartva_status == VaStatuses.active,
             )
         )
+        run_row = db.session.scalar(
+            sa.select(VaSmartvaRun).where(VaSmartvaRun.va_sid == sub.va_sid)
+        )
         self.assertIsNotNone(result_row)
+        self.assertIsNotNone(run_row)
         self.assertEqual(result_row.va_smartva_outcome, VaSmartvaResults.OUTCOME_FAILED)
         self.assertEqual(result_row.va_smartva_failure_stage, "missing_row")
+        self.assertEqual(
+            get_submission_workflow_state(sub.va_sid),
+            WORKFLOW_READY_FOR_CODING,
+        )
+
+    def test_records_report_rejection_as_smartva_rejected(self):
+        sub = self._make_submission("uuid:gen-report-rejected")
+        set_submission_workflow_state(
+            sub.va_sid, WORKFLOW_SMARTVA_PENDING, reason="test", by_role="test"
+        )
+        db.session.commit()
+        initial_form_run_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaSmartvaFormRun)
+        )
+
+        def fake_prepdata(_va_form, workspace_dir, pending_sids=None):
+            with open(f"{workspace_dir}/smartva_input.csv", "w", newline="") as handle:
+                handle.write("sid\n")
+                handle.write(f"{sub.va_sid}\n")
+
+        def fake_runsmartva(_va_form, workspace_dir):
+            import os
+
+            report_dir = os.path.join(
+                workspace_dir,
+                "smartva_output",
+                "4-monitoring-and-quality",
+            )
+            os.makedirs(report_dir, exist_ok=True)
+            with open(os.path.join(report_dir, "report.txt"), "w") as handle:
+                handle.write("Details:\n")
+                handle.write(
+                    f"SID: {sub.va_sid} (row 1) "
+                    "does not have valid age data and is being removed "
+                    "from the analysis.\n"
+                )
+
+        with (
+            patch("app.utils.va_smartva_prepdata", side_effect=fake_prepdata),
+            patch("app.utils.va_smartva_runsmartva", side_effect=fake_runsmartva),
+            patch("app.utils.va_smartva_formatsmartvaresult", return_value=None),
+        ):
+            saved = generate_for_submission(sub.va_sid)
+
+        self.assertEqual(saved, 1)
+        result_row = db.session.scalar(
+            sa.select(VaSmartvaResults).where(
+                VaSmartvaResults.va_sid == sub.va_sid,
+                VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            )
+        )
+        run_row = db.session.scalar(
+            sa.select(VaSmartvaRun).where(VaSmartvaRun.va_sid == sub.va_sid)
+        )
+        form_run = db.session.get(VaSmartvaFormRun, run_row.form_run_id)
+        form_run_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaSmartvaFormRun)
+        )
+        self.assertIsNotNone(result_row)
+        self.assertIsNotNone(run_row)
+        self.assertIsNotNone(form_run)
+        self.assertEqual(result_row.va_smartva_outcome, VaSmartvaResults.OUTCOME_FAILED)
+        self.assertEqual(result_row.va_smartva_failure_stage, "smartva_rejected")
+        self.assertIn("does not have valid age data", result_row.va_smartva_failure_detail)
+        self.assertEqual(run_row.va_smartva_outcome, VaSmartvaRun.OUTCOME_FAILED)
+        self.assertEqual(form_run.outcome, VaSmartvaFormRun.OUTCOME_FAILED)
+        self.assertEqual(form_run_count, initial_form_run_count + 1)
         self.assertEqual(
             get_submission_workflow_state(sub.va_sid),
             WORKFLOW_READY_FOR_CODING,
@@ -625,6 +718,9 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
         db.session.commit()
         va_form = db.session.get(VaForms, self.FORM_ID)
+        initial_form_run_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaSmartvaFormRun)
+        )
 
         with (
             patch("app.utils.va_smartva_prepdata"),
@@ -642,14 +738,180 @@ class GenerateForSubmissionTests(BaseTestCase):
         run_row = db.session.scalar(
             sa.select(VaSmartvaRun).where(VaSmartvaRun.va_sid == sub.va_sid)
         )
+        form_run = db.session.get(VaSmartvaFormRun, run_row.form_run_id)
+        form_run_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaSmartvaFormRun)
+        )
         self.assertIsNotNone(result_row)
         self.assertIsNotNone(run_row)
+        self.assertIsNotNone(form_run)
         self.assertEqual(result_row.va_smartva_outcome, VaSmartvaResults.OUTCOME_FAILED)
         self.assertEqual(result_row.va_smartva_failure_stage, "execution")
         self.assertIn("form smartva crashed", result_row.va_smartva_failure_detail)
         self.assertEqual(result_row.smartva_run_id, run_row.va_smartva_run_id)
         self.assertEqual(run_row.va_smartva_outcome, VaSmartvaRun.OUTCOME_FAILED)
+        self.assertEqual(form_run.outcome, VaSmartvaFormRun.OUTCOME_FAILED)
+        self.assertEqual(form_run_count, initial_form_run_count + 1)
         self.assertEqual(
             get_submission_workflow_state(sub.va_sid),
             WORKFLOW_READY_FOR_CODING,
         )
+
+    def test_copies_workspace_to_disk_for_form_run(self):
+        sub = self._make_submission("uuid:gen-raw-artifacts")
+        set_submission_workflow_state(
+            sub.va_sid, WORKFLOW_SMARTVA_PENDING, reason="test", by_role="test"
+        )
+        db.session.commit()
+
+        new_result_df = pd.DataFrame([{
+            "sid": sub.va_sid,
+            "age": 45.0,
+            "sex": "male",
+            "cause1": "Cardiovascular",
+            "likelihood1": "High",
+            "key_symptom1": "chest pain",
+            "cause2": None,
+            "likelihood2": None,
+            "key_symptom2": None,
+            "cause3": None,
+            "likelihood3": None,
+            "key_symptom3": None,
+            "all_symptoms": "chest pain",
+            "result_for": "for_adult",
+            "cause1_icd": "I21",
+            "cause2_icd": None,
+            "cause3_icd": None,
+        }])
+
+        def fake_prepdata(_va_form, workspace_dir, pending_sids=None):
+            with open(f"{workspace_dir}/smartva_input.csv", "w", newline="") as handle:
+                handle.write("sid,narr\n")
+                handle.write(f"{sub.va_sid},\"line1\\nline2\"\n")
+
+        def fake_runsmartva(_va_form, workspace_dir):
+            import os
+            import csv
+            from openpyxl import Workbook
+
+            base = f"{workspace_dir}/smartva_output"
+            os.makedirs(f"{base}/1-individual-cause-of-death", exist_ok=True)
+            os.makedirs(f"{base}/2-csmf", exist_ok=True)
+            os.makedirs(f"{base}/3-graphs-and-tables", exist_ok=True)
+            os.makedirs(
+                f"{base}/4-monitoring-and-quality/intermediate-files",
+                exist_ok=True,
+            )
+
+            with open(f"{workspace_dir}/smartva_output.csv", "w", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["sid", "cause1"])
+                writer.writerow([sub.va_sid, "Cardiovascular"])
+
+            with open(
+                f"{base}/1-individual-cause-of-death/adult-predictions.csv",
+                "w",
+                newline="",
+            ) as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["sid", "cause"])
+                writer.writerow([sub.va_sid, "Cardiovascular"])
+
+            with open(
+                f"{base}/4-monitoring-and-quality/intermediate-files/adult-likelihoods.csv",
+                "w",
+                newline="",
+            ) as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["sid", "cause1", "likelihood1"])
+                writer.writerow([sub.va_sid, "Cardiovascular", "High"])
+
+            workbook = Workbook()
+            workbook.active.title = "likelihoods"
+            workbook.active.append(["sid", "cause1", "likelihood1"])
+            workbook.active.append([sub.va_sid, "Cardiovascular", "High"])
+            workbook.save(f"{base}/4-monitoring-and-quality/adult-likelihoods.xlsx")
+
+            with open(
+                f"{base}/2-csmf/csmf.csv",
+                "w",
+                newline="",
+            ) as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["cause", "CSMF"])
+                writer.writerow(["Cardiovascular", "0.5"])
+
+            with open(f"{base}/3-graphs-and-tables/all-csmf-figure.png", "wb") as handle:
+                handle.write(b"png")
+
+        with (
+            patch("app.utils.va_smartva_prepdata", side_effect=fake_prepdata),
+            patch("app.utils.va_smartva_runsmartva", side_effect=fake_runsmartva),
+            patch(
+                "app.services.smartva_service._read_raw_likelihood_outputs",
+                return_value={
+                    sub.va_sid: [
+                        (
+                            "adult-likelihoods.csv",
+                            {
+                                "sid": sub.va_sid,
+                                "cause1": "Cardiovascular",
+                                "likelihood1": "High",
+                                "result_for": "for_adult",
+                            },
+                        )
+                    ]
+                },
+            ),
+            patch(
+                "app.utils.va_smartva_formatsmartvaresult",
+                return_value="/fake/output.csv",
+            ),
+            patch(
+                "app.services.smartva_service._read_formatted_results",
+                return_value=new_result_df,
+            ),
+        ):
+            saved = generate_for_submission(sub.va_sid)
+
+        self.assertEqual(saved, 1)
+        run_row = db.session.scalar(
+            sa.select(VaSmartvaRun).where(VaSmartvaRun.va_sid == sub.va_sid)
+        )
+        form_run = db.session.get(VaSmartvaFormRun, run_row.form_run_id)
+        self.assertIsNotNone(form_run)
+        workspace_path = os.path.join(self.app.config["APP_DATA"], form_run.disk_path)
+
+        self.assertTrue(os.path.exists(os.path.join(workspace_path, "smartva_input.csv")))
+        self.assertTrue(os.path.exists(os.path.join(workspace_path, "smartva_output.csv")))
+        self.assertTrue(
+            os.path.exists(
+                os.path.join(
+                    workspace_path,
+                    "smartva_output/1-individual-cause-of-death/adult-predictions.csv",
+                )
+            )
+        )
+        self.assertTrue(
+            os.path.exists(
+                os.path.join(
+                    workspace_path,
+                    "smartva_output/4-monitoring-and-quality/adult-likelihoods.xlsx",
+                )
+            )
+        )
+        self.assertTrue(
+            os.path.exists(
+                os.path.join(
+                    workspace_path,
+                    "smartva_output/4-monitoring-and-quality/intermediate-files/adult-likelihoods.csv",
+                )
+            )
+        )
+        with open(
+            os.path.join(workspace_path, "smartva_input.csv"),
+            "rb",
+        ) as handle:
+            input_bytes = handle.read()
+        self.assertIn(b"line1", input_bytes)
+        self.assertIn(b"line2", input_bytes)

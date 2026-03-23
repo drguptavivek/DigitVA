@@ -65,8 +65,6 @@ from app.utils import (
     va_odk_fetch_instance_ids,
     va_odk_fetch_submissions,
     va_odk_fetch_submissions_by_ids,
-    va_odk_write_form_csv,
-    va_odk_rebuild_form_csv_from_db,
     va_odk_sync_form_attachments,
     va_preprocess_summcatenotification,
     va_preprocess_categoriestodisplay,
@@ -900,8 +898,7 @@ def va_data_sync_odkcentral(log_progress=None):
                     va_submissions_updated += gap_updated_total
                     va_discarded_relrecords += gap_discarded_total
 
-                    # Rebuild full CSV and update last_synced_at
-                    va_odk_rebuild_form_csv_from_db(va_form, form_dir)
+                    # Update last_synced_at after the gap sync path
                     if mapping:
                         mapping.last_synced_at = snapshot_time
                         db.session.commit()
@@ -933,11 +930,9 @@ def va_data_sync_odkcentral(log_progress=None):
                         log_progress=_progress,
                     )
 
-                # Write CSV for SmartVA (same format as ZIP-extracted CSV)
                 form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
                 media_dir = os.path.join(form_dir, "media")
                 os.makedirs(media_dir, exist_ok=True)
-                va_odk_write_form_csv(va_submissions_raw, va_form, form_dir)
                 va_submissions_raw = _attach_all_odk_comments(
                     va_form,
                     va_submissions_raw,
@@ -998,9 +993,6 @@ def va_data_sync_odkcentral(log_progress=None):
                             else ""
                         )
                     )
-
-                # Rebuild full CSV from DB so SmartVA-only runs have all submissions
-                va_odk_rebuild_form_csv_from_db(va_form, form_dir)
 
                 # Record successful sync time
                 if mapping:

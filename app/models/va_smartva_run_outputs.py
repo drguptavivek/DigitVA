@@ -27,7 +27,7 @@ class VaSmartvaRunOutput(db.Model):
     output_kind: so.Mapped[str] = so.mapped_column(
         sa.String(32),
         nullable=False,
-        default="formatted_result_row",
+        default="likelihood_row",
     )
     output_source_name: so.Mapped[Optional[str]] = so.mapped_column(
         sa.String(64),

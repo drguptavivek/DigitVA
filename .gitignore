@@ -16,6 +16,8 @@ resource/pyodk/*
 !resource/pyodk/.gitkeep
 updates/
 private/
+output/*
+output/smartva_backfill_excels/
 .DS_Store
 
 # Dolt database files (added by bd init)
@@ -45,3 +47,7 @@ docs/Samplemanuscripts/*.*
 .beads/dolt-server.activity
 .gitignore
 .beads/dolt-pre-restore-*
+.claude/scheduled_tasks.lock
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

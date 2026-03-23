@@ -535,6 +535,22 @@ def renderpartial(va_sid, va_partial):
             va_usernote = va_usernote,
         )
     if va_partial == "vareviewform":
+        # Narrative Quality Assessment (NQA) — supporting artifact only.
+        #
+        # NQA is an optional, project-level feature that can be enabled for any
+        # form. It collects narrative quality indicators and an overall quality
+        # decision (accepted/rejected) from the reviewer during their session.
+        #
+        # NQA is a supporting artifact in the same category as Social Autopsy
+        # Analysis. It does NOT affect the submission workflow state machine.
+        # Do NOT add workflow transitions here. The reviewer workflow state
+        # (reviewer_coding_in_progress -> reviewer_finalized) is managed by the
+        # reviewer's final-COD submission path, not by NQA completion.
+        #
+        # Persistence rules (per coding-workflow-state-machine policy):
+        # - NQA does NOT persist through initial first-pass coding timeout reversion
+        # - NQA DOES persist across recode attempts
+        # - NQA artifacts created via demo coding are cleaned up on demo expiry
         form = VaReviewerReviewForm()
         if form.validate_on_submit():
             new_review = VaReviewerReview(

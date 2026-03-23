@@ -1,19 +1,17 @@
-Status: in_progress
+Status: mostly_complete
 Priority: high
 Created: 2026-03-23
-Goal: Introduce a payload-version-aware ODK sync model before SmartVA run-history expansion.
+Goal: Introduce and roll out a payload-version-aware ODK sync and SmartVA lineage model.
 
 Context:
 
 - Current policy now defines `payload version`, `active payload version`, and
   `pending upstream payload version` in
   [`docs/policy/odk-sync-policy.md`](../docs/policy/odk-sync-policy.md).
-- Current runtime still uses `va_submissions` as the active submission row and
-  preserves protected-state lineage through
-  [`va_submission_upstream_changes`](../docs/current-state/odk-sync.md), not a
-  fully promoted payload-version resolution path.
-- SmartVA, coder final COD, and reviewer final COD should eventually bind to a
-  payload version, not only to `va_sid`.
+- Current runtime now uses payload-version-aware sync, upstream-change
+  promotion, SmartVA linkage, and coder/reviewer final-COD linkage.
+- Remaining work is mainly rollout/backfill completion and any remaining reader
+  cleanup that still assumes pre-redesign SmartVA storage details.
 
 References:
 
@@ -41,8 +39,8 @@ Expected Scope:
    - accept promotes the pending payload version to active and routes to
      `smartva_pending`
    - reject preserves the current active payload version
-5. Prepare SmartVA and human-coding artifacts to bind to payload-version ids in
-   later follow-up phases.
+5. Keep SmartVA and human-coding artifacts bound to payload-version ids and
+   complete rollout/backfill for existing live data.
 
 Suggested Delivery Order:
 
@@ -68,7 +66,7 @@ Suggested Delivery Order:
 8. Human coding artifact linkage
    Current status: implemented for coder final, reviewer final, and
    final-COD-authority lineage checks.
-9. Later phases: reporting updates
+9. Later phases: reader/reporting parity and project-by-project backfill
 
 Verification Targets:
 
@@ -91,3 +89,16 @@ Current progress:
 - `va_smartva_run_artifacts` retirement in active runtime path: implemented
 - Phase F human coding artifact linkage: implemented and verified with focused
   tests
+- `report.txt` SmartVA rejection parsing: implemented and verified
+- Scoped backfill completed for:
+  - `UNSW01`
+  - `ICMR01`
+- Current remaining work:
+  - update any remaining readers/reporting paths that still assume older
+    SmartVA storage semantics
+
+- Backfill complete: global `candidate submissions: 0`, `candidate forms: 0`
+  (as of 2026-03-23). All projects processed: UNSW01, ICMR01, ZZZ99 (test
+  fixture — outcome=failed as expected).
+- Backfill script updated to treat `outcome=failed` + non-null `disk_path`
+  as a terminal state (skip from candidates).

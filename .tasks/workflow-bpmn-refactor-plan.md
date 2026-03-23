@@ -1,9 +1,9 @@
 # Workflow BPMN-Style Refactor Plan
 
-- Status: pending
+- Status: mostly_complete
 - Priority: high
 - Created: 2026-03-20
-- Goal: Replace scattered submission workflow state writes with a clean, explicit workflow package that separates submission state, coding intake mode, transition guards, and transition side effects.
+- Goal: Replace scattered submission workflow state writes with a clean, explicit workflow package and finish the remaining route/UI integration cleanup.
 
 ## Context
 
@@ -20,6 +20,16 @@ This creates four problems:
 The target architecture is BPMN-like in structure, but implemented as explicit
 Python services over the existing database model rather than by introducing an
 external BPMN engine or Airflow.
+
+Current status:
+
+- canonical workflow definitions, transitions, state store, and event logging
+  are implemented
+- sync, SmartVA, coder, data-manager, admin, and reviewer flows are largely on
+  named transitions
+- `va_submission_workflow_events` is the canonical workflow event log
+- remaining work is mostly route/UI cleanup and eliminating lingering legacy
+  semantics from older server-rendered paths
 
 ## Design Rules
 
@@ -76,6 +86,8 @@ traceable as an event.
 - `ready_for_coding`
 - `coding_in_progress`
 - `partial_coding_saved`
+  Legacy compatibility only in current runtime; no new route flow should create
+  this state unless a dedicated named transition is added.
 - `coder_step1_saved`
 - `coder_finalized`
 - `finalized_upstream_changed`
@@ -209,22 +221,39 @@ Rules:
   - `finalized_upstream_changed -> coder_finalized`
   - preserve prior authoritative COD
 
-### Future Admin/Recode
+### Admin/Recode/Reviewer
 
 - `admin_override_to_recode`
+  - implemented
   - same payload
-  - target likely `ready_for_coding`
+  - target `ready_for_coding`
   - no SmartVA rerun
 - `recode_started`
+  - implemented
 - `recode_finalized`
+  - implemented
 - `reviewer_eligible_after_recode_window`
   - `coder_finalized -> reviewer_eligible`
+  - implemented
 
 Current target note:
 
 - `closed` is no longer an active BPMN destination for ordinary cases
 - `reviewer_eligible` is the durable post-24-hour resting state
 - reviewer selection remains optional and open-ended
+
+## Remaining Integration Work
+
+1. Keep unifying old server-rendered route flows with the API/service contract.
+2. Retire or isolate leftover legacy reviewer UI semantics that still imply the
+   old accept/reject model.
+3. Keep route authorization separate from workflow validation:
+   - routes decide whether the caller may invoke an action
+   - services/transitions decide whether the state move is valid
+4. Expose more workflow-event history in route/UI/reporting surfaces where
+   repair/recode/upstream-change cycles matter.
+5. Prevent any new route flow from writing legacy compatibility states such as
+   `partial_coding_saved` or `closed`.
 
 ## Transition Execution Ordering
 

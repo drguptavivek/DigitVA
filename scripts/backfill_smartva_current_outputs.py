@@ -69,9 +69,12 @@ def _candidate_rows(limit: int | None = None) -> list[tuple[str, str, str, str]]
 
         run_row = db.session.get(VaSmartvaRun, smartva_run_id)
         form_run_disk_path = None
+        form_run_outcome = None
         if run_row is not None and run_row.form_run_id is not None:
             form_run = db.session.get(VaSmartvaFormRun, run_row.form_run_id)
-            form_run_disk_path = form_run.disk_path if form_run else None
+            if form_run:
+                form_run_disk_path = form_run.disk_path
+                form_run_outcome = form_run.outcome
 
         has_likelihood_row = (
             db.session.scalar(
@@ -82,6 +85,11 @@ def _candidate_rows(limit: int | None = None) -> list[tuple[str, str, str, str]]
             )
             is not None
         )
+        # If SmartVA already ran and recorded a failure with a disk path, it
+        # genuinely could not produce output for this submission — do not
+        # re-queue it; retrying will not help.
+        if form_run_outcome == "failed" and form_run_disk_path:
+            continue
         if not has_likelihood_row or not form_run_disk_path:
             candidates.append((va_sid, form_id, project_id, site_id))
 

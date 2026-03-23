@@ -4,17 +4,29 @@ from flask_login import current_user
 from flask import redirect, url_for, flash
 from app.utils.va_permission.va_permission_01_abortwithflash import va_permission_abortwithflash
 from app.models import (
-    VaStatuses,
-    VaCoderReview,
-    VaFinalAssessments,
-    VaReviewerReview,
     VaAllocations,
     VaAllocation,
+    VaCoderReview,
+    VaFinalAssessments,
+    VaReviewerFinalAssessments,
+    VaReviewerReview,
+    VaStatuses,
 )
 
 
 def va_permission_ensurenotreviewed(sid):
-    reviewed = db.session.scalar(
+    # Block reviewer start if ANY review artifact exists:
+    # - VaReviewerFinalAssessments: reviewer final COD (new secondary-coding
+    #   model) — the terminal reviewer workflow action
+    # - VaReviewerReview (NQA): NQA supporting artifact — in projects where NQA
+    #   is the only reviewer action, its presence also blocks re-start
+    has_final_cod = db.session.scalar(
+        sa.select(VaReviewerFinalAssessments.va_sid).where(
+            (VaReviewerFinalAssessments.va_sid == sid)
+            & (VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
+        )
+    )
+    has_nqa = db.session.scalar(
         sa.select(VaReviewerReview.va_sid).where(
             (VaReviewerReview.va_sid == sid)
             & (VaReviewerReview.va_rreview_status == VaStatuses.active)
@@ -39,7 +51,7 @@ def va_permission_ensurenotreviewed(sid):
             & (VaAllocations.va_allocation_for == VaAllocation.reviewing)
         )
     )
-    if reviewed:
+    if has_final_cod or has_nqa:
         va_permission_abortwithflash("This VA form has already been reviewed.", 403)
     if coded1 or coded2:
         va_permission_abortwithflash("This VA form has already been coded.", 403)

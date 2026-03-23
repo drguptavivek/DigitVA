@@ -141,7 +141,20 @@ def _ensure_notifications(upstream_change: VaSubmissionUpstreamChange) -> None:
 
 
 def _get_authoritative_final_assessment_id(va_sid: str):
-    """Return authoritative final assessment id for snapshotting upstream change."""
+    """Return the coder final assessment id for snapshotting upstream change.
+
+    This returns the authoritative *coder* final assessment (va_final_assessments)
+    and is stored in VaSubmissionUpstreamChange.previous_final_assessment_id, which
+    has a FK constraint to va_final_assessments.
+
+    Known gap: if a reviewer final COD (VaReviewerFinalAssessments) is the
+    active authority (authoritative_reviewer_final_assessment_id is set), this
+    function cannot capture it because previous_final_assessment_id is typed to
+    va_final_assessments only. The snapshot will record the coder COD, not the
+    reviewer COD. A future migration should add
+    previous_reviewer_final_assessment_id to va_submission_upstream_changes so
+    that reviewer authority is also snapshotted correctly.
+    """
     authority_id = db.session.scalar(
         sa.select(VaFinalCodAuthority.authoritative_final_assessment_id).where(
             VaFinalCodAuthority.va_sid == va_sid

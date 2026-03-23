@@ -1,6 +1,13 @@
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaAllocations, VaAllocation, VaStatuses, VaReviewerReview
+from app.models import (
+    VaAllocations,
+    VaAllocation,
+    VaReviewerFinalAssessments,
+    VaReviewerReview,
+    VaStatuses,
+    VaSubmissions,
+)
 from flask_login import current_user, login_required
 from flask import Blueprint, render_template
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
@@ -35,12 +42,31 @@ def dashboard():
                 )
             )
         )
+        # "Completed" means the reviewer submitted either a final COD
+        # (VaReviewerFinalAssessments — new model) or an NQA record
+        # (VaReviewerReview — legacy/NQA-only projects).
         va_forms_completed = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaReviewerReview)
-            .where(
-                sa.sql.and_(
+            sa.select(sa.func.count(sa.distinct(VaSubmissions.va_sid)))
+            .select_from(VaSubmissions)
+            .outerjoin(
+                VaReviewerFinalAssessments,
+                sa.and_(
+                    VaReviewerFinalAssessments.va_sid == VaSubmissions.va_sid,
+                    VaReviewerFinalAssessments.va_rfinassess_by == current_user.user_id,
+                    VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
+                ),
+            )
+            .outerjoin(
+                VaReviewerReview,
+                sa.and_(
+                    VaReviewerReview.va_sid == VaSubmissions.va_sid,
                     VaReviewerReview.va_rreview_by == current_user.user_id,
+                    VaReviewerReview.va_rreview_status == VaStatuses.active,
+                ),
+            )
+            .where(
+                sa.or_(
+                    VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
                     VaReviewerReview.va_rreview_status == VaStatuses.active,
                 )
             )
@@ -57,21 +83,37 @@ def dashboard():
                     VaSubmissions.va_data_collector,
                     VaSubmissions.va_deceased_age,
                     VaSubmissions.va_deceased_gender,
+                    # "Reviewed" when either reviewer final COD (new model) or
+                    # NQA (VaReviewerReview, legacy/NQA-only projects) exists.
                     sa.case(
                         (
-                            VaReviewerReview.va_rreview_status == VaStatuses.active,
+                            sa.or_(
+                                VaReviewerFinalAssessments.va_rfinassess_status
+                                == VaStatuses.active,
+                                VaReviewerReview.va_rreview_status == VaStatuses.active,
+                            ),
                             sa.literal("Reviewed"),
                         ),
                         else_=sa.literal("Not Reviewed"),
                     ).label("va_review_status"),
-                    sa.func.date(VaReviewerReview.va_rreview_createdat).label(
-                        "va_rreview_createdat"
+                    sa.func.date(
+                        sa.func.coalesce(
+                            VaReviewerFinalAssessments.va_rfinassess_createdat,
+                            VaReviewerReview.va_rreview_createdat,
+                        )
+                    ).label("va_reviewed_at"),
+                )
+                .outerjoin(
+                    VaReviewerFinalAssessments,
+                    sa.and_(
+                        VaReviewerFinalAssessments.va_sid == VaSubmissions.va_sid,
+                        VaReviewerFinalAssessments.va_rfinassess_status
+                        == VaStatuses.active,
                     ),
-                    VaReviewerReview.va_rreview_by,
                 )
                 .outerjoin(
                     VaReviewerReview,
-                    sa.sql.and_(
+                    sa.and_(
                         VaReviewerReview.va_sid == VaSubmissions.va_sid,
                         VaReviewerReview.va_rreview_status == VaStatuses.active,
                     ),
@@ -88,7 +130,7 @@ def dashboard():
             .mappings()
             .all()
         )
-        va_date_fields = ["va_submission_date", "va_rreview_createdat"]
+        va_date_fields = ["va_submission_date", "va_reviewed_at"]
         va_forms = [
             va_render_serialisedates(row, va_date_fields) for row in va_forms_raw
         ]

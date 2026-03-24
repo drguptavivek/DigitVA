@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-03-24
 ---
 
 # Current Data Model
@@ -353,12 +353,54 @@ Key fields:
 - human initial COD and authoritative final COD
 - parsed human ICD prefixes
 - SmartVA causes and ICD codes
+- `cod_pending_upstream_review` (boolean) — `true` when
+  `workflow_state = 'finalized_upstream_changed'`; allows downstream reports to
+  distinguish cases with an unresolved upstream change from cleanly-coded cases
+
+KPI policy (Option C):
+
+- `coded_submissions` KPI includes `finalized_upstream_changed` cases alongside
+  `coder_finalized`, `reviewer_eligible`, and `reviewer_finalized`
+- the dashboard label for these cases is "Data Changed" (not "Revoked")
+- `cod_pending_upstream_review` is the flag that lets consumers distinguish them
 
 Current behavior:
 
-- populated by a PostgreSQL materialized view
+- populated by a PostgreSQL materialized view (rebuilt by migration `b1c2d3e4f5a6`)
 - refreshed hourly by Celery Beat
 - intended for reporting and chart APIs, not operational workflow writes
+
+### `va_submission_upstream_changes`
+
+Purpose:
+
+- durable record of each protected upstream payload change event
+- captures a snapshot of what was authoritative at the time of the change so
+  the accept/reject decision has full context
+
+Key fields:
+
+- `va_sid` — FK to `va_submissions`
+- `previous_payload_version_id` — FK to `va_submission_payload_versions` (was active before the change)
+- `pending_payload_version_id` — FK to `va_submission_payload_versions` (new/incoming payload)
+- `previous_workflow_state_before` — the submission state at the time of the change
+- `previous_final_assessment_id` — FK to `va_final_assessments` (coder COD snapshot)
+- `previous_reviewer_final_assessment_id` — nullable FK to
+  `va_reviewer_final_assessments` (reviewer COD snapshot, if the submission was
+  `reviewer_finalized` at the time); added by migration `aacf89977029`
+- `change_status` — `pending` / `accepted` / `rejected`
+- `resolved_by` — user id of the data manager or admin who resolved it
+- `resolved_at` — when the resolution occurred
+
+Current behavior:
+
+- created by `record_protected_upstream_change()` in
+  `app/services/workflow/upstream_changes.py` whenever a protected submission
+  receives a changed ODK payload
+- accepted by `dm_accept_upstream_change()` — promotes pending payload to
+  active, clears reviewer authority, routes to `smartva_pending`
+- rejected by `dm_reject_upstream_change()` — marks the pending payload
+  rejected, restores `workflow_state_before`
 
 ### `va_final_cod_authority`
 

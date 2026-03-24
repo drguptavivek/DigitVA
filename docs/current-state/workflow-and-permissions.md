@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-03-24
 ---
 
 # Workflow And Permissions
@@ -367,12 +367,33 @@ Reviewer dashboard behavior:
 
 Starting review:
 
-- the app creates a reviewing allocation
+- the app creates a reviewing allocation (`VaAllocation.reviewing`)
+- state transitions to `reviewer_coding_in_progress`
 
-Review submission:
+Reviewer NQA (supporting artifact, optional):
 
-- the reviewer submits a `va_reviewer_review` record
-- the active reviewing allocation is then released
+- the reviewer may submit a `va_reviewer_review` (NQA) record during their
+  session — this is a partial save only
+- NQA save does NOT release the reviewing allocation and does NOT advance
+  workflow state; it is a supporting artifact equivalent to Social Autopsy
+  Analysis for coders
+
+Reviewer final COD (terminal action):
+
+- the reviewer submits a final COD via `submit_reviewer_final_cod()`
+  (`app/services/reviewer_coding_service.py`)
+- this releases the reviewing allocation and transitions to `reviewer_finalized`
+- `va_final_cod_authority` is updated to point to the reviewer's final assessment
+
+Reviewer session timeout:
+
+- stale `reviewer_coding_in_progress` allocations are released by
+  `release_stale_reviewer_allocations()` on a 1-hour schedule (and
+  opportunistically at `start_reviewer_coding()` entry)
+- on timeout: all intermediate artifacts (`va_reviewer_review`,
+  `va_narrative_assessments`, `va_social_autopsy_analyses` for that user) are
+  deactivated; state reverts to `reviewer_eligible`
+- policy: `docs/policy/coding-allocation-timeouts.md`
 
 Current reviewer model note:
 
@@ -381,28 +402,27 @@ Current reviewer model note:
 - runtime now also supports reviewer secondary-coding workflow states:
   - `reviewer_coding_in_progress`
   - `reviewer_finalized`
-- reviewer JSON API now exists for reviewer allocation and reviewer final-COD
-  submission
-- the server-rendered reviewer start path now also goes through the reviewer
-  coding service and canonical workflow transitions instead of creating
-  allocations ad hoc
-- the older `va_reviewer_review` flow remains legacy reviewer QA/review data,
-  but it is no longer the only reviewer entry path
+- reviewer JSON API exists for reviewer allocation and reviewer final-COD
+  submission (`app/routes/api/reviewing.py`)
+- the older `va_reviewer_review` NQA flow is a supporting artifact; it does
+  not control workflow state or allocation lifecycle
 - reviewer secondary coding opens only after the coder's 24-hour recode window
   closes
-- admin may still reset/reopen a case at any time and return it to the coder
-  pool
+- admin may reset/reopen a case at any time and return it to the coder pool
+  (from `coder_finalized` or `reviewer_eligible`; NOT from
+  `reviewer_coding_in_progress` or `reviewer_finalized`)
 - reviewer final COD authority now resolves ahead of coder final COD in the
   authority service and main submission display path
-- `va_reviewer_review` is therefore legacy relative to the new reviewer policy,
-  not the future reviewer final-COD artifact
-- additive reviewer final-COD storage now exists in
-  `va_reviewer_final_assessments`, but reviewer submission flow and authority
-  cutover is now aligned in the analytics materialized view and the legacy
-  site-PI total-coded KPI; some older reporting slices still read coder-only
-  tables directly for coder participation detail
-- `va_final_cod_authority` now has reviewer-pointer support and reviewer
-  submission updates that authority row
+- additive reviewer final-COD storage exists in `va_reviewer_final_assessments`
+- `va_final_cod_authority` has reviewer-pointer support; reviewer submission
+  updates that authority row
+
+Workflow event history:
+
+- every workflow transition is logged to `va_submission_workflow_events`
+- event history is exposed via:
+  - `GET /api/v1/workflow/events/<va_sid>` — JSON endpoint
+  - `GET /vaform/<va_sid>/workflow_history` — HTMX HTML partial
 
 ## Site PI Behavior
 

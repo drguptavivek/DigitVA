@@ -1,6 +1,6 @@
 # Workflow BPMN-Style Refactor Plan
 
-- Status: mostly_complete
+- Status: complete
 - Priority: high
 - Created: 2026-03-20
 - Goal: Replace scattered submission workflow state writes with a clean, explicit workflow package and finish the remaining route/UI integration cleanup.
@@ -244,16 +244,26 @@ Current target note:
 
 ## Remaining Integration Work
 
-1. Keep unifying old server-rendered route flows with the API/service contract.
-2. Retire or isolate leftover legacy reviewer UI semantics that still imply the
-   old accept/reject model.
-3. Keep route authorization separate from workflow validation:
-   - routes decide whether the caller may invoke an action
-   - services/transitions decide whether the state move is valid
-4. Expose more workflow-event history in route/UI/reporting surfaces where
-   repair/recode/upstream-change cycles matter.
-5. Prevent any new route flow from writing legacy compatibility states such as
-   `partial_coding_saved` or `closed`.
+All primary integration tracks are complete as of 2026-03-24.
+
+1. ~~Retire or isolate leftover legacy reviewer UI semantics.~~ **Done:**
+   NQA allocation-release bug in `vareviewform` fixed; NQA is now correctly
+   a partial save only; allocation is released only by `submit_reviewer_final_cod()`.
+2. ~~Expose workflow-event history in route/UI surfaces.~~ **Done:**
+   `GET /api/v1/workflow/events/<va_sid>` (JSON) and
+   `GET /vaform/<va_sid>/workflow_history` (HTMX partial) both added.
+3. Keep route authorization separate from workflow validation — ongoing design
+   rule, not a specific code task.
+4. Prevent any new route flow from writing legacy compatibility states such as
+   `partial_coding_saved` or `closed` — ongoing design rule.
+
+Deferred items (low priority, not blocking):
+
+- `va_submission_workflow_events` not yet embedded inline in the submission
+  form shell UI (available via partial, but no HTMX trigger wired into the
+  form template yet)
+- `partial_coding_saved` and `closed` not yet blocked at the transition layer
+  (currently just design rule; no guard enforcement)
 
 ## Transition Execution Ordering
 
@@ -816,21 +826,23 @@ Admin:
 
 Reviewer:
 
-- reviewer is not QA approval/rejection in the target model
-- reviewer is an optional delayed secondary-coding actor
+- reviewer is an optional delayed secondary-coding actor (not QA accept/reject)
 - reviewer eligibility starts only after the coder's 24-hour recode window
   closes
-- reviewer final COD must be modeled as a distinct artifact and may supersede
-  coder final COD authority
-- legacy `va_reviewer_review` should not be repurposed as reviewer final COD
-- additive reviewer final-COD storage now exists in
-  `va_reviewer_final_assessments`; transition wiring and authority cutover are
-  still pending
-- reviewer workflow now has runtime transition/service support for:
+- reviewer final COD is a distinct artifact stored in `va_reviewer_final_assessments`
+  and may supersede coder final COD authority
+- `va_reviewer_review` is legacy NQA (supporting artifact only); does not
+  control workflow or allocation lifecycle
+- reviewer workflow has runtime transition/service support for:
   - `reviewer_coding_in_progress`
   - `reviewer_finalized`
-- `va_final_cod_authority` now has reviewer-pointer support
-- remaining reviewer gap is downstream reader cutover across analytics/reporting
+- reviewer session timeout implemented: stale allocations released hourly and
+  opportunistically; intermediate artifacts deactivated; state reverts to
+  `reviewer_eligible`
+- `va_final_cod_authority` has reviewer-pointer support; reviewer submission
+  updates that authority row
+- analytics MV and site-PI KPI include reviewer-finalized cases in coded counts
+- all reader/reporting surfaces confirmed on new reviewer semantics
 
 ## Legacy Cutover Rules
 

@@ -33,6 +33,7 @@ from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
 )
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.state_store import get_submission_workflow_state
@@ -328,12 +329,16 @@ def admin_override_to_recode(user, va_sid: str) -> None:
     """
     _require_submission_exists(va_sid)
     current_state = get_submission_workflow_state(va_sid)
-    if current_state != WORKFLOW_CODER_FINALIZED:
-        raise AllocationError("Only coder-finalized submissions can be overridden for recode.")
+    if current_state not in (WORKFLOW_CODER_FINALIZED, WORKFLOW_REVIEWER_ELIGIBLE):
+        raise AllocationError(
+            "Only coder-finalized or reviewer-eligible submissions can be overridden for recode."
+        )
 
     authoritative_final = get_authoritative_final_assessment(va_sid)
     if not authoritative_final:
-        raise AllocationError("Only coder-finalized submissions can be overridden for recode.")
+        raise AllocationError(
+            "Only coder-finalized or reviewer-eligible submissions can be overridden for recode."
+        )
 
     start_recode_episode(
         va_sid,

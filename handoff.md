@@ -6,7 +6,7 @@
 - SmartVA backfill is complete for all projects (UNSW01, ICMR01, ZZZ99).
 - State machine / ODK sync / reviewer signal audit completed. All sync and coding/recoding track fixes committed.
 - SmartVA reader/reporting parity audit: clean — no work needed.
-- Remaining open tracks: reviewer session timeout (Track 4), schema gap for reviewer COD snapshot (Track 5).
+- Remaining open tracks: schema gap for reviewer COD snapshot (deferred migration).
 
 ## What Was Done This Session (cont.)
 
@@ -203,13 +203,26 @@ All items resolved:
 2. **`VaSubmissionWorkflow` event history not surfaced in UI** — `va_submission_workflow_events`
    table exists but is not exposed in routes or templates. Lower priority; deferred.
 
-### Track 5 — Admin override
+### Track 5 — Admin override — DONE
 
-After Track 3 item 1 is done (allow override from `reviewer_eligible`), verify
-and document the full admin override surface:
-- `reviewer_eligible` → `ready_for_coding` (admin override)
-- What happens to reviewer artifacts on admin override
-- No reviewer recode window policy exists (undefined for now)
+Bug found and fixed: `admin_override_to_recode()` in `coder_workflow_service.py`
+still had an old guard rejecting anything other than `coder_finalized`. The
+`transitions.py` was already updated to allow both `coder_finalized` and
+`reviewer_eligible`, but the service never reached the transition check.
+
+Fix: service guard updated to `not in (WORKFLOW_CODER_FINALIZED, WORKFLOW_REVIEWER_ELIGIBLE)`.
+
+Reviewer artifacts on admin override from `reviewer_eligible`:
+- No active reviewer allocation exists (protected state blocks override from
+  `reviewer_coding_in_progress`)
+- No active reviewer COD exists (reviewer never finalized)
+- Any stale intermediate artifacts from a prior timed-out session are already
+  cleaned up by the reviewer timeout release
+- Recode episode seeded from coder's authoritative final COD — correct for both
+  source states
+
+Policy updated in `coding-workflow-state-machine.md` (Admin reset interaction
+section) to document reviewer artifact behavior on override.
 
 ## Known Schema Gap (requires future migration)
 

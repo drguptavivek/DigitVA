@@ -737,6 +737,13 @@ Admin reset returns the submission to the coder pool from any of:
 - `reviewer_eligible`
 
 Both states have no active session in progress, so the reset is safe.
+
+For `reviewer_eligible` overrides: any intermediate reviewer session artifacts
+from a prior timed-out session will have already been cleaned up by the
+reviewer timeout release. No active reviewer COD exists at `reviewer_eligible`
+(the reviewer never submitted a final COD). The recode episode is seeded from
+the coder's authoritative final COD.
+
 `reviewer_coding_in_progress` and `reviewer_finalized` are not eligible for
 direct admin override — those cases must first go through the DM
 accept/reject path if there is a data issue, or the reviewer session must

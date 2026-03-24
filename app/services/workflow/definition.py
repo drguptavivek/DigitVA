@@ -54,6 +54,10 @@ PROTECTED_WORKFLOW_STATES = frozenset(
     {
         WORKFLOW_CODER_FINALIZED,
         WORKFLOW_REVIEWER_ELIGIBLE,
+        # An active reviewer session is protected: ODK data changes during a
+        # reviewer's mid-session must go through the DM accept/reject path, not
+        # silently re-route the case and orphan the reviewer's allocation.
+        WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
         WORKFLOW_REVIEWER_FINALIZED,
         WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
         WORKFLOW_CLOSED,

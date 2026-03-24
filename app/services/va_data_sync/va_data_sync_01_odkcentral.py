@@ -19,6 +19,7 @@ from app.services.final_cod_authority_service import (
     upsert_final_cod_authority,
 )
 from app.services.workflow.definition import (
+    PROTECTED_WORKFLOW_STATES,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
@@ -51,6 +52,7 @@ from app.models import (
     VaAllocations,
     VaAllocation,
     VaCoderReview,
+    VaDataManagerReview,
     VaFinalAssessments,
     VaInitialAssessments,
     VaReviewerReview,
@@ -167,13 +169,8 @@ def _run_with_odk_connectivity_backoff(label: str, callback, log_progress=None):
     raise last_exc
 
 
-SYNC_PROTECTED_STATES = frozenset({
-    WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_REVIEWER_ELIGIBLE,
-    WORKFLOW_REVIEWER_FINALIZED,
-    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
-    WORKFLOW_CLOSED,
-})
+# Use the canonical definition — do not maintain a local copy that can drift.
+SYNC_PROTECTED_STATES = PROTECTED_WORKFLOW_STATES
 
 
 def _handle_protected_submission_update(existing, va_submission: dict) -> None:
@@ -569,6 +566,41 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
                         va_audit_byrole="vaadmin",
                         va_audit_operation="d",
                         va_audit_action="va_usernote_deletion_during_datasync",
+                    ))
+                # Deactivate any data-manager not-codeable record so the
+                # workflow state (re-routed below) is the sole authority.
+                # ODK data change supersedes the DM's prior exclusion decision;
+                # a DM may re-exclude after reviewing the updated payload.
+                for record in db.session.scalars(
+                    sa.select(VaDataManagerReview).where(
+                        (VaDataManagerReview.va_sid == va_submission_sid)
+                        & (VaDataManagerReview.va_dmreview_status == VaStatuses.active)
+                    )
+                ).all():
+                    record.va_dmreview_status = VaStatuses.deactive
+                    discarded += 1
+                    db.session.add(VaSubmissionsAuditlog(
+                        va_sid=va_submission_sid,
+                        va_audit_entityid=record.va_dmreview_id,
+                        va_audit_byrole="vaadmin",
+                        va_audit_operation="d",
+                        va_audit_action="va_datamanagerreview_cleared_during_datasync",
+                    ))
+                # Release any active coding allocation so the coder's session
+                # is invalidated immediately rather than waiting for timeout.
+                for record in db.session.scalars(
+                    sa.select(VaAllocations).where(
+                        (VaAllocations.va_sid == va_submission_sid)
+                        & (VaAllocations.va_allocation_status == VaStatuses.active)
+                    )
+                ).all():
+                    record.va_allocation_status = VaStatuses.deactive
+                    db.session.add(VaSubmissionsAuditlog(
+                        va_sid=va_submission_sid,
+                        va_audit_entityid=record.va_allocation_id,
+                        va_audit_byrole="vaadmin",
+                        va_audit_operation="d",
+                        va_audit_action="va_allocation_released_during_datasync",
                     ))
                 va_submission_amended = True
                 updated += 1

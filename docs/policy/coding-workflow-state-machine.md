@@ -1,9 +1,9 @@
 ---
 title: Coding Workflow State Machine Policy
 doc_type: policy
-status: draft
+status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-03-24
 ---
 
 # Coding Workflow State Machine Policy
@@ -134,6 +134,9 @@ The demo-retention rules are defined in
 The canonical submission-level workflow state should be modeled with one of the
 following business states:
 
+- `consent_refused` — submission synced from ODK but consent is absent or
+  explicitly refused; stored in full but excluded from coding queue; ODK
+  updates flow freely so consent corrections are picked up automatically
 - `screening_pending`
 - `smartva_pending`
 - `ready_for_coding`
@@ -150,6 +153,12 @@ following business states:
 - `not_codeable_by_data_manager`
 
 These states describe the local business outcome for the submission.
+
+`consent_refused` is a storage state only. Submissions in this state are
+synced identically to all other submissions. They are excluded from coding
+allocation, SmartVA generation, and all coding-queue counts. If ODK data is
+updated and consent becomes valid, the next sync automatically transitions
+the submission into `smartva_pending`.
 
 Current naming:
 
@@ -176,15 +185,26 @@ Legacy compatibility note:
 
 ## Protected States
 
-The following states are **protected** from automatic data changes:
+The following states are **protected** from automatic ODK data changes:
 
 - `coder_finalized` — Final COD has been submitted; ODK sync and SmartVA blocked
 - `reviewer_eligible` — Coder recode window has closed; waiting for optional
--  reviewer-coding selection
+  reviewer-coding selection
+- `reviewer_coding_in_progress` — Reviewer has an active mid-session allocation;
+  ODK data change requires DM accept/reject rather than automatic re-routing,
+  which would orphan the reviewer's active allocation
 - `reviewer_finalized` — Reviewer has submitted a reviewer-owned final COD
 - `finalized_upstream_changed` — Finalized cases whose upstream ODK data
   changed; pending resolution
 - `closed` — legacy compatibility only; if old rows exist they remain protected
+
+`consent_refused` is **not** protected. ODK updates flow freely so that consent
+corrections are picked up automatically.
+
+`not_codeable_by_coder` and `not_codeable_by_data_manager` are **not**
+protected. If ODK data changes for an excluded case, the exclusion artifact is
+deactivated and the case re-enters the workflow at `smartva_pending`. The
+responsible DM or coder may re-exclude after reviewing the updated payload.
 
 See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartva-generation-policy.md) for details.
 

@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-03-24
 ---
 
 # ODK Sync Policy
@@ -105,6 +105,8 @@ The following workflow states are **protected** from automatic ODK data refresh:
 - `coder_finalized` — Final COD has been submitted and is authoritative
 - `finalized_upstream_changed` — Current state key for finalized cases whose ODK data changed after finalization
 - `reviewer_eligible` — Post-24-hour resting state before any optional reviewer coding
+- `reviewer_coding_in_progress` — Reviewer has an active mid-session allocation;
+  automatic re-routing would orphan the allocation; requires DM accept/reject
 - `reviewer_finalized` — Reviewer-owned final COD is now authoritative
 - `closed` — Legacy compatibility state only; if such rows exist they remain protected
 
@@ -126,15 +128,18 @@ Current implementation note:
 
 These states allow normal ODK sync behavior (consent re-evaluated on each update):
 
+- `consent_refused` — ODK updates flow freely; consent corrections automatically
+  re-route the submission into `smartva_pending`
 - `screening_pending`
-- `smartva_pending` (target state)
+- `smartva_pending`
 - `ready_for_coding`
 - `coding_in_progress`
 - `partial_coding_saved`
 - `coder_step1_saved`
-- `not_codeable_by_coder`
-- `not_codeable_by_data_manager`
-- `consent_refused`
+- `not_codeable_by_coder` — ODK data change deactivates the exclusion artifact
+  and re-routes to `smartva_pending`; coder may re-exclude after review
+- `not_codeable_by_data_manager` — ODK data change deactivates the DM exclusion
+  artifact and re-routes to `smartva_pending`; DM may re-exclude after review
 
 ## Sync Operations
 
@@ -296,9 +301,9 @@ When a finalized submission's upstream data changes:
 coder_finalized -- ODK data changed during sync --> finalized_upstream_changed
                                                   UI: Finalized - ODK Data Changed
 
-finalized_upstream_changed -- admin accepts upstream change --> smartva_pending
+finalized_upstream_changed -- data manager or admin accepts upstream change --> smartva_pending
 smartva_pending ----------- SmartVA generated / regenerated / recorded failure --> ready_for_coding
-finalized_upstream_changed -- admin rejects upstream change --> coder_finalized
+finalized_upstream_changed -- data manager or admin rejects upstream change --> prior finalized state
 
 coder_finalized -- recode window expires automatically --> reviewer_eligible
 coder_finalized -- admin override final COD -----------> ready_for_coding

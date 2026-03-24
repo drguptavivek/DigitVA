@@ -222,6 +222,7 @@ def submissions_by_month():
 
 @bp.get("/demographics")
 @login_required
+@limiter.limit("120 per minute")
 def demographics():
     err = _require_data_manager()
     if err:

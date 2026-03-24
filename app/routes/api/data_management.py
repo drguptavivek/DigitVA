@@ -61,7 +61,7 @@ def _require_data_manager_or_admin():
 
 @bp.get("/submissions")
 @login_required
-@limiter.limit("20 per minute")
+@limiter.limit("120 per minute")
 def submissions():
     err = _require_data_manager()
     if err:
@@ -101,7 +101,7 @@ def submissions():
 
 @bp.get("/kpi")
 @login_required
-@limiter.limit("20 per minute")
+@limiter.limit("120 per minute")
 def kpi():
     err = _require_data_manager()
     if err:
@@ -133,7 +133,7 @@ def kpi():
 
 @bp.get("/filter-options")
 @login_required
-@limiter.limit("20 per minute")
+@limiter.limit("120 per minute")
 def filter_options():
     err = _require_data_manager()
     if err:
@@ -308,6 +308,7 @@ def sync_runs():
 
 @bp.get("/project-site-submissions")
 @login_required
+@limiter.limit("120 per minute")
 def project_site_submissions():
     err = _require_data_manager()
     if err:

@@ -25,9 +25,18 @@ migrate = Migrate()
 login = LoginManager()
 csrf = CSRFProtect()
 sess_manager = Session()
+def _rate_limit_key():
+    """Per-user bucket for authenticated sessions; per-IP for anonymous."""
+    if current_user and current_user.is_authenticated:
+        return f"user:{current_user.get_id()}"
+    return get_remote_address()
+
+
+# Authenticated users get a generous per-user bucket (they use the dashboard
+# frequently).  Anonymous / unauthenticated requests are capped tightly by IP.
 limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
+    key_func=_rate_limit_key,
+    default_limits=["2000 per day", "300 per hour"],
 )
 talisman = Talisman()
 cache = Cache()

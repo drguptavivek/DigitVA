@@ -4,6 +4,8 @@
     hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=category.category_code, action=va_action, actiontype=va_actiontype) }}"
     hx-target="#form-content"
     hx-swap="innerHTML"
+    hx-replace-url="{{ request.path }}?section={{ category.category_code }}"
+    data-cat-code="{{ category.category_code }}"
   >
     {% if category.render_mode == 'table_sections' and 'symptoms' in category.category_code %}
       <div class="symptom-tag"></div>

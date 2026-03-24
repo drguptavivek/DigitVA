@@ -412,4 +412,46 @@ document.addEventListener("DOMContentLoaded", function () {
 </script> -->
 #}
 
+<script>
+/* ── Section URL sync ───────────────────────────────────────────────────
+   On page load: if ?section=<code> is in the URL, swap the initial HTMX
+   load to that section and highlight its nav button.
+   On nav click:  hx-replace-url on each button keeps the URL current.
+   ──────────────────────────────────────────────────────────────────────── */
+(function () {
+  const section = new URLSearchParams(window.location.search).get('section');
+  if (section) {
+    /* Override the hx-get on #form-content before HTMX processes the load trigger */
+    const contentEl = document.getElementById('form-content');
+    if (contentEl) {
+      const currentGet = contentEl.getAttribute('hx-get') || '';
+      /* Replace the partial code segment in the URL (/renderpartial/<code>/) */
+      const updated = currentGet.replace(/\/renderpartial\/[^/]+\//, `/renderpartial/${section}/`);
+      if (updated !== currentGet) contentEl.setAttribute('hx-get', updated);
+    }
+  }
+
+  /* Highlight the active nav button whenever a section is loaded */
+  document.addEventListener('htmx:beforeRequest', function (e) {
+    const catCode = e.target && e.target.dataset && e.target.dataset.catCode;
+    if (!catCode) return;
+    document.querySelectorAll('[data-cat-code]').forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+  });
+
+  /* On initial load, highlight whichever section ends up active */
+  document.addEventListener('htmx:afterSettle', function highlight() {
+    const active = new URLSearchParams(window.location.search).get('section');
+    if (active) {
+      const btn = document.querySelector(`[data-cat-code="${active}"]`);
+      if (btn) {
+        document.querySelectorAll('[data-cat-code]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+    }
+    document.removeEventListener('htmx:afterSettle', highlight);
+  }, { once: true });
+})();
+</script>
+
 {% endblock %}

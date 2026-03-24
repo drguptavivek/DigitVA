@@ -8,28 +8,20 @@ from app.models import (
     VaAllocation,
     VaCoderReview,
     VaFinalAssessments,
-    VaReviewerFinalAssessments,
-    VaReviewerReview,
     VaStatuses,
+    VaSubmissionWorkflow,
 )
 
 
 def va_permission_ensurenotreviewed(sid):
-    # Block reviewer start if ANY review artifact exists:
-    # - VaReviewerFinalAssessments: reviewer final COD (new secondary-coding
-    #   model) — the terminal reviewer workflow action
-    # - VaReviewerReview (NQA): NQA supporting artifact — in projects where NQA
-    #   is the only reviewer action, its presence also blocks re-start
-    has_final_cod = db.session.scalar(
-        sa.select(VaReviewerFinalAssessments.va_sid).where(
-            (VaReviewerFinalAssessments.va_sid == sid)
-            & (VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
-        )
-    )
-    has_nqa = db.session.scalar(
-        sa.select(VaReviewerReview.va_sid).where(
-            (VaReviewerReview.va_sid == sid)
-            & (VaReviewerReview.va_rreview_status == VaStatuses.active)
+    # Use canonical workflow state as the primary signal.
+    # reviewer_finalized     → terminal, block re-start
+    # reviewer_coding_in_progress → session active, redirect or block
+    # NQA (VaReviewerReview) and Social Autopsy are supporting artifacts — their
+    # presence alone does not block a new reviewer session.
+    workflow_state = db.session.scalar(
+        sa.select(VaSubmissionWorkflow.workflow_state).where(
+            VaSubmissionWorkflow.va_sid == sid
         )
     )
     coded1 = db.session.scalar(
@@ -44,21 +36,22 @@ def va_permission_ensurenotreviewed(sid):
             & (VaFinalAssessments.va_finassess_status == VaStatuses.active)
         )
     )
-    alloc = db.session.scalar(
-        sa.select(VaAllocations.va_allocated_to).where(
-            (VaAllocations.va_sid == sid)
-            & (VaAllocations.va_allocation_status == VaStatuses.active)
-            & (VaAllocations.va_allocation_for == VaAllocation.reviewing)
-        )
-    )
-    if has_final_cod or has_nqa:
+    if workflow_state == "reviewer_finalized":
         va_permission_abortwithflash("This VA form has already been reviewed.", 403)
     if coded1 or coded2:
         va_permission_abortwithflash("This VA form has already been coded.", 403)
-    if alloc and current_user.user_id == alloc:
-        return redirect(url_for("reviewing.resume"))
-    if alloc:
-        flash(
-            "This VA form is already allocated to someone for the review. Please select again."
+    if workflow_state == "reviewer_coding_in_progress":
+        alloc = db.session.scalar(
+            sa.select(VaAllocations.va_allocated_to).where(
+                (VaAllocations.va_sid == sid)
+                & (VaAllocations.va_allocation_status == VaStatuses.active)
+                & (VaAllocations.va_allocation_for == VaAllocation.reviewing)
+            )
         )
-        return redirect(url_for("reviewing.dashboard"))
+        if alloc and current_user.user_id == alloc:
+            return redirect(url_for("reviewing.resume"))
+        if alloc:
+            flash(
+                "This VA form is already allocated to someone for the review. Please select again."
+            )
+            return redirect(url_for("reviewing.dashboard"))

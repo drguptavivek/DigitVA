@@ -1,29 +1,21 @@
 import sqlalchemy as sa
 from app import db
-from app.models import VaReviewerFinalAssessments, VaReviewerReview, VaStatuses
+from app.models import VaStatuses, VaSubmissionWorkflow
 from app.utils.va_permission.va_permission_01_abortwithflash import va_permission_abortwithflash
 
 
 def va_permission_reviewedonce(sid):
-    # At least one completed reviewer action must exist before a re-review is
-    # permitted. Accepts either:
-    # - a reviewer final COD (VaReviewerFinalAssessments — new secondary-coding
-    #   model), or
-    # - an NQA record (VaReviewerReview — NQA supporting artifact; covers
-    #   projects where NQA is the only reviewer action).
-    has_final_cod = db.session.scalar(
-        sa.select(VaReviewerFinalAssessments.va_sid).where(
-            (VaReviewerFinalAssessments.va_sid == sid)
-            & (VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
+    # A re-review may only be requested after at least one full reviewer cycle
+    # has completed. The canonical signal is the workflow state:
+    # reviewer_finalized means a reviewer final COD was submitted.
+    # NQA and Social Autopsy are supporting artifacts — submitting them alone
+    # does not satisfy the re-review precondition.
+    workflow_state = db.session.scalar(
+        sa.select(VaSubmissionWorkflow.workflow_state).where(
+            VaSubmissionWorkflow.va_sid == sid
         )
     )
-    has_nqa = db.session.scalar(
-        sa.select(VaReviewerReview.va_sid).where(
-            (VaReviewerReview.va_sid == sid)
-            & (VaReviewerReview.va_rreview_status == VaStatuses.active)
-        )
-    )
-    if not has_final_cod and not has_nqa:
+    if workflow_state != "reviewer_finalized":
         va_permission_abortwithflash(
             "This VA form must be reviewed at least once before requesting a re-review.",
             403,

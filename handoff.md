@@ -221,13 +221,23 @@ Reviewer artifacts on admin override from `reviewer_eligible`:
 Policy updated in `coding-workflow-state-machine.md` (Admin reset interaction
 section) to document reviewer artifact behavior on override.
 
-## Known Schema Gap (requires future migration)
+## Schema Gap — RESOLVED
 
-`va_submission_upstream_changes.previous_final_assessment_id` is FK-typed to
-`va_final_assessments` only. When a `reviewer_finalized` case gets an upstream
-change, the snapshot records the coder COD, not the reviewer COD. A future
-migration should add `previous_reviewer_final_assessment_id` with FK to
-`va_reviewer_final_assessments`.
+`va_submission_upstream_changes` now has `previous_reviewer_final_assessment_id`
+(nullable FK to `va_reviewer_final_assessments`). When a `reviewer_finalized`
+case gets an upstream change, the snapshot captures both the coder COD and the
+reviewer COD. Migration: `aacf89977029`.
+
+## Analytics MV — `finalized_upstream_changed` now counted as Coded
+
+Policy: Option C — include `finalized_upstream_changed` cases in coded counts,
+flag them clearly. Changes:
+
+- Analytics MV now has `cod_pending_upstream_review` boolean column
+  (`true` when `workflow_state = 'finalized_upstream_changed'`)
+- KPI `coded_submissions` count now includes `finalized_upstream_changed`
+- Dashboard KPI card label changed from "Revoked" → "Data Changed"
+- Migration: `b1c2d3e4f5a6` rebuilds the MV with the new column
 
 ## Recent Commits
 

@@ -29,6 +29,11 @@ class VaSubmissionUpstreamChange(db.Model):
         sa.ForeignKey("va_final_assessments.va_finassess_id", ondelete="SET NULL"),
         nullable=True,
     )
+    previous_reviewer_final_assessment_id: so.Mapped[Optional[uuid.UUID]] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_reviewer_final_assessments.va_rfinassess_id", ondelete="SET NULL"),
+        nullable=True,
+    )
     previous_payload_version_id: so.Mapped[Optional[uuid.UUID]] = so.mapped_column(
         sa.Uuid(as_uuid=True),
         sa.ForeignKey(

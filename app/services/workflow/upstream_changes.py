@@ -10,6 +10,7 @@ from app import db
 from app.models import (
     VaFinalAssessments,
     VaFinalCodAuthority,
+    VaReviewerFinalAssessments,
     VaSubmissionNotification,
     VaSubmissionUpstreamChange,
     VaStatuses,
@@ -46,7 +47,8 @@ def record_protected_upstream_change(
     incoming_payload_version_id=None,
 ):
     """Create or update the durable record for a protected upstream ODK change."""
-    authoritative_final_id = _get_authoritative_final_assessment_id(existing_submission.va_sid)
+    authoritative_final_id = _get_coder_final_assessment_id(existing_submission.va_sid)
+    authoritative_reviewer_final_id = _get_reviewer_final_assessment_id(existing_submission.va_sid)
     pending = get_latest_pending_upstream_change(existing_submission.va_sid)
 
     if pending is None:
@@ -54,6 +56,7 @@ def record_protected_upstream_change(
             va_sid=existing_submission.va_sid,
             workflow_state_before=workflow_state_before,
             previous_final_assessment_id=authoritative_final_id,
+            previous_reviewer_final_assessment_id=authoritative_reviewer_final_id,
             previous_payload_version_id=previous_payload_version_id,
             incoming_payload_version_id=incoming_payload_version_id,
             previous_va_data=existing_submission.va_data,
@@ -67,6 +70,8 @@ def record_protected_upstream_change(
         pending.workflow_state_before = workflow_state_before
         if pending.previous_final_assessment_id is None and authoritative_final_id is not None:
             pending.previous_final_assessment_id = authoritative_final_id
+        if pending.previous_reviewer_final_assessment_id is None and authoritative_reviewer_final_id is not None:
+            pending.previous_reviewer_final_assessment_id = authoritative_reviewer_final_id
         if previous_payload_version_id is not None:
             pending.previous_payload_version_id = previous_payload_version_id
         if incoming_payload_version_id is not None:
@@ -140,21 +145,8 @@ def _ensure_notifications(upstream_change: VaSubmissionUpstreamChange) -> None:
         )
 
 
-def _get_authoritative_final_assessment_id(va_sid: str):
-    """Return the coder final assessment id for snapshotting upstream change.
-
-    This returns the authoritative *coder* final assessment (va_final_assessments)
-    and is stored in VaSubmissionUpstreamChange.previous_final_assessment_id, which
-    has a FK constraint to va_final_assessments.
-
-    Known gap: if a reviewer final COD (VaReviewerFinalAssessments) is the
-    active authority (authoritative_reviewer_final_assessment_id is set), this
-    function cannot capture it because previous_final_assessment_id is typed to
-    va_final_assessments only. The snapshot will record the coder COD, not the
-    reviewer COD. A future migration should add
-    previous_reviewer_final_assessment_id to va_submission_upstream_changes so
-    that reviewer authority is also snapshotted correctly.
-    """
+def _get_coder_final_assessment_id(va_sid: str):
+    """Return the authoritative coder final assessment id for snapshotting."""
     authority_id = db.session.scalar(
         sa.select(VaFinalCodAuthority.authoritative_final_assessment_id).where(
             VaFinalCodAuthority.va_sid == va_sid
@@ -170,4 +162,24 @@ def _get_authoritative_final_assessment_id(va_sid: str):
             VaFinalAssessments.va_finassess_status == VaStatuses.active,
         )
         .order_by(VaFinalAssessments.va_finassess_createdat.desc())
+    )
+
+
+def _get_reviewer_final_assessment_id(va_sid: str):
+    """Return the authoritative reviewer final assessment id for snapshotting, if any."""
+    authority_id = db.session.scalar(
+        sa.select(VaFinalCodAuthority.authoritative_reviewer_final_assessment_id).where(
+            VaFinalCodAuthority.va_sid == va_sid
+        )
+    )
+    if authority_id:
+        return authority_id
+
+    return db.session.scalar(
+        sa.select(VaReviewerFinalAssessments.va_rfinassess_id)
+        .where(
+            VaReviewerFinalAssessments.va_sid == va_sid,
+            VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
+        )
+        .order_by(VaReviewerFinalAssessments.va_rfinassess_createdat.desc())
     )

@@ -10,11 +10,11 @@ from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CONSENT_REFUSED,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
     WORKFLOW_PARTIAL_CODING_SAVED,
     WORKFLOW_READY_FOR_CODING,
-    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
     WORKFLOW_SCREENING_PENDING,
@@ -242,7 +242,8 @@ SELECT
     smartva.va_smartva_cause2 AS smartva_cause2,
     smartva.va_smartva_cause2icd AS smartva_cause2_icd,
     smartva.va_smartva_cause3 AS smartva_cause3,
-    smartva.va_smartva_cause3icd AS smartva_cause3_icd
+    smartva.va_smartva_cause3icd AS smartva_cause3_icd,
+    (an.workflow_state = '{WORKFLOW_FINALIZED_UPSTREAM_CHANGED}') AS cod_pending_upstream_review
 FROM age_normalized an
 LEFT JOIN LATERAL (
     SELECT
@@ -527,6 +528,7 @@ def get_dm_kpi_from_mv(
                     WORKFLOW_CODER_FINALIZED,
                     WORKFLOW_REVIEWER_ELIGIBLE,
                     WORKFLOW_REVIEWER_FINALIZED,
+                    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
                 ]
             )
         )

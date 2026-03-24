@@ -26,8 +26,6 @@ from app.services.workflow.definition import (
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
-    WORKFLOW_CLOSED,
-    WORKFLOW_PARTIAL_CODING_SAVED,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
     WORKFLOW_SMARTVA_PENDING,
@@ -226,14 +224,6 @@ def _handle_protected_submission_update(existing, va_submission: dict) -> None:
             va_audit_action="upstream_odk_data_changed_on_protected_submission",
         )
     )
-
-    if current_workflow_state == WORKFLOW_CLOSED:
-        log.warning(
-            "DataSync [%s]: upstream ODK data changed on closed submission — "
-            "preserved closed state",
-            va_sid,
-        )
-        return
 
     mark_upstream_change_detected(
         va_sid,
@@ -772,7 +762,6 @@ def _release_active_allocations_after_sync() -> None:
         if current_state in {
             None,
             WORKFLOW_CODING_IN_PROGRESS,
-            WORKFLOW_PARTIAL_CODING_SAVED,
             WORKFLOW_CODER_STEP1_SAVED,
         }:
             reset_incomplete_first_pass(

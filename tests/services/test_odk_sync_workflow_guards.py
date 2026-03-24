@@ -32,7 +32,6 @@ from app.models.va_submission_payload_versions import (
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_CLOSED,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_ELIGIBLE,
@@ -236,24 +235,6 @@ class UpsertWorkflowGuardTests(BaseTestCase):
             )
         )
         self.assertIsNotNone(audit_entry)
-
-    def test_closed_submission_is_not_destroyed_on_odk_data_change(self):
-        """Closed submissions must also be protected from artifact destruction."""
-        sub = self._make_submission("uuid:guard-closed")
-        fa = self._make_final_assessment(sub.va_sid)
-        fa_id = fa.va_finassess_id
-        set_submission_workflow_state(
-            sub.va_sid, WORKFLOW_CLOSED, reason="test", by_role="test"
-        )
-        db.session.flush()
-
-        va_form = db.session.get(VaForms, self.FORM_ID)
-        _upsert_form_submissions(va_form, [self._updated_record("uuid:guard-closed")], set(), {})
-        db.session.flush()
-
-        refreshed_fa = db.session.get(VaFinalAssessments, fa_id)
-        self.assertIsNotNone(refreshed_fa)
-        self.assertEqual(refreshed_fa.va_finassess_status, VaStatuses.active)
 
     def test_already_revoked_submission_stays_revoked_on_further_odk_change(self):
         """A finalized_upstream_changed submission encountering another ODK change

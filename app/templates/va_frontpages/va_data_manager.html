@@ -1778,7 +1778,6 @@
     subgraph coding_pipeline ["Coding Pipeline"]
       CIP["In Progress (${c('coding_in_progress')})"]
       CSS["Step 1 Saved (${c('coder_step1_saved')})"]
-      PCS["Step 2 Saved (${c('partial_coding_saved')})"]
       NCC["Not Codeable — Coder (${c('not_codeable_by_coder')})"]
     end
 
@@ -1814,7 +1813,6 @@
     click CR call __dm_workflow_click("consent_refused")
     click CIP call __dm_workflow_click("coding_in_progress")
     click CSS call __dm_workflow_click("coder_step1_saved")
-    click PCS call __dm_workflow_click("partial_coding_saved")
     click NCC call __dm_workflow_click("not_codeable_by_coder")
     click CF call __dm_workflow_click("coder_finalized")
     click NCDM call __dm_workflow_click("not_codeable_by_data_manager")

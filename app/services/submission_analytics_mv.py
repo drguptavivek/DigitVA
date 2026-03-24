@@ -13,7 +13,6 @@ from app.services.workflow.definition import (
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
-    WORKFLOW_PARTIAL_CODING_SAVED,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
@@ -434,7 +433,6 @@ def build_dm_mv_filter_conditions(
                 WORKFLOW_SCREENING_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
-                WORKFLOW_PARTIAL_CODING_SAVED,
                 WORKFLOW_CODER_STEP1_SAVED,
             ]))
         else:
@@ -541,7 +539,6 @@ def get_dm_kpi_from_mv(
             WORKFLOW_SCREENING_PENDING,
             WORKFLOW_READY_FOR_CODING,
             WORKFLOW_CODING_IN_PROGRESS,
-            WORKFLOW_PARTIAL_CODING_SAVED,
             WORKFLOW_CODER_STEP1_SAVED,
         ]))
     ) or 0

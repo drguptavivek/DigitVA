@@ -38,7 +38,6 @@ from app.services.smartva_service import (
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_CLOSED,
     WORKFLOW_CONSENT_REFUSED,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
@@ -200,10 +199,10 @@ class PendingSmartVaSidsTests(BaseTestCase):
         pending = pending_smartva_sids(self.FORM_ID)
         self.assertNotIn(sub.va_sid, pending)
 
-    def test_excludes_submission_in_closed_state(self):
-        sub = self._make_submission("uuid:sva-closed")
+    def test_excludes_submission_in_reviewer_eligible_state(self):
+        sub = self._make_submission("uuid:sva-reviewer-eligible")
         set_submission_workflow_state(
-            sub.va_sid, WORKFLOW_CLOSED, reason="test", by_role="test"
+            sub.va_sid, WORKFLOW_REVIEWER_ELIGIBLE, reason="test", by_role="test"
         )
         db.session.flush()
 
@@ -410,10 +409,10 @@ class GenerateForSubmissionTests(BaseTestCase):
         result = generate_for_submission(sub.va_sid)
         self.assertEqual(result, 0)
 
-    def test_skips_closed_submission(self):
-        sub = self._make_submission("uuid:gen-skip-closed")
+    def test_skips_reviewer_eligible_submission(self):
+        sub = self._make_submission("uuid:gen-skip-reviewer-eligible")
         set_submission_workflow_state(
-            sub.va_sid, WORKFLOW_CLOSED, reason="test", by_role="test"
+            sub.va_sid, WORKFLOW_REVIEWER_ELIGIBLE, reason="test", by_role="test"
         )
         db.session.commit()
 

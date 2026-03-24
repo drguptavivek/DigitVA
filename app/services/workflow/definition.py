@@ -14,10 +14,6 @@ WORKFLOW_SCREENING_PENDING = "screening_pending"
 WORKFLOW_SMARTVA_PENDING = "smartva_pending"
 WORKFLOW_READY_FOR_CODING = "ready_for_coding"
 WORKFLOW_CODING_IN_PROGRESS = "coding_in_progress"
-# Legacy compatibility state for older in-progress coder drafts. New runtime
-# flows currently transition directly from coding_in_progress to
-# coder_step1_saved and do not create new partial_coding_saved rows.
-WORKFLOW_PARTIAL_CODING_SAVED = "partial_coding_saved"
 WORKFLOW_CODER_STEP1_SAVED = "coder_step1_saved"
 WORKFLOW_CODER_FINALIZED = "coder_finalized"
 WORKFLOW_REVIEWER_ELIGIBLE = "reviewer_eligible"
@@ -26,8 +22,6 @@ WORKFLOW_REVIEWER_FINALIZED = "reviewer_finalized"
 WORKFLOW_FINALIZED_UPSTREAM_CHANGED = "finalized_upstream_changed"
 WORKFLOW_NOT_CODEABLE_BY_CODER = "not_codeable_by_coder"
 WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER = "not_codeable_by_data_manager"
-# Legacy compatibility state only. Not part of the active target workflow.
-WORKFLOW_CLOSED = "closed"
 WORKFLOW_CONSENT_REFUSED = "consent_refused"
 
 ALL_WORKFLOW_STATES = frozenset(
@@ -36,7 +30,6 @@ ALL_WORKFLOW_STATES = frozenset(
         WORKFLOW_SMARTVA_PENDING,
         WORKFLOW_READY_FOR_CODING,
         WORKFLOW_CODING_IN_PROGRESS,
-        WORKFLOW_PARTIAL_CODING_SAVED,
         WORKFLOW_CODER_STEP1_SAVED,
         WORKFLOW_CODER_FINALIZED,
         WORKFLOW_REVIEWER_ELIGIBLE,
@@ -45,7 +38,6 @@ ALL_WORKFLOW_STATES = frozenset(
         WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
         WORKFLOW_NOT_CODEABLE_BY_CODER,
         WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
-        WORKFLOW_CLOSED,
         WORKFLOW_CONSENT_REFUSED,
     }
 )
@@ -60,7 +52,6 @@ PROTECTED_WORKFLOW_STATES = frozenset(
         WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
         WORKFLOW_REVIEWER_FINALIZED,
         WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
-        WORKFLOW_CLOSED,
     }
 )
 

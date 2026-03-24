@@ -48,7 +48,6 @@ from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
-    WORKFLOW_PARTIAL_CODING_SAVED,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_SCREENING_PENDING,
 )
@@ -339,7 +338,6 @@ def dm_submissions_page(
                 WORKFLOW_SCREENING_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
-                WORKFLOW_PARTIAL_CODING_SAVED,
                 WORKFLOW_CODER_STEP1_SAVED,
             ]))
         else:

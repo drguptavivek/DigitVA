@@ -47,7 +47,6 @@ SYNC_SOURCE_STATES = (
     wd.WORKFLOW_SMARTVA_PENDING,
     wd.WORKFLOW_READY_FOR_CODING,
     wd.WORKFLOW_CODING_IN_PROGRESS,
-    wd.WORKFLOW_PARTIAL_CODING_SAVED,
     wd.WORKFLOW_CODER_STEP1_SAVED,
     wd.WORKFLOW_NOT_CODEABLE_BY_CODER,
     wd.WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
@@ -397,7 +396,6 @@ def mark_coder_step1_saved(
         target_state=wd.WORKFLOW_CODER_STEP1_SAVED,
         allowed_from=(
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_PARTIAL_CODING_SAVED,
         ),
         allowed_actor_kinds=CODING_ACTOR_KINDS,
         reason=reason,
@@ -418,7 +416,6 @@ def mark_coder_finalized(
         allowed_from=(
             wd.WORKFLOW_CODER_STEP1_SAVED,
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_PARTIAL_CODING_SAVED,
         ),
         allowed_actor_kinds=CODING_ACTOR_KINDS,
         reason=reason,
@@ -443,7 +440,6 @@ def mark_recode_finalized(
         allowed_from=(
             wd.WORKFLOW_CODER_STEP1_SAVED,
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_PARTIAL_CODING_SAVED,
         ),
         allowed_actor_kinds=CODING_ACTOR_KINDS,
         reason=reason,
@@ -463,7 +459,6 @@ def mark_coder_not_codeable(
         target_state=wd.WORKFLOW_NOT_CODEABLE_BY_CODER,
         allowed_from=(
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_PARTIAL_CODING_SAVED,
             wd.WORKFLOW_CODER_STEP1_SAVED,
         ),
         allowed_actor_kinds=CODING_ACTOR_KINDS,
@@ -581,7 +576,6 @@ def reset_incomplete_first_pass(
         allowed_from=(
             None,
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_PARTIAL_CODING_SAVED,
             wd.WORKFLOW_CODER_STEP1_SAVED,
         ),
         allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
@@ -603,7 +597,6 @@ def reset_incomplete_recode(
         allowed_from=(
             None,
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_PARTIAL_CODING_SAVED,
             wd.WORKFLOW_CODER_STEP1_SAVED,
         ),
         allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
@@ -700,7 +693,6 @@ def reset_demo_state(
         transition_id=wd.TRANSITION_DEMO_RESET,
         allowed_from=(
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_PARTIAL_CODING_SAVED,
             wd.WORKFLOW_CODER_STEP1_SAVED,
             wd.WORKFLOW_CODER_FINALIZED,
             wd.WORKFLOW_NOT_CODEABLE_BY_CODER,

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflow, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis
+from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis
 from app.decorators import va_validate_permissions
 from flask_login import current_user, login_required
 from flask import Blueprint, render_template, current_app, send_from_directory, flash, redirect, url_for, jsonify, request, abort
@@ -565,8 +565,9 @@ def renderpartial(va_sid, va_partial):
                 va_rreview_fail=form.va_rreview_fail.data.strip() or None,
                 va_rreview_remark=form.va_rreview_remark.data.strip() or None,
             )
-            va_has_allocation = db.session.scalar(sa.select(VaAllocations).where((VaAllocations.va_allocated_to == current_user.user_id)&(VaAllocations.va_allocation_for == VaAllocation.reviewing)&(VaAllocations.va_allocation_status == VaStatuses.active)))
-            va_has_allocation.va_allocation_status = VaStatuses.deactive
+            # NQA save — do NOT release the reviewing allocation here.
+            # Allocation is released only when the reviewer submits their
+            # final COD via submit_reviewer_final_cod() in reviewer_coding_service.
             db.session.add(new_review)
             db.session.commit()
 
@@ -577,6 +578,17 @@ def renderpartial(va_sid, va_partial):
                 return response
         return render_template(
             f"va_form_partials/{va_partial}.html", form = form, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid
+        )
+    if va_partial == "workflow_history":
+        events = db.session.scalars(
+            sa.select(VaSubmissionWorkflowEvent)
+            .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
+            .order_by(VaSubmissionWorkflowEvent.event_created_at)
+        ).all()
+        return render_template(
+            "va_form_partials/workflow_history.html",
+            va_sid=va_sid,
+            events=events,
         )
     if va_partial == "vainitialasses":
         form = VaInitialAssessmentForm()

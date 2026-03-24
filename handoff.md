@@ -192,13 +192,36 @@ All items resolved:
 - `not_selected_for_reviewer` removed from policy ✅
 - Schema gap documented below as a deferred migration item
 
+### Track 6 — Route/UI legacy semantics cleanup — DONE
+
+**NQA save bug fixed**: `vareviewform` handler in `va_form.py` was wrongly deactivating
+the reviewer's `reviewing` allocation on NQA save. Allocation release belongs exclusively
+in `submit_reviewer_final_cod()` (reviewer's terminal action). Bug removed; comment added.
+
+**Workflow event history surfaced**:
+- New JSON API: `GET /api/v1/workflow/events/<va_sid>` (`app/routes/api/workflow.py`)
+  — registered under `api_v1` at `/api/v1/workflow/`
+- New HTMX partial: `GET /vaform/<va_sid>/workflow_history`
+  — renders `app/templates/va_form_partials/workflow_history.html`
+
+Files changed:
+- `app/routes/va_form.py` — NQA allocation bug fixed; `workflow_history` partial handler added;
+  `VaSubmissionWorkflowEvent` added to imports
+- `app/routes/api/workflow.py` — new file; `GET /events/<va_sid>` endpoint
+- `app/routes/api/__init__.py` — `workflow.bp` registered at `/workflow`
+- `app/templates/va_form_partials/workflow_history.html` — new template
+
+---
+
 ### Track 4 — Reviewing — DONE
 
 1. **Reviewer session timeout** ✅ — full path implemented. See "What Was Done
    This Session (cont.)" above.
 
-2. **`VaSubmissionWorkflow` event history not surfaced in UI** — `va_submission_workflow_events`
-   table exists but is not exposed in routes or templates. Lower priority; deferred.
+2. **`VaSubmissionWorkflow` event history** — surfaced via:
+   - `GET /api/v1/workflow/events/<va_sid>` — JSON list of all events in chronological order
+   - `GET /vaform/<va_sid>/workflow_history` — HTMX HTML partial (for embedding in form views)
+   - Template: `app/templates/va_form_partials/workflow_history.html`
 
 ### Track 5 — Admin override — DONE
 

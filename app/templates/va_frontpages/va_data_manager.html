@@ -207,6 +207,22 @@
     white-space: nowrap;
   }
 
+  /* ── KPI info button ── */
+  .dm-kpi-info-btn {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    background: none;
+    border: none;
+    color: #9ca3af;
+    padding: 0 0.15rem;
+    line-height: 1;
+    cursor: pointer;
+    font-size: 0.7rem;
+    z-index: 1;
+  }
+  .dm-kpi-info-btn:hover { color: #6b7280; }
+
   /* ── Loading spinner overlay ── */
   #dm-table-spinner {
     display: none;
@@ -253,97 +269,163 @@
 </div>
 
 {# ════════════════════════════════════════════════════════
-   KPI CARDS
+   KPI CARDS  (3-column grid)
    ════════════════════════════════════════════════════════ #}
-<div class="d-flex flex-wrap g-3 mb-3 gap-3" id="dm-kpi-row">
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card card-primary">
-      <div class="dm-kpi-icon bg-primary text-white">
-        <i class="fa-solid fa-file-alt"></i>
-      </div>
+<div class="row g-3 mb-3" id="dm-kpi-row">
+
+  {# — Total — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card card-primary h-100" style="position:relative;">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="Total Submissions"
+              data-bs-content="All VA submissions synced from ODK, regardless of workflow state.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon bg-primary text-white"><i class="fa-solid fa-file-alt"></i></div>
       <div>
         <div class="dm-kpi-value text-primary" id="kpi-total">—</div>
         <div class="dm-kpi-label">Total</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card clickable" style="background:#ecfdf5;border-color:#a7f3d0;" id="kpi-coded-card" title="Filter: Coded (includes cases pending upstream review)">
-      <div class="dm-kpi-icon text-white" style="background:#059669;">
-        <i class="fa-solid fa-check-circle"></i>
+
+  {# — Pending Coding (virtual group) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card clickable h-100" style="background:#fefce8;border-color:#fde047;position:relative;" id="kpi-pending-card">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="Pending Coding"
+              data-bs-content="Submissions awaiting a coding decision: ready_for_coding, smartva_pending, coding_in_progress, coder_step1_saved.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon text-dark" style="background:#facc15;"><i class="fa-solid fa-clock"></i></div>
+      <div>
+        <div class="dm-kpi-value" style="color:#a16207;" id="kpi-pending">—</div>
+        <div class="dm-kpi-label">Pending Coding</div>
       </div>
+    </div>
+  </div>
+
+  {# — SmartVA Queue (smartva_pending) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card clickable h-100" style="background:#ecfeff;border-color:#a5f3fc;position:relative;" id="kpi-smartva-pending-card">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="SmartVA Queue (smartva_pending)"
+              data-bs-content="Submissions queued for automated SmartVA cause-of-death prediction before a human coder reviews them.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon text-white" style="background:#0891b2;"><i class="fa-solid fa-robot"></i></div>
+      <div>
+        <div class="dm-kpi-value" style="color:#0e7490;" id="kpi-smartva-pending">—</div>
+        <div class="dm-kpi-label">SmartVA Queue</div>
+      </div>
+    </div>
+  </div>
+
+  {# — Coded (virtual group) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card clickable h-100" style="background:#ecfdf5;border-color:#a7f3d0;position:relative;" id="kpi-coded-card">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="Coded"
+              data-bs-content="Submissions with a cause-of-death decision: coder_finalized, reviewer_eligible, reviewer_coding_in_progress, reviewer_finalized.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon text-white" style="background:#059669;"><i class="fa-solid fa-check-circle"></i></div>
       <div>
         <div class="dm-kpi-value" style="color:#059669;" id="kpi-coded">—</div>
         <div class="dm-kpi-label">Coded</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card clickable" style="background:#fefce8;border-color:#fde047;" id="kpi-pending-card" title="Filter: Pending Coding">
-      <div class="dm-kpi-icon text-dark" style="background:#facc15;">
-        <i class="fa-solid fa-clock"></i>
-      </div>
-      <div>
-        <div class="dm-kpi-value" style="color:#a16207;" id="kpi-pending">—</div>
-        <div class="dm-kpi-label">Pending</div>
-      </div>
-    </div>
-  </div>
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card card-warning clickable" id="kpi-odk-issues-card" title="Filter: ODK Has Issues">
-      <div class="dm-kpi-icon bg-warning text-dark">
-        <i class="fa-solid fa-triangle-exclamation"></i>
-      </div>
-      <div>
-        <div class="dm-kpi-value text-warning" id="kpi-odk-issues">—</div>
-        <div class="dm-kpi-label">ODK Issues</div>
-      </div>
-    </div>
-  </div>
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card clickable" style="background:#fdf4ff;border-color:#d8b4fe;" id="kpi-revoked-card" title="Filter: Coded — Data Changed (pending upstream review decision)">
-      <div class="dm-kpi-icon text-white" style="background:#9333ea;">
-        <i class="fa-solid fa-rotate-left"></i>
-      </div>
+
+  {# — Upstream Changed (finalized_upstream_changed) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card clickable h-100" style="background:#fdf4ff;border-color:#d8b4fe;position:relative;" id="kpi-revoked-card">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="Upstream Changed (finalized_upstream_changed)"
+              data-bs-content="Submissions that were coded but then had their ODK source data updated. Requires data manager decision: accept (recode) or reject (restore prior COD).">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon text-white" style="background:#9333ea;"><i class="fa-solid fa-rotate-left"></i></div>
       <div>
         <div class="dm-kpi-value" style="color:#9333ea;" id="kpi-revoked">—</div>
-        <div class="dm-kpi-label">Data Changed</div>
+        <div class="dm-kpi-label">Upstream Changed</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card card-secondary clickable" id="kpi-smartva-missing-card" title="Filter: SmartVA Missing">
-      <div class="dm-kpi-icon bg-secondary text-white">
-        <i class="fa-solid fa-brain"></i>
-      </div>
+
+  {# — ODK Issues (odk filter) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card card-warning clickable h-100" id="kpi-odk-issues-card" style="position:relative;">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="Needs Field Attention (ODK Issues)"
+              data-bs-content="Submissions the data collector flagged in ODK Central as having problems (reviewState = hasIssues). The field team needs to resolve or clarify the issue before the form can be coded.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon bg-warning text-dark"><i class="fa-solid fa-triangle-exclamation"></i></div>
       <div>
-        <div class="dm-kpi-value" id="kpi-smartva-missing">—</div>
-        <div class="dm-kpi-label">SmartVA</div>
+        <div class="dm-kpi-value text-warning" id="kpi-odk-issues">—</div>
+        <div class="dm-kpi-label">Needs Field Attention</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card card-danger clickable" id="kpi-flagged-card" title="Filter: Flagged Not Codeable">
-      <div class="dm-kpi-icon bg-danger text-white">
-        <i class="fa-solid fa-flag"></i>
-      </div>
+
+  {# — Not Codeable DM (not_codeable_by_data_manager) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card card-danger clickable h-100" id="kpi-flagged-card" style="position:relative;">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="Not Codeable — Excluded by DM (not_codeable_by_data_manager)"
+              data-bs-content="Submissions the data manager has determined cannot be coded — e.g. the VA interview was too incomplete, the death did not qualify, or data quality was insufficient. These are excluded from the coding queue.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon bg-danger text-white"><i class="fa-solid fa-flag"></i></div>
       <div>
         <div class="dm-kpi-value text-danger" id="kpi-flagged">—</div>
-        <div class="dm-kpi-label">Flagged</div>
+        <div class="dm-kpi-label">Not Codeable (DM)</div>
       </div>
     </div>
   </div>
-  <div class="flex-fill" style="min-width: 120px; max-width: 180px;">
-    <div class="dm-kpi-card clickable" style="background:#fff7ed;border-color:#fdba74;" id="kpi-consent-refused-card" title="Filter: Consent Refused">
-      <div class="dm-kpi-icon text-white" style="background:#ea580c;">
-        <i class="fa-solid fa-ban"></i>
-      </div>
+
+  {# — Consent Refused (consent_refused) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card clickable h-100" style="background:#fff7ed;border-color:#fdba74;position:relative;" id="kpi-consent-refused-card">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="Consent Refused (consent_refused)"
+              data-bs-content="Submissions where the family declined to participate in the verbal autopsy interview. These cannot be coded.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon text-white" style="background:#ea580c;"><i class="fa-solid fa-ban"></i></div>
       <div>
         <div class="dm-kpi-value" style="color:#ea580c;" id="kpi-consent-refused">—</div>
-        <div class="dm-kpi-label">No Consent</div>
+        <div class="dm-kpi-label">Consent Refused</div>
       </div>
     </div>
   </div>
+
+  {# — SmartVA Missing (smartva filter) — #}
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card card-secondary clickable h-100" id="kpi-smartva-missing-card" style="position:relative;">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              title="SmartVA Missing"
+              data-bs-content="Submissions that do not yet have a SmartVA prediction output on disk. These may need a SmartVA processing run.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon bg-secondary text-white"><i class="fa-solid fa-brain"></i></div>
+      <div>
+        <div class="dm-kpi-value" id="kpi-smartva-missing">—</div>
+        <div class="dm-kpi-label">SmartVA Missing</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 {# ════════════════════════════════════════════════════════
@@ -377,6 +459,23 @@
       </div>
       <div style="position:relative; height:200px;">
         <canvas id="dm-sex-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ════════════════════════════════════════════════════════
+   WORKFLOW DISTRIBUTION CHART
+   ════════════════════════════════════════════════════════ #}
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="dm-chart-card">
+      <div class="dm-chart-title">
+        <i class="fa-solid fa-chart-pie me-1 text-primary"></i>Workflow State Distribution
+        <small class="text-muted fw-normal ms-2">Click a segment to filter the table</small>
+      </div>
+      <div style="position:relative; height:220px;">
+        <canvas id="dm-workflow-dist-chart"></canvas>
       </div>
     </div>
   </div>
@@ -513,13 +612,32 @@
       <div class="mb-3">
         <label class="form-label small fw-semibold">Workflow State</label>
         <select id="dm-workflow-filter" class="form-select form-select-sm">
-          <option value="">All</option>
-          <option value="ready_for_coding">Ready For Coding</option>
-          <option value="screening_pending">Screening Pending</option>
-          <option value="not_codeable_by_data_manager">Not Codeable (DM)</option>
-          <option value="not_codeable_by_coder">Not Codeable (Coder)</option>
-          <option value="finalized_upstream_changed">Finalized - ODK Data Changed</option>
-          <option value="consent_refused">Consent Refused</option>
+          <option value="">All States</option>
+          <optgroup label="── Groups ──">
+            <option value="pending_coding">Pending Coding (all)</option>
+            <option value="coded">Coded (all)</option>
+          </optgroup>
+          <optgroup label="── Queued ──">
+            <option value="ready_for_coding">Ready for Coding</option>
+            <option value="smartva_pending">SmartVA Queue</option>
+            <option value="screening_pending">Screening Pending</option>
+          </optgroup>
+          <optgroup label="── Coding In Progress ──">
+            <option value="coding_in_progress">Coding In Progress</option>
+            <option value="coder_step1_saved">Step 1 Saved</option>
+            <option value="not_codeable_by_coder">Not Codeable — Coder</option>
+          </optgroup>
+          <optgroup label="── Finalized ──">
+            <option value="coder_finalized">Coder Finalized</option>
+            <option value="reviewer_eligible">Coded — Reviewer Eligible</option>
+            <option value="reviewer_coding_in_progress">Reviewer Coding In Progress</option>
+            <option value="reviewer_finalized">Reviewer Finalized</option>
+          </optgroup>
+          <optgroup label="── Issues / Special ──">
+            <option value="finalized_upstream_changed">Upstream Changed</option>
+            <option value="not_codeable_by_data_manager">Not Codeable — Excluded by DM</option>
+            <option value="consent_refused">Consent Refused</option>
+          </optgroup>
         </select>
       </div>
       <div class="d-grid gap-2 pt-1">
@@ -750,6 +868,24 @@
   let chartProjectSite = null;
   let chartAgeBand = null;
   let chartSex = null;
+  let chartWorkflowDist = null;
+
+  /* ── Workflow state display config ── */
+  const WORKFLOW_STATE_CONFIG = {
+    ready_for_coding:             { label: 'Ready for Coding',         color: '#3b82f6' },
+    smartva_pending:              { label: 'SmartVA Queue',            color: '#0891b2' },
+    screening_pending:            { label: 'Screening Pending',        color: '#64748b' },
+    coding_in_progress:           { label: 'Coding In Progress',       color: '#f59e0b' },
+    coder_step1_saved:            { label: 'Step 1 Saved',             color: '#fbbf24' },
+    not_codeable_by_coder:        { label: 'Not Codeable (Coder)',     color: '#d97706' },
+    coder_finalized:              { label: 'Coder Finalized',          color: '#10b981' },
+    reviewer_eligible:            { label: 'Coded — Reviewer Eligible', color: '#059669' },
+    reviewer_coding_in_progress:  { label: 'Reviewer Coding',         color: '#047857' },
+    reviewer_finalized:           { label: 'Reviewer Finalized',       color: '#065f46' },
+    finalized_upstream_changed:   { label: 'Upstream Changed',         color: '#9333ea' },
+    not_codeable_by_data_manager: { label: 'Not Codeable — DM',        color: '#ea580c' },
+    consent_refused:              { label: 'Consent Refused',          color: '#dc2626' },
+  };
 
   /* ── AG Grid instance ── */
   let gridApi = null;
@@ -1285,14 +1421,17 @@
   function loadKPIs() {
     return jsonFetch(`/api/v1/data-management/kpi${buildDashboardQuery()}`)
       .then(d => {
-        document.getElementById('kpi-total').textContent          = (d.total_submissions ?? '—').toLocaleString();
-        document.getElementById('kpi-coded').textContent          = (d.coded_submissions ?? '—').toLocaleString();
-        document.getElementById('kpi-pending').textContent        = (d.pending_submissions ?? '—').toLocaleString();
-        document.getElementById('kpi-flagged').textContent        = (d.flagged_submissions ?? '—').toLocaleString();
-        document.getElementById('kpi-odk-issues').textContent     = (d.odk_has_issues_submissions ?? '—').toLocaleString();
-        document.getElementById('kpi-smartva-missing').textContent= (d.smartva_missing_submissions ?? '—').toLocaleString();
-        document.getElementById('kpi-revoked').textContent        = (d.revoked_submissions ?? '—').toLocaleString();
-        document.getElementById('kpi-consent-refused').textContent = (d.consent_refused_submissions ?? '—').toLocaleString();
+        const fmt = v => (v != null && v !== '—') ? Number(v).toLocaleString() : '—';
+        document.getElementById('kpi-total').textContent           = fmt(d.total_submissions);
+        document.getElementById('kpi-coded').textContent           = fmt(d.coded_submissions);
+        document.getElementById('kpi-pending').textContent         = fmt(d.pending_submissions);
+        document.getElementById('kpi-flagged').textContent         = fmt(d.flagged_submissions);
+        document.getElementById('kpi-odk-issues').textContent      = fmt(d.odk_has_issues_submissions);
+        document.getElementById('kpi-smartva-missing').textContent = fmt(d.smartva_missing_submissions);
+        document.getElementById('kpi-revoked').textContent         = fmt(d.revoked_submissions);
+        document.getElementById('kpi-consent-refused').textContent = fmt(d.consent_refused_submissions);
+        document.getElementById('kpi-smartva-pending').textContent = fmt(d.smartva_pending_submissions);
+        renderWorkflowDistChart(d.workflow_counts || {});
         if (typeof __dm_update_workflow_counts === 'function') {
           __dm_update_workflow_counts(d.workflow_counts || {});
         }
@@ -1300,49 +1439,70 @@
       .catch(err => toast('Failed to load KPIs: ' + err.message, 'danger'));
   }
 
+  function renderWorkflowDistChart(counts) {
+    const ctx = document.getElementById('dm-workflow-dist-chart');
+    if (!ctx) return;
+    const entries = Object.entries(WORKFLOW_STATE_CONFIG)
+      .map(([state, cfg]) => ({ state, label: cfg.label, color: cfg.color, count: counts[state] || 0 }))
+      .filter(e => e.count > 0);
+
+    const labels = entries.map(e => `${e.label} (${e.count.toLocaleString()})`);
+    const data   = entries.map(e => e.count);
+    const colors = entries.map(e => e.color);
+
+    if (chartWorkflowDist) chartWorkflowDist.destroy();
+    chartWorkflowDist = new window.Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: colors, borderWidth: 1.5 }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12, padding: 8 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = total ? ((ctx.raw / total) * 100).toFixed(1) : 0;
+                return ` ${ctx.raw.toLocaleString()} (${pct}%)`;
+              }
+            }
+          }
+        },
+        onClick: (event, elements) => {
+          if (!elements.length) return;
+          const idx = elements[0].index;
+          const state = entries[idx] && entries[idx].state;
+          if (!state) return;
+          currentFilters.workflow = state;
+          syncInputsFromState();
+          applyFilters();
+        },
+      },
+    });
+  }
+
   /* KPI card click quick-filters */
-  document.getElementById('kpi-coded-card').addEventListener('click', () => {
-    currentFilters.workflow = 'coder_finalized';
+  function kpiFilterClick(filterKey, filterValue) {
+    if (filterKey === 'workflow') currentFilters.workflow = filterValue;
+    else if (filterKey === 'odk_status') currentFilters.odk_status = filterValue;
+    else if (filterKey === 'smartva') currentFilters.smartva = filterValue;
     syncInputsFromState();
     applyFilters();
     bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
-  });
-  document.getElementById('kpi-pending-card').addEventListener('click', () => {
-    currentFilters.workflow = 'pending_coding';
-    syncInputsFromState();
-    applyFilters();
-    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
-  });
-  document.getElementById('kpi-flagged-card').addEventListener('click', () => {
-    currentFilters.workflow = 'not_codeable_by_data_manager';
-    syncInputsFromState();
-    applyFilters();
-    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
-  });
-  document.getElementById('kpi-odk-issues-card').addEventListener('click', () => {
-    currentFilters.odk_status = 'hasIssues';
-    syncInputsFromState();
-    applyFilters();
-    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
-  });
-  document.getElementById('kpi-smartva-missing-card').addEventListener('click', () => {
-    currentFilters.smartva = 'missing';
-    syncInputsFromState();
-    applyFilters();
-    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
-  });
-  document.getElementById('kpi-revoked-card').addEventListener('click', () => {
-    currentFilters.workflow = 'finalized_upstream_changed';
-    syncInputsFromState();
-    applyFilters();
-    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
-  });
-  document.getElementById('kpi-consent-refused-card').addEventListener('click', () => {
-    currentFilters.workflow = 'consent_refused';
-    syncInputsFromState();
-    applyFilters();
-    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
-  });
+  }
+
+  document.getElementById('kpi-coded-card').addEventListener('click',           () => kpiFilterClick('workflow', 'coded'));
+  document.getElementById('kpi-pending-card').addEventListener('click',         () => kpiFilterClick('workflow', 'pending_coding'));
+  document.getElementById('kpi-smartva-pending-card').addEventListener('click', () => kpiFilterClick('workflow', 'smartva_pending'));
+  document.getElementById('kpi-flagged-card').addEventListener('click',         () => kpiFilterClick('workflow', 'not_codeable_by_data_manager'));
+  document.getElementById('kpi-odk-issues-card').addEventListener('click',      () => kpiFilterClick('odk_status', 'hasIssues'));
+  document.getElementById('kpi-smartva-missing-card').addEventListener('click', () => kpiFilterClick('smartva', 'missing'));
+  document.getElementById('kpi-revoked-card').addEventListener('click',         () => kpiFilterClick('workflow', 'finalized_upstream_changed'));
+  document.getElementById('kpi-consent-refused-card').addEventListener('click', () => kpiFilterClick('workflow', 'consent_refused'));
 
   /* ════════════════════════════════════════════════════
      CHARTS
@@ -1707,11 +1867,19 @@
   /* ════════════════════════════════════════════════════
      BOOTSTRAP
      ════════════════════════════════════════════════════ */
+  function initKpiInfoPopovers() {
+    document.querySelectorAll('.dm-kpi-info-btn').forEach(btn => {
+      new bootstrap.Popover(btn, { html: false, trigger: 'hover focus', placement: 'top' });
+      btn.addEventListener('click', e => e.stopPropagation());
+    });
+  }
+
   function init() {
     loadPersistedState();
     initTable();
     renderColVisibilityPanel();
     wireEvents();
+    initKpiInfoPopovers();
 
     /* apply filters after grid is ready */
     loadFilterOptions().then(() => {

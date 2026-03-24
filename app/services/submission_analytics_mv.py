@@ -14,9 +14,11 @@ from app.services.workflow.definition import (
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
     WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
     WORKFLOW_SCREENING_PENDING,
+    WORKFLOW_SMARTVA_PENDING,
 )
 
 
@@ -431,9 +433,17 @@ def build_dm_mv_filter_conditions(
         if workflow == "pending_coding":
             conditions.append(mv.c.workflow_state.in_([
                 WORKFLOW_SCREENING_PENDING,
+                WORKFLOW_SMARTVA_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
                 WORKFLOW_CODER_STEP1_SAVED,
+            ]))
+        elif workflow == "coded":
+            conditions.append(mv.c.workflow_state.in_([
+                WORKFLOW_CODER_FINALIZED,
+                WORKFLOW_REVIEWER_ELIGIBLE,
+                WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+                WORKFLOW_REVIEWER_FINALIZED,
             ]))
         else:
             conditions.append(mv.c.workflow_state == workflow)
@@ -525,6 +535,7 @@ def get_dm_kpi_from_mv(
                 [
                     WORKFLOW_CODER_FINALIZED,
                     WORKFLOW_REVIEWER_ELIGIBLE,
+                    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
                     WORKFLOW_REVIEWER_FINALIZED,
                     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
                 ]
@@ -537,6 +548,7 @@ def get_dm_kpi_from_mv(
         .where(sa.and_(*conditions))
         .where(mv.c.workflow_state.in_([
             WORKFLOW_SCREENING_PENDING,
+            WORKFLOW_SMARTVA_PENDING,
             WORKFLOW_READY_FOR_CODING,
             WORKFLOW_CODING_IN_PROGRESS,
             WORKFLOW_CODER_STEP1_SAVED,
@@ -563,6 +575,7 @@ def get_dm_kpi_from_mv(
         "total_submissions": total,
         "coded_submissions": coded,
         "pending_submissions": pending,
+        "smartva_pending_submissions": workflow_counts.get(WORKFLOW_SMARTVA_PENDING, 0),
         "flagged_submissions": flagged,
         "odk_has_issues_submissions": odk_issues,
         "smartva_missing_submissions": smartva_missing,

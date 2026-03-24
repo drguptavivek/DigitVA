@@ -17,6 +17,10 @@
 }
 
 /* general */
+html {
+  overflow-y: scroll; /* always show vertical scrollbar to prevent layout shift */
+}
+
 body {
   display: flex;
   flex-direction: column;

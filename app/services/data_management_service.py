@@ -49,7 +49,11 @@ from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_FINALIZED,
     WORKFLOW_SCREENING_PENDING,
+    WORKFLOW_SMARTVA_PENDING,
 )
 from app.services.workflow.upstream_changes import (
     UPSTREAM_CHANGE_STATUS_ACCEPTED,
@@ -333,12 +337,19 @@ def dm_submissions_page(
         ))
     if workflow:
         if workflow == "pending_coding":
-            # Special case: pending includes multiple workflow states
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([
                 WORKFLOW_SCREENING_PENDING,
+                WORKFLOW_SMARTVA_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
                 WORKFLOW_CODER_STEP1_SAVED,
+            ]))
+        elif workflow == "coded":
+            conditions.append(VaSubmissionWorkflow.workflow_state.in_([
+                WORKFLOW_CODER_FINALIZED,
+                WORKFLOW_REVIEWER_ELIGIBLE,
+                WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+                WORKFLOW_REVIEWER_FINALIZED,
             ]))
         else:
             conditions.append(VaSubmissionWorkflow.workflow_state == workflow)

@@ -685,6 +685,31 @@ explicit exclusion state for reviewer sampling is not part of the current
 runtime and should not be added until a reviewer-sampling feature is
 deliberately designed.
 
+### Reviewer session timeout
+
+Reviewer sessions follow the same time-bound allocation model as coder
+sessions.
+
+A reviewer allocation older than 1 hour is considered stale and must be
+released automatically.
+
+On reviewer session timeout:
+
+- deactivate the active `va_allocations` row for reviewing
+- deactivate active `va_reviewer_reviews` rows for the timed-out reviewer
+- deactivate active `va_narrative_assessments` rows for the timed-out reviewer
+- deactivate active `va_social_autopsy_analyses` rows for the timed-out
+  reviewer
+- return canonical workflow state to `reviewer_eligible`
+
+Rationale: the reviewer final COD submission is the only terminal action for a
+reviewer session. All intermediate saves are partial. A timed-out session that
+did not reach final COD submission is treated as incomplete, and all
+intermediate artifacts are discarded. A fresh reviewer session may then start
+from `reviewer_eligible`.
+
+Transition: `incomplete_reviewer_reset` → `reviewer_eligible`.
+
 ### Reviewer authority
 
 Reviewer coding does not erase coder history.

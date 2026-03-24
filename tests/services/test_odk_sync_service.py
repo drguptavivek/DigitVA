@@ -470,17 +470,16 @@ class OdkSyncServiceTests(BaseTestCase):
         self.assertEqual(stored.va_sync_issue_code, SYNC_ISSUE_MISSING_IN_ODK)
 
     def test_attach_all_odk_comments_adds_all_has_issues_comments(self):
-        client = Mock()
-        client.submissions.list_comments.return_value = [
-            SimpleNamespace(
-                body="Older review note",
-                createdAt=datetime(2026, 3, 17, 10, 0, tzinfo=timezone.utc),
-            ),
-            SimpleNamespace(
-                body="Newest review note",
-                createdAt=datetime(2026, 3, 18, 12, 0, tzinfo=timezone.utc),
-            ),
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {"body": "Older review note", "createdAt": "2026-03-17T10:00:00+00:00"},
+            {"body": "Newest review note", "createdAt": "2026-03-18T12:00:00+00:00"},
         ]
+        client = Mock()
+        client.session.get.return_value = mock_response
+        # No connection_id tagged — guarded_odk_call passes through directly
+        del client._digitva_connection_id
 
         submissions = _attach_all_odk_comments(
             db.session.get(VaForms, self.FORM_ID),

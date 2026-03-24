@@ -11,6 +11,8 @@ from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.services.odk_connection_guard_service import (
+    OdkConnectionCooldownError,
+    guarded_odk_call,
     is_retryable_odk_connectivity_error,
 )
 from app.services.who_age_normalization import normalize_who_2022_age
@@ -276,11 +278,27 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
 
     Only submissions currently in ODK `hasIssues` state fetch comments.
     The comments are stored in `OdkReviewComments` sorted newest first.
+
+    Each comment fetch uses guarded_odk_call so failures are recorded against
+    the shared connection guard (pacing + cooldown). OdkConnectionCooldownError
+    is re-raised immediately to abort the rest of this form's comment fetching
+    and propagate up to the per-form error handler. Transient per-submission
+    failures (non-cooldown) are logged and skipped — comment data is best-effort
+    and must not fail the entire form sync.
+
+    NOTE: Adding or reading comments does NOT change __system/updatedAt on a
+    submission in ODK Central. ODK only bumps updatedAt for data-XML edits.
+    Comment fetching is therefore invisible to the delta check.
     """
     if not submissions:
         return submissions
 
     client = client or va_odk_clientsetup(project_id=va_form.project_id)
+    comments_url_base = (
+        f"projects/{va_form.odk_project_id}"
+        f"/forms/{va_form.odk_form_id}/submissions"
+    )
+
     for submission in submissions:
         submission["OdkReviewComments"] = []
         if submission.get("ReviewState") != "hasIssues":
@@ -290,29 +308,38 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
         if not instance_id:
             continue
 
-        comments = _run_with_odk_connectivity_backoff(
-            f"[{va_form.form_id}] review comments",
-            lambda _attempt: list(
-                client.submissions.list_comments(
-                    instance_id=instance_id,
-                    form_id=va_form.odk_form_id,
-                    project_id=int(va_form.odk_project_id),
+        url = f"{comments_url_base}/{instance_id}/comments"
+        try:
+            response = guarded_odk_call(
+                lambda: client.session.get(url),
+                client=client,
+            )
+            if response.status_code != 200:
+                log.warning(
+                    "_attach_all_odk_comments [%s]: HTTP %d for %s",
+                    va_form.form_id, response.status_code, instance_id,
                 )
-            ),
-            log_progress=log_progress,
-        )
-        if comments:
-            submission["OdkReviewComments"] = [
-                {
-                    "body": comment.body,
-                    "created_at": comment.createdAt.isoformat(),
-                }
-                for comment in sorted(
-                    comments,
-                    key=lambda comment: comment.createdAt,
-                    reverse=True,
-                )
-            ]
+                continue
+            raw_comments = response.json()
+            if raw_comments:
+                submission["OdkReviewComments"] = [
+                    {
+                        "body": c.get("body", ""),
+                        "created_at": c.get("createdAt", ""),
+                    }
+                    for c in sorted(
+                        raw_comments,
+                        key=lambda c: c.get("createdAt", ""),
+                        reverse=True,
+                    )
+                ]
+        except OdkConnectionCooldownError:
+            raise
+        except Exception as exc:
+            log.warning(
+                "_attach_all_odk_comments [%s]: error fetching comments for %s: %s",
+                va_form.form_id, instance_id, exc,
+            )
 
     return submissions
 

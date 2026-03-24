@@ -278,7 +278,7 @@
     <div class="dm-kpi-card card-primary h-100" style="position:relative;">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="Total Submissions"
+
               data-bs-content="All VA submissions synced from ODK, regardless of workflow state.">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -295,7 +295,7 @@
     <div class="dm-kpi-card clickable h-100" style="background:#fefce8;border-color:#fde047;position:relative;" id="kpi-pending-card">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="Pending Coding"
+
               data-bs-content="Submissions awaiting a coding decision: ready_for_coding, smartva_pending, coding_in_progress, coder_step1_saved.">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -312,7 +312,7 @@
     <div class="dm-kpi-card clickable h-100" style="background:#ecfeff;border-color:#a5f3fc;position:relative;" id="kpi-smartva-pending-card">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="SmartVA Queue (smartva_pending)"
+
               data-bs-content="Submissions queued for automated SmartVA cause-of-death prediction before a human coder reviews them.">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -329,7 +329,7 @@
     <div class="dm-kpi-card clickable h-100" style="background:#ecfdf5;border-color:#a7f3d0;position:relative;" id="kpi-coded-card">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="Coded"
+
               data-bs-content="Submissions with a cause-of-death decision: coder_finalized, reviewer_eligible, reviewer_coding_in_progress, reviewer_finalized.">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -346,7 +346,7 @@
     <div class="dm-kpi-card clickable h-100" style="background:#fdf4ff;border-color:#d8b4fe;position:relative;" id="kpi-revoked-card">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="Upstream Changed (finalized_upstream_changed)"
+
               data-bs-content="Submissions that were coded but then had their ODK source data updated. Requires data manager decision: accept (recode) or reject (restore prior COD).">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -363,7 +363,7 @@
     <div class="dm-kpi-card card-warning clickable h-100" id="kpi-odk-issues-card" style="position:relative;">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="Needs Field Attention (ODK Issues)"
+
               data-bs-content="Submissions the data collector flagged in ODK Central as having problems (reviewState = hasIssues). The field team needs to resolve or clarify the issue before the form can be coded.">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -380,7 +380,7 @@
     <div class="dm-kpi-card card-danger clickable h-100" id="kpi-flagged-card" style="position:relative;">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="Not Codeable — Excluded by DM (not_codeable_by_data_manager)"
+
               data-bs-content="Submissions the data manager has determined cannot be coded — e.g. the VA interview was too incomplete, the death did not qualify, or data quality was insufficient. These are excluded from the coding queue.">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -397,7 +397,7 @@
     <div class="dm-kpi-card clickable h-100" style="background:#fff7ed;border-color:#fdba74;position:relative;" id="kpi-consent-refused-card">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="Consent Refused (consent_refused)"
+
               data-bs-content="Submissions where the family declined to participate in the verbal autopsy interview. These cannot be coded.">
         <i class="fa-solid fa-circle-info"></i>
       </button>
@@ -414,7 +414,7 @@
     <div class="dm-kpi-card card-secondary clickable h-100" id="kpi-smartva-missing-card" style="position:relative;">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
-              title="SmartVA Missing"
+
               data-bs-content="Submissions that do not yet have a SmartVA prediction output on disk. These may need a SmartVA processing run.">
         <i class="fa-solid fa-circle-info"></i>
       </button>

@@ -92,15 +92,10 @@
     {{ form.va_mark_not_codeable(class="btn btn-danger px-4", form="dm-triage-form") }}
     {% endif %}
 
-    {% if va_nextcategory %}
-    <button class="btn btn-success"
-            type="button"
-            hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_nextcategory, action=va_action, actiontype=va_actiontype) }}"
-            hx-target="#form-content"
-            hx-swap="innerHTML">
-      Form OK — Next <i class="fas fa-arrow-right ms-2"></i>
-    </button>
-    {% endif %}
+    <a class="btn btn-success"
+       href="{{ url_for('data_management.dashboard') }}">
+      Form OK — Next Form <i class="fas fa-arrow-right ms-2"></i>
+    </a>
   </div>
 </div>
 

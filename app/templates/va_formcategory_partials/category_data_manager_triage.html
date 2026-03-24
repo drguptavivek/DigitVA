@@ -1,36 +1,45 @@
-<div class="content-section-title mb-3 mt-1">
-  <i class="fas {{ category_config.icon_name or 'fa-flag' }} me-2"></i>
-  {{ category_config.display_label if category_config else 'Data Manager Triage' }}
+<div class="card-header bg-primary text-white">
+  <h5 class="mb-0 d-flex align-items-center">
+    <i class="fas {{ category_config.icon_name or 'fa-flag' }} me-2"></i>
+    <span style="font-size: 1rem; font-weight: 600; letter-spacing: 0.5px">
+      {{ (category_config.display_label if category_config else 'Data Manager Triage') | upper }}
+    </span>
+  </h5>
 </div>
 
-{% if active_dm_review %}
-<div class="alert alert-danger border mb-4">
-  <div class="fw-semibold mb-2">This submission is currently excluded from coder allocation.</div>
-  <div><strong>Reason:</strong> {{ active_dm_review_label }}</div>
-  {% if active_dm_review.va_dmreview_other %}
-  <div class="mt-2"><strong>Details:</strong> {{ active_dm_review.va_dmreview_other }}</div>
+<div class="card-body p-4">
+
+  {% if active_dm_review %}
+  <div class="alert alert-danger border mb-4">
+    <div class="fw-semibold mb-2">This submission is currently excluded from coder allocation.</div>
+    <div><strong>Reason:</strong> {{ active_dm_review_label }}</div>
+    {% if active_dm_review.va_dmreview_other %}
+    <div class="mt-2"><strong>Details:</strong> {{ active_dm_review.va_dmreview_other }}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="alert alert-light border mb-4">
+    <div class="fw-semibold mb-1">Data Manager Triage</div>
+    <div class="text-muted small">
+      Review this submission and either proceed to the next section (form is acceptable)
+      or flag it as not codeable with a reason.
+    </div>
+  </div>
   {% endif %}
-</div>
-{% else %}
-<div class="alert alert-light border mb-4">
-  <div class="fw-semibold mb-1">Read-only triage panel</div>
-  <div>If this submission should be kept out of coder allocation, record the reason here.</div>
-</div>
-{% endif %}
 
-{% if submission_workflow_state in ['screening_pending', 'ready_for_coding', 'not_codeable_by_data_manager'] %}
-<form method="POST"
-      hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_partial, action=va_action, actiontype=va_actiontype) }}"
-      hx-target="#form-content"
-      hx-swap="innerHTML">
-  {{ form.hidden_tag() }}
+  {% if submission_workflow_state in ['screening_pending', 'ready_for_coding', 'not_codeable_by_data_manager'] %}
+  <form id="dm-triage-form"
+        method="POST"
+        hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_partial, action=va_action, actiontype=va_actiontype) }}"
+        hx-target="#form-content"
+        hx-swap="innerHTML">
+    {{ form.hidden_tag() }}
 
-  <div class="row mb-4">
-    <div class="col-12">
+    <div class="mb-4">
       <div class="card bg-light border-0">
         <div class="card-body p-3">
           <label for="{{ form.va_dmreview_reason.id }}" class="form-label fw-bold">
-            {{ form.va_dmreview_reason.label.text }} <span style="color: red">*</span>
+            {{ form.va_dmreview_reason.label.text }} <span class="text-danger">*</span>
           </label>
           {{ form.va_dmreview_reason(class="form-select form-select-lg mb-2", onchange="toggleDmOtherReason(this.value)") }}
           {% if form.va_dmreview_reason.errors %}
@@ -39,14 +48,13 @@
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="row mb-4" id="dmOtherReasonSection" style="display: {% if form.va_dmreview_reason.data == 'others' %}block{% else %}none{% endif %};">
-    <div class="col-12">
+    <div class="mb-4" id="dmOtherReasonSection"
+         style="display: {% if form.va_dmreview_reason.data == 'others' %}block{% else %}none{% endif %};">
       <div class="card bg-light border-0">
         <div class="card-body p-3">
           <label for="{{ form.va_dmreview_other.id }}" class="form-label fw-bold">
-            {{ form.va_dmreview_other.label.text }} <span style="color: red">*</span>
+            {{ form.va_dmreview_other.label.text }} <span class="text-danger">*</span>
           </label>
           {{ form.va_dmreview_other(class="form-control", rows="4") }}
           {% if form.va_dmreview_other.errors %}
@@ -55,30 +63,46 @@
         </div>
       </div>
     </div>
+  </form>
+  {% else %}
+  <div class="alert alert-warning">
+    This submission is in state <strong>{{ submission_workflow_state }}</strong> and can no longer be triaged by a data manager.
+  </div>
+  {% endif %}
+
+</div>{# /card-body #}
+
+<div class="card-footer d-flex justify-content-between align-items-center">
+  {# ── Left: Previous ── #}
+  <div>
+    {% if va_previouscategory %}
+    <button class="btn btn-secondary"
+            type="button"
+            hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_previouscategory, action=va_action, actiontype=va_actiontype) }}"
+            hx-target="#form-content"
+            hx-swap="innerHTML">
+      <i class="fas fa-arrow-left me-2"></i>Previous Category
+    </button>
+    {% endif %}
   </div>
 
-  <div class="d-flex justify-content-between align-items-center mt-4">
-    <div>
-      {% if va_previouscategory %}
-      <button class="btn btn-secondary"
-              type="button"
-              hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_previouscategory, action=va_action, actiontype=va_actiontype) }}"
-              hx-target="#form-content"
-              hx-swap="innerHTML">
-        Previous Category
-      </button>
-      {% endif %}
-    </div>
-    <div class="d-flex gap-2">
-      {{ form.va_mark_not_codeable(class="btn btn-danger px-4 py-2") }}
-    </div>
+  {# ── Right: actions ── #}
+  <div class="d-flex gap-2 align-items-center">
+    {% if submission_workflow_state in ['screening_pending', 'ready_for_coding', 'not_codeable_by_data_manager'] %}
+    {{ form.va_mark_not_codeable(class="btn btn-danger px-4", form="dm-triage-form") }}
+    {% endif %}
+
+    {% if va_nextcategory %}
+    <button class="btn btn-success"
+            type="button"
+            hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=va_nextcategory, action=va_action, actiontype=va_actiontype) }}"
+            hx-target="#form-content"
+            hx-swap="innerHTML">
+      Form OK — Next <i class="fas fa-arrow-right ms-2"></i>
+    </button>
+    {% endif %}
   </div>
-</form>
-{% else %}
-<div class="alert alert-warning">
-  This submission is already in workflow state <strong>{{ submission_workflow_state }}</strong> and can no longer be flagged by a data manager.
 </div>
-{% endif %}
 
 {% if form_error_messages %}
 <script>
@@ -108,17 +132,13 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', function () {
-    const reasonSelect = document.querySelector('#{{ form.va_dmreview_reason.id }}');
-    if (reasonSelect) {
-      toggleDmOtherReason(reasonSelect.value);
-    }
-  });
+  (function () {
+    const reasonSelect = document.getElementById('{{ form.va_dmreview_reason.id }}');
+    if (reasonSelect) toggleDmOtherReason(reasonSelect.value);
 
-  document.body.addEventListener('htmx:afterSwap', function () {
-    const reasonSelect = document.querySelector('#{{ form.va_dmreview_reason.id }}');
-    if (reasonSelect) {
-      toggleDmOtherReason(reasonSelect.value);
-    }
-  });
+    document.body.addEventListener('htmx:afterSwap', function () {
+      const sel = document.getElementById('{{ form.va_dmreview_reason.id }}');
+      if (sel) toggleDmOtherReason(sel.value);
+    }, { once: true });
+  })();
 </script>

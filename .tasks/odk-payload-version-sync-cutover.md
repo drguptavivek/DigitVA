@@ -1,4 +1,4 @@
-Status: mostly_complete
+Status: complete
 Priority: high
 Created: 2026-03-23
 Goal: Introduce and roll out a payload-version-aware ODK sync and SmartVA lineage model.
@@ -93,9 +93,10 @@ Current progress:
 - Scoped backfill completed for:
   - `UNSW01`
   - `ICMR01`
-- Current remaining work:
-  - update any remaining readers/reporting paths that still assume older
-    SmartVA storage semantics
+- Reader/reporting parity audit (2026-03-24): all routes, services, utilities,
+  and templates confirmed on new semantics. No legacy artifact reads found.
+  Old artifact table already dropped in migration 5e6f7a8b9c0d.
+  Track 2 complete — no code changes needed.
 
 - Backfill complete: global `candidate submissions: 0`, `candidate forms: 0`
   (as of 2026-03-23). All projects processed: UNSW01, ICMR01, ZZZ99 (test

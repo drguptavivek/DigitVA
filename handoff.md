@@ -5,7 +5,7 @@
 - Workflow refactor, payload-version linkage, reviewer flow, and SmartVA run-history work are in place.
 - SmartVA backfill is complete for all projects (UNSW01, ICMR01, ZZZ99).
 - State machine / ODK sync / reviewer signal audit completed. All sync and coding/recoding track fixes committed.
-- SmartVA reader/reporting parity audit: clean — no work needed.
+- SmartVA reader/reporting parity audit: clean — no work needed (verified 2026-03-24).
 - Remaining open tracks: schema gap for reviewer COD snapshot (deferred migration).
 
 ## What Was Done This Session (cont.)
@@ -175,17 +175,14 @@ All projects processed. Global candidate count is zero.
 The state machine / sync / SmartVA / coding / reviewing audit identified the
 following remaining tracks. Work them in this order:
 
-### Track 2 — SmartVA
+### Track 2 — SmartVA — DONE
 
-Reader/reporting parity: any downstream code still assuming old SmartVA
-storage details (single result row, DB-stored formatted artifacts) needs
-updating. Check:
-- direct `VaSmartvaRunArtifact` reads
-- code expecting DB-stored formatted result rather than disk-backed form runs
-- reporting paths — should use `VaSmartvaResults` for active projection,
-  `VaSmartvaRun`/`VaSmartvaFormRun` for history
-
-See `.tasks/odk-payload-version-sync-cutover.md` for specifics.
+Reader/reporting parity audit (2026-03-24): all 13 files checked — routes,
+services, utilities, templates. Every SmartVA read uses new semantics
+(`VaSmartvaResults`, `VaSmartvaRun`/`VaSmartvaFormRun`, disk-backed files).
+No legacy `VaSmartvaRunArtifact` references, no old artifact kinds, no
+DB-stored result bytes anywhere in active code. Old artifact table already
+dropped. No code changes needed.
 
 ### Track 3 — Coding and recoding — DONE
 

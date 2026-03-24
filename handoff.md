@@ -4,8 +4,9 @@
 
 - Workflow refactor, payload-version linkage, reviewer flow, and SmartVA run-history work are in place.
 - SmartVA backfill is complete for all projects (UNSW01, ICMR01, ZZZ99).
-- State machine / ODK sync / reviewer signal audit completed this session.
-- Sync track hardening committed. Reviewer dashboard and permissions updated.
+- State machine / ODK sync / reviewer signal audit completed. All sync and coding/recoding track fixes committed.
+- SmartVA reader/reporting parity audit: clean — no work needed.
+- Remaining open tracks: reviewer session timeout (Track 4), schema gap for reviewer COD snapshot (Track 5).
 
 ## What Was Done This Session
 
@@ -22,6 +23,30 @@ Files changed:
 - `app/utils/va_permission/va_permission_07_ensurenotreviewed.py` — workflow state primary; NQA presence no longer blocks
 - `app/utils/va_permission/va_permission_08_ensurereviewed.py` — checks only `VaReviewerFinalAssessments` by current user
 - `app/utils/va_permission/va_permission_10_reviewedonce.py` — checks `workflow_state == reviewer_finalized` only
+
+### 3. Coding/recoding track fixes (commit `TBD — current`)
+
+**`not_selected_for_reviewer` removed from policy.** The state was listed as
+"recommended" but never implemented and has no allocation/sampling mechanism.
+`coding-workflow-state-machine.md` now explicitly states that unselected cases
+remain in `reviewer_eligible` indefinitely and this state should not be added
+until a reviewer-sampling feature is designed.
+
+**`DEMO_ACTOR_KINDS` renamed to `ADMIN_ACTOR_KINDS`** in `transitions.py`. The
+old constant was a frozenset of a single admin actor being reused across two
+unrelated transitions (demo coding and admin override). Both now use the
+correctly named `ADMIN_ACTOR_KINDS`. The alias has been removed.
+
+**Admin override now allows from `reviewer_eligible`** in
+`mark_admin_override_to_recode()`. Previously only `coder_finalized` was
+permitted; the policy said `reviewer_eligible` should also be allowed (cases
+there have no active session). `coding-workflow-state-machine.md` updated to
+document both permitted source states and explicitly exclude
+`reviewer_coding_in_progress` and `reviewer_finalized`.
+
+Files changed:
+- `app/services/workflow/transitions.py` — `ADMIN_ACTOR_KINDS`, expanded `allowed_from`, `DEMO_ACTOR_KINDS` removed
+- `docs/policy/coding-workflow-state-machine.md` — reviewer states section, admin reset section
 
 ### 2. Sync track hardening — state machine policy audit (commit `62cd5ee`)
 
@@ -127,31 +152,15 @@ updating. Check:
 
 See `.tasks/odk-payload-version-sync-cutover.md` for specifics.
 
-### Track 3 — Coding and recoding
+### Track 3 — Coding and recoding — DONE
 
-Known gaps identified in the audit (not yet acted on):
+All items resolved:
+- Admin override expanded to allow from `reviewer_eligible` ✅
+- `DEMO_ACTOR_KINDS` → `ADMIN_ACTOR_KINDS` ✅
+- `not_selected_for_reviewer` removed from policy ✅
+- Schema gap documented below as a deferred migration item
 
-1. **Admin override blocked from `reviewer_eligible`** — policy says admin can
-   reset from `reviewer_eligible`; `mark_admin_override_to_recode()` only
-   allows from `(WORKFLOW_CODER_FINALIZED,)`. Requires adding
-   `WORKFLOW_REVIEWER_ELIGIBLE` to `allowed_from`.
-
-2. **`DEMO_ACTOR_KINDS` used for admin override** — confusing naming; the
-   `mark_admin_override_to_recode` transition uses `DEMO_ACTOR_KINDS`
-   (frozenset of ACTOR_ADMIN) which is semantically wrong. Should be its own
-   `ADMIN_ACTOR_KINDS` constant.
-
-3. **`not_selected_for_reviewer` in policy, not in code** — policy recommends
-   this state but it is not in `definition.py`, not in `ALL_WORKFLOW_STATES`,
-   no transition targets it. Either implement or remove from policy.
-
-4. **`va_submission_upstream_changes` schema gap** — `previous_final_assessment_id`
-   FK typed to `va_final_assessments` only. If case was `reviewer_finalized`
-   when upstream change detected, the reviewer COD cannot be snapshotted. Needs
-   migration to add `previous_reviewer_final_assessment_id` column with FK to
-   `va_reviewer_final_assessments`.
-
-### Track 4 — Reviewing
+### Track 4 — Reviewing — NEXT
 
 1. **Reviewer session timeout — no reversion path** — `coding-allocation-timeouts.md`
    covers first-pass and recode reversion but has no reviewer track entry. If

@@ -673,12 +673,17 @@ Reviewer is not an accept/reject QA overlay.
 
 Reviewer is an optional secondary coding path with its own COD submission.
 
-Recommended reviewer statuses:
+Reviewer workflow states:
 
-- `not_selected_for_reviewer`
 - `reviewer_eligible`
 - `reviewer_coding_in_progress`
 - `reviewer_finalized`
+
+There is no `not_selected_for_reviewer` state. Cases that are never selected
+for reviewer coding simply remain in `reviewer_eligible` indefinitely. An
+explicit exclusion state for reviewer sampling is not part of the current
+runtime and should not be added until a reviewer-sampling feature is
+deliberately designed.
 
 ### Reviewer authority
 
@@ -701,8 +706,16 @@ Admin may reset/reopen a submission at any time.
 
 Admin does not author COD.
 
-Admin reset returns the submission to the coder pool, including after a case
-has become `reviewer_eligible`.
+Admin reset returns the submission to the coder pool from any of:
+
+- `coder_finalized`
+- `reviewer_eligible`
+
+Both states have no active session in progress, so the reset is safe.
+`reviewer_coding_in_progress` and `reviewer_finalized` are not eligible for
+direct admin override — those cases must first go through the DM
+accept/reject path if there is a data issue, or the reviewer session must
+complete or time out.
 
 ## Allocation Rules
 

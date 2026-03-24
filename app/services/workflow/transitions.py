@@ -39,7 +39,7 @@ SYSTEM_ACTOR_KINDS = frozenset({ACTOR_SYSTEM, ACTOR_ADMIN})
 CODING_ACTOR_KINDS = frozenset({ACTOR_CODER, ACTOR_ADMIN})
 DATA_MANAGER_ACTOR_KINDS = frozenset({ACTOR_DATA_MANAGER, ACTOR_ADMIN})
 REVIEWER_ACTOR_KINDS = frozenset({ACTOR_REVIEWER})
-DEMO_ACTOR_KINDS = frozenset({ACTOR_ADMIN})
+ADMIN_ACTOR_KINDS = frozenset({ACTOR_ADMIN})
 SYNC_SOURCE_STATES = (
     None,
     wd.WORKFLOW_CONSENT_REFUSED,
@@ -500,12 +500,18 @@ def mark_admin_override_to_recode(
     actor: WorkflowActor,
     reason: str = "admin_override_to_recode",
 ) -> TransitionResult:
+    # Admin may reset from coder_finalized or reviewer_eligible. Both are
+    # post-finalization protected states where no active session exists and
+    # the submission can safely be returned to the coder pool.
     return _apply_transition(
         va_sid,
         transition_id=wd.TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
         target_state=wd.WORKFLOW_READY_FOR_CODING,
-        allowed_from=(wd.WORKFLOW_CODER_FINALIZED,),
-        allowed_actor_kinds=DEMO_ACTOR_KINDS,
+        allowed_from=(
+            wd.WORKFLOW_CODER_FINALIZED,
+            wd.WORKFLOW_REVIEWER_ELIGIBLE,
+        ),
+        allowed_actor_kinds=ADMIN_ACTOR_KINDS,
         reason=reason,
         actor=actor,
     )
@@ -557,7 +563,7 @@ def mark_demo_started(
         transition_id=wd.TRANSITION_DEMO_STARTED,
         target_state=wd.WORKFLOW_CODING_IN_PROGRESS,
         allowed_from=(wd.WORKFLOW_READY_FOR_CODING,),
-        allowed_actor_kinds=DEMO_ACTOR_KINDS,
+        allowed_actor_kinds=ADMIN_ACTOR_KINDS,
         reason=reason,
         actor=actor,
     )

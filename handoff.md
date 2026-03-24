@@ -8,7 +8,42 @@
 - SmartVA reader/reporting parity audit: clean — no work needed.
 - Remaining open tracks: reviewer session timeout (Track 4), schema gap for reviewer COD snapshot (Track 5).
 
-## What Was Done This Session
+## What Was Done This Session (cont.)
+
+### 4. Reviewer session timeout — Track 4 DONE
+
+Full reviewer allocation timeout path implemented and tested.
+
+**Problem:** `reviewer_coding_in_progress` allocations had no automatic release
+path. A reviewer who abandoned a session mid-way would leave the submission
+stuck in `reviewer_coding_in_progress` indefinitely.
+
+**Policy:** reviewer final COD is the only terminal action. All intermediate
+saves (NQA, Social Autopsy, reviewer NQA via `VaReviewerReview`) are partial.
+On timeout, all intermediate artifacts are deactivated and the submission
+returns to `reviewer_eligible`.
+
+Files changed:
+
+- `app/services/workflow/definition.py` — `TRANSITION_INCOMPLETE_REVIEWER_RESET`
+  and its `TransitionDefinition` (target: `reviewer_eligible`)
+- `app/services/workflow/transitions.py` — `reset_incomplete_reviewer_session()`
+  function; `ADMIN_ACTOR_KINDS` rename from `DEMO_ACTOR_KINDS`; admin override
+  expanded to `reviewer_eligible` source
+- `app/services/coding_allocation_service.py` — `_deactivate_reviewer_session_artifacts()`
+  and `release_stale_reviewer_allocations()`
+- `app/tasks/sync_tasks.py` — `release_stale_reviewer_allocations_task` extended
+  to call `release_stale_reviewer_allocations()` alongside the coder path
+- `app/services/reviewer_coding_service.py` — opportunistic call to
+  `release_stale_reviewer_allocations()` at the top of `start_reviewer_coding()`
+- `docs/policy/coding-allocation-timeouts.md` — reviewer track section added;
+  all three timeout paths documented
+
+Tests: 50 passing (coding allocation + sync + workflow suites).
+
+---
+
+## What Was Done This Session (previous context)
 
 ### 1. Reviewer dashboard and permissions — Option C (commit `1f72ed8`)
 
@@ -160,20 +195,13 @@ All items resolved:
 - `not_selected_for_reviewer` removed from policy ✅
 - Schema gap documented below as a deferred migration item
 
-### Track 4 — Reviewing — NEXT
+### Track 4 — Reviewing — DONE
 
-1. **Reviewer session timeout — no reversion path** — `coding-allocation-timeouts.md`
-   covers first-pass and recode reversion but has no reviewer track entry. If
-   `reviewer_coding_in_progress` allocation goes stale there is no
-   `reset_incomplete_reviewer_session` transition. Policy decision: return to
-   `reviewer_eligible`. Needs:
-   - New transition `TRANSITION_INCOMPLETE_REVIEWER_RESET` in `definition.py`
-   - New function `reset_incomplete_reviewer_session()` in `transitions.py`
-   - Wiring in coding allocation service
-   - Entry in `coding-allocation-timeouts.md`
+1. **Reviewer session timeout** ✅ — full path implemented. See "What Was Done
+   This Session (cont.)" above.
 
 2. **`VaSubmissionWorkflow` event history not surfaced in UI** — `va_submission_workflow_events`
-   table exists but is not exposed in routes or templates. Lower priority.
+   table exists but is not exposed in routes or templates. Lower priority; deferred.
 
 ### Track 5 — Admin override
 

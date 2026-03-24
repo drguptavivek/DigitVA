@@ -646,6 +646,32 @@ def mark_reviewer_coding_started(
     )
 
 
+def reset_incomplete_reviewer_session(
+    va_sid: str,
+    *,
+    actor: WorkflowActor | None = None,
+    reason: str = "reviewer_allocation_timeout_release",
+) -> TransitionResult:
+    """Revert a timed-out reviewer session to reviewer_eligible.
+
+    Reviewer sessions follow first-pass coder behaviour: the final COD
+    submission is the only terminal action. If the session times out before
+    that, all intermediate artifacts (VaReviewerReview, VaNarrativeAssessment,
+    VaSocialAutopsyAnalysis filled by the reviewer) must be deactivated by the
+    caller before invoking this transition. The case returns to
+    reviewer_eligible so a reviewer may start a fresh session.
+    """
+    return _apply_transition(
+        va_sid,
+        transition_id=wd.TRANSITION_INCOMPLETE_REVIEWER_RESET,
+        target_state=wd.WORKFLOW_REVIEWER_ELIGIBLE,
+        allowed_from=(wd.WORKFLOW_REVIEWER_CODING_IN_PROGRESS,),
+        allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
+        reason=reason,
+        actor=actor or system_actor(),
+    )
+
+
 def mark_reviewer_finalized(
     va_sid: str,
     *,

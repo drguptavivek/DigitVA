@@ -31,6 +31,7 @@ from app.services.workflow.transitions import (
     mark_reviewer_coding_started,
     mark_reviewer_finalized,
     reviewer_actor,
+    system_actor,
 )
 
 
@@ -60,6 +61,10 @@ def get_active_reviewing_allocation(user_id) -> str | None:
 
 
 def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
+    from app.services.coding_allocation_service import release_stale_reviewer_allocations
+
+    release_stale_reviewer_allocations(timeout_hours=1)
+
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)

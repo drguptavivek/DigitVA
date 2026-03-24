@@ -11,6 +11,7 @@ from app.models import (
     VaFinalAssessments,
     VaInitialAssessments,
     VaNarrativeAssessment,
+    VaReviewerReview,
     VaSocialAutopsyAnalysis,
     VaStatuses,
     VaSubmissionsAuditlog,
@@ -24,6 +25,7 @@ from app.services.workflow.transitions import (
     reset_demo_state,
     reset_incomplete_first_pass,
     reset_incomplete_recode,
+    reset_incomplete_reviewer_session,
     system_actor,
 )
 
@@ -142,6 +144,104 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
         db.session.commit()
 
     cleanup_expired_demo_coding_artifacts(now=datetime.now(timezone.utc))
+    return released
+
+
+def _deactivate_reviewer_session_artifacts(record: VaAllocations) -> None:
+    """Deactivate all intermediate reviewer session artifacts for a timed-out allocation.
+
+    Reviewer sessions follow first-pass coder behaviour: the reviewer final COD
+    is the only terminal action. If the session times out before that, all
+    intermediate work disappears — VaReviewerReview (reviewer NQA),
+    VaNarrativeAssessment, and VaSocialAutopsyAnalysis filled by this reviewer.
+    """
+    for rr in db.session.scalars(
+        sa.select(VaReviewerReview).where(
+            VaReviewerReview.va_sid == record.va_sid,
+            VaReviewerReview.va_rreview_by == record.va_allocated_to,
+            VaReviewerReview.va_rreview_status == VaStatuses.active,
+        )
+    ).all():
+        rr.va_rreview_status = VaStatuses.deactive
+        db.session.add(VaSubmissionsAuditlog(
+            va_sid=record.va_sid,
+            va_audit_entityid=rr.va_rreview_id,
+            va_audit_byrole="vasystem",
+            va_audit_operation="u",
+            va_audit_action="reviewer nqa reverted due to timeout",
+        ))
+
+    for nqa in db.session.scalars(
+        sa.select(VaNarrativeAssessment).where(
+            VaNarrativeAssessment.va_sid == record.va_sid,
+            VaNarrativeAssessment.va_nqa_by == record.va_allocated_to,
+            VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+        )
+    ).all():
+        nqa.va_nqa_status = VaStatuses.deactive
+        db.session.add(VaSubmissionsAuditlog(
+            va_sid=record.va_sid,
+            va_audit_entityid=nqa.va_nqa_id,
+            va_audit_byrole="vasystem",
+            va_audit_operation="u",
+            va_audit_action="narrative quality assessment reverted due to reviewer timeout",
+        ))
+
+    for saa in db.session.scalars(
+        sa.select(VaSocialAutopsyAnalysis).where(
+            VaSocialAutopsyAnalysis.va_sid == record.va_sid,
+            VaSocialAutopsyAnalysis.va_saa_by == record.va_allocated_to,
+            VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+        )
+    ).all():
+        saa.va_saa_status = VaStatuses.deactive
+        db.session.add(VaSubmissionsAuditlog(
+            va_sid=record.va_sid,
+            va_audit_entityid=saa.va_saa_id,
+            va_audit_byrole="vasystem",
+            va_audit_operation="u",
+            va_audit_action="social autopsy analysis reverted due to reviewer timeout",
+        ))
+
+
+def release_stale_reviewer_allocations(timeout_hours: int = 1) -> int:
+    """Release stale active reviewer allocations and revert incomplete sessions.
+
+    Reviewer sessions behave like first-pass coder sessions: the final COD
+    submission is the only completion action. A timed-out reviewer session
+    deactivates all intermediate artifacts and returns the submission to
+    reviewer_eligible so a reviewer may start a fresh session.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=timeout_hours)
+    stale_allocations = db.session.scalars(
+        sa.select(VaAllocations).where(
+            VaAllocations.va_allocation_status == VaStatuses.active,
+            VaAllocations.va_allocation_for == VaAllocation.reviewing,
+            VaAllocations.va_allocation_createdat < cutoff,
+        )
+    ).all()
+
+    released = 0
+    for record in stale_allocations:
+        record.va_allocation_status = VaStatuses.deactive
+        _deactivate_reviewer_session_artifacts(record)
+        reset_incomplete_reviewer_session(
+            record.va_sid,
+            reason="reviewer_allocation_timeout_release",
+            actor=system_actor(),
+        )
+        db.session.add(VaSubmissionsAuditlog(
+            va_sid=record.va_sid,
+            va_audit_entityid=record.va_allocation_id,
+            va_audit_byrole="vasystem",
+            va_audit_operation="d",
+            va_audit_action="reviewer_allocation_released_due_to_timeout",
+        ))
+        released += 1
+
+    if released:
+        db.session.commit()
+
     return released
 
 

@@ -92,6 +92,7 @@ TRANSITION_REVIEWER_CODING_STARTED = "reviewer_coding_started"
 TRANSITION_REVIEWER_FINALIZED = "reviewer_finalized"
 TRANSITION_INCOMPLETE_FIRST_PASS_RESET = "incomplete_first_pass_reset"
 TRANSITION_INCOMPLETE_RECODE_RESET = "incomplete_recode_reset"
+TRANSITION_INCOMPLETE_REVIEWER_RESET = "incomplete_reviewer_reset"
 TRANSITION_DEMO_RESET = "demo_reset"
 TRANSITION_DEMO_STARTED = "demo_started"
 
@@ -207,6 +208,11 @@ TRANSITIONS = {
         transition_id=TRANSITION_INCOMPLETE_RECODE_RESET,
         label="Incomplete Recode Reset",
         target_state=WORKFLOW_CODER_FINALIZED,
+    ),
+    TRANSITION_INCOMPLETE_REVIEWER_RESET: TransitionDefinition(
+        transition_id=TRANSITION_INCOMPLETE_REVIEWER_RESET,
+        label="Incomplete Reviewer Session Reset",
+        target_state=WORKFLOW_REVIEWER_ELIGIBLE,
     ),
     TRANSITION_DEMO_RESET: TransitionDefinition(
         transition_id=TRANSITION_DEMO_RESET,

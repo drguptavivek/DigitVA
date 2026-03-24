@@ -262,6 +262,39 @@ flag them clearly. Changes:
 - Dashboard KPI card label changed from "Revoked" → "Data Changed"
 - Migration: `b1c2d3e4f5a6` rebuilds the MV with the new column
 
+## ODK Connection Guard and Pacing — DONE
+
+All ODK call sites now route through `guarded_odk_call`. The sync loop
+short-circuits remaining forms on a connection the moment cooldown trips.
+
+- **Slice 1**: `_attach_all_odk_comments()` was the last unguarded call site.
+  Rewrote to use `client.session.get` wrapped in `guarded_odk_call`.
+  `OdkConnectionCooldownError` re-raised; per-submission transient errors
+  logged and skipped. Docstring notes `updatedAt` is not bumped by comments.
+- **Slice 2**: Per-connection cooldown short-circuit added to `va_data_sync_odkcentral()`.
+  `connections_in_cooldown` set tracks tripped connections per run. Subsequent
+  forms sharing that connection are preemptively skipped (SKIPPED, not FAILED).
+  Forms on other connections continue unaffected. `cooldown_skipped_form_ids`
+  reported in Phase 1 summary.
+- **Slice 3**: Focused tests in `tests/services/test_odk_sync_service.py`:
+  comments guard re-raise, transient per-submission error swallow, non-`hasIssues`
+  skip, cooldown loop short-circuit, non-cooldown failures isolated.
+- **Slice 4**: `docs/policy/odk-sync-policy.md` — "Implementation Status" all
+  complete; "Connection Guard and Pacing" section added covering pacing,
+  cooldown config, retryable errors, sync loop behaviour, operator visibility,
+  and `updatedAt`/comments note.
+
+Files changed:
+- `app/services/va_data_sync/va_data_sync_01_odkcentral.py`
+- `tests/services/test_odk_sync_service.py`
+- `docs/policy/odk-sync-policy.md`
+- `.tasks/odk-connection-cooldown-and-pacing.md` — `Status: complete`
+
+Config keys now documented in policy:
+- `ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS` (default `0.5`)
+- `ODK_CONNECTION_FAILURE_THRESHOLD` (default `3`)
+- `ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS` (default `300`)
+
 ## Recent Commits
 
 - `62cd5ee` — `Harden ODK sync: protect reviewer mid-session, clear stale exclusions`

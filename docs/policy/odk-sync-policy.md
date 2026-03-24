@@ -190,18 +190,17 @@ The current runtime behavior is partially aligned with this policy:
 5. Durable upstream-change records preserve prior and incoming payload
    snapshots for the accept/reject decision path
 
-### Remaining Gaps
+### Implementation Status
 
-The current implementation does **not yet** complete the full target behavior:
+All items below are fully implemented as of 2026-03-24:
 
-1. Runtime sync now writes active and pending payload versions, and protected
-   upstream accept/reject now promotes or rejects those payload versions as the
-   authoritative path
-2. Historical COD is not yet uniformly linked to a specific payload version
-3. SmartVA runs are not yet documented or persisted as payload-version-bound
-   artifacts
-4. Legacy rows using `revoked_va_data_changed` are migrated to
-   `finalized_upstream_changed`
+1. Runtime sync writes active and pending payload versions; protected upstream
+   accept/reject promotes or rejects those payload versions
+2. Coder and reviewer final COD are each linked to the `payload_version_id`
+   that was active when they were submitted
+3. SmartVA runs are bound to payload version via `VaSmartvaFormRun`/`VaSmartvaRun`
+   linkage
+4. Legacy `revoked_va_data_changed` rows migrated to `finalized_upstream_changed`
 
 ### Required Behavior
 
@@ -335,6 +334,98 @@ SyncResult:
 ├── submission: VaSubmissions (when synced)
 └── audit_entries: list[VaSubmissionsAuditlog]
 ```
+
+## Connection Guard and Pacing
+
+All outbound ODK Central calls pass through a shared connection guard
+(`app/services/odk_connection_guard_service.py`). The guard enforces
+per-connection pacing and cooldown using state persisted in `mas_odk_connections`.
+
+### Pacing
+
+Every ODK call reserves a slot via `reserve_odk_request_slot()`, which uses a
+DB row-level lock on the connection row to enforce a minimum interval between
+consecutive calls.
+
+| Config key | Default | Meaning |
+|---|---|---|
+| `ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS` | `0.5` | Minimum seconds between consecutive calls on the same connection. Set to `0` to disable pacing. |
+
+If a call arrives before the interval has elapsed, the caller sleeps the
+remaining wait before proceeding.
+
+### Failure tracking and cooldown
+
+Each retryable ODK failure increments `consecutive_failure_count` on the
+connection row. When the count reaches the threshold, `cooldown_until` is set
+to `now + cooldown_seconds`. While cooldown is active, any `guarded_odk_call`
+for that connection raises `OdkConnectionCooldownError` immediately without
+touching ODK.
+
+A single successful ODK call resets `consecutive_failure_count` to zero and
+clears `cooldown_until`.
+
+| Config key | Default | Meaning |
+|---|---|---|
+| `ODK_CONNECTION_FAILURE_THRESHOLD` | `3` | Consecutive retryable failures before cooldown activates |
+| `ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS` | `300` | Cooldown duration in seconds (5 minutes) |
+
+### Retryable errors
+
+The following are treated as retryable connectivity failures that count toward
+the threshold:
+
+- `requests.exceptions.ConnectTimeout`
+- `requests.exceptions.ConnectionError`
+- `requests.exceptions.Timeout`
+- HTTP 401 or 403 responses (auth failure / token expiry)
+- Exceptions whose string representation contains any of: `ConnectTimeout`,
+  `ConnectionError`, `Max retries exceeded`, `timed out`, `HTTPSConnectionPool`,
+  `Unauthorized`, `Forbidden`, `token`, `expired`, `auth`
+
+`OdkConnectionCooldownError` itself is **not** retryable — it is a guard signal,
+not a connectivity error, and must propagate immediately.
+
+### Sync loop behaviour on cooldown
+
+When `OdkConnectionCooldownError` is raised during a form's sync:
+
+1. The form is logged as **SKIPPED** at `WARNING` level (not `ERROR`)
+2. The connection ID is added to `connections_in_cooldown` for this run
+3. All subsequent forms sharing the same connection are **preemptively skipped**
+   at the top of the loop without making any ODK calls
+4. Forms on other connections are **unaffected** and continue running
+5. Cooldown-skipped forms are reported separately in the Phase 1 summary
+   (`cooldown_skipped_forms`) and are **not** counted as failures
+
+A non-cooldown exception (data error, transient HTTP failure below threshold)
+continues to go to the `FAILED` path with full error logging and does not
+preemptively skip other forms.
+
+### Operator visibility
+
+Connection guard state is surfaced in the admin dashboard at three points:
+
+- **Sync dashboard** — shows cooldown status and remaining cooldown time for
+  each connection involved in the current or most recent sync run
+- **ODK Connections panel** — shows `consecutive_failure_count`, active cooldown
+  flag, and last failure message per connection
+- **Project forms panel** — shows a cooldown warning banner when a live ODK
+  action is attempted and the connection is in cooldown
+
+The `serialize_connection_guard_state()` helper in the guard service produces
+the UI-safe dict consumed by all three.
+
+### Comments and `updatedAt`
+
+Adding a comment or changing `reviewState` on a submission via
+`client.submissions.review()` does **not** change `__system/updatedAt` in ODK
+Central. ODK only bumps `updatedAt` for data-XML edits. This means:
+
+- DigitVA's writeback calls (`mark_submission_needs_revision`,
+  `post_dm_rejection_comment`) are invisible to the delta check
+  `(submissionDate gt T or updatedAt gt T)`
+- No spurious re-syncs are triggered by our own review state writes
 
 ## Related Documents
 

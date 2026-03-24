@@ -819,12 +819,27 @@ def va_data_sync_odkcentral(log_progress=None):
         va_discarded_relrecords = 0
         amended_sids: set[str] = set()
         failed_form_ids: list[str] = []
+        cooldown_skipped_form_ids: list[str] = []
         downloaded_forms: list = []  # forms that were downloaded (not skipped)
+        # Connections that entered cooldown mid-run — remaining forms on the
+        # same connection are skipped without touching ODK.
+        connections_in_cooldown: set = set()
 
         # ── Per-form: delta check → download → upsert → commit ─────────────────
 
         for va_form in va_forms:
             mapping = mappings_by_ps.get((va_form.project_id, va_form.site_id))
+            # Preemptive cooldown skip — if this connection already tripped
+            # cooldown for an earlier form this run, skip immediately.
+            _form_connection_id = connection_by_project.get(va_form.project_id)
+            if _form_connection_id and _form_connection_id in connections_in_cooldown:
+                log.warning(
+                    "DataSync [%s] skipped: connection %s still in cooldown",
+                    va_form.form_id, _form_connection_id,
+                )
+                _progress(f"[{va_form.form_id}] SKIPPED — connection in cooldown")
+                cooldown_skipped_form_ids.append(va_form.form_id)
+                continue
             try:
                 odk_client = _get_or_create_sync_odk_client(
                     clients_by_group,
@@ -1060,6 +1075,19 @@ def va_data_sync_odkcentral(log_progress=None):
 
                 downloaded_forms.append(va_form)
 
+            except OdkConnectionCooldownError as form_err:
+                db.session.rollback()
+                if _form_connection_id:
+                    connections_in_cooldown.add(_form_connection_id)
+                log.warning(
+                    "DataSync [%s] skipped: ODK connection in cooldown until %s — %s",
+                    va_form.form_id, form_err.cooldown_until, form_err.last_failure_message,
+                )
+                _progress(
+                    f"[{va_form.form_id}] SKIPPED (connection cooldown until "
+                    f"{form_err.cooldown_until.strftime('%H:%M:%S UTC')})"
+                )
+                cooldown_skipped_form_ids.append(va_form.form_id)
             except Exception as form_err:
                 db.session.rollback()
                 log.error(
@@ -1080,10 +1108,13 @@ def va_data_sync_odkcentral(log_progress=None):
         )
         if failed_form_ids:
             phase1_msg += f" | failed forms: {', '.join(failed_form_ids)}"
+        if cooldown_skipped_form_ids:
+            phase1_msg += f" | cooldown-skipped forms: {', '.join(cooldown_skipped_form_ids)}"
         log.info(
-            "DataSync Phase 1 complete: added=%d updated=%d discarded=%d failed=%s",
-            va_submissions_added, va_submissions_updated,
-            va_discarded_relrecords, failed_form_ids,
+            "DataSync Phase 1 complete: added=%d updated=%d discarded=%d "
+            "failed=%s cooldown_skipped=%s",
+            va_submissions_added, va_submissions_updated, va_discarded_relrecords,
+            failed_form_ids, cooldown_skipped_form_ids,
         )
         _progress(phase1_msg)
 

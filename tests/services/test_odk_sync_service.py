@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from app import db
 from app.models import (
@@ -23,6 +23,7 @@ from app.models.va_submission_payload_versions import (
     PAYLOAD_VERSION_STATUS_ACTIVE,
     PAYLOAD_VERSION_STATUS_SUPERSEDED,
 )
+from app.services.odk_connection_guard_service import OdkConnectionCooldownError
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     SYNC_ISSUE_MISSING_IN_ODK,
     _attach_all_odk_comments,
@@ -566,3 +567,215 @@ class OdkSyncServiceTests(BaseTestCase):
             stored.va_deceased_age_normalized_years,
             Decimal("45") / Decimal("365.25"),
         )
+
+    # ── _attach_all_odk_comments cooldown/error behaviour ──────────────────────
+
+    def test_attach_all_odk_comments_reraises_cooldown_error(self):
+        """OdkConnectionCooldownError from a comment fetch must propagate up
+        so the per-form handler can record the connection in cooldown."""
+        cooldown_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+        client = Mock()
+        client.session.get.side_effect = OdkConnectionCooldownError(
+            "test-conn", cooldown_until, "connect timeout"
+        )
+        del client._digitva_connection_id
+
+        with self.assertRaises(OdkConnectionCooldownError):
+            _attach_all_odk_comments(
+                db.session.get(VaForms, self.FORM_ID),
+                [self._record("uuid:sync-cooldown-comment", "yes")],
+                client=client,
+            )
+
+    def test_attach_all_odk_comments_swallows_transient_per_submission_error(self):
+        """Non-cooldown errors on a single submission's comment fetch must
+        be swallowed so one bad submission does not abort the whole form."""
+        ok_response = Mock()
+        ok_response.status_code = 200
+        ok_response.json.return_value = [{"body": "ok comment", "createdAt": "2026-03-24T10:00:00Z"}]
+
+        call_count = {"n": 0}
+
+        def _side_effect(*_args, **_kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise ConnectionError("transient network error")
+            return ok_response
+
+        client = Mock()
+        client.session.get.side_effect = _side_effect
+        del client._digitva_connection_id
+
+        submissions = _attach_all_odk_comments(
+            db.session.get(VaForms, self.FORM_ID),
+            [
+                self._record("uuid:sync-err-sub1", "yes"),  # will error
+                self._record("uuid:sync-err-sub2", "yes"),  # should succeed
+            ],
+            client=client,
+        )
+
+        # First submission: errored — empty comments
+        self.assertEqual(submissions[0]["OdkReviewComments"], [])
+        # Second submission: succeeded despite first error
+        self.assertEqual(len(submissions[1]["OdkReviewComments"]), 1)
+        self.assertEqual(submissions[1]["OdkReviewComments"][0]["body"], "ok comment")
+
+    def test_attach_all_odk_comments_skips_non_has_issues_submissions(self):
+        """Submissions not in hasIssues ReviewState must never call ODK."""
+        client = Mock()
+        del client._digitva_connection_id
+
+        record = self._record("uuid:sync-no-issues", "yes")
+        record["ReviewState"] = "approved"
+
+        _attach_all_odk_comments(
+            db.session.get(VaForms, self.FORM_ID),
+            [record],
+            client=client,
+        )
+
+        client.session.get.assert_not_called()
+        self.assertEqual(record["OdkReviewComments"], [])
+
+
+class OdkSyncLoopCooldownTests(BaseTestCase):
+    """Tests for connection-level cooldown short-circuit in va_data_sync_odkcentral.
+
+    Uses patches to avoid real ODK calls. Verifies:
+    - OdkConnectionCooldownError from a form → connection added to in-cooldown set
+    - Subsequent forms on same connection skipped without touching ODK
+    - Forms on different connection are unaffected
+    """
+
+    def _run_sync_with_mock_forms(self, form_behaviors: dict):
+        """Run va_data_sync_odkcentral with controlled per-form ODK responses.
+
+        form_behaviors: {form_id: callable(client) -> None or raise}
+        Returns (added, updated, failed_form_ids, cooldown_skipped_form_ids).
+        """
+        from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+            va_data_sync_odkcentral,
+        )
+        import uuid
+
+        conn_a = uuid.uuid4()
+        conn_b = uuid.uuid4()
+
+        form_ids = list(form_behaviors.keys())
+        # Assign alternating connections: first half conn_a, rest conn_b
+        # Caller controls this via form_behaviors order
+        conn_for_form = {
+            fid: conn_a if i < 2 else conn_b
+            for i, fid in enumerate(form_ids)
+        }
+
+        fake_forms = []
+        for fid in form_ids:
+            f = Mock()
+            f.form_id = fid
+            f.project_id = fid
+            f.site_id = "SITE"
+            f.odk_form_id = f"odk-{fid}"
+            f.odk_project_id = "1"
+            fake_forms.append(f)
+
+        results = {}
+
+        def _fake_fetch_instance_ids(va_form, client=None):
+            behavior = form_behaviors.get(va_form.form_id)
+            if callable(behavior):
+                behavior(client)  # may raise
+            return []
+
+        with (
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                ".sync_runtime_forms_from_site_mappings",
+                return_value=fake_forms,
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "._resolve_project_connections",
+                return_value=conn_for_form,
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "._get_or_create_sync_odk_client",
+                return_value=Mock(),
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                ".va_odk_fetch_instance_ids",
+                side_effect=_fake_fetch_instance_ids,
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                ".db.session.scalars",
+                return_value=Mock(all=lambda: []),
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "._release_active_allocations_after_sync",
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                ".smartva_service",
+                create=True,
+            ),
+        ):
+            progress_lines = []
+            va_data_sync_odkcentral(log_progress=progress_lines.append)
+            results["progress"] = progress_lines
+
+        return results
+
+    def test_cooldown_on_form_skips_remaining_forms_on_same_connection(self):
+        from datetime import datetime, timedelta, timezone
+        import uuid
+
+        cooldown_until = datetime.now(timezone.utc) + timedelta(minutes=5)
+
+        call_log = []
+
+        def _raise_cooldown(_client):
+            raise OdkConnectionCooldownError("conn-a", cooldown_until, "timeout")
+
+        def _normal(_client):
+            call_log.append("form3_called")
+
+        # form1 (conn_a): raises cooldown
+        # form2 (conn_a): should be preemptively skipped
+        # form3 (conn_b): should still run
+        results = self._run_sync_with_mock_forms({
+            "FORM1": _raise_cooldown,
+            "FORM2": _raise_cooldown,  # would raise if reached, but should be skipped
+            "FORM3": _normal,
+        })
+
+        progress = "\n".join(results["progress"])
+        self.assertIn("FORM1", progress)
+        self.assertIn("cooldown", progress.lower())
+        # FORM2 skipped preemptively — should NOT say FAILED
+        self.assertIn("SKIPPED", progress)
+        # FORM3 on a different connection should still run
+        self.assertIn("form3_called", call_log)
+
+    def test_form_failure_non_cooldown_does_not_affect_other_forms(self):
+        call_log = []
+
+        def _raise_generic(_client):
+            raise RuntimeError("data error, not cooldown")
+
+        def _normal(_client):
+            call_log.append("form2_called")
+
+        results = self._run_sync_with_mock_forms({
+            "FORMA": _raise_generic,
+            "FORMB": _normal,
+        })
+
+        progress = "\n".join(results["progress"])
+        self.assertIn("FAILED", progress)
+        # FORMB should still run — a non-cooldown failure must not skip other forms
+        self.assertIn("form2_called", call_log)

@@ -431,12 +431,28 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  /* Highlight the active nav button whenever a section is loaded */
+  /* Update URL + highlight nav for ALL section swaps into #form-content
+     (covers sidebar nav buttons AND Next/Prev buttons inside partials) */
   document.addEventListener('htmx:beforeRequest', function (e) {
-    const catCode = e.target && e.target.dataset && e.target.dataset.catCode;
-    if (!catCode) return;
+    const elt = e.detail && e.detail.elt;
+    if (!elt) return;
+    // Only care about requests whose hx-target is #form-content
+    if (elt.getAttribute('hx-target') !== '#form-content') return;
+
+    // Nav buttons carry data-cat-code; Next/Prev buttons don't — parse from hx-get URL
+    let sectionCode = elt.dataset && elt.dataset.catCode;
+    if (!sectionCode) {
+      const hxGet = elt.getAttribute('hx-get') || '';
+      // URL shape: /vaform/<va_sid>/<va_partial>?...
+      const m = hxGet.match(/\/vaform\/[^/]+\/([^/?&]+)/);
+      if (m) sectionCode = m[1];
+    }
+    if (!sectionCode) return;
+
+    history.replaceState(null, '', window.location.pathname + '?section=' + sectionCode);
     document.querySelectorAll('[data-cat-code]').forEach(b => b.classList.remove('active'));
-    e.target.classList.add('active');
+    const navBtn = document.querySelector(`[data-cat-code="${sectionCode}"]`);
+    if (navBtn) navBtn.classList.add('active');
   });
 
   /* On initial load, highlight whichever section ends up active */

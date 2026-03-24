@@ -3,21 +3,59 @@
 ## Current State
 
 - Workflow refactor, payload-version linkage, reviewer flow, and SmartVA run-history work are in place.
-- SmartVA redesign is now substantially implemented:
-  - `VaSmartvaFormRun` exists
-  - `VaSmartvaRun.form_run_id` exists
-  - SmartVA prep now reads from `VaSubmissionPayloadVersion.payload_data`
-  - raw SmartVA workspaces are copied to disk under `APP_DATA/smartva_runs/...`
-  - `VaSmartvaRunArtifact` has been removed from the active runtime path
-  - `report.txt` rejections now record `smartva_rejected` failures with the
-    SmartVA-provided reason text
-- SmartVA service tests are green (`20 passed` in the focused file).
-- Workflow cleanup after the SmartVA refactor is also in:
-  - `reset_incomplete_recode()` now always resets to `coder_finalized`
-  - `partial_coding_saved` is treated as a legacy compatibility state
-  - canonical `SMARTVA_BLOCKED_WORKFLOW_STATES` exists, so
-    `consent_refused` is blocked for SmartVA without being mislabeled as a
-    finalized protected state
+- SmartVA backfill is complete for all projects (UNSW01, ICMR01, ZZZ99).
+- State machine / ODK sync / reviewer signal audit completed this session.
+- Sync track hardening committed. Reviewer dashboard and permissions updated.
+
+## What Was Done This Session
+
+### 1. Reviewer dashboard and permissions — Option C (commit `1f72ed8`)
+
+The reviewer dashboard and all reviewer permission utilities now use
+`VaSubmissionWorkflow.workflow_state` as the canonical signal. NQA
+(`VaReviewerReview`) and Social Autopsy are supporting artifacts and no
+longer affect any permission gate or dashboard count.
+
+Files changed:
+- `app/routes/reviewing.py` — dashboard list uses workflow state join;
+  `va_forms_completed` counts from `VaReviewerFinalAssessments` by current user
+- `app/utils/va_permission/va_permission_07_ensurenotreviewed.py` — workflow state primary; NQA presence no longer blocks
+- `app/utils/va_permission/va_permission_08_ensurereviewed.py` — checks only `VaReviewerFinalAssessments` by current user
+- `app/utils/va_permission/va_permission_10_reviewedonce.py` — checks `workflow_state == reviewer_finalized` only
+
+### 2. Sync track hardening — state machine policy audit (commit `62cd5ee`)
+
+Cross-checked `coding-workflow-state-machine.md`, `odk-sync-policy.md`,
+`definition.py`, `transitions.py`, `va_data_sync_01_odkcentral.py`, and
+`data_management_service.py` for consistency and gaps.
+
+Code fixes:
+- `reviewer_coding_in_progress` added to `PROTECTED_WORKFLOW_STATES` in
+  `definition.py`. An active reviewer session is now protected from ODK
+  re-routing (same as `reviewer_eligible`/`reviewer_finalized`).
+  `SMARTVA_BLOCKED_WORKFLOW_STATES` inherits this automatically.
+- `SYNC_PROTECTED_STATES` local duplicate removed from sync service; now
+  imports `PROTECTED_WORKFLOW_STATES` from `definition.py` so they cannot drift.
+- Non-protected update path in `va_data_sync_01_odkcentral.py` now:
+  - Deactivates `VaDataManagerReview` (stale exclusion artifact cleared when ODK
+    data changes on a `not_codeable_by_data_manager` case)
+  - Releases `VaAllocations` immediately (coder session invalidated on payload
+    change rather than waiting for timeout)
+
+Policy fixes:
+- `coding-workflow-state-machine.md`: `consent_refused` added to canonical
+  state list; `reviewer_coding_in_progress` added to protected states;
+  `not_codeable_*` re-sync behavior documented; status changed to `active`
+- `odk-sync-policy.md`: same additions; non-protected behavior clarified;
+  Desired State Snapshot label corrected to "data manager or admin"
+
+### Items confirmed correct (no change needed)
+
+- `dm_reject_upstream_change` already uses `workflow_state_before` from the
+  pending upstream change record to restore exact pre-change state — was
+  incorrectly identified as a bug, code is correct.
+- `dm_accept_upstream_change` already deactivates `VaReviewerFinalAssessments`
+  and clears authority via `upsert_final_cod_authority(va_sid, None)`.
 
 ## SmartVA Architecture — Current Design
 
@@ -25,8 +63,8 @@
 
 - **`VaSmartvaFormRun`** — one per SmartVA execution (any size: 1 to N submissions)
   - `form_run_id`, `form_id`, `project_id`, `trigger_source`, `pending_sid_count`, `outcome`, `disk_path`, `run_started_at`, `run_completed_at`
-- **`VaSmartvaRun`** — add `form_run_id` FK → `VaSmartvaFormRun`
-- **`VaSmartvaRunOutput`** — keep likelihood rows only; drop `smartva_input_row` and `formatted_result_row` kinds
+- **`VaSmartvaRun`** — has `form_run_id` FK → `VaSmartvaFormRun`
+- **`VaSmartvaRunOutput`** — likelihood rows only; `smartva_input_row` and `formatted_result_row` kinds retired
 - **`VaSmartvaRunArtifact`** — retired from the active runtime design
 - **`VaSmartvaResults`** — unchanged (active projection)
 
@@ -44,201 +82,111 @@ No per-submission workbooks. No artifact bytes in DB. Files stored once per form
 
 ### prepdata — DB payload source
 
-`va_smartva_prepdata` must read from `VaSubmissionPayloadVersion.payload_data` directly instead of flat CSV `data/{form_id}/{odk_form_id}.csv`. Flat CSV write in sync becomes dead code and can be removed. Same preprocessing logic (column drop, nan clean, age derivation).
+`va_smartva_prepdata` reads from `VaSubmissionPayloadVersion.payload_data`
+directly. Flat CSV write in sync is dead code.
 
 ### SmartVA Neonate Age Gap — Fixed And Verified
 
-**Previous problem:** 24 UNSW01 submissions were rejected by SmartVA with
+**Previous problem:** 24 UNSW01 submissions rejected by SmartVA with
 `does not have valid age data`.
 
-Affected forms and counts:
-- UNSW01KA0101: 15 rejected (8 zero-day + 7 neonate ≤28d)
-- UNSW01NC0101: 9 rejected (5 zero-day + 4 neonate ≤28d)
-- UNSW01KL0101: 0 rejected
-- UNSW01TR0101: 0 rejected
+**Root cause:** WHO 2022 date-derived path populates `ageInDays` but leaves
+`age_group`, `age_neonate_days`, `age_neonate_hours` null.
 
-**Root cause:** These submissions went through the WHO 2022 date-derived age
-path so `ageInDays` is populated (0, 3, 13 days etc.) but
-`age_group`, `age_neonate_days`, `age_neonate_hours` are all null.
-SmartVA needs one of the manual-path fields to classify the case.
+**Implemented fix:** `app/utils/va_smartva/va_smartva_02_prepdata.py` now
+synthesizes `age_neonate_days = int(ageInDays)` when `ageInDays <= 28` and
+the manual-path fields are blank.
 
-**Implemented fix:** In
-[`app/utils/va_smartva/va_smartva_02_prepdata.py`](app/utils/va_smartva/va_smartva_02_prepdata.py),
-step 3 in the row-processing loop now synthesizes
-`age_neonate_days = int(ageInDays)` when:
-- `ageInDays <= 28`
-- `age_group` is blank
-- `age_neonate_days` is blank
-- `age_adult` is blank
+**Policy ref:** `docs/policy/who-2022-age-derivation.md`
 
-**Policy ref:** [`docs/policy/who-2022-age-derivation.md`](docs/policy/who-2022-age-derivation.md)
-now includes a `SmartVA Preprocessing Requirements` section documenting the
-problem, root cause, synthesis rule, and the zero-day edge case.
-
-**Verification outcome:** `UNSW01` project, 4 forms, zero rejections after the
-fix. All 24 previously rejected neonate/zero-day submissions now pass through
-SmartVA.
-
-**Probe run outputs saved to:** `output/smartva_probe_UNSW01{KA,KL,NC,TR}0101/`
-
-## Completed Backfill Rollout
-
-- Scoped `UNSW01` backfill completed successfully.
-- Project/site coverage:
-  - `UNSW01KA0101`: 256 saved
-  - `UNSW01KL0101`: 255 saved
-  - `UNSW01NC0101`: 227 saved
-  - `UNSW01TR0101`: 227 saved
-- Total updated: `965`
-- Failed forms: `0`
-- Exported run directories written to:
-  - `output/smartva_backfill_runs/UNSW01/...`
-- Post-run dry check:
-  - `candidate submissions: 0`
-  - `candidate forms: 0`
-
-- Scoped `ICMR01` backfill completed successfully.
-- Project/site coverage:
-  - `ICMR01ML0101`: 1104 saved
-  - `ICMR01MP0101`: 1077 saved
-  - `ICMR01NC0201`: 139 saved
-  - `ICMR01ND0101`: 820 saved
-  - `ICMR01OD0101`: 1258 saved
-  - `ICMR01PY0101`: 1388 saved
-  - `ICMR01RJ0101`: 1169 saved
-- Total updated: `6955`
-- Failed forms: `0`
-- Exported run directories written to:
-  - `output/smartva_backfill_runs/ICMR01/...`
-- Post-run dry check:
-  - `candidate submissions: 0`
-  - `candidate forms: 0`
-
-- `ZZZ99` (test fixture) backfill attempted.
-  - `ZZZ99ZZ9901`: 1 processed — SmartVA ran, `outcome=failed` (expected: test
-    fixture has no real VA questionnaire fields, only `form_def/updatedAt/sid`)
-  - Backfill script updated: submissions with `outcome=failed` + existing
-    `disk_path` are now excluded from candidates (terminal state; retrying will
-    not help).
-  - Post-fix global dry check: `candidate submissions: 0`, `candidate forms: 0`
+**Verification:** UNSW01, 4 forms, zero rejections after fix.
 
 ## SmartVA Backfill — Complete
 
-All projects processed. Global candidate count is zero. The backfill is complete.
+All projects processed. Global candidate count is zero.
 
-- **Backfill script fix:** `scripts/backfill_smartva_current_outputs.py` now
-  skips submissions whose linked form run has `outcome=failed` with a non-null
-  `disk_path`. These submissions were genuinely attempted; retrying produces the
-  same result.
+- UNSW01: 965 updated (4 forms)
+- ICMR01: 6955 updated (7 forms)
+- ZZZ99: 1 processed, `outcome=failed` (expected — test fixture only)
+- Backfill script skips `outcome=failed` + non-null `disk_path` (terminal state)
 
-## Remaining SmartVA Plan
+## Remaining Work — Priority Order
 
-1. Update any remaining readers/reporting paths that still assume old SmartVA storage details.
+The state machine / sync / SmartVA / coding / reviewing audit identified the
+following remaining tracks. Work them in this order:
 
-## Detailed Next Steps
+### Track 2 — SmartVA
 
-### 1. Finish remaining project backfills
+Reader/reporting parity: any downstream code still assuming old SmartVA
+storage details (single result row, DB-stored formatted artifacts) needs
+updating. Check:
+- direct `VaSmartvaRunArtifact` reads
+- code expecting DB-stored formatted result rather than disk-backed form runs
+- reporting paths — should use `VaSmartvaResults` for active projection,
+  `VaSmartvaRun`/`VaSmartvaFormRun` for history
 
-Run the existing script project-by-project rather than as one global batch:
+See `.tasks/odk-payload-version-sync-cutover.md` for specifics.
 
-```bash
-docker compose exec minerva_app_service uv run python scripts/backfill_smartva_current_outputs.py --dry-run --project-id <PROJECT_ID>
-docker compose exec minerva_app_service uv run python scripts/backfill_smartva_current_outputs.py --project-id <PROJECT_ID>
-docker compose exec minerva_app_service uv run python scripts/backfill_smartva_current_outputs.py --dry-run --project-id <PROJECT_ID>
-```
+### Track 3 — Coding and recoding
 
-Expected pattern:
-- first dry run shows non-zero `candidate submissions`
-- real run saves all pending rows and exports run directories
-- second dry run returns:
-  - `candidate submissions: 0`
-  - `candidate forms: 0`
+Known gaps identified in the audit (not yet acted on):
 
-Suggested rollout order:
-- next remaining project with the largest outstanding candidate set first
-- then proceed one project at a time until all are zero
+1. **Admin override blocked from `reviewer_eligible`** — policy says admin can
+   reset from `reviewer_eligible`; `mark_admin_override_to_recode()` only
+   allows from `(WORKFLOW_CODER_FINALIZED,)`. Requires adding
+   `WORKFLOW_REVIEWER_ELIGIBLE` to `allowed_from`.
 
-### 2. Validate exported run directories after each project
+2. **`DEMO_ACTOR_KINDS` used for admin override** — confusing naming; the
+   `mark_admin_override_to_recode` transition uses `DEMO_ACTOR_KINDS`
+   (frozenset of ACTOR_ADMIN) which is semantically wrong. Should be its own
+   `ADMIN_ACTOR_KINDS` constant.
 
-After each project run:
+3. **`not_selected_for_reviewer` in policy, not in code** — policy recommends
+   this state but it is not in `definition.py`, not in `ALL_WORKFLOW_STATES`,
+   no transition targets it. Either implement or remove from policy.
 
-```bash
-find output/smartva_backfill_runs/<PROJECT_ID> -maxdepth 2 -type d | sort
-```
+4. **`va_submission_upstream_changes` schema gap** — `previous_final_assessment_id`
+   FK typed to `va_final_assessments` only. If case was `reviewer_finalized`
+   when upstream change detected, the reviewer COD cannot be snapshotted. Needs
+   migration to add `previous_reviewer_final_assessment_id` column with FK to
+   `va_reviewer_final_assessments`.
 
-Confirm:
-- one form directory per processed form
-- one `form_run_id` directory under each form
-- copied SmartVA workspace exists under each `form_run_id`
+### Track 4 — Reviewing
 
-### 3. Keep runtime verification narrow and repeatable
+1. **Reviewer session timeout — no reversion path** — `coding-allocation-timeouts.md`
+   covers first-pass and recode reversion but has no reviewer track entry. If
+   `reviewer_coding_in_progress` allocation goes stale there is no
+   `reset_incomplete_reviewer_session` transition. Policy decision: return to
+   `reviewer_eligible`. Needs:
+   - New transition `TRANSITION_INCOMPLETE_REVIEWER_RESET` in `definition.py`
+   - New function `reset_incomplete_reviewer_session()` in `transitions.py`
+   - Wiring in coding allocation service
+   - Entry in `coding-allocation-timeouts.md`
 
-If SmartVA service code changes again, rerun:
+2. **`VaSubmissionWorkflow` event history not surfaced in UI** — `va_submission_workflow_events`
+   table exists but is not exposed in routes or templates. Lower priority.
 
-```bash
-docker compose exec minerva_app_service uv run pytest tests/services/test_smartva_service.py -q
-docker compose exec minerva_app_service uv run pytest tests/services/test_submission_workflow_service.py tests/services/test_coding_allocation_service.py -q
-```
+### Track 5 — Admin override
 
-If ODK/sync payload lineage changes again, rerun:
+After Track 3 item 1 is done (allow override from `reviewer_eligible`), verify
+and document the full admin override surface:
+- `reviewer_eligible` → `ready_for_coding` (admin override)
+- What happens to reviewer artifacts on admin override
+- No reviewer recode window policy exists (undefined for now)
 
-```bash
-docker compose exec minerva_app_service uv run pytest tests/services/test_odk_sync_service.py tests/services/test_odk_sync_workflow_guards.py tests/services/test_data_management_service.py -q
-```
+## Known Schema Gap (requires future migration)
 
-### 4. Reader/reporting parity checks
-
-Remaining cleanup is mostly downstream readers that may still assume older SmartVA storage details.
-
-Check for:
-- direct assumptions that one SmartVA result row is the only durable record
-- code that expects DB-stored formatted result artifacts rather than disk-backed form runs
-- reporting paths that should use:
-  - `VaSmartvaResults` for the active projection
-  - `VaSmartvaRun` / `VaSmartvaFormRun` for history and provenance
-
-### 5. Keep workflow assumptions aligned
-
-Relevant workflow points now in force:
-- `partial_coding_saved` is legacy compatibility only
-- `reset_incomplete_recode()` always returns to `coder_finalized`
-- `consent_refused` is blocked for SmartVA via `SMARTVA_BLOCKED_WORKFLOW_STATES`
-
-If any later code introduces a new partial-save transition, it must be added explicitly as a named workflow transition rather than reusing legacy state references implicitly.
-
-### 6. If a future session needs a quick SmartVA probe
-
-Use the existing one-form probe command in the `Useful Commands` section below.
-That is the fastest way to inspect exactly what SmartVA generated for a form without changing the active backfill logic.
-
-## Route/State-Machine Integration — Remaining Cleanup
-
-The workflow/state-machine layer is mostly integrated already, but it is not yet a complete “all route behavior goes through one backend contract” finish.
-
-Remaining route-layer cleanup:
-
-1. Keep unifying old server-rendered flows with API/service paths.
-   - State-changing behavior should continue to move behind shared services and named transitions.
-   - Route handlers should stay thin: auth + request parsing + service call.
-
-2. Retire leftover legacy reviewer semantics from routes/templates.
-   - Reviewer is now a secondary coding path, not the old accept/reject review artifact.
-   - Any route/UI path still centered on `VaReviewerReview` semantics should be separated from reviewer coding or retired.
-
-3. Keep authorization and workflow validation separated.
-   - Routes decide whether the caller may invoke the action.
-   - Workflow services/transitions decide whether the state change itself is valid.
-
-4. Improve route/UI exposure of workflow event history.
-   - Current state is already canonical in `va_submission_workflow`.
-   - Repair/recode/upstream-change cycle history should increasingly come from `va_submission_workflow_events`.
-
-5. Do not let new route flows create legacy compatibility states.
-   - `partial_coding_saved` and legacy `closed` should remain readable/compatible only.
-   - New runtime flows should not target them.
+`va_submission_upstream_changes.previous_final_assessment_id` is FK-typed to
+`va_final_assessments` only. When a `reviewer_finalized` case gets an upstream
+change, the snapshot records the coder COD, not the reviewer COD. A future
+migration should add `previous_reviewer_final_assessment_id` with FK to
+`va_reviewer_final_assessments`.
 
 ## Recent Commits
 
+- `62cd5ee` — `Harden ODK sync: protect reviewer mid-session, clear stale exclusions`
+- `1f72ed8` — `Use workflow state as canonical reviewer signal (Option C)`
+- `a0a9f69` — `Implement NQA/reviewer separation in va_form route handler`
 - `ed34f16` — `Refactor SmartVA run storage and backfill current outputs`
 - `949a652` — `Tighten recode reset target and untrack beads runtime files`
 
@@ -252,7 +200,9 @@ Remaining route-layer cleanup:
 ## Related Policy And Current-State Docs
 
 - Policy:
+  - [`docs/policy/coding-workflow-state-machine.md`](docs/policy/coding-workflow-state-machine.md) — canonical; status active
   - [`docs/policy/odk-sync-policy.md`](docs/policy/odk-sync-policy.md)
+  - [`docs/policy/coding-allocation-timeouts.md`](docs/policy/coding-allocation-timeouts.md) — reviewer track not yet covered
   - [`docs/policy/smartva-generation-policy.md`](docs/policy/smartva-generation-policy.md)
   - [`docs/policy/who-2022-age-derivation.md`](docs/policy/who-2022-age-derivation.md)
   - [`docs/policy/final-cod-authority.md`](docs/policy/final-cod-authority.md)
@@ -284,4 +234,16 @@ with app.app_context():
         va_smartva_runsmartva(va_form, workspace_dir)
         shutil.copytree(workspace_dir, '/app/output/smartva_probe_UNSW01NC0101', dirs_exist_ok=True)
 "
+```
+
+Run focused test suites after changes:
+```bash
+# Sync + workflow
+docker compose exec minerva_app_service uv run pytest tests/services/test_odk_sync_service.py tests/services/test_odk_sync_workflow_guards.py tests/services/test_submission_workflow_service.py tests/services/test_coding_allocation_service.py -q
+
+# SmartVA
+docker compose exec minerva_app_service uv run pytest tests/services/test_smartva_service.py -q
+
+# Data management (upstream change accept/reject)
+docker compose exec minerva_app_service uv run pytest tests/services/test_data_management_service.py -q
 ```

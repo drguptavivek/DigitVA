@@ -1935,62 +1935,91 @@
 
   function buildChartDef() {
     const c = state => (workflowCounts[state] ?? 0).toLocaleString();
-    return `flowchart LR
+    return `flowchart TD
     ODK(["🔄 ODK Sync"])
 
-    subgraph consent_gate ["Consent Gate"]
-      CR["Consent Refused (${c('consent_refused')})"]
-      RFC["Not Started (${c('ready_for_coding')})"]
+    subgraph intake ["Intake / Gate"]
+      direction LR
+      CR["Consent Refused\n(${c('consent_refused')})"]
+      SP["Screening Pending\n(${c('screening_pending')})"]
+      RFC["Ready for Coding\n(${c('ready_for_coding')})"]
+      NCDM["Not Codeable — DM\n(${c('not_codeable_by_data_manager')})"]
     end
 
-    subgraph coding_pipeline ["Coding Pipeline"]
-      CIP["In Progress (${c('coding_in_progress')})"]
-      CSS["Step 1 Saved (${c('coder_step1_saved')})"]
-      NCC["Not Codeable — Coder (${c('not_codeable_by_coder')})"]
+    subgraph automation ["SmartVA Automation"]
+      SVP["SmartVA Queue\n(${c('smartva_pending')})"]
     end
 
-    CF(["Coded ✓ (${c('coder_finalized')})"])
-    NCDM(["Not Codeable (${c('not_codeable_by_data_manager')})"])
-    RVK(["Coded — Upstream Updated (${c('finalized_upstream_changed')})"])
+    subgraph coding ["Coder Pipeline"]
+      direction LR
+      CIP["Coding In Progress\n(${c('coding_in_progress')})"]
+      CSS["Step 1 Saved\n(${c('coder_step1_saved')})"]
+      NCC["Not Codeable — Coder\n(${c('not_codeable_by_coder')})"]
+    end
+
+    subgraph review ["Review Track"]
+      direction LR
+      RE["Reviewer Eligible\n(${c('reviewer_eligible')})"]
+      RCI["Reviewer Coding\n(${c('reviewer_coding_in_progress')})"]
+      RF["Reviewer Finalized\n(${c('reviewer_finalized')})"]
+    end
+
+    CF(["✅ Coder Finalized\n(${c('coder_finalized')})"])
+    RVK(["⚠️ Upstream Changed\n(${c('finalized_upstream_changed')})"])
 
     ODK -->|"no / missing consent"| CR
-    ODK -->|"consent valid"| RFC
+    ODK -->|"consent valid, DM screening"| SP
+    SP -->|"passes screening"| RFC
+    SP -->|"DM flags"| NCDM
     CR -.->|"consent corrected in ODK"| RFC
-
     RFC -->|"DM flags"| NCDM
+    RFC -->|"SmartVA enabled"| SVP
     RFC -->|"coder allocated"| CIP
+    SVP -->|"SmartVA complete"| CIP
 
     CIP -->|"step 1 saved"| CSS
-    CIP -->|"partial save"| PCS
     CIP -->|"not codeable"| NCC
     CIP -->|"finalize COD"| CF
-
     CSS -->|"continue"| CIP
     CSS -->|"finalize COD"| CF
-    PCS -->|"continue"| CIP
-    PCS -->|"finalize COD"| CF
 
     NCC -->|"DM overrides"| RFC
     NCC -->|"DM confirms"| NCDM
 
+    CF -->|"reviewer track"| RE
     CF -->|"ODK data changed"| RVK
+    RE -->|"reviewer allocated"| RCI
+    RCI -->|"reviewer finalized"| RF
+    RF -->|"ODK data changed"| RVK
     RVK -.->|"accept — recode"| RFC
     RVK -.->|"reject — restore"| CF
 
-    click RFC call __dm_workflow_click("ready_for_coding")
-    click CR call __dm_workflow_click("consent_refused")
-    click CIP call __dm_workflow_click("coding_in_progress")
-    click CSS call __dm_workflow_click("coder_step1_saved")
-    click NCC call __dm_workflow_click("not_codeable_by_coder")
-    click CF call __dm_workflow_click("coder_finalized")
+    click CR   call __dm_workflow_click("consent_refused")
+    click SP   call __dm_workflow_click("screening_pending")
+    click RFC  call __dm_workflow_click("ready_for_coding")
     click NCDM call __dm_workflow_click("not_codeable_by_data_manager")
-    click RVK call __dm_workflow_click("finalized_upstream_changed")
+    click SVP  call __dm_workflow_click("smartva_pending")
+    click CIP  call __dm_workflow_click("coding_in_progress")
+    click CSS  call __dm_workflow_click("coder_step1_saved")
+    click NCC  call __dm_workflow_click("not_codeable_by_coder")
+    click CF   call __dm_workflow_click("coder_finalized")
+    click RE   call __dm_workflow_click("reviewer_eligible")
+    click RCI  call __dm_workflow_click("reviewer_coding_in_progress")
+    click RF   call __dm_workflow_click("reviewer_finalized")
+    click RVK  call __dm_workflow_click("finalized_upstream_changed")
 
     style CR   fill:#fff7ed,stroke:#ea580c,color:#9a3412
+    style SP   fill:#f1f5f9,stroke:#64748b,color:#334155
     style RFC  fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
-    style NCC  fill:#fef9c3,stroke:#ca8a04,color:#713f12
-    style CF   fill:#d1fae5,stroke:#059669,color:#065f46
     style NCDM fill:#fef3c7,stroke:#d97706,color:#78350f
+    style SVP  fill:#ecfeff,stroke:#0891b2,color:#0e4f63
+    style CIP  fill:#fefce8,stroke:#ca8a04,color:#713f12
+    style CSS  fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    style NCC  fill:#fef3c7,stroke:#d97706,color:#78350f
+    style CF   fill:#d1fae5,stroke:#059669,color:#065f46
+    style RE   fill:#d1fae5,stroke:#047857,color:#064e3b
+    style RCI  fill:#a7f3d0,stroke:#047857,color:#064e3b
+    style RF   fill:#6ee7b7,stroke:#065f46,color:#064e3b
     style RVK  fill:#fdf4ff,stroke:#9333ea,color:#581c87
 `;
   }

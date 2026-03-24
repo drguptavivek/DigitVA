@@ -2227,9 +2227,17 @@ def admin_form_types_export(form_type_code):
     except ValueError as e:
         return _json_error(str(e), 404)
 
+    from decimal import Decimal
+
+    class _Encoder(json.JSONEncoder):
+        def default(self, o):
+            if isinstance(o, Decimal):
+                return int(o) if o == o.to_integral_value() else float(o)
+            return super().default(o)
+
     filename = f"form_type_{form_type_code.lower()}.json"
     return Response(
-        json.dumps(data, indent=2, ensure_ascii=False),
+        json.dumps(data, indent=2, ensure_ascii=False, cls=_Encoder),
         mimetype="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

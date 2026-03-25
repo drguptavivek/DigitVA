@@ -331,6 +331,33 @@
     initSidebarState();
     initAdmin();
   });
+
+  // Fix: Move admin panel modals to body when shown.
+  // Bootstrap 5 keeps modals in their DOM position, so modals inside
+  // #admin-main-column (which has overflow-x: auto) get clipped.
+  document.addEventListener('show.bs.modal', function (evt) {
+    var modal = evt.target;
+    if (modal && modal.closest('#admin-panel')) {
+      document.body.appendChild(modal);
+    }
+  });
+
+  // Cleanup: Remove orphaned modals from body when switching panels.
+  // These are modals that were moved to body and need to be removed
+  // when their parent panel is swapped out.
+  document.body.addEventListener('htmx:beforeSwap', function (evt) {
+    if (evt.detail.target.id === 'admin-panel') {
+      // Remove any modals that were moved to body from the old panel
+      document.querySelectorAll('body > .modal').forEach(function (modal) {
+        // Only remove if it came from an admin panel (has admin-style IDs)
+        if (modal.id && (modal.id.endsWith('-toggle-modal') || modal.id.endsWith('-modal'))) {
+          var bsInstance = bootstrap.Modal.getInstance(modal);
+          if (bsInstance) bsInstance.dispose();
+          modal.remove();
+        }
+      });
+    }
+  });
 }());
 </script>
 {% endblock %}

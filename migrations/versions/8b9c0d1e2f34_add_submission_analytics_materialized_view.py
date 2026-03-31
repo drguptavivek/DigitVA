@@ -19,9 +19,41 @@ branch_labels = None
 depends_on = None
 
 
+def _build_legacy_compatible_submission_analytics_mv_sql() -> str:
+    """Build a compatibility MV for the pre-rebuild migration chain.
+
+    This migration runs before several later tables and columns exist. The
+    later rebuild migration (`b1c2d3e4f5a6`) replaces this with the full view.
+    """
+    return """
+CREATE MATERIALIZED VIEW va_submission_analytics_mv AS
+SELECT
+    s.va_sid,
+    DATE(s.va_submission_date) AS submission_date,
+    f.project_id,
+    f.site_id,
+    w.workflow_state,
+    s.va_odk_reviewstate AS odk_review_state,
+    s.va_deceased_gender AS sex,
+    CASE
+        WHEN s.va_deceased_age IS NULL THEN 'unknown'
+        WHEN s.va_deceased_age < 15 THEN 'child'
+        WHEN s.va_deceased_age < 50 THEN '15_49y'
+        WHEN s.va_deceased_age < 65 THEN '50_64y'
+        ELSE '65_plus'
+    END AS analytics_age_band,
+    NULL::text AS final_icd,
+    NULL::text AS smartva_cause1_icd
+FROM va_submissions s
+JOIN va_forms f ON f.form_id = s.va_form_id
+LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+WITH DATA
+"""
+
+
 def upgrade():
     op.execute(sa.text("DROP MATERIALIZED VIEW IF EXISTS va_submission_analytics_mv CASCADE"))
-    op.execute(sa.text(build_submission_analytics_mv_sql()))
+    op.execute(sa.text(_build_legacy_compatible_submission_analytics_mv_sql()))
     op.execute(
         sa.text(
             "CREATE UNIQUE INDEX ix_va_submission_analytics_mv_va_sid "

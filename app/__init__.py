@@ -132,6 +132,9 @@ def create_app(config_class=Config):
 
     from app.commands.analytics import init_app as init_analytics_commands
     init_analytics_commands(app)
+
+    from app.commands.users import init_app as init_users_commands
+    init_users_commands(app)
     
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

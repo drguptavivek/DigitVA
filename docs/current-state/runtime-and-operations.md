@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-03-31
 ---
 
 # Runtime And Operations
@@ -82,6 +82,7 @@ Current behavior:
 - redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`
 - postgres data is persisted in a named docker volume
+- celery beat startup now waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
 
 Current health checks:
 
@@ -162,6 +163,32 @@ Current implication:
 - Tests run inside the application container using `uv run python -m pytest tests/`.
 - `TestConfig` now uses filesystem-backed Flask sessions so the test harness
   does not fight schema lifecycle around `va_sessions`.
+
+## Operational CLI
+
+Current Flask CLI command groups include:
+
+- `flask seed run`
+- `flask form-types ...`
+- `flask analytics ...`
+- `flask odk-sync ...`
+- `flask users ...`
+
+Current `flask users ...` commands support:
+
+- `list`
+- `search`
+- `list-grants`
+- `create`
+- `reset-password`
+- `grant-admin`
+- `revoke-admin`
+- `set-status`
+
+Operational implication:
+
+- the app now has a shell-safe fallback for user bootstrap and admin recovery
+- admin access created through the CLI still writes the same explicit global grant row used by runtime authorization
 
 ## Logging
 

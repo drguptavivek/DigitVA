@@ -8,7 +8,7 @@ services:
       - .:/app
       - venv_app:/app/.venv
     ports:
-      - "8050:5000"
+      - "8051:5000"
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
@@ -50,7 +50,7 @@ services:
     build: .
     container_name: minerva_celery_beat
     entrypoint: []
-    command: bash -c "sleep 10 && uv run celery -A make_celery:celery_app beat --loglevel=info -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler"
+    command: bash ./scripts/wait-for-celery-beat-db.sh
     volumes:
       - .:/app
       - venv_beat:/app/.venv
@@ -87,8 +87,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata_minerva:/var/lib/postgresql/data
-    ports:
-      - "8450:5432"
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U minerva"]

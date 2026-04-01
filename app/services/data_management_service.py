@@ -380,11 +380,13 @@ def dm_submissions_page(
         .distinct()
         .subquery()
     )
-    _mv_ref = sa.table(
-        "va_submission_analytics_mv",
-        sa.column("va_sid"),
-        sa.column("analytics_age_band"),
-    )
+    _mv_ref = None
+    if _submission_analytics_mv_available():
+        _mv_ref = sa.table(
+            "va_submission_analytics_mv",
+            sa.column("va_sid"),
+            sa.column("analytics_age_band"),
+        )
     scope = dm_scope_filter(user)
     conditions = [scope]
     project_values = _csv_values(project)
@@ -415,7 +417,10 @@ def dm_submissions_page(
     elif smartva == "missing":
         conditions.append(smartva_sids.c.va_sid.is_(None))
     if age_group:
-        conditions.append(_mv_ref.c.analytics_age_band == age_group)
+        if _mv_ref is None:
+            conditions.append(sa.false())
+        else:
+            conditions.append(_mv_ref.c.analytics_age_band == age_group)
     if gender:
         conditions.append(VaSubmissions.va_deceased_gender == gender)
     if odk_sync == "missing_in_odk":

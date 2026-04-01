@@ -26,6 +26,7 @@ from app.models import (
     VaReviewerFinalAssessments,
     VaSiteMaster,
     VaSites,
+    VaSmartvaRun,
     VaSmartvaResults,
     VaStatuses,
     VaSubmissionPayloadVersion,
@@ -227,9 +228,19 @@ class DataManagementAcceptRejectTests(BaseTestCase):
             va_creview_reason="completed",
             va_creview_status=VaStatuses.active,
         ))
-        # VaSmartvaResults - only va_sid and va_smartva_status are required
+        smartva_run = VaSmartvaRun(
+            va_sid=va_sid,
+            payload_version_id=active_version.payload_version_id,
+            trigger_source="test_setup",
+            va_smartva_outcome=VaSmartvaRun.OUTCOME_SUCCESS,
+        )
+        db.session.add(smartva_run)
+        db.session.flush()
         db.session.add(VaSmartvaResults(
             va_sid=va_sid,
+            payload_version_id=active_version.payload_version_id,
+            smartva_run_id=smartva_run.va_smartva_run_id,
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
             va_smartva_status=VaStatuses.active,
         ))
         db.session.flush()
@@ -509,14 +520,7 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
         dm_user = self._create_dm_user()
 
         submission = db.session.get(VaSubmissions, va_sid)
-        pending = db.session.scalar(
-            sa.select(VaSubmissionPayloadVersion).where(
-                VaSubmissionPayloadVersion.va_sid == va_sid,
-                VaSubmissionPayloadVersion.version_status
-                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
-            )
-        )
-        submission.va_odk_updatedat = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        submission.va_odk_updatedat = datetime(2027, 1, 1, tzinfo=timezone.utc)
         db.session.commit()
 
         with self.assertRaises(ValueError) as ctx:
@@ -570,6 +574,74 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
             .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
         )
         self.assertEqual(active_count, 1)  # Still active
+
+    def test_reject_rebinds_smartva_to_promoted_payload(self):
+        va_sid = self._create_revoked_submission("reject-smartva-promote")
+        dm_user = self._create_dm_user()
+
+        submission = db.session.get(VaSubmissions, va_sid)
+        previous_payload_version_id = submission.active_payload_version_id
+        pending = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status
+                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+            )
+        )
+
+        dm_reject_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        active_result = db.session.scalar(
+            sa.select(VaSmartvaResults).where(
+                VaSmartvaResults.va_sid == va_sid,
+                VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNotNone(active_result)
+        self.assertEqual(active_result.payload_version_id, pending.payload_version_id)
+        self.assertNotEqual(active_result.payload_version_id, previous_payload_version_id)
+
+        active_run = db.session.get(VaSmartvaRun, active_result.smartva_run_id)
+        self.assertIsNotNone(active_run)
+        self.assertEqual(active_run.payload_version_id, pending.payload_version_id)
+
+    def test_reject_deactivates_duplicate_active_smartva_rows(self):
+        va_sid = self._create_revoked_submission("reject-smartva-dedupe")
+        dm_user = self._create_dm_user()
+
+        submission = db.session.get(VaSubmissions, va_sid)
+        duplicate_run = VaSmartvaRun(
+            va_sid=va_sid,
+            payload_version_id=submission.active_payload_version_id,
+            trigger_source="test_setup_duplicate",
+            va_smartva_outcome=VaSmartvaRun.OUTCOME_SUCCESS,
+        )
+        db.session.add(duplicate_run)
+        db.session.flush()
+        db.session.add(
+            VaSmartvaResults(
+                va_sid=va_sid,
+                payload_version_id=submission.active_payload_version_id,
+                smartva_run_id=duplicate_run.va_smartva_run_id,
+                va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
+                va_smartva_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        dm_reject_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        active_count = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSmartvaResults)
+            .where(
+                VaSmartvaResults.va_sid == va_sid,
+                VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            )
+        )
+        self.assertEqual(active_count, 1)
 
     def test_creates_audit_log_entry(self):
         """Keep-current-ICD should create an explicit audit log entry."""
@@ -706,14 +778,7 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         dm_user = self._create_dm_user()
 
         submission = db.session.get(VaSubmissions, va_sid)
-        pending = db.session.scalar(
-            sa.select(VaSubmissionPayloadVersion).where(
-                VaSubmissionPayloadVersion.va_sid == va_sid,
-                VaSubmissionPayloadVersion.version_status
-                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
-            )
-        )
-        submission.va_odk_updatedat = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        submission.va_odk_updatedat = datetime(2027, 1, 1, tzinfo=timezone.utc)
         db.session.commit()
 
         with self.assertRaises(ValueError) as ctx:

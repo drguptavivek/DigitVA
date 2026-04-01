@@ -528,6 +528,8 @@ Current behavior:
   workflow artifacts are deactivated
 - SmartVA generation transitions `smartva_pending` submissions to
   `ready_for_coding` once results are saved
+- active SmartVA projections are expected to align to the submission's current
+  active payload version
 
 Desired target behavior:
 
@@ -554,6 +556,14 @@ After all forms complete, SmartVA runs on any submissions without results:
 - Prepares input CSV
 - Runs SmartVA analysis
 - Formats and stores results tied to the submission
+
+Current upstream-review behavior:
+
+- `Accept And Recode` promotes the pending upstream payload, deactivates the
+  old SmartVA projection, and reruns SmartVA for the new payload
+- `Keep Current ICD Decision` promotes the pending upstream payload but keeps
+  the prior SmartVA interpretation by rebinding the preserved SmartVA
+  projection to the newly active payload instead of regenerating it
 
 Current implementation gap:
 

@@ -344,17 +344,10 @@ def _save_smartva_result(
     existing=None,
     audit_action: str = "va_smartva_creation_during_datasync",
 ) -> uuid.UUID:
-    if existing:
-        existing.va_smartva_status = VaStatuses.deactive
-        db.session.add(
-            VaSubmissionsAuditlog(
-                va_sid=va_sid,
-                va_audit_entityid=existing.va_smartva_id,
-                va_audit_byrole="vaadmin",
-                va_audit_operation="d",
-                va_audit_action="va_smartva_deletion_during_datasync",
-            )
-        )
+    _deactivate_active_smartva_results(
+        va_sid,
+        existing if isinstance(existing, list) else ([existing] if existing else []),
+    )
 
     smartva_run = _create_smartva_run(
         va_sid,
@@ -416,27 +409,85 @@ def _save_smartva_result(
 
 def _active_smartva_results_for_sids(
     active_payload_by_sid: dict[str, uuid.UUID],
-) -> dict[str, VaSmartvaResults]:
+) -> dict[str, list[VaSmartvaResults]]:
     if not active_payload_by_sid:
         return {}
-    return {
-        row.va_sid: row
-        for row in db.session.scalars(
-            sa.select(VaSmartvaResults)
-            .join(
-                VaSubmissions,
-                sa.and_(
-                    VaSubmissions.va_sid == VaSmartvaResults.va_sid,
-                    VaSubmissions.active_payload_version_id
-                    == VaSmartvaResults.payload_version_id,
-                ),
+    rows = db.session.scalars(
+        sa.select(VaSmartvaResults)
+        .where(
+            VaSmartvaResults.va_sid.in_(set(active_payload_by_sid)),
+            VaSmartvaResults.va_smartva_status == VaStatuses.active,
+        )
+        .order_by(VaSmartvaResults.va_smartva_addedat.desc())
+    ).all()
+    grouped: dict[str, list[VaSmartvaResults]] = {}
+    for row in rows:
+        grouped.setdefault(row.va_sid, []).append(row)
+    return grouped
+
+
+def _deactivate_active_smartva_results(
+    va_sid: str,
+    rows: list[VaSmartvaResults],
+) -> None:
+    for row in rows:
+        row.va_smartva_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=row.va_smartva_id,
+                va_audit_byrole="vaadmin",
+                va_audit_operation="d",
+                va_audit_action="va_smartva_deletion_during_datasync",
             )
-            .where(
-                VaSmartvaResults.va_sid.in_(set(active_payload_by_sid)),
-                VaSmartvaResults.va_smartva_status == VaStatuses.active,
-            )
-        ).all()
-    }
+        )
+
+
+def promote_active_smartva_to_payload(
+    va_sid: str,
+    *,
+    from_payload_version_id,
+    to_payload_version_id,
+) -> bool:
+    """Rebind the currently preserved SmartVA result to a newly active payload."""
+    active_rows = db.session.scalars(
+        sa.select(VaSmartvaResults)
+        .where(
+            VaSmartvaResults.va_sid == va_sid,
+            VaSmartvaResults.va_smartva_status == VaStatuses.active,
+        )
+        .order_by(
+            sa.case(
+                (VaSmartvaResults.payload_version_id == from_payload_version_id, 0),
+                else_=1,
+            ),
+            VaSmartvaResults.va_smartva_addedat.desc(),
+        )
+    ).all()
+    if not active_rows:
+        return False
+
+    keeper = active_rows[0]
+    extras = active_rows[1:]
+    if extras:
+        _deactivate_active_smartva_results(va_sid, extras)
+
+    keeper.payload_version_id = to_payload_version_id
+    if keeper.smartva_run_id is not None:
+        run = db.session.get(VaSmartvaRun, keeper.smartva_run_id)
+        if run is not None:
+            run.payload_version_id = to_payload_version_id
+
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_entityid=keeper.va_smartva_id,
+            va_audit_byrole="vaadmin",
+            va_audit_operation="u",
+            va_audit_action="va_smartva_promoted_to_current_payload",
+        )
+    )
+    return True
 
 
 def _save_smartva_failure(
@@ -450,17 +501,10 @@ def _save_smartva_failure(
     existing=None,
     audit_action: str = "va_smartva_failure_recorded",
 ) -> uuid.UUID:
-    if existing:
-        existing.va_smartva_status = VaStatuses.deactive
-        db.session.add(
-            VaSubmissionsAuditlog(
-                va_sid=va_sid,
-                va_audit_entityid=existing.va_smartva_id,
-                va_audit_byrole="vaadmin",
-                va_audit_operation="d",
-                va_audit_action="va_smartva_deletion_during_datasync",
-            )
-        )
+    _deactivate_active_smartva_results(
+        va_sid,
+        existing if isinstance(existing, list) else ([existing] if existing else []),
+    )
 
     smartva_run = _create_smartva_run(
         va_sid,
@@ -666,9 +710,12 @@ def generate_for_form(
                 if va_sid is None or va_sid not in eligible_pending:
                     continue
                 seen_sids.add(va_sid)
-                existing = current_existing.get(va_sid)
+                existing = current_existing.get(va_sid, [])
                 payload_version_id = active_payload_by_sid.get(va_sid)
-                if va_sid not in requested_sids and existing:
+                has_current_payload_result = any(
+                    row.payload_version_id == payload_version_id for row in existing
+                )
+                if va_sid not in requested_sids and has_current_payload_result:
                     continue
 
                 _save_smartva_result(
@@ -841,7 +888,7 @@ def generate_for_submission(
                 result_sid = getattr(record, "sid", None)
                 if result_sid != va_sid or result_sid not in eligible_sids:
                     continue
-                existing = current_existing.get(result_sid)
+                existing = current_existing.get(result_sid, [])
                 _save_smartva_result(
                     result_sid,
                     record,

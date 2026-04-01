@@ -40,6 +40,7 @@ from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.odk_connection_guard_service import guarded_odk_call
 from app.services.odk_review_service import resolve_odk_instance_id
+from app.services.smartva_service import promote_active_smartva_to_payload
 from app.services.submission_payload_projection_service import (
     apply_payload_to_submission_summary,
 )
@@ -2013,6 +2014,7 @@ def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> None:
     )
     if submission is None:
         raise ValueError("Submission not found.")
+    previous_payload_version_id = submission.active_payload_version_id
     _require_fresh_reviewable_upstream_payload(
         submission,
         pending_change,
@@ -2027,6 +2029,11 @@ def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> None:
         submission,
         pending_payload_version.payload_data,
         source_updated_at=pending_payload_version.source_updated_at,
+    )
+    promote_active_smartva_to_payload(
+        va_sid,
+        from_payload_version_id=previous_payload_version_id,
+        to_payload_version_id=pending_payload_version.payload_version_id,
     )
 
     keep_current_icd_on_upstream_change(

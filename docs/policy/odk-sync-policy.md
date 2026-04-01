@@ -348,10 +348,10 @@ Target routing rules:
 |---|---|---|
 | First sync | Create initial active payload version | Route by consent to `consent_refused` or `smartva_pending` |
 | Unchanged sync | No new payload version | No SmartVA rerun; preserve current workflow unless other sync-issue handling applies |
-| Changed sync on non-protected state | Create new active payload version | Route to `smartva_pending` |
+| Changed sync on non-protected state | Create new active payload version | Route to `smartva_pending` and regenerate SmartVA for the new payload |
 | Changed sync on protected finalized state | Create pending upstream payload version | Route to `finalized_upstream_changed` |
-| Accept And Recode | Promote pending payload version to active and update `va_submissions` from it | Route to `smartva_pending` |
-| Keep Current ICD Decision | Promote pending payload version to active and update `va_submissions` from it | Return to prior finalized path while preserving COD artifacts |
+| Accept And Recode | Promote pending payload version to active and update `va_submissions` from it | Route to `smartva_pending` and regenerate SmartVA for the new payload |
+| Keep Current ICD Decision | Promote pending payload version to active and update `va_submissions` from it | Return to prior finalized path while preserving COD artifacts and rebinding the preserved SmartVA projection to the new payload |
 
 ## Notification Requirements
 
@@ -406,8 +406,10 @@ SmartVA gate note:
 - that includes initial sync eligibility and accept-upstream-change
 - same-payload returns such as timeout cleanup, demo cleanup, or admin override
   do not require a SmartVA rerun
-- future SmartVA run history should bind each run to the active payload
-  version that triggered it
+- active SmartVA projection rows must always match the submission's current
+  active payload version
+- prior SmartVA runs and likelihood rows remain durable history even after the
+  projection row is superseded
 
 ## Service Architecture
 

@@ -187,6 +187,14 @@ Current implementation note:
 - each SmartVA row should be tied to the payload version it applies to via
   `payload_version_id`
 
+Required invariant:
+
+- there must be at most one active SmartVA projection row per `va_sid`
+- the active SmartVA row must match the submission's current
+  `active_payload_version_id`
+- any older SmartVA projection rows for the same `va_sid` must be deactivated
+  rather than left active beside the current row
+
 Target refinement:
 
 - active/inactive status should describe the current projection row only
@@ -218,6 +226,19 @@ Target refinement:
 | ODK data changed + allowed state | Deactivate old current-payload result if any, create new active result for the new payload version |
 | ODK data changed + protected state | **DO NOT regenerate** |
 | Manual force regenerate | Deactivate old, create new active |
+
+Protected upstream review refinement:
+
+- `Accept And Recode`
+  - promote the new payload to active
+  - deactivate the prior active SmartVA projection
+  - rerun SmartVA for the new payload
+- `Keep Current ICD Decision`
+  - promote the new payload to active
+  - do not regenerate SmartVA
+  - rebind the preserved active SmartVA projection from the prior payload to
+    the newly active payload so that SmartVA remains aligned with the current
+    stored payload
 
 Target refinement:
 

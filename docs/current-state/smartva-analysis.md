@@ -216,6 +216,17 @@ copy workspace to APP_DATA/smartva_runs/{project_id}/{form_id}/{form_run_id}
     └─ active projection → va_smartva_results
 ```
 
+Current projection rule:
+
+- `va_smartva_run_outputs` and `va_smartva_runs` are durable history
+- `va_smartva_results` is the single active projection layer used by the app
+- the active `va_smartva_results` row should match the submission's current
+  active payload version
+- when a payload changes and SmartVA is regenerated, older active projection
+  rows must be deactivated
+- when upstream review keeps the current ICD decision, the preserved SmartVA
+  projection is rebound to the new active payload instead of being rerun
+
 ---
 
 ## Input Preparation (`va_smartva_02_prepdata.py`)

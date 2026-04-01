@@ -226,6 +226,9 @@ Current projection rule:
   rows must be deactivated
 - when upstream review keeps the current ICD decision, the preserved SmartVA
   projection is rebound to the new active payload instead of being rerun
+- the admin SmartVA repair path also rebinds preserved historical SmartVA for
+  protected finalized submissions whose current payload would otherwise have no
+  active SmartVA projection
 
 ---
 

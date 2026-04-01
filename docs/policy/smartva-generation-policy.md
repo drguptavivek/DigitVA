@@ -240,6 +240,15 @@ Protected upstream review refinement:
     the newly active payload so that SmartVA remains aligned with the current
     stored payload
 
+Admin repair refinement:
+
+- `Gen SmartVA` should automatically repair protected finalized submissions
+  whose current payload has no matching active SmartVA projection but does have
+  historical SmartVA
+- in those cases, it must rebind the latest preserved historical SmartVA
+  projection to the current active payload instead of rerunning SmartVA against
+  the protected finalized case
+
 Target refinement:
 
 - regeneration creates a new SmartVA run for the same or new

@@ -387,6 +387,42 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
         return sub
 
+    def _add_historical_smartva_projection(self, sub: VaSubmissions) -> uuid.UUID:
+        """Create an older SmartVA result tied to a superseded payload version."""
+        old_payload_version_id = sub.active_payload_version_id
+        new_payload = {
+            **sub.va_data,
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+            "test": "payload-changed",
+        }
+        ensure_active_payload_version(
+            sub,
+            payload_data=new_payload,
+            source_updated_at=datetime.now(timezone.utc),
+            created_by_role="vasystem",
+        )
+        db.session.flush()
+
+        run = VaSmartvaRun(
+            va_sid=sub.va_sid,
+            payload_version_id=old_payload_version_id,
+            trigger_source="test_history",
+            va_smartva_outcome=VaSmartvaRun.OUTCOME_SUCCESS,
+        )
+        db.session.add(run)
+        db.session.flush()
+        result = VaSmartvaResults(
+            va_smartva_id=uuid.uuid4(),
+            va_sid=sub.va_sid,
+            payload_version_id=old_payload_version_id,
+            smartva_run_id=run.va_smartva_run_id,
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
+            va_smartva_status=VaStatuses.deactive,
+        )
+        db.session.add(result)
+        db.session.flush()
+        return old_payload_version_id
+
     # ── tests ──────────────────────────────────────────────────────────────────
 
     def test_skips_coder_finalized_submission(self):
@@ -535,6 +571,34 @@ class GenerateForSubmissionTests(BaseTestCase):
         with patch("app.utils.va_smartva_runsmartva") as mock_run:
             generate_for_submission(sub.va_sid)
             mock_run.assert_not_called()
+
+    def test_generate_for_form_rebinds_historical_smartva_for_protected_submission(self):
+        sub = self._make_submission("uuid:gen-protected-rebind")
+        previous_payload_version_id = self._add_historical_smartva_projection(sub)
+        set_submission_workflow_state(
+            sub.va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test"
+        )
+        db.session.commit()
+
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        with patch("app.utils.va_smartva_runsmartva") as mock_run:
+            saved = generate_for_form(va_form)
+            mock_run.assert_not_called()
+
+        self.assertEqual(saved, 1)
+        active_result = db.session.scalar(
+            sa.select(VaSmartvaResults).where(
+                VaSmartvaResults.va_sid == sub.va_sid,
+                VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNotNone(active_result)
+        self.assertEqual(active_result.payload_version_id, sub.active_payload_version_id)
+        self.assertNotEqual(active_result.payload_version_id, previous_payload_version_id)
+
+        rebound_run = db.session.get(VaSmartvaRun, active_result.smartva_run_id)
+        self.assertIsNotNone(rebound_run)
+        self.assertEqual(rebound_run.payload_version_id, sub.active_payload_version_id)
 
     def test_records_failure_and_releases_pending_submission_when_run_raises(self):
         sub = self._make_submission("uuid:gen-fail-exception")

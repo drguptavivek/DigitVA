@@ -20,6 +20,7 @@ from app.models import (
     VaSmartvaRunOutput,
     VaSmartvaResults,
     VaStatuses,
+    VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
@@ -490,6 +491,105 @@ def promote_active_smartva_to_payload(
     return True
 
 
+def _reactivate_latest_historical_smartva_to_payload(
+    va_sid: str,
+    *,
+    to_payload_version_id,
+) -> bool:
+    """Reactivate the latest historical SmartVA projection on the current payload."""
+    historical_rows = db.session.scalars(
+        sa.select(VaSmartvaResults)
+        .where(VaSmartvaResults.va_sid == va_sid)
+        .order_by(
+            sa.case(
+                (
+                    VaSmartvaResults.va_smartva_outcome
+                    == VaSmartvaResults.OUTCOME_SUCCESS,
+                    0,
+                ),
+                else_=1,
+            ),
+            VaSmartvaResults.va_smartva_addedat.desc(),
+        )
+    ).all()
+    if not historical_rows:
+        return False
+
+    keeper = historical_rows[0]
+    for row in historical_rows[1:]:
+        if row.va_smartva_status == VaStatuses.active:
+            row.va_smartva_status = VaStatuses.deactive
+
+    keeper.va_smartva_status = VaStatuses.active
+    keeper.payload_version_id = to_payload_version_id
+    if keeper.smartva_run_id is not None:
+        run = db.session.get(VaSmartvaRun, keeper.smartva_run_id)
+        if run is not None:
+            run.payload_version_id = to_payload_version_id
+
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_entityid=keeper.va_smartva_id,
+            va_audit_byrole="vaadmin",
+            va_audit_operation="u",
+            va_audit_action="va_smartva_reactivated_for_current_payload",
+        )
+    )
+    return True
+
+
+def repair_protected_current_payload_smartva(
+    *,
+    form_id: str | None = None,
+    va_sids: set[str] | None = None,
+) -> int:
+    """Repair protected submissions by rebinding historical SmartVA to current payloads."""
+    current_projection_exists = sa.exists(
+        sa.select(1)
+        .select_from(VaSmartvaResults)
+        .where(
+            VaSmartvaResults.va_sid == VaSubmissions.va_sid,
+            VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            VaSmartvaResults.payload_version_id == VaSubmissions.active_payload_version_id,
+        )
+    )
+    any_history_exists = sa.exists(
+        sa.select(1)
+        .select_from(VaSmartvaResults)
+        .where(VaSmartvaResults.va_sid == VaSubmissions.va_sid)
+    )
+
+    conditions = [
+        VaSubmissions.active_payload_version_id.is_not(None),
+        VaSubmissionWorkflow.workflow_state.in_(_protected_states()),
+        ~current_projection_exists,
+        any_history_exists,
+    ]
+    if form_id is not None:
+        conditions.append(VaSubmissions.va_form_id == form_id)
+    if va_sids:
+        conditions.append(VaSubmissions.va_sid.in_(va_sids))
+
+    rows = db.session.execute(
+        sa.select(
+            VaSubmissions.va_sid,
+            VaSubmissions.active_payload_version_id,
+        )
+        .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .where(sa.and_(*conditions))
+    ).all()
+
+    repaired = 0
+    for va_sid, payload_version_id in rows:
+        if _reactivate_latest_historical_smartva_to_payload(
+            va_sid,
+            to_payload_version_id=payload_version_id,
+        ):
+            repaired += 1
+    return repaired
+
+
 def _save_smartva_failure(
     va_sid: str,
     *,
@@ -609,6 +709,21 @@ def generate_for_form(
     target_sids = target_sids or set()
     requested_sids = amended_sids | target_sids
 
+    preserved_count = repair_protected_current_payload_smartva(
+        form_id=va_form.form_id,
+        va_sids=requested_sids or None,
+    )
+    if preserved_count:
+        log.info(
+            "SmartVA [%s]: rebound %d protected projection(s).",
+            va_form.form_id,
+            preserved_count,
+        )
+        if log_progress:
+            log_progress(
+                f"SmartVA {va_form.form_id}: rebound {preserved_count} preserved result(s)."
+            )
+
     pending = pending_smartva_sids(va_form.form_id)
     if target_sids:
         pending &= target_sids
@@ -640,7 +755,9 @@ def generate_for_form(
             log_progress(
                 f"SmartVA {va_form.form_id}: all results up to date, skipping."
             )
-        return 0
+        if preserved_count:
+            db.session.commit()
+        return preserved_count
 
     log.info(
         "SmartVA [%s]: preparing input (%d pending).",
@@ -700,7 +817,7 @@ def generate_for_form(
                     outcome=VaSmartvaFormRun.OUTCOME_FAILED,
                 )
                 db.session.commit()
-                return rejected_failure_count + remaining_failure_count
+                return preserved_count + rejected_failure_count + remaining_failure_count
 
             current_existing = _active_smartva_results_for_sids(active_payload_by_sid)
             success_count = 0
@@ -760,7 +877,7 @@ def generate_for_form(
                 log_progress(
                     f"SmartVA {va_form.form_id}: {total_saved} result(s) saved."
                 )
-            return total_saved
+            return preserved_count + total_saved
         except Exception as exc:
             processing_tx.rollback()
             failure_count = _record_smartva_failures(
@@ -787,7 +904,7 @@ def generate_for_form(
                 log_progress(
                     f"SmartVA {va_form.form_id}: {failure_count} failure record(s) saved."
                 )
-            return failure_count
+            return preserved_count + failure_count
 
 
 def generate_for_submission(

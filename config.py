@@ -26,6 +26,15 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY") or "5Ag92#2g]oLIHEk"
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
     REMEMBER_COOKIE_DURATION = timedelta(minutes=30)
+    STATIC_ASSET_CACHE_MAX_AGE = int(
+        os.environ.get("STATIC_ASSET_CACHE_MAX_AGE", str(60 * 60 * 24 * 30))
+    )
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
+    SESSION_COOKIE_SECURE = True
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = os.environ.get("REMEMBER_COOKIE_SAMESITE", "Lax")
+    REMEMBER_COOKIE_SECURE = True
     
     # Session Configuration
     SESSION_TYPE = "sqlalchemy"
@@ -85,6 +94,8 @@ class Config:
 
 class TestConfig(Config):
     TESTING = True
+    SESSION_COOKIE_SECURE = False
+    REMEMBER_COOKIE_SECURE = False
     ODK_CREDENTIAL_PEPPER = "test-pepper-do-not-use-in-production"
     # Use in-memory storage for the rate limiter during tests.
     RATELIMIT_STORAGE_URI = "memory://"

@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-16
+last_updated: 2026-03-31
 ---
 
 # Admin And Setup Model
@@ -183,6 +183,34 @@ Important shell operations include:
 - `va_mapping_info()`
 - `va_mapping_flip()`
 - `va_data_sync_odkcentral()`
+
+## Form Type Bootstrap
+
+The field-mapping admin panel depends on rows in `mas_form_types`.
+
+Operational baseline:
+
+- seeded languages do not imply seeded form types
+- the Languages panel may be populated while the field-mapping panel still shows no form types
+- the default `WHO_2022_VA` form type and its mappings are bootstrapped by the seed command, not by the Languages panel
+
+If `/admin/?panel=%2Fadmin%2Fpanels%2Ffield-mapping` shows:
+
+- `No form types registered yet. Click New Form Type to create one.`
+
+the standard recovery path is:
+
+```bash
+docker compose exec minerva_app_service uv run flask seed run
+```
+
+Current behavior of that command for field mapping bootstrap:
+
+- registers `WHO_2022_VA` in `mas_form_types` if missing
+- migrates the default WHO 2022 category, field, and choice mappings from:
+  - `resource/mapping/mapping_labels.xlsx`
+  - `resource/mapping/mapping_choices.xlsx`
+- safely skips languages and the default admin user if they already exist
 
 ## Full Initialization Flow
 

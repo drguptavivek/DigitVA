@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
 
-from app import db, limiter
+from app import cache, db, limiter
 from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
@@ -41,6 +41,7 @@ from app.services.submission_analytics_mv import (
 
 bp = Blueprint("data_management_api", __name__)
 log = logging.getLogger(__name__)
+_CACHE_TTL = 300
 
 
 def _require_data_manager():
@@ -53,6 +54,27 @@ def _require_data_manager_or_admin():
     if not current_user.is_admin() and not current_user.is_data_manager():
         return jsonify({"error": "Data-manager or admin access is required."}), 403
     return None
+
+
+def _cache_key(suffix: str) -> str:
+    qs = request.query_string.decode()
+    return f"dm_analytics:{current_user.user_id}:{suffix}:{qs}"
+
+
+def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
+    full_key = _cache_key(key)
+    try:
+        data = cache.get(full_key)
+    except Exception:
+        data = None
+    if data is not None and not isinstance(data, BaseException):
+        return data
+    data = compute_fn()
+    try:
+        cache.set(full_key, data, timeout=timeout)
+    except Exception as exc:
+        log.warning("Data-manager cache set failed (%s): %s", full_key, exc)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +131,7 @@ def kpi():
 
     project_ids = sorted(current_user.get_data_manager_projects())
     project_site_pairs = current_user.get_data_manager_project_sites()
-    return jsonify(
+    return jsonify(_cached("kpi", lambda:
         get_dm_kpi_from_mv(
             project_ids,
             project_site_pairs,
@@ -124,7 +146,7 @@ def kpi():
             odk_sync=request.args.get("odk_sync", ""),
             workflow=request.args.get("workflow", ""),
         )
-    )
+    ))
 
 
 # ---------------------------------------------------------------------------

@@ -1,12 +1,13 @@
 import uuid
 from datetime import datetime
+from time import perf_counter
 import pytz
 import warnings
 
 # Suppress deprecation warnings from libraries until they update to modern datetime APIs
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-from flask import Flask, request, redirect, session, url_for
+from flask import Flask, g, request, redirect, session, url_for
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -159,8 +160,17 @@ def create_app(config_class=Config):
         local_dt = dt.astimezone(tz)
         return local_dt.strftime(format)
     
+    timed_prefixes = (
+        "/data-management",
+        "/api/v1/data-management",
+        "/api/v1/analytics",
+    )
+
     @app.before_request
     def force_password_update():
+        if request.path.startswith(timed_prefixes):
+            g._request_started_at = perf_counter()
+
         current_user_id = session.get("_user_id")
         if not current_user_id:
             return
@@ -183,5 +193,25 @@ def create_app(config_class=Config):
         }
         if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
             return redirect(url_for('profile.force_password_change'))
+
+    @app.after_request
+    def apply_static_cache_headers(response):
+        if request.path.startswith("/static/") and response.status_code == 200:
+            response.cache_control.public = True
+            response.cache_control.max_age = app.config["STATIC_ASSET_CACHE_MAX_AGE"]
+        started_at = getattr(g, "_request_started_at", None)
+        if started_at is not None:
+            duration_ms = (perf_counter() - started_at) * 1000
+            response.headers["Server-Timing"] = f"app;dur={duration_ms:.1f}"
+            response.headers["X-Response-Time"] = f"{duration_ms:.1f}ms"
+            if duration_ms >= 300:
+                app.logger.info(
+                    "slow_request method=%s path=%s status=%s duration_ms=%.1f",
+                    request.method,
+                    request.path,
+                    response.status_code,
+                    duration_ms,
+                )
+        return response
 
     return app

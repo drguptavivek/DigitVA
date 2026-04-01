@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import login_required, current_user
 
 from app import db, limiter, cache
@@ -110,7 +110,7 @@ def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
 
 
 def _bust_user_analytics_cache():
-    prefix = cache.config.get("CACHE_KEY_PREFIX", "")
+    prefix = current_app.config.get("CACHE_KEY_PREFIX", "")
     pattern = f"{prefix}analytics:{current_user.user_id}:*"
     try:
         redis_client = cache.cache._write_client

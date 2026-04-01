@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import sqlalchemy as sa
-from app import db
+from app import cache, db
 from app.models import (
     MapProjectSiteOdk,
     MapProjectOdk,
@@ -306,48 +306,66 @@ class DataManagerDashboardTests(BaseTestCase):
         db.session.commit()
         self.dm_user_id = str(self.dm_user.user_id)
 
-    def test_dashboard_shows_odk_state_and_sync_issue(self):
+    @patch(
+        "app.routes.data_management.get_dm_kpi_from_mv",
+        return_value={
+            "total_submissions": 1,
+            "flagged_submissions": 1,
+            "odk_has_issues_submissions": 1,
+            "smartva_missing_submissions": 1,
+        },
+    )
+    def test_dashboard_shows_odk_state_and_sync_issue(self, _mocked_kpi):
         self._login(self.dm_user_id)
 
-        response = self.client.get("/data-management")
+        response = self.client.get("/data-management/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Has Issues", response.data)
-        self.assertIn(b"ODK - Has Issues", response.data)
         self.assertIn(b"SmartVA Missing", response.data)
-        self.assertIn(b"SmartVA", response.data)
-        self.assertIn(b"ODK Sync", response.data)
-        self.assertIn(b"Missing", response.data)
-        self.assertIn(b"Flagged Not Codeable", response.data)
-        self.assertIn(b"id=\"dm-view-flagged-btn\"", response.data)
-        self.assertIn(b"id=\"dm-view-odk-issues-btn\"", response.data)
-        self.assertIn(b"id=\"dm-view-smartva-missing-btn\"", response.data)
-        self.assertIn(b"Edit", response.data)
-        self.assertIn(b"Project - Site Submissions", response.data)
-        self.assertIn(b"This Week", response.data)
-        self.assertIn(b"Today", response.data)
+        self.assertIn(b"Needs Field Attention", response.data)
+        self.assertIn(b"Not Codeable (DM)", response.data)
+        self.assertIn(b"Refresh Dashboard", response.data)
+        self.assertIn(b"Submissions by Project / Site", response.data)
+        self.assertIn(b"Age Groups", response.data)
+        self.assertIn(b"Sex Distribution", response.data)
         self.assertIn(b"dm-project-site-submissions-chart", response.data)
-        self.assertIn(b"vendors/chartjs/chart.umd.min.js", response.data)
-        self.assertIn(b"Table Columns", response.data)
-        self.assertIn(b"Optional Columns", response.data)
-        self.assertIn(b"Project", response.data)
-        self.assertIn(b"Data Collector", response.data)
-        self.assertIn(b"Flagged At", response.data)
-        self.assertIn(b"Sync Latest data", response.data)
-        self.assertIn(b"Needs correction from field team.", response.data)
-        self.assertIn(b"Narrative answer is incomplete.", response.data)
-        self.assertIn(b"Missing In ODK", response.data)
-        self.assertIn(b"Sync Forms For a Project and Site", response.data)
-        self.assertIn(b"Refresh", response.data)
-        self.assertIn(b"Clear Filters", response.data)
-        self.assertIn(b"All workflow states", response.data)
-        self.assertIn(b"Not Codeable By Coder", response.data)
-        self.assertIn(b"All ODK statuses", response.data)
-        self.assertIn(b"All SmartVA statuses", response.data)
-        self.assertIn(b"All ODK sync statuses", response.data)
-        self.assertIn(b"Submitted From", response.data)
-        self.assertIn(b"Submitted To", response.data)
-        self.assertIn(b"ODK Sync", response.data)
+
+    @patch(
+        "app.routes.data_management.get_dm_kpi_from_mv",
+        return_value={
+            "total_submissions": 1,
+            "flagged_submissions": 1,
+            "odk_has_issues_submissions": 1,
+            "smartva_missing_submissions": 1,
+        },
+    )
+    @patch(
+        "app.routes.data_management.va_render_serialisedates",
+        side_effect=AssertionError(
+            "dashboard should not serialise preloaded submission rows"
+        ),
+        create=True,
+    )
+    @patch(
+        "app.routes.data_management.dm_scoped_forms",
+        side_effect=AssertionError(
+            "dashboard should not preload scoped forms for the infinite grid"
+        ),
+        create=True,
+    )
+    def test_dashboard_does_not_preload_submission_table_data(
+        self,
+        _mocked_scoped_forms,
+        _mocked_render_rows,
+        _mocked_kpi,
+    ):
+        self._login(self.dm_user_id)
+
+        response = self.client.get("/data-management/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"id=\"dm-table\"", response.data)
 
     @patch("app.utils.va_odk_delta_count")
     @patch("app.utils.va_odk_fetch_instance_ids")
@@ -414,6 +432,32 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn("total_submissions", payload["stats"][0])
         self.assertIn("this_week_submissions", payload["stats"][0])
         self.assertIn("today_submissions", payload["stats"][0])
+
+    @patch(
+        "app.routes.api.data_management.get_dm_kpi_from_mv",
+        return_value={
+            "total_submissions": 1,
+            "coded_submissions": 0,
+            "pending_submissions": 1,
+            "flagged_submissions": 0,
+            "odk_has_issues_submissions": 0,
+            "smartva_missing_submissions": 0,
+            "revoked_submissions": 0,
+            "consent_refused_submissions": 0,
+            "smartva_pending_submissions": 0,
+            "workflow_counts": {},
+        },
+    )
+    def test_data_manager_kpi_endpoint_uses_cache(self, mocked_get_kpi):
+        self._login(self.dm_user_id)
+        cache.clear()
+
+        first = self.client.get("/api/v1/data-management/kpi")
+        second = self.client.get("/api/v1/data-management/kpi")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(mocked_get_kpi.call_count, 1)
 
     def test_data_manager_can_trigger_scoped_form_sync(self):
         self._login(self.dm_user_id)
@@ -574,6 +618,22 @@ class DataManagerDashboardTests(BaseTestCase):
             "data_manager_viewed_submission_read_only",
         )
         self.assertEqual(audit_row.va_audit_byrole, "data_manager")
+
+    @patch("app.routes.api.analytics.refresh_submission_analytics_mv")
+    def test_data_manager_can_refresh_analytics_mv(self, refresh_mv):
+        self._login(self.dm_user_id)
+
+        response = self.client.post(
+            "/api/v1/analytics/mv/refresh",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(
+            response.get_json(),
+            {"message": "Analytics data refreshed successfully."},
+        )
+        refresh_mv.assert_called_once_with(concurrently=True)
 
     def test_single_form_task_revalidates_scope_in_worker(self):
         from app.tasks.sync_tasks import run_single_form_sync

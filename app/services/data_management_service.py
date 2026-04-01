@@ -387,18 +387,19 @@ def dm_submissions_page(
         .where(sa.and_(*conditions))
     )
 
-    total = db.session.scalar(
-        sa.select(sa.func.count()).select_from(base_q.subquery())
-    ) or 0
-
     sort_col = _SORT_FIELDS.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
     order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
-    # secondary sorts for stable ordering
+    offset = (page - 1) * per_page
+    # Over-fetch one row so we can detect the end without a separate COUNT(*).
     rows = db.session.execute(
         base_q.order_by(order, VaForms.project_id, VaForms.site_id)
-        .limit(per_page)
-        .offset((page - 1) * per_page)
+        .limit(per_page + 1)
+        .offset(offset)
     ).mappings().all()
+
+    has_more = len(rows) > per_page
+    if has_more:
+        rows = rows[:per_page]
 
     data = []
     for row in rows:
@@ -407,8 +408,8 @@ def dm_submissions_page(
         r["odk_sync_status"] = "missing_in_odk" if r.get("va_sync_issue_code") == "missing_in_odk" else "in_sync"
         data.append(r)
 
-    import math
-    last_page = max(1, math.ceil(total / per_page))
+    total = None if has_more else offset + len(data)
+    last_page = None if has_more else max(1, page)
     return {"data": data, "last_page": last_page, "total": total}
 
 

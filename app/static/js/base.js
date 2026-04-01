@@ -102,8 +102,17 @@ window.showAppToast = function (message, type, options) {
   if (!container || !message) return;
 
   var config = options || {};
-  var timeoutMs = typeof config.timeoutMs === "number" ? config.timeoutMs : 5000;
   var level = type || "info";
+  var timeoutMs;
+  if (typeof config.timeoutMs === "number") {
+    timeoutMs = config.timeoutMs;
+  } else if (level === "danger") {
+    timeoutMs = 0;
+  } else if (level === "warning") {
+    timeoutMs = 10000;
+  } else {
+    timeoutMs = 5000;
+  }
 
   var toast = document.createElement("div");
   toast.className =
@@ -155,8 +164,26 @@ window.showAppToast = function (message, type, options) {
     toast.style.transform = "translateY(0)";
   });
 
+  var dismissTimer = null;
+  function clearDismissTimer() {
+    if (dismissTimer) {
+      clearTimeout(dismissTimer);
+      dismissTimer = null;
+    }
+  }
+
+  function startDismissTimer() {
+    clearDismissTimer();
+    if (timeoutMs > 0) {
+      dismissTimer = setTimeout(removeToast, timeoutMs);
+    }
+  }
+
+  toast.addEventListener("mouseenter", clearDismissTimer);
+  toast.addEventListener("mouseleave", startDismissTimer);
+
   if (timeoutMs > 0) {
-    setTimeout(removeToast, timeoutMs);
+    startDismissTimer();
   }
 };
 

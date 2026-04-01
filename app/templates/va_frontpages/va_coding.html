@@ -222,6 +222,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const notesPanel = document.getElementById("notesPanel");
   const closeNotes = document.getElementById("closeNotes");
 
+  if (!notesTab || !notesPanel || !closeNotes) {
+    return;
+  }
+
   // Slide open the notes panel
   notesTab.addEventListener("click", function () {
     notesPanel.classList.add("active");

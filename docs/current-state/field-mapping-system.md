@@ -3,7 +3,7 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-03-31
 ---
 
 # Field Mapping System
@@ -581,6 +581,29 @@ new_ft, stats = svc.import_form_type(data, override_code="NEW_CODE", override_na
 svc.deactivate_form_type("OLD_FORM")
 ```
 
+### Bootstrap Note
+
+If the admin field-mapping panel shows no registered form types, the default
+WHO 2022 form type and mapping set have not been seeded into `mas_form_types`
+and related `mas_*` mapping tables yet.
+
+The standard bootstrap command is:
+
+```bash
+docker compose exec minerva_app_service uv run flask seed run
+```
+
+That command:
+
+- registers `WHO_2022_VA` if it is missing
+- runs `Who2022VaMigrator`
+- loads field definitions from `resource/mapping/mapping_labels.xlsx`
+- loads choice mappings from `resource/mapping/mapping_choices.xlsx`
+
+Languages being present in the admin UI does not imply form types are present.
+The language seed and the field-mapping seed are separate steps within
+`flask seed run`.
+
 ---
 
 ## Field Display Flags Reference
@@ -642,3 +665,10 @@ All state-changing routes require `X-CSRFToken` header and admin role.
 - [Data Model](data-model.md)
 - [ODK Sync](odk-sync.md)
 - [Admin and Setup](admin-and-setup.md)
+---
+title: Field Mapping System
+doc_type: current-state
+status: active
+owner: engineering
+last_updated: 2026-03-31
+---

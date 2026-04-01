@@ -1,0 +1,42 @@
+<div class="offcanvas offcanvas-end"
+     tabindex="-1"
+     id="dm-ops-offcanvas"
+     style="width:420px;"
+     aria-labelledby="dm-ops-offcanvas-label">
+  <div class="offcanvas-header border-bottom">
+    <h6 class="offcanvas-title" id="dm-ops-offcanvas-label">
+      <i class="fa-solid fa-gear me-2"></i>Operations
+    </h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="d-grid mb-4">
+      <button id="dm-open-sync-modal-btn" class="btn btn-outline-primary btn-sm">
+        <i class="fa-solid fa-cloud-arrow-down me-1"></i>Sync Latest Data
+      </button>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h6 class="mb-0 small fw-semibold">Recent Sync Results</h6>
+      <button id="dm-refresh-sync-runs-btn" class="btn btn-sm btn-outline-secondary py-0 px-2">
+        <i class="fa-solid fa-arrows-rotate"></i>
+      </button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="table table-sm table-bordered mb-0" id="dm-sync-runs-table">
+        <thead class="table-light">
+          <tr>
+            <th style="font-size:.72rem;">Target</th>
+            <th style="font-size:.72rem;">Started</th>
+            <th style="font-size:.72rem;">Status</th>
+            <th style="font-size:.72rem;">Added</th>
+            <th style="font-size:.72rem;">Updated</th>
+          </tr>
+        </thead>
+        <tbody id="dm-sync-runs-tbody">
+          <tr><td colspan="5" class="text-muted text-center small">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

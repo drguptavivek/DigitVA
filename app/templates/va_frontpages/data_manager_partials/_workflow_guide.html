@@ -1,0 +1,20 @@
+<div class="mt-3 mb-4" id="dm-workflow-chart-panel">
+  <button
+    class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-between px-3 py-2"
+    type="button"
+    data-bs-toggle="collapse"
+    data-bs-target="#dm-workflow-chart-body"
+    aria-expanded="false"
+    aria-controls="dm-workflow-chart-body"
+    id="dm-workflow-chart-toggle"
+  >
+    <span><i class="fa-solid fa-diagram-project me-2"></i>Workflow State Guide</span>
+    <i class="fa-solid fa-chevron-down" id="dm-workflow-chevron" style="transition:transform 0.2s;"></i>
+  </button>
+  <div class="collapse" id="dm-workflow-chart-body">
+    <div class="card card-body border-top-0 rounded-0 rounded-bottom pt-3 pb-2" style="background:#fafafa;">
+      <p class="text-muted small mb-2">Click any state node to filter the table to that workflow state.</p>
+      <div id="dm-mermaid-container" class="text-center overflow-auto" style="min-height:320px;"></div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,243 @@
+.dm-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.dm-kpi-card {
+  border-radius: 0.5rem;
+  border: 1px solid #dee2e6;
+  background: #fff;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: box-shadow 0.15s, transform 0.15s;
+  height: 100%;
+  min-height: 5.5rem;
+}
+
+.dm-kpi-card.clickable {
+  cursor: pointer;
+}
+
+.dm-kpi-card.clickable:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.dm-kpi-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.dm-kpi-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dm-kpi-label {
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dm-kpi-card.card-primary {
+  background: #f0f5ff;
+  border-color: #b6d4fe;
+}
+
+.dm-kpi-card.card-danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.dm-kpi-card.card-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.dm-kpi-card.card-secondary {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+
+#dm-filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 1.5rem;
+}
+
+.dm-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #e7f1ff;
+  border: 1px solid #b6d4fe;
+  color: #0a58ca;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem 0.15rem 0.65rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.dm-filter-pill button {
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+#dm-col-visibility-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem 0;
+}
+
+.dm-col-toggle-btn {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+#dm-table {
+  height: 520px;
+  width: 100%;
+}
+
+#dm-table .ag-row {
+  font-size: 0.82rem;
+}
+
+#dm-table .ag-header-cell-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.dm-action-cell {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.dm-chart-card {
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.dm-chart-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.75rem;
+}
+
+#dm-sync-confirm-modal .modal-dialog {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  max-width: 860px;
+}
+
+#dm-sync-confirm-modal .modal-content {
+  max-height: calc(100vh - 2rem);
+}
+
+#dm-sync-confirm-modal .modal-body {
+  overflow-y: auto;
+}
+
+.dm-sync-stat-box {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.4rem;
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+}
+
+.dm-sync-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.dm-sync-stat-label {
+  font-size: 0.73rem;
+  color: #6c757d;
+}
+
+.ts-wrapper.form-control,
+.ts-wrapper.form-select {
+  padding: 0;
+  height: auto;
+}
+
+.ts-control {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+#dm-sync-runs-tbody tr td {
+  font-size: 0.78rem;
+  vertical-align: middle;
+}
+
+.dm-attachment-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.dm-kpi-info-btn {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  padding: 0 0.15rem;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 0.7rem;
+  z-index: 1;
+}
+
+.dm-kpi-info-btn:hover {
+  color: #6b7280;
+}
+
+#dm-table-spinner {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.55);
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+}
+
+#dm-table-wrapper {
+  position: relative;
+  min-height: 200px;
+}

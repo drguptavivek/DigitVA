@@ -1,0 +1,79 @@
+<div class="modal fade" id="dm-sync-confirm-modal" tabindex="-1" aria-labelledby="dm-sync-confirm-modal-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dm-sync-confirm-modal-label">
+          <i class="fa-solid fa-cloud-arrow-down me-2 text-primary"></i>Sync Data
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Projects</label>
+            <select id="dm-sync-project-select" multiple placeholder="All projects…"></select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Sites</label>
+            <select id="dm-sync-site-select" multiple placeholder="All sites…"></select>
+          </div>
+        </div>
+
+        <div class="row g-2 mb-3" id="dm-sync-stats-row">
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value" id="sync-stat-total">—</div>
+              <div class="dm-sync-stat-label">Total Forms</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value text-success" id="sync-stat-new">—</div>
+              <div class="dm-sync-stat-label">New To Fetch</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value text-warning" id="sync-stat-updated">—</div>
+              <div class="dm-sync-stat-label">Updated</div>
+            </div>
+          </div>
+          <div class="col-6 col-sm-3">
+            <div class="dm-sync-stat-box">
+              <div class="dm-sync-stat-value text-danger" id="sync-stat-missing">—</div>
+              <div class="dm-sync-stat-label">Missing In ODK</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="dm-sync-preview-container">
+          <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" id="dm-sync-preview-table">
+              <thead class="table-light">
+                <tr>
+                  <th style="font-size:.75rem;">Form ID</th>
+                  <th style="font-size:.75rem;">Project</th>
+                  <th style="font-size:.75rem;">Site</th>
+                  <th style="font-size:.75rem;">Local</th>
+                  <th style="font-size:.75rem;">ODK</th>
+                  <th style="font-size:.75rem;">New</th>
+                  <th style="font-size:.75rem;">Missing</th>
+                  <th style="font-size:.75rem;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="dm-sync-preview-tbody">
+                <tr><td colspan="8" class="text-muted text-center small">Select projects / sites to preview</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="dm-sync-confirm-btn" class="btn btn-primary btn-sm" disabled>
+          <i class="fa-solid fa-cloud-arrow-down me-1"></i>Sync All
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

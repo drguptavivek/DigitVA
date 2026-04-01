@@ -1,0 +1,47 @@
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-white d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <input id="dm-search-input"
+             type="search"
+             class="form-control form-control-sm"
+             style="width:220px;"
+             placeholder="Search VA ID, collector…">
+      <button id="dm-apply-filters-btn" class="btn btn-sm btn-primary">
+        <i class="fa-solid fa-magnifying-glass me-1"></i>Search
+      </button>
+      <button id="dm-clear-filters-btn" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-xmark me-1"></i>Clear
+      </button>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-secondary"
+              type="button"
+              id="dm-col-toggle-btn"
+              data-bs-toggle="collapse"
+              data-bs-target="#dm-col-visibility-collapse">
+        <i class="fa-solid fa-table-columns me-1"></i>Columns
+      </button>
+    </div>
+  </div>
+
+  <div class="card-body py-2 px-3 border-bottom" id="dm-filter-pills-container" style="display:none;">
+    <div id="dm-filter-pills"></div>
+  </div>
+
+  <div class="collapse" id="dm-col-visibility-collapse">
+    <div class="card-body py-2 px-3 border-bottom bg-light">
+      <div id="dm-col-visibility-panel"></div>
+    </div>
+  </div>
+
+  <div class="card-body p-2">
+    <div id="dm-table-wrapper">
+      <div id="dm-table-spinner" style="display:none; position:absolute; inset:0; background:rgba(255,255,255,.55); z-index:10; align-items:center; justify-content:center;">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading…</span>
+        </div>
+      </div>
+      <div id="dm-table"></div>
+    </div>
+  </div>
+</div>

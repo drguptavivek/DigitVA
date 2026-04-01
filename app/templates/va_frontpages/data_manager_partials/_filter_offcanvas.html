@@ -1,0 +1,114 @@
+<div class="offcanvas offcanvas-end"
+     tabindex="-1"
+     id="dm-filter-offcanvas"
+     style="width:340px;"
+     aria-labelledby="dm-filter-offcanvas-label">
+  <div class="offcanvas-header border-bottom">
+    <h6 class="offcanvas-title" id="dm-filter-offcanvas-label">
+      <i class="fa-solid fa-filter me-2"></i>Filters
+    </h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="dm-filter-form" novalidate>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Project</label>
+        <select id="dm-project-filter" class="form-select form-select-sm" multiple placeholder="All projects…"></select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Site</label>
+        <select id="dm-site-filter" class="form-select form-select-sm" multiple placeholder="All sites…"></select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Date From</label>
+        <input type="date" id="dm-date-from" class="form-control form-control-sm">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Date To</label>
+        <input type="date" id="dm-date-to" class="form-control form-control-sm">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">ODK Status</label>
+        <select id="dm-odk-status-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="hasIssues">Has Issues</option>
+          <option value="approved">Approved</option>
+          <option value="no_review_state">No Review State</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">SmartVA</label>
+        <select id="dm-smartva-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="available">Available</option>
+          <option value="missing">Missing</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Age Group</label>
+        <select id="dm-age-group-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="neonate">Neonate</option>
+          <option value="child">Child</option>
+          <option value="15_49y">15–49y</option>
+          <option value="50_64y">50–64y</option>
+          <option value="65_plus">65+</option>
+          <option value="unknown">Unknown</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Gender</label>
+        <select id="dm-gender-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">ODK Sync</label>
+        <select id="dm-odk-sync-filter" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="missing_in_odk">Missing In ODK</option>
+          <option value="in_sync">In Sync</option>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Workflow State</label>
+        <select id="dm-workflow-filter" class="form-select form-select-sm">
+          <option value="">All States</option>
+          <optgroup label="── Groups ──">
+            <option value="pending_coding">Pending Coding (all)</option>
+            <option value="coded">Coded (all)</option>
+          </optgroup>
+          <optgroup label="── Queued ──">
+            <option value="ready_for_coding">Ready for Coding</option>
+            <option value="smartva_pending">SmartVA Queue</option>
+            <option value="screening_pending">Screening Pending</option>
+          </optgroup>
+          <optgroup label="── Coding In Progress ──">
+            <option value="coding_in_progress">Coding In Progress</option>
+            <option value="coder_step1_saved">Step 1 Saved</option>
+            <option value="not_codeable_by_coder">Not Codeable — Coder</option>
+          </optgroup>
+          <optgroup label="── Finalized ──">
+            <option value="coder_finalized">Coder Finalized</option>
+            <option value="reviewer_eligible">Coded — Reviewer Eligible</option>
+            <option value="reviewer_coding_in_progress">Reviewer Coding In Progress</option>
+            <option value="reviewer_finalized">Reviewer Finalized</option>
+          </optgroup>
+          <optgroup label="── Issues / Special ──">
+            <option value="finalized_upstream_changed">Upstream Changed</option>
+            <option value="not_codeable_by_data_manager">Not Codeable — Excluded by DM</option>
+            <option value="consent_refused">Consent Refused</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="d-grid gap-2 pt-1">
+        <button type="button" id="dm-offcanvas-apply-btn" class="btn btn-primary btn-sm">
+          <i class="fa-solid fa-check me-1"></i>Apply Filters
+        </button>
+        <button type="button" id="dm-offcanvas-clear-btn" class="btn btn-outline-secondary btn-sm">
+          <i class="fa-solid fa-xmark me-1"></i>Clear Filters
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

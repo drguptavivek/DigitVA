@@ -1,0 +1,25 @@
+<div class="dm-page-header">
+  <div>
+    <h4 class="mb-0 fw-semibold">
+      <i class="fa-solid fa-database text-primary me-2"></i>Data Management
+    </h4>
+    <small class="text-muted">{{ current_user.email }}</small>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-sm btn-outline-secondary"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#dm-filter-offcanvas">
+      <i class="fa-solid fa-filter me-1"></i>Filters
+    </button>
+    <button class="btn btn-sm btn-outline-secondary"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#dm-ops-offcanvas">
+      <i class="fa-solid fa-gear me-1"></i>Operations
+    </button>
+    <button id="dm-refresh-dashboard-btn" class="btn btn-sm btn-outline-primary" type="button">
+      <i class="fa-solid fa-arrows-rotate me-1"></i>Refresh Dashboard
+    </button>
+  </div>
+</div>

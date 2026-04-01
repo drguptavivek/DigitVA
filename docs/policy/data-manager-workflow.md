@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-17
+last_updated: 2026-04-01
 ---
 
 # Data Manager Workflow Policy
@@ -90,6 +90,44 @@ At minimum the dashboard must show:
 - canonical local workflow state
 - ODK review state mirrored locally from ODK Central
 - local sync issue status for the submission
+
+The dashboard may also expose filtered CSV exports for operational review, but
+those exports must protect PII.
+
+Export policy:
+
+- export scope must respect the same project / project-site grants as the
+  dashboard table
+- export content must respect the current dashboard filters
+- exports must omit payload fields marked as PII in field mapping
+- exports must omit direct local identifiers that should not appear in bulk
+  operational extracts
+- exports may retain non-PII narrative text needed for operational review
+- SmartVA-specific exports must not include the full raw VA payload when a
+  narrower SmartVA-specific shape is sufficient
+
+For pending `finalized_upstream_changed` submissions, data managers may also:
+
+- open a shared `View Changes` modal from the dashboard
+- open the same `View Changes` modal from the read-only submission detail page
+- review:
+  - `Data Changes`
+  - `Metadata Changes`
+  - `Formatting-Only Changes`
+- choose `Accept And Recode`, which clears old assigned ICD codes and returns
+  the form for recoding
+- choose `Keep Current ICD Decision`, which adopts the new upstream ODK data
+  locally while preserving the current finalized ICD Code decision and
+  finalized workflow state
+
+Policy boundary:
+
+- upstream review actions from these modals are local DigitVA workflow
+  resolution action
+- modal upstream review actions do not write an ODK rejection comment
+- this is distinct from data-manager Not Codeable triage in `vadmtriage`,
+  which still writes ODK `hasIssues` review state and comment text back to ODK
+  Central
 
 ## ODK Sync Visibility
 

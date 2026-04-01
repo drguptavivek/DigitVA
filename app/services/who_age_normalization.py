@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+import math
 
 
 _DAYS_PER_MONTH = Decimal("30.4375")
@@ -25,19 +26,26 @@ def _parse_decimal(value) -> Decimal | None:
     if value is None:
         return None
     if isinstance(value, Decimal):
+        if value.is_nan():
+            return None
         return value
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
+        if isinstance(value, float) and math.isnan(value):
+            return None
         return Decimal(str(value))
 
     raw = str(value).strip()
     if not raw:
         return None
     try:
-        return Decimal(raw)
+        parsed = Decimal(raw)
     except InvalidOperation:
         return None
+    if parsed.is_nan():
+        return None
+    return parsed
 
 
 def _flag_is_true(value) -> bool:

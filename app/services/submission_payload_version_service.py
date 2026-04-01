@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
@@ -18,10 +19,99 @@ from app.models.va_submission_payload_versions import (
 )
 
 
+VOLATILE_PAYLOAD_KEYS = frozenset(
+    {
+        "AttachmentsExpected",
+        "AttachmentsPresent",
+        "DeviceID",
+        "Edits",
+        "FormVersion",
+        "OdkReviewComments",
+        "SubmitterID",
+        "updatedAt",
+        "audit",
+        "instanceID",
+        "survey_district",
+        "survey_state",
+        "ageInDays",
+        "ageInDays2",
+        "ageInDaysNeonate",
+        "ageInMonths",
+        "ageInMonthsByYear",
+        "ageInMonthsRemain",
+        "ageInYears",
+        "ageInYears2",
+        "ageInYearsRemain",
+        "finalAgeInYears",
+        "isAdult",
+        "isAdult1",
+        "isAdult2",
+        "isChild",
+        "isChild1",
+        "isChild2",
+        "isNeonatal",
+        "isNeonatal1",
+        "isNeonatal2",
+    }
+)
+
+NULL_LIKE_STRING_VALUES = frozenset(
+    {
+        "",
+        "na",
+        "n/a",
+        "none",
+        "null",
+    }
+)
+
+
+def _normalize_scalar(value):
+    if value is None or isinstance(value, bool):
+        return value
+
+    if isinstance(value, (int, float)):
+        return _canonicalize_numeric(value)
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.casefold() in NULL_LIKE_STRING_VALUES:
+            return None
+        try:
+            return _canonicalize_numeric(stripped)
+        except InvalidOperation:
+            return stripped
+
+    return value
+
+
+def _canonicalize_numeric(value) -> str:
+    normalized = Decimal(str(value)).normalize()
+    rendered = format(normalized, "f")
+    if "." in rendered:
+        rendered = rendered.rstrip("0").rstrip(".")
+    return rendered or "0"
+
+
+def normalize_payload_for_fingerprint(payload_data: dict | list | object):
+    """Return a stable business-payload representation for change detection."""
+    if isinstance(payload_data, dict):
+        return {
+            key: normalize_payload_for_fingerprint(value)
+            for key, value in payload_data.items()
+            if key not in VOLATILE_PAYLOAD_KEYS
+        }
+
+    if isinstance(payload_data, list):
+        return [normalize_payload_for_fingerprint(item) for item in payload_data]
+
+    return _normalize_scalar(payload_data)
+
+
 def canonical_payload_fingerprint(payload_data: dict) -> str:
     """Return a stable hash for full canonical normalized payload JSON."""
     canonical_json = json.dumps(
-        payload_data or {},
+        normalize_payload_for_fingerprint(payload_data or {}),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=True,
@@ -72,7 +162,7 @@ def ensure_active_payload_version(
     active = get_active_payload_version(submission.va_sid)
     fingerprint = canonical_payload_fingerprint(payload_data)
 
-    if active and active.payload_fingerprint == fingerprint:
+    if active and canonical_payload_fingerprint(active.payload_data or {}) == fingerprint:
         if submission.active_payload_version_id != active.payload_version_id:
             submission.active_payload_version_id = active.payload_version_id
         if source_updated_at is not None:
@@ -83,7 +173,7 @@ def ensure_active_payload_version(
         active = db.session.get(
             VaSubmissionPayloadVersion, submission.active_payload_version_id
         )
-        if active and active.payload_fingerprint == fingerprint:
+        if active and canonical_payload_fingerprint(active.payload_data or {}) == fingerprint:
             if source_updated_at is not None:
                 active.source_updated_at = source_updated_at
             return active
@@ -133,7 +223,7 @@ def create_or_update_pending_upstream_payload_version(
     """Create or update the pending upstream payload version for a protected submission."""
     fingerprint = canonical_payload_fingerprint(payload_data)
     pending = get_latest_pending_upstream_payload_version(submission.va_sid)
-    if pending and pending.payload_fingerprint == fingerprint:
+    if pending and canonical_payload_fingerprint(pending.payload_data or {}) == fingerprint:
         pending.payload_data = payload_data
         pending.source_updated_at = source_updated_at
         return pending

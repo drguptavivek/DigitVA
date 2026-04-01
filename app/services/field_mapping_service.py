@@ -89,6 +89,15 @@ class FieldMappingService:
             self._cache[cache_key] = self._build_labels_list(form_type_code, "is_info")
         return self._cache[cache_key]
 
+    def get_pii_field_ids(self, form_type_code: str) -> set[str]:
+        """
+        Return field ids marked as PII for a form type.
+        """
+        cache_key = f"pii_field_ids_{form_type_code}"
+        if cache_key not in self._cache:
+            self._cache[cache_key] = self._build_pii_field_ids(form_type_code)
+        return self._cache[cache_key]
+
     def get_subcategory_labels(self, form_type_code: str, category_code: str) -> dict[str, str]:
         """
         Return ordered subcategory display labels for a category.
@@ -305,6 +314,22 @@ class FieldMappingService:
                 subcategory.render_mode or "default",
             )
             for subcategory in subcategories
+        )
+
+    def _build_pii_field_ids(self, form_type_code: str) -> set[str]:
+        """Build the set of field ids marked as PII for a form type."""
+        form_type = self.get_form_type(form_type_code)
+        if not form_type:
+            return set()
+
+        return set(
+            db.session.scalars(
+                select(MasFieldDisplayConfig.field_id).where(
+                    MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+                    MasFieldDisplayConfig.is_active == True,
+                    MasFieldDisplayConfig.is_pii == True,
+                )
+            ).all()
         )
 
 

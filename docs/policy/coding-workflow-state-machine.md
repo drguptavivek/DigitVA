@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-24
+last_updated: 2026-04-01
 ---
 
 # Coding Workflow State Machine Policy
@@ -627,20 +627,34 @@ When this transition occurs:
 
 | Action | Outcome |
 |---|---|
-| Accept upstream change | Transition to `smartva_pending`, rerun SmartVA for the new ODK data, and return to `ready_for_coding` only after generate/regenerate/failure-recording |
-| Reject upstream change | Restore to `coder_finalized`, keep current COD authoritative |
+| Accept And Recode | Promote the new payload, transition to `smartva_pending`, rerun SmartVA for the new ODK data, and return to `ready_for_coding` only after generate/regenerate/failure-recording |
+| Keep Current ICD Decision | Promote the new payload, preserve current COD/ICD artifacts, and restore the prior finalized workflow state |
 | Admin override final COD | Transition from `coder_finalized` to `ready_for_coding` for recoding against the same payload; no SmartVA rerun required unless the payload has changed |
 
 Policy baseline: data managers and admins may resolve
 `finalized_upstream_changed` submissions.
+
+Resolution UI baseline:
+
+- the data-manager dashboard and the data-manager detail page may expose a
+  `View Changes` action for pending `finalized_upstream_changed` submissions
+- the upstream diff opens in a modal
+- `Accept And Recode` and `Keep Current ICD Decision` belong inside that modal, not as standalone
+  destructive buttons outside the modal
+- `Accept And Recode` means the new ODK data becomes authoritative for recoding, old
+  assigned ICD codes are cleared, and the form returns for recoding
+- `Keep Current ICD Decision` means the new ODK data becomes the active stored
+  payload while the current finalized ICD decision remains authoritative
+- these modal review actions are local DigitVA workflow decisions and
+  do not post a rejection comment back to ODK Central
 
 ### Authorization
 
 | Operation | Coder | Data Manager | Admin |
 |---|---|---|---|
 | View upstream-changed submissions | No | Yes (scoped) | Yes |
-| Accept upstream change | No | Yes (scoped) | Yes |
-| Reject upstream change | No | Yes (scoped) | Yes |
+| Accept And Recode | No | Yes (scoped) | Yes |
+| Keep Current ICD Decision | No | Yes (scoped) | Yes |
 
 ## Reviewer Oversight Workflow
 

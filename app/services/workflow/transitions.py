@@ -547,6 +547,24 @@ def reject_upstream_change(
     )
 
 
+def keep_current_icd_on_upstream_change(
+    va_sid: str,
+    *,
+    actor: WorkflowActor,
+    target_state: str = wd.WORKFLOW_CODER_FINALIZED,
+    reason: str = "upstream_change_kept_current_icd",
+) -> TransitionResult:
+    return _apply_transition(
+        va_sid,
+        transition_id=wd.TRANSITION_UPSTREAM_CHANGE_KEPT_CURRENT_ICD,
+        target_state=target_state,
+        allowed_from=(wd.WORKFLOW_FINALIZED_UPSTREAM_CHANGED,),
+        allowed_actor_kinds=DATA_MANAGER_ACTOR_KINDS,
+        reason=reason,
+        actor=actor,
+    )
+
+
 def mark_demo_started(
     va_sid: str,
     *,

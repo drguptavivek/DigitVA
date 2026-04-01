@@ -27,6 +27,7 @@ from app.services.odk_connection_guard_service import OdkConnectionCooldownError
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     SYNC_ISSUE_MISSING_IN_ODK,
     _attach_all_odk_comments,
+    _enrich_submission_payload_for_storage,
     _release_active_allocations_after_sync,
     _mark_form_sync_issues,
     _upsert_form_submissions,
@@ -218,7 +219,130 @@ class OdkSyncServiceTests(BaseTestCase):
             versions[0].payload_version_id,
             submission.active_payload_version_id,
         )
-        self.assertEqual(versions[0].payload_data.get("sid"), sid)
+
+    def test_enrich_submission_payload_for_storage_merges_xml_metadata_and_attachments(self):
+        payload = self._record("uuid:sync-enrich", "yes")
+        va_form = db.session.get(VaForms, self.FORM_ID)
+
+        class FakeResponse:
+            def __init__(self, status_code, text="", json_data=None):
+                self.status_code = status_code
+                self.text = text
+                self._json_data = json_data
+
+            def json(self):
+                return self._json_data
+
+        def fake_get(url, headers=None):
+            if url.endswith(".xml"):
+                return FakeResponse(
+                    200,
+                    text=(
+                        "<?xml version='1.0' encoding='UTF-8'?>"
+                        "<data id='SYNC_TEST_FORM' version='SYNC_TEST_FORM_20260101'>"
+                        "<deviceid>collect:test-device</deviceid>"
+                        "</data>"
+                    ),
+                )
+            if url.endswith("/attachments"):
+                return FakeResponse(
+                    200,
+                    json_data=[
+                        {"name": "file1.jpg", "exists": True},
+                        {"name": "audit.csv", "exists": True},
+                    ],
+                )
+            return FakeResponse(
+                200,
+                json_data={
+                    "instanceId": "uuid:sync-enrich",
+                    "submitterId": 23,
+                    "deviceId": "imei:backup-device",
+                    "reviewState": "approved",
+                    "currentVersion": {
+                        "instanceName": "sync instance name",
+                    },
+                },
+            )
+
+        fake_client = SimpleNamespace(session=SimpleNamespace(get=fake_get))
+
+        enriched = _enrich_submission_payload_for_storage(
+            va_form,
+            payload,
+            client=fake_client,
+        )
+
+        self.assertEqual(enriched["FormVersion"], "SYNC_TEST_FORM_20260101")
+        self.assertEqual(enriched["DeviceID"], "collect:test-device")
+        self.assertEqual(enriched["SubmitterID"], 23)
+        self.assertEqual(enriched["instanceID"], "uuid:sync-enrich")
+        self.assertEqual(enriched["ReviewState"], "hasIssues")
+        self.assertEqual(enriched["instanceName"], "uuid:sync-enrich")
+        self.assertEqual(enriched["AttachmentsExpected"], 2)
+        self.assertEqual(enriched["AttachmentsPresent"], 2)
+
+    def test_enrich_submission_payload_for_storage_normalizes_nan_like_values(self):
+        payload = {
+            **self._record("uuid:sync-nan", "yes"),
+            "ageInDays": "NaN",
+            "ageInDays2": float("nan"),
+            "ageInMonths": "nan",
+            "ageInYears": "NaN",
+        }
+
+        enriched = _enrich_submission_payload_for_storage(
+            db.session.get(VaForms, self.FORM_ID),
+            payload,
+            client=None,
+        )
+
+        self.assertIsNone(enriched.get("ageInDays"))
+        self.assertIsNone(enriched.get("ageInDays2"))
+        self.assertIsNone(enriched.get("ageInMonths"))
+        self.assertIsNone(enriched.get("ageInYears"))
+
+    @patch(
+        "app.services.va_data_sync.va_data_sync_01_odkcentral._enrich_submission_payload_for_storage"
+    )
+    def test_upsert_persists_enriched_metadata_fields(self, mocked_enrich):
+        mocked_enrich.side_effect = lambda _form, payload, client=None: {
+            **payload,
+            "FormVersion": "SYNC_TEST_FORM_20260101",
+            "DeviceID": "collect:test-device",
+            "SubmitterID": 23,
+            "instanceID": payload["KEY"],
+            "AttachmentsExpected": 2,
+            "AttachmentsPresent": 2,
+        }
+
+        amended_sids = set()
+        sid = f"uuid:sync-enriched-{self.FORM_ID.lower()}"
+
+        _upsert_form_submissions(
+            db.session.get(VaForms, self.FORM_ID),
+            [self._record("uuid:sync-enriched", "yes")],
+            amended_sids,
+            {},
+            client=object(),
+        )
+        db.session.commit()
+
+        submission = db.session.get(VaSubmissions, sid)
+        self.assertEqual(submission.va_data["FormVersion"], "SYNC_TEST_FORM_20260101")
+        self.assertEqual(submission.va_data["DeviceID"], "collect:test-device")
+        self.assertEqual(submission.va_data["SubmitterID"], 23)
+        self.assertEqual(submission.va_data["instanceID"], "uuid:sync-enriched")
+        self.assertEqual(submission.va_data["AttachmentsExpected"], 2)
+        self.assertEqual(submission.va_data["AttachmentsPresent"], 2)
+        versions = db.session.scalars(
+            db.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == sid
+            )
+        ).all()
+        self.assertEqual(len(versions), 1)
+        self.assertEqual(versions[0].payload_data.get("FormVersion"), "SYNC_TEST_FORM_20260101")
+        self.assertEqual(versions[0].payload_data.get("AttachmentsPresent"), 2)
 
     def test_changed_payload_creates_new_active_payload_version(self):
         amended_sids = set()

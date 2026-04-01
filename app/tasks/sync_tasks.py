@@ -412,6 +412,7 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         va_odk_sync_form_attachments,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+        _attach_all_odk_comments,
         _mark_form_sync_issues,
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
@@ -451,6 +452,12 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
             [instance_id],
             client=odk_client,
         )
+        records = _attach_all_odk_comments(
+            va_form,
+            records,
+            client=odk_client,
+            log_progress=log_progress,
+        )
 
         if not records:
             submission.va_sync_issue_code = SYNC_ISSUE_MISSING_IN_ODK
@@ -473,6 +480,7 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
             records,
             amended_sids=set(),
             upserted_map=upserted_map,
+            client=odk_client,
         )
         _mark_form_sync_issues(va_form, va_odk_fetch_instance_ids(va_form, client=odk_client))
         db.session.commit()

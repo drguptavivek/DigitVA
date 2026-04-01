@@ -15,7 +15,7 @@ from datetime import datetime
 from types import SimpleNamespace
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, Response, jsonify, request, current_app
 from flask_login import login_required, current_user
 
 from app import cache, db, limiter
@@ -29,7 +29,12 @@ from app.services.data_management_service import (
     dm_screening_reject,
     dm_reject_upstream_change,
     dm_scoped_forms,
+    dm_smartva_input_export_csv,
+    dm_smartva_likelihoods_export_csv,
+    dm_smartva_results_export_csv,
+    dm_submissions_export_csv,
     dm_submissions_page,
+    dm_upstream_change_details,
     filter_scoped_forms,
     sync_run_entries,
     sync_run_target_label,
@@ -37,6 +42,7 @@ from app.services.data_management_service import (
 from app.services.submission_analytics_mv import (
     get_dm_kpi_from_mv,
     get_dm_project_site_stats_from_mv,
+    refresh_submission_analytics_mv,
 )
 
 bp = Blueprint("data_management_api", __name__)
@@ -77,6 +83,15 @@ def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
     return data
 
 
+def _refresh_dm_dashboard_analytics() -> None:
+    """Refresh dashboard analytics after workflow-mutating DM actions."""
+    refresh_submission_analytics_mv(concurrently=False)
+    try:
+        cache.clear()
+    except Exception as exc:
+        log.warning("Data-manager cache clear failed after analytics refresh: %s", exc)
+
+
 # ---------------------------------------------------------------------------
 # GET /api/v1/data-management/submissions  — paginated submission table
 # ---------------------------------------------------------------------------
@@ -115,6 +130,150 @@ def submissions():
         sort_dir=sort_dir,
     )
     return jsonify(result)
+
+
+@bp.get("/submissions/export.csv")
+@login_required
+@limiter.limit("30 per minute")
+def submissions_export_csv():
+    err = _require_data_manager()
+    if err:
+        return err
+
+    sort_field = request.args.get("sort[0][field]", "va_submission_date")
+    sort_dir = request.args.get("sort[0][dir]", "desc")
+    csv_text = dm_submissions_export_csv(
+        current_user,
+        search=request.args.get("search", ""),
+        project=request.args.get("project", ""),
+        site=request.args.get("site", ""),
+        date_from=request.args.get("date_from") or None,
+        date_to=request.args.get("date_to") or None,
+        odk_status=request.args.get("odk_status", ""),
+        smartva=request.args.get("smartva", ""),
+        age_group=request.args.get("age_group", ""),
+        gender=request.args.get("gender", ""),
+        odk_sync=request.args.get("odk_sync", ""),
+        workflow=request.args.get("workflow", ""),
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+    )
+    filename = f"data-management-submissions-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
+    return Response(
+        "\ufeff" + csv_text,
+        content_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@bp.get("/submissions/export-smartva-input.csv")
+@login_required
+@limiter.limit("30 per minute")
+def submissions_export_smartva_input_csv():
+    err = _require_data_manager()
+    if err:
+        return err
+
+    sort_field = request.args.get("sort[0][field]", "va_submission_date")
+    sort_dir = request.args.get("sort[0][dir]", "desc")
+    csv_text = dm_smartva_input_export_csv(
+        current_user,
+        search=request.args.get("search", ""),
+        project=request.args.get("project", ""),
+        site=request.args.get("site", ""),
+        date_from=request.args.get("date_from") or None,
+        date_to=request.args.get("date_to") or None,
+        odk_status=request.args.get("odk_status", ""),
+        smartva=request.args.get("smartva", ""),
+        age_group=request.args.get("age_group", ""),
+        gender=request.args.get("gender", ""),
+        odk_sync=request.args.get("odk_sync", ""),
+        workflow=request.args.get("workflow", ""),
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+    )
+    filename = f"data-management-smartva-input-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
+    return Response(
+        "\ufeff" + csv_text,
+        content_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@bp.get("/submissions/export-smartva-results.csv")
+@login_required
+@limiter.limit("30 per minute")
+def submissions_export_smartva_results_csv():
+    err = _require_data_manager()
+    if err:
+        return err
+
+    sort_field = request.args.get("sort[0][field]", "va_submission_date")
+    sort_dir = request.args.get("sort[0][dir]", "desc")
+    csv_text = dm_smartva_results_export_csv(
+        current_user,
+        search=request.args.get("search", ""),
+        project=request.args.get("project", ""),
+        site=request.args.get("site", ""),
+        date_from=request.args.get("date_from") or None,
+        date_to=request.args.get("date_to") or None,
+        odk_status=request.args.get("odk_status", ""),
+        smartva=request.args.get("smartva", ""),
+        age_group=request.args.get("age_group", ""),
+        gender=request.args.get("gender", ""),
+        odk_sync=request.args.get("odk_sync", ""),
+        workflow=request.args.get("workflow", ""),
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+    )
+    filename = f"data-management-smartva-results-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
+    return Response(
+        "\ufeff" + csv_text,
+        content_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@bp.get("/submissions/export-smartva-likelihoods.csv")
+@login_required
+@limiter.limit("30 per minute")
+def submissions_export_smartva_likelihoods_csv():
+    err = _require_data_manager()
+    if err:
+        return err
+
+    sort_field = request.args.get("sort[0][field]", "va_submission_date")
+    sort_dir = request.args.get("sort[0][dir]", "desc")
+    csv_text = dm_smartva_likelihoods_export_csv(
+        current_user,
+        search=request.args.get("search", ""),
+        project=request.args.get("project", ""),
+        site=request.args.get("site", ""),
+        date_from=request.args.get("date_from") or None,
+        date_to=request.args.get("date_to") or None,
+        odk_status=request.args.get("odk_status", ""),
+        smartva=request.args.get("smartva", ""),
+        age_group=request.args.get("age_group", ""),
+        gender=request.args.get("gender", ""),
+        odk_sync=request.args.get("odk_sync", ""),
+        workflow=request.args.get("workflow", ""),
+        sort_field=sort_field,
+        sort_dir=sort_dir,
+    )
+    filename = f"data-management-smartva-likelihoods-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
+    return Response(
+        "\ufeff" + csv_text,
+        content_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +320,21 @@ def filter_options():
     if err:
         return err
     return jsonify(dm_filter_options(current_user))
+
+
+@bp.get("/submissions/<path:va_sid>/upstream-change-details")
+@login_required
+@limiter.limit("120 per minute")
+def upstream_change_details(va_sid: str):
+    err = _require_data_manager_or_admin()
+    if err:
+        return err
+    try:
+        return jsonify(dm_upstream_change_details(current_user, va_sid))
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
 
 
 # ---------------------------------------------------------------------------
@@ -408,13 +582,14 @@ def sync_submission(va_sid: str):
 @bp.post("/submissions/<va_sid>/accept-upstream-change")
 @login_required
 def accept_upstream_change(va_sid: str):
-    """Accept an upstream ODK data change: clear COD artifacts, move to smartva_pending."""
+    """Accept an upstream ODK data change: clear COD artifacts and reopen coding."""
     err = _require_data_manager_or_admin()
     if err:
         return err
     try:
         dm_accept_upstream_change(current_user, va_sid)
         db.session.commit()
+        _refresh_dm_dashboard_analytics()
     except PermissionError as exc:
         return jsonify({"error": str(exc)}), 403
     except ValueError as exc:
@@ -435,7 +610,7 @@ def accept_upstream_change(va_sid: str):
         log.warning("accept_upstream_change: could not enqueue SmartVA for %s", va_sid)
 
     return jsonify({
-        "message": "Upstream change accepted. Submission moved to SmartVA pending.",
+        "message": "Upstream change accepted for recoding. Submission moved to SmartVA pending.",
         "smartva_task_id": task_id,
     })
 
@@ -485,14 +660,19 @@ def screening_reject(va_sid: str):
 @bp.post("/submissions/<va_sid>/reject-upstream-change")
 @login_required
 def reject_upstream_change(va_sid: str):
-    """Reject an upstream ODK data change: restore coder_finalized, keep existing COD."""
+    """Keep the current ICD decision while adopting the latest upstream ODK data."""
     err = _require_data_manager_or_admin()
     if err:
         return err
     try:
         dm_reject_upstream_change(current_user, va_sid)
         db.session.commit()
-        return jsonify({"message": "Upstream change rejected. Submission restored to coder finalized."})
+        _refresh_dm_dashboard_analytics()
+        return jsonify({
+            "message": (
+                "Latest upstream ODK data adopted. Current finalized ICD decision kept."
+            )
+        })
     except PermissionError as exc:
         return jsonify({"error": str(exc)}), 403
     except ValueError as exc:

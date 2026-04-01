@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-24
+last_updated: 2026-04-01
 ---
 
 # ODK Sync Policy
@@ -49,6 +49,27 @@ Policy intent:
 - `va_submissions` may remain the current active summary row, but payload
   lineage should be preserved explicitly
 
+## Submission Identity Baseline
+
+DigitVA submission identity is anchored on the stable ODK submission `KEY`
+(`__id` in OData), not on ODK `instanceID`.
+
+Current rule:
+
+- normalized ODK fetch sets `KEY` from `__id`
+- normalized ODK fetch computes `sid` as `{KEY}-{form_id.lower()}`
+- `instanceID` is treated as operational metadata that may vary across edited
+  versions of the same ODK submission
+- `va_uniqueid` / displayed `VA Form ID` is a business identifier for users and
+  must not be treated as the canonical technical sync identity
+
+Policy implications:
+
+- sync matching and local submission identity must remain anchored to `KEY`
+- `instanceID` changes alone do not imply a new DigitVA submission
+- reviewer-facing upstream-change diffs should not treat `instanceID` churn as a
+  substantive data change when the underlying ODK `KEY` is unchanged
+
 ### Changed vs unchanged payload
 
 A submission is considered unchanged only when the normalized synced payload is
@@ -61,10 +82,52 @@ Practical implication:
 
 - the current agreed rule is to fingerprint the full canonical normalized ODK
   payload JSON
-- if `updatedAt` changes and that change is present in the normalized payload,
-  the payload is treated as changed
+- volatile metadata and derived helper fields do not count as substantive
+  business-payload change; examples include `updatedAt`, attachment counters,
+  ODK review comments, device metadata, and derived age-band helper fields
+- numeric and string-equivalent scalar values compare equal after
+  normalization; for example `10.0` and `"10"` must not create a new logical
+  payload version on their own
 - materially different normalized payload should be treated as a new payload
   version even if workflow routing happens later
+
+### Canonical payload enrichment
+
+The canonical stored submission payload remains OData-first, but selected
+operational metadata is now enriched before persistence so payload versions and
+upstream-change review use one stable contract.
+
+Current required canonical stored fields include:
+
+- OData form-answer payload
+- `FormVersion`
+- `DeviceID`
+- `SubmitterID`
+- `instanceID`
+- `ReviewState`
+- `instanceName`
+- `AttachmentsExpected`
+- `AttachmentsPresent`
+
+Current source precedence:
+
+- OData:
+  canonical form-answer payload plus mirrored ODK fields such as
+  `ReviewState` and `instanceName`
+- submission XML:
+  `FormVersion`, `DeviceID`
+- submission metadata endpoint:
+  `SubmitterID`, `instanceID`, and fallback review metadata
+- attachments endpoint:
+  `AttachmentsExpected`, `AttachmentsPresent`
+
+Policy boundary:
+
+- this enrichment is part of the canonical stored payload for sync writes and
+  payload-version lineage
+- this does not replace OData as the primary payload source
+- attachment inventory details such as `audit.csv` presence may be used
+  operationally, but are not required as coder-facing canonical payload fields
 
 ## Consent Routing
 
@@ -188,14 +251,42 @@ The current runtime behavior is partially aligned with this policy:
 3. The submission transitions to `finalized_upstream_changed`
 4. Audit logging is written for the state transition
 5. Durable upstream-change records preserve prior and incoming payload
-   snapshots for the accept/reject decision path
+   snapshots for the upstream-review decision path
+6. Data-manager and admin review surfaces expose a structured changed-fields
+   diff derived from the normalized payload, not raw JSON inequality
+
+### Review Surface Baseline
+
+Pending upstream-change review must be available through one shared backend
+contract.
+
+Required surfaces:
+
+- JSON API:
+  `/api/v1/data-management/submissions/<va_sid>/upstream-change-details`
+- data-manager detail-page `View Changes` modal on
+  `/data-management/view/<va_sid>`
+- dashboard `View Changes` modal for `finalized_upstream_changed` rows
+
+The changed-fields presentation must:
+
+- separate data changes from metadata changes
+- separate formatting-only changes from substantive data changes
+- show field labels when form mapping metadata exists
+- keep stable `field_id` values in the payload even when no label mapping exists
+
+Current terminology:
+
+- `Data Changes`
+- `Metadata Changes`
+- `Formatting-Only Changes`
 
 ### Implementation Status
 
-All items below are fully implemented as of 2026-03-24:
+All items below are fully implemented as of 2026-04-01:
 
 1. Runtime sync writes active and pending payload versions; protected upstream
-   accept/reject promotes or rejects those payload versions
+   review outcomes now promote the pending payload version on both branches
 2. Coder and reviewer final COD are each linked to the `payload_version_id`
    that was active when they were submitted
 3. SmartVA runs are bound to payload version via `VaSmartvaFormRun`/`VaSmartvaRun`
@@ -218,7 +309,7 @@ When upstream data changes for a finalized submission:
 6. **Create notification** for data managers/admins
 7. **Log audit trail** with reason `upstream_data_changed`
 8. **Do not activate the new payload version automatically** while the case is
-   awaiting accept/reject resolution
+   awaiting upstream-review resolution
 
 ### State Transition
 
@@ -234,9 +325,9 @@ This state indicates:
 - A newer upstream payload version has been detected but is not yet the active
   coding basis
 - Manual intervention required to either:
-  - Accept the change and activate the new payload version for SmartVA/coding
-  - Reject the change and keep the current active payload version plus current
-    authoritative COD
+  - Accept and recode: activate the new payload version for SmartVA/coding
+  - Keep current ICD decision: activate the new payload version while
+    preserving the current authoritative COD
 
 ## Historical Data Preservation
 
@@ -259,8 +350,8 @@ Target routing rules:
 | Unchanged sync | No new payload version | No SmartVA rerun; preserve current workflow unless other sync-issue handling applies |
 | Changed sync on non-protected state | Create new active payload version | Route to `smartva_pending` |
 | Changed sync on protected finalized state | Create pending upstream payload version | Route to `finalized_upstream_changed` |
-| Accept upstream change | Promote pending payload version to active and update `va_submissions` from it | Route to `smartva_pending` |
-| Reject upstream change | Mark pending payload version rejected and keep current active payload version | Return to prior finalized path |
+| Accept And Recode | Promote pending payload version to active and update `va_submissions` from it | Route to `smartva_pending` |
+| Keep Current ICD Decision | Promote pending payload version to active and update `va_submissions` from it | Return to prior finalized path while preserving COD artifacts |
 
 ## Notification Requirements
 
@@ -291,8 +382,8 @@ When a finalized submission's upstream data changes:
 | Form sync | No | Yes | Yes |
 | Form sync (force on protected) | No | No | Yes |
 | Bulk sync | No | No | Yes |
-| Accept upstream change | No | Yes | Yes |
-| Reject upstream change (restore finalized) | No | Yes | Yes |
+| Accept And Recode | No | Yes | Yes |
+| Keep Current ICD Decision | No | Yes | Yes |
 
 ## Desired State Snapshot
 
@@ -302,7 +393,7 @@ coder_finalized -- ODK data changed during sync --> finalized_upstream_changed
 
 finalized_upstream_changed -- data manager or admin accepts upstream change --> smartva_pending
 smartva_pending ----------- SmartVA generated / regenerated / recorded failure --> ready_for_coding
-finalized_upstream_changed -- data manager or admin rejects upstream change --> prior finalized state
+finalized_upstream_changed -- data manager or admin keeps current ICD decision --> prior finalized state
 
 coder_finalized -- recode window expires automatically --> reviewer_eligible
 coder_finalized -- admin override final COD -----------> ready_for_coding
@@ -326,7 +417,7 @@ ODKSyncService
 ├── fetch_form_submissions(form_id, force=False) -> FormSyncResult
 ├── fetch_all(project_id=None, force=False) -> BulkSyncResult
 ├── accept_upstream_change(va_sid) -> AcceptResult
-└── reject_upstream_change(va_sid) -> RejectResult
+└── reject_upstream_change(va_sid) -> KeepCurrentIcdResult
 
 SyncResult:
 ├── status: "synced" | "skipped_protected" | "error"

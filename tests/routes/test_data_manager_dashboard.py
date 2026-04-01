@@ -20,11 +20,13 @@ from app.models import (
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissionAttachments,
+    VaSubmissionUpstreamChange,
     VaSubmissionsAuditlog,
     VaSubmissions,
     VaSyncRun,
     VaUserAccessGrants,
     VaUsers,
+    VaFinalAssessments,
 )
 from app.services.workflow.definition import (
     WORKFLOW_NOT_CODEABLE_BY_CODER,
@@ -459,6 +461,100 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(second.status_code, 200)
         self.assertEqual(mocked_get_kpi.call_count, 1)
 
+    def test_upstream_change_details_endpoint_returns_changed_fields(self):
+        self._login(self.dm_user_id)
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            VaSubmissionUpstreamChange(
+                va_sid=self.SID,
+                workflow_state_before="coder_finalized",
+                previous_va_data={
+                    "Id10120": 10.0,
+                    "updatedAt": "2026-03-01T00:00:00Z",
+                    "OdkReviewComments": None,
+                },
+                incoming_va_data={
+                    "Id10120": "12",
+                    "updatedAt": "2026-03-02T00:00:00Z",
+                    "OdkReviewComments": [],
+                },
+                detected_odk_updatedat=now,
+                resolution_status="pending",
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/api/v1/data-management/submissions/{self.SID}/upstream-change-details"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["changed_field_count"], 1)
+        self.assertTrue(payload["has_substantive_changes"])
+        self.assertEqual(payload["changed_fields"][0]["field_id"], "Id10120")
+        self.assertEqual(payload["changed_fields"][0]["previous_value_display"], "10")
+        self.assertEqual(payload["changed_fields"][0]["current_value_display"], "12")
+        self.assertEqual(payload["non_substantive_change_count"], 1)
+        self.assertEqual(
+            [row["field_id"] for row in payload["non_substantive_changed_fields"]],
+            ["updatedAt"],
+        )
+
+    def test_upstream_change_details_endpoint_ignores_metadata_only_churn(self):
+        self._login(self.dm_user_id)
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            VaSubmissionUpstreamChange(
+                va_sid=self.SID,
+                workflow_state_before="coder_finalized",
+                previous_va_data={
+                    "Id10120": 10.0,
+                    "updatedAt": "2026-03-01T00:00:00Z",
+                    "OdkReviewComments": None,
+                },
+                incoming_va_data={
+                    "Id10120": "10",
+                    "updatedAt": "2026-03-02T00:00:00Z",
+                    "OdkReviewComments": [],
+                },
+                detected_odk_updatedat=now,
+                resolution_status="pending",
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/api/v1/data-management/submissions/{self.SID}/upstream-change-details"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["changed_field_count"], 0)
+        self.assertFalse(payload["has_substantive_changes"])
+        self.assertEqual(payload["changed_fields"], [])
+        self.assertEqual(payload["formatting_only_change_count"], 1)
+        self.assertEqual(
+            [row["field_id"] for row in payload["formatting_only_changed_fields"]],
+            ["Id10120"],
+        )
+        self.assertEqual(payload["non_substantive_change_count"], 1)
+        self.assertEqual(
+            [row["field_id"] for row in payload["non_substantive_changed_fields"]],
+            ["updatedAt"],
+        )
+
+    @patch("app.services.coder_workflow_service.is_upstream_recode", return_value=True)
+    def test_data_manager_view_includes_inline_upstream_change_panel(self, _mocked_upstream):
+        self._login(self.dm_user_id)
+
+        response = self.client.get(f"/data-management/view/{self.SID}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Changed Fields", response.data)
+        self.assertIn(b"dm-upstream-change-panel", response.data)
+        self.assertIn(b"/api/v1/data-management/submissions/", response.data)
+
     def test_data_manager_can_trigger_scoped_form_sync(self):
         self._login(self.dm_user_id)
         headers = self._csrf_headers()
@@ -634,6 +730,99 @@ class DataManagerDashboardTests(BaseTestCase):
             {"message": "Analytics data refreshed successfully."},
         )
         refresh_mv.assert_called_once_with(concurrently=True)
+
+    def test_submissions_export_csv_includes_payload_and_current_state_fields(self):
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=self.SID,
+                va_finassess_by=uuid.UUID(self.dm_user_id),
+                va_conclusive_cod="I21",
+                va_finassess_remark="Final coder decision",
+                va_finassess_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        self._login(self.dm_user_id)
+
+        response = self.client.get("/api/v1/data-management/submissions/export.csv")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
+        body = response.get_data(as_text=True)
+        self.assertIn("final_conclusive_cod", body)
+        self.assertIn("workflow_state", body)
+        self.assertIn("sid", body)
+        self.assertIn("uuid:data-manager-dashboard", body)
+        self.assertIn("I21", body)
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_input_export_csv",
+        return_value="sid,result\nuuid:data-manager-dashboard,ok\n",
+    )
+    def test_smartva_input_export_csv_route_returns_excel_safe_csv(
+        self,
+        mocked_export,
+    ):
+        self._login(self.dm_user_id)
+
+        response = self.client.get(
+            "/api/v1/data-management/submissions/export-smartva-input.csv"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
+        self.assertTrue(response.get_data(as_text=True).startswith("\ufeffsid,result"))
+        mocked_export.assert_called_once()
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_results_export_csv",
+        return_value="va_sid,va_smartva_cause1\nuuid:data-manager-dashboard,Heart attack\n",
+    )
+    def test_smartva_results_export_csv_route_returns_excel_safe_csv(
+        self,
+        mocked_export,
+    ):
+        self._login(self.dm_user_id)
+
+        response = self.client.get(
+            "/api/v1/data-management/submissions/export-smartva-results.csv"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
+        self.assertTrue(
+            response.get_data(as_text=True).startswith(
+                "\ufeffva_sid,va_smartva_cause1"
+            )
+        )
+        mocked_export.assert_called_once()
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_likelihoods_export_csv",
+        return_value="va_sid,output_row_index,likelihood\nuuid:data-manager-dashboard,1,0.95\n",
+    )
+    def test_smartva_likelihoods_export_csv_route_returns_excel_safe_csv(
+        self,
+        mocked_export,
+    ):
+        self._login(self.dm_user_id)
+
+        response = self.client.get(
+            "/api/v1/data-management/submissions/export-smartva-likelihoods.csv"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
+        self.assertTrue(
+            response.get_data(as_text=True).startswith(
+                "\ufeffva_sid,output_row_index,likelihood"
+            )
+        )
+        mocked_export.assert_called_once()
 
     def test_single_form_task_revalidates_scope_in_worker(self):
         from app.tasks.sync_tasks import run_single_form_sync

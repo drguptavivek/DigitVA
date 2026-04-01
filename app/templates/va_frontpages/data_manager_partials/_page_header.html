@@ -21,5 +21,36 @@
     <button id="dm-refresh-dashboard-btn" class="btn btn-sm btn-outline-primary" type="button">
       <i class="fa-solid fa-arrows-rotate me-1"></i>Refresh Dashboard
     </button>
+    <div class="dropdown">
+      <button class="btn btn-sm btn-outline-success dropdown-toggle"
+              type="button"
+              id="dm-export-dropdown-btn"
+              data-bs-toggle="dropdown"
+              aria-expanded="false">
+        <i class="fa-solid fa-file-export me-1"></i>Export
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dm-export-dropdown-btn">
+        <li>
+          <button class="dropdown-item dm-export-btn" type="button" data-export-kind="data">
+            <i class="fa-solid fa-table me-2"></i>Export Data
+          </button>
+        </li>
+        <li>
+          <button class="dropdown-item dm-export-btn" type="button" data-export-kind="smartva_input">
+            <i class="fa-solid fa-file-lines me-2"></i>SmartVA Input Data
+          </button>
+        </li>
+        <li>
+          <button class="dropdown-item dm-export-btn" type="button" data-export-kind="smartva_results">
+            <i class="fa-solid fa-chart-column me-2"></i>Results
+          </button>
+        </li>
+        <li>
+          <button class="dropdown-item dm-export-btn" type="button" data-export-kind="smartva_likelihoods">
+            <i class="fa-solid fa-percent me-2"></i>Likelihoods
+          </button>
+        </li>
+      </ul>
+    </div>
   </div>
 </div>

@@ -68,13 +68,38 @@
         <i class="fas fa-clipboard-check me-1"></i>SID: {{ va_sid }}
       </span>
     </div>
-    {% if is_upstream_recode %}
+    {% if has_pending_upstream_change %}
     <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
       <i class="fas fa-triangle-exclamation me-2"></i>
       <div>
         <strong>Upstream Data Change:</strong> This VA was previously finalized but has new data from ODK Central.
-        Please review carefully and re-code as needed.
+        Please review carefully and mark for recoding as needed.
       </div>
+    </div>
+    {% elif is_upstream_recode %}
+    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+      <i class="fas fa-triangle-exclamation me-2"></i>
+      <div>
+        <strong>Recode Required:</strong> This VA was returned to coding after an upstream data change from ODK Central.
+        Please review the latest submission data and code again.
+      </div>
+    </div>
+    {% endif %}
+    {% if back_dashboard_role == "data_manager" and has_pending_upstream_change and upstream_change_details_url %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <span class="badge px-3 py-2 rounded-pill" style="background:#9333ea;">
+        <i class="fas fa-code-compare me-1"></i>Status: Upstream Changed
+      </span>
+      <button
+        type="button"
+        class="btn btn-outline-secondary btn-sm"
+        id="dm-open-upstream-changes-modal-btn"
+        data-url="{{ upstream_change_details_url }}"
+        data-sid="{{ va_sid }}"
+        data-form-id="{{ va_uniqueid }}"
+      >
+        <i class="fas fa-code-compare me-1"></i> View Changes
+      </button>
     </div>
     {% endif %}
     <hr class="my-3">
@@ -109,6 +134,62 @@
     </div>
   </div>
 </div>
+
+{% if back_dashboard_role == "data_manager" and has_pending_upstream_change and upstream_change_details_url %}
+<div class="modal fade" id="dm-upstream-changes-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-1">Upstream Changed Fields</h5>
+          <div class="small text-muted" id="dm-upstream-changes-modal-form-id"></div>
+          <div class="small text-muted" id="dm-upstream-changes-modal-sid"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="dm-upstream-changes-modal-body">
+        <div class="text-muted">Loading changed fields…</div>
+      </div>
+      <div class="modal-footer">
+        <div class="w-100" id="dm-upstream-action-block">
+          <div class="d-flex align-items-start gap-2 mb-2">
+            <button type="button" class="btn btn-success btn-sm" id="dm-accept-upstream-btn" data-sid="{{ va_sid }}">
+              Accept And Recode
+            </button>
+            <div class="small text-muted pt-1">
+              Uses the new ODK data, clears old assigned ICD codes, and returns the form for recoding.
+            </div>
+          </div>
+          <div class="d-flex align-items-start gap-2">
+            <button type="button" class="btn btn-outline-danger btn-sm" id="dm-reject-upstream-btn" data-sid="{{ va_sid }}">
+              Keep Current ICD Decision
+            </button>
+            <div class="small text-muted pt-1">
+              Uses the new ODK data but keeps the current finalized ICD Code decision without reopening coding.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="dm-upstream-confirm-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dm-upstream-confirm-title">Confirm Action</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="dm-upstream-confirm-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="dm-upstream-confirm-submit-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 
   <!-- main category, content, smartva and coders pane -->
@@ -218,6 +299,249 @@ document.addEventListener("htmx:oobAfterSwap", function (event) {
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  const upstreamModalBtn = document.getElementById("dm-open-upstream-changes-modal-btn");
+  const acceptBtn = document.getElementById("dm-accept-upstream-btn");
+  const rejectBtn = document.getElementById("dm-reject-upstream-btn");
+  let upstreamChangesModal = null;
+  let upstreamConfirmModal = null;
+  const csrfToken = "{{ csrf_token() }}";
+
+  if (upstreamModalBtn) {
+    const escapeHtml = function (value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    };
+
+    const renderTable = function (fields) {
+      const rows = fields.map(function (field) {
+        const contextParts = [field.field_id];
+        if (field.category_code) contextParts.push(field.category_code);
+        if (field.subcategory_code) contextParts.push(field.subcategory_code);
+
+        return `
+          <tr>
+            <td>
+              <div class="fw-semibold">${escapeHtml(field.field_label || field.field_id)}</div>
+              <div class="small text-muted">${escapeHtml(contextParts.join(" · "))}</div>
+            </td>
+            <td class="text-break">${escapeHtml(field.previous_value_display)}</td>
+            <td class="text-break">${escapeHtml(field.current_value_display)}</td>
+          </tr>
+        `;
+      }).join("");
+
+      return `
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="min-width: 240px;">Field</th>
+                <th style="min-width: 220px;">Older Values</th>
+                <th style="min-width: 220px;">New Values</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    };
+
+    const renderPayload = function (payload) {
+      const substantiveFields = payload.changed_fields || [];
+      const formattingOnlyFields = payload.formatting_only_changed_fields || [];
+      const nonSubstantiveFields = payload.non_substantive_changed_fields || [];
+      const sections = [];
+
+      if (substantiveFields.length) {
+        sections.push(`
+          <div class="mb-4">
+            <h6 class="fw-bold text-primary mb-3">Data Changes</h6>
+            ${renderTable(substantiveFields)}
+          </div>
+        `);
+      } else {
+        sections.push('<div class="alert alert-secondary">No data changes were found for this upstream update.</div>');
+      }
+
+      if (nonSubstantiveFields.length) {
+        sections.push(`
+          <div>
+            <h6 class="fw-bold text-secondary mb-3">Metadata Changes</h6>
+            <p class="text-muted small mb-3">These are operational metadata differences rather than form-answer data changes.</p>
+            ${renderTable(nonSubstantiveFields)}
+          </div>
+        `);
+      }
+
+      if (formattingOnlyFields.length) {
+        sections.push(`
+          <div class="mt-4">
+            <h6 class="fw-bold text-secondary mb-3">Formatting-Only Changes</h6>
+            <p class="text-muted small mb-3">These values normalize to the same business value and differ only by formatting such as whitespace or decimal rendering.</p>
+            ${renderTable(formattingOnlyFields)}
+          </div>
+        `);
+      }
+
+      return sections.join("");
+    };
+
+    upstreamModalBtn.addEventListener("click", function () {
+      const modalEl = document.getElementById("dm-upstream-changes-modal");
+      const formIdEl = document.getElementById("dm-upstream-changes-modal-form-id");
+      const sidEl = document.getElementById("dm-upstream-changes-modal-sid");
+      const bodyEl = document.getElementById("dm-upstream-changes-modal-body");
+      const actionBlockEl = document.getElementById("dm-upstream-action-block");
+      const acceptBtnEl = document.getElementById("dm-modal-accept-upstream-btn");
+      const rejectBtnEl = document.getElementById("dm-modal-reject-upstream-btn");
+      if (!modalEl || !formIdEl || !sidEl || !bodyEl || !actionBlockEl || !acceptBtnEl || !rejectBtnEl) return;
+
+      if (!upstreamChangesModal) {
+        upstreamChangesModal = new bootstrap.Modal(modalEl);
+      }
+
+      const setActionButtonsEnabled = function (enabled) {
+        actionBlockEl.classList.toggle("d-none", !enabled);
+        acceptBtnEl.disabled = !enabled;
+        rejectBtnEl.disabled = !enabled;
+      };
+
+      formIdEl.textContent = upstreamModalBtn.dataset.formId ? `VA Form ID: ${upstreamModalBtn.dataset.formId}` : "";
+      sidEl.textContent = upstreamModalBtn.dataset.sid || "";
+      setActionButtonsEnabled(false);
+      bodyEl.innerHTML = '<div class="text-muted">Loading changed fields…</div>';
+      upstreamChangesModal.show();
+
+      fetch(upstreamModalBtn.dataset.url, {
+        headers: {
+          "Accept": "application/json"
+        }
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error("Failed to load changed fields.");
+          }
+          return response.json();
+        })
+        .then(function (payload) {
+          setActionButtonsEnabled(true);
+          bodyEl.innerHTML = renderPayload(payload);
+        })
+        .catch(function (error) {
+          setActionButtonsEnabled(false);
+          bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(error.message)}</div>`;
+        });
+    });
+  }
+
+  if (acceptBtn) {
+    acceptBtn.addEventListener("click", function () {
+      const confirmEl = document.getElementById("dm-upstream-confirm-modal");
+      const confirmTitleEl = document.getElementById("dm-upstream-confirm-title");
+      const confirmBodyEl = document.getElementById("dm-upstream-confirm-body");
+      const confirmSubmitBtn = document.getElementById("dm-upstream-confirm-submit-btn");
+      if (!confirmEl || !confirmTitleEl || !confirmBodyEl || !confirmSubmitBtn) return;
+      if (!upstreamConfirmModal) {
+        upstreamConfirmModal = new bootstrap.Modal(confirmEl);
+      }
+      confirmTitleEl.textContent = "Confirm Accept And Recode";
+      confirmBodyEl.textContent = "This will clear the current finalized cause-of-death decision and return the submission to coding using the new ODK data.";
+      confirmSubmitBtn.className = "btn btn-success btn-sm";
+      confirmSubmitBtn.textContent = "Accept And Recode";
+      confirmSubmitBtn.dataset.action = "accept";
+      upstreamConfirmModal.show();
+    });
+  }
+
+  if (rejectBtn) {
+    rejectBtn.addEventListener("click", function () {
+      const confirmEl = document.getElementById("dm-upstream-confirm-modal");
+      const confirmTitleEl = document.getElementById("dm-upstream-confirm-title");
+      const confirmBodyEl = document.getElementById("dm-upstream-confirm-body");
+      const confirmSubmitBtn = document.getElementById("dm-upstream-confirm-submit-btn");
+      if (!confirmEl || !confirmTitleEl || !confirmBodyEl || !confirmSubmitBtn) return;
+      if (!upstreamConfirmModal) {
+        upstreamConfirmModal = new bootstrap.Modal(confirmEl);
+      }
+      confirmTitleEl.textContent = "Confirm Keep Current ICD Decision";
+      confirmBodyEl.textContent = "This will adopt the latest ODK data while preserving the current finalized cause-of-death decision and keeping the submission finalized.";
+      confirmSubmitBtn.className = "btn btn-outline-danger btn-sm";
+      confirmSubmitBtn.textContent = "Keep Current ICD Decision";
+      confirmSubmitBtn.dataset.action = "reject";
+      upstreamConfirmModal.show();
+    });
+  }
+
+  function redirectToNextUpstreamChangedSubmission() {
+    const url = new URL("/api/v1/data-management/submissions", window.location.origin);
+    url.searchParams.set("workflow", "finalized_upstream_changed");
+    url.searchParams.set("page", "1");
+    url.searchParams.set("size", "25");
+
+    return fetch(url.toString(), {
+      headers: {
+        "Accept": "application/json"
+      }
+    })
+      .then(function (response) {
+        return response.json().catch(function () { return {}; }).then(function (body) {
+          if (!response.ok) {
+            throw new Error(body.error || body.message || "Unable to load the next upstream-changed submission.");
+          }
+          return body;
+        });
+      })
+      .then(function (payload) {
+        const rows = Array.isArray(payload.data) ? payload.data : [];
+        const nextRow = rows.find(function (row) {
+          return row && row.va_sid && row.va_sid !== "{{ va_sid }}";
+        });
+        if (nextRow && nextRow.va_sid) {
+          const nextUrl = `/data-management/view/${encodeURIComponent(nextRow.va_sid)}`;
+          window.location.href = nextUrl;
+          return;
+        }
+        window.location.href = "{{ url_for('data_management.dashboard') }}";
+      });
+  }
+
+  const confirmSubmitBtn = document.getElementById("dm-upstream-confirm-submit-btn");
+  if (confirmSubmitBtn) {
+    confirmSubmitBtn.addEventListener("click", function () {
+      const action = confirmSubmitBtn.dataset.action;
+      if (!action) return;
+      confirmSubmitBtn.disabled = true;
+      fetch(`/api/v1/data-management/submissions/{{ va_sid }}/${action}-upstream-change`, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "X-CSRFToken": csrfToken
+        }
+      })
+        .then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (body) {
+            if (!response.ok) {
+              throw new Error(body.error || body.message || `${action} failed.`);
+            }
+            return body;
+          });
+        })
+        .then(function () {
+          return redirectToNextUpstreamChangedSubmission();
+        })
+        .catch(function (error) {
+          confirmSubmitBtn.disabled = false;
+          if (window.showAppToast) {
+            window.showAppToast((action === "accept" ? "Accept And Recode" : "Keep Current ICD Decision") + " failed: " + error.message, "danger");
+          }
+        });
+    });
+  }
+
   const notesTab = document.getElementById("notesTab");
   const notesPanel = document.getElementById("notesPanel");
   const closeNotes = document.getElementById("closeNotes");

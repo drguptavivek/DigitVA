@@ -2,7 +2,10 @@ import os
 import time
 import logging
 import traceback
+import math
+from decimal import Decimal
 import sqlalchemy as sa
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from flask import current_app
 from app import db
@@ -59,6 +62,7 @@ from app.models import (
     VaUsernotes,
     VaSubmissions,
     VaStatuses,
+    VaSubmissionUpstreamChange,
     VaSubmissionsAuditlog,
 )
 from app.utils import (
@@ -182,11 +186,29 @@ def _handle_protected_submission_update(existing, va_submission: dict) -> None:
     from dateutil import parser as _parser
     va_sid = existing.va_sid
     current_workflow_state = get_submission_workflow_state(va_sid) or WORKFLOW_FINALIZED_UPSTREAM_CHANGED
-    incoming_updatedat = (
-        _parser.isoparse(va_submission.get("updatedAt")).replace(tzinfo=None)
-        if va_submission.get("updatedAt")
-        else None
-    )
+    workflow_state_before = current_workflow_state
+    if current_workflow_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED:
+        latest_change = db.session.scalar(
+            sa.select(VaSubmissionUpstreamChange)
+            .where(VaSubmissionUpstreamChange.va_sid == va_sid)
+            .order_by(VaSubmissionUpstreamChange.updated_at.desc())
+            .limit(1)
+        )
+        if (
+            latest_change is not None
+            and latest_change.workflow_state_before
+            and latest_change.workflow_state_before != WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        ):
+            workflow_state_before = latest_change.workflow_state_before
+    incoming_updatedat = None
+    if va_submission.get("updatedAt"):
+        incoming_updatedat = _parser.isoparse(
+            va_submission.get("updatedAt")
+        ).replace(tzinfo=None)
+    elif va_submission.get("SubmissionDate"):
+        incoming_updatedat = _parser.isoparse(
+            va_submission.get("SubmissionDate")
+        ).replace(tzinfo=None)
 
     if existing.active_payload_version_id is None and existing.va_data:
         ensure_active_payload_version(
@@ -206,7 +228,7 @@ def _handle_protected_submission_update(existing, va_submission: dict) -> None:
     record_protected_upstream_change(
         existing,
         va_submission,
-        workflow_state_before=current_workflow_state,
+        workflow_state_before=workflow_state_before,
         detected_odk_updatedat=incoming_updatedat,
         previous_payload_version_id=previous_payload_version_id,
         incoming_payload_version_id=pending_payload_version.payload_version_id,
@@ -334,6 +356,141 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
     return submissions
 
 
+def _fetch_submission_xml_enrichment(va_form, instance_id: str, *, client) -> dict:
+    """Fetch XML-only metadata fields needed for the canonical stored payload."""
+    response = guarded_odk_call(
+        lambda: client.session.get(
+            f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}.xml"
+        ),
+        client=client,
+    )
+    if response.status_code != 200:
+        raise Exception(
+            f"Submission XML fetch failed HTTP {response.status_code} for "
+            f"{va_form.form_id}/{instance_id}: {response.text[:200]}"
+        )
+
+    root = ET.fromstring(response.text)
+    device_node = root.find(".//deviceid")
+    return {
+        "FormVersion": root.attrib.get("version"),
+        "DeviceID": (
+            device_node.text.strip()
+            if device_node is not None and device_node.text
+            else None
+        ),
+    }
+
+
+def _fetch_submission_metadata_enrichment(va_form, instance_id: str, *, client) -> dict:
+    """Fetch extended Central submission metadata not present in OData rows."""
+    response = guarded_odk_call(
+        lambda: client.session.get(
+            f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}",
+            headers={"X-Extended-Metadata": "true"},
+        ),
+        client=client,
+    )
+    if response.status_code != 200:
+        raise Exception(
+            f"Submission metadata fetch failed HTTP {response.status_code} for "
+            f"{va_form.form_id}/{instance_id}: {response.text[:200]}"
+        )
+
+    payload = response.json() or {}
+    current_version = payload.get("currentVersion") or {}
+    return {
+        "SubmitterID": payload.get("submitterId") or current_version.get("submitterId"),
+        "instanceID": payload.get("instanceId") or current_version.get("instanceId"),
+        "ReviewState": payload.get("reviewState"),
+        "instanceName": current_version.get("instanceName"),
+        "DeviceID": payload.get("deviceId") or current_version.get("deviceId"),
+    }
+
+
+def _fetch_submission_attachment_enrichment(va_form, instance_id: str, *, client) -> dict:
+    """Fetch attachment-derived metadata fields needed in the canonical payload."""
+    response = guarded_odk_call(
+        lambda: client.session.get(
+            f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}/attachments"
+        ),
+        client=client,
+    )
+    if response.status_code != 200:
+        raise Exception(
+            f"Submission attachments fetch failed HTTP {response.status_code} for "
+            f"{va_form.form_id}/{instance_id}: {response.text[:200]}"
+        )
+
+    attachments = response.json() or []
+    audit_name = next(
+        (
+            attachment.get("name")
+            for attachment in attachments
+            if str(attachment.get("name") or "").strip().lower() == "audit.csv"
+        ),
+        None,
+    )
+    return {
+        "AttachmentsExpected": len(attachments),
+        "AttachmentsPresent": sum(1 for attachment in attachments if attachment.get("exists")),
+        "audit": audit_name,
+    }
+
+
+def _sanitize_payload_value(value):
+    """Normalize NaN-like values to None before persistence."""
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_payload_value(child_value)
+            for key, child_value in value.items()
+        }
+
+    if isinstance(value, list):
+        return [_sanitize_payload_value(item) for item in value]
+
+    if isinstance(value, float) and math.isnan(value):
+        return None
+
+    if isinstance(value, Decimal) and value.is_nan():
+        return None
+
+    if isinstance(value, str) and value.strip().lower() == "nan":
+        return None
+
+    return value
+
+
+def _enrich_submission_payload_for_storage(va_form, va_submission: dict, *, client=None) -> dict:
+    """Return canonical OData-first payload plus required persisted metadata."""
+    if client is None:
+        return _sanitize_payload_value(va_submission)
+
+    instance_id = va_submission.get("KEY")
+    if not instance_id:
+        return va_submission
+
+    enriched = dict(va_submission)
+    xml_data = _fetch_submission_xml_enrichment(va_form, instance_id, client=client)
+    metadata = _fetch_submission_metadata_enrichment(va_form, instance_id, client=client)
+    attachment_data = _fetch_submission_attachment_enrichment(
+        va_form,
+        instance_id,
+        client=client,
+    )
+
+    enriched["FormVersion"] = xml_data.get("FormVersion")
+    enriched["DeviceID"] = xml_data.get("DeviceID") or metadata.get("DeviceID")
+    enriched["SubmitterID"] = metadata.get("SubmitterID")
+    enriched["instanceID"] = metadata.get("instanceID") or instance_id
+    enriched["ReviewState"] = enriched.get("ReviewState") or metadata.get("ReviewState")
+    enriched["instanceName"] = enriched.get("instanceName") or metadata.get("instanceName")
+    enriched["AttachmentsExpected"] = attachment_data.get("AttachmentsExpected")
+    enriched["AttachmentsPresent"] = attachment_data.get("AttachmentsPresent")
+    enriched["audit"] = attachment_data.get("audit")
+    return _sanitize_payload_value(enriched)
+
+
 def _mark_form_sync_issues(va_form, odk_instance_ids: list[str], *, by_role: str = "vaadmin"):
     """Mark local submissions that no longer exist in ODK for a form."""
     expected_sids = {
@@ -380,7 +537,14 @@ def _mark_form_sync_issues(va_form, odk_instance_ids: list[str], *, by_role: str
         )
 
 
-def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map=None):
+def _upsert_form_submissions(
+    va_form,
+    va_submissions,
+    amended_sids,
+    upserted_map=None,
+    *,
+    client=None,
+):
     """Upsert a single form's submissions into the DB.
 
     Returns (added, updated, discarded, skipped) counts.
@@ -395,6 +559,11 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
     skipped = 0
 
     for va_submission in (va_submissions or []):
+        va_submission = _enrich_submission_payload_for_storage(
+            va_form,
+            va_submission,
+            client=client,
+        )
         va_submission_amended = False
 
         va_submission_sid         = va_submission.get("sid")
@@ -430,13 +599,12 @@ def _upsert_form_submissions(va_form, va_submissions, amended_sids, upserted_map
         if existing:
             active_payload_version = get_active_payload_version(va_submission_sid)
             existing_payload_fingerprint = (
-                active_payload_version.payload_fingerprint
+                canonical_payload_fingerprint(active_payload_version.payload_data or {})
                 if active_payload_version is not None
                 else canonical_payload_fingerprint(existing.va_data or {})
             )
             active_payload_changed = (
-                existing.active_payload_version_id is None
-                or existing_payload_fingerprint != incoming_payload_fingerprint
+                existing_payload_fingerprint != incoming_payload_fingerprint
             )
         else:
             active_payload_changed = True
@@ -931,7 +1099,11 @@ def va_data_sync_odkcentral(log_progress=None):
                             )
                             upserted_map_batch: dict[str, str] = {}
                             b_added, b_updated, b_discarded, b_skipped = _upsert_form_submissions(
-                                va_form, batch_records, amended_sids, upserted_map_batch
+                                va_form,
+                                batch_records,
+                                amended_sids,
+                                upserted_map_batch,
+                                client=odk_client,
                             )
                             db.session.commit()
                             gap_added_total += b_added
@@ -1008,7 +1180,11 @@ def va_data_sync_odkcentral(log_progress=None):
                 _progress(f"[{va_form.form_id}] upserting {len(va_submissions_raw)} submission(s)…")
                 upserted_map: dict[str, str] = {}  # {va_sid: instance_id}
                 form_added, form_updated, form_discarded, form_skipped = _upsert_form_submissions(
-                    va_form, va_submissions_raw, amended_sids, upserted_map
+                    va_form,
+                    va_submissions_raw,
+                    amended_sids,
+                    upserted_map,
+                    client=odk_client,
                 )
                 va_submissions_added += form_added
                 va_submissions_updated += form_updated

@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-04-01
 ---
 
 # ODK Sync And Attachments
@@ -24,6 +24,26 @@ ODK sync is an incremental batch process that:
 10. Records `last_synced_at` on the mapping row after each successful form
 11. Marks local sync issues when a local submission is missing from active ODK submissions
 12. Runs SmartVA on any new or updated submissions
+
+## Current Identity Rule
+
+Submission identity in the live sync path is based on the stable ODK submission
+`KEY` (`__id` from OData), not on `instanceID`.
+
+Current implementation:
+
+- OData normalization maps `__id` to `KEY`
+- OData normalization computes `sid` as `{KEY}-{form_id.lower()}`
+- `instanceID` is stored as enriched metadata only
+- the displayed `VA Form ID` on coding/data-manager pages comes from the
+  business payload identifier (`va_uniqueid`), not from `va_submissions.va_sid`
+
+Practical consequence:
+
+- an ODK edit that changes `instanceID` but preserves `KEY` is still treated as
+  the same DigitVA submission
+- `instanceID` churn is metadata and should not be used as the canonical local
+  sync key
 
 ## Current State: Not Codeable ODK Write-Back
 
@@ -50,6 +70,11 @@ Current behavior:
 - SmartVA is not regenerated automatically for that protected state
 - the current runtime/API allows data managers or admins to accept or reject
   that protected-state transition
+- the current runtime/API now exposes a normalized changed-fields diff for the
+  pending protected update through:
+  - `/api/v1/data-management/submissions/<va_sid>/upstream-change-details`
+  - inline data-manager submission view
+  - dashboard `View Changes` modal
 - the sync path now stores a durable upstream-change record with:
   - prior workflow state
   - prior authoritative final-assessment id when present
@@ -79,11 +104,21 @@ Current lineage note:
   - previous authoritative final-assessment id when present
 - upstream accept now promotes the pending payload version to active and
   updates the active summary row
-- upstream reject now marks the pending payload version rejected and restores
-  the prior finalized workflow state
+- upstream keep-current-ICD now also promotes the pending payload version to
+  active, preserves finalized ICD/COD artifacts, and restores the prior
+  finalized workflow state
+- modal upstream review resolution is now local-only and does not post
+  an ODK rejection comment
 - protected sync updates no longer overwrite the active summary row before the
   accept decision
-- this gives current accept/reject lineage for protected updates, while the new
+- normalized payload comparison now ignores volatile metadata and
+  representation-only churn such as `updatedAt`, attachment counters, and
+  numeric-vs-string-equivalent scalar values
+- changed-field review presentation now separates:
+  - data changes
+  - metadata changes
+  - formatting-only changes
+- this gives current upstream-review lineage for protected updates, while the new
   payload-version schema is now the active lineage model for sync writes and
   protected upstream resolution
 - SmartVA rows now also bind to `payload_version_id`
@@ -159,6 +194,35 @@ Important detail:
 - the sync loop now groups forms by `(connection_id, odk_project_id)` and
   reuses one pyODK client across every form in that group for delta checks,
   OData fetches, and attachment requests
+
+## Canonical Payload Enrichment
+
+Current sync writes remain OData-first, but selected operational metadata is
+now enriched before payload fingerprinting and persistence.
+
+Current canonical stored payload fields include:
+
+- OData form-answer payload
+- `FormVersion`
+- `DeviceID`
+- `SubmitterID`
+- `instanceID`
+- `ReviewState`
+- `instanceName`
+- `AttachmentsExpected`
+- `AttachmentsPresent`
+
+Current enrichment sources:
+
+- submission XML:
+  `FormVersion`, `DeviceID`
+- submission metadata endpoint:
+  `SubmitterID`, `instanceID`, and fallback review metadata
+- attachments endpoint:
+  `AttachmentsExpected`, `AttachmentsPresent`
+
+NaN-like values are normalized to missing before persistence so downstream
+consumers such as SmartVA do not receive stored `NaN` payload values.
 
 ## Delta Check (Phase 1)
 

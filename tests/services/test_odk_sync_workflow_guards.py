@@ -171,6 +171,32 @@ class UpsertWorkflowGuardTests(BaseTestCase):
             "Id10019": "female",
         }
 
+    def _metadata_only_updated_record(self, instance_id: str) -> dict:
+        old_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        sid = f"{instance_id}-{self.FORM_ID.lower()}"
+        return {
+            "KEY": instance_id,
+            "sid": sid,
+            "form_def": self.FORM_ID,
+            "SubmissionDate": old_time.isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat(),
+            "SubmitterName": "Collector",
+            "ReviewState": None,
+            "OdkReviewComments": [],
+            "instanceName": instance_id,
+            "unique_id": instance_id,
+            "unique_id2": f"{instance_id}-masked",
+            "Id10013": "yes",
+            "language": "English",
+            "Id10019": "female",
+            "Id10120": "10",
+            "finalAgeInYears": "52",
+            "ageInYears": "52",
+            "DeviceID": None,
+            "instanceID": None,
+            "survey_state": "29",
+        }
+
     def _get_workflow_state(self, va_sid: str) -> str | None:
         return db.session.scalar(
             sa.select(VaSubmissionWorkflow.workflow_state).where(
@@ -323,4 +349,47 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         self.assertEqual(updated, 1)
         self.assertNotEqual(
             self._get_workflow_state(sub.va_sid), WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        )
+
+    def test_metadata_only_payload_churn_does_not_revoke_protected_submission(self):
+        sub = self._make_submission("uuid:guard-metadata-only")
+        sub.va_data = {
+            "sid": sub.va_sid,
+            "form_def": self.FORM_ID,
+            "KEY": "uuid:guard-metadata-only",
+            "SubmissionDate": datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc).isoformat(),
+            "SubmitterName": "Collector",
+            "ReviewState": None,
+            "OdkReviewComments": None,
+            "instanceName": "uuid:guard-metadata-only",
+            "unique_id": "uuid:guard-metadata-only",
+            "unique_id2": "uuid:guard-metadata-only-masked",
+            "Id10013": "yes",
+            "language": "English",
+            "Id10019": "female",
+            "Id10120": 10.0,
+            "finalAgeInYears": 52,
+            "ageInYears": 52.0,
+            "DeviceID": "collect:legacy",
+            "instanceID": "uuid:guard-metadata-only",
+            "survey_state": 29,
+        }
+        set_submission_workflow_state(
+            sub.va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test"
+        )
+        db.session.flush()
+
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        added, updated, discarded, skipped = _upsert_form_submissions(
+            va_form,
+            [self._metadata_only_updated_record("uuid:guard-metadata-only")],
+            set(),
+            {},
+        )
+        db.session.flush()
+
+        self.assertEqual(updated, 1)
+        self.assertEqual(discarded, 0)
+        self.assertEqual(
+            self._get_workflow_state(sub.va_sid), WORKFLOW_CODER_FINALIZED
         )

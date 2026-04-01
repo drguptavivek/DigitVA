@@ -1,8 +1,8 @@
-"""Tests for data management service — accept/reject upstream change flow.
+"""Tests for data management service upstream-change resolution flow.
 
 Critical behavior under test:
-- dm_accept_upstream_change: deactivates artifacts, transitions to ready_for_coding
-- dm_reject_upstream_change: restores coder_finalized, preserves artifacts
+- dm_accept_upstream_change: deactivates artifacts, transitions to smartva_pending
+- dm_reject_upstream_change: promotes new payload, restores finalized state, preserves artifacts
 - Both functions require the submission to be in finalized_upstream_changed state
 - Permission/scope checks are enforced
 """
@@ -38,7 +38,6 @@ from app.models import (
 from app.models.va_submission_payload_versions import (
     PAYLOAD_VERSION_STATUS_ACTIVE,
     PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
-    PAYLOAD_VERSION_STATUS_REJECTED,
     PAYLOAD_VERSION_STATUS_SUPERSEDED,
 )
 from app.services.workflow.definition import (
@@ -505,21 +504,29 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
         with self.assertRaises(PermissionError):
             dm_accept_upstream_change(self.base_coder_user, va_sid)
 
+    def test_accept_requires_latest_pending_payload_timestamp(self):
+        va_sid = self._create_revoked_submission("accept-stale")
+        dm_user = self._create_dm_user()
+
+        submission = db.session.get(VaSubmissions, va_sid)
+        pending = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status
+                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+            )
+        )
+        submission.va_odk_updatedat = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        db.session.commit()
+
+        with self.assertRaises(ValueError) as ctx:
+            dm_accept_upstream_change(dm_user, va_sid)
+
+        self.assertIn("Refresh the submission from ODK", str(ctx.exception))
+
 
 class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
     """Tests for dm_reject_upstream_change."""
-
-    def setUp(self):
-        super().setUp()
-        self.post_comment_patcher = patch(
-            "app.services.odk_review_service.post_dm_rejection_comment",
-            return_value=MagicMock(success=True),
-        )
-        self.post_comment_patcher.start()
-
-    def tearDown(self):
-        self.post_comment_patcher.stop()
-        super().tearDown()
 
     def test_transitions_to_coder_finalized(self):
         """Reject should restore submission to coder_finalized."""
@@ -565,7 +572,7 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         self.assertEqual(active_count, 1)  # Still active
 
     def test_creates_audit_log_entry(self):
-        """Reject should create an audit log entry."""
+        """Keep-current-ICD should create an explicit audit log entry."""
         va_sid = self._create_revoked_submission("reject-4")
         dm_user = self._create_dm_user()
 
@@ -576,7 +583,8 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
             sa.select(VaSubmissionWorkflowEvent)
             .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
             .where(
-                VaSubmissionWorkflowEvent.transition_id == "upstream_change_rejected"
+                VaSubmissionWorkflowEvent.transition_id
+                == "upstream_change_kept_current_icd"
             )
         )
         self.assertIsNotNone(audit)
@@ -586,7 +594,7 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         self.assertEqual(audit.current_state, WORKFLOW_CODER_FINALIZED)
 
     def test_admin_reject_records_admin_actor_role(self):
-        """Admin reject should stamp vaadmin rather than data_manager."""
+        """Admin keep-current-ICD should stamp vaadmin rather than data_manager."""
         va_sid = self._create_revoked_submission("reject-4-admin")
 
         dm_reject_upstream_change(self.base_admin_user, va_sid)
@@ -601,17 +609,24 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
             sa.select(VaSubmissionWorkflowEvent)
             .where(VaSubmissionWorkflowEvent.va_sid == va_sid)
             .where(
-                VaSubmissionWorkflowEvent.transition_id == "upstream_change_rejected"
+                VaSubmissionWorkflowEvent.transition_id
+                == "upstream_change_kept_current_icd"
             )
             .order_by(VaSubmissionWorkflowEvent.event_created_at.desc())
         )
         self.assertIsNotNone(audit)
         self.assertEqual(audit.actor_role, "vaadmin")
 
-    def test_reject_marks_pending_payload_version_rejected(self):
+    def test_reject_promotes_pending_payload_version_and_updates_active_summary(self):
         va_sid = self._create_revoked_submission("reject-payload")
         dm_user = self._create_dm_user()
 
+        previous_active = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
+            )
+        )
         pending = db.session.scalar(
             sa.select(VaSubmissionPayloadVersion).where(
                 VaSubmissionPayloadVersion.va_sid == va_sid,
@@ -623,12 +638,40 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         dm_reject_upstream_change(dm_user, va_sid)
         db.session.commit()
 
+        refreshed_submission = db.session.get(VaSubmissions, va_sid)
+        refreshed_previous = db.session.get(
+            VaSubmissionPayloadVersion, previous_active.payload_version_id
+        )
         refreshed_pending = db.session.get(
             VaSubmissionPayloadVersion, pending.payload_version_id
         )
+
         self.assertEqual(
-            refreshed_pending.version_status, PAYLOAD_VERSION_STATUS_REJECTED
+            refreshed_pending.version_status, PAYLOAD_VERSION_STATUS_ACTIVE
         )
+        self.assertEqual(
+            refreshed_submission.active_payload_version_id,
+            refreshed_pending.payload_version_id,
+        )
+        self.assertEqual(
+            refreshed_previous.version_status, PAYLOAD_VERSION_STATUS_SUPERSEDED
+        )
+        self.assertEqual(refreshed_submission.va_data["test"], "updated-data")
+
+    def test_reject_records_kept_current_icd_resolution_status(self):
+        va_sid = self._create_revoked_submission("reject-resolution")
+        dm_user = self._create_dm_user()
+
+        dm_reject_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        resolved = db.session.scalar(
+            sa.select(VaSubmissionUpstreamChange)
+            .where(VaSubmissionUpstreamChange.va_sid == va_sid)
+            .order_by(VaSubmissionUpstreamChange.created_at.desc())
+        )
+        self.assertIsNotNone(resolved)
+        self.assertEqual(resolved.resolution_status, "kept_current_icd")
 
     def test_reject_restores_prior_finalized_state(self):
         va_sid = self._create_revoked_submission(
@@ -658,33 +701,22 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
 
         self.assertIn("not finalized_upstream_changed", str(ctx.exception))
 
-    @patch("app.services.odk_review_service.post_dm_rejection_comment")
-    def test_posts_odk_comment(self, mock_post_comment):
-        """Reject should post a comment to ODK Central."""
-        mock_post_comment.return_value = MagicMock(success=True)
-
-        va_sid = self._create_revoked_submission("reject-6")
+    def test_reject_requires_latest_pending_payload_timestamp(self):
+        va_sid = self._create_revoked_submission("reject-stale")
         dm_user = self._create_dm_user()
 
-        dm_reject_upstream_change(dm_user, va_sid)
-        db.session.commit()
-
-        mock_post_comment.assert_called_once_with(va_sid)
-
-    @patch("app.services.odk_review_service.post_dm_rejection_comment")
-    def test_continues_on_odk_failure(self, mock_post_comment):
-        """Reject should complete even if ODK comment post fails."""
-        mock_post_comment.return_value = MagicMock(
-            success=False,
-            error_message="ODK unavailable"
+        submission = db.session.get(VaSubmissions, va_sid)
+        pending = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status
+                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+            )
         )
-
-        va_sid = self._create_revoked_submission("reject-7")
-        dm_user = self._create_dm_user()
-
-        # Should not raise - ODK failure is non-blocking
-        dm_reject_upstream_change(dm_user, va_sid)
+        submission.va_odk_updatedat = datetime(2026, 1, 1, tzinfo=timezone.utc)
         db.session.commit()
 
-        state = get_submission_workflow_state(va_sid)
-        self.assertEqual(state, WORKFLOW_CODER_FINALIZED)
+        with self.assertRaises(ValueError) as ctx:
+            dm_reject_upstream_change(dm_user, va_sid)
+
+        self.assertIn("Refresh the submission from ODK", str(ctx.exception))

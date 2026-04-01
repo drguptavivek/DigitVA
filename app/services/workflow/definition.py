@@ -77,6 +77,7 @@ TRANSITION_CODER_NOT_CODEABLE = "coder_not_codeable"
 TRANSITION_DM_NOT_CODEABLE = "data_manager_not_codeable"
 TRANSITION_UPSTREAM_CHANGE_ACCEPTED = "upstream_change_accepted"
 TRANSITION_UPSTREAM_CHANGE_REJECTED = "upstream_change_rejected"
+TRANSITION_UPSTREAM_CHANGE_KEPT_CURRENT_ICD = "upstream_change_kept_current_icd"
 TRANSITION_ADMIN_OVERRIDE_TO_RECODE = "admin_override_to_recode"
 TRANSITION_REVIEWER_ELIGIBLE_AFTER_RECODE_WINDOW = "reviewer_eligible_after_recode_window"
 TRANSITION_REVIEWER_CODING_STARTED = "reviewer_coding_started"
@@ -168,6 +169,11 @@ TRANSITIONS = {
     TRANSITION_UPSTREAM_CHANGE_REJECTED: TransitionDefinition(
         transition_id=TRANSITION_UPSTREAM_CHANGE_REJECTED,
         label="Upstream Change Rejected",
+        target_state=WORKFLOW_CODER_FINALIZED,
+    ),
+    TRANSITION_UPSTREAM_CHANGE_KEPT_CURRENT_ICD: TransitionDefinition(
+        transition_id=TRANSITION_UPSTREAM_CHANGE_KEPT_CURRENT_ICD,
+        label="Upstream Change Kept Current ICD",
         target_state=WORKFLOW_CODER_FINALIZED,
     ),
     TRANSITION_ADMIN_OVERRIDE_TO_RECODE: TransitionDefinition(

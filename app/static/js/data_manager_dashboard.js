@@ -40,6 +40,9 @@
     odk_sync: '',
     workflow: '',
   };
+  let currentPage = 1;
+  let currentPageSize = 25;
+  let pendingInitialPageRestore = null;
 
   /* ── Column visibility state ── */
   let colVisibility = {};
@@ -55,7 +58,22 @@
       const saved = JSON.parse(raw);
       if (saved.filters) Object.assign(currentFilters, saved.filters);
       if (saved.colVisibility) Object.assign(colVisibility, saved.colVisibility);
+      if (Number.isInteger(saved.page) && saved.page > 0) currentPage = saved.page;
+      if (Number.isInteger(saved.pageSize) && saved.pageSize > 0) currentPageSize = saved.pageSize;
     } catch (_) { /* ignore */ }
+  }
+
+  function loadStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
+      .forEach(key => {
+        if (params.has(key)) currentFilters[key] = params.get(key) || '';
+      });
+    const pageParam = Number.parseInt(params.get('page') || '', 10);
+    const sizeParam = Number.parseInt(params.get('size') || '', 10);
+    if (Number.isInteger(pageParam) && pageParam > 0) currentPage = pageParam;
+    if (Number.isInteger(sizeParam) && sizeParam > 0) currentPageSize = sizeParam;
+    pendingInitialPageRestore = currentPage > 1 ? currentPage : null;
   }
 
   function saveState() {
@@ -63,6 +81,8 @@
       localStorage.setItem(LS_KEY, JSON.stringify({
         filters: currentFilters,
         colVisibility,
+        page: currentPage,
+        pageSize: currentPageSize,
       }));
     } catch (_) { /* ignore */ }
   }
@@ -107,6 +127,8 @@
 
   /* ── Poll handles ── */
   let syncRunsPollInterval = null;
+  let upstreamChangesModal = null;
+  let upstreamConfirmModal = null;
 
   /* ════════════════════════════════════════════════════
      UTILITY
@@ -164,6 +186,132 @@
       document.head.appendChild(script);
     });
     return tomSelectLoader;
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderUpstreamChangedFieldsTable(payload) {
+    const renderTable = (fields) => {
+      const rows = fields.map((field) => {
+        const contextParts = [field.field_id];
+        if (field.category_code) contextParts.push(field.category_code);
+        if (field.subcategory_code) contextParts.push(field.subcategory_code);
+
+        return `
+          <tr>
+            <td>
+              <div class="fw-semibold">${escapeHtml(field.field_label || field.field_id)}</div>
+              <div class="small text-muted">${escapeHtml(contextParts.join(' · '))}</div>
+            </td>
+            <td class="text-break">${escapeHtml(field.previous_value_display)}</td>
+            <td class="text-break">${escapeHtml(field.current_value_display)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      return `
+        <div class="table-responsive dm-upstream-changes-table">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="min-width: 240px;">Field</th>
+                <th style="min-width: 220px;">Older Values</th>
+                <th style="min-width: 220px;">New Values</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    };
+
+    const substantiveFields = payload.changed_fields || [];
+    const formattingOnlyFields = payload.formatting_only_changed_fields || [];
+    const nonSubstantiveFields = payload.non_substantive_changed_fields || [];
+    const sections = [];
+
+    if (substantiveFields.length) {
+      sections.push(`
+        <div class="mb-4">
+          <h6 class="fw-bold text-primary mb-3">Data Changes</h6>
+          ${renderTable(substantiveFields)}
+        </div>
+      `);
+    } else {
+      sections.push('<div class="alert alert-secondary">No data changes were found for this upstream update.</div>');
+    }
+
+    if (nonSubstantiveFields.length) {
+      sections.push(`
+        <div>
+          <h6 class="fw-bold text-secondary mb-3">Metadata Changes</h6>
+          <p class="text-muted small mb-3">These are operational metadata differences rather than form-answer data changes.</p>
+          ${renderTable(nonSubstantiveFields)}
+        </div>
+      `);
+    }
+
+    if (formattingOnlyFields.length) {
+      sections.push(`
+        <div class="mt-4">
+          <h6 class="fw-bold text-secondary mb-3">Formatting-Only Changes</h6>
+          <p class="text-muted small mb-3">These values normalize to the same business value and differ only by formatting such as whitespace or decimal rendering.</p>
+          ${renderTable(formattingOnlyFields)}
+        </div>
+      `);
+    }
+
+    return sections.join('');
+  }
+
+  function getUpstreamChangeDetailsUrl(sid) {
+    return `/api/v1/data-management/submissions/${encodeURIComponent(sid)}/upstream-change-details`;
+  }
+
+  function showUpstreamChangesModal(sid, formId) {
+    const modalEl = document.getElementById('dm-upstream-changes-modal');
+    const formIdEl = document.getElementById('dm-upstream-changes-modal-form-id');
+    const sidEl = document.getElementById('dm-upstream-changes-modal-sid');
+    const bodyEl = document.getElementById('dm-upstream-changes-modal-body');
+    const actionBlockEl = document.getElementById('dm-upstream-action-block');
+    const acceptBtn = document.getElementById('dm-modal-accept-upstream-btn');
+    const rejectBtn = document.getElementById('dm-modal-reject-upstream-btn');
+    if (!modalEl || !formIdEl || !sidEl || !bodyEl || !actionBlockEl || !acceptBtn || !rejectBtn) return;
+
+    if (!upstreamChangesModal) {
+      upstreamChangesModal = new bootstrap.Modal(modalEl);
+    }
+
+    const setActionButtonsEnabled = (enabled) => {
+      actionBlockEl.classList.toggle('d-none', !enabled);
+      acceptBtn.disabled = !enabled;
+      rejectBtn.disabled = !enabled;
+    };
+
+    acceptBtn.dataset.sid = sid;
+    rejectBtn.dataset.sid = sid;
+    setActionButtonsEnabled(false);
+    formIdEl.textContent = formId ? `VA Form ID: ${formId}` : '';
+    sidEl.textContent = sid;
+    bodyEl.innerHTML = '<div class="text-muted">Loading changed fields…</div>';
+    upstreamChangesModal.show();
+
+    jsonFetch(getUpstreamChangeDetailsUrl(sid))
+      .then((payload) => {
+        setActionButtonsEnabled(true);
+        bodyEl.innerHTML = renderUpstreamChangedFieldsTable(payload);
+      })
+      .catch((err) => {
+        setActionButtonsEnabled(false);
+        bodyEl.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(err.message)}</div>`;
+      });
   }
 
   /* ════════════════════════════════════════════════════
@@ -250,10 +398,10 @@
         return;
       }
       if (state === 'finalized_upstream_changed') {
+        const formId = params.data ? params.data.va_uniqueid_masked : '';
         this.eGui.innerHTML = `
           <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
-          <button class="btn btn-sm btn-success py-0 px-1 dm-accept-upstream-btn" data-sid="${sid}" title="Accept upstream change — clear COD, recode">Accept</button>
-          <button class="btn btn-sm btn-outline-danger py-0 px-1 dm-reject-upstream-btn" data-sid="${sid}" title="Reject upstream change — keep existing COD">Reject</button>`;
+          <button class="btn btn-sm btn-outline-secondary py-0 px-1 dm-view-changes-btn" data-sid="${sid}" data-form-id="${formId || ''}">View Changes</button>`;
       } else {
         this.eGui.innerHTML = `
           <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
@@ -301,7 +449,7 @@
       { field: 'workflow_state', headerName: 'Workflow State', width: 150, cellRenderer: WorkflowRenderer },
       { field: 'va_dmreview_createdat', headerName: 'Flagged At', width: 115, cellRenderer: DateTimeRenderer, hide: colVisibility.va_dmreview_createdat === false },
       { field: 'va_consent', headerName: 'Consent', width: 120, hide: colVisibility.va_consent === false },
-      { field: '_actions', headerName: 'Actions', width: 215, cellRenderer: ActionsRenderer, sortable: false },
+      { field: '_actions', headerName: 'Actions', width: 315, cellRenderer: ActionsRenderer, sortable: false },
     ];
   }
 
@@ -316,15 +464,54 @@
         filter: false,
       },
       pagination: true,
-      paginationPageSize: 25,
+      paginationPageSize: currentPageSize,
       paginationPageSizeSelector: [10, 25, 50, 100],
       rowModelType: 'infinite',
-      cacheBlockSize: 25,
+      cacheBlockSize: currentPageSize,
       infiniteInitialRowCount: 1,
       maxBlocksInCache: 10,
+      getRowId: params => params.data && params.data.va_sid,
       onGridReady: (params) => {
         const ds = createDataSource();
         params.api.setGridOption('datasource', ds);
+        if (currentPageSize !== params.api.paginationGetPageSize()) {
+          params.api.setGridOption('paginationPageSize', currentPageSize);
+          params.api.setGridOption('cacheBlockSize', currentPageSize);
+          params.api.setGridOption('datasource', createDataSource());
+        }
+      },
+      onPaginationChanged: (params) => {
+        if (!params.api) return;
+        const nextPage = params.api.paginationGetCurrentPage() + 1;
+        const nextPageSize = params.api.paginationGetPageSize();
+        const suppressBootstrapPaginationEvent =
+          pendingInitialPageRestore &&
+          pendingInitialPageRestore > 1 &&
+          nextPage === 1;
+        if (suppressBootstrapPaginationEvent) {
+          currentPageSize = nextPageSize;
+          console.log('[DM] paginationChanged suppressed during restore', {
+            requestedPage: pendingInitialPageRestore,
+            emittedPage: nextPage,
+            size: nextPageSize,
+          });
+          return;
+        }
+        const pageChanged = nextPage !== currentPage;
+        const sizeChanged = nextPageSize !== currentPageSize;
+        currentPage = nextPage;
+        currentPageSize = nextPageSize;
+        if (pendingInitialPageRestore && nextPage === pendingInitialPageRestore) {
+          pendingInitialPageRestore = null;
+        }
+        saveState();
+        updateBrowserUrl();
+        console.log('[DM] paginationChanged', {
+          page: currentPage,
+          size: currentPageSize,
+          pageChanged,
+          sizeChanged,
+        });
       },
       onBodyScrollEnd: () => {
         // Lazy-init tooltips for visible rows
@@ -360,45 +547,89 @@
 
     /* Accept upstream ODK change */
     container.addEventListener('click', e => {
-      const btn = e.target.closest('.dm-accept-upstream-btn');
+      const btn = e.target.closest('.dm-view-changes-btn');
       if (!btn) return;
       const sid = btn.dataset.sid;
+      const formId = btn.dataset.formId || '';
       if (!sid) return;
-      if (!confirm('Accept upstream change?\n\nThis will clear the existing cause-of-death decision and return the submission to the coding queue.')) return;
-      btn.disabled = true;
-      btn.textContent = '…';
-      jsonFetch(`/api/v1/data-management/submissions/${sid}/accept-upstream-change`, { method: 'POST' })
-        .then(() => {
-          toast('Upstream change accepted — submission reset to ready for coding.', 'success');
-          loadKPIs();
-          gridApi.refreshInfiniteCache();
-        })
-        .catch(err => toast('Accept failed: ' + err.message, 'danger'))
-        .finally(() => {
-          btn.disabled = false;
-          btn.textContent = 'Accept';
-        });
+      showUpstreamChangesModal(sid, formId);
     });
 
-    /* Reject upstream ODK change */
-    container.addEventListener('click', e => {
-      const btn = e.target.closest('.dm-reject-upstream-btn');
-      if (!btn) return;
-      const sid = btn.dataset.sid;
+  }
+
+  function initUpstreamChangesModalActions() {
+    const acceptBtn = document.getElementById('dm-modal-accept-upstream-btn');
+    const rejectBtn = document.getElementById('dm-modal-reject-upstream-btn');
+    const confirmEl = document.getElementById('dm-upstream-confirm-modal');
+    const confirmTitleEl = document.getElementById('dm-upstream-confirm-title');
+    const confirmBodyEl = document.getElementById('dm-upstream-confirm-body');
+    const confirmSubmitBtn = document.getElementById('dm-upstream-confirm-submit-btn');
+    if (!acceptBtn || !rejectBtn || !confirmEl || !confirmTitleEl || !confirmBodyEl || !confirmSubmitBtn) return;
+
+    const openConfirm = ({ sid, action, title, body, buttonClass, buttonLabel }) => {
+      if (!upstreamConfirmModal) {
+        upstreamConfirmModal = new bootstrap.Modal(confirmEl);
+      }
+      confirmTitleEl.textContent = title;
+      confirmBodyEl.textContent = body;
+      confirmSubmitBtn.className = `btn btn-sm ${buttonClass}`;
+      confirmSubmitBtn.textContent = buttonLabel;
+      confirmSubmitBtn.dataset.sid = sid;
+      confirmSubmitBtn.dataset.action = action;
+      upstreamConfirmModal.show();
+    };
+
+    acceptBtn.addEventListener('click', () => {
+      const sid = acceptBtn.dataset.sid;
       if (!sid) return;
-      if (!confirm('Reject upstream change?\n\nThe existing cause-of-death decision will be kept and the submission restored to Coder Finalized.')) return;
-      btn.disabled = true;
-      btn.textContent = '…';
-      jsonFetch(`/api/v1/data-management/submissions/${sid}/reject-upstream-change`, { method: 'POST' })
+      openConfirm({
+        sid,
+        action: 'accept',
+        title: 'Confirm Accept And Recode',
+        body: 'This will clear the current finalized cause-of-death decision and return the submission to coding using the new ODK data.',
+        buttonClass: 'btn-success',
+        buttonLabel: 'Accept And Recode',
+      });
+    });
+
+    rejectBtn.addEventListener('click', () => {
+      const sid = rejectBtn.dataset.sid;
+      if (!sid) return;
+      openConfirm({
+        sid,
+        action: 'reject',
+        title: 'Confirm Keep Current ICD Decision',
+        body: 'This will adopt the latest ODK data while preserving the current finalized cause-of-death decision and keeping the submission finalized.',
+        buttonClass: 'btn-outline-danger',
+        buttonLabel: 'Keep Current ICD Decision',
+      });
+    });
+
+    confirmSubmitBtn.addEventListener('click', () => {
+      const sid = confirmSubmitBtn.dataset.sid;
+      const action = confirmSubmitBtn.dataset.action;
+      if (!sid || !action) return;
+      confirmSubmitBtn.disabled = true;
+      confirmSubmitBtn.textContent = '…';
+      jsonFetch(`/api/v1/data-management/submissions/${sid}/${action}-upstream-change`, { method: 'POST' })
         .then(() => {
-          toast('Upstream change rejected — submission restored to coder finalized.', 'success');
+          if (action === 'accept') {
+            toast('Upstream change accepted for recoding — submission moved to SmartVA pending.', 'success');
+          } else {
+            toast('Latest ODK data adopted — current finalized ICD decision kept.', 'success');
+          }
+          if (upstreamConfirmModal) upstreamConfirmModal.hide();
+          if (upstreamChangesModal) upstreamChangesModal.hide();
           loadKPIs();
-          gridApi.refreshInfiniteCache();
+          if (gridApi) {
+            gridApi.deselectAll();
+            gridApi.purgeInfiniteCache();
+          }
         })
-        .catch(err => toast('Reject failed: ' + err.message, 'danger'))
+        .catch(err => toast(`${action === 'accept' ? 'Accept And Recode' : 'Keep Current ICD Decision'} failed: ` + err.message, 'danger'))
         .finally(() => {
-          btn.disabled = false;
-          btn.textContent = 'Reject';
+          confirmSubmitBtn.disabled = false;
+          confirmSubmitBtn.textContent = action === 'accept' ? 'Accept And Recode' : 'Keep Current ICD Decision';
         });
     });
   }
@@ -409,8 +640,16 @@
         const sp = document.getElementById('dm-table-spinner');
         if (sp) sp.style.display = 'flex';
 
-        const page = Math.floor(params.startRow / 25) + 1;
         const size = params.endRow - params.startRow;
+        const page = Math.floor(params.startRow / Math.max(size, 1)) + 1;
+        const suppressBootstrapUrlRewrite =
+          pendingInitialPageRestore &&
+          pendingInitialPageRestore > 1 &&
+          page === 1;
+        if (!suppressBootstrapUrlRewrite) {
+          currentPage = page;
+        }
+        currentPageSize = size;
 
         const url = new URL('/api/v1/data-management/submissions', window.location.origin);
         url.searchParams.set('page', page);
@@ -428,6 +667,16 @@
           url.searchParams.set('sort[0][dir]', s.sort);
         }
 
+        console.log('[DM] grid.getRows request', {
+          startRow: params.startRow,
+          endRow: params.endRow,
+          computedPage: page,
+          size,
+          sortModel: params.sortModel,
+          filters: { ...currentFilters },
+          url: url.toString(),
+        });
+
         fetch(url.toString(), {
           headers: { 'Accept': 'application/json', 'X-CSRFToken': CSRF }
         })
@@ -436,7 +685,36 @@
             if (sp) sp.style.display = 'none';
             const rows = data.data || [];
             const lastRow = Number.isInteger(data.total) ? data.total : undefined;
+            console.log('[DM] grid.getRows response', {
+              page: data.page,
+              size: data.size,
+              offset: data.offset,
+              returnedCount: data.returned_count,
+              hasMore: data.has_more,
+              total: data.total,
+              lastPage: data.last_page,
+              rowSids: rows.map(row => row.va_sid),
+            });
+            if (!suppressBootstrapUrlRewrite) {
+              currentPage = data.page || page;
+            }
+            currentPageSize = data.size || size;
+            saveState();
+            if (!suppressBootstrapUrlRewrite) {
+              updateBrowserUrl();
+            }
             params.successCallback(rows, lastRow);
+            if (suppressBootstrapUrlRewrite && gridApi && pendingInitialPageRestore && pendingInitialPageRestore > 1) {
+              const restorePage = pendingInitialPageRestore;
+              console.log('[DM] restoring page after bootstrap response', {
+                requestedPage: restorePage,
+                total: data.total,
+                lastPage: data.last_page,
+              });
+              window.setTimeout(() => {
+                gridApi.paginationGoToPage(restorePage - 1);
+              }, 0);
+            }
           })
           .catch(err => {
             if (sp) sp.style.display = 'none';
@@ -559,38 +837,96 @@
 
   function applyFilters() {
     readInputsToFilters();
+    currentPage = 1;
     saveState();
+    updateBrowserUrl();
+    console.log('[DM] applyFilters', {
+      filters: { ...currentFilters },
+      query: buildDashboardQuery(),
+    });
     renderFilterPills();
     Promise.all([
       loadKPIs(),
       loadProjectSiteChart(),
       loadDemographicsCharts(),
     ]).catch(() => {});
-    if (gridApi) gridApi.refreshInfiniteCache();
+    if (gridApi) {
+      gridApi.paginationGoToFirstPage();
+      gridApi.purgeInfiniteCache();
+    }
   }
 
   function clearAllFilters() {
     Object.keys(currentFilters).forEach(k => { currentFilters[k] = ''; });
+    currentPage = 1;
     syncInputsFromState();
     saveState();
+    updateBrowserUrl();
+    console.log('[DM] clearAllFilters', {
+      filters: { ...currentFilters },
+      query: buildDashboardQuery(),
+    });
     renderFilterPills();
     Promise.all([
       loadKPIs(),
       loadProjectSiteChart(),
       loadDemographicsCharts(),
     ]).catch(() => {});
-    if (gridApi) gridApi.refreshInfiniteCache();
+    if (gridApi) {
+      gridApi.paginationGoToFirstPage();
+      gridApi.purgeInfiniteCache();
+    }
   }
 
-  function buildDashboardQuery() {
+  function buildDashboardQuery(options) {
+    const includePagination = options && options.includePagination;
     const params = new URLSearchParams();
-    ['project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
+    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
       .forEach(key => {
         const value = currentFilters[key];
         if (value) params.set(key, value);
       });
+    if (includePagination) {
+      if (currentPage > 1) params.set('page', String(currentPage));
+      if (currentPageSize !== 25) params.set('size', String(currentPageSize));
+    }
     const query = params.toString();
     return query ? `?${query}` : '';
+  }
+
+  function buildExportUrl(kind) {
+    const exportPathByKind = {
+      data: '/api/v1/data-management/submissions/export.csv',
+      smartva_input: '/api/v1/data-management/submissions/export-smartva-input.csv',
+      smartva_results: '/api/v1/data-management/submissions/export-smartva-results.csv',
+      smartva_likelihoods: '/api/v1/data-management/submissions/export-smartva-likelihoods.csv',
+    };
+    const exportPath = exportPathByKind[kind] || exportPathByKind.data;
+    const url = new URL(exportPath, window.location.origin);
+    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
+      .forEach(key => {
+        const value = currentFilters[key];
+        if (value) url.searchParams.set(key, value);
+      });
+    const sortModel = gridApi && typeof gridApi.getColumnState === 'function'
+      ? gridApi.getColumnState().filter(col => col.sort)
+      : [];
+    if (sortModel.length) {
+      url.searchParams.set('sort[0][field]', sortModel[0].colId);
+      url.searchParams.set('sort[0][dir]', sortModel[0].sort);
+    }
+    return url.toString();
+  }
+
+  function updateBrowserUrl() {
+    const nextUrl = `${window.location.pathname}${buildDashboardQuery({ includePagination: true })}`;
+    console.log('[DM] updateBrowserUrl', {
+      nextUrl,
+      filters: { ...currentFilters },
+      page: currentPage,
+      size: currentPageSize,
+    });
+    window.history.replaceState(null, '', nextUrl);
   }
 
   /* ════════════════════════════════════════════════════
@@ -1069,6 +1405,18 @@
     /* toolbar search */
     document.getElementById('dm-apply-filters-btn').addEventListener('click', applyFilters);
     document.getElementById('dm-clear-filters-btn').addEventListener('click', clearAllFilters);
+    document.querySelectorAll('.dm-export-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const kind = btn.dataset.exportKind || 'data';
+        const url = buildExportUrl(kind);
+        console.log('[DM] exportCsv', {
+          kind,
+          url,
+          filters: { ...currentFilters },
+        });
+        window.location.assign(url);
+      });
+    });
     document.getElementById('dm-search-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') applyFilters();
     });
@@ -1159,7 +1507,9 @@
 
   function init() {
     loadPersistedState();
+    loadStateFromUrl();
     initTable();
+    initUpstreamChangesModalActions();
     renderColVisibilityPanel();
     wireEvents();
     initKpiInfoPopovers();

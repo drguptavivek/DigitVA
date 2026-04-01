@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-24
+last_updated: 2026-04-01
 ---
 
 # Current Data Model
@@ -18,6 +18,27 @@ The current model is centered on:
 - `Submission`
 
 with workflow state attached to submissions.
+
+## Submission Identity
+
+Current submission identifiers serve different purposes:
+
+- `va_sid`
+  - canonical local technical submission id
+  - built as `{KEY}-{form_id.lower()}`
+  - `KEY` is the stable ODK submission key (`__id` in OData)
+- displayed `VA Form ID`
+  - business-facing identifier shown in the UI
+  - currently rendered from `va_uniqueid`
+- `instanceID`
+  - stored as ODK metadata
+  - not the canonical local sync identity
+
+Current rule:
+
+- DigitVA identity and payload lineage are anchored on ODK `KEY`
+- `instanceID` may change across edited versions and must not be treated as the
+  primary local identifier
 
 This is currently implemented as a single-project-first schema.
 
@@ -388,7 +409,7 @@ Key fields:
 - `previous_reviewer_final_assessment_id` — nullable FK to
   `va_reviewer_final_assessments` (reviewer COD snapshot, if the submission was
   `reviewer_finalized` at the time); added by migration `aacf89977029`
-- `change_status` — `pending` / `accepted` / `rejected`
+- `change_status` — `pending` / `accepted` / `kept_current_icd` / `rejected`
 - `resolved_by` — user id of the data manager or admin who resolved it
 - `resolved_at` — when the resolution occurred
 
@@ -399,8 +420,9 @@ Current behavior:
   receives a changed ODK payload
 - accepted by `dm_accept_upstream_change()` — promotes pending payload to
   active, clears reviewer authority, routes to `smartva_pending`
-- rejected by `dm_reject_upstream_change()` — marks the pending payload
-  rejected, restores `workflow_state_before`
+- resolved by `dm_reject_upstream_change()` — promotes pending payload to
+  active, preserves finalized ICD/COD artifacts, restores `workflow_state_before`,
+  and records the `kept_current_icd` resolution outcome
 
 ### `va_final_cod_authority`
 

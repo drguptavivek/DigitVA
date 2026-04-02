@@ -18,14 +18,15 @@ ODK sync is an incremental batch process that:
 4. Fetches changed submissions via OData JSON (paginated, no ZIP download)
 5. Thin-upserts `va_submissions` rows for all fetched ODK submissions, including consent=`no` and consent-missing rows
 6. Enriches the changed submissions for that same form into the canonical stored payload
-7. Reuses one pyODK client/session per `(connection_id, odk_project_id)` group across delta, fetch, targeted single-record refresh, and attachment sync
+7. Reuses one pyODK client/session per `(connection_id, odk_project_id)` group across delta, fetch, targeted single-record refresh, enrichment, and attachment sync
 8. Per-form commit — earlier forms are not rolled back if a later form fails
 9. Routes consent-valid changed submissions into `attachment_sync_pending`
-10. Syncs attachments for upserted submissions using bounded Celery batch subtasks and ETag-based conditional download
-11. Advances those submissions to `smartva_pending` only after all attachment batches for that form finish
-12. Rebuilds full CSV from DB for SmartVA compatibility and then runs SmartVA for that same form
-13. Records `last_synced_at` on the mapping row after each successful form
-14. Marks local sync issues when a local submission is missing from active ODK submissions
+10. Enriches changed submissions in bounded per-submission Celery batches so metadata work is checkpointed independently
+11. Syncs attachments for upserted submissions using bounded Celery batch subtasks and ETag-based conditional download
+12. Advances those submissions to `smartva_pending` only after all attachment batches for that form finish
+13. Rebuilds full CSV from DB for SmartVA compatibility and then runs SmartVA for that same form
+14. Records `last_synced_at` on the mapping row after each successful form
+15. Marks local sync issues when a local submission is missing from active ODK submissions
 
 ## Current Identity Rule
 
@@ -586,7 +587,7 @@ Tasks:
 
 - [`run_odk_sync()`](../../app/tasks/sync_tasks.py) — full sync across all active forms; records outcome in `va_sync_runs`
 - [`run_single_form_sync(form_id)`](../../app/tasks/sync_tasks.py) — force-resync one form, bypasses delta check
-- [`run_single_submission_sync(va_sid)`](../../app/tasks/sync_tasks.py) — refreshes one local submission from ODK, queues bounded attachment batches for that submission's form, and reruns SmartVA only after attachment completion
+- [`run_single_submission_sync(va_sid)`](../../app/tasks/sync_tasks.py) — refreshes one local submission from ODK, queues bounded enrichment and attachment batches for that submission's form, and reruns SmartVA only after attachment completion
 
 Default schedule: every 6 hours (configurable via admin sync dashboard without restart).
 
@@ -636,17 +637,22 @@ Also used by `GET /admin/api/sync/coverage` to compare ODK totals against local 
 The sync dashboard also exposes a separate backfill coverage view and trigger:
 
 - `GET /admin/api/sync/backfill-stats` returns project/site/form completeness counts for:
-  - ODK submission totals
   - local stored submission totals
   - metadata completeness
   - attachment completeness
+  - SmartVA completeness
 - `POST /admin/api/sync/backfill/form/<form_id>` triggers the ODK-backed repair path for one form
 - The dashboard table groups rows by project, site, and form so operators can see which forms are missing local data, metadata, or attachments before triggering a repair
 
 Important distinction:
 
 - `POST /admin/api/sync/attachment-backfill` is still the local attachment-cache repair path for already stored submissions
-- the new form backfill trigger reuses the ODK sync path and can repair thin data, metadata enrichment, attachment sync, and SmartVA follow-through together
+- `POST /admin/api/sync/form/<form_id>` is the force-resync path and bypasses the delta check for the whole form
+- `POST /admin/api/sync/backfill/form/<form_id>` is the targeted repair path:
+  - it fetches ODK instance IDs for the form
+  - backfills only missing thin local submissions
+  - then queues metadata, attachment, and SmartVA repair only for submissions with local gaps
+- the form backfill trigger can therefore repair thin data, metadata enrichment, attachment sync, and SmartVA follow-through together without redownloading all form rows
 
 ## Admin Sync Dashboard
 
@@ -655,12 +661,12 @@ Available at Admin Console → Data Sync (admin-only).
 Sections:
 
 - **Status bar** — last run outcome; auto-refreshes every 30s (5s while running)
-- **Sync Now** — manual full sync trigger; 409 guard against concurrent runs
+- **Sync** — manual routine sync trigger; 409 guard against concurrent runs
 - **Stop** — shown only while a sync run is active; sends a revoke/terminate signal to the active Celery sync task and marks the run `cancelled`
 - **Gen SmartVA** — trigger SmartVA-only run without ODK download
 - **Schedule configurator** — change beat interval (1–168h) without restarting
-- **Coverage table** — ODK total vs local total, last synced time, per-form force-resync button; loaded on demand rather than automatically on panel load
-- **Backfill coverage table** — project/site/form completeness counts for ODK data, metadata, and attachments, with a per-form backfill trigger
+- **Coverage table** — ODK total vs local total, last synced time, per-form `Force-resync` button; loaded on demand rather than automatically on panel load
+- **Backfill coverage table** — project/site/form completeness counts for local data, metadata, attachments, and SmartVA, with a per-form `Backfill` trigger
 - **Progress log** — live timestamped entries; clears and resets when a new run starts
 - **Run history** — last 20 runs with duration, trigger source, status, and error detail
 

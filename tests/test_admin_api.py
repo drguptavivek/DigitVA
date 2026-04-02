@@ -916,29 +916,31 @@ class AdminApiTests(BaseTestCase):
         )
         db.session.commit()
 
-        with patch("app.utils.va_odk.va_odk_04_submissioncount.va_odk_submissioncount", return_value=3):
-            response = self.client.get("/admin/api/sync/backfill-stats")
+        response = self.client.get("/admin/api/sync/backfill-stats")
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["totals"]["local_total"], 1)
         self.assertEqual(payload["totals"]["metadata_complete"], 1)
         self.assertEqual(payload["totals"]["attachments_complete"], 1)
+        self.assertEqual(payload["totals"]["smartva_complete"], 0)
 
         project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
         site = next(s for s in project["sites"] if s["site_id"] == self.site_a)
         form = next(f for f in site["forms"] if f["form_id"] == "ADM001AA0101")
-        self.assertEqual(form["odk_total"], 3)
         self.assertEqual(form["local_total"], 1)
         self.assertEqual(form["metadata_complete"], 1)
         self.assertEqual(form["attachments_complete"], 1)
-        self.assertEqual(form["data_missing"], 2)
+        self.assertEqual(form["smartva_complete"], 0)
+        self.assertEqual(form["metadata_missing"], 0)
+        self.assertEqual(form["attachments_missing"], 0)
+        self.assertEqual(form["smartva_missing"], 1)
 
     def test_admin_can_trigger_form_backfill(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()
 
-        with patch("app.tasks.sync_tasks.run_single_form_sync.delay") as mocked_delay:
+        with patch("app.tasks.sync_tasks.run_single_form_backfill.delay") as mocked_delay:
             mocked_delay.return_value.id = "task-form-backfill"
 
             response = self.client.post(
@@ -960,6 +962,43 @@ class AdminApiTests(BaseTestCase):
             mocked_delay.call_args.kwargs["form_id"],
             "ADM001AA0101",
         )
+
+    def test_admin_backfill_reconciles_orphaned_running_row(self):
+        from datetime import datetime, timezone
+        from app import db
+        from app.models.va_sync_runs import VaSyncRun
+
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        stale_run = VaSyncRun(
+            triggered_by="backfill",
+            started_at=datetime.now(timezone.utc),
+            status="running",
+        )
+        db.session.add(stale_run)
+        db.session.commit()
+
+        fake_celery = MagicMock()
+        fake_inspect = MagicMock()
+        fake_inspect.active.return_value = {}
+        fake_celery.control.inspect.return_value = fake_inspect
+
+        self.app.extensions["celery"] = fake_celery
+
+        with patch("app.tasks.sync_tasks.run_single_form_backfill.delay") as mocked_delay:
+            mocked_delay.return_value.id = "task-form-backfill"
+
+            response = self.client.post(
+                "/admin/api/sync/backfill/form/ADM001AA0101",
+                headers=headers,
+            )
+
+        self.assertEqual(response.status_code, 202)
+        db.session.refresh(stale_run)
+        self.assertEqual(stale_run.status, "error")
+        self.assertIn("no active Celery sync/backfill task", stale_run.error_message)
+        mocked_delay.assert_called_once()
 
     def test_sync_status_returns_null_schedule_when_beat_tables_missing(self):
         self._login(self.admin_user_id)

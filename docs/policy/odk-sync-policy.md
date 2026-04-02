@@ -52,10 +52,15 @@ That trigger is a repair path, not a separate data source.
 
 Policy baseline:
 
-- a form backfill should reuse the same ODK sync path used by normal syncs
+- a form `Backfill` is distinct from a `Force-resync`
 - the backfill should be scoped narrowly to the selected project/site/form
 - the backfill may repair thin submission data, metadata enrichment, attachment
   sync, and SmartVA follow-through together for that form
+- the backfill should fetch ODK instance IDs for the selected form, fetch only
+  missing thin submissions, and then queue repair only for submissions that are
+  metadata-incomplete, attachment-incomplete, or missing current-payload SmartVA
+- a `Force-resync` may still bypass delta checks and redownload all form rows,
+  but that behavior belongs to the explicit form `Force-resync` action, not the `Backfill` action
 - attachment-cache-only repair remains a distinct action and only restores
   missing local attachment files for already stored submissions
 - backfill actions should be logged with clear form-scoped progress so an

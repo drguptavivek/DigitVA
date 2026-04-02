@@ -6,12 +6,88 @@ in va_sync_runs so the admin dashboard can show history and current status.
 import json
 import logging
 import sqlalchemy as sa
-from celery import chord, shared_task
+from celery import shared_task
 from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 ANALYTICS_MV_TRIGGER = "analytics_mv"
-ATTACHMENT_SYNC_BATCH_SIZE = 50
+ENRICHMENT_SYNC_BATCH_SIZE = 10
+ATTACHMENT_SYNC_BATCH_SIZE = 10
+
+
+def _normalize_batch_plan(batch_map: dict | None) -> dict[str, dict]:
+    """Normalize legacy and stage-aware batch payloads into one shape."""
+    normalized: dict[str, dict] = {}
+    for va_sid, value in (batch_map or {}).items():
+        if isinstance(value, dict):
+            normalized[va_sid] = {
+                "instance_id": value.get("instance_id") or value.get("KEY") or "",
+                "needs_metadata": bool(value.get("needs_metadata")),
+                "needs_attachments": bool(value.get("needs_attachments")),
+                "needs_smartva": bool(value.get("needs_smartva")),
+            }
+        else:
+            normalized[va_sid] = {
+                "instance_id": value or "",
+                "needs_metadata": True,
+                "needs_attachments": True,
+                "needs_smartva": True,
+            }
+    return normalized
+
+
+def _batch_stage_counts(batch_plan: dict[str, dict]) -> dict[str, int]:
+    """Return counts of submissions needing each stage in a batch plan."""
+    return {
+        "metadata": sum(1 for item in batch_plan.values() if item.get("needs_metadata")),
+        "attachments": sum(1 for item in batch_plan.values() if item.get("needs_attachments")),
+        "smartva": sum(1 for item in batch_plan.values() if item.get("needs_smartva")),
+    }
+
+
+def _dispatch_repair_batch(
+    *,
+    form_id: str,
+    batch_map: dict[str, dict] | dict[str, str],
+    remaining_batches: list[dict] | None,
+    run_id: str,
+    batch_index: int,
+    batch_total: int,
+):
+    """Dispatch the next needed stage for a batch."""
+    batch_plan = _normalize_batch_plan(batch_map)
+    stage_counts = _batch_stage_counts(batch_plan)
+    if stage_counts["metadata"] > 0:
+        run_enrichment_sync_batch.delay(
+            form_id=form_id,
+            batch_map=batch_plan,
+            remaining_batches=remaining_batches or [],
+            run_id=run_id,
+            batch_index=batch_index,
+            batch_total=batch_total,
+        )
+        return "enrich"
+    if stage_counts["attachments"] > 0:
+        run_attachment_sync_batch.delay(
+            form_id=form_id,
+            batch_map=batch_plan,
+            remaining_batches=remaining_batches or [],
+            run_id=run_id,
+            batch_index=batch_index,
+            batch_total=batch_total,
+        )
+        return "attachments"
+    if stage_counts["smartva"] > 0:
+        run_smartva_sync_batch.delay(
+            form_id=form_id,
+            batch_map=batch_plan,
+            remaining_batches=remaining_batches or [],
+            run_id=run_id,
+            batch_index=batch_index,
+            batch_total=batch_total,
+        )
+        return "smartva"
+    return None
 
 
 def _get_single_form_odk_client(va_form):
@@ -100,7 +176,12 @@ def _append_run_error(run, message: str) -> None:
         run.error_message = message[:2000]
 
 
-def _schedule_attachment_sync_for_form(run_id, form_id: str, upserted_map: dict[str, str], log_progress) -> None:
+def _schedule_attachment_sync_for_form(
+    run_id,
+    form_id: str,
+    upserted_map: dict[str, str],
+    log_progress,
+) -> int:
     from app import db
     from app.models.va_sync_runs import VaSyncRun
 
@@ -110,12 +191,12 @@ def _schedule_attachment_sync_for_form(run_id, form_id: str, upserted_map: dict[
         for i in range(0, len(items), ATTACHMENT_SYNC_BATCH_SIZE)
     ]
     if not batches:
-        return
+        return 0
 
     run = db.session.execute(
         sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == run_id).with_for_update()
     ).scalar_one()
-    run.attachment_forms_total = (run.attachment_forms_total or 0) + 1
+    run.attachment_forms_total = (run.attachment_forms_total or 0) + len(batches)
     if run.attachment_forms_completed is None:
         run.attachment_forms_completed = 0
     if run.attachment_downloaded is None:
@@ -132,20 +213,229 @@ def _schedule_attachment_sync_for_form(run_id, form_id: str, upserted_map: dict[
         f"[{form_id}] attachments: queued {len(batches)} download batch(es) "
         f"for {len(items)} submission(s)…"
     )
-    header = [
-        run_attachment_sync_batch.s(
-            form_id=form_id,
-            batch_map=batch,
-            run_id=str(run_id),
-        )
-        for batch in batches
-    ]
-    callback = finalize_form_attachment_sync.s(
+    first_batch = batches[0]
+    remaining_batches = batches[1:]
+    run_attachment_sync_batch.delay(
         form_id=form_id,
-        va_sids=list(upserted_map.keys()),
+        batch_map=first_batch,
+        remaining_batches=remaining_batches,
         run_id=str(run_id),
+        batch_index=1,
+        batch_total=len(batches),
     )
-    chord(header)(callback)
+    return len(batches)
+
+
+def _schedule_enrichment_sync_for_form(run_id, form_id: str, upserted_map: dict[str, str], log_progress) -> int:
+    """Schedule bounded enrichment batches for one form."""
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+
+    items = list(upserted_map.items())
+    batches = [
+        dict(items[i:i + ENRICHMENT_SYNC_BATCH_SIZE])
+        for i in range(0, len(items), ENRICHMENT_SYNC_BATCH_SIZE)
+    ]
+    if not batches:
+        return 0
+
+    log_progress(
+        f"[{form_id}] enrich: queued {len(batches)} batch(es) for "
+        f"{len(items)} changed submission(s)…"
+    )
+    run = db.session.execute(
+        sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == run_id).with_for_update()
+    ).scalar_one()
+    run.attachment_forms_total = (run.attachment_forms_total or 0) + len(batches)
+    if run.attachment_forms_completed is None:
+        run.attachment_forms_completed = 0
+    if run.attachment_downloaded is None:
+        run.attachment_downloaded = 0
+    if run.attachment_skipped is None:
+        run.attachment_skipped = 0
+    if run.attachment_errors is None:
+        run.attachment_errors = 0
+    if run.smartva_records_generated is None:
+        run.smartva_records_generated = 0
+    db.session.commit()
+    first_batch = batches[0]
+    remaining_batches = batches[1:]
+    run_enrichment_sync_batch.delay(
+        form_id=form_id,
+        batch_map=first_batch,
+        remaining_batches=remaining_batches,
+        run_id=str(run_id),
+        batch_index=1,
+        batch_total=len(batches),
+    )
+    return len(batches)
+
+
+def _schedule_repair_sync_for_form(run_id, form_id: str, repair_plan: dict[str, dict], log_progress) -> int:
+    """Schedule stage-aware repair batches for one form."""
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+
+    items = list(repair_plan.items())
+    batches = [
+        dict(items[i:i + ENRICHMENT_SYNC_BATCH_SIZE])
+        for i in range(0, len(items), ENRICHMENT_SYNC_BATCH_SIZE)
+    ]
+    if not batches:
+        return 0
+
+    log_progress(
+        f"[{form_id}] pipeline: queued {len(batches)} repair batch(es) for "
+        f"{len(items)} submission(s)…"
+    )
+    run = db.session.execute(
+        sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == run_id).with_for_update()
+    ).scalar_one()
+    run.attachment_forms_total = (run.attachment_forms_total or 0) + len(batches)
+    if run.attachment_forms_completed is None:
+        run.attachment_forms_completed = 0
+    if run.attachment_downloaded is None:
+        run.attachment_downloaded = 0
+    if run.attachment_skipped is None:
+        run.attachment_skipped = 0
+    if run.attachment_errors is None:
+        run.attachment_errors = 0
+    if run.smartva_records_generated is None:
+        run.smartva_records_generated = 0
+    db.session.commit()
+
+    first_batch = batches[0]
+    remaining_batches = batches[1:]
+    _dispatch_repair_batch(
+        form_id=form_id,
+        batch_map=first_batch,
+        remaining_batches=remaining_batches,
+        run_id=str(run_id),
+        batch_index=1,
+        batch_total=len(batches),
+    )
+    return len(batches)
+
+
+def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upserted_map: dict[str, str]) -> tuple[dict[str, dict], dict[str, int]]:
+    """Return submissions that still need post-upsert repair for a form.
+
+    Includes newly added/updated rows plus existing rows whose current payload is
+    metadata-incomplete or whose local attachment cache is incomplete.
+    """
+    from app import db
+    from app.models import VaSubmissions, VaSubmissionAttachments, VaSmartvaResults
+    from app.models.va_selectives import VaStatuses
+
+    raw_by_sid = {
+        submission.get("sid"): submission
+        for submission in (raw_submissions or [])
+        if submission.get("sid") and submission.get("KEY")
+    }
+
+    attachment_counts_sq = (
+        sa.select(
+            VaSubmissionAttachments.va_sid.label("va_sid"),
+            sa.func.count().label("attachment_count"),
+        )
+        .where(VaSubmissionAttachments.exists_on_odk.is_(True))
+        .group_by(VaSubmissionAttachments.va_sid)
+        .subquery()
+    )
+    smartva_current_sq = (
+        sa.select(VaSmartvaResults.va_sid.label("va_sid"))
+        .join(
+            VaSubmissions,
+            sa.and_(
+                VaSubmissions.va_sid == VaSmartvaResults.va_sid,
+                VaSubmissions.active_payload_version_id
+                == VaSmartvaResults.payload_version_id,
+            ),
+        )
+        .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
+        .group_by(VaSmartvaResults.va_sid)
+        .subquery()
+    )
+
+    rows = db.session.execute(
+        sa.select(
+            VaSubmissions.va_sid,
+            VaSubmissions.va_data,
+            VaSubmissions.va_summary,
+            VaSubmissions.va_category_list,
+            attachment_counts_sq.c.attachment_count,
+            smartva_current_sq.c.va_sid.label("smartva_present_sid"),
+        )
+        .outerjoin(
+            attachment_counts_sq,
+            attachment_counts_sq.c.va_sid == VaSubmissions.va_sid,
+        )
+        .outerjoin(
+            smartva_current_sq,
+            smartva_current_sq.c.va_sid == VaSubmissions.va_sid,
+        )
+        .where(
+            VaSubmissions.va_form_id == form_id,
+            VaSubmissions.va_sid.in_(list(raw_by_sid.keys())) if raw_by_sid else sa.true(),
+        )
+    ).all()
+
+    repair_map = {
+        va_sid: {
+            "instance_id": instance_id,
+            "needs_metadata": True,
+            "needs_attachments": True,
+            "needs_smartva": True,
+        }
+        for va_sid, instance_id in (upserted_map or {}).items()
+    }
+    summary = {
+        "metadata_missing": 0,
+        "attachments_missing": 0,
+        "smartva_missing": 0,
+    }
+    for va_sid, va_data, va_summary, va_category_list, attachment_count, smartva_present_sid in rows:
+        payload = va_data or {}
+        instance_id = (
+            raw_by_sid.get(va_sid, {}).get("KEY")
+            or payload.get("KEY")
+            or (va_sid.rsplit(f"-{form_id.lower()}", 1)[0] if va_sid.endswith(f"-{form_id.lower()}") else None)
+        )
+        if not instance_id:
+            continue
+        metadata_complete = all(
+            [
+                va_summary is not None,
+                va_category_list is not None,
+                payload.get("FormVersion") is not None,
+                payload.get("DeviceID") is not None,
+                payload.get("SubmitterID") is not None,
+                payload.get("instanceID") is not None,
+                payload.get("AttachmentsExpected") is not None,
+                payload.get("AttachmentsPresent") is not None,
+            ]
+        )
+        try:
+            attachments_expected = int(payload.get("AttachmentsExpected") or 0)
+        except (TypeError, ValueError):
+            attachments_expected = 0
+        attachments_complete = int(attachment_count or 0) >= attachments_expected
+        smartva_complete = smartva_present_sid is not None
+        if not metadata_complete:
+            summary["metadata_missing"] += 1
+        if not attachments_complete:
+            summary["attachments_missing"] += 1
+        if not smartva_complete:
+            summary["smartva_missing"] += 1
+        if not metadata_complete or not attachments_complete or not smartva_complete:
+            existing = repair_map.get(va_sid, {"instance_id": instance_id, "needs_metadata": False, "needs_attachments": False, "needs_smartva": False})
+            existing["instance_id"] = existing.get("instance_id") or instance_id
+            existing["needs_metadata"] = bool(existing.get("needs_metadata")) or (not metadata_complete)
+            existing["needs_attachments"] = bool(existing.get("needs_attachments")) or (not attachments_complete)
+            existing["needs_smartva"] = bool(existing.get("needs_smartva")) or (not smartva_complete)
+            repair_map[va_sid] = existing
+
+    return repair_map, summary
 
 
 @shared_task(
@@ -178,8 +468,8 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
         _log_progress(db, run_id, msg)
 
     try:
-        def dispatch_attachments(va_form, upserted_map, _media_dir, progress_callback):
-            _schedule_attachment_sync_for_form(
+        def dispatch_enrichment(va_form, upserted_map, progress_callback):
+            _schedule_enrichment_sync_for_form(
                 run_id,
                 va_form.form_id,
                 upserted_map,
@@ -188,7 +478,7 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
 
         result = va_data_sync_odkcentral(
             log_progress=log_progress,
-            attachment_sync_dispatcher=dispatch_attachments,
+            enrichment_sync_dispatcher=dispatch_enrichment,
         )
         run = db.session.get(VaSyncRun, run_id)
         failed_forms = result.get("failed_forms", []) if result else []
@@ -198,7 +488,10 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
             run.smartva_records_generated = result.get("smartva_updated", 0)
         if failed_forms:
             _append_run_error(run, f"Failed forms: {', '.join(failed_forms)}")
-        if result and result.get("attachment_sync_forms_enqueued", 0):
+        if result and (
+            result.get("enrichment_sync_forms_enqueued", 0)
+            or result.get("attachment_sync_forms_enqueued", 0)
+        ):
             run.status = "running"
         else:
             run.status = "partial" if failed_forms else "success"
@@ -291,8 +584,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         va_odk_fetch_submissions,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
-        _attach_all_odk_comments,
-        _finalize_enriched_submissions_for_form,
         _mark_form_sync_issues,
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
@@ -321,7 +612,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         log.info("SingleFormSync [%s]: force-resync started.", form_id)
 
         snapshot_time = datetime.now(timezone.utc)
-        amended_sids: set[str] = set()
         odk_client = _get_single_form_odk_client(va_form)
         form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
         media_dir = os.path.join(form_dir, "media")
@@ -347,7 +637,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         added, updated, discarded, skipped = _upsert_form_submissions(
             va_form,
             va_submissions_raw,
-            amended_sids,
+            set(),
             upserted_map,
             enrich_payloads=False,
             defer_protected_updates=True,
@@ -357,36 +647,23 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             f"[{form_id}] upsert: complete — +{added} added, {updated} updated"
             + (f", {skipped} skipped" if skipped else "")
         )
-        if upserted_map:
+        repair_map, repair_summary = _build_repair_map_for_form(
+            form_id,
+            va_submissions_raw,
+            upserted_map,
+        )
+        if repair_map:
             log_progress(
-                f"[{form_id}] enrich: adding ODK review comments to "
-                f"{len(va_submissions_raw)} submission(s)…"
+                f"[{form_id}] Backfill: queueing {len(repair_map)} submission(s) for repair "
+                f"(metadata gaps: {repair_summary['metadata_missing']}, "
+                f"attachment gaps: {repair_summary['attachments_missing']}, "
+                f"SmartVA gaps: {repair_summary['smartva_missing']})…"
             )
-            va_submissions_raw = _attach_all_odk_comments(
-                va_form,
-                va_submissions_raw,
-                client=odk_client,
+            _schedule_enrichment_sync_for_form(
+                run_id,
+                form_id,
+                repair_map,
                 log_progress=log_progress,
-            )
-            log_progress(
-                f"[{form_id}] enrich: review comments added for "
-                f"{len(va_submissions_raw)} submission(s)"
-            )
-            log_progress(
-                f"[{form_id}] enrich: enriching submission metadata…"
-            )
-            enriched_count = _finalize_enriched_submissions_for_form(
-                va_form,
-                va_submissions_raw,
-                upserted_map,
-                amended_sids,
-                client=odk_client,
-                log_progress=log_progress,
-            )
-            db.session.commit()
-            log_progress(
-                f"[{form_id}] enrich: complete — metadata enriched for "
-                f"{enriched_count} submission(s)"
             )
 
         # Update last_synced_at
@@ -404,16 +681,21 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         run.records_added = added
         run.records_updated = updated
         run.smartva_records_generated = 0
-        if upserted_map:
+        if repair_map:
             db.session.commit()
-            _schedule_attachment_sync_for_form(run_id, form_id, upserted_map, log_progress)
             run = db.session.get(VaSyncRun, run_id)
             run.status = "running"
         else:
             run.status = "success"
             run.finished_at = datetime.now(timezone.utc)
         db.session.commit()
-        log.info("SingleFormSync [%s]: queued attachment sync — added=%d updated=%d", form_id, added, updated)
+        log.info(
+            "SingleFormSync [%s]: queued repair sync — added=%d updated=%d repaired=%d",
+            form_id,
+            added,
+            updated,
+            len(repair_map),
+        )
 
     except Exception as exc:
         try:
@@ -429,89 +711,379 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
 
 
 @shared_task(
-    name="app.tasks.sync_tasks.run_attachment_sync_batch",
+    name="app.tasks.sync_tasks.run_single_form_backfill",
     bind=True,
-    soft_time_limit=300,
-    time_limit=600,
+    soft_time_limit=600,
+    time_limit=900,
 )
-def run_attachment_sync_batch(self, *, form_id: str, batch_map: dict[str, str], run_id: str):
-    """Sync one bounded attachment batch for a form."""
+def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill", user_id=None):
+    """Repair local gaps for one form without doing a full force-resync."""
     import os
     from flask import current_app
     from app import db
     from app.models.va_forms import VaForms
-    from app.utils import va_odk_sync_form_attachments
+    from app.models.va_submissions import VaSubmissions
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+        _mark_form_sync_issues,
+        _upsert_form_submissions,
+    )
+    from app.utils import (
+        va_odk_fetch_instance_ids,
+        va_odk_fetch_submissions_by_ids,
+    )
 
+    run = VaSyncRun(
+        triggered_by=triggered_by,
+        triggered_user_id=user_id,
+        started_at=datetime.now(timezone.utc),
+        status="running",
+    )
+    db.session.add(run)
+    db.session.commit()
+    run_id = run.sync_run_id
+
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
+    try:
+        va_form = db.session.get(VaForms, form_id)
+        if va_form is None:
+            raise ValueError(f"Form '{form_id}' not found in va_forms")
+        _authorize_data_manager_form_sync(user_id, va_form)
+
+        log_progress(f"[{form_id}] backfill started — checking ODK and local gaps")
+
+        odk_client = _get_single_form_odk_client(va_form)
+        form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
+        media_dir = os.path.join(form_dir, "media")
+        os.makedirs(media_dir, exist_ok=True)
+
+        odk_ids = va_odk_fetch_instance_ids(va_form, client=odk_client)
+        _mark_form_sync_issues(va_form, odk_ids)
+
+        form_id_lower = form_id.lower()
+        local_sids = set(
+            db.session.scalars(
+                sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == form_id)
+            ).all()
+        )
+        missing_ids = [
+            instance_id
+            for instance_id in odk_ids
+            if f"{instance_id}-{form_id_lower}" not in local_sids
+        ]
+        log_progress(
+            f"[{form_id}] backfill: {len(missing_ids)} submission(s) missing thin local data"
+        )
+
+        added = 0
+        updated = 0
+        discarded = 0
+        skipped = 0
+        upserted_map: dict[str, str] = {}
+        raw_records_for_repair: list[dict] = []
+
+        gap_batch_size = 50
+        for batch_start in range(0, len(missing_ids), gap_batch_size):
+            batch_ids = missing_ids[batch_start: batch_start + gap_batch_size]
+            batch_records = va_odk_fetch_submissions_by_ids(
+                va_form,
+                batch_ids,
+                client=odk_client,
+                log_progress=log_progress,
+            )
+            if not batch_records:
+                continue
+            raw_records_for_repair.extend(batch_records)
+            batch_upserted_map: dict[str, str] = {}
+            b_added, b_updated, b_discarded, b_skipped = _upsert_form_submissions(
+                va_form,
+                batch_records,
+                set(),
+                batch_upserted_map,
+                enrich_payloads=False,
+                defer_protected_updates=True,
+            )
+            db.session.commit()
+            upserted_map.update(batch_upserted_map)
+            added += b_added
+            updated += b_updated
+            discarded += b_discarded
+            skipped += b_skipped
+            done = min(batch_start + gap_batch_size, len(missing_ids))
+            log_progress(
+                f"[{form_id}] backfill data: fetched {done}/{len(missing_ids)} missing submission(s)"
+            )
+
+        repair_map, repair_summary = _build_repair_map_for_form(
+            form_id,
+            raw_records_for_repair,
+            upserted_map,
+        )
+        log_progress(
+            f"[{form_id}] Backfill: queueing {len(repair_map)} submission(s) for repair "
+            f"(metadata gaps: {repair_summary['metadata_missing']}, "
+            f"attachment gaps: {repair_summary['attachments_missing']}, "
+            f"SmartVA gaps: {repair_summary['smartva_missing']})"
+        )
+
+        run = db.session.get(VaSyncRun, run_id)
+        run.records_added = added
+        run.records_updated = updated
+        run.smartva_records_generated = 0
+
+        if repair_map:
+            _schedule_repair_sync_for_form(
+                run_id,
+                form_id,
+                repair_map,
+                log_progress=log_progress,
+            )
+            run.status = "running"
+        else:
+            run.status = "success"
+            run.finished_at = datetime.now(timezone.utc)
+            log_progress(
+                f"[{form_id}] Backfill: no local metadata, attachment, or SmartVA gaps found"
+            )
+        db.session.commit()
+        log.info(
+            "SingleFormBackfill [%s]: added=%d updated=%d repaired=%d skipped=%d discarded=%d",
+            form_id,
+            added,
+            updated,
+            len(repair_map),
+            skipped,
+            discarded,
+        )
+    except Exception as exc:
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_message = str(exc)[:2000]
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_enrichment_sync_batch",
+    bind=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def run_enrichment_sync_batch(
+    self,
+    *,
+    form_id: str,
+    batch_map: dict[str, str],
+    remaining_batches: list[dict[str, str]] | None = None,
+    run_id: str,
+    batch_index: int = 1,
+    batch_total: int = 1,
+):
+    """Enrich one bounded batch of submissions for a form."""
+    from app import db
+    from app.models import VaForms, VaSubmissions
+    from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+        _attach_all_odk_comments,
+        _finalize_enriched_submissions_for_form,
+    )
+
+    db.session.rollback()
     va_form = db.session.get(VaForms, form_id)
     if va_form is None:
         return {
-            "downloaded": 0,
-            "skipped": 0,
+            "enriched": 0,
             "errors": len(batch_map or {}),
-            "error_message": f"Form '{form_id}' not found for attachment batch.",
+            "error_message": f"Form '{form_id}' not found for enrichment batch.",
         }
 
-    form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
-    media_dir = os.path.join(form_dir, "media")
-    os.makedirs(media_dir, exist_ok=True)
+    batch_plan = _normalize_batch_plan(batch_map)
+    metadata_sids = [
+        va_sid for va_sid, item in batch_plan.items()
+        if item.get("needs_metadata")
+    ]
+    submissions = db.session.scalars(
+        sa.select(VaSubmissions).where(VaSubmissions.va_sid.in_(metadata_sids))
+    ).all() if metadata_sids else []
+    if not submissions:
+        if _batch_stage_counts(batch_plan)["attachments"] > 0:
+            run_attachment_sync_batch.delay(
+                form_id=form_id,
+                batch_map=batch_plan,
+                remaining_batches=remaining_batches or [],
+                run_id=run_id,
+                batch_index=batch_index,
+                batch_total=batch_total,
+            )
+        elif _batch_stage_counts(batch_plan)["smartva"] > 0:
+            run_smartva_sync_batch.delay(
+                form_id=form_id,
+                batch_map=batch_plan,
+                remaining_batches=remaining_batches or [],
+                run_id=run_id,
+                batch_index=batch_index,
+                batch_total=batch_total,
+            )
+        else:
+            _finalize_repair_batch(
+                form_id=form_id,
+                run_id=run_id,
+                batch_plan=batch_plan,
+                remaining_batches=remaining_batches or [],
+                batch_index=batch_index,
+                batch_total=batch_total,
+                downloaded=0,
+                skipped=0,
+                errors=0,
+                smartva_updated=0,
+                error_messages=[],
+            )
+        return {"enriched": 0, "errors": 0, "error_message": None}
+
+    raw_submissions = [dict(submission.va_data or {}) for submission in submissions]
+    upserted_map = {
+        submission.va_sid: (submission.va_data or {}).get("KEY", "")
+        for submission in submissions
+    }
+    amended_sids: set[str] = set()
+    odk_client = _get_single_form_odk_client(va_form)
+
     try:
-        totals = va_odk_sync_form_attachments(
+        _log_progress(
+            db,
+            run_id,
+            (
+                f"[{form_id}] enrich: batch {batch_index}/{batch_total} "
+                f"starting for {len(submissions)} submission(s)…"
+            ),
+        )
+        raw_submissions = _attach_all_odk_comments(
             va_form,
-            batch_map or {},
-            media_dir,
-            client_factory=lambda: _get_single_form_odk_client(va_form),
+            raw_submissions,
+            client=odk_client,
+            log_progress=lambda msg: _log_progress(db, run_id, msg),
+        )
+        enriched_count = _finalize_enriched_submissions_for_form(
+            va_form,
+            raw_submissions,
+            upserted_map,
+            amended_sids,
+            client=odk_client,
+            log_progress=lambda msg: _log_progress(db, run_id, msg),
         )
         db.session.commit()
         _log_progress(
             db,
             run_id,
             (
-                f"[{form_id}] attachments: batch complete — "
-                f"{totals['downloaded']} downloaded, "
-                f"{totals['skipped']} skipped"
-                + (f", {totals['errors']} errors" if totals["errors"] else "")
+                f"[{form_id}] enrich: batch {batch_index}/{batch_total} "
+                f"complete — {enriched_count}/{len(submissions)} submission(s) enriched"
             ),
         )
+        for item in batch_plan.values():
+            item["needs_metadata"] = False
+        if _batch_stage_counts(batch_plan)["attachments"] > 0:
+            run_attachment_sync_batch.delay(
+                form_id=form_id,
+                batch_map=batch_plan,
+                remaining_batches=remaining_batches or [],
+                run_id=run_id,
+                batch_index=batch_index,
+                batch_total=batch_total,
+            )
+        elif _batch_stage_counts(batch_plan)["smartva"] > 0:
+            run_smartva_sync_batch.delay(
+                form_id=form_id,
+                batch_map=batch_plan,
+                remaining_batches=remaining_batches or [],
+                run_id=run_id,
+                batch_index=batch_index,
+                batch_total=batch_total,
+            )
+        else:
+            _finalize_repair_batch(
+                form_id=form_id,
+                run_id=run_id,
+                batch_plan=batch_plan,
+                remaining_batches=remaining_batches or [],
+                batch_index=batch_index,
+                batch_total=batch_total,
+                downloaded=0,
+                skipped=0,
+                errors=0,
+                smartva_updated=0,
+                error_messages=[],
+            )
         return {
-            "downloaded": totals["downloaded"],
-            "skipped": totals["skipped"],
-            "errors": totals["errors"],
+            "enriched": enriched_count,
+            "errors": 0,
             "error_message": None,
         }
     except Exception as exc:
         db.session.rollback()
-        _log_progress(db, run_id, f"[{form_id}] attachments: batch FAILED — {exc}")
+        _log_progress(
+            db,
+            run_id,
+            f"[{form_id}] enrich: batch {batch_index}/{batch_total} FAILED — {exc}",
+        )
+        from uuid import UUID
+        from app.models.va_sync_runs import VaSyncRun
+
+        run = db.session.execute(
+            sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == UUID(run_id)).with_for_update()
+        ).scalar_one_or_none()
+        if run is not None:
+            run.attachment_forms_completed = (run.attachment_forms_completed or 0) + 1
+            run.attachment_errors = (run.attachment_errors or 0) + len(submissions)
+            _append_run_error(
+                run,
+                f"[{form_id}] enrich batch {batch_index}/{batch_total} failed: {exc}",
+            )
+            db.session.commit()
+        if remaining_batches:
+            next_batch = remaining_batches[0]
+            next_remaining_batches = remaining_batches[1:]
+            _log_progress(
+                db,
+                run_id,
+                f"[{form_id}] enrich: continuing with batch {batch_index + 1}/{batch_total}…",
+            )
+            run_enrichment_sync_batch.delay(
+                form_id=form_id,
+                batch_map=next_batch,
+                remaining_batches=next_remaining_batches,
+                run_id=run_id,
+                batch_index=batch_index + 1,
+                batch_total=batch_total,
+            )
         return {
-            "downloaded": 0,
-            "skipped": 0,
-            "errors": len(batch_map or {}),
+            "enriched": 0,
+            "errors": len(submissions),
             "error_message": str(exc)[:500],
         }
 
 
 @shared_task(
-    name="app.tasks.sync_tasks.finalize_form_attachment_sync",
+    name="app.tasks.sync_tasks.finalize_form_enrichment_sync",
     bind=True,
     soft_time_limit=900,
     time_limit=1800,
 )
-def finalize_form_attachment_sync(self, results, *, form_id: str, va_sids: list[str], run_id: str):
-    """Finalize all attachment batches for one form, then run SmartVA."""
+def finalize_form_enrichment_sync(self, results, *, form_id: str, va_sids: list[str], run_id: str):
+    """Finalize per-submission enrichment batches for one form, then queue attachments."""
     from uuid import UUID
     from app import db
-    from app.models.va_forms import VaForms
+    from app.models import VaSubmissions
     from app.models.va_sync_runs import VaSyncRun
-    from app.services import smartva_service
-    from app.services.workflow.definition import WORKFLOW_ATTACHMENT_SYNC_PENDING
-    from app.services.workflow.state_store import get_submission_workflow_state
-    from app.services.workflow.transitions import (
-        WorkflowTransitionError,
-        mark_attachment_sync_completed,
-        system_actor,
-    )
 
-    downloaded = sum(int((row or {}).get("downloaded", 0)) for row in results or [])
-    skipped = sum(int((row or {}).get("skipped", 0)) for row in results or [])
+    db.session.rollback()
+    enriched = sum(int((row or {}).get("enriched", 0)) for row in results or [])
     errors = sum(int((row or {}).get("errors", 0)) for row in results or [])
     error_messages = [
         (row or {}).get("error_message")
@@ -522,57 +1094,24 @@ def finalize_form_attachment_sync(self, results, *, form_id: str, va_sids: list[
     _log_progress(
         db,
         run_id,
-        (
-            f"[{form_id}] attachments: complete — {downloaded} downloaded, "
-            f"{skipped} skipped"
-            + (f", {errors} errors" if errors else "")
-        ),
+        f"[{form_id}] enrich: complete — {enriched} submission(s) enriched",
     )
 
-    transitioned_count = 0
-    for va_sid in va_sids:
-        if get_submission_workflow_state(va_sid) != WORKFLOW_ATTACHMENT_SYNC_PENDING:
-            continue
-        try:
-            mark_attachment_sync_completed(
-                va_sid,
-                reason="attachments_synced_for_current_payload",
-                actor=system_actor(),
-            )
-            transitioned_count += 1
-        except WorkflowTransitionError as exc:
-            error_messages.append(f"{va_sid}: {exc}")
-    db.session.commit()
-    _log_progress(
-        db,
-        run_id,
-        f"[{form_id}] workflow: attachments finished for {transitioned_count} "
-        f"submission(s); ready for SmartVA",
-    )
+    upserted_map = {}
+    if va_sids:
+        rows = db.session.scalars(
+            sa.select(VaSubmissions).where(VaSubmissions.va_sid.in_(va_sids))
+        ).all()
+        upserted_map = {
+            row.va_sid: (row.va_data or {}).get("KEY", "")
+            for row in rows
+            if (row.va_data or {}).get("KEY")
+        }
 
-    smartva_updated = 0
-    va_form = db.session.get(VaForms, form_id)
-    if va_form is not None:
-        try:
-            _log_progress(
-                db,
-                run_id,
-                f"SmartVA {form_id}: starting after attachments finished.",
-            )
-            smartva_updated = smartva_service.generate_for_form(
-                va_form,
-                amended_sids=set(va_sids),
-                log_progress=lambda msg: _log_progress(db, run_id, msg),
-            )
-            _log_progress(
-                db,
-                run_id,
-                f"SmartVA {form_id}: finished — {smartva_updated} result(s) generated.",
-            )
-        except Exception as exc:
-            db.session.rollback()
-            error_messages.append(f"SmartVA {form_id}: {exc}")
-            _log_progress(db, run_id, f"SmartVA {form_id}: FAILED — {exc}")
+    if not upserted_map:
+        error_messages.append(
+            f"[{form_id}] enrich finalize: no submissions available for attachment sync."
+        )
 
     run = db.session.execute(
         sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == UUID(run_id)).with_for_update()
@@ -580,6 +1119,320 @@ def finalize_form_attachment_sync(self, results, *, form_id: str, va_sids: list[
     if run is None:
         return
 
+    for message in error_messages:
+        _append_run_error(run, message)
+
+    if upserted_map:
+        _schedule_attachment_sync_for_form(run_id, form_id, upserted_map, lambda msg: _log_progress(db, run_id, msg))
+    else:
+        run.status = "partial" if (run.error_message or errors) else run.status
+        run.finished_at = datetime.now(timezone.utc)
+        _log_progress(
+            db,
+            run_id,
+            f"[{form_id}] pipeline: complete — {enriched} submission(s) enriched, 0 attachments queued",
+        )
+        db.session.commit()
+        return
+
+    db.session.commit()
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_attachment_sync_batch",
+    bind=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def run_attachment_sync_batch(
+    self,
+    *,
+    form_id: str,
+    batch_map: dict[str, dict] | dict[str, str],
+    remaining_batches: list[dict] | None = None,
+    run_id: str,
+    batch_index: int = 1,
+    batch_total: int = 1,
+):
+    """Sync one bounded attachment batch for a form."""
+    import os
+    from flask import current_app
+    from app import db
+    from app.models.va_forms import VaForms
+    from app.utils import va_odk_sync_form_attachments
+    from app.services.workflow.definition import WORKFLOW_ATTACHMENT_SYNC_PENDING
+    from app.services.workflow.state_store import get_submission_workflow_state
+    from app.services.workflow.transitions import (
+        WorkflowTransitionError,
+        mark_attachment_sync_completed,
+        system_actor,
+    )
+
+    db.session.rollback()
+    batch_plan = _normalize_batch_plan(batch_map)
+    attachment_map = {
+        va_sid: item.get("instance_id") or ""
+        for va_sid, item in batch_plan.items()
+        if item.get("needs_attachments")
+    }
+    va_form = db.session.get(VaForms, form_id)
+    if va_form is None:
+        return {
+            "downloaded": 0,
+            "skipped": 0,
+            "errors": len(attachment_map),
+            "error_message": f"Form '{form_id}' not found for attachment batch.",
+        }
+
+    form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
+    media_dir = os.path.join(form_dir, "media")
+    os.makedirs(media_dir, exist_ok=True)
+    try:
+        _log_progress(
+            db,
+            run_id,
+            (
+                f"[{form_id}] attachments: batch {batch_index}/{batch_total} "
+                f"starting for {len(attachment_map)} submission(s)…"
+            ),
+        )
+        totals = {"downloaded": 0, "skipped": 0, "errors": 0}
+        if attachment_map:
+            totals = va_odk_sync_form_attachments(
+                va_form,
+                attachment_map,
+                media_dir,
+                client_factory=lambda: _get_single_form_odk_client(va_form),
+            )
+        transitioned_count = 0
+        transition_errors: list[str] = []
+        for va_sid in batch_plan.keys():
+            if get_submission_workflow_state(va_sid) != WORKFLOW_ATTACHMENT_SYNC_PENDING:
+                continue
+            try:
+                mark_attachment_sync_completed(
+                    va_sid,
+                    reason="attachments_synced_for_current_payload",
+                    actor=system_actor(),
+                )
+                transitioned_count += 1
+            except WorkflowTransitionError as exc:
+                transition_errors.append(f"{va_sid}: {exc}")
+        db.session.commit()
+        for item in batch_plan.values():
+            if item.get("needs_attachments"):
+                item["needs_attachments"] = False
+        if _batch_stage_counts(batch_plan)["smartva"] > 0:
+            _log_progress(
+                db,
+                run_id,
+                f"[{form_id}] workflow: attachments synced for batch {batch_index}/{batch_total}"
+                + (
+                    f"; {transitioned_count} submission(s) advanced to SmartVA"
+                    if transitioned_count
+                    else "; running SmartVA on the repaired batch"
+                ),
+            )
+            run_smartva_sync_batch.delay(
+                form_id=form_id,
+                batch_map=batch_plan,
+                remaining_batches=remaining_batches or [],
+                run_id=run_id,
+                batch_index=batch_index,
+                batch_total=batch_total,
+            )
+        else:
+            _finalize_repair_batch(
+                form_id=form_id,
+                run_id=run_id,
+                batch_plan=batch_plan,
+                remaining_batches=remaining_batches or [],
+                batch_index=batch_index,
+                batch_total=batch_total,
+                downloaded=totals["downloaded"],
+                skipped=totals["skipped"],
+                errors=totals["errors"] + len(transition_errors),
+                smartva_updated=0,
+                error_messages=transition_errors,
+            )
+        return {
+            "downloaded": totals["downloaded"],
+            "skipped": totals["skipped"],
+            "errors": totals["errors"],
+            "error_message": None,
+        }
+    except Exception as exc:
+        db.session.rollback()
+        _log_progress(
+            db,
+            run_id,
+            f"[{form_id}] attachments: batch {batch_index}/{batch_total} FAILED — {exc}",
+        )
+        from uuid import UUID
+        from app.models.va_sync_runs import VaSyncRun
+
+        run = db.session.execute(
+            sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == UUID(run_id)).with_for_update()
+        ).scalar_one_or_none()
+        if run is not None:
+            run.attachment_forms_completed = (run.attachment_forms_completed or 0) + 1
+            run.attachment_errors = (run.attachment_errors or 0) + len(attachment_map)
+            _append_run_error(
+                run,
+                f"[{form_id}] attachment batch {batch_index}/{batch_total} failed: {exc}",
+            )
+            db.session.commit()
+        if remaining_batches:
+            next_batch = remaining_batches[0]
+            next_remaining_batches = remaining_batches[1:]
+            _log_progress(
+                db,
+                run_id,
+                f"[{form_id}] attachments: queueing next batch {batch_index + 1}/{batch_total}…",
+            )
+            _dispatch_repair_batch(
+                form_id=form_id,
+                batch_map=next_batch,
+                remaining_batches=next_remaining_batches,
+                run_id=run_id,
+                batch_index=batch_index + 1,
+                batch_total=batch_total,
+            )
+        return {
+            "downloaded": 0,
+            "skipped": 0,
+            "errors": len(attachment_map),
+            "error_message": str(exc)[:500],
+        }
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_smartva_sync_batch",
+    bind=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def run_smartva_sync_batch(
+    self,
+    *,
+    form_id: str,
+    batch_map: dict[str, dict] | dict[str, str],
+    remaining_batches: list[dict] | None = None,
+    run_id: str,
+    batch_index: int = 1,
+    batch_total: int = 1,
+):
+    """Run SmartVA for one bounded batch of submissions."""
+    from app import db
+    from app.models.va_forms import VaForms
+    from app.services import smartva_service
+
+    db.session.rollback()
+    batch_plan = _normalize_batch_plan(batch_map)
+    target_sids = [
+        va_sid for va_sid, item in batch_plan.items()
+        if item.get("needs_smartva")
+    ]
+    va_form = db.session.get(VaForms, form_id)
+    if va_form is None:
+        return {
+            "smartva_updated": 0,
+            "errors": len(target_sids),
+            "error_message": f"Form '{form_id}' not found for SmartVA batch.",
+        }
+
+    try:
+        _log_progress(
+            db,
+            run_id,
+            f"SmartVA {form_id}: starting for batch {batch_index}/{batch_total} ({len(target_sids)} submission(s)).",
+        )
+        smartva_updated = 0
+        if target_sids:
+            smartva_updated = smartva_service.generate_for_form(
+                va_form,
+                target_sids=set(target_sids),
+                log_progress=lambda msg: _log_progress(db, run_id, msg),
+            )
+        _log_progress(
+            db,
+            run_id,
+            f"SmartVA {form_id}: finished — {smartva_updated} result(s) generated.",
+        )
+        for item in batch_plan.values():
+            if item.get("needs_smartva"):
+                item["needs_smartva"] = False
+        _finalize_repair_batch(
+            form_id=form_id,
+            run_id=run_id,
+            batch_plan=batch_plan,
+            remaining_batches=remaining_batches or [],
+            batch_index=batch_index,
+            batch_total=batch_total,
+            downloaded=0,
+            skipped=0,
+            errors=0,
+            smartva_updated=smartva_updated,
+            error_messages=[],
+        )
+        return {
+            "smartva_updated": smartva_updated,
+            "errors": 0,
+            "error_message": None,
+        }
+    except Exception as exc:
+        db.session.rollback()
+        _log_progress(db, run_id, f"SmartVA {form_id}: FAILED — {exc}")
+        _finalize_repair_batch(
+            form_id=form_id,
+            run_id=run_id,
+            batch_plan=batch_plan,
+            remaining_batches=remaining_batches or [],
+            batch_index=batch_index,
+            batch_total=batch_total,
+            downloaded=0,
+            skipped=0,
+            errors=len(target_sids),
+            smartva_updated=0,
+            error_messages=[f"SmartVA {form_id}: {exc}"],
+        )
+        return {
+            "smartva_updated": 0,
+            "errors": len(target_sids),
+            "error_message": str(exc)[:500],
+        }
+
+
+def _finalize_repair_batch(
+    *,
+    form_id: str,
+    run_id: str,
+    batch_plan: dict[str, dict],
+    remaining_batches: list[dict] | None = None,
+    batch_index: int = 1,
+    batch_total: int = 1,
+    downloaded: int = 0,
+    skipped: int = 0,
+    errors: int = 0,
+    smartva_updated: int = 0,
+    error_messages: list[str] | None = None,
+):
+    """Finalize one repair batch, update counters, and queue the next batch."""
+    from uuid import UUID
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+
+    db.session.rollback()
+    error_messages = error_messages or []
+    va_sids = list(batch_plan.keys())
+
+    run = db.session.execute(
+        sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == UUID(run_id)).with_for_update()
+    ).scalar_one_or_none()
+    if run is None:
+        return
+
+    post_commit_messages: list[str] = []
     run.attachment_forms_completed = (run.attachment_forms_completed or 0) + 1
     run.attachment_downloaded = (run.attachment_downloaded or 0) + downloaded
     run.attachment_skipped = (run.attachment_skipped or 0) + skipped
@@ -587,33 +1440,93 @@ def finalize_form_attachment_sync(self, results, *, form_id: str, va_sids: list[
     run.smartva_records_generated = (run.smartva_records_generated or 0) + smartva_updated
     for message in error_messages:
         _append_run_error(run, message)
-    _log_progress(
-        db,
-        run_id,
+    post_commit_messages.append(
         (
-            f"[{form_id}] pipeline: complete — "
-            f"{downloaded} attachments downloaded, "
+            f"[{form_id}] pipeline: batch {batch_index}/{batch_total} complete — "
+            f"{len(va_sids)} submission(s), "
+            f"{downloaded} attachment file(s) downloaded, "
             f"{smartva_updated} SmartVA result(s) generated"
             + (f", {errors} attachment error(s)" if errors else "")
-        ),
+        )
     )
 
     if (run.attachment_forms_completed or 0) >= (run.attachment_forms_total or 0):
         run.finished_at = datetime.now(timezone.utc)
         run.status = "partial" if run.error_message or (run.attachment_errors or 0) else "success"
-        _log_progress(
-            db,
-            run_id,
+        post_commit_messages.append(
             (
                 "Sync finished: "
                 f"{run.records_added or 0} added, "
                 f"{run.records_updated or 0} updated, "
                 f"{run.attachment_downloaded or 0} attachments downloaded, "
                 f"{run.smartva_records_generated or 0} SmartVA result(s) generated."
-            ),
+            )
         )
 
     db.session.commit()
+
+    for message in post_commit_messages:
+        _log_progress(db, run_id, message)
+
+    if remaining_batches:
+        next_batch = remaining_batches[0]
+        next_remaining_batches = remaining_batches[1:]
+        _log_progress(
+            db,
+            run_id,
+            f"[{form_id}] pipeline: batch {batch_index}/{batch_total} complete; "
+            f"queueing next batch {batch_index + 1}/{batch_total} "
+            f"for {len(next_batch)} submission(s)…",
+        )
+        _dispatch_repair_batch(
+            form_id=form_id,
+            batch_map=next_batch,
+            remaining_batches=next_remaining_batches,
+            run_id=run_id,
+            batch_index=batch_index + 1,
+            batch_total=batch_total,
+        )
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.finalize_form_attachment_sync",
+    bind=True,
+    soft_time_limit=900,
+    time_limit=1800,
+)
+def finalize_form_attachment_sync(
+    self,
+    results,
+    *,
+    form_id: str,
+    va_sids: list[str],
+    run_id: str,
+    remaining_batches: list[dict[str, str]] | None = None,
+    batch_index: int = 1,
+    batch_total: int = 1,
+):
+    """Compatibility wrapper for older queued callbacks."""
+    downloaded = sum(int((row or {}).get("downloaded", 0)) for row in results or [])
+    skipped = sum(int((row or {}).get("skipped", 0)) for row in results or [])
+    errors = sum(int((row or {}).get("errors", 0)) for row in results or [])
+    error_messages = [
+        (row or {}).get("error_message")
+        for row in results or []
+        if (row or {}).get("error_message")
+    ]
+    return _finalize_repair_batch(
+        form_id=form_id,
+        run_id=run_id,
+        batch_plan={va_sid: {"instance_id": "", "needs_metadata": False, "needs_attachments": False, "needs_smartva": False} for va_sid in va_sids},
+        remaining_batches=remaining_batches,
+        batch_index=batch_index,
+        batch_total=batch_total,
+        downloaded=downloaded,
+        skipped=skipped,
+        errors=errors,
+        smartva_updated=0,
+        error_messages=error_messages,
+    )
 
 
 @shared_task(
@@ -695,8 +1608,6 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         va_odk_fetch_submissions_by_ids,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
-        _attach_all_odk_comments,
-        _finalize_enriched_submissions_for_form,
         _mark_form_sync_issues,
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
@@ -775,34 +1686,14 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         )
         if upserted_map:
             log_progress(
-                f"[{va_form.form_id}] enrich: adding ODK review comments to "
-                f"{len(records)} submission(s)…"
+                f"[{va_form.form_id}] enrich: queueing {len(upserted_map)} changed "
+                f"submission(s) for batched metadata enrichment…"
             )
-            records = _attach_all_odk_comments(
-                va_form,
-                records,
-                client=odk_client,
-                log_progress=log_progress,
-            )
-            log_progress(
-                f"[{va_form.form_id}] enrich: review comments added for "
-                f"{len(records)} submission(s)"
-            )
-            log_progress(
-                f"[{va_form.form_id}] enrich: enriching submission metadata…"
-            )
-            enriched_count = _finalize_enriched_submissions_for_form(
-                va_form,
-                records,
+            _schedule_enrichment_sync_for_form(
+                run_id,
+                va_form.form_id,
                 upserted_map,
-                amended_sids=set(),
-                client=odk_client,
                 log_progress=log_progress,
-            )
-            db.session.commit()
-            log_progress(
-                f"[{va_form.form_id}] enrich: complete — metadata enriched for "
-                f"{enriched_count} submission(s)"
             )
         _mark_form_sync_issues(va_form, va_odk_fetch_instance_ids(va_form, client=odk_client))
         db.session.commit()
@@ -816,7 +1707,6 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         run.smartva_records_generated = 0
         if upserted_map:
             db.session.commit()
-            _schedule_attachment_sync_for_form(run_id, va_form.form_id, upserted_map, log_progress)
             run = db.session.get(VaSyncRun, run_id)
             run.status = "running"
         else:

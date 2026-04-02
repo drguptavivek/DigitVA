@@ -65,7 +65,7 @@ run_odk_sync(triggered_by="scheduled", user_id=None)
 **Behavior:**
 1. Writes a `VaSyncRun` row with `status="running"` and commits immediately (dashboard sees it)
 2. Calls `cleanup_stale_runs()` — expires orphaned "running" rows before starting
-3. Calls `va_data_sync_odkcentral()` — incremental per-form pipeline (delta check → gap sync → OData fetch → upsert → language normalization → ETag attachment sync → per-form commit)
+3. Calls `va_data_sync_odkcentral()` — incremental per-form pipeline (delta check → gap sync → OData fetch → upsert → language normalization → batched enrichment → batched attachment sync → per-form commit)
 4. On success: updates with `status="success"` and metric counts
 5. On partial success (some forms failed): updates with `status="partial"` and lists failed form IDs in `error_message`
 6. On error: updates with `status="error"` and `error_message`, then re-raises so Celery marks the task failed
@@ -116,7 +116,7 @@ run_single_form_sync(form_id: str, triggered_by: str = "manual")
 1. Looks up the `va_forms` row for `form_id`
 2. Revalidates request-time access in the worker for non-admin user-triggered runs
 3. Fetches all submissions via OData JSON (no `since` filter — downloads everything)
-4. Upserts submissions, syncs attachments (ETag-based), rebuilds CSV
+4. Upserts submissions, then enqueues per-submission enrichment and attachment batches (ETag-based), and rebuilds CSV once the pipeline finishes
 5. Updates `mapping.last_synced_at`
 
 **When to use:** A form failed during a full sync run (status `partial`), or attachments are suspected to be out of sync. Triggered from the per-form sync button in the admin coverage table via `POST /admin/api/sync/form/<form_id>`.
@@ -131,6 +131,31 @@ Operational note:
 from app.tasks.sync_tasks import run_single_form_sync
 run_single_form_sync.delay(form_id="UNSW01KA0101", triggered_by="manual")
 ```
+
+---
+
+### `app.tasks.sync_tasks.run_single_form_backfill`
+
+Defined in [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py).
+
+**Purpose:** Backfill a single form by repairing local gaps without doing a full
+Force-resync.
+
+**Signature:**
+```python
+run_single_form_backfill(form_id: str, triggered_by: str = "backfill")
+```
+
+**Behavior:**
+1. Looks up the `va_forms` row for `form_id`
+2. Revalidates request-time access in the worker for non-admin user-triggered runs
+3. Fetches ODK instance IDs for the form and thin-fetches only missing local submissions
+4. Queues per-submission batches only for local rows missing metadata, attachments, or current-payload SmartVA
+5. Leaves already complete rows alone
+
+**When to use:** The admin sync dashboard shows local completeness gaps for a
+form and the operator wants targeted repair rather than a full Force-resync.
+Triggered from `POST /admin/api/sync/backfill/form/<form_id>`.
 
 ---
 
@@ -152,9 +177,9 @@ run_single_submission_sync(va_sid: str, triggered_by: str = "manual")
 3. Fetches the latest ODK payload for that instance
 4. Marks `missing_in_odk` if the submission is no longer present in active ODK
 5. Upserts the local submission when found
-6. Syncs attachments for that submission
+6. Syncs attachments for that submission via bounded batches when needed
 7. Rebuilds the form CSV
-8. Reruns SmartVA for the target submission only
+8. Reruns SmartVA for the target submission only after attachment follow-through
 
 **When to use:** A data manager wants to refresh one submission without waiting
 for a full-form or full-system sync.
@@ -192,9 +217,9 @@ run_single_form_sync(form_id: str, triggered_by: str = "manual")
 1. Looks up the local `va_forms` row
 2. Revalidates request-time data-manager access in the worker for non-admin user-triggered runs
 3. Fetches all submissions for that mapped ODK form
-4. Upserts local submissions and syncs attachments
+4. Upserts local submissions, then enqueues per-submission enrichment and attachment batches
 5. Updates `map_project_site_odk.last_synced_at`
-6. Regenerates SmartVA for the affected form
+6. Regenerates SmartVA after the batched attachment follow-through completes
 
 **When to use:** A form needs a targeted resync without running a full-system sync.
 

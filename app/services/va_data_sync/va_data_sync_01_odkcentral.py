@@ -1042,7 +1042,11 @@ def _release_active_allocations_after_sync() -> None:
     db.session.commit()
 
 
-def va_data_sync_odkcentral(log_progress=None, attachment_sync_dispatcher=None):
+def va_data_sync_odkcentral(
+    log_progress=None,
+    attachment_sync_dispatcher=None,
+    enrichment_sync_dispatcher=None,
+):
     def _progress(msg):
         ts = datetime.now().strftime("%H:%M:%S")
         print(f"{ts} {msg}")
@@ -1079,6 +1083,7 @@ def va_data_sync_odkcentral(log_progress=None, attachment_sync_dispatcher=None):
         amended_sids: set[str] = set()
         failed_form_ids: list[str] = []
         cooldown_skipped_form_ids: list[str] = []
+        enrichment_sync_forms_enqueued = 0
         attachment_sync_forms_enqueued = 0
         # Connections that entered cooldown mid-run — remaining forms on the
         # same connection are skipped without touching ODK.
@@ -1234,91 +1239,103 @@ def va_data_sync_odkcentral(log_progress=None, attachment_sync_dispatcher=None):
                         f"+{gap_added_total} added, {gap_updated_total} updated{skip_msg}"
                     )
                     if gap_upserted_map:
-                        _progress(
-                            f"[{va_form.form_id}] enrich: adding ODK review comments to "
-                            f"{len(gap_records_for_finalize)} submission(s)…"
-                        )
-                        gap_records_for_finalize = _attach_all_odk_comments(
-                            va_form,
-                            gap_records_for_finalize,
-                            client=odk_client,
-                            log_progress=_progress,
-                        )
-                        _progress(
-                            f"[{va_form.form_id}] enrich: review comments added for "
-                            f"{len(gap_records_for_finalize)} submission(s)"
-                        )
-                        _progress(
-                            f"[{va_form.form_id}] enrich: enriching submission metadata…"
-                        )
-                        enriched_count = _finalize_enriched_submissions_for_form(
-                            va_form,
-                            gap_records_for_finalize,
-                            gap_upserted_map,
-                            amended_sids,
-                            client=odk_client,
-                            log_progress=_progress,
-                        )
-                        db.session.commit()
-                        _progress(
-                            f"[{va_form.form_id}] enrich: complete — "
-                            f"metadata enriched for {enriched_count} submission(s)"
-                        )
-                        if attachment_sync_dispatcher is not None:
-                            attachment_sync_dispatcher(
+                        if enrichment_sync_dispatcher is not None:
+                            _progress(
+                                f"[{va_form.form_id}] enrich: queueing {len(gap_upserted_map)} "
+                                f"changed submission(s) for batched metadata enrichment…"
+                            )
+                            enrichment_sync_dispatcher(
                                 va_form,
                                 gap_upserted_map,
-                                media_dir,
                                 _progress,
                             )
-                            attachment_sync_forms_enqueued += 1
+                            enrichment_sync_forms_enqueued += 1
                         else:
-                            attachment_totals = va_odk_sync_form_attachments(
+                            _progress(
+                                f"[{va_form.form_id}] enrich: adding ODK review comments to "
+                                f"{len(gap_records_for_finalize)} submission(s)…"
+                            )
+                            gap_records_for_finalize = _attach_all_odk_comments(
                                 va_form,
+                                gap_records_for_finalize,
+                                client=odk_client,
+                                log_progress=_progress,
+                            )
+                            _progress(
+                                f"[{va_form.form_id}] enrich: review comments added for "
+                                f"{len(gap_records_for_finalize)} submission(s)"
+                            )
+                            _progress(
+                                f"[{va_form.form_id}] enrich: enriching submission metadata…"
+                            )
+                            enriched_count = _finalize_enriched_submissions_for_form(
+                                va_form,
+                                gap_records_for_finalize,
                                 gap_upserted_map,
-                                media_dir,
-                                client_factory=lambda: _get_or_create_sync_odk_client(
-                                    clients_by_group, connection_by_project,
-                                    va_form, mapping,
-                                ),
-                                progress_callback=_progress,
+                                amended_sids,
+                                client=odk_client,
+                                log_progress=_progress,
                             )
                             db.session.commit()
                             _progress(
-                                f"[{va_form.form_id}] attachments: complete — "
-                                f"{attachment_totals['downloaded']} downloaded, "
-                                f"{attachment_totals['skipped']} skipped"
-                                + (
-                                    f", {attachment_totals['errors']} errors"
-                                    if attachment_totals["errors"]
-                                    else ""
+                                f"[{va_form.form_id}] enrich: complete — "
+                                f"metadata enriched for {enriched_count} submission(s)"
+                            )
+                            if attachment_sync_dispatcher is not None:
+                                attachment_sync_dispatcher(
+                                    va_form,
+                                    gap_upserted_map,
+                                    media_dir,
+                                    _progress,
                                 )
-                            )
-                            _progress(
-                                f"[{va_form.form_id}] workflow: attachments finished for "
-                                f"{len(gap_upserted_map)} submission(s); ready for SmartVA"
-                            )
-                            from app.services import smartva_service
-                            _progress(
-                                f"SmartVA {va_form.form_id}: starting for "
-                                f"{len(gap_upserted_map)} submission(s)…"
-                            )
-                            saved = smartva_service.generate_for_form(
-                                va_form,
-                                amended_sids=set(gap_upserted_map),
-                                log_progress=_progress,
-                            )
-                            va_smartva_updated += saved
-                            _progress(
-                                f"[{va_form.form_id}] pipeline: complete — "
-                                f"{attachment_totals['downloaded']} attachments downloaded, "
-                                f"{saved} SmartVA result(s) generated"
-                                + (
-                                    f", {attachment_totals['errors']} attachment error(s)"
-                                    if attachment_totals["errors"]
-                                    else ""
+                                attachment_sync_forms_enqueued += 1
+                            else:
+                                attachment_totals = va_odk_sync_form_attachments(
+                                    va_form,
+                                    gap_upserted_map,
+                                    media_dir,
+                                    client_factory=lambda: _get_or_create_sync_odk_client(
+                                        clients_by_group, connection_by_project,
+                                        va_form, mapping,
+                                    ),
+                                    progress_callback=_progress,
                                 )
-                            )
+                                db.session.commit()
+                                _progress(
+                                    f"[{va_form.form_id}] attachments: complete — "
+                                    f"{attachment_totals['downloaded']} downloaded, "
+                                    f"{attachment_totals['skipped']} skipped"
+                                    + (
+                                        f", {attachment_totals['errors']} errors"
+                                        if attachment_totals["errors"]
+                                        else ""
+                                    )
+                                )
+                                _progress(
+                                    f"[{va_form.form_id}] workflow: attachments finished for "
+                                    f"{len(gap_upserted_map)} submission(s); ready for SmartVA"
+                                )
+                                from app.services import smartva_service
+                                _progress(
+                                    f"SmartVA {va_form.form_id}: starting for "
+                                    f"{len(gap_upserted_map)} submission(s)…"
+                                )
+                                saved = smartva_service.generate_for_form(
+                                    va_form,
+                                    amended_sids=set(gap_upserted_map),
+                                    log_progress=_progress,
+                                )
+                                va_smartva_updated += saved
+                                _progress(
+                                    f"[{va_form.form_id}] pipeline: complete — "
+                                    f"{attachment_totals['downloaded']} attachments downloaded, "
+                                    f"{saved} SmartVA result(s) generated"
+                                    + (
+                                        f", {attachment_totals['errors']} attachment error(s)"
+                                        if attachment_totals["errors"]
+                                        else ""
+                                    )
+                                )
                     continue  # skip the normal upsert/attachment flow below
                 else:
                     # Normal delta or first-sync fetch
@@ -1375,36 +1392,48 @@ def va_data_sync_odkcentral(log_progress=None, attachment_sync_dispatcher=None):
                     f"+{form_added} added, {form_updated} updated{skip_msg}"
                 )
                 if upserted_map:
-                    _progress(
-                        f"[{va_form.form_id}] enrich: adding ODK review comments to "
-                        f"{len(va_submissions_raw)} submission(s)…"
-                    )
-                    va_submissions_raw = _attach_all_odk_comments(
-                        va_form,
-                        va_submissions_raw,
-                        client=odk_client,
-                        log_progress=_progress,
-                    )
-                    _progress(
-                        f"[{va_form.form_id}] enrich: review comments added for "
-                        f"{len(va_submissions_raw)} submission(s)"
-                    )
-                    _progress(
-                        f"[{va_form.form_id}] enrich: enriching submission metadata…"
-                    )
-                    enriched_count = _finalize_enriched_submissions_for_form(
-                        va_form,
-                        va_submissions_raw,
-                        upserted_map,
-                        amended_sids,
-                        client=odk_client,
-                        log_progress=_progress,
-                    )
-                    db.session.commit()
-                    _progress(
-                        f"[{va_form.form_id}] enrich: complete — "
-                        f"metadata enriched for {enriched_count} submission(s)"
-                    )
+                    if enrichment_sync_dispatcher is not None:
+                        _progress(
+                            f"[{va_form.form_id}] enrich: queueing {len(upserted_map)} "
+                            f"changed submission(s) for batched metadata enrichment…"
+                        )
+                        enrichment_sync_dispatcher(
+                            va_form,
+                            upserted_map,
+                            _progress,
+                        )
+                        enrichment_sync_forms_enqueued += 1
+                    else:
+                        _progress(
+                            f"[{va_form.form_id}] enrich: adding ODK review comments to "
+                            f"{len(va_submissions_raw)} submission(s)…"
+                        )
+                        va_submissions_raw = _attach_all_odk_comments(
+                            va_form,
+                            va_submissions_raw,
+                            client=odk_client,
+                            log_progress=_progress,
+                        )
+                        _progress(
+                            f"[{va_form.form_id}] enrich: review comments added for "
+                            f"{len(va_submissions_raw)} submission(s)"
+                        )
+                        _progress(
+                            f"[{va_form.form_id}] enrich: enriching submission metadata…"
+                        )
+                        enriched_count = _finalize_enriched_submissions_for_form(
+                            va_form,
+                            va_submissions_raw,
+                            upserted_map,
+                            amended_sids,
+                            client=odk_client,
+                            log_progress=_progress,
+                        )
+                        db.session.commit()
+                        _progress(
+                            f"[{va_form.form_id}] enrich: complete — "
+                            f"metadata enriched for {enriched_count} submission(s)"
+                        )
                 log.info(
                     "DataSync [%s]: committed — added=%d updated=%d discarded=%d skipped=%d",
                     va_form.form_id, form_added, form_updated, form_discarded, form_skipped,
@@ -1532,6 +1561,11 @@ def va_data_sync_odkcentral(log_progress=None, attachment_sync_dispatcher=None):
                 f"Attachment sync queued for {attachment_sync_forms_enqueued} form(s); "
                 "SmartVA will run after attachment batches finish."
             )
+        elif enrichment_sync_forms_enqueued:
+            _progress(
+                f"Enrichment sync queued for {enrichment_sync_forms_enqueued} form(s); "
+                "attachment batches and SmartVA will run after enrichment finishes."
+            )
 
         log.info(
             "DataSync complete: added=%d updated=%d smartva=%d discarded=%d failed=%s",
@@ -1548,6 +1582,7 @@ def va_data_sync_odkcentral(log_progress=None, attachment_sync_dispatcher=None):
             "smartva_updated": va_smartva_updated,
             "discarded": va_discarded_relrecords,
             "failed_forms": failed_form_ids,
+            "enrichment_sync_forms_enqueued": enrichment_sync_forms_enqueued,
             "attachment_sync_forms_enqueued": attachment_sync_forms_enqueued,
         }
 

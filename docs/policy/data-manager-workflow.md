@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-01
+last_updated: 2026-04-02
 ---
 
 # Data Manager Workflow Policy
@@ -93,6 +93,21 @@ At minimum the dashboard must show:
 
 The dashboard may also expose filtered CSV exports for operational review, but
 those exports must protect PII.
+
+Dashboard state semantics:
+
+- `Pending Coding` is reserved for coder-actionable workload only:
+  - `ready_for_coding`
+  - `coding_in_progress`
+  - `coder_step1_saved`
+- pre-coding pipeline states are distinct operational queues and must not be
+  counted as pending coding:
+  - `screening_pending`
+  - `attachment_sync_pending`
+  - `smartva_pending`
+- workflow visualizations such as the workflow-state donut and workflow guide
+  should show the actual underlying workflow states rather than collapsing
+  these pre-coding states into pending coding
 
 Export policy:
 

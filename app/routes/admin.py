@@ -1,4 +1,5 @@
 import logging
+import json
 import re
 import uuid
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from types import SimpleNamespace
 log = logging.getLogger(__name__)
 
 import sqlalchemy as sa
+from dateutil import parser
 from flask import Blueprint, abort, current_app, jsonify, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import generate_csrf
 
@@ -3725,6 +3727,117 @@ def admin_panel_activity():
     )
 
 
+def _sync_task_names() -> set[str]:
+    return {
+        "app.tasks.sync_tasks.run_odk_sync",
+        "app.tasks.sync_tasks.run_smartva_pending",
+        "app.tasks.sync_tasks.run_single_form_sync",
+        "app.tasks.sync_tasks.run_single_form_backfill",
+        "app.tasks.sync_tasks.run_single_submission_sync",
+        "app.tasks.sync_tasks.run_attachment_cache_backfill",
+    }
+
+
+def _sync_run_last_progress_at(run) -> datetime | None:
+    progress_log = run.progress_log
+    if not progress_log:
+        return None
+    try:
+        entries = json.loads(progress_log)
+    except Exception:
+        return None
+    if not isinstance(entries, list) or not entries:
+        return None
+    for entry in reversed(entries):
+        if not isinstance(entry, dict):
+            continue
+        ts = entry.get("ts")
+        if not ts:
+            continue
+        try:
+            return parser.isoparse(ts)
+        except Exception:
+            continue
+    return None
+
+
+def _reconcile_orphaned_running_sync_rows() -> None:
+    """Mark running sync rows stale when Celery has no active sync tasks."""
+    from datetime import datetime, timezone, timedelta
+    from flask import current_app
+    from app.models.va_sync_runs import VaSyncRun
+
+    running_rows = db.session.scalars(
+        sa.select(VaSyncRun)
+        .where(VaSyncRun.status == "running")
+        .order_by(VaSyncRun.started_at.desc())
+    ).all()
+    if not running_rows:
+        return
+
+    celery_app = current_app.extensions.get("celery")
+    if celery_app is None:
+        return
+
+    inspect = celery_app.control.inspect(timeout=2)
+    active_by_worker = inspect.active() or {}
+    active_sync_task_found = any(
+        task.get("name") in _sync_task_names()
+        for tasks in active_by_worker.values()
+        for task in (tasks or [])
+    )
+    if active_sync_task_found and not running_rows:
+        recent_row = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "error")
+            .order_by(VaSyncRun.started_at.desc())
+            .limit(1)
+        )
+        if recent_row is not None:
+            last_progress_at = _sync_run_last_progress_at(recent_row)
+            now = datetime.now(timezone.utc)
+            if (
+                recent_row.started_at
+                and recent_row.started_at > now - timedelta(minutes=10)
+                and last_progress_at
+                and last_progress_at > now - timedelta(minutes=3)
+                and recent_row.error_message
+                and "no active Celery sync/backfill task was found" in recent_row.error_message
+            ):
+                recent_row.status = "running"
+                recent_row.finished_at = None
+                recent_row.error_message = None
+                db.session.commit()
+        return
+    if active_sync_task_found:
+        return
+
+    now = datetime.now(timezone.utc)
+    stale_cutoff = now - timedelta(minutes=5)
+    quiet_cutoff = now - timedelta(minutes=3)
+    reconciled = 0
+    for row in running_rows:
+        last_progress_at = _sync_run_last_progress_at(row)
+        if row.started_at and row.started_at > stale_cutoff:
+            continue
+        if last_progress_at and last_progress_at > quiet_cutoff:
+            continue
+        row.status = "error"
+        row.finished_at = now
+        row.error_message = (
+            "Stale run — no active Celery sync/backfill task was found and no recent progress was recorded."
+        )
+        reconciled += 1
+    if reconciled:
+        db.session.commit()
+        log.warning(
+            "Reconciled %d orphaned running sync row(s) with no active Celery task.",
+            reconciled,
+        )
+    else:
+        db.session.rollback()
+
+
 @admin.get("/api/sync/status")
 @limiter.exempt
 @require_api_role("admin")
@@ -3732,6 +3845,7 @@ def admin_sync_status():
     try:
         from app.models.va_sync_runs import VaSyncRun
 
+        _reconcile_orphaned_running_sync_rows()
         running = db.session.scalar(
             sa.select(VaSyncRun)
             .where(VaSyncRun.status == "running")
@@ -3800,13 +3914,17 @@ def admin_sync_trigger():
     try:
         from app.tasks.sync_tasks import run_odk_sync
 
+        _reconcile_orphaned_running_sync_rows()
         running = db.session.scalar(
             sa.select(VaSyncRun)
             .where(VaSyncRun.status == "running")
             .limit(1)
         )
         if running:
-            return _json_error("A sync is already in progress.", 409)
+            return _json_error(
+                "A Sync, Force-resync, or Backfill run is already in progress.",
+                409,
+            )
 
         user = _request_user()
         log.info("Manual sync triggered by user %s", user.user_id if user else "unknown")
@@ -3826,6 +3944,7 @@ def admin_attachment_backfill_trigger():
     try:
         from app.tasks.sync_tasks import run_attachment_cache_backfill
 
+        _reconcile_orphaned_running_sync_rows()
         running = db.session.scalar(
             sa.select(VaSyncRun.sync_run_id)
             .where(VaSyncRun.status == "running")
@@ -3883,6 +4002,7 @@ def admin_sync_stop():
             "app.tasks.sync_tasks.run_odk_sync",
             "app.tasks.sync_tasks.run_smartva_pending",
             "app.tasks.sync_tasks.run_single_form_sync",
+            "app.tasks.sync_tasks.run_single_form_backfill",
             "app.tasks.sync_tasks.run_single_submission_sync",
             "app.tasks.sync_tasks.run_attachment_cache_backfill",
         }
@@ -4090,15 +4210,14 @@ def admin_sync_coverage():
 @limiter.exempt
 @require_api_role("admin")
 def admin_sync_backfill_stats():
-    """Return per-form data, metadata, and attachment completeness counts."""
+    """Return local per-form data, metadata, attachment, and SmartVA completeness counts."""
     try:
-        from concurrent.futures import ThreadPoolExecutor, as_completed
         from app.models.va_forms import VaForms
         from app.models.va_project_master import VaProjectMaster
+        from app.models.va_smartva_results import VaSmartvaResults
         from app.models.va_sites import VaSites
         from app.models.va_submissions import VaSubmissions
         from app.models.va_submission_attachments import VaSubmissionAttachments
-        from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
 
         forms = db.session.scalars(
             sa.select(VaForms)
@@ -4106,7 +4225,15 @@ def admin_sync_backfill_stats():
             .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
         ).all()
         if not forms:
-            return jsonify({"projects": [], "totals": {"odk_total": 0, "local_total": 0, "metadata_complete": 0, "attachments_complete": 0}})
+            return jsonify({
+                "projects": [],
+                "totals": {
+                    "local_total": 0,
+                    "metadata_complete": 0,
+                    "attachments_complete": 0,
+                    "smartva_complete": 0,
+                },
+            })
 
         attachment_counts_sq = (
             sa.select(
@@ -4143,6 +4270,23 @@ def admin_sync_backfill_stats():
             (attachment_present_expr >= attachment_expected_expr, 1),
             else_=0,
         )
+        smartva_complete_sq = (
+            sa.select(
+                VaSmartvaResults.va_sid.label("va_sid"),
+                sa.func.max(
+                    sa.case(
+                        (VaSmartvaResults.va_smartva_status == VaStatuses.active, 1),
+                        else_=0,
+                    )
+                ).label("has_active_smartva"),
+            )
+            .group_by(VaSmartvaResults.va_sid)
+            .subquery()
+        )
+        smartva_complete_expr = sa.case(
+            (sa.func.coalesce(smartva_complete_sq.c.has_active_smartva, 0) == 1, 1),
+            else_=0,
+        )
 
         local_counts = {
             row["va_form_id"]: row
@@ -4152,98 +4296,75 @@ def admin_sync_backfill_stats():
                     sa.func.count(VaSubmissions.va_sid).label("local_total"),
                     sa.func.coalesce(sa.func.sum(metadata_complete_expr), 0).label("metadata_complete"),
                     sa.func.coalesce(sa.func.sum(attachments_complete_expr), 0).label("attachments_complete"),
+                    sa.func.coalesce(sa.func.sum(smartva_complete_expr), 0).label("smartva_complete"),
                 )
                 .select_from(VaSubmissions)
                 .outerjoin(
                     attachment_counts_sq,
                     attachment_counts_sq.c.va_sid == VaSubmissions.va_sid,
                 )
+                .outerjoin(
+                    smartva_complete_sq,
+                    smartva_complete_sq.c.va_sid == VaSubmissions.va_sid,
+                )
                 .group_by(VaSubmissions.va_form_id)
             ).mappings().all()
         }
 
-        from flask import current_app as _current_app
-        flask_app = _current_app._get_current_object()
-
-        def fetch_odk_count(form):
-            with flask_app.app_context():
-                try:
-                    count = va_odk_submissioncount(
-                        form.odk_project_id,
-                        form.odk_form_id,
-                        app_project_id=form.project_id,
-                    )
-                    return form, count, None
-                except Exception as exc:
-                    return form, None, str(exc)
-
-        odk_results = {}
-        with ThreadPoolExecutor(max_workers=len(forms) or 1) as ex:
-            futures = {ex.submit(fetch_odk_count, form): form for form in forms}
-            for future in as_completed(futures):
-                form, odk_total, error = future.result()
-                odk_results[form.form_id] = (odk_total, error)
-
         projects_map = {}
-        total_odk = 0
         total_local = 0
         total_metadata = 0
         total_attachments = 0
+        total_smartva = 0
 
         for form in forms:
             counts = local_counts.get(form.form_id, {})
             local_total = int(counts.get("local_total") or 0)
             metadata_complete = int(counts.get("metadata_complete") or 0)
             attachments_complete = int(counts.get("attachments_complete") or 0)
-            odk_total, odk_error = odk_results.get(form.form_id, (None, "No result"))
+            smartva_complete = int(counts.get("smartva_complete") or 0)
 
             total_local += local_total
             total_metadata += metadata_complete
             total_attachments += attachments_complete
-            if odk_total is not None:
-                total_odk += odk_total
+            total_smartva += smartva_complete
 
             project = projects_map.setdefault(form.project_id, {
                 "project_id": form.project_id,
                 "project_name": None,
                 "sites": {},
-                "odk_total": 0,
                 "local_total": 0,
                 "metadata_complete": 0,
                 "attachments_complete": 0,
+                "smartva_complete": 0,
             })
-            if odk_total is not None:
-                project["odk_total"] += odk_total
             project["local_total"] += local_total
             project["metadata_complete"] += metadata_complete
             project["attachments_complete"] += attachments_complete
+            project["smartva_complete"] += smartva_complete
 
             site = project["sites"].setdefault(form.site_id, {
                 "site_id": form.site_id,
                 "site_name": None,
                 "forms": [],
-                "odk_total": 0,
                 "local_total": 0,
                 "metadata_complete": 0,
                 "attachments_complete": 0,
+                "smartva_complete": 0,
             })
-            if odk_total is not None:
-                site["odk_total"] += odk_total
             site["local_total"] += local_total
             site["metadata_complete"] += metadata_complete
             site["attachments_complete"] += attachments_complete
+            site["smartva_complete"] += smartva_complete
             site["forms"].append({
                 "form_id": form.form_id,
-                "odk_form_id": form.odk_form_id,
-                "odk_project_id": form.odk_project_id,
-                "odk_total": odk_total,
-                "odk_error": odk_error,
                 "local_total": local_total,
                 "metadata_complete": metadata_complete,
                 "metadata_missing": max(local_total - metadata_complete, 0),
                 "attachments_complete": attachments_complete,
                 "attachments_missing": max(local_total - attachments_complete, 0),
-                "data_missing": max((odk_total or 0) - local_total, 0) if odk_total is not None else None,
+                "smartva_complete": smartva_complete,
+                "smartva_missing": max(local_total - smartva_complete, 0),
             })
 
         project_names = {
@@ -4264,10 +4385,10 @@ def admin_sync_backfill_stats():
         return jsonify({
             "projects": sorted(projects_map.values(), key=lambda item: item["project_id"]),
             "totals": {
-                "odk_total": total_odk,
                 "local_total": total_local,
                 "metadata_complete": total_metadata,
                 "attachments_complete": total_attachments,
+                "smartva_complete": total_smartva,
             },
         })
     except Exception as e:
@@ -4278,15 +4399,16 @@ def admin_sync_backfill_stats():
 @admin.post("/api/sync/backfill/form/<form_id>")
 @require_api_role("admin")
 def admin_sync_backfill_form(form_id: str):
-    """Backfill a single form from ODK using the same force-resync path."""
+    """Repair local sync gaps for a single form without force-resyncing it."""
     try:
         from app.models.va_forms import VaForms
-        from app.tasks.sync_tasks import run_single_form_sync
+        from app.tasks.sync_tasks import run_single_form_backfill
 
         va_form = db.session.get(VaForms, form_id)
         if va_form is None:
             return _json_error(f"Form '{form_id}' not found.", 404)
 
+        _reconcile_orphaned_running_sync_rows()
         running = db.session.scalar(
             sa.select(VaSyncRun)
             .where(VaSyncRun.status == "running")
@@ -4297,11 +4419,11 @@ def admin_sync_backfill_form(form_id: str):
 
         user = _request_user()
         log.info(
-            "Backfill sync of %s triggered by user %s",
+            "Backfill of %s triggered by user %s",
             form_id,
             user.user_id if user else "unknown",
         )
-        task = run_single_form_sync.delay(
+        task = run_single_form_backfill.delay(
             form_id=form_id,
             triggered_by="backfill",
             user_id=str(user.user_id) if user else None,
@@ -4323,6 +4445,7 @@ def admin_sync_trigger_smartva():
         from app.models.va_sync_runs import VaSyncRun
         from app.tasks.sync_tasks import run_smartva_pending
 
+        _reconcile_orphaned_running_sync_rows()
         running = db.session.scalar(
             sa.select(VaSyncRun)
             .where(VaSyncRun.status == "running")
@@ -4355,6 +4478,7 @@ def admin_sync_form(form_id: str):
         if va_form is None:
             return _json_error(f"Form '{form_id}' not found.", 404)
 
+        _reconcile_orphaned_running_sync_rows()
         user = _request_user()
         log.info("Single-form force-resync of %s triggered by user %s", form_id, user.user_id if user else "unknown")
         task = run_single_form_sync.delay(
@@ -4362,10 +4486,10 @@ def admin_sync_form(form_id: str):
             triggered_by="manual",
             user_id=str(user.user_id) if user else None,
         )
-        return jsonify({"message": f"Sync started for form {form_id}.", "task_id": task.id}), 202
+        return jsonify({"message": f"Force-resync started for form {form_id}.", "task_id": task.id}), 202
     except Exception as e:
         log.error("admin_sync_form failed for %s", form_id, exc_info=True)
-        return _json_error(f"Failed to trigger sync for form {form_id}: {str(e)}", 500)
+        return _json_error(f"Failed to trigger Force-resync for form {form_id}: {str(e)}", 500)
 
 
 @admin.post("/api/sync/project-site/<project_id>/<site_id>")

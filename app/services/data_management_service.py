@@ -12,11 +12,14 @@ import math
 import json
 import re
 import uuid
+from urllib.parse import quote
 import sqlalchemy as sa
 from flask_login import current_user
 
 from app import db
 from app.models import (
+    MasOdkConnections,
+    MapProjectOdk,
     VaAllocations,
     VaCoderReview,
     VaDataManagerReview,
@@ -35,10 +38,10 @@ from app.models import (
     VaSyncRun,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaUsers,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.final_cod_authority_service import upsert_final_cod_authority
-from app.services.odk_connection_guard_service import guarded_odk_call
 from app.services.odk_review_service import resolve_odk_instance_id
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_active_reviewer_reviews_for_submission,
@@ -78,7 +81,6 @@ from app.services.workflow.upstream_changes import (
     get_latest_pending_upstream_change,
     resolve_pending_upstream_change,
 )
-from app.utils import va_odk_clientsetup
 
 
 NON_SUBSTANTIVE_REVIEW_FIELDS = frozenset(
@@ -268,6 +270,7 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
             VaForms.site_id,
             MapProjectSiteOdk.odk_project_id,
             MapProjectSiteOdk.odk_form_id,
+            MasOdkConnections.base_url,
         )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
@@ -278,6 +281,14 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
                 MapProjectSiteOdk.site_id == VaForms.site_id,
             ),
         )
+        .outerjoin(
+            MapProjectOdk,
+            MapProjectOdk.project_id == VaForms.project_id,
+        )
+        .outerjoin(
+            MasOdkConnections,
+            MasOdkConnections.connection_id == MapProjectOdk.connection_id,
+        )
         .where(VaSubmissions.va_sid == va_sid)
     ).first()
     if not row:
@@ -286,18 +297,14 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
         return None
     if not row.odk_project_id or not row.odk_form_id:
         return None
-    client = va_odk_clientsetup(project_id=row.project_id)
-    instance_id = resolve_odk_instance_id(row.va_sid)
-    response = guarded_odk_call(
-        lambda: client.session.get(
-            f"projects/{int(row.odk_project_id)}/forms/{row.odk_form_id}/submissions/{instance_id}/edit",
-            allow_redirects=False,
-        ),
-        client=client,
-    )
-    if response is None:
+    instance_id = quote(resolve_odk_instance_id(row.va_sid), safe="")
+    if not row.base_url:
         return None
-    return response.headers.get("Location")
+    base_url = str(row.base_url).rstrip("/")
+    return (
+        f"{base_url}/projects/{int(row.odk_project_id)}/forms/"
+        f"{row.odk_form_id}/submissions/{instance_id}/edit"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -378,6 +385,8 @@ def dm_submissions_page(
 ) -> dict:
     """Return one page of submission rows for the data manager table."""
     from app.utils import va_render_serialisedates
+    coder_final_user = sa.orm.aliased(VaUsers)
+    reviewer_final_user = sa.orm.aliased(VaUsers)
 
     attachment_counts = (
         sa.select(VaSubmissionAttachments.va_sid, sa.func.count().label("cnt"))
@@ -398,6 +407,24 @@ def dm_submissions_page(
             sa.column("va_sid"),
             sa.column("analytics_age_band"),
         )
+    active_final = (
+        sa.select(
+            VaFinalAssessments.va_sid.label("va_sid"),
+            VaFinalAssessments.va_finassess_by,
+            VaFinalAssessments.va_finassess_createdat,
+        )
+        .where(VaFinalAssessments.va_finassess_status == VaStatuses.active)
+        .subquery()
+    )
+    active_reviewer_final = (
+        sa.select(
+            VaReviewerFinalAssessments.va_sid.label("va_sid"),
+            VaReviewerFinalAssessments.va_rfinassess_by,
+            VaReviewerFinalAssessments.va_rfinassess_createdat,
+        )
+        .where(VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
+        .subquery()
+    )
     scope = dm_scope_filter(user)
     conditions = [scope]
     project_values = _csv_values(project)
@@ -444,9 +471,6 @@ def dm_submissions_page(
     if workflow:
         if workflow == "pending_coding":
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([
-                WORKFLOW_SCREENING_PENDING,
-                WORKFLOW_ATTACHMENT_SYNC_PENDING,
-                WORKFLOW_SMARTVA_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
                 WORKFLOW_CODER_STEP1_SAVED,
@@ -485,6 +509,20 @@ def dm_submissions_page(
             analytics_age_band_column,
             VaSubmissions.va_deceased_gender,
             VaSubmissions.va_consent,
+            sa.case(
+                (
+                    active_reviewer_final.c.va_rfinassess_createdat.is_not(None),
+                    active_reviewer_final.c.va_rfinassess_createdat,
+                ),
+                else_=active_final.c.va_finassess_createdat,
+            ).label("coded_on"),
+            sa.case(
+                (
+                    active_reviewer_final.c.va_rfinassess_createdat.is_not(None),
+                    reviewer_final_user.name,
+                ),
+                else_=coder_final_user.name,
+            ).label("coded_by"),
         )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
@@ -495,6 +533,16 @@ def dm_submissions_page(
             VaDataManagerReview.va_sid == VaSubmissions.va_sid,
             VaDataManagerReview.va_dmreview_status == VaStatuses.active,
         ))
+        .outerjoin(active_final, active_final.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(
+            coder_final_user,
+            coder_final_user.user_id == active_final.c.va_finassess_by,
+        )
+        .outerjoin(active_reviewer_final, active_reviewer_final.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(
+            reviewer_final_user,
+            reviewer_final_user.user_id == active_reviewer_final.c.va_rfinassess_by,
+        )
         .where(sa.and_(*conditions))
     )
     if _mv_ref is not None:
@@ -529,7 +577,10 @@ def dm_submissions_page(
 
     data = []
     for row in rows:
-        r = va_render_serialisedates(dict(row), ["va_submission_date", "va_dmreview_createdat"])
+        r = va_render_serialisedates(
+            dict(row),
+            ["va_submission_date", "va_dmreview_createdat", "coded_on"],
+        )
         r["workflow_label"] = _WORKFLOW_LABEL.get(r.get("workflow_state", ""), r.get("workflow_state", ""))
         r["odk_sync_status"] = "missing_in_odk" if r.get("va_sync_issue_code") == "missing_in_odk" else "in_sync"
         data.append(r)

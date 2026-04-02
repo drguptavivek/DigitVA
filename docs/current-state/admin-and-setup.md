@@ -35,7 +35,8 @@ All state-changing routes in the admin panel enforce CSRF protection via the `X-
 The sync dashboard also includes ODK-backed backfill tooling:
 
 - a project/site/form coverage table that shows ODK data, local data, metadata, and attachment completeness
-- a per-form backfill trigger that reuses the ODK sync path to repair thin rows, metadata enrichment, attachments, and SmartVA follow-through together
+- a per-form `Backfill` trigger that repairs only missing thin rows and local metadata, attachment, or SmartVA gaps for that form
+- a separate per-form `Force-resync` trigger that performs a full redownload for the selected form
 - a separate attachment-cache backfill trigger that only repairs missing local attachment files for already stored submissions
 
 ### Admin-Only Panels

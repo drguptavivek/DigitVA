@@ -107,6 +107,7 @@
 
   /* ── Workflow state display config ── */
   const WORKFLOW_STATE_CONFIG = {
+    attachment_sync_pending:       { label: 'Attachment Sync Queue',    color: '#6366f1' },
     ready_for_coding:             { label: 'Ready for Coding',         color: '#3b82f6' },
     smartva_pending:              { label: 'SmartVA Queue',            color: '#0891b2' },
     screening_pending:            { label: 'Screening Pending',        color: '#64748b' },
@@ -370,8 +371,15 @@
       let cls = 'bg-light text-dark border';
       if (state === 'not_codeable_by_data_manager') cls = 'bg-danger';
       else if (state === 'not_codeable_by_coder') cls = 'bg-warning text-dark';
+      else if (state === 'attachment_sync_pending') cls = 'text-white';
       else if (state === 'ready_for_coding') cls = 'bg-primary';
+      else if (state === 'smartva_pending') cls = 'bg-info text-dark';
       else if (state === 'screening_pending') cls = 'bg-secondary';
+      if (state === 'attachment_sync_pending') {
+        this.eGui.innerHTML = '<span class="badge" style="background:#6366f1;">'
+          + `${label}</span>`;
+        return;
+      }
       this.eGui.innerHTML = `<span class="badge ${cls}">${label}</span>`;
     }
     getGui() { return this.eGui; }
@@ -447,6 +455,8 @@
       { field: 'va_odk_reviewstate', headerName: 'ODK Status', width: 120, cellRenderer: OdkStatusRenderer },
       { field: 'odk_sync_status', headerName: 'ODK Sync', width: 110, cellRenderer: OdkSyncRenderer, hide: colVisibility.odk_sync_status === false },
       { field: 'workflow_state', headerName: 'Workflow State', width: 150, cellRenderer: WorkflowRenderer },
+      { field: 'coded_on', headerName: 'Coded On', width: 135, cellRenderer: DateTimeRenderer },
+      { field: 'coded_by', headerName: 'Coded By', width: 150 },
       { field: 'va_dmreview_createdat', headerName: 'Flagged At', width: 115, cellRenderer: DateTimeRenderer, hide: colVisibility.va_dmreview_createdat === false },
       { field: 'va_consent', headerName: 'Consent', width: 120, hide: colVisibility.va_consent === false },
       { field: '_actions', headerName: 'Actions', width: 315, cellRenderer: ActionsRenderer, sortable: false },

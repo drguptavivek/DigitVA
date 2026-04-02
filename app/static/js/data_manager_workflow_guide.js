@@ -34,6 +34,7 @@
       direction LR
       CR["Consent Refused\n(${count('consent_refused')})"]
       SP["Screening Pending\n(${count('screening_pending')})"]
+      ASP["Attachment Sync Queue\n(${count('attachment_sync_pending')})"]
       RFC["Ready for Coding\n(${count('ready_for_coding')})"]
       NCDM["Not Codeable — DM\n(${count('not_codeable_by_data_manager')})"]
     end
@@ -61,13 +62,14 @@
 
     ODK -->|"no / missing consent"| CR
     ODK -->|"consent valid, DM screening"| SP
-    SP -->|"passes screening"| RFC
+    SP -->|"passes screening"| ASP
     SP -->|"DM flags"| NCDM
-    CR -.->|"consent corrected in ODK"| RFC
+    CR -.->|"consent corrected in ODK"| ASP
+    ASP -->|"attachments synced"| SVP
+    ASP -->|"DM flags"| NCDM
     RFC -->|"DM flags"| NCDM
-    RFC -->|"SmartVA enabled"| SVP
     RFC -->|"coder allocated"| CIP
-    SVP -->|"SmartVA complete"| CIP
+    SVP -->|"SmartVA complete"| RFC
 
     CIP -->|"step 1 saved"| CSS
     CIP -->|"not codeable"| NCC
@@ -88,6 +90,7 @@
 
     click CR   call __dm_workflow_click("consent_refused")
     click SP   call __dm_workflow_click("screening_pending")
+    click ASP  call __dm_workflow_click("attachment_sync_pending")
     click RFC  call __dm_workflow_click("ready_for_coding")
     click NCDM call __dm_workflow_click("not_codeable_by_data_manager")
     click SVP  call __dm_workflow_click("smartva_pending")
@@ -102,6 +105,7 @@
 
     style CR   fill:#fff7ed,stroke:#ea580c,color:#9a3412
     style SP   fill:#f1f5f9,stroke:#64748b,color:#334155
+    style ASP  fill:#eef2ff,stroke:#6366f1,color:#312e81
     style RFC  fill:#eff6ff,stroke:#3b82f6,color:#1e3a8a
     style NCDM fill:#fef3c7,stroke:#d97706,color:#78350f
     style SVP  fill:#ecfeff,stroke:#0891b2,color:#0e4f63

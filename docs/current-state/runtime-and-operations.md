@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-04-02
 ---
 
 # Runtime And Operations
@@ -83,6 +83,7 @@ Current behavior:
 - source code is mounted into the container via `.:/app`
 - postgres data is persisted in a named docker volume
 - celery beat startup now waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
+- celery worker startup uses `--concurrency=2`
 
 Current health checks:
 

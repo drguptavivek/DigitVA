@@ -478,3 +478,94 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [], workflow="reviewer_finalized")
         self.assertEqual(kpi["total_submissions"], 1)
         self.assertEqual(kpi["coded_submissions"], 1)
+
+    def test_pending_coding_kpi_excludes_pre_coding_pipeline_states(self):
+        self._add_submission(
+            "uuid:mv-pending-ready",
+            {
+                "ageInYears": "45",
+                "ageInYears2": "45",
+                "finalAgeInYears": "45",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            workflow_state="ready_for_coding",
+        )
+        self._add_submission(
+            "uuid:mv-pending-inprogress",
+            {
+                "ageInYears": "46",
+                "ageInYears2": "46",
+                "finalAgeInYears": "46",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            workflow_state="coding_in_progress",
+        )
+        self._add_submission(
+            "uuid:mv-pending-step1",
+            {
+                "ageInYears": "47",
+                "ageInYears2": "47",
+                "finalAgeInYears": "47",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            workflow_state="coder_step1_saved",
+        )
+        self._add_submission(
+            "uuid:mv-pipeline-screening",
+            {
+                "ageInYears": "48",
+                "ageInYears2": "48",
+                "finalAgeInYears": "48",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            workflow_state="screening_pending",
+        )
+        self._add_submission(
+            "uuid:mv-pipeline-attachments",
+            {
+                "ageInYears": "49",
+                "ageInYears2": "49",
+                "finalAgeInYears": "49",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            workflow_state="attachment_sync_pending",
+        )
+        self._add_submission(
+            "uuid:mv-pipeline-smartva",
+            {
+                "ageInYears": "50",
+                "ageInYears2": "50",
+                "finalAgeInYears": "50",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            workflow_state="smartva_pending",
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        unfiltered_kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [])
+        self.assertEqual(unfiltered_kpi["smartva_pending_submissions"], 1)
+
+        kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [], workflow="pending_coding")
+        self.assertEqual(kpi["total_submissions"], 3)
+        self.assertEqual(kpi["pending_submissions"], 3)
+        self.assertEqual(kpi["smartva_pending_submissions"], 0)

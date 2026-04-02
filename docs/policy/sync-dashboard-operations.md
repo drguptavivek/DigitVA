@@ -64,7 +64,7 @@ already running.
 
 Policy:
 
-- `Sync Now` remains disabled while a run is active
+- `Sync` remains disabled while a run is active
 - `Gen SmartVA` remains disabled while a run is active
 - the stop control is the only operator action exposed for an active run
 
@@ -82,6 +82,6 @@ Policy:
   sync action
 - that zero-local-form sync action must first materialize the compatibility
   `va_forms` row for the mapped project/site, then trigger the existing
-  single-form sync path
+  form `Sync` path
 - operators should not be forced to create local submissions manually before a
   first sync can run for a mapped site

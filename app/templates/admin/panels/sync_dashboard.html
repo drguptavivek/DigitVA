@@ -18,7 +18,7 @@
         <i class="fa-solid fa-brain me-1"></i>Gen SmartVA
       </button>
       <button class="btn btn-sm btn-primary" id="sync-trigger-btn">
-        <i class="fa-solid fa-play me-1"></i>Sync Now
+        <i class="fa-solid fa-play me-1"></i>Sync
       </button>
     </div>
   </div>
@@ -114,14 +114,14 @@
     <div class="card-body py-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <span class="small fw-semibold text-secondary">
-          <i class="fa-solid fa-rotate me-1"></i>ODK Backfill Coverage by Project / Site / Form
+          <i class="fa-solid fa-rotate me-1"></i>Backfill Coverage by Project / Site / Form
         </span>
         <button class="btn btn-sm btn-outline-secondary" id="sync-backfill-refresh-btn">
           <i class="fa-solid fa-rotate-right me-1"></i>Refresh
         </button>
       </div>
       <div class="small text-muted mb-2">
-        Shows how much of each form is present locally, metadata-enriched, and attachment-complete. Use Backfill on a form row to re-run the ODK-backed repair path for that form.
+        Shows local completeness only: stored submissions, metadata, attachments, and SmartVA. Use Backfill on a form row to repair local gaps for that form. Use ODK vs Local Coverage separately when you need ODK-to-local count comparisons.
       </div>
       <div id="sync-backfill-wrap">
         <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>
@@ -194,6 +194,24 @@
     </div>
   </div>
 
+  <div class="modal fade" id="sync-confirm-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="sync-confirm-modal-title">Confirm</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0 small" id="sync-confirm-modal-body"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" id="sync-confirm-modal-accept">Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -257,6 +275,27 @@
     if (secs < 60) return secs + 's';
     var m = Math.floor(secs / 60), s = secs % 60;
     return m + 'm ' + s + 's';
+  }
+
+  function showConfirmModal(title, message, onConfirm) {
+    var modalEl = document.getElementById('sync-confirm-modal');
+    var titleEl = document.getElementById('sync-confirm-modal-title');
+    var bodyEl = document.getElementById('sync-confirm-modal-body');
+    var acceptEl = document.getElementById('sync-confirm-modal-accept');
+    if (!modalEl || !titleEl || !bodyEl || !acceptEl || !window.bootstrap || !window.bootstrap.Modal) {
+      if (confirm(message)) onConfirm();
+      return;
+    }
+    titleEl.textContent = title;
+    bodyEl.textContent = message;
+    var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+    var handleClick = function () {
+      acceptEl.removeEventListener('click', handleClick);
+      modal.hide();
+      onConfirm();
+    };
+    acceptEl.addEventListener('click', handleClick);
+    modal.show();
   }
 
   function fmtRelTime(isoStr) {
@@ -415,7 +454,7 @@
         btn.disabled = d.is_running;
         btn.innerHTML = d.is_running
           ? '<i class="fa-solid fa-spinner fa-spin me-1"></i>Running…'
-          : '<i class="fa-solid fa-play me-1"></i>Sync Now';
+          : '<i class="fa-solid fa-play me-1"></i>Sync';
       }
       var smartvaBtn = document.getElementById('sync-smartva-btn');
       if (smartvaBtn) {
@@ -540,7 +579,7 @@
           missingBadge = '<span class="badge text-bg-warning">' + m.missing + ' missing</span>';
           statusTip = m.missing + ' submission(s) exist in ODK but not locally.'
             + ' Common reasons: consent refused (Id10013=no or null), or a previous sync was interrupted.'
-            + ' Run a normal "Sync Now" — gap detection will auto-fetch only the missing records safely without affecting existing codings.';
+            + ' Run a normal "Sync" — gap detection will auto-fetch only the missing records safely without affecting existing codings.';
         } else if (m.missing != null && m.missing < 0) {
           var extra = Math.abs(m.missing);
           missingBadge = '<span class="badge text-bg-info">' + extra + ' extra locally</span>';
@@ -552,7 +591,7 @@
         var syncBtn = '';
         if (m.form_id) {
           syncBtn = '<button class="btn btn-sm btn-outline-secondary py-0 px-1 form-sync-btn" '
-            + 'data-form-id="' + esc(m.form_id) + '" title="Force-resync (use with caution). Prefer normal sync — it auto-detects and fills gaps safely.">'
+            + 'data-form-id="' + esc(m.form_id) + '" title="Force-resync (use with caution). Prefer normal Sync — it auto-detects and fills gaps safely.">'
             + '<i class="fa-solid fa-rotate-right"></i></button>';
         } else if (m.can_site_sync) {
           syncBtn = '<button class="btn btn-sm btn-outline-secondary py-0 px-1 site-sync-btn" '
@@ -586,7 +625,7 @@
         + '<th class="small text-center">Local</th>'
         + '<th class="small text-center">Status <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="ODK counts all submissions. Local only stores consent-granted (Id10013 ≠ no/null). Small gaps are normal."></i></th>'
         + '<th class="small text-center">Last synced</th>'
-        + '<th class="small text-center">Sync <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="Force-resync re-downloads ALL submissions. Finalized submissions edited in ODK are flagged as Revoked — Data Changed instead of being reset, preserving existing codings until a data manager accepts or rejects the change. Prefer normal Sync Now for routine use."></i></th>'
+        + '<th class="small text-center">Force-resync <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="Force-resync re-downloads ALL submissions. Finalized submissions edited in ODK are flagged as Revoked — Data Changed instead of being reset, preserving existing codings until a data manager accepts or rejects the change. Prefer normal Sync for routine use."></i></th>'
         + '</tr></thead>'
         + '<tbody>' + rows + '</tbody>'
         + '<tfoot class="table-light"><tr>'
@@ -626,7 +665,7 @@
 
   function loadBackfillStats() {
     var wrap = document.getElementById('sync-backfill-wrap');
-    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching backfill counts…</span>';
+    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching local backfill counts…</span>';
 
     apiJson('/admin/api/sync/backfill-stats').then(function (res) {
       if (!wrap) return;
@@ -647,10 +686,10 @@
           + '<td class="small fw-semibold">'
           +   '<i class="fa-solid fa-folder me-1 text-secondary"></i>' + esc(proj.project_name || proj.project_id)
           + '</td>'
-          + '<td class="small text-center fw-semibold">' + (proj.odk_total || 0) + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.local_total || 0) + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.metadata_complete || 0) + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.attachments_complete || 0) + '</td>'
+          + '<td class="small text-center fw-semibold">' + (proj.smartva_complete || 0) + '</td>'
           + '<td class="small text-center text-muted">Project total</td>'
           + '</tr>'
         );
@@ -660,31 +699,29 @@
             + '<td class="small ps-4">'
             +   '<i class="fa-solid fa-location-dot me-1 text-secondary"></i>' + esc(site.site_name || site.site_id)
             + '</td>'
-            + '<td class="small text-center">' + (site.odk_total || 0) + '</td>'
             + '<td class="small text-center">' + (site.local_total || 0) + '</td>'
             + '<td class="small text-center">' + (site.metadata_complete || 0) + '</td>'
             + '<td class="small text-center">' + (site.attachments_complete || 0) + '</td>'
+            + '<td class="small text-center">' + (site.smartva_complete || 0) + '</td>'
             + '<td class="small text-center text-muted">Site total</td>'
             + '</tr>'
           );
           site.forms.forEach(function (form) {
-            var dataMissing = form.data_missing == null ? '—' : form.data_missing;
             var metadataMissing = form.metadata_missing == null ? '—' : form.metadata_missing;
             var attachmentsMissing = form.attachments_missing == null ? '—' : form.attachments_missing;
+            var smartvaMissing = form.smartva_missing == null ? '—' : form.smartva_missing;
             rows.push(
               '<tr>'
               + '<td class="small ps-5">'
               +   '<i class="fa-solid fa-file-lines me-1 text-secondary"></i>' + esc(form.form_id)
               + '</td>'
-              + '<td class="small text-center">' + (form.odk_total != null ? form.odk_total : '—') + '</td>'
-              + '<td class="small text-center">' + form.local_total + ' <span class="text-muted">(' + dataMissing + ' missing)</span></td>'
+              + '<td class="small text-center">' + form.local_total + '</td>'
               + '<td class="small text-center">' + form.metadata_complete + ' <span class="text-muted">(' + metadataMissing + ' missing)</span></td>'
               + '<td class="small text-center">' + form.attachments_complete + ' <span class="text-muted">(' + attachmentsMissing + ' missing)</span></td>'
+              + '<td class="small text-center">' + form.smartva_complete + ' <span class="text-muted">(' + smartvaMissing + ' missing)</span></td>'
               + '<td class="small text-center">'
-              + (form.odk_error
-                  ? '<span class="text-muted">ODK error</span>'
-                  : '<button class="btn btn-sm btn-outline-secondary py-0 px-1 backfill-form-btn" data-form-id="' + esc(form.form_id) + '" title="Re-run the ODK-backed backfill for this form.">'
-                    + '<i class="fa-solid fa-rotate-right"></i> Backfill</button>')
+              + '<button class="btn btn-sm btn-outline-secondary py-0 px-1 backfill-form-btn" data-form-id="' + esc(form.form_id) + '" title="Repair local gaps for this form.">'
+              + '<i class="fa-solid fa-rotate-right"></i> Backfill</button>'
               + '</td>'
               + '</tr>'
             );
@@ -698,19 +735,19 @@
         + '<table class="table table-sm table-bordered mb-0">'
         + '<thead class="table-light"><tr>'
         + '<th class="small">Project / Site / Form</th>'
-        + '<th class="small text-center">ODK Data</th>'
         + '<th class="small text-center">Local Data</th>'
         + '<th class="small text-center">Metadata</th>'
         + '<th class="small text-center">Attachments</th>'
+        + '<th class="small text-center">SmartVA</th>'
         + '<th class="small text-center">Action</th>'
         + '</tr></thead><tbody>'
         + rows.join('')
         + '</tbody><tfoot class="table-light"><tr>'
         + '<td class="small fw-semibold">Total</td>'
-        + '<td class="small text-center fw-semibold">' + (totals.odk_total || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.local_total || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.metadata_complete || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.attachments_complete || 0) + '</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.smartva_complete || 0) + '</td>'
         + '<td class="small text-center text-muted">All forms</td>'
         + '</tr></tfoot></table>'
         + '</div>';
@@ -719,31 +756,46 @@
         btn.addEventListener('click', function () {
           var formId = btn.getAttribute('data-form-id');
           if (!formId) return;
-          if (!confirm(
-            'Backfill ' + formId + ' from ODK?\n\n'
-            + 'This re-runs the ODK-backed repair path for the form so thin data, metadata enrichment, attachments, and SmartVA can be repaired together.'
-          )) {
-            return;
-          }
-          var original = btn.innerHTML;
-          btn.disabled = true;
-          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-          apiJson('/admin/api/sync/backfill/form/' + encodeURIComponent(formId), 'POST').then(function (resp) {
-            if (!resp.ok) {
-              showToast(resp.data.error || 'Failed to start backfill.', 'danger');
-              return;
+          showConfirmModal(
+            'Confirm Backfill',
+            'Backfill local gaps for ' + formId + '? This repairs missing local metadata, attachments, and SmartVA results for the form. It does not do an ODK count comparison.',
+            function () {
+              var original = btn.innerHTML;
+              btn.disabled = true;
+              btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+              apiJson('/admin/api/sync/backfill/form/' + encodeURIComponent(formId), 'POST').then(function (resp) {
+                if (!resp.ok) {
+                  if (resp.status === 409) {
+                    showToast(resp.data.error || 'Another Sync, Force-resync, or Backfill run is already in progress.', 'warning');
+                  } else {
+                    showToast(resp.data.error || 'Failed to start backfill.', 'danger');
+                  }
+                  return;
+                }
+                showToast(resp.data.message || ('Backfill started for ' + formId + '.'), 'success');
+                _lastProgressRunId = null;
+                _triggerGraceUntil = Date.now() + 15000;
+                var card = document.getElementById('sync-progress-card');
+                var progressWrap = document.getElementById('sync-progress-wrap');
+                var label = document.getElementById('sync-progress-run-label');
+                if (card) card.style.display = '';
+                if (progressWrap) {
+                  progressWrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Starting backfill for ' + esc(formId) + '…</span>';
+                }
+                if (label) label.textContent = formId + ' · backfill starting…';
+                startProgressPolling();
+                _wasRunning = true;
+                loadStatus();
+                loadHistory();
+                loadBackfillStats();
+              }).catch(function () {
+                showToast('Network error.', 'danger');
+              }).finally(function () {
+                btn.disabled = false;
+                btn.innerHTML = original;
+              });
             }
-            showToast(resp.data.message || ('Backfill started for ' + formId + '.'), 'success');
-            loadStatus();
-            loadHistory();
-            loadProgress();
-            loadBackfillStats();
-          }).catch(function () {
-            showToast('Network error.', 'danger');
-          }).finally(function () {
-            btn.disabled = false;
-            btn.innerHTML = original;
-          });
+          );
         });
       });
     }).catch(function () {
@@ -1023,10 +1075,10 @@
       if (!res.ok) {
         btn.disabled = false;
         btn.innerHTML = origHtml;
-        showToast(res.data.error || 'Failed to start sync for ' + formId + '.', 'danger');
+        showToast(res.data.error || 'Failed to start Force-resync for ' + formId + '.', 'danger');
         return;
       }
-      showToast('Sync started for ' + formId + '.', 'success');
+      showToast('Force-resync started for ' + formId + '.', 'success');
       loadStatus();
       loadHistory();
       // Re-enable after a short delay so the user can see it fired
@@ -1071,7 +1123,7 @@
     apiJson('/admin/api/sync/trigger', 'POST').then(function (res) {
       if (!res.ok) {
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-play me-1"></i>Sync Now';
+        btn.innerHTML = '<i class="fa-solid fa-play me-1"></i>Sync';
         showToast(res.data.error || 'Failed to start sync.', 'danger');
         return;
       }
@@ -1082,7 +1134,7 @@
       var wrap = document.getElementById('sync-progress-wrap');
       var label = document.getElementById('sync-progress-run-label');
       if (card) card.style.display = '';
-      if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Starting sync…</span>';
+      if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Starting Sync…</span>';
       if (label) label.textContent = 'manual · starting…';
       startProgressPolling();
       _wasRunning = true;
@@ -1090,7 +1142,7 @@
       loadHistory();
     }).catch(function () {
       btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-play me-1"></i>Sync Now';
+      btn.innerHTML = '<i class="fa-solid fa-play me-1"></i>Sync';
       showToast('Network error.', 'danger');
     });
   });

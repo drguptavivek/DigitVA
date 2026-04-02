@@ -433,9 +433,6 @@ def build_dm_mv_filter_conditions(
     if workflow:
         if workflow == "pending_coding":
             conditions.append(mv.c.workflow_state.in_([
-                WORKFLOW_SCREENING_PENDING,
-                WORKFLOW_ATTACHMENT_SYNC_PENDING,
-                WORKFLOW_SMARTVA_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
                 WORKFLOW_CODER_STEP1_SAVED,
@@ -549,9 +546,6 @@ def get_dm_kpi_from_mv(
         .select_from(mv)
         .where(sa.and_(*conditions))
         .where(mv.c.workflow_state.in_([
-            WORKFLOW_SCREENING_PENDING,
-            WORKFLOW_ATTACHMENT_SYNC_PENDING,
-            WORKFLOW_SMARTVA_PENDING,
             WORKFLOW_READY_FOR_CODING,
             WORKFLOW_CODING_IN_PROGRESS,
             WORKFLOW_CODER_STEP1_SAVED,

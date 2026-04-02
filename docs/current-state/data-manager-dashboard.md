@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-01
+last_updated: 2026-04-02
 ---
 
 # Data Manager Dashboard
@@ -45,11 +45,26 @@ Current dashboard sections include:
 Current cards include:
 
 - `Submissions`
+- `Pending Coding`
+- `SmartVA Queue`
+- `Coded`
 - `Flagged Not Codeable`
 - `ODK - Has Issues`
 - `SmartVA Missing`
 
 Some card counts apply filters directly to the table when clicked.
+
+Current `Pending Coding` semantics:
+
+- `Pending Coding` counts only coder-actionable workflow states:
+  - `ready_for_coding`
+  - `coding_in_progress`
+  - `coder_step1_saved`
+- pre-coding pipeline states such as:
+  - `screening_pending`
+  - `attachment_sync_pending`
+  - `smartva_pending`
+  are not counted as pending coding
 
 ## Submission Table
 
@@ -77,6 +92,7 @@ The table currently shows scoped submissions with:
 - project/site
 - submitted date
 - workflow state
+- coded-on / coded-by for coded submissions
 - ODK review state
 - ODK sync issue state
 - SmartVA availability
@@ -205,6 +221,16 @@ Current chart API:
 
 This chart currently uses a route-level scoped query. It has not yet been
 migrated to the submission analytics materialized view.
+
+The workflow distribution donut and workflow guide both show actual local
+workflow states, including pre-coding pipeline states such as:
+
+- `screening_pending`
+- `attachment_sync_pending`
+- `smartva_pending`
+- `ready_for_coding`
+
+Clicking a segment filters the dashboard table to that exact workflow state.
 
 ## Recent Sync Results
 

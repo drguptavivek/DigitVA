@@ -29,6 +29,7 @@ from app.models import (
     VaFinalAssessments,
 )
 from app.services.workflow.definition import (
+    WORKFLOW_CODER_FINALIZED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
 )
@@ -435,6 +436,60 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn("this_week_submissions", payload["stats"][0])
         self.assertIn("today_submissions", payload["stats"][0])
 
+    def test_coded_submissions_api_includes_coded_on_and_coded_by(self):
+        self._login(self.dm_user_id)
+        now = datetime.now(timezone.utc)
+        coded_sid = f"uuid:coded-{uuid.uuid4().hex[:8]}"
+        db.session.add(
+            VaSubmissions(
+                va_sid=coded_sid,
+                va_form_id=self.FORM_ID,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_odk_reviewstate="approved",
+                va_data_collector="Collector",
+                va_instance_name=coded_sid,
+                va_uniqueid_real=coded_sid,
+                va_uniqueid_masked="coded-masked-id",
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=50,
+                va_deceased_gender="male",
+                va_data={"sid": coded_sid},
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=coded_sid,
+                workflow_state=WORKFLOW_CODER_FINALIZED,
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=coded_sid,
+                va_finassess_by=uuid.UUID(self.dm_user_id),
+                va_conclusive_cod="A41",
+                va_finassess_status=VaStatuses.active,
+                va_finassess_createdat=now,
+                va_finassess_updatedat=now,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get("/api/v1/data-management/submissions?workflow=coded")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        coded_row = next(row for row in payload["data"] if row["va_sid"] == coded_sid)
+        self.assertEqual(coded_row["coded_by"], self.dm_user.name)
+        self.assertTrue(coded_row["coded_on"].startswith(str(now.date())))
+
     @patch(
         "app.routes.api.data_management.get_dm_kpi_from_mv",
         return_value={
@@ -658,23 +713,10 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIsNotNone(audit_row)
         self.assertEqual(audit_row.va_audit_byrole, "data_manager")
 
-    @patch("app.routes.va_main.va_odk_clientsetup")
     def test_data_manager_odk_edit_redirect_uses_scoped_submission_mapping(
-        self, mocked_clientsetup
+        self
     ):
         self._login(self.dm_user_id)
-        mocked_clientsetup.return_value = SimpleNamespace(
-            session=SimpleNamespace(
-                get=lambda *args, **kwargs: SimpleNamespace(
-                    headers={
-                        "Location": (
-                            "https://minerva.example.org/-/edit/token123"
-                            "?instance_id=uuid:data-manager-dashboard"
-                        )
-                    }
-                )
-            )
-        )
 
         response = self.client.get(
             f"/data-management/submissions/{self.SID}/odk-edit",
@@ -684,7 +726,8 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
             response.headers["Location"],
-            "https://minerva.example.org/-/edit/token123?instance_id=uuid:data-manager-dashboard",
+            "https://minerva.example.org/projects/11/forms/"
+            "DM_DASHBOARD_FORM/submissions/uuid%3Adata-manager-dashboard/edit",
         )
         audit_row = db.session.scalar(
             sa.select(VaSubmissionsAuditlog)

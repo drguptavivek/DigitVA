@@ -158,12 +158,15 @@ protected upstream review.
 - if reviewer-owned final COD or other reviewer-owned payload-bound artifacts
   exist, they follow the same preserve/deactivate decision as coder-owned
   authoritative artifacts for the same SID
+- reviewer review/NQA is a payload-bound supporting artifact in reviewer flows
 - `Accept And Recode` deactivates both coder and reviewer authoritative
-  artifacts because the accepted upstream payload invalidates the existing
-  coding conclusion chain
+  artifacts, and also deactivates reviewer supporting review artifacts,
+  because the accepted upstream payload invalidates the existing coding
+  conclusion chain
 - `Keep Current ICD Decision` preserves both coder and reviewer authoritative
-  artifacts, if present, because the explicit policy decision is that the
-  existing ICD/COD conclusion remains valid for the promoted payload
+  artifacts, and also preserves reviewer supporting review artifacts, if
+  present, because the explicit policy decision is that the existing ICD/COD
+  conclusion remains valid for the promoted payload
 
 ### Current coder NQA
 

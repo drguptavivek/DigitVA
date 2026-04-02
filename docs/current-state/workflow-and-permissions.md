@@ -50,6 +50,16 @@ Current authority-chain rule for finalized artifacts:
   artifacts are preserved as current authoritative results, if reviewer
   artifacts exist for that SID
 
+Current payload-lineage rule for reviewer supporting artifacts:
+
+- reviewer review/NQA rows are now payload-version aware
+- the current reviewer review is the active row whose `payload_version_id`
+  matches `va_submissions.active_payload_version_id`
+- `Accept And Recode` deactivates reviewer review rows because the reviewer
+  conclusion chain is discarded with the coder chain
+- `Keep Current ICD Decision` preserves reviewer review rows by rebinding them
+  to the promoted payload
+
 An additive canonical workflow-state table now exists:
 
 - `va_submission_workflow`

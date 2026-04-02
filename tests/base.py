@@ -46,6 +46,7 @@ import sqlalchemy as sa
 
 from app import create_app, db
 from app.models import (
+    VaAllocation,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaProjectMaster,
@@ -53,6 +54,7 @@ from app.models import (
     VaSiteMaster,
     VaStatuses,
     VaUserAccessGrants,
+    VaUsernotesFor,
     VaUsers,
 )
 from config import TestConfig
@@ -80,12 +82,50 @@ class BaseTestCase(unittest.TestCase):
         db.session.commit()
 
     @classmethod
+    def _ensure_named_enums(cls):
+        enum_defs = {
+            "status_enum": [member.value for member in VaStatuses],
+            "allocation_enum": [member.value for member in VaAllocation],
+            "usernote_enum": [member.value for member in VaUsernotesFor],
+        }
+
+        for table in db.Model.metadata.tables.values():
+            for column in table.columns:
+                col_type = getattr(column, "type", None)
+                if isinstance(col_type, sa.Enum) and col_type.name in enum_defs:
+                    col_type.create_type = False
+
+        for enum_name, values in enum_defs.items():
+            quoted_values = ", ".join(f"'{value}'" for value in values)
+            db.session.execute(
+                sa.text(
+                    f"""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM pg_type t
+                            JOIN pg_namespace n ON n.oid = t.typnamespace
+                            WHERE t.typname = '{enum_name}'
+                              AND n.nspname = current_schema()
+                        ) THEN
+                            CREATE TYPE {enum_name} AS ENUM ({quoted_values});
+                        END IF;
+                    END
+                    $$;
+                    """
+                )
+            )
+        db.session.commit()
+
+    @classmethod
     def setUpClass(cls):
         cls.app = create_app(cls.config_class)
         cls.ctx = cls.app.app_context()
         cls.ctx.push()
         cls._drop_test_materialized_views()
         db.drop_all()
+        cls._ensure_named_enums()
         db.create_all()
         cls._seed_base_fixtures()
 

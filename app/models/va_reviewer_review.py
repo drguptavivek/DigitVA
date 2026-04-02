@@ -9,6 +9,15 @@ from app.models.va_selectives import VaStatuses
 
 class VaReviewerReview(db.Model):
     __tablename__ = "va_reviewer_review"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_reviewer_review_active_sid_by_unique",
+            "va_sid",
+            "va_rreview_by",
+            unique=True,
+            postgresql_where=sa.text("va_rreview_status = 'active'"),
+        ),
+    )
 
     va_rreview_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, index=True, primary_key=True
@@ -21,6 +30,15 @@ class VaReviewerReview(db.Model):
         sa.ForeignKey("va_users.user_id"),
         index=True,
         nullable=False,
+    )
+    payload_version_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey(
+            "va_submission_payload_versions.payload_version_id",
+            ondelete="SET NULL",
+        ),
+        index=True,
+        nullable=True,
     )
     va_rreview_narrpos: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
     va_rreview_narrneg: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)

@@ -26,8 +26,11 @@ from app.services.submission_payload_version_service import ensure_active_payloa
 from app.services.field_mapping_service import get_mapping_service
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.payload_bound_coding_artifact_service import (
+    deactivate_other_active_reviewer_reviews,
     get_current_payload_narrative_assessment,
+    get_current_payload_reviewer_review,
     get_current_payload_social_autopsy_analysis,
+    get_submission_with_current_payload,
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_summary_service import build_submission_summary
@@ -399,7 +402,19 @@ def renderpartial(va_sid, va_partial):
             va_action,
             va_actiontype,
         )
-        reviewobject = db.session.scalar(sa.select(VaReviewerReview).where((VaReviewerReview.va_rreview_status == VaStatuses.active)&(VaReviewerReview.va_sid == va_sid)))
+        reviewobject = None
+        if va_action == "vareview":
+            reviewobject = get_current_payload_reviewer_review(
+                va_sid,
+                current_user.user_id,
+            )
+        elif va_action == "vacode":
+            reviewobject = db.session.scalar(
+                sa.select(VaReviewerReview).where(
+                    (VaReviewerReview.va_rreview_status == VaStatuses.active)
+                    & (VaReviewerReview.va_sid == va_sid)
+                )
+            )
         authoritative_final_assess = get_authoritative_final_cod_record(va_sid)
         vafinexists = authoritative_final_assess.va_sid if authoritative_final_assess else None
         vaerrexists = db.session.scalar(sa.select(VaCoderReview.va_sid).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
@@ -551,22 +566,83 @@ def renderpartial(va_sid, va_partial):
         # - NQA artifacts created via demo coding are cleaned up on demo expiry
         form = VaReviewerReviewForm()
         if form.validate_on_submit():
-            new_review = VaReviewerReview(
-                va_sid=va_sid,
-                va_rreview_by=current_user.user_id,
-                va_rreview_narrpos=form.va_rreview_narrpos.data,
-                va_rreview_narrneg=form.va_rreview_narrneg.data,
-                va_rreview_narrchrono=form.va_rreview_narrchrono.data,
-                va_rreview_narrdoc=form.va_rreview_narrdoc.data,
-                va_rreview_narrcomorb=form.va_rreview_narrcomorb.data,
-                va_rreview=form.va_rreview.data,
-                va_rreview_fail=form.va_rreview_fail.data.strip() or None,
-                va_rreview_remark=form.va_rreview_remark.data.strip() or None,
+            _, active_payload_version = get_submission_with_current_payload(
+                va_sid,
+                for_update=True,
+                created_by_role="reviewer",
+                created_by=current_user.user_id,
             )
+            existing_review = db.session.scalar(
+                sa.select(VaReviewerReview).where(
+                    VaReviewerReview.va_sid == va_sid,
+                    VaReviewerReview.va_rreview_by == current_user.user_id,
+                    VaReviewerReview.payload_version_id
+                    == active_payload_version.payload_version_id,
+                    VaReviewerReview.va_rreview_status == VaStatuses.active,
+                )
+            )
+            if existing_review:
+                existing_review.va_rreview_narrpos = form.va_rreview_narrpos.data
+                existing_review.va_rreview_narrneg = form.va_rreview_narrneg.data
+                existing_review.va_rreview_narrchrono = form.va_rreview_narrchrono.data
+                existing_review.va_rreview_narrdoc = form.va_rreview_narrdoc.data
+                existing_review.va_rreview_narrcomorb = form.va_rreview_narrcomorb.data
+                existing_review.va_rreview = form.va_rreview.data
+                existing_review.va_rreview_fail = form.va_rreview_fail.data.strip() or None
+                existing_review.va_rreview_remark = (
+                    form.va_rreview_remark.data.strip() or None
+                )
+                existing_review.payload_version_id = (
+                    active_payload_version.payload_version_id
+                )
+                review_row = existing_review
+                audit_operation = "u"
+                audit_action = "reviewer review updated"
+            else:
+                deactivate_other_active_reviewer_reviews(
+                    va_sid,
+                    current_user.user_id,
+                    audit_byrole="reviewer",
+                    audit_by=current_user.user_id,
+                )
+                review_row = VaReviewerReview(
+                    va_sid=va_sid,
+                    va_rreview_by=current_user.user_id,
+                    payload_version_id=active_payload_version.payload_version_id,
+                    va_rreview_narrpos=form.va_rreview_narrpos.data,
+                    va_rreview_narrneg=form.va_rreview_narrneg.data,
+                    va_rreview_narrchrono=form.va_rreview_narrchrono.data,
+                    va_rreview_narrdoc=form.va_rreview_narrdoc.data,
+                    va_rreview_narrcomorb=form.va_rreview_narrcomorb.data,
+                    va_rreview=form.va_rreview.data,
+                    va_rreview_fail=form.va_rreview_fail.data.strip() or None,
+                    va_rreview_remark=form.va_rreview_remark.data.strip() or None,
+                )
+                db.session.add(review_row)
+                audit_operation = "c"
+                audit_action = "reviewer review saved"
+            if existing_review:
+                deactivate_other_active_reviewer_reviews(
+                    va_sid,
+                    current_user.user_id,
+                    keep_id=review_row.va_rreview_id,
+                    audit_byrole="reviewer",
+                    audit_by=current_user.user_id,
+                )
             # NQA save — do NOT release the reviewing allocation here.
             # Allocation is released only when the reviewer submits their
             # final COD via submit_reviewer_final_cod() in reviewer_coding_service.
-            db.session.add(new_review)
+            db.session.flush()
+            db.session.add(
+                VaSubmissionsAuditlog(
+                    va_sid=va_sid,
+                    va_audit_byrole="reviewer",
+                    va_audit_by=current_user.user_id,
+                    va_audit_operation=audit_operation,
+                    va_audit_action=audit_action,
+                    va_audit_entityid=review_row.va_rreview_id,
+                )
+            )
             db.session.commit()
 
             if request.headers.get("HX-Request"):

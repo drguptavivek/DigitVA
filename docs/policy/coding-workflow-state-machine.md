@@ -217,6 +217,8 @@ Current baseline:
 
 - reviewer-owned final COD is downstream of coder-owned final COD in the local
   authority chain
+- reviewer supporting review artifacts follow the same preserve/deactivate
+  decision as reviewer final COD when they exist
 - if an upstream payload is accepted for recoding, the existing coder
   conclusion chain is invalidated and reviewer authoritative artifacts, if
   present, must also be deactivated

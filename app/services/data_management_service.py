@@ -41,8 +41,10 @@ from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.odk_connection_guard_service import guarded_odk_call
 from app.services.odk_review_service import resolve_odk_instance_id
 from app.services.payload_bound_coding_artifact_service import (
+    deactivate_active_reviewer_reviews_for_submission,
     deactivate_active_narrative_assessments_for_submission,
     deactivate_active_social_autopsy_analyses_for_submission,
+    promote_active_reviewer_reviews_to_payload,
     promote_active_narrative_assessments_to_payload,
     promote_active_social_autopsy_analyses_to_payload,
 )
@@ -1943,6 +1945,12 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
         )
     ).all():
         rfa.va_rfinassess_status = VaStatuses.deactive
+    deactivate_active_reviewer_reviews_for_submission(
+        va_sid,
+        audit_byrole=actor.audit_role,
+        audit_by=user.user_id,
+        audit_action="reviewer review deactivated for recoding after upstream change",
+    )
 
     deactivate_active_narrative_assessments_for_submission(
         va_sid,
@@ -2052,6 +2060,10 @@ def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> None:
     promote_active_smartva_to_payload(
         va_sid,
         from_payload_version_id=previous_payload_version_id,
+        to_payload_version_id=pending_payload_version.payload_version_id,
+    )
+    promote_active_reviewer_reviews_to_payload(
+        va_sid,
         to_payload_version_id=pending_payload_version.payload_version_id,
     )
     promote_active_narrative_assessments_to_payload(

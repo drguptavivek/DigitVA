@@ -24,6 +24,7 @@ from app.models import (
     VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
+    VaReviewerReview,
     VaReviewerFinalAssessments,
     VaSocialAutopsyAnalysis,
     VaSiteMaster,
@@ -270,6 +271,20 @@ class DataManagementAcceptRejectTests(BaseTestCase):
             va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
             va_smartva_status=VaStatuses.active,
         ))
+        db.session.add(
+            VaReviewerReview(
+                va_sid=va_sid,
+                va_rreview_by=self.base_admin_id,
+                payload_version_id=active_version.payload_version_id,
+                va_rreview_narrpos="good",
+                va_rreview_narrneg="good",
+                va_rreview_narrchrono="good",
+                va_rreview_narrdoc="good",
+                va_rreview_narrcomorb="good",
+                va_rreview="accepted",
+                va_rreview_status=VaStatuses.active,
+            )
+        )
         db.session.flush()
 
         if with_reviewer_final:
@@ -438,8 +453,15 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
             .where(VaSocialAutopsyAnalysis.va_sid == va_sid)
             .where(VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active)
         )
+        active_reviewer_review = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaReviewerReview)
+            .where(VaReviewerReview.va_sid == va_sid)
+            .where(VaReviewerReview.va_rreview_status == VaStatuses.active)
+        )
         self.assertEqual(active_nqa, 0)
         self.assertEqual(active_social, 0)
+        self.assertEqual(active_reviewer_review, 0)
 
     def test_creates_audit_log_entry(self):
         """Accept should create an audit log entry."""
@@ -687,6 +709,34 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         self.assertIsNotNone(social)
         self.assertEqual(nqa.payload_version_id, pending.payload_version_id)
         self.assertEqual(social.payload_version_id, pending.payload_version_id)
+
+    def test_reject_promotes_reviewer_review_to_current_payload(self):
+        va_sid = self._create_revoked_submission("reject-reviewer-review")
+        dm_user = self._create_dm_user()
+
+        pending = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status
+                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+            )
+        )
+        self.assertIsNotNone(pending)
+
+        dm_reject_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        reviewer_review = db.session.scalar(
+            sa.select(VaReviewerReview).where(
+                VaReviewerReview.va_sid == va_sid,
+                VaReviewerReview.va_rreview_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNotNone(reviewer_review)
+        self.assertEqual(
+            reviewer_review.payload_version_id,
+            pending.payload_version_id,
+        )
 
     def test_reject_deactivates_duplicate_active_smartva_rows(self):
         va_sid = self._create_revoked_submission("reject-smartva-dedupe")

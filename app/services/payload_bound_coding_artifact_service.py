@@ -1,4 +1,4 @@
-"""Helpers for coder-owned artifacts that must follow the current payload version."""
+"""Helpers for coding artifacts that must follow the current payload version."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     VaNarrativeAssessment,
+    VaReviewerReview,
     VaSocialAutopsyAnalysis,
     VaStatuses,
     VaSubmissionPayloadVersion,
@@ -64,6 +65,29 @@ def get_current_payload_narrative_assessment(
     )
 
 
+def get_current_payload_reviewer_review(
+    va_sid: str,
+    user_id,
+) -> VaReviewerReview | None:
+    """Return the active reviewer-review row for the submission's current payload."""
+    active_payload_version_id = db.session.scalar(
+        sa.select(VaSubmissions.active_payload_version_id).where(
+            VaSubmissions.va_sid == va_sid
+        )
+    )
+    if active_payload_version_id is None:
+        return None
+
+    return db.session.scalar(
+        sa.select(VaReviewerReview).where(
+            VaReviewerReview.va_sid == va_sid,
+            VaReviewerReview.va_rreview_by == user_id,
+            VaReviewerReview.payload_version_id == active_payload_version_id,
+            VaReviewerReview.va_rreview_status == VaStatuses.active,
+        )
+    )
+
+
 def get_current_payload_social_autopsy_analysis(
     va_sid: str,
     user_id,
@@ -112,6 +136,40 @@ def deactivate_other_active_narrative_assessments(
             VaSubmissionsAuditlog(
                 va_sid=va_sid,
                 va_audit_entityid=row.va_nqa_id,
+                va_audit_byrole=audit_byrole,
+                va_audit_by=audit_by,
+                va_audit_operation="u",
+                va_audit_action=audit_action,
+            )
+        )
+    return len(rows)
+
+
+def deactivate_other_active_reviewer_reviews(
+    va_sid: str,
+    user_id,
+    *,
+    keep_id=None,
+    audit_byrole: str = "reviewer",
+    audit_by=None,
+    audit_action: str = "reviewer review superseded by current payload",
+) -> int:
+    """Deactivate other active reviewer-review rows for the same submission/user."""
+    stmt = sa.select(VaReviewerReview).where(
+        VaReviewerReview.va_sid == va_sid,
+        VaReviewerReview.va_rreview_by == user_id,
+        VaReviewerReview.va_rreview_status == VaStatuses.active,
+    )
+    if keep_id is not None:
+        stmt = stmt.where(VaReviewerReview.va_rreview_id != keep_id)
+
+    rows = db.session.scalars(stmt).all()
+    for row in rows:
+        row.va_rreview_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=row.va_rreview_id,
                 va_audit_byrole=audit_byrole,
                 va_audit_by=audit_by,
                 va_audit_operation="u",
@@ -181,6 +239,32 @@ def promote_active_narrative_assessments_to_payload(
     return len(rows)
 
 
+def promote_active_reviewer_reviews_to_payload(
+    va_sid: str,
+    *,
+    to_payload_version_id,
+) -> int:
+    """Rebind active reviewer-review rows to a promoted payload version."""
+    rows = db.session.scalars(
+        sa.select(VaReviewerReview).where(
+            VaReviewerReview.va_sid == va_sid,
+            VaReviewerReview.va_rreview_status == VaStatuses.active,
+        )
+    ).all()
+    for row in rows:
+        row.payload_version_id = to_payload_version_id
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=row.va_rreview_id,
+                va_audit_byrole="vaadmin",
+                va_audit_operation="u",
+                va_audit_action="reviewer review promoted to current payload",
+            )
+        )
+    return len(rows)
+
+
 def promote_active_social_autopsy_analyses_to_payload(
     va_sid: str,
     *,
@@ -202,6 +286,35 @@ def promote_active_social_autopsy_analyses_to_payload(
                 va_audit_byrole="vaadmin",
                 va_audit_operation="u",
                 va_audit_action="social autopsy analysis promoted to current payload",
+            )
+        )
+    return len(rows)
+
+
+def deactivate_active_reviewer_reviews_for_submission(
+    va_sid: str,
+    *,
+    audit_byrole: str = "vaadmin",
+    audit_by=None,
+    audit_action: str = "reviewer review deactivated due to payload change",
+) -> int:
+    """Deactivate all active reviewer-review rows for a submission."""
+    rows = db.session.scalars(
+        sa.select(VaReviewerReview).where(
+            VaReviewerReview.va_sid == va_sid,
+            VaReviewerReview.va_rreview_status == VaStatuses.active,
+        )
+    ).all()
+    for row in rows:
+        row.va_rreview_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=va_sid,
+                va_audit_entityid=row.va_rreview_id,
+                va_audit_byrole=audit_byrole,
+                va_audit_by=audit_by,
+                va_audit_operation="u",
+                va_audit_action=audit_action,
             )
         )
     return len(rows)

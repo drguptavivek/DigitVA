@@ -633,6 +633,21 @@ A lightweight OData count utility:
 
 Also used by `GET /admin/api/sync/coverage` to compare ODK totals against local `va_submissions` counts per site mapping.
 
+The sync dashboard also exposes a separate backfill coverage view and trigger:
+
+- `GET /admin/api/sync/backfill-stats` returns project/site/form completeness counts for:
+  - ODK submission totals
+  - local stored submission totals
+  - metadata completeness
+  - attachment completeness
+- `POST /admin/api/sync/backfill/form/<form_id>` triggers the ODK-backed repair path for one form
+- The dashboard table groups rows by project, site, and form so operators can see which forms are missing local data, metadata, or attachments before triggering a repair
+
+Important distinction:
+
+- `POST /admin/api/sync/attachment-backfill` is still the local attachment-cache repair path for already stored submissions
+- the new form backfill trigger reuses the ODK sync path and can repair thin data, metadata enrichment, attachment sync, and SmartVA follow-through together
+
 ## Admin Sync Dashboard
 
 Available at Admin Console → Data Sync (admin-only).
@@ -645,6 +660,7 @@ Sections:
 - **Gen SmartVA** — trigger SmartVA-only run without ODK download
 - **Schedule configurator** — change beat interval (1–168h) without restarting
 - **Coverage table** — ODK total vs local total, last synced time, per-form force-resync button; loaded on demand rather than automatically on panel load
+- **Backfill coverage table** — project/site/form completeness counts for ODK data, metadata, and attachments, with a per-form backfill trigger
 - **Progress log** — live timestamped entries; clears and resets when a new run starts
 - **Run history** — last 20 runs with duration, trigger source, status, and error detail
 

@@ -45,6 +45,23 @@ Policy reasons:
 - partial form failure does not require waiting for a whole-run global SmartVA
   phase to understand what happened
 
+### Backfill repair path
+
+The admin sync dashboard may expose a form-scoped ODK-backed backfill trigger.
+That trigger is a repair path, not a separate data source.
+
+Policy baseline:
+
+- a form backfill should reuse the same ODK sync path used by normal syncs
+- the backfill should be scoped narrowly to the selected project/site/form
+- the backfill may repair thin submission data, metadata enrichment, attachment
+  sync, and SmartVA follow-through together for that form
+- attachment-cache-only repair remains a distinct action and only restores
+  missing local attachment files for already stored submissions
+- backfill actions should be logged with clear form-scoped progress so an
+  operator can tell whether the repair is fetching data, enriching metadata,
+  syncing attachments, or advancing workflow
+
 ## Payload Versioning Baseline
 
 The sync model must distinguish the current live submission row from the

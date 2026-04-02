@@ -14,6 +14,8 @@ from app.models import (
     VaForms,
     VaProjectMaster,
     VaProjectSites,
+    VaSubmissionAttachments,
+    VaSubmissions,
     VaResearchProjects,
     VaSiteMaster,
     VaSites,
@@ -865,6 +867,98 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(
             mocked_delay.call_args.kwargs["site_id"],
             self.site_a,
+        )
+
+    def test_sync_backfill_stats_returns_form_completeness(self):
+        self._login(self.admin_user_id)
+
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            VaSubmissions(
+                va_sid="uuid:backfill-stats-adm001",
+                va_form_id="ADM001AA0101",
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_data_collector="tester",
+                va_odk_reviewstate=None,
+                va_instance_name="ADM001AA0101_instance",
+                va_uniqueid_real=None,
+                va_uniqueid_masked="ADM001AA0101",
+                va_consent="yes",
+                va_narration_language="english",
+                va_deceased_age=42,
+                va_deceased_gender="male",
+                va_data={
+                    "FormVersion": "ADM_FORM_V1",
+                    "DeviceID": "collect:test-device",
+                    "SubmitterID": 123,
+                    "instanceID": "uuid:backfill-stats-adm001",
+                    "AttachmentsExpected": 1,
+                    "AttachmentsPresent": 1,
+                    "audit": "audit.csv",
+                },
+                va_summary=["fever"],
+                va_catcount={},
+                va_category_list=["fever"],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionAttachments(
+                va_sid="uuid:backfill-stats-adm001",
+                filename="photo.jpg",
+                local_path="/tmp/photo.jpg",
+                mime_type="image/jpeg",
+                etag=None,
+                exists_on_odk=True,
+                last_downloaded_at=now,
+            )
+        )
+        db.session.commit()
+
+        with patch("app.utils.va_odk.va_odk_04_submissioncount.va_odk_submissioncount", return_value=3):
+            response = self.client.get("/admin/api/sync/backfill-stats")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["totals"]["local_total"], 1)
+        self.assertEqual(payload["totals"]["metadata_complete"], 1)
+        self.assertEqual(payload["totals"]["attachments_complete"], 1)
+
+        project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
+        site = next(s for s in project["sites"] if s["site_id"] == self.site_a)
+        form = next(f for f in site["forms"] if f["form_id"] == "ADM001AA0101")
+        self.assertEqual(form["odk_total"], 3)
+        self.assertEqual(form["local_total"], 1)
+        self.assertEqual(form["metadata_complete"], 1)
+        self.assertEqual(form["attachments_complete"], 1)
+        self.assertEqual(form["data_missing"], 2)
+
+    def test_admin_can_trigger_form_backfill(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        with patch("app.tasks.sync_tasks.run_single_form_sync.delay") as mocked_delay:
+            mocked_delay.return_value.id = "task-form-backfill"
+
+            response = self.client.post(
+                "/admin/api/sync/backfill/form/ADM001AA0101",
+                headers=headers,
+            )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(
+            response.get_json()["message"],
+            "Backfill started for form ADM001AA0101.",
+        )
+        mocked_delay.assert_called_once()
+        self.assertEqual(
+            mocked_delay.call_args.kwargs["triggered_by"],
+            "backfill",
+        )
+        self.assertEqual(
+            mocked_delay.call_args.kwargs["form_id"],
+            "ADM001AA0101",
         )
 
     def test_sync_status_returns_null_schedule_when_beat_tables_missing(self):

@@ -32,6 +32,12 @@ The `/admin` interface provides the following management panels:
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
+The sync dashboard also includes ODK-backed backfill tooling:
+
+- a project/site/form coverage table that shows ODK data, local data, metadata, and attachment completeness
+- a per-form backfill trigger that reuses the ODK sync path to repair thin rows, metadata enrichment, attachments, and SmartVA follow-through together
+- a separate attachment-cache backfill trigger that only repairs missing local attachment files for already stored submissions
+
 ### Admin-Only Panels
 
 The following panels are restricted to application-level admins:

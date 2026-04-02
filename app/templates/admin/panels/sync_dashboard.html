@@ -110,6 +110,25 @@
     </div>
   </div>
 
+  <div class="card mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-secondary">
+          <i class="fa-solid fa-rotate me-1"></i>ODK Backfill Coverage by Project / Site / Form
+        </span>
+        <button class="btn btn-sm btn-outline-secondary" id="sync-backfill-refresh-btn">
+          <i class="fa-solid fa-rotate-right me-1"></i>Refresh
+        </button>
+      </div>
+      <div class="small text-muted mb-2">
+        Shows how much of each form is present locally, metadata-enriched, and attachment-complete. Use Backfill on a form row to re-run the ODK-backed repair path for that form.
+      </div>
+      <div id="sync-backfill-wrap">
+        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>
+      </div>
+    </div>
+  </div>
+
   {# SmartVA status #}
   <div class="card mb-3">
     <div class="card-body py-3">
@@ -603,6 +622,135 @@
     });
   }
 
+  // ── Backfill coverage ─────────────────────────────────────────────────────
+
+  function loadBackfillStats() {
+    var wrap = document.getElementById('sync-backfill-wrap');
+    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching backfill counts…</span>';
+
+    apiJson('/admin/api/sync/backfill-stats').then(function (res) {
+      if (!wrap) return;
+      if (!res.ok) {
+        wrap.innerHTML = '<span class="text-danger small">Failed to load backfill stats: ' + esc(res.data.error || '') + '</span>';
+        return;
+      }
+      var d = res.data;
+      if (!d.projects || !d.projects.length) {
+        wrap.innerHTML = '<p class="text-muted small mb-0">No active forms found.</p>';
+        return;
+      }
+
+      var rows = [];
+      d.projects.forEach(function (proj) {
+        rows.push(
+          '<tr class="table-light">'
+          + '<td class="small fw-semibold">'
+          +   '<i class="fa-solid fa-folder me-1 text-secondary"></i>' + esc(proj.project_name || proj.project_id)
+          + '</td>'
+          + '<td class="small text-center fw-semibold">' + (proj.odk_total || 0) + '</td>'
+          + '<td class="small text-center fw-semibold">' + (proj.local_total || 0) + '</td>'
+          + '<td class="small text-center fw-semibold">' + (proj.metadata_complete || 0) + '</td>'
+          + '<td class="small text-center fw-semibold">' + (proj.attachments_complete || 0) + '</td>'
+          + '<td class="small text-center text-muted">Project total</td>'
+          + '</tr>'
+        );
+        proj.sites.forEach(function (site) {
+          rows.push(
+            '<tr>'
+            + '<td class="small ps-4">'
+            +   '<i class="fa-solid fa-location-dot me-1 text-secondary"></i>' + esc(site.site_name || site.site_id)
+            + '</td>'
+            + '<td class="small text-center">' + (site.odk_total || 0) + '</td>'
+            + '<td class="small text-center">' + (site.local_total || 0) + '</td>'
+            + '<td class="small text-center">' + (site.metadata_complete || 0) + '</td>'
+            + '<td class="small text-center">' + (site.attachments_complete || 0) + '</td>'
+            + '<td class="small text-center text-muted">Site total</td>'
+            + '</tr>'
+          );
+          site.forms.forEach(function (form) {
+            var dataMissing = form.data_missing == null ? '—' : form.data_missing;
+            var metadataMissing = form.metadata_missing == null ? '—' : form.metadata_missing;
+            var attachmentsMissing = form.attachments_missing == null ? '—' : form.attachments_missing;
+            rows.push(
+              '<tr>'
+              + '<td class="small ps-5">'
+              +   '<i class="fa-solid fa-file-lines me-1 text-secondary"></i>' + esc(form.form_id)
+              + '</td>'
+              + '<td class="small text-center">' + (form.odk_total != null ? form.odk_total : '—') + '</td>'
+              + '<td class="small text-center">' + form.local_total + ' <span class="text-muted">(' + dataMissing + ' missing)</span></td>'
+              + '<td class="small text-center">' + form.metadata_complete + ' <span class="text-muted">(' + metadataMissing + ' missing)</span></td>'
+              + '<td class="small text-center">' + form.attachments_complete + ' <span class="text-muted">(' + attachmentsMissing + ' missing)</span></td>'
+              + '<td class="small text-center">'
+              + (form.odk_error
+                  ? '<span class="text-muted">ODK error</span>'
+                  : '<button class="btn btn-sm btn-outline-secondary py-0 px-1 backfill-form-btn" data-form-id="' + esc(form.form_id) + '" title="Re-run the ODK-backed backfill for this form.">'
+                    + '<i class="fa-solid fa-rotate-right"></i> Backfill</button>')
+              + '</td>'
+              + '</tr>'
+            );
+          });
+        });
+      });
+
+      var totals = d.totals || {};
+      wrap.innerHTML =
+        '<div class="table-responsive">'
+        + '<table class="table table-sm table-bordered mb-0">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="small">Project / Site / Form</th>'
+        + '<th class="small text-center">ODK Data</th>'
+        + '<th class="small text-center">Local Data</th>'
+        + '<th class="small text-center">Metadata</th>'
+        + '<th class="small text-center">Attachments</th>'
+        + '<th class="small text-center">Action</th>'
+        + '</tr></thead><tbody>'
+        + rows.join('')
+        + '</tbody><tfoot class="table-light"><tr>'
+        + '<td class="small fw-semibold">Total</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.odk_total || 0) + '</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.local_total || 0) + '</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.metadata_complete || 0) + '</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.attachments_complete || 0) + '</td>'
+        + '<td class="small text-center text-muted">All forms</td>'
+        + '</tr></tfoot></table>'
+        + '</div>';
+
+      wrap.querySelectorAll('.backfill-form-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var formId = btn.getAttribute('data-form-id');
+          if (!formId) return;
+          if (!confirm(
+            'Backfill ' + formId + ' from ODK?\n\n'
+            + 'This re-runs the ODK-backed repair path for the form so thin data, metadata enrichment, attachments, and SmartVA can be repaired together.'
+          )) {
+            return;
+          }
+          var original = btn.innerHTML;
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+          apiJson('/admin/api/sync/backfill/form/' + encodeURIComponent(formId), 'POST').then(function (resp) {
+            if (!resp.ok) {
+              showToast(resp.data.error || 'Failed to start backfill.', 'danger');
+              return;
+            }
+            showToast(resp.data.message || ('Backfill started for ' + formId + '.'), 'success');
+            loadStatus();
+            loadHistory();
+            loadProgress();
+            loadBackfillStats();
+          }).catch(function () {
+            showToast('Network error.', 'danger');
+          }).finally(function () {
+            btn.disabled = false;
+            btn.innerHTML = original;
+          });
+        });
+      });
+    }).catch(function () {
+      if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error fetching backfill stats.</span>';
+    });
+  }
+
   // ── History ────────────────────────────────────────────────────────────────
 
   function loadHistory() {
@@ -1033,6 +1181,7 @@
   // ── Coverage refresh ───────────────────────────────────────────────────────
 
   document.getElementById('sync-coverage-refresh-btn').addEventListener('click', loadCoverage);
+  document.getElementById('sync-backfill-refresh-btn').addEventListener('click', loadBackfillStats);
   document.getElementById('sync-smartva-refresh-btn').addEventListener('click', loadSmartvaStats);
   document.getElementById('sync-revoked-refresh-btn').addEventListener('click', loadRevokedStats);
   document.getElementById('sync-backfill-project').addEventListener('change', refreshBackfillSelectors);
@@ -1104,6 +1253,7 @@
   loadHistory();
   loadSmartvaStats();
   loadRevokedStats();
+  loadBackfillStats();
   loadProgress();
   refreshBackfillSelectors();
 

@@ -4086,6 +4086,236 @@ def admin_sync_coverage():
         return _json_error(f"Failed to load coverage data: {str(e)}", 500)
 
 
+@admin.get("/api/sync/backfill-stats")
+@limiter.exempt
+@require_api_role("admin")
+def admin_sync_backfill_stats():
+    """Return per-form data, metadata, and attachment completeness counts."""
+    try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from app.models.va_forms import VaForms
+        from app.models.va_project_master import VaProjectMaster
+        from app.models.va_sites import VaSites
+        from app.models.va_submissions import VaSubmissions
+        from app.models.va_submission_attachments import VaSubmissionAttachments
+        from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
+
+        forms = db.session.scalars(
+            sa.select(VaForms)
+            .where(VaForms.form_status == VaStatuses.active)
+            .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
+        ).all()
+        if not forms:
+            return jsonify({"projects": [], "totals": {"odk_total": 0, "local_total": 0, "metadata_complete": 0, "attachments_complete": 0}})
+
+        attachment_counts_sq = (
+            sa.select(
+                VaSubmissionAttachments.va_sid.label("va_sid"),
+                sa.func.count().label("attachment_count"),
+            )
+            .where(VaSubmissionAttachments.exists_on_odk.is_(True))
+            .group_by(VaSubmissionAttachments.va_sid)
+            .subquery()
+        )
+
+        metadata_complete_expr = sa.case(
+            (
+                sa.and_(
+                    VaSubmissions.va_summary.is_not(None),
+                    VaSubmissions.va_category_list.is_not(None),
+                    VaSubmissions.va_data["FormVersion"].astext.is_not(None),
+                    VaSubmissions.va_data["DeviceID"].astext.is_not(None),
+                    VaSubmissions.va_data["SubmitterID"].astext.is_not(None),
+                    VaSubmissions.va_data["instanceID"].astext.is_not(None),
+                    VaSubmissions.va_data["AttachmentsExpected"].astext.is_not(None),
+                    VaSubmissions.va_data["AttachmentsPresent"].astext.is_not(None),
+                ),
+                1,
+            ),
+            else_=0,
+        )
+        attachment_expected_expr = sa.func.coalesce(
+            sa.cast(sa.func.nullif(VaSubmissions.va_data["AttachmentsExpected"].astext, ""), sa.Integer),
+            0,
+        )
+        attachment_present_expr = sa.func.coalesce(attachment_counts_sq.c.attachment_count, 0)
+        attachments_complete_expr = sa.case(
+            (attachment_present_expr >= attachment_expected_expr, 1),
+            else_=0,
+        )
+
+        local_counts = {
+            row["va_form_id"]: row
+            for row in db.session.execute(
+                sa.select(
+                    VaSubmissions.va_form_id.label("va_form_id"),
+                    sa.func.count(VaSubmissions.va_sid).label("local_total"),
+                    sa.func.coalesce(sa.func.sum(metadata_complete_expr), 0).label("metadata_complete"),
+                    sa.func.coalesce(sa.func.sum(attachments_complete_expr), 0).label("attachments_complete"),
+                )
+                .select_from(VaSubmissions)
+                .outerjoin(
+                    attachment_counts_sq,
+                    attachment_counts_sq.c.va_sid == VaSubmissions.va_sid,
+                )
+                .group_by(VaSubmissions.va_form_id)
+            ).mappings().all()
+        }
+
+        from flask import current_app as _current_app
+        flask_app = _current_app._get_current_object()
+
+        def fetch_odk_count(form):
+            with flask_app.app_context():
+                try:
+                    count = va_odk_submissioncount(
+                        form.odk_project_id,
+                        form.odk_form_id,
+                        app_project_id=form.project_id,
+                    )
+                    return form, count, None
+                except Exception as exc:
+                    return form, None, str(exc)
+
+        odk_results = {}
+        with ThreadPoolExecutor(max_workers=len(forms) or 1) as ex:
+            futures = {ex.submit(fetch_odk_count, form): form for form in forms}
+            for future in as_completed(futures):
+                form, odk_total, error = future.result()
+                odk_results[form.form_id] = (odk_total, error)
+
+        projects_map = {}
+        total_odk = 0
+        total_local = 0
+        total_metadata = 0
+        total_attachments = 0
+
+        for form in forms:
+            counts = local_counts.get(form.form_id, {})
+            local_total = int(counts.get("local_total") or 0)
+            metadata_complete = int(counts.get("metadata_complete") or 0)
+            attachments_complete = int(counts.get("attachments_complete") or 0)
+            odk_total, odk_error = odk_results.get(form.form_id, (None, "No result"))
+
+            total_local += local_total
+            total_metadata += metadata_complete
+            total_attachments += attachments_complete
+            if odk_total is not None:
+                total_odk += odk_total
+
+            project = projects_map.setdefault(form.project_id, {
+                "project_id": form.project_id,
+                "project_name": None,
+                "sites": {},
+                "odk_total": 0,
+                "local_total": 0,
+                "metadata_complete": 0,
+                "attachments_complete": 0,
+            })
+            if odk_total is not None:
+                project["odk_total"] += odk_total
+            project["local_total"] += local_total
+            project["metadata_complete"] += metadata_complete
+            project["attachments_complete"] += attachments_complete
+
+            site = project["sites"].setdefault(form.site_id, {
+                "site_id": form.site_id,
+                "site_name": None,
+                "forms": [],
+                "odk_total": 0,
+                "local_total": 0,
+                "metadata_complete": 0,
+                "attachments_complete": 0,
+            })
+            if odk_total is not None:
+                site["odk_total"] += odk_total
+            site["local_total"] += local_total
+            site["metadata_complete"] += metadata_complete
+            site["attachments_complete"] += attachments_complete
+            site["forms"].append({
+                "form_id": form.form_id,
+                "odk_form_id": form.odk_form_id,
+                "odk_project_id": form.odk_project_id,
+                "odk_total": odk_total,
+                "odk_error": odk_error,
+                "local_total": local_total,
+                "metadata_complete": metadata_complete,
+                "metadata_missing": max(local_total - metadata_complete, 0),
+                "attachments_complete": attachments_complete,
+                "attachments_missing": max(local_total - attachments_complete, 0),
+                "data_missing": max((odk_total or 0) - local_total, 0) if odk_total is not None else None,
+            })
+
+        project_names = {
+            r.project_id: r.project_name
+            for r in db.session.scalars(sa.select(VaProjectMaster)).all()
+        }
+        site_names = {
+            r.site_id: r.site_name
+            for r in db.session.scalars(sa.select(VaSites)).all()
+        }
+        for pid, project in projects_map.items():
+            project["project_name"] = project_names.get(pid, pid)
+            for sid, site in project["sites"].items():
+                site["site_name"] = site_names.get(sid, sid)
+                site["forms"] = sorted(site["forms"], key=lambda item: item["form_id"])
+            project["sites"] = sorted(project["sites"].values(), key=lambda item: item["site_id"])
+
+        return jsonify({
+            "projects": sorted(projects_map.values(), key=lambda item: item["project_id"]),
+            "totals": {
+                "odk_total": total_odk,
+                "local_total": total_local,
+                "metadata_complete": total_metadata,
+                "attachments_complete": total_attachments,
+            },
+        })
+    except Exception as e:
+        log.error("admin_sync_backfill_stats failed", exc_info=True)
+        return _json_error(f"Failed to load backfill stats: {str(e)}", 500)
+
+
+@admin.post("/api/sync/backfill/form/<form_id>")
+@require_api_role("admin")
+def admin_sync_backfill_form(form_id: str):
+    """Backfill a single form from ODK using the same force-resync path."""
+    try:
+        from app.models.va_forms import VaForms
+        from app.tasks.sync_tasks import run_single_form_sync
+
+        va_form = db.session.get(VaForms, form_id)
+        if va_form is None:
+            return _json_error(f"Form '{form_id}' not found.", 404)
+
+        running = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .limit(1)
+        )
+        if running:
+            return _json_error("A sync is already in progress.", 409)
+
+        user = _request_user()
+        log.info(
+            "Backfill sync of %s triggered by user %s",
+            form_id,
+            user.user_id if user else "unknown",
+        )
+        task = run_single_form_sync.delay(
+            form_id=form_id,
+            triggered_by="backfill",
+            user_id=str(user.user_id) if user else None,
+        )
+        return jsonify({
+            "message": f"Backfill started for form {form_id}.",
+            "task_id": task.id,
+            "form_id": form_id,
+        }), 202
+    except Exception as e:
+        log.error("admin_sync_backfill_form failed for %s", form_id, exc_info=True)
+        return _json_error(f"Failed to trigger backfill for form {form_id}: {str(e)}", 500)
+
+
 @admin.post("/api/sync/trigger-smartva")
 @require_api_role("admin")
 def admin_sync_trigger_smartva():

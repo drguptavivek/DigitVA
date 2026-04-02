@@ -97,6 +97,20 @@ def _get_single_form_odk_client(va_form):
     return va_odk_clientsetup(project_id=va_form.project_id)
 
 
+def _release_read_transaction(*entities) -> None:
+    """Detach loaded rows and end the current read transaction before remote I/O."""
+    from app import db
+
+    for entity in entities:
+        if entity is None:
+            continue
+        try:
+            db.session.expunge(entity)
+        except Exception:
+            continue
+    db.session.rollback()
+
+
 def _log_progress(db, run_id, msg: str):
     """Append a timestamped progress entry to va_sync_runs.progress_log.
 
@@ -908,10 +922,12 @@ def run_enrichment_sync_batch(
         va_sid for va_sid, item in batch_plan.items()
         if item.get("needs_metadata")
     ]
-    submissions = db.session.scalars(
-        sa.select(VaSubmissions).where(VaSubmissions.va_sid.in_(metadata_sids))
+    submission_rows = db.session.execute(
+        sa.select(VaSubmissions.va_sid, VaSubmissions.va_data).where(
+            VaSubmissions.va_sid.in_(metadata_sids)
+        )
     ).all() if metadata_sids else []
-    if not submissions:
+    if not submission_rows:
         if _batch_stage_counts(batch_plan)["attachments"] > 0:
             run_attachment_sync_batch.delay(
                 form_id=form_id,
@@ -946,12 +962,13 @@ def run_enrichment_sync_batch(
             )
         return {"enriched": 0, "errors": 0, "error_message": None}
 
-    raw_submissions = [dict(submission.va_data or {}) for submission in submissions]
+    raw_submissions = [dict(va_data or {}) for _, va_data in submission_rows]
     upserted_map = {
-        submission.va_sid: (submission.va_data or {}).get("KEY", "")
-        for submission in submissions
+        va_sid: (va_data or {}).get("KEY", "")
+        for va_sid, va_data in submission_rows
     }
     amended_sids: set[str] = set()
+    _release_read_transaction(va_form)
     odk_client = _get_single_form_odk_client(va_form)
 
     try:
@@ -960,7 +977,7 @@ def run_enrichment_sync_batch(
             run_id,
             (
                 f"[{form_id}] enrich: batch {batch_index}/{batch_total} "
-                f"starting for {len(submissions)} submission(s)…"
+                f"starting for {len(submission_rows)} submission(s)…"
             ),
         )
         raw_submissions = _attach_all_odk_comments(
@@ -983,7 +1000,7 @@ def run_enrichment_sync_batch(
             run_id,
             (
                 f"[{form_id}] enrich: batch {batch_index}/{batch_total} "
-                f"complete — {enriched_count}/{len(submissions)} submission(s) enriched"
+                f"complete — {enriched_count}/{len(submission_rows)} submission(s) enriched"
             ),
         )
         for item in batch_plan.values():
@@ -1040,7 +1057,7 @@ def run_enrichment_sync_batch(
         ).scalar_one_or_none()
         if run is not None:
             run.attachment_forms_completed = (run.attachment_forms_completed or 0) + 1
-            run.attachment_errors = (run.attachment_errors or 0) + len(submissions)
+            run.attachment_errors = (run.attachment_errors or 0) + len(submission_rows)
             _append_run_error(
                 run,
                 f"[{form_id}] enrich batch {batch_index}/{batch_total} failed: {exc}",
@@ -1064,7 +1081,7 @@ def run_enrichment_sync_batch(
             )
         return {
             "enriched": 0,
-            "errors": len(submissions),
+            "errors": len(submission_rows),
             "error_message": str(exc)[:500],
         }
 
@@ -1187,6 +1204,7 @@ def run_attachment_sync_batch(
     form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
     media_dir = os.path.join(form_dir, "media")
     os.makedirs(media_dir, exist_ok=True)
+    _release_read_transaction(va_form)
     try:
         _log_progress(
             db,
@@ -1341,6 +1359,7 @@ def run_smartva_sync_batch(
             "error_message": f"Form '{form_id}' not found for SmartVA batch.",
         }
 
+    _release_read_transaction(va_form)
     try:
         _log_progress(
             db,

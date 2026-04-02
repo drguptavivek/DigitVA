@@ -20,6 +20,7 @@ import os
 import threading
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from flask import current_app, has_app_context
 
 from app.services.odk_connection_guard_service import guarded_odk_call
@@ -58,10 +59,13 @@ def _sync_submission_attachments_no_db(
 ) -> SubmissionAttachmentSyncResult:
     """Sync one submission's attachments without touching the ORM session."""
     os.makedirs(media_dir, exist_ok=True)
-    request_timeout = (
-        current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10),
-        current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60),
-    )
+    if has_app_context():
+        request_timeout = (
+            current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10),
+            current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60),
+        )
+    else:
+        request_timeout = (10, 60)
 
     list_url = (
         f"projects/{va_form.odk_project_id}"
@@ -169,7 +173,7 @@ def _sync_submission_attachments_no_db(
 
 
 def _apply_submission_attachment_result(existing_records, result):
-    """Apply a network-only attachment sync result to ORM records."""
+    """Apply a network-only attachment sync result using PK-safe upserts."""
     from app import db
     from app.models.va_submission_attachments import VaSubmissionAttachments
 
@@ -183,18 +187,36 @@ def _apply_submission_attachment_result(existing_records, result):
                 rec.mime_type = change.mime_type
                 rec.etag = change.etag
                 rec.last_downloaded_at = change.last_downloaded_at
-        elif change.exists_on_odk:
-            rec = VaSubmissionAttachments(
-                va_sid=result.va_sid,
-                filename=change.filename,
-                local_path=change.local_path,
-                mime_type=change.mime_type,
-                etag=change.etag,
-                exists_on_odk=True,
-                last_downloaded_at=change.last_downloaded_at,
+            continue
+
+        values = {
+            "va_sid": result.va_sid,
+            "filename": change.filename,
+            "exists_on_odk": change.exists_on_odk,
+            "local_path": change.local_path if change.exists_on_odk else None,
+            "mime_type": change.mime_type if change.exists_on_odk else None,
+            "etag": change.etag if change.exists_on_odk else None,
+            "last_downloaded_at": (
+                change.last_downloaded_at if change.exists_on_odk else None
+            ),
+        }
+        insert_stmt = pg_insert(VaSubmissionAttachments).values(**values)
+        db.session.execute(
+            insert_stmt.on_conflict_do_update(
+                index_elements=[
+                    VaSubmissionAttachments.va_sid,
+                    VaSubmissionAttachments.filename,
+                ],
+                set_={
+                    "exists_on_odk": insert_stmt.excluded.exists_on_odk,
+                    "local_path": insert_stmt.excluded.local_path,
+                    "mime_type": insert_stmt.excluded.mime_type,
+                    "etag": insert_stmt.excluded.etag,
+                    "last_downloaded_at": insert_stmt.excluded.last_downloaded_at,
+                },
             )
-            db.session.add(rec)
-            existing[change.filename] = rec
+        )
+        existing.pop(change.filename, None)
 
 
 def _load_existing_attachment_records(va_sids):

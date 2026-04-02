@@ -9,8 +9,11 @@ for the project (backward compatibility during migration).
 """
 
 import os
+import logging
 from flask import current_app
 from pyodk.client import Client
+
+log = logging.getLogger(__name__)
 
 
 def va_odk_clientsetup(project_id: str | None = None) -> Client:
@@ -27,7 +30,15 @@ def va_odk_clientsetup(project_id: str | None = None) -> Client:
     if project_id:
         client = _client_from_db(project_id, pyodk_dir)
         if client is not None:
+            log.info("ODK client setup: using DB-backed connection for project %s", project_id)
             return client
+        log.warning(
+            "ODK client setup: project %s has no active DB-backed ODK connection; "
+            "falling back to legacy TOML config",
+            project_id,
+        )
+    else:
+        log.info("ODK client setup: no project_id provided; using legacy TOML config")
 
     # Legacy fallback uses a shared cache (single TOML connection).
     cache_path = os.path.join(pyodk_dir, "odk_cache.toml")

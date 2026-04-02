@@ -3,12 +3,14 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import patch
 
+from app import create_app
 from app.utils.va_odk.va_odk_05_deltacheck import va_odk_delta_count
 from app.utils.va_odk.va_odk_06_fetchsubmissions import va_odk_fetch_submissions
 from app.utils.va_odk.va_odk_07_syncattachments import (
     va_odk_sync_form_attachments,
     va_odk_sync_submission_attachments,
 )
+from config import TestConfig
 
 
 class _FakeResponse:
@@ -107,6 +109,7 @@ class TestOdkClientReuse(TestCase):
         self.assertEqual(len(fake_client.session.calls), 1)
 
     def test_attachment_sync_uses_injected_client(self):
+        app = create_app(TestConfig)
         download_response = _FakeResponse(
             headers={"ETag": "abc123", "Content-Type": "text/plain"},
             content=b"hello",
@@ -131,16 +134,17 @@ class TestOdkClientReuse(TestCase):
         ), patch(
             "app.db"
         ) as mock_db:
-            mock_db.session.scalars.return_value.all.return_value = []
-            mock_db.session.flush.return_value = None
+            with app.app_context():
+                mock_db.session.scalars.return_value.all.return_value = []
+                mock_db.session.flush.return_value = None
 
-            result = va_odk_sync_submission_attachments(
-                va_form,
-                instance_id="uuid:abc",
-                va_sid="uuid:abc-form01",
-                media_dir=media_dir,
-                client=fake_client,
-            )
+                result = va_odk_sync_submission_attachments(
+                    va_form,
+                    instance_id="uuid:abc",
+                    va_sid="uuid:abc-form01",
+                    media_dir=media_dir,
+                    client=fake_client,
+                )
 
         self.assertEqual(result["downloaded"], 1)
         self.assertEqual(len(fake_client.session.calls), 2)
@@ -152,6 +156,7 @@ class TestOdkClientReuse(TestCase):
         self.assertTrue(download_response.closed)
 
     def test_form_attachment_sync_uses_client_factory_and_aggregates_results(self):
+        app = create_app(TestConfig)
         fake_client = SimpleNamespace(
             session=_FakeSession(
                 [
@@ -181,20 +186,21 @@ class TestOdkClientReuse(TestCase):
             return fake_client
 
         with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
-            mock_db.session.scalars.return_value.all.return_value = []
-            mock_db.session.flush.return_value = None
-            mock_db.session.add.return_value = None
+            with app.app_context():
+                mock_db.session.scalars.return_value.all.return_value = []
+                mock_db.session.flush.return_value = None
+                mock_db.session.add.return_value = None
 
-            result = va_odk_sync_form_attachments(
-                va_form,
-                {
-                    "uuid:one-form01": "uuid:one",
-                    "uuid:two-form01": "uuid:two",
-                },
-                media_dir,
-                client_factory=client_factory,
-                max_workers=1,
-            )
+                result = va_odk_sync_form_attachments(
+                    va_form,
+                    {
+                        "uuid:one-form01": "uuid:one",
+                        "uuid:two-form01": "uuid:two",
+                    },
+                    media_dir,
+                    client_factory=client_factory,
+                    max_workers=1,
+                )
 
         self.assertEqual(result["downloaded"], 2)
         self.assertEqual(result["skipped"], 0)
@@ -203,6 +209,7 @@ class TestOdkClientReuse(TestCase):
         self.assertEqual(len(fake_client.session.calls), 4)
 
     def test_attachment_sync_skips_unchanged_files_with_streamed_request(self):
+        app = create_app(TestConfig)
         not_modified_response = _FakeResponse(status_code=304)
         fake_client = SimpleNamespace(
             session=_FakeSession(
@@ -219,17 +226,18 @@ class TestOdkClientReuse(TestCase):
         )
 
         with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
-            existing = SimpleNamespace(filename="note.txt", etag='"etag-old"')
-            mock_db.session.scalars.return_value.all.return_value = [existing]
-            mock_db.session.flush.return_value = None
+            with app.app_context():
+                existing = SimpleNamespace(filename="note.txt", etag='"etag-old"')
+                mock_db.session.scalars.return_value.all.return_value = [existing]
+                mock_db.session.flush.return_value = None
 
-            result = va_odk_sync_submission_attachments(
-                va_form,
-                instance_id="uuid:abc",
-                va_sid="uuid:abc-form01",
-                media_dir=media_dir,
-                client=fake_client,
-            )
+                result = va_odk_sync_submission_attachments(
+                    va_form,
+                    instance_id="uuid:abc",
+                    va_sid="uuid:abc-form01",
+                    media_dir=media_dir,
+                    client=fake_client,
+                )
 
         self.assertEqual(result["downloaded"], 0)
         self.assertEqual(result["skipped"], 1)

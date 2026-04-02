@@ -3,6 +3,56 @@ from unittest.mock import MagicMock, patch
 
 
 class SyncTaskBatchingTests(TestCase):
+    def test_run_enrichment_sync_batch_releases_read_transaction_before_odk_calls(self):
+        from app import create_app, db
+        from app.models import VaForms
+        from app.tasks.sync_tasks import run_enrichment_sync_batch
+        from config import TestConfig
+
+        app = create_app(TestConfig)
+        fake_form = MagicMock(spec=VaForms)
+        fake_form.form_id = "FORM04"
+        fake_form.project_id = "PROJ04"
+
+        fake_rows = MagicMock()
+        fake_rows.all.return_value = [("sid-1", {"KEY": "key-1"})]
+        events: list[str] = []
+
+        def fake_get(model, key):
+            if model is VaForms and key == "FORM04":
+                return fake_form
+            return None
+
+        with app.app_context():
+            with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
+                with patch.object(db.session, "get", side_effect=fake_get):
+                    with patch.object(db.session, "execute", return_value=fake_rows):
+                        with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
+                            with patch.object(db.session, "commit", side_effect=lambda: events.append("commit")):
+                                with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+                                    with patch("app.tasks.sync_tasks._get_single_form_odk_client", return_value=MagicMock()):
+                                        with patch(
+                                            "app.services.va_data_sync.va_data_sync_01_odkcentral._attach_all_odk_comments",
+                                            side_effect=lambda *args, **kwargs: events.append("attach") or args[1],
+                                        ):
+                                            with patch(
+                                                "app.services.va_data_sync.va_data_sync_01_odkcentral._finalize_enriched_submissions_for_form",
+                                                side_effect=lambda *args, **kwargs: events.append("finalize") or 1,
+                                            ):
+                                                with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
+                                                    result = run_enrichment_sync_batch.run(
+                                                        form_id="FORM04",
+                                                        batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": True, "needs_attachments": False, "needs_smartva": False}},
+                                                        remaining_batches=[],
+                                                        run_id="run-111",
+                                                        batch_index=1,
+                                                        batch_total=1,
+                                                    )
+
+        self.assertEqual(result["enriched"], 1)
+        self.assertLess(events.index("rollback"), events.index("attach"))
+        self.assertIn("expunge:FORM04", events)
+
     def test_dispatch_repair_batch_skips_enrich_for_attachment_only_batch(self):
         from app.tasks.sync_tasks import _dispatch_repair_batch
 
@@ -234,3 +284,87 @@ class SyncTaskBatchingTests(TestCase):
             smartva_updated=0,
             error_messages=[],
         )
+
+    def test_run_attachment_sync_batch_releases_read_transaction_before_download(self):
+        from app import create_app, db
+        from app.models.va_forms import VaForms
+        from app.tasks.sync_tasks import run_attachment_sync_batch
+        from config import TestConfig
+
+        app = create_app(TestConfig)
+        fake_form = MagicMock(spec=VaForms)
+        fake_form.form_id = "FORM05"
+        fake_form.project_id = "PROJ05"
+        events: list[str] = []
+
+        def fake_get(model, key):
+            if model is VaForms and key == "FORM05":
+                return fake_form
+            return None
+
+        with app.app_context():
+            with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
+                with patch.object(db.session, "get", side_effect=fake_get):
+                    with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
+                        with patch.object(db.session, "commit", MagicMock()):
+                            with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+                                with patch(
+                                    "app.utils.va_odk_sync_form_attachments",
+                                    side_effect=lambda *args, **kwargs: events.append("download") or {"downloaded": 1, "skipped": 0, "errors": 0},
+                                ):
+                                    with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
+                                        with patch(
+                                            "app.services.workflow.state_store.get_submission_workflow_state",
+                                            return_value="ready_for_coding",
+                                        ):
+                                            run_attachment_sync_batch.run(
+                                                form_id="FORM05",
+                                                batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": False, "needs_attachments": True, "needs_smartva": False}},
+                                                remaining_batches=[],
+                                                run_id="run-222",
+                                                batch_index=1,
+                                                batch_total=1,
+                                            )
+
+        self.assertLess(events.index("rollback"), events.index("download"))
+        self.assertIn("expunge:FORM05", events)
+
+    def test_run_smartva_sync_batch_releases_read_transaction_before_generation(self):
+        from app import create_app, db
+        from app.models.va_forms import VaForms
+        from app.tasks.sync_tasks import run_smartva_sync_batch
+        from config import TestConfig
+
+        app = create_app(TestConfig)
+        fake_form = MagicMock(spec=VaForms)
+        fake_form.form_id = "FORM06"
+        fake_form.project_id = "PROJ06"
+        events: list[str] = []
+
+        def fake_get(model, key):
+            if model is VaForms and key == "FORM06":
+                return fake_form
+            return None
+
+        with app.app_context():
+            with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
+                with patch.object(db.session, "get", side_effect=fake_get):
+                    with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
+                        with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+                            with patch(
+                                "app.services.smartva_service.generate_for_form",
+                                side_effect=lambda *args, **kwargs: events.append("generate") or 2,
+                            ):
+                                with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
+                                    result = run_smartva_sync_batch.run(
+                                        form_id="FORM06",
+                                        batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": False, "needs_attachments": False, "needs_smartva": True}},
+                                        remaining_batches=[],
+                                        run_id="run-333",
+                                        batch_index=1,
+                                        batch_total=1,
+                                    )
+
+        self.assertEqual(result["smartva_updated"], 2)
+        self.assertLess(events.index("rollback"), events.index("generate"))
+        self.assertIn("expunge:FORM06", events)

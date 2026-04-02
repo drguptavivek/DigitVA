@@ -471,11 +471,15 @@ class AdminApiTests(BaseTestCase):
             json={
                 "project_id": "PRJ999",
                 "project_name": "Test Master Project",
-                "project_nickname": "TMP"
+                "project_nickname": "TMP",
+                "demo_training_enabled": True,
+                "demo_retention_minutes": 10,
             },
             headers=headers
         )
         self.assertEqual(create_resp.status_code, 201)
+        self.assertTrue(create_resp.get_json()["project"]["demo_training_enabled"])
+        self.assertEqual(create_resp.get_json()["project"]["demo_retention_minutes"], 10)
         
         # Verify it shows up in master list
         list_resp = self.client.get("/admin/api/projects?master=1")
@@ -491,6 +495,8 @@ class AdminApiTests(BaseTestCase):
                 "project_code": "UPD999",
                 "status": "deactive",
                 "coding_intake_mode": "pick_and_choose",
+                "demo_training_enabled": True,
+                "demo_retention_minutes": 15,
             },
             headers=headers
         )
@@ -502,6 +508,8 @@ class AdminApiTests(BaseTestCase):
             edit_resp.get_json()["project"]["coding_intake_mode"],
             "pick_and_choose",
         )
+        self.assertTrue(edit_resp.get_json()["project"]["demo_training_enabled"])
+        self.assertEqual(edit_resp.get_json()["project"]["demo_retention_minutes"], 15)
         
         # Toggle project status
         toggle_resp = self.client.post(

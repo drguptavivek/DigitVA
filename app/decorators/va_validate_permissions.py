@@ -9,6 +9,7 @@ from app.services.workflow.intake_modes import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )
+from app.services.demo_project_service import is_demo_training_submission
 from app.utils import (
     va_permission_abortwithflash,
     va_permission_ensureallocation,
@@ -135,10 +136,18 @@ def _validate_vacode(actiontype, sid, partial):
                 "This submission is no longer available for coding.", 409
             )
     elif actiontype == "vademo_start_coding":
-        if not current_user.is_admin():
+        if current_user.is_admin():
+            return
+        if not current_user.is_coder():
             va_permission_abortwithflash(
-                "Only admin users can start a demo coding session.", 403
+                "Coder access is required for demo project coding.", 403
             )
+        if not sid or not is_demo_training_submission(sid):
+            va_permission_abortwithflash(
+                "Only admin users can start a demo coding session on non-demo projects.",
+                403,
+            )
+        va_permission_ensureallocation(sid, "coding")
     elif actiontype == "vaview":
         if not current_user.has_va_form_access(form_id, "coder"):
             va_permission_abortwithflash(

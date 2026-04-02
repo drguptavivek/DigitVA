@@ -40,6 +40,15 @@ class VaProjectMaster(db.Model):
         default="random_form_allocation",
         server_default="random_form_allocation",
     )
+    demo_training_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
+    demo_retention_minutes: so.Mapped[int] = so.mapped_column(
+        sa.Integer(),
+        nullable=False,
+        default=10,
+        server_default="10",
+    )
 
     def __repr__(self) -> str:
         return f"VA Project Master -> {self.project_id} ({self.project_status})"

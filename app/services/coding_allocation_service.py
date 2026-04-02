@@ -21,6 +21,10 @@ from app.services.final_cod_authority_service import (
     get_active_recode_episode,
     upsert_final_cod_authority,
 )
+from app.services.demo_project_service import (
+    get_demo_coding_allocation_timeout_minutes,
+    should_use_demo_actiontype_for_submission,
+)
 from app.services.workflow.transitions import (
     reset_demo_state,
     reset_incomplete_first_pass,
@@ -28,6 +32,11 @@ from app.services.workflow.transitions import (
     reset_incomplete_reviewer_session,
     system_actor,
 )
+
+
+def _naive_utc_now() -> datetime:
+    """Return current UTC as a naive datetime to match legacy DB columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _deactivate_stale_initial_assessments(record: VaAllocations) -> None:
@@ -95,17 +104,25 @@ def _deactivate_first_pass_analysis_artifacts(record: VaAllocations) -> None:
 
 def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     """Release stale active coding allocations without discarding coding work."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=timeout_hours)
+    now = _naive_utc_now()
     stale_allocations = db.session.scalars(
         sa.select(VaAllocations).where(
             VaAllocations.va_allocation_status == VaStatuses.active,
             VaAllocations.va_allocation_for == VaAllocation.coding,
-            VaAllocations.va_allocation_createdat < cutoff,
         )
     ).all()
 
     released = 0
     for record in stale_allocations:
+        if should_use_demo_actiontype_for_submission(record.va_sid):
+            cutoff = now - timedelta(
+                minutes=get_demo_coding_allocation_timeout_minutes(record.va_sid)
+            )
+        else:
+            cutoff = now - timedelta(hours=timeout_hours)
+        if record.va_allocation_createdat >= cutoff:
+            continue
+
         recode_episode = get_active_recode_episode(record.va_sid)
         record.va_allocation_status = VaStatuses.deactive
         _deactivate_stale_initial_assessments(record)
@@ -143,7 +160,7 @@ def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     if released:
         db.session.commit()
 
-    cleanup_expired_demo_coding_artifacts(now=datetime.now(timezone.utc))
+    cleanup_expired_demo_coding_artifacts(now=now)
     return released
 
 
@@ -212,7 +229,7 @@ def release_stale_reviewer_allocations(timeout_hours: int = 1) -> int:
     deactivates all intermediate artifacts and returns the submission to
     reviewer_eligible so a reviewer may start a fresh session.
     """
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=timeout_hours)
+    cutoff = _naive_utc_now() - timedelta(hours=timeout_hours)
     stale_allocations = db.session.scalars(
         sa.select(VaAllocations).where(
             VaAllocations.va_allocation_status == VaStatuses.active,
@@ -250,7 +267,7 @@ def cleanup_expired_demo_coding_artifacts(
     now: datetime | None = None,
 ) -> int:
     """Deactivate demo-coded artifacts whose retention window has expired."""
-    cutoff = now or datetime.now(timezone.utc)
+    cutoff = now or _naive_utc_now()
     expired_count = 0
     affected_sids: set[str] = set()
 

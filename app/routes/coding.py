@@ -7,7 +7,6 @@ from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
-    get_coder_project_ids,
     get_coder_recodeable_sids,
 )
 from app.services.workflow.definition import CODER_READY_POOL_STATES
@@ -16,6 +15,7 @@ from app.services.coding_service import render_va_coding_page
 from app.services.coder_workflow_service import (
     AllocationError,
     AllocationResult,
+    _narration_language_filter,
     allocate_random_form,
     allocate_pick_form,
     start_recode_allocation,
@@ -23,6 +23,8 @@ from app.services.coder_workflow_service import (
     get_active_coding_allocation,
     get_pick_available_forms,
 )
+from app.services.demo_project_service import should_use_demo_actiontype_for_submission
+from app.services.demo_project_service import get_demo_training_project_ids
 from datetime import datetime
 
 
@@ -41,61 +43,62 @@ def dashboard():
 
     va_form_access = current_user.get_coder_va_forms()
     if va_form_access:
+        narration_language_filter = _narration_language_filter(current_user)
         random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access)
+        total_filters = [
+            VaSubmissions.va_form_id.in_(va_form_access),
+            VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+        ]
+        if narration_language_filter is not None:
+            total_filters.append(narration_language_filter)
         va_total_forms = db.session.scalar(
             sa.select(sa.func.count())
             .select_from(VaSubmissions)
             .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-            .where(
-                sa.and_(
-                    VaSubmissions.va_form_id.in_(va_form_access),
-                    VaSubmissions.va_narration_language.in_(current_user.vacode_language),
-                    VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
-                )
-            )
+            .where(sa.and_(*total_filters))
         )
         va_random_ready_forms = 0
         if random_form_ids:
+            random_filters = [
+                VaSubmissions.va_form_id.in_(random_form_ids),
+                VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+            ]
+            if narration_language_filter is not None:
+                random_filters.append(narration_language_filter)
             va_random_ready_forms = db.session.scalar(
                 sa.select(sa.func.count())
                 .select_from(VaSubmissions)
                 .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-                .where(
-                    sa.and_(
-                        VaSubmissions.va_form_id.in_(random_form_ids),
-                        VaSubmissions.va_narration_language.in_(current_user.vacode_language),
-                        VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
-                    )
-                )
+                .where(sa.and_(*random_filters))
             )
         # Temporary: TR01 site restricted to submissions up to 2025-09-09
         if current_user.is_coder(va_form="UNSW01TR0101"):
+            tr_total_filters = [
+                VaSubmissions.va_form_id.in_(va_form_access),
+                VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+                sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
+            ]
+            if narration_language_filter is not None:
+                tr_total_filters.append(narration_language_filter)
             va_total_forms = db.session.scalar(
                 sa.select(sa.func.count())
                 .select_from(VaSubmissions)
                 .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-                .where(
-                    sa.and_(
-                        VaSubmissions.va_form_id.in_(va_form_access),
-                        VaSubmissions.va_narration_language.in_(current_user.vacode_language),
-                        VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
-                        sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
-                    )
-                )
+                .where(sa.and_(*tr_total_filters))
             )
             if random_form_ids:
+                tr_random_filters = [
+                    VaSubmissions.va_form_id.in_(random_form_ids),
+                    VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+                    sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
+                ]
+                if narration_language_filter is not None:
+                    tr_random_filters.append(narration_language_filter)
                 va_random_ready_forms = db.session.scalar(
                     sa.select(sa.func.count())
                     .select_from(VaSubmissions)
                     .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-                    .where(
-                        sa.and_(
-                            VaSubmissions.va_form_id.in_(random_form_ids),
-                            VaSubmissions.va_narration_language.in_(current_user.vacode_language),
-                            VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
-                            sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
-                        )
-                    )
+                    .where(sa.and_(*tr_random_filters))
                 )
         pick_ready_rows = get_pick_available_forms(current_user, pick_form_ids)
         va_forms_completed = get_coder_completed_count(current_user.user_id, va_form_access)
@@ -115,8 +118,8 @@ def dashboard():
 
     va_has_allocation = get_active_coding_allocation(current_user.user_id)
     demo_projects = []
-    if current_user.is_admin() and va_form_access:
-        demo_projects = get_coder_project_ids(va_form_access)
+    if va_form_access:
+        demo_projects = get_demo_training_project_ids(va_form_access)
 
     return render_template(
         "va_frontpages/va_code.html",
@@ -160,7 +163,12 @@ def resume():
     if not va_sid:
         va_permission_abortwithflash("No active coding allocation found.", 404)
     form = db.session.get(VaSubmissions, va_sid)
-    return render_va_coding_page(form, "vacode", "varesumecoding", "coder")
+    actiontype = (
+        "vademo_start_coding"
+        if should_use_demo_actiontype_for_submission(va_sid)
+        else "varesumecoding"
+    )
+    return render_va_coding_page(form, "vacode", actiontype, "coder")
 
 
 @coding.get("/pick/<va_sid>")

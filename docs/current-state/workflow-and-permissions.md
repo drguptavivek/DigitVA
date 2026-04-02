@@ -27,6 +27,22 @@ Current admin scope rule:
 - admin-only workflow actions such as override-to-recode therefore rely on
   global admin membership, not submission scope checks
 
+Current demo/training access rule:
+
+- a project may be marked as a training pool using
+  `va_project_master.demo_training_enabled`
+- active forms in those projects are treated as coder-accessible without any
+  project-specific coder grant
+- in practice, any active authenticated user can enter the coder flow for
+  those demo/training project forms
+- non-demo projects still require ordinary coder grants
+- the coder dashboard now exposes a dedicated `DEMO-CODING` shortcut when at
+  least one demo/training project is available to the current user
+- that shortcut preselects the first demo/training project on the page and
+  shows an inline warning that:
+  - completed demo/training codes persist for 10 minutes by default
+  - incomplete demo/training allocations are revoked after 15 minutes
+
 The current workflow is built around form-based permissions and per-submission
 allocation.
 
@@ -200,8 +216,12 @@ Starting coding:
 - any saved `va_initial_assessments` row is preserved so the coder can resume
   final COD later
 - admin demo coding also creates a normal coding allocation, but demo-created
-  NQA, Social Autopsy, and final COD artifacts now carry a 6-hour
-  `demo_expires_at` timestamp
+  NQA, Social Autopsy, and final COD artifacts now carry a `demo_expires_at`
+  timestamp
+- for ordinary projects started through admin demo mode, the expiry window is
+  6 hours
+- for `demo_training_enabled` projects, the expiry window comes from
+  `va_project_master.demo_retention_minutes` and defaults to 10 minutes
 
 Entry variants:
 
@@ -209,6 +229,10 @@ Entry variants:
   `random_form_allocation`
 - `vapickcoding` is available only for ready submissions in coder-accessible
   projects configured for `pick_and_choose`
+- a submission in a `demo_training_enabled` project automatically uses
+  `vademo_start_coding` even when entered from the normal coder start/pick
+  flow, so demo retention and cleanup apply without a separate admin-only demo
+  launch
 
 Coding steps:
 
@@ -240,6 +264,8 @@ Timeout cleanup:
 - the app still performs a stale-allocation release check when a coder starts
   normal coding
 - a Celery beat task also runs every hour to release stale coding allocations
+- normal coding allocations expire after 1 hour
+- demo/training coding allocations expire after 15 minutes
 - timeout release writes a `va_submissions_auditlog` row with
   `va_allocation_released_due_to_timeout`
 - timeout release now reverts unfinished Step 1 COD drafts by deactivating the
@@ -255,6 +281,8 @@ Timeout cleanup:
 - the same hourly maintenance task now also deactivates expired demo-created
   NQA, Social Autopsy, and final COD rows whose `demo_expires_at` timestamp is
   older than the current time
+- demo/training project saved artifacts use the project retention window and
+  default to 10 minutes
 - that hourly maintenance path now moves
   `coder_finalized -> reviewer_eligible` once the authoritative final COD is
   older than the 24-hour recode window and there is no active recode episode

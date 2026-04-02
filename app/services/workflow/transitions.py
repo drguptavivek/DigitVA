@@ -576,7 +576,7 @@ def mark_demo_started(
         transition_id=wd.TRANSITION_DEMO_STARTED,
         target_state=wd.WORKFLOW_CODING_IN_PROGRESS,
         allowed_from=(wd.WORKFLOW_READY_FOR_CODING,),
-        allowed_actor_kinds=ADMIN_ACTOR_KINDS,
+        allowed_actor_kinds=CODING_ACTOR_KINDS,
         reason=reason,
         actor=actor,
     )

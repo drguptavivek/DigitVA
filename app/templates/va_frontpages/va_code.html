@@ -46,7 +46,7 @@
         <div class="modal-body">
           <ol class="mb-0">
             <li class="mb-2">The stats cards separate <strong>Random Allocation</strong> work from <strong>Pick And Choose</strong> work so you can see exactly which intake mode is available to you.</li>
-            <li class="mb-2">Click <strong>"Start Random Allocation Coding"</strong> to let the system assign you a case from projects that use random allocation. Once assigned, complete its coding before picking another. If a VA form is already in progress, you'll see <strong>"Continue Pending VA Coding"</strong> instead. Any assigned form is <strong>revoked after 1 hour</strong> if not completed.</li>
+            <li class="mb-2">Click <strong>"Start Random Allocation Coding"</strong> to let the system assign you a case from projects that use random allocation. Once assigned, complete its coding before picking another. If a VA form is already in progress, you'll see <strong>"Continue Pending VA Coding"</strong> instead. Normal coding allocations are <strong>revoked after 1 hour</strong> if not completed. Demo/training coding allocations are <strong>revoked after 15 minutes</strong>.</li>
             <li class="mb-2">Use the <strong>"Pick And Choose Coding"</strong> table only for projects that require manual case selection.</li>
             <li class="mb-2">Use the <strong>"View"</strong> button to open any completed VA form in read-only mode.</li>
             <li class="mb-2">Use the <strong>"Recode"</strong> button to update a coded VA form. A form can only be recoded <strong>once</strong>, and only <strong>within 24 hours</strong> of its initial coding.</li>
@@ -110,6 +110,20 @@
   <div class="text-center mb-4" id="action-buttons">
     <!-- rendered by JS -->
   </div>
+  <div
+    id="demo-training-banner"
+    class="alert alert-warning border-warning-subtle shadow-sm"
+    style="display:none;"
+    role="alert"
+  >
+    <div class="d-flex align-items-start gap-2">
+      <i class="fas fa-flask text-warning mt-1"></i>
+      <div>
+        <div class="fw-semibold">These are demo-training forms.</div>
+        <div>Codes persist for 10 minutes. Pending forms are revoked after 15 minutes of allocation.</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Pick And Choose table -->
   <div id="pick-section" class="card shadow-sm border-0 rounded-3 mb-4" style="display:none;">
@@ -165,10 +179,6 @@
           <label class="form-label">Site ID:</label>
           <select id="filterFormID" class="form-select" multiple></select>
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Data Collector:</label>
-          <select id="filterDataCollector" class="form-select" multiple></select>
-        </div>
         <div class="col-md-6">
           <label class="form-label">Age:</label>
           <select id="filterAge" class="form-select" multiple></select>
@@ -193,6 +203,7 @@
   <script>
   const IS_ADMIN = {{ 'true' if current_user.is_admin() else 'false' }};
   const CSRF_TOKEN = '{{ csrf_token() }}';
+  const DEMO_PROJECTS = {{ demo_projects|tojson }};
 
   async function apiFetch(url) {
     const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -237,9 +248,15 @@
       </button>`;
     }
 
+    if (DEMO_PROJECTS.length) {
+      html += `<button id="demo-coding-shortcut-btn" class="btn btn-outline-warning">
+        <i class="fas fa-flask me-2"></i>DEMO-CODING
+      </button>`;
+    }
+
     if (IS_ADMIN) {
       html += `<button id="demo-btn" class="btn btn-outline-secondary">
-        <i class="fas fa-flask me-2"></i>Start Demo Coding
+        <i class="fas fa-flask me-2"></i>Admin Testing Coding
       </button>`;
     }
 
@@ -284,18 +301,25 @@
   }
 
   // ── history table ─────────────────────────────────────────────────────────
-  function initHistoryTable(history) {
+  let historyTableInstance = null;
 
-    $('#vaTable').DataTable({
+  function initHistoryTable(history) {
+    if (historyTableInstance) {
+      historyTableInstance.destroy();
+      $('#vaTable').empty();
+      $('#columnToggles').empty();
+    }
+
+    historyTableInstance = $('#vaTable').DataTable({
       data: history,
       order: [[0, 'asc']],
       columns: [
         { data: '_priority',          title: '',                visible: false },
+        { data: 'project_id',         title: 'Project Code' },
+        { data: 'site_id',            title: 'Site Code' },
         { data: 'va_submission_date', title: 'Submission Date', visible: false },
-        { data: 'va_form_id',         title: 'Site ID',         visible: false },
         { data: 'va_sid',             title: 'SID',             visible: false },
         { data: 'va_uniqueid_masked', title: 'VA Form ID' },
-        { data: 'va_data_collector',  title: 'Data Collector' },
         { data: 'va_deceased_age',    title: 'H1',              visible: false },
         { data: 'va_deceased_gender', title: 'H2',              visible: false },
         { data: null, title: 'Age / Gender',
@@ -324,7 +348,7 @@
       ],
       initComplete: function () {
         const api = this.api();
-        $('#filterSubmissionDate, #filterFormID, #filterDataCollector, #filterAge, #filterGender').select2({ width: '100%' });
+        $('#filterSubmissionDate, #filterFormID, #filterAge, #filterGender').select2({ width: '100%' });
 
         api.columns().every(function () {
           const col   = this;
@@ -339,19 +363,19 @@
         });
 
         $('#columnToggles input[type=checkbox]').on('change', function () {
-          table.column($(this).data('col')).visible($(this).is(':checked'));
+          api.column($(this).data('col')).visible($(this).is(':checked'));
         });
 
         const filters = [
-          { idx: 1, sel: '#filterSubmissionDate' },
+          { idx: 3, sel: '#filterSubmissionDate' },
           { idx: 2, sel: '#filterFormID' },
-          { idx: 5, sel: '#filterDataCollector' },
           { idx: 6, sel: '#filterAge' },
           { idx: 7, sel: '#filterGender' },
         ];
         filters.forEach(f => {
           const col = api.column(f.idx);
           const $s  = $(f.sel);
+          $s.empty();
           col.data().unique().sort().each(d => { if (d) $s.append(`<option value="${d}">${d}</option>`); });
           $s.on('change', function () {
             const val = $(this).val();
@@ -360,6 +384,8 @@
         });
       },
     });
+
+    return historyTableInstance;
   }
 
   // ── bootstrap ─────────────────────────────────────────────────────────────
@@ -385,6 +411,32 @@
       function selectedProjectId() {
         const sel = document.getElementById('project-select-top');
         return sel ? sel.value.trim().toUpperCase() || null : null;
+      }
+
+      function applyProjectFilterToHistory() {
+        if (!historyTableInstance) return;
+        const pid = selectedProjectId();
+        historyTableInstance.column(1).search(pid || '', true, false).draw();
+      }
+
+      function isDemoProjectSelected() {
+        const pid = selectedProjectId();
+        return !!pid && DEMO_PROJECTS.includes(pid);
+      }
+
+      function syncDemoTrainingBanner() {
+        const banner = document.getElementById('demo-training-banner');
+        if (!banner) return;
+        banner.style.display = isDemoProjectSelected() ? '' : 'none';
+      }
+
+      function selectFirstDemoProject() {
+        if (!DEMO_PROJECTS.length) return null;
+        const sel = document.getElementById('project-select-top');
+        if (!sel) return DEMO_PROJECTS[0];
+        sel.value = DEMO_PROJECTS[0];
+        syncDemoTrainingBanner();
+        return sel.value;
       }
 
       function startAllocationBtn(btn, body, label) {
@@ -418,9 +470,27 @@
           const pid = selectedProjectId();
           const body = { demo: true };
           if (pid) body.project_id = pid;
-          startAllocationBtn(demoBtn, body, '<i class="fas fa-flask me-2"></i>Start Demo Coding');
+          startAllocationBtn(demoBtn, body, '<i class="fas fa-flask me-2"></i>Admin Testing Coding');
         });
       }
+
+      const demoCodingShortcutBtn = document.getElementById('demo-coding-shortcut-btn');
+      if (demoCodingShortcutBtn) {
+        demoCodingShortcutBtn.addEventListener('click', () => {
+          selectFirstDemoProject();
+          document.getElementById('start-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
+
+      const projectSelectTop = document.getElementById('project-select-top');
+      if (projectSelectTop) {
+        projectSelectTop.addEventListener('change', () => {
+          syncDemoTrainingBanner();
+          applyProjectFilterToHistory();
+        });
+      }
+
+      syncDemoTrainingBanner();
 
       renderPickTable(availData.forms || [], !!allocData.allocation);
 
@@ -429,10 +499,11 @@
         const a = allocData.allocation;
         history.unshift({
           _priority: 0,
+          project_id: a.project_id,
+          site_id: a.site_id,
           va_sid: a.va_sid,
           va_form_id: a.va_form_id,
           va_uniqueid_masked: a.va_uniqueid_masked,
-          va_data_collector: a.va_data_collector,
           va_deceased_age: a.va_deceased_age,
           va_deceased_gender: a.va_deceased_gender,
           va_submission_date: a.va_submission_date,
@@ -442,6 +513,7 @@
         });
       }
       initHistoryTable(history);
+      applyProjectFilterToHistory();
 
     } catch (err) {
       console.error('Dashboard load error:', err);

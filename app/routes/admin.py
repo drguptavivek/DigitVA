@@ -257,6 +257,8 @@ def _serialize_project(project):
         "status": project.project_status.value,
         "narrative_qa_enabled": project.narrative_qa_enabled,
         "coding_intake_mode": project.coding_intake_mode,
+        "demo_training_enabled": project.demo_training_enabled,
+        "demo_retention_minutes": project.demo_retention_minutes,
     }
 
 
@@ -776,6 +778,13 @@ def admin_create_project():
     project_code = (payload.get("project_code") or "").strip().upper() or project_id
     project_name = (payload.get("project_name") or "").strip()
     project_nickname = (payload.get("project_nickname") or "").strip()
+    try:
+        demo_retention_minutes = max(
+            int(payload.get("demo_retention_minutes") or 10),
+            1,
+        )
+    except (TypeError, ValueError):
+        return _json_error("demo_retention_minutes must be a positive integer.", 400)
     
     if not project_id or not project_name or not project_nickname:
         return _json_error("project_id, project_name, and project_nickname are required.", 400)
@@ -794,6 +803,8 @@ def admin_create_project():
         project_nickname=project_nickname,
         project_status=VaStatuses.active,
         coding_intake_mode="random_form_allocation",
+        demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
+        demo_retention_minutes=demo_retention_minutes,
     )
     db.session.add(project)
     db.session.commit()
@@ -845,6 +856,18 @@ def admin_update_project(project_id):
         }:
             return _json_error("Invalid coding_intake_mode.", 400)
         project.coding_intake_mode = coding_intake_mode
+
+    if "demo_training_enabled" in payload:
+        project.demo_training_enabled = bool(payload["demo_training_enabled"])
+
+    if "demo_retention_minutes" in payload:
+        try:
+            demo_retention_minutes = int(payload["demo_retention_minutes"])
+        except (TypeError, ValueError):
+            return _json_error("demo_retention_minutes must be a positive integer.", 400)
+        if demo_retention_minutes < 1:
+            return _json_error("demo_retention_minutes must be a positive integer.", 400)
+        project.demo_retention_minutes = demo_retention_minutes
 
     db.session.commit()
     return jsonify({"project": _serialize_project(project)})

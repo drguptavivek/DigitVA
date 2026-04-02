@@ -52,20 +52,14 @@ from app.services.workflow.transitions import (
     mark_recode_finalized,
 )
 from app.services.odk_review_service import sync_not_codeable_review_state
+from app.services.demo_project_service import get_demo_expiry_for_submission
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaDataManagerReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
 
 va_form = Blueprint("va_form", __name__)
-DEMO_RETENTION_HOURS = 6
-
-
-
-
-def _demo_expiry_for_actiontype(va_actiontype: str):
+def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     """Return the demo artifact expiry timestamp for demo coding saves."""
-    if va_actiontype != "vademo_start_coding":
-        return None
-    return datetime.now(timezone.utc) + timedelta(hours=DEMO_RETENTION_HOURS)
+    return get_demo_expiry_for_submission(va_sid, va_actiontype)
 adult = [
     "I10 - Essential Hypertension",
     "E11 - Type 2 Diabetes Mellitus",
@@ -841,7 +835,7 @@ def renderpartial(va_sid, va_partial):
                 va_finassess_by=current_user.user_id,
                 va_conclusive_cod=form1.va_conclusive_cod.data,
                 va_finassess_remark=form1.va_finassess_remark.data.strip() or None,
-                demo_expires_at=_demo_expiry_for_actiontype(va_actiontype),
+                demo_expires_at=_demo_expiry_for_actiontype(va_sid, va_actiontype),
                 # va_rreview=form.va_rreview.data,
                 # va_rreview_fail=form.va_rreview_fail.data.strip() or None,
                 # va_rreview_remark=form.va_rreview_remark.data.strip() or None,

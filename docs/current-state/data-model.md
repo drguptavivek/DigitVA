@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-01
+last_updated: 2026-04-02
 ---
 
 # Current Data Model
@@ -59,12 +59,18 @@ Key fields:
 - `project_status`
 - `narrative_qa_enabled`
 - `coding_intake_mode`
+- `demo_training_enabled`
+- `demo_retention_minutes`
 
 Current role:
 
 - top-level project master, but effectively used in a one-project deployment model
 - also stores project-level workflow toggles such as Narrative QA enablement
   and coder intake mode
+- now also stores demo/training project behavior:
+  - whether the project is an open training pool
+  - how many minutes demo-created coding artifacts should remain active before
+    cleanup
 
 ### `va_sites`
 
@@ -259,8 +265,10 @@ Current behavior:
 - the active row alone is no longer the sole authority signal during the
   workflow migration
 - normal coding leaves `demo_expires_at` null
-- demo coding stamps a 6-hour expiry timestamp so completed demo finals remain
-  visible briefly and are then deactivated by hourly cleanup
+- demo coding stamps a temporary expiry timestamp
+- admin-started demo sessions on ordinary projects use a 6-hour expiry
+- `demo_training_enabled` projects use `demo_retention_minutes`, default
+  10 minutes
 
 ### `va_reviewer_final_assessments`
 
@@ -591,8 +599,10 @@ Current behavior:
 - payload changes create a new current row on next save unless a protected
   keep-current-ICD decision rebinds the preserved row to the promoted payload
 - normal coding leaves `demo_expires_at` null
-- demo coding (`vademo_start_coding`) stamps a 6-hour expiry timestamp so the
-  hourly cleanup path can deactivate temporary demo artifacts
+- demo coding (`vademo_start_coding`) stamps a temporary expiry timestamp
+- admin-started demo sessions on ordinary projects use a 6-hour expiry
+- `demo_training_enabled` projects use `demo_retention_minutes`, default
+  10 minutes
 
 ### `va_social_autopsy_analyses`
 
@@ -614,6 +624,11 @@ Current behavior:
 - the table is now payload-version aware
 - the current Social Autopsy row for a coder is the active row whose
   `payload_version_id` matches the submission's `active_payload_version_id`
+- normal coding leaves `demo_expires_at` null
+- demo coding (`vademo_start_coding`) stamps a temporary expiry timestamp
+- admin-started demo sessions on ordinary projects use a 6-hour expiry
+- `demo_training_enabled` projects use `demo_retention_minutes`, default
+  10 minutes
 - one active analysis row is stored per `(va_sid, coder)` at a time; older
   payload versions are kept as inactive history
 - selected delay options are normalized into child rows, not flattened into the

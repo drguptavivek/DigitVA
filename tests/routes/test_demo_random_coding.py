@@ -207,3 +207,20 @@ class DemoRandomCodingRouteTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_demo_allocation_sid(), "sid-demo-2")
+
+    def test_coder_dashboard_matches_narration_language_case_insensitively(self):
+        submission = db.session.scalar(
+            db.select(VaSubmissions).where(VaSubmissions.va_sid == "sid-demo-1")
+        )
+        submission.va_narration_language = "english"
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+
+        dashboard = self.client.get("/coding/")
+        self.assertEqual(dashboard.status_code, 200)
+        self.assertIn("Start Random Allocation Coding", dashboard.get_data(as_text=True))
+
+        start = self.client.get("/coding/start")
+        self.assertEqual(start.status_code, 200)
+        self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})

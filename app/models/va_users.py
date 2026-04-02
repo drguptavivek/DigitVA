@@ -251,6 +251,7 @@ class VaUsers(UserMixin, db.Model):
             VaAccessScopeTypes,
             VaStatuses,
         )
+        from app.services.demo_project_service import get_coder_demo_project_form_ids
 
         role_enum = VaAccessRoles(role)
         active_status = VaStatuses.active
@@ -285,7 +286,11 @@ class VaUsers(UserMixin, db.Model):
             .where(VaForms.form_status == active_status)
             .where(sa.or_(project_scope_exists, project_site_scope_exists))
         )
-        return set(db.session.scalars(stmt).all())
+        granted_form_ids = set(db.session.scalars(stmt).all())
+        if role != "coder":
+            return granted_form_ids
+
+        return granted_form_ids | get_coder_demo_project_form_ids()
 
     def _get_granted_project_ids(self, role: str) -> set[str]:
         from app.models import (

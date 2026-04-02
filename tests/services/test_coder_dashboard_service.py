@@ -212,9 +212,12 @@ class TestCoderDashboardService(BaseTestCase):
             [self.FORM_ID],
         )
         labels = {row["va_sid"]: row["va_code_status"] for row in rows}
+        row_by_sid = {row["va_sid"]: row for row in rows}
 
         self.assertEqual(labels[final_sid], "VA Coding Completed")
         self.assertEqual(labels[review_sid], "Not Codeable")
+        self.assertEqual(row_by_sid[final_sid]["project_id"], self.BASE_PROJECT_ID)
+        self.assertEqual(row_by_sid[final_sid]["site_id"], self.BASE_SITE_ID)
 
     def test_recodeable_sids_require_recent_matching_terminal_state(self):
         recent_final_sid = "uuid:coderdash-recode-final"

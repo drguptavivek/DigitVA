@@ -7,7 +7,6 @@ Resources:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
@@ -30,12 +29,13 @@ from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_social_autopsy_analyses,
     get_submission_with_current_payload,
 )
+from app.services.demo_project_service import (
+    get_demo_expiry_for_submission,
+    is_demo_training_submission,
+)
 
 bp = Blueprint("so_api", __name__)
 log = logging.getLogger(__name__)
-
-DEMO_RETENTION_HOURS = 6
-
 
 def _require_coding_access(va_sid: str):
     """Return a JSON 403 if the user lacks an active coding allocation.
@@ -44,9 +44,10 @@ def _require_coding_access(va_sid: str):
     """
     data = request.get_json(silent=True) or {}
     if data.get("va_actiontype") == "vademo_start_coding":
-        if not current_user.is_admin():
-            return jsonify({"error": "Only admins can perform demo coding sessions."}), 403
-        return None
+        if current_user.is_admin():
+            return None
+        if not current_user.is_coder() or not is_demo_training_submission(va_sid):
+            return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
 
     alloc = db.session.scalar(
         sa.select(VaAllocations.va_sid).where(
@@ -59,12 +60,6 @@ def _require_coding_access(va_sid: str):
     if not alloc:
         return jsonify({"error": "Active coding allocation required."}), 403
     return None
-
-
-def _demo_expiry(va_actiontype: str | None):
-    if va_actiontype != "vademo_start_coding":
-        return None
-    return datetime.now(timezone.utc) + timedelta(hours=DEMO_RETENTION_HOURS)
 
 
 @bp.post("/<va_sid>/social-autopsy")
@@ -146,7 +141,7 @@ def save_social_autopsy(va_sid: str):
     if existing:
         analysis = existing
         analysis.va_saa_remark = remark
-        analysis.demo_expires_at = _demo_expiry(va_actiontype)
+        analysis.demo_expires_at = get_demo_expiry_for_submission(va_sid, va_actiontype)
         analysis.selected_options.clear()
         db.session.flush()
         audit_operation = "u"
@@ -164,7 +159,7 @@ def save_social_autopsy(va_sid: str):
             payload_version_id=active_payload_version.payload_version_id,
             va_saa_remark=remark,
             va_saa_status=VaStatuses.active,
-            demo_expires_at=_demo_expiry(va_actiontype),
+            demo_expires_at=get_demo_expiry_for_submission(va_sid, va_actiontype),
         )
         db.session.add(analysis)
         created = True

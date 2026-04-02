@@ -71,11 +71,12 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
 
     stmt = (
         sa.select(
+            VaForms.project_id.label("project_id"),
+            VaForms.site_id.label("site_id"),
             sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
             VaSubmissions.va_form_id,
             VaSubmissions.va_sid,
             VaSubmissions.va_uniqueid_masked,
-            VaSubmissions.va_data_collector,
             VaSubmissions.va_deceased_age,
             VaSubmissions.va_deceased_gender,
             sa.case(
@@ -94,6 +95,7 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
             ).label("va_code_status"),
         )
         .select_from(VaSubmissions)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .outerjoin(
             VaFinalAssessments,

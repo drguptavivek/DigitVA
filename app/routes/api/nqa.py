@@ -7,7 +7,6 @@ Resources:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
@@ -22,6 +21,10 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.coding_service import get_project_for_submission
+from app.services.demo_project_service import (
+    get_demo_expiry_for_submission,
+    is_demo_training_submission,
+)
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_narrative_assessments,
     get_submission_with_current_payload,
@@ -30,9 +33,6 @@ from app.services.payload_bound_coding_artifact_service import (
 bp = Blueprint("nqa_api", __name__)
 log = logging.getLogger(__name__)
 
-DEMO_RETENTION_HOURS = 6
-
-
 def _require_coding_access(va_sid: str):
     """Return a JSON 403 if the user lacks an active coding allocation.
 
@@ -40,9 +40,10 @@ def _require_coding_access(va_sid: str):
     """
     data = request.get_json(silent=True) or {}
     if data.get("va_actiontype") == "vademo_start_coding":
-        if not current_user.is_admin():
-            return jsonify({"error": "Only admins can perform demo coding sessions."}), 403
-        return None
+        if current_user.is_admin():
+            return None
+        if not current_user.is_coder() or not is_demo_training_submission(va_sid):
+            return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
 
     alloc = db.session.scalar(
         sa.select(VaAllocations.va_sid).where(
@@ -55,12 +56,6 @@ def _require_coding_access(va_sid: str):
     if not alloc:
         return jsonify({"error": "Active coding allocation required."}), 403
     return None
-
-
-def _demo_expiry(va_actiontype: str | None):
-    if va_actiontype != "vademo_start_coding":
-        return None
-    return datetime.now(timezone.utc) + timedelta(hours=DEMO_RETENTION_HOURS)
 
 
 def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity) -> int:
@@ -132,7 +127,7 @@ def save_narrative_qa(va_sid: str):
         existing.va_nqa_comorbidity  = comorbidity
         existing.va_nqa_score        = score
         existing.payload_version_id  = active_payload_version.payload_version_id
-        existing.demo_expires_at     = _demo_expiry(va_actiontype)
+        existing.demo_expires_at     = get_demo_expiry_for_submission(va_sid, va_actiontype)
         nqa = existing
         audit_operation = "u"
         audit_action = "narrative quality assessment updated"
@@ -155,7 +150,7 @@ def save_narrative_qa(va_sid: str):
             va_nqa_comorbidity=comorbidity,
             va_nqa_score=score,
             va_nqa_status=VaStatuses.active,
-            demo_expires_at=_demo_expiry(va_actiontype),
+            demo_expires_at=get_demo_expiry_for_submission(va_sid, va_actiontype),
         )
         db.session.add(nqa)
         audit_operation = "c"

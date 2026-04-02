@@ -14,6 +14,9 @@ from app.models import (
     VaSocialAutopsyAnalysisOption,
     VaFinalAssessments,
     VaResearchProjects,
+    VaProjectMaster,
+    VaProjectSites,
+    VaSiteMaster,
     VaSites,
     VaStatuses,
     VaSubmissionWorkflowEvent,
@@ -431,6 +434,123 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertIsNotNone(authority)
         self.assertIsNone(authority.authoritative_final_assessment_id)
         self.assertEqual(workflow.workflow_state, "ready_for_coding")
+
+    def test_release_stale_coding_allocations_uses_shorter_timeout_for_demo_sessions(self):
+        demo_project = VaProjectMaster(
+            project_id="DMT015",
+            project_code="DMT015",
+            project_name="Demo Timeout Project",
+            project_nickname="DemoTimeout",
+            project_status=VaStatuses.active,
+            demo_training_enabled=True,
+            demo_retention_minutes=10,
+        )
+        db.session.add(demo_project)
+        db.session.add(
+            VaResearchProjects(
+                project_id="DMT015",
+                project_code="DMT015",
+                project_name="Demo Timeout Project",
+                project_nickname="DemoTimeout",
+                project_status=VaStatuses.active,
+            )
+        )
+        db.session.add(
+            VaSiteMaster(
+                site_id="DT01",
+                site_name="Demo Timeout Site",
+                site_abbr="DT01",
+                site_status=VaStatuses.active,
+            )
+        )
+        db.session.add(
+            VaSites(
+                site_id="DT01",
+                project_id="DMT015",
+                site_name="Demo Timeout Site",
+                site_abbr="DT01",
+                site_status=VaStatuses.active,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id="DMT015",
+                site_id="DT01",
+                project_site_status=VaStatuses.active,
+            )
+        )
+        form = VaForms(
+            form_id="DMT015DT0101",
+            project_id="DMT015",
+            site_id="DT01",
+            odk_form_id="DEMO_TIMEOUT_FORM",
+            odk_project_id="1",
+            form_type="WHO VA 2022",
+            form_status=VaStatuses.active,
+        )
+        db.session.add(form)
+        db.session.flush()
+
+        now = datetime.now(timezone.utc)
+        sid = "uuid:test-demo-timeout"
+        db.session.add(
+            VaSubmissions(
+                va_sid=sid,
+                va_form_id=form.form_id,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_data_collector="tester",
+                va_instance_name="DEMO-TIMEOUT-1",
+                va_uniqueid_real="DEMO-TIMEOUT-1",
+                va_uniqueid_masked="DEMO-TIMEOUT-1",
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=40,
+                va_deceased_gender="Male",
+                va_data={},
+                va_summary=[],
+                va_catcount={},
+                va_category_list=["vademographicdetails"],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=sid,
+                workflow_state="coding_in_progress",
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        event_time = now - timedelta(minutes=20)
+        db.session.add(
+            VaSubmissionWorkflowEvent(
+                va_sid=sid,
+                from_state="ready_for_coding",
+                to_state="coding_in_progress",
+                transition_id="demo_started",
+                actor_kind="vacoder",
+                actor_id=self.base_coder_user.user_id,
+                reason="test_seed",
+                event_created_at=event_time,
+            )
+        )
+        allocation = VaAllocations(
+            va_sid=sid,
+            va_allocated_to=self.base_coder_user.user_id,
+            va_allocation_for=VaAllocation.coding,
+            va_allocation_status=VaStatuses.active,
+            va_allocation_createdat=event_time,
+        )
+        db.session.add(allocation)
+        db.session.commit()
+
+        released = release_stale_coding_allocations(timeout_hours=1)
+
+        self.assertEqual(released, 1)
+        db.session.refresh(allocation)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.deactive)
 
     def test_mark_reviewer_eligible_after_recode_window_submissions_transitions_old_finalized_cases(self):
         stale_sid = "uuid:close-expired"

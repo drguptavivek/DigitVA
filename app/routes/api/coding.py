@@ -5,7 +5,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
 from app import db
-from app.models import VaSubmissions
+from app.models import VaForms, VaSubmissions
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
@@ -26,6 +26,7 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     start_recode_allocation,
 )
+from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.transitions import admin_actor
 
@@ -47,10 +48,18 @@ def get_allocation():
     va_sid = get_active_coding_allocation(current_user.user_id)
     if not va_sid:
         return jsonify({"allocation": None})
-    from app.utils import va_render_serialisedates
     form = db.session.get(VaSubmissions, va_sid)
+    form_meta = None
+    if form:
+        form_meta = db.session.execute(
+            sa.select(VaForms.project_id, VaForms.site_id).where(
+                VaForms.form_id == form.va_form_id
+            )
+        ).first()
     row = {
         "va_sid": va_sid,
+        "project_id": form_meta.project_id if form_meta else None,
+        "site_id": form_meta.site_id if form_meta else None,
         "va_uniqueid_masked": form.va_uniqueid_masked if form else None,
         "va_age": form.va_deceased_age if form else None,
         "va_gender": form.va_deceased_gender if form else None,
@@ -59,7 +68,11 @@ def get_allocation():
         "va_data_collector": form.va_data_collector if form else None,
         "va_deceased_age": form.va_deceased_age if form else None,
         "va_deceased_gender": form.va_deceased_gender if form else None,
-        "actiontype": "varesumecoding",
+        "actiontype": (
+            "vademo_start_coding"
+            if should_use_demo_actiontype_for_submission(va_sid)
+            else "varesumecoding"
+        ),
         "is_upstream_recode": is_upstream_recode(va_sid),
     }
     return jsonify({"allocation": row})

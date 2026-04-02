@@ -24,6 +24,7 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.coding_allocation_service import release_stale_coding_allocations
+from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
     get_active_recode_episode,
@@ -53,6 +54,20 @@ from app.services.workflow.transitions import (
 # ---------------------------------------------------------------------------
 # Stats / dashboard helpers
 # ---------------------------------------------------------------------------
+
+def _normalized_vacode_languages(user) -> list[str]:
+    return [
+        str(language).strip().lower()
+        for language in (user.vacode_language or [])
+        if str(language).strip()
+    ]
+
+
+def _narration_language_filter(user):
+    normalized = _normalized_vacode_languages(user)
+    if not normalized:
+        return None
+    return sa.func.lower(VaSubmissions.va_narration_language).in_(normalized)
 
 def get_coder_ready_stats(user) -> dict:
     """Return ready-pool counts for the coder dashboard.
@@ -120,7 +135,9 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
         VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
     ]
     if user is not None:
-        filters.append(VaSubmissions.va_narration_language.in_(user.vacode_language))
+        language_filter = _narration_language_filter(user)
+        if language_filter is not None:
+            filters.append(language_filter)
     if project_id:
         filters.append(
             VaSubmissions.va_form_id.in_(
@@ -128,6 +145,12 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
             )
         )
     return filters
+
+
+def _actiontype_for_submission(va_sid: str, default_actiontype: str) -> str:
+    if should_use_demo_actiontype_for_submission(va_sid):
+        return "vademo_start_coding"
+    return default_actiontype
 
 
 def _require_submission_exists(va_sid: str):
@@ -145,7 +168,14 @@ def _require_submission_exists(va_sid: str):
     return row
 
 
-def _create_coding_allocation(va_sid: str, user, audit_action: str, by_role: str):
+def _create_coding_allocation(
+    va_sid: str,
+    user,
+    audit_action: str,
+    by_role: str,
+    *,
+    demo_session: bool = False,
+):
     """Create allocation row, bump formcount, write audit, advance workflow state."""
     gen_uuid = uuid.uuid4()
     db.session.add(VaAllocations(
@@ -164,7 +194,13 @@ def _create_coding_allocation(va_sid: str, user, audit_action: str, by_role: str
         va_audit_entityid=gen_uuid,
     ))
     actor = coder_actor(user.user_id) if by_role == "vacoder" else admin_actor(user.user_id)
-    if get_active_recode_episode(va_sid):
+    if demo_session:
+        mark_demo_started(
+            va_sid,
+            reason="demo_coder_allocation_created",
+            actor=actor,
+        )
+    elif get_active_recode_episode(va_sid):
         mark_recode_started(
             va_sid,
             reason="recode_allocation_created",
@@ -240,9 +276,16 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
         )
         raise AllocationError(msg)
 
-    _create_coding_allocation(va_new_sid, user, "form allocated to coder", "vacoder")
+    actiontype = _actiontype_for_submission(va_new_sid, "vastartcoding")
+    _create_coding_allocation(
+        va_new_sid,
+        user,
+        "form allocated to coder",
+        "vacoder",
+        demo_session=(actiontype == "vademo_start_coding"),
+    )
     db.session.commit()
-    return AllocationResult(va_sid=va_new_sid, actiontype="vastartcoding")
+    return AllocationResult(va_sid=va_new_sid, actiontype=actiontype)
 
 
 def allocate_pick_form(user, va_sid: str) -> AllocationResult:
@@ -259,9 +302,16 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
     if not user.has_va_form_access(form.va_form_id, "coder"):
         raise AllocationError("You do not have coder access for this VA form.")
 
-    _create_coding_allocation(va_sid, user, "form picked by coder for coding", "vacoder")
+    actiontype = _actiontype_for_submission(va_sid, "vapickcoding")
+    _create_coding_allocation(
+        va_sid,
+        user,
+        "form picked by coder for coding",
+        "vacoder",
+        demo_session=(actiontype == "vademo_start_coding"),
+    )
     db.session.commit()
-    return AllocationResult(va_sid=va_sid, actiontype="vapickcoding")
+    return AllocationResult(va_sid=va_sid, actiontype=actiontype)
 
 
 def start_recode_allocation(user, va_sid: str) -> AllocationResult:

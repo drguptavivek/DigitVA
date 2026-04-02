@@ -43,6 +43,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from itsdangerous import URLSafeTimedSerializer
 import sqlalchemy as sa
+from sqlalchemy.exc import ProgrammingError
 
 from app import create_app, db
 from app.models import (
@@ -87,6 +88,8 @@ class BaseTestCase(unittest.TestCase):
             "status_enum": [member.value for member in VaStatuses],
             "allocation_enum": [member.value for member in VaAllocation],
             "usernote_enum": [member.value for member in VaUsernotesFor],
+            "access_role_enum": [member.value for member in VaAccessRoles],
+            "access_scope_enum": [member.value for member in VaAccessScopeTypes],
         }
 
         for table in db.Model.metadata.tables.values():
@@ -124,7 +127,10 @@ class BaseTestCase(unittest.TestCase):
         cls.ctx = cls.app.app_context()
         cls.ctx.push()
         cls._drop_test_materialized_views()
-        db.drop_all()
+        try:
+            db.drop_all()
+        except ProgrammingError:
+            db.session.rollback()
         cls._ensure_named_enums()
         db.create_all()
         cls._seed_base_fixtures()
@@ -133,7 +139,10 @@ class BaseTestCase(unittest.TestCase):
     def tearDownClass(cls):
         db.session.remove()
         cls._drop_test_materialized_views()
-        db.drop_all()
+        try:
+            db.drop_all()
+        except ProgrammingError:
+            db.session.rollback()
         db.engine.dispose()   # close all pool connections so next class can acquire DDL locks
         cls.ctx.pop()
 

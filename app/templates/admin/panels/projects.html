@@ -55,6 +55,17 @@
             <option value="pick_and_choose">Pick and choose</option>
           </select>
         </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Demo / Training</label>
+          <div class="form-check form-switch pt-2">
+            <input class="form-check-input" type="checkbox" id="project-demo-training-enabled-input" role="switch">
+            <label class="form-check-label small" for="project-demo-training-enabled-input">Enabled</label>
+          </div>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Retention (min)</label>
+          <input type="number" min="1" class="form-control form-control-sm" id="project-demo-retention-minutes-input" value="10">
+        </div>
       </div>
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
@@ -151,6 +162,7 @@
         + '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
         + '</button>';
       var nqaEnabled = !!p.narrative_qa_enabled;
+      var demoEnabled = !!p.demo_training_enabled;
       var intakeLabel = p.coding_intake_mode === 'pick_and_choose'
         ? 'Pick and choose'
         : 'Random allocation';
@@ -171,7 +183,10 @@
         + '<td class="align-middle py-2 small">' + esc(p.project_code || '') + '</td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_name) + '</td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_nickname) + '</td>'
-        + '<td class="align-middle py-2 small">' + esc(intakeLabel) + '</td>'
+        + '<td class="align-middle py-2 small">'
+        +   esc(intakeLabel)
+        +   (demoEnabled ? '<div><span class="badge text-bg-warning mt-1">Demo / Training</span></div>' : '')
+        + '</td>'
         + '<td class="align-middle py-2">'
         + (isActive
             ? '<span class="badge text-bg-success">Active</span>'
@@ -301,6 +316,8 @@
   var nicknameInput = document.getElementById('project-nickname-input');
   var statusInput = document.getElementById('project-status-input');
   var codingIntakeModeInput = document.getElementById('project-coding-intake-mode-input');
+  var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
+  var demoRetentionMinutesInput = document.getElementById('project-demo-retention-minutes-input');
   var errEl = document.getElementById('project-form-error');
 
   function resetForm() {
@@ -314,6 +331,8 @@
     statusInput.value = 'active';
     statusInput.disabled = true; // New projects are always active
     codingIntakeModeInput.value = 'random_form_allocation';
+    demoTrainingEnabledInput.checked = false;
+    demoRetentionMinutesInput.value = '10';
     errEl.textContent = '';
   }
 
@@ -331,6 +350,8 @@
     statusInput.value = project.status;
     statusInput.disabled = false; // Existing projects can change status
     codingIntakeModeInput.value = project.coding_intake_mode || 'random_form_allocation';
+    demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
+    demoRetentionMinutesInput.value = project.demo_retention_minutes || 10;
     errEl.textContent = '';
     
     formContainer.classList.remove('d-none');
@@ -355,7 +376,9 @@
       project_code: codeInput.value.trim().toUpperCase(),
       project_name: nameInput.value.trim(),
       project_nickname: nicknameInput.value.trim(),
-      coding_intake_mode: codingIntakeModeInput.value
+      coding_intake_mode: codingIntakeModeInput.value,
+      demo_training_enabled: demoTrainingEnabledInput.checked,
+      demo_retention_minutes: parseInt(demoRetentionMinutesInput.value || '10', 10)
     };
     
     var url, method;
@@ -374,6 +397,10 @@
     
     if (!data.project_name) { errEl.textContent = 'Name is required.'; return; }
     if (!data.project_nickname) { errEl.textContent = 'Nickname is required.'; return; }
+    if (!Number.isInteger(data.demo_retention_minutes) || data.demo_retention_minutes < 1) {
+      errEl.textContent = 'Demo retention must be at least 1 minute.';
+      return;
+    }
 
     var btn = this;
     btn.disabled = true;

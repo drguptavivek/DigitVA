@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-04-02
 ---
 
 # Category Rendering And Visibility
@@ -96,13 +96,24 @@ Additional render-time transforms:
   `MasSubcategoryOrder.render_mode`, currently seeded as `media_gallery` for
   `medical_documents` and `death_documents`
 - attachment images now open in an in-page lightbox with close, zoom, and pan support
-- `social_autopsy` in `table_sections` mode now also appends an app-owned Social
-  Autopsy analysis form for coder coding flows
+- `social_autopsy` in `table_sections` mode appends an app-owned Social
+  Autopsy analysis form for coder coding flows only when the submission's
+  project has `social_autopsy_enabled = true`
 - coder views now also append a synthetic final nav item `vacodassessment`, which
   renders the dedicated COD workflow panel outside `vanarrationanddocuments`
 - coder/reviewer rendering uses a bridge path so DB-only categories such as
   `social_autopsy` do not render empty while the field-level coder config remains
   partially static
+
+Important nuance for `social_autopsy`:
+
+- mapped `social_autopsy` submission fields still render based on form/category
+  mappings and submission data
+- the app-owned Social Autopsy analysis form is controlled separately at the
+  project level by `va_project_master.social_autopsy_enabled`
+- when that project flag is `false`, the category can still appear in the left
+  nav if mapped fields are present, but the app-owned analysis form is not shown
+  and its completion is not enforced
 
 ## Left Nav Visibility
 

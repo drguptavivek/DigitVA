@@ -4,6 +4,7 @@ from app import db
 from app.models import (
     MasFormTypes,
     VaForms,
+    VaProjectMaster,
     VaResearchProjects,
     VaSites,
     VaSocialAutopsyAnalysis,
@@ -41,28 +42,47 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
             db.session.flush()
         cls.form_type_id = form_type.form_type_id
 
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Base Test Project",
-                project_nickname="BaseTest",
-                project_status=VaStatuses.active,
-                project_registered_at=datetime.now(timezone.utc),
-                project_updated_at=datetime.now(timezone.utc),
+        project_master = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
+        if not project_master:
+            db.session.add(
+                VaProjectMaster(
+                    project_id=cls.BASE_PROJECT_ID,
+                    project_code=cls.BASE_PROJECT_ID,
+                    project_name="Base Test Project",
+                    project_nickname="BaseTest",
+                    project_status=VaStatuses.active,
+                    project_registered_at=datetime.now(timezone.utc),
+                    project_updated_at=datetime.now(timezone.utc),
+                )
             )
-        )
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Base Test Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=datetime.now(timezone.utc),
-                site_updated_at=datetime.now(timezone.utc),
+
+        research_project = db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID)
+        if not research_project:
+            db.session.add(
+                VaResearchProjects(
+                    project_id=cls.BASE_PROJECT_ID,
+                    project_code=cls.BASE_PROJECT_ID,
+                    project_name="Base Test Project",
+                    project_nickname="BaseTest",
+                    project_status=VaStatuses.active,
+                    project_registered_at=datetime.now(timezone.utc),
+                    project_updated_at=datetime.now(timezone.utc),
+                )
             )
-        )
+
+        site = db.session.get(VaSites, cls.BASE_SITE_ID)
+        if not site:
+            db.session.add(
+                VaSites(
+                    site_id=cls.BASE_SITE_ID,
+                    project_id=cls.BASE_PROJECT_ID,
+                    site_name="Base Test Site",
+                    site_abbr=cls.BASE_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=datetime.now(timezone.utc),
+                    site_updated_at=datetime.now(timezone.utc),
+                )
+            )
         db.session.flush()
 
         form = VaForms(
@@ -151,6 +171,33 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
             )
         )
         self.assertIsNotNone(audit)
+
+    def test_save_social_autopsy_analysis_rejected_when_project_disabled(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.social_autopsy_enabled = False
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        csrf_headers = self._csrf_headers()
+
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={
+                "va_actiontype": "vademo_start_coding",
+                "selected_options": [
+                    {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                    {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
+                    {"delay_level": "delay_3_receiving", "option_code": "delay_in_referral"},
+                ],
+            },
+            headers=csrf_headers,
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(
+            resp.get_json()["error"],
+            "Social Autopsy is disabled for this project.",
+        )
 
     def test_none_option_is_saved_and_overrides_other_options_in_same_delay(self):
         self._login(self.base_admin_id)

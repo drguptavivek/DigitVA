@@ -485,12 +485,14 @@ class AdminApiTests(BaseTestCase):
                 "project_id": "PRJ999",
                 "project_name": "Test Master Project",
                 "project_nickname": "TMP",
+                "social_autopsy_enabled": False,
                 "demo_training_enabled": True,
                 "demo_retention_minutes": 10,
             },
             headers=headers
         )
         self.assertEqual(create_resp.status_code, 201)
+        self.assertFalse(create_resp.get_json()["project"]["social_autopsy_enabled"])
         self.assertTrue(create_resp.get_json()["project"]["demo_training_enabled"])
         self.assertEqual(create_resp.get_json()["project"]["demo_retention_minutes"], 10)
         
@@ -507,6 +509,7 @@ class AdminApiTests(BaseTestCase):
                 "project_name": "Updated Master Project",
                 "project_code": "UPD999",
                 "status": "deactive",
+                "social_autopsy_enabled": True,
                 "coding_intake_mode": "pick_and_choose",
                 "demo_training_enabled": True,
                 "demo_retention_minutes": 15,
@@ -521,6 +524,7 @@ class AdminApiTests(BaseTestCase):
             edit_resp.get_json()["project"]["coding_intake_mode"],
             "pick_and_choose",
         )
+        self.assertTrue(edit_resp.get_json()["project"]["social_autopsy_enabled"])
         self.assertTrue(edit_resp.get_json()["project"]["demo_training_enabled"])
         self.assertEqual(edit_resp.get_json()["project"]["demo_retention_minutes"], 15)
         

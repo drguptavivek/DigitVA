@@ -14,7 +14,7 @@
       {% set section_index = loop.index0 %}
       {% include 'va_formcategory_partials/_table_section.html' %}
     {% endfor %}
-    {% if va_partial == "social_autopsy" %}
+    {% if va_partial == "social_autopsy" and social_autopsy_enabled %}
       {% include 'va_formcategory_partials/_social_autopsy_analysis_form.html' %}
     {% endif %}
   {% elif category_data and category_data.get('error') %}

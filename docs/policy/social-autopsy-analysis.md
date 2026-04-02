@@ -22,6 +22,11 @@ Current baseline:
 
 - it is rendered inside the `social_autopsy` category after the mapped Social
   Autopsy submission questions
+- the app-owned Social Autopsy analysis form is controlled by the project-level
+  `social_autopsy_enabled` flag
+- when `social_autopsy_enabled = false`, the mapped `social_autopsy` category
+  may still render its synced submission fields, but the app-owned Social
+  Autopsy analysis form must not be shown
 - it is available only in coder-facing coding flows
 - it is payload-version aware
 - the current Social Autopsy analysis for a coder is the active row whose
@@ -119,9 +124,9 @@ Current baseline:
 
 Current baseline:
 
-- when the Social Autopsy analysis form is present, it must be completed before
+- when the Social Autopsy analysis form is enabled and present, it must be completed before
   the coder can move past the `social_autopsy` category
-- when the Social Autopsy analysis form is present, final COD submission must be
+- when the Social Autopsy analysis form is enabled and present, final COD submission must be
   blocked until the coder has saved a complete analysis
 
 ## Change Control

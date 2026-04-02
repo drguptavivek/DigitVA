@@ -33,6 +33,7 @@ from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
     is_demo_training_submission,
 )
+from app.services.coding_service import get_project_for_submission
 
 bp = Blueprint("so_api", __name__)
 log = logging.getLogger(__name__)
@@ -69,6 +70,10 @@ def save_social_autopsy(va_sid: str):
     err = _require_coding_access(va_sid)
     if err:
         return err
+
+    project = get_project_for_submission(va_sid)
+    if project is not None and not project.social_autopsy_enabled:
+        return jsonify({"error": "Social Autopsy is disabled for this project."}), 403
 
     data = request.get_json(force=True) or {}
     va_actiontype = data.get("va_actiontype")

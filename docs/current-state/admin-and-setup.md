@@ -79,6 +79,7 @@ Current project master data now includes:
 - project identity fields
 - active/inactive status
 - Narrative Quality Assessment enablement
+- Social Autopsy analysis enablement
 - coding intake mode (`random_form_allocation` or `pick_and_choose`)
 
 Current admin behavior:

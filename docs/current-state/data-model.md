@@ -58,6 +58,7 @@ Key fields:
 - `project_nickname`
 - `project_status`
 - `narrative_qa_enabled`
+- `social_autopsy_enabled`
 - `coding_intake_mode`
 - `demo_training_enabled`
 - `demo_retention_minutes`
@@ -65,8 +66,8 @@ Key fields:
 Current role:
 
 - top-level project master, but effectively used in a one-project deployment model
-- also stores project-level workflow toggles such as Narrative QA enablement
-  and coder intake mode
+- also stores project-level workflow toggles such as Narrative QA enablement,
+  Social Autopsy analysis enablement, and coder intake mode
 - now also stores demo/training project behavior:
   - whether the project is an open training pool
   - how many minutes demo-created coding artifacts should remain active before

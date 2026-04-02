@@ -258,6 +258,7 @@ def _serialize_project(project):
         "project_nickname": project.project_nickname,
         "status": project.project_status.value,
         "narrative_qa_enabled": project.narrative_qa_enabled,
+        "social_autopsy_enabled": project.social_autopsy_enabled,
         "coding_intake_mode": project.coding_intake_mode,
         "demo_training_enabled": project.demo_training_enabled,
         "demo_retention_minutes": project.demo_retention_minutes,
@@ -804,6 +805,7 @@ def admin_create_project():
         project_name=project_name,
         project_nickname=project_nickname,
         project_status=VaStatuses.active,
+        social_autopsy_enabled=bool(payload.get("social_autopsy_enabled", True)),
         coding_intake_mode="random_form_allocation",
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
         demo_retention_minutes=demo_retention_minutes,
@@ -849,6 +851,9 @@ def admin_update_project(project_id):
 
     if "narrative_qa_enabled" in payload:
         project.narrative_qa_enabled = bool(payload["narrative_qa_enabled"])
+
+    if "social_autopsy_enabled" in payload:
+        project.social_autopsy_enabled = bool(payload["social_autopsy_enabled"])
 
     if "coding_intake_mode" in payload:
         coding_intake_mode = (payload["coding_intake_mode"] or "").strip()

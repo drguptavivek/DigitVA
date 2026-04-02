@@ -60,6 +60,14 @@ va_form = Blueprint("va_form", __name__)
 def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     """Return the demo artifact expiry timestamp for demo coding saves."""
     return get_demo_expiry_for_submission(va_sid, va_actiontype)
+
+
+def _is_social_autopsy_enabled_for_submission(va_sid: str) -> bool:
+    """Return whether the app-owned Social Autopsy analysis form is enabled."""
+    project = _get_project_for_submission(va_sid)
+    if project is None:
+        return True
+    return bool(project.social_autopsy_enabled)
 adult = [
     "I10 - Essential Hypertension",
     "E11 - Type 2 Diabetes Mellitus",
@@ -432,6 +440,11 @@ def renderpartial(va_sid, va_partial):
         # NQA context (only relevant for vanarrationanddocuments + vacode)
         _nqa_project = _get_project_for_submission(va_sid) if va_partial == "vanarrationanddocuments" else None
         narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)
+        social_autopsy_enabled = (
+            _is_social_autopsy_enabled_for_submission(va_sid)
+            if va_partial == "social_autopsy"
+            else False
+        )
         va_narrative_assessment = None
         if narrative_qa_enabled and va_action == "vacode":
             va_narrative_assessment = get_current_payload_narrative_assessment(
@@ -451,7 +464,7 @@ def renderpartial(va_sid, va_partial):
                 VaUsernotes.note_status == VaStatuses.active,
             )
         )
-        if va_partial == "social_autopsy" and va_action == "vacode":
+        if va_partial == "social_autopsy" and va_action == "vacode" and social_autopsy_enabled:
             va_social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
                 va_sid,
                 current_user.user_id,
@@ -529,6 +542,7 @@ def renderpartial(va_sid, va_partial):
             da_va_initial_assess = da_va_initial_assess,
             da_va_coder_review = da_va_coder_review,
             narrative_qa_enabled = narrative_qa_enabled,
+            social_autopsy_enabled = social_autopsy_enabled,
             va_narrative_assessment = va_narrative_assessment,
             social_autopsy_analysis_questions = SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
             va_social_autopsy_analysis = va_social_autopsy_analysis,
@@ -789,11 +803,14 @@ def renderpartial(va_sid, va_partial):
                 _submission.va_form_id if _submission else None,
             )
             _category_service = get_category_rendering_service()
-            if _category_service.is_category_enabled(
+            if (
+                _is_social_autopsy_enabled_for_submission(va_sid)
+                and _category_service.is_category_enabled(
                 _form_type_code,
                 "vacode",
                 _visible_category_codes,
                 "social_autopsy",
+                )
             ):
                 _social_done = get_current_payload_social_autopsy_analysis(
                     va_sid,
@@ -1240,7 +1257,7 @@ def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str,
     if va_actiontype not in {"vastartcoding", "vapickcoding", "varesumecoding", "vademo_start_coding"}:
         return None
 
-    if va_partial == "social_autopsy":
+    if va_partial == "social_autopsy" and _is_social_autopsy_enabled_for_submission(va_sid):
         analysis = get_current_payload_social_autopsy_analysis(
             va_sid,
             current_user.user_id,

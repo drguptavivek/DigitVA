@@ -66,6 +66,7 @@ class TestCategoryTableSectionsTemplate(unittest.TestCase):
             category_config=category_config,
             category_data=category_data,
             subcategory_labels={"social-autopsy": "Social Autopsy"},
+            social_autopsy_enabled=True,
             social_autopsy_analysis_questions=[
                 {
                     "delay_level": "delay_1_decision",
@@ -109,6 +110,7 @@ class TestCategoryTableSectionsTemplate(unittest.TestCase):
             category_config=category_config,
             category_data={"social-autopsy": {"Question One": "Yes"}},
             subcategory_labels={"social-autopsy": "Social Autopsy"},
+            social_autopsy_enabled=True,
             social_autopsy_analysis_questions=[
                 {
                     "delay_level": "delay_1_decision",
@@ -152,6 +154,7 @@ class TestCategoryTableSectionsTemplate(unittest.TestCase):
             category_config=category_config,
             category_data={"social-autopsy": {"Question One": "Yes"}},
             subcategory_labels={"social-autopsy": "Social Autopsy"},
+            social_autopsy_enabled=True,
             social_autopsy_analysis_questions=[],
             social_autopsy_selected_pairs=[],
             va_social_autopsy_analysis=None,
@@ -174,6 +177,44 @@ class TestCategoryTableSectionsTemplate(unittest.TestCase):
         self.assertIn('data-hx-get="/vaapi/vacode/vademo_start_coding/SID-1/vanarrationanddocuments"', rendered)
         self.assertIn('data-hx-target="#form-content"', rendered)
         self.assertIn('data-hx-swap="innerHTML"', rendered)
+
+    def test_social_autopsy_category_hides_analysis_form_when_project_disabled(self):
+        category_config = SimpleNamespace(
+            display_label="Social Autopsy",
+            icon_name="fa-users",
+        )
+
+        rendered = self.env.get_template(
+            "va_formcategory_partials/category_table_sections.html"
+        ).render(
+            category_config=category_config,
+            category_data={"social-autopsy": {"Question One": "Yes"}},
+            subcategory_labels={"social-autopsy": "Social Autopsy"},
+            social_autopsy_enabled=False,
+            social_autopsy_analysis_questions=[
+                {
+                    "delay_level": "delay_1_decision",
+                    "question_text": "Delay 1",
+                    "options": [{"code": "none", "label": "None"}],
+                }
+            ],
+            social_autopsy_selected_pairs=[],
+            va_social_autopsy_analysis=None,
+            flip_list=[],
+            info_list=[],
+            instance_name="CASE-1",
+            va_previouscategory=None,
+            va_nextcategory="vanarrationanddocuments",
+            next_block_message=None,
+            va_action="vacode",
+            va_actiontype="vademo_start_coding",
+            va_sid="SID-1",
+            va_partial="social_autopsy",
+            csrf_token=lambda: "token",
+            url_for=lambda *args, **kwargs: "/stub",
+        )
+
+        self.assertNotIn("Social Autopsy Analysis", rendered)
 
     def test_generic_category_uses_assign_cod_label_for_workflow_next_step(self):
         category_config = SimpleNamespace(

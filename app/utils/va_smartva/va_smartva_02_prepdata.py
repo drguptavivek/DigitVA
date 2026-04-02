@@ -1,4 +1,5 @@
 import csv
+import logging
 import math
 import os
 
@@ -6,6 +7,8 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MasChoiceMappings, MasFormTypes, VaSubmissionPayloadVersion, VaSubmissions
+
+log = logging.getLogger(__name__)
 
 
 # Columns that SmartVA does not understand and must be excluded from input.
@@ -253,9 +256,11 @@ def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
         )
 
     if pending_sids is not None:
-        print(
-            f"SmartVA prep [{va_form.form_id}]: "
-            f"{len(prepared_rows)} pending, {skipped} already complete — skipped."
+        log.info(
+            "SmartVA prep [%s]: prepared %d row(s); skipped %d already-complete row(s).",
+            va_form.form_id,
+            len(prepared_rows),
+            skipped,
         )
 
     headers: list[str] = []

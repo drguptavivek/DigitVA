@@ -1,10 +1,37 @@
+import glob
+import logging
 import os
 import shutil
 import subprocess
 from flask import current_app
 
+logger = logging.getLogger(__name__)
+
+
+def _cleanup_smartva_tmp():
+    """Remove orphaned PyInstaller _MEI dirs from /tmp.
+
+    SmartVA is a PyInstaller binary that extracts to /tmp/_MEIxxxxxx on each
+    run.  If the process crashes or is killed, these dirs are left behind and
+    accumulate indefinitely.  Sweeping them before each run keeps /tmp small.
+    """
+    mei_dirs = glob.glob("/tmp/_MEI*")
+    if not mei_dirs:
+        return
+    removed = 0
+    for d in mei_dirs:
+        try:
+            shutil.rmtree(d, ignore_errors=True)
+            removed += 1
+        except Exception:
+            pass
+    if removed:
+        logger.info("Cleaned up %d orphaned SmartVA /tmp/_MEI* dirs", removed)
+
 
 def va_smartva_runsmartva(va_form, workspace_dir: str, *, run_options=None):
+    _cleanup_smartva_tmp()
+
     va_smartva_inputfile = os.path.join(workspace_dir, "smartva_input.csv")
     va_smartva_outputdir = os.path.join(workspace_dir, "smartva_output")
     run_options = run_options or {}

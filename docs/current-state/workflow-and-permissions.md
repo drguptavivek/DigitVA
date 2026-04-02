@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-24
+last_updated: 2026-04-02
 ---
 
 # Workflow And Permissions
@@ -29,6 +29,26 @@ Current admin scope rule:
 
 The current workflow is built around form-based permissions and per-submission
 allocation.
+
+Current payload-lineage rule for coder-owned supporting artifacts:
+
+- coder NQA and Social Autopsy are now payload-version aware
+- the current artifact for a coder is the active row whose
+  `payload_version_id` matches `va_submissions.active_payload_version_id`
+- `Accept And Recode` deactivates those current artifacts because coding will
+  restart against new data
+- `Keep Current ICD Decision` preserves them by rebinding them to the promoted
+  payload
+
+Current authority-chain rule for finalized artifacts:
+
+- reviewer-owned final COD is treated as downstream of coder-owned final COD
+- if `Accept And Recode` is chosen for a protected upstream change, both coder
+  and reviewer final COD artifacts are deactivated as current authoritative
+  results
+- if `Keep Current ICD Decision` is chosen, both coder and reviewer final COD
+  artifacts are preserved as current authoritative results, if reviewer
+  artifacts exist for that SID
 
 An additive canonical workflow-state table now exists:
 

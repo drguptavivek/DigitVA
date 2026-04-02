@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-01
+last_updated: 2026-04-02
 ---
 
 # Coding Workflow State Machine Policy
@@ -207,6 +207,32 @@ deactivated and the case re-enters the workflow at `smartva_pending`. The
 responsible DM or coder may re-exclude after reviewing the updated payload.
 
 See [ODK Sync Policy](odk-sync-policy.md) and [SmartVA Generation Policy](smartva-generation-policy.md) for details.
+
+## Authority-Chain Preservation Rule
+
+For protected upstream review decisions, coder and reviewer authoritative
+artifacts move together.
+
+Current baseline:
+
+- reviewer-owned final COD is downstream of coder-owned final COD in the local
+  authority chain
+- if an upstream payload is accepted for recoding, the existing coder
+  conclusion chain is invalidated and reviewer authoritative artifacts, if
+  present, must also be deactivated
+- if an upstream payload is promoted while keeping the current ICD decision,
+  the existing coder conclusion chain is preserved and reviewer authoritative
+  artifacts, if present, must also be preserved
+
+Simple rule:
+
+- coder rejected for recoding => reviewer rejected too, if reviewer artifacts
+  exist
+- coder retained => reviewer retained too, if reviewer artifacts exist
+
+This preserves one coherent authoritative chain for the SID rather than
+allowing coder and reviewer layers to diverge under the same upstream-review
+decision.
 
 ## ASCII Flowchart
 
@@ -645,6 +671,10 @@ Resolution UI baseline:
   assigned ICD codes are cleared, and the form returns for recoding
 - `Keep Current ICD Decision` means the new ODK data becomes the active stored
   payload while the current finalized ICD decision remains authoritative
+- `Accept And Recode` also deactivates the old current coder NQA and Social
+  Autopsy artifacts because the case will be coded again against new data
+- `Keep Current ICD Decision` also rebinds the preserved active coder NQA,
+  Social Autopsy, and SmartVA artifacts to the promoted payload
 - these modal review actions are local DigitVA workflow decisions and
   do not post a rejection comment back to ODK Central
 

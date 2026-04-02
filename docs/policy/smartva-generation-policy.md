@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-04-02
 ---
 
 # SmartVA Generation Policy
@@ -231,13 +231,85 @@ Protected upstream review refinement:
 
 - `Accept And Recode`
   - promote the new payload to active
+  - deactivate coder final COD and reviewer final COD if present
   - deactivate the prior active SmartVA projection
   - rerun SmartVA for the new payload
 - `Keep Current ICD Decision`
   - promote the new payload to active
+  - preserve coder final COD and reviewer final COD if present
   - do not regenerate SmartVA
   - rebind the preserved active SmartVA projection from the prior payload to
     the newly active payload so that SmartVA remains aligned with the current
+
+## Simple Scenario Examples
+
+### Example: brand-new synced submission
+
+1. ODK sync creates current payload `P1`
+2. Workflow enters `smartva_pending`
+3. SmartVA runs for `P1`
+4. DigitVA writes one active SmartVA projection row for `P1`
+5. Submission may move to `ready_for_coding`
+
+### Example: normal payload change before finalization
+
+1. Submission is not finalized
+2. ODK sync detects changed payload `P2`
+3. DigitVA promotes `P2`
+4. Old active SmartVA projection is deactivated
+5. SmartVA reruns for `P2`
+
+### Example: finalized case, accept and recode
+
+1. `SID-1` is finalized on payload `P1`
+2. A reviewer final COD may or may not also exist for `P1`
+3. ODK sync detects pending payload `P2`
+4. Data manager chooses `Accept And Recode`
+5. DigitVA promotes `P2`
+6. Coder final COD, reviewer final COD if present, and active SmartVA are all
+   deactivated as current authoritative artifacts
+7. SmartVA reruns for `P2` before coding reopens
+
+### Example: finalized case, keep current ICD decision
+
+1. `SID-1` is finalized on payload `P1`
+2. A reviewer final COD may or may not also exist for `P1`
+3. ODK sync detects pending payload `P2`
+4. Data manager chooses `Keep Current ICD Decision`
+5. DigitVA promotes `P2`
+6. Coder final COD remains authoritative
+7. Reviewer final COD also remains authoritative if it already existed
+8. SmartVA is rebound to `P2` instead of being regenerated
+
+1. Finalized submission currently uses payload `P1`
+2. ODK sync creates pending payload `P2`
+3. Data manager chooses `Accept And Recode`
+4. DigitVA promotes `P2`, clears old assigned ICD codes, deactivates old
+   current SmartVA, and returns the case to `smartva_pending`
+5. SmartVA reruns for `P2`
+
+### Example: finalized case, keep current ICD decision
+
+1. Finalized submission currently uses payload `P1`
+2. ODK sync creates pending payload `P2`
+3. Data manager chooses `Keep Current ICD Decision`
+4. DigitVA promotes `P2`
+5. Existing SmartVA is preserved and rebound from `P1` to `P2`
+6. No SmartVA rerun happens on this branch
+
+## ICD10 Interaction
+
+SmartVA is advisory. It is not itself the authoritative ICD10 decision.
+
+Current baseline:
+
+- coder or reviewer final COD remains the authoritative ICD10/COD artifact
+- `Accept And Recode` clears the old assigned ICD/COD artifacts because the
+  case returns to coding against new data
+- `Keep Current ICD Decision` keeps the old finalized ICD/COD artifacts active
+  while the new ODK payload becomes current
+- when ICD10 is kept, SmartVA is preserved and rebound rather than rerun so the
+  preserved interpretation stays aligned with the promoted payload
     stored payload
 
 Admin repair refinement:

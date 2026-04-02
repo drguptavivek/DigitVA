@@ -8,6 +8,15 @@ from app.models.va_selectives import VaStatuses
 
 class VaNarrativeAssessment(db.Model):
     __tablename__ = "va_narrative_assessments"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_narrative_assessments_active_sid_by_unique",
+            "va_sid",
+            "va_nqa_by",
+            unique=True,
+            postgresql_where=sa.text("va_nqa_status = 'active'"),
+        ),
+    )
 
     va_nqa_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True
@@ -19,6 +28,12 @@ class VaNarrativeAssessment(db.Model):
     va_nqa_by: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"),
         nullable=False, index=True,
+    )
+    payload_version_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_submission_payload_versions.payload_version_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     # Q1: Length of Narrative   — 1 (<3 sentences) | 2 (3-5) | 3 (>5)
     va_nqa_length: so.Mapped[int] = so.mapped_column(sa.SmallInteger(), nullable=False)
@@ -53,10 +68,6 @@ class VaNarrativeAssessment(db.Model):
         sa.DateTime,
         nullable=True,
         index=True,
-    )
-
-    __table_args__ = (
-        sa.UniqueConstraint("va_sid", "va_nqa_by", name="uq_nqa_sid_by"),
     )
 
     @property

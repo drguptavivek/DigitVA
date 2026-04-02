@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-01
+last_updated: 2026-04-02
 ---
 
 # ODK Sync Policy
@@ -128,6 +128,78 @@ Policy boundary:
 - this does not replace OData as the primary payload source
 - attachment inventory details such as `audit.csv` presence may be used
   operationally, but are not required as coder-facing canonical payload fields
+
+## How To Identify The Current Artifact For A SID
+
+Use these rules when a submission has history across syncs, recodes, or
+protected upstream review.
+
+### Current VA data payload
+
+- read `va_submissions.active_payload_version_id`
+- then read the matching row in `va_submission_payload_versions`
+- that payload row is the current accepted ODK data for the `va_sid`
+
+### Current SmartVA payload
+
+- find the active `va_smartva_results` row for the `va_sid`
+- it must have `payload_version_id = va_submissions.active_payload_version_id`
+- if it does not, the SmartVA projection is stale and needs repair
+
+### Current finalized ICD10/COD
+
+- authoritative ICD/COD comes from final-COD authority resolution
+- coder final COD and reviewer final COD rows are both payload-version aware
+- only rows linked to the current active payload should be treated as current
+
+### Current reviewer-owned artifacts
+
+- reviewer artifacts are downstream authority-chain artifacts
+- if reviewer-owned final COD or other reviewer-owned payload-bound artifacts
+  exist, they follow the same preserve/deactivate decision as coder-owned
+  authoritative artifacts for the same SID
+- `Accept And Recode` deactivates both coder and reviewer authoritative
+  artifacts because the accepted upstream payload invalidates the existing
+  coding conclusion chain
+- `Keep Current ICD Decision` preserves both coder and reviewer authoritative
+  artifacts, if present, because the explicit policy decision is that the
+  existing ICD/COD conclusion remains valid for the promoted payload
+
+### Current coder NQA
+
+- find the active row in `va_narrative_assessments`
+- it must match both the coder and the submission's
+  `active_payload_version_id`
+
+### Current Social Autopsy
+
+- find the active row in `va_social_autopsy_analyses`
+- it must match both the coder and the submission's
+  `active_payload_version_id`
+
+## Simple Upstream Review Examples
+
+### Example: accept and recode
+
+1. Current payload is `P1`
+2. Protected sync creates pending payload `P2`
+3. Data manager chooses `Accept And Recode`
+4. DigitVA promotes `P2`
+5. Coder final COD, reviewer final COD if present, current NQA, current Social
+   Autopsy, and current SmartVA are no longer treated as current artifacts for
+   coding
+6. SmartVA reruns and coding starts again on `P2`
+
+### Example: keep current ICD decision
+
+1. Current payload is `P1`
+2. Protected sync creates pending payload `P2`
+3. Data manager chooses `Keep Current ICD Decision`
+4. DigitVA promotes `P2`
+5. Coder final COD remains authoritative, and reviewer final COD remains
+   authoritative too if a reviewer-owned final COD exists
+6. SmartVA, coder NQA, and Social Autopsy are rebound to `P2` instead of being
+   regenerated
 
 ## Consent Routing
 

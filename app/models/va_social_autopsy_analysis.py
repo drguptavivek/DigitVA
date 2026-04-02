@@ -9,6 +9,15 @@ from app.models.va_selectives import VaStatuses
 
 class VaSocialAutopsyAnalysis(db.Model):
     __tablename__ = "va_social_autopsy_analyses"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_social_autopsy_analyses_active_sid_by_unique",
+            "va_sid",
+            "va_saa_by",
+            unique=True,
+            postgresql_where=sa.text("va_saa_status = 'active'"),
+        ),
+    )
 
     va_saa_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True
@@ -23,6 +32,12 @@ class VaSocialAutopsyAnalysis(db.Model):
         sa.Uuid(as_uuid=True),
         sa.ForeignKey("va_users.user_id"),
         nullable=False,
+        index=True,
+    )
+    payload_version_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_submission_payload_versions.payload_version_id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     va_saa_remark: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
@@ -55,10 +70,6 @@ class VaSocialAutopsyAnalysis(db.Model):
         back_populates="analysis",
         cascade="all, delete-orphan",
         passive_deletes=True,
-    )
-
-    __table_args__ = (
-        sa.UniqueConstraint("va_sid", "va_saa_by", name="uq_social_autopsy_analysis_sid_by"),
     )
 
 

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog, VaNarrativeAssessment, VaSocialAutopsyAnalysis
+from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog
 from app.decorators import va_validate_permissions
 from flask_login import current_user, login_required
 from flask import Blueprint, render_template, current_app, send_from_directory, flash, redirect, url_for, jsonify, request, abort
@@ -25,6 +25,10 @@ from app.services.final_cod_authority_service import (
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.field_mapping_service import get_mapping_service
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
+from app.services.payload_bound_coding_artifact_service import (
+    get_current_payload_narrative_assessment,
+    get_current_payload_social_autopsy_analysis,
+)
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_summary_service import build_submission_summary
 from app.services.workflow.definition import (
@@ -421,12 +425,9 @@ def renderpartial(va_sid, va_partial):
         narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)
         va_narrative_assessment = None
         if narrative_qa_enabled and va_action == "vacode":
-            va_narrative_assessment = db.session.scalar(
-                sa.select(VaNarrativeAssessment).where(
-                    VaNarrativeAssessment.va_sid == va_sid,
-                    VaNarrativeAssessment.va_nqa_by == current_user.user_id,
-                    VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
-                )
+            va_narrative_assessment = get_current_payload_narrative_assessment(
+                va_sid,
+                current_user.user_id,
             )
         va_social_autopsy_analysis = None
         cod_attachments_data = {}
@@ -442,12 +443,9 @@ def renderpartial(va_sid, va_partial):
             )
         )
         if va_partial == "social_autopsy" and va_action == "vacode":
-            va_social_autopsy_analysis = db.session.scalar(
-                sa.select(VaSocialAutopsyAnalysis).where(
-                    VaSocialAutopsyAnalysis.va_sid == va_sid,
-                    VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
-                    VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
-                )
+            va_social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
+                va_sid,
+                current_user.user_id,
             )
         social_autopsy_selected_pairs = set()
         if va_social_autopsy_analysis:
@@ -704,12 +702,9 @@ def renderpartial(va_sid, va_partial):
             # Enforce NQA completion if enabled for this project
             _project = _get_project_for_submission(va_sid)
             if _project and _project.narrative_qa_enabled:
-                _nqa_done = db.session.scalar(
-                    sa.select(VaNarrativeAssessment).where(
-                        VaNarrativeAssessment.va_sid == va_sid,
-                        VaNarrativeAssessment.va_nqa_by == current_user.user_id,
-                        VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
-                    )
+                _nqa_done = get_current_payload_narrative_assessment(
+                    va_sid,
+                    current_user.user_id,
                 )
                 if not _nqa_done:
                     blocking_messages.append(
@@ -730,12 +725,9 @@ def renderpartial(va_sid, va_partial):
                 _visible_category_codes,
                 "social_autopsy",
             ):
-                _social_done = db.session.scalar(
-                    sa.select(VaSocialAutopsyAnalysis).where(
-                        VaSocialAutopsyAnalysis.va_sid == va_sid,
-                        VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
-                        VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
-                    )
+                _social_done = get_current_payload_social_autopsy_analysis(
+                    va_sid,
+                    current_user.user_id,
                 )
                 if not _social_done:
                     blocking_messages.append(
@@ -1179,12 +1171,9 @@ def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str,
         return None
 
     if va_partial == "social_autopsy":
-        analysis = db.session.scalar(
-            sa.select(VaSocialAutopsyAnalysis).where(
-                VaSocialAutopsyAnalysis.va_sid == va_sid,
-                VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
-                VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
-            )
+        analysis = get_current_payload_social_autopsy_analysis(
+            va_sid,
+            current_user.user_id,
         )
         if not analysis:
             return "Save the Social Autopsy Analysis before proceeding to the next category."
@@ -1192,12 +1181,9 @@ def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str,
     if va_partial == "vanarrationanddocuments":
         project = _get_project_for_submission(va_sid)
         if project and project.narrative_qa_enabled:
-            nqa = db.session.scalar(
-                sa.select(VaNarrativeAssessment).where(
-                    VaNarrativeAssessment.va_sid == va_sid,
-                    VaNarrativeAssessment.va_nqa_by == current_user.user_id,
-                    VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
-                )
+            nqa = get_current_payload_narrative_assessment(
+                va_sid,
+                current_user.user_id,
             )
             if not nqa:
                 return "Complete the Narrative Quality Assessment before proceeding."

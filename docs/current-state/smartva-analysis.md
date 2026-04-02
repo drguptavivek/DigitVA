@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-04-02
 ---
 
 # SmartVA Analysis
@@ -38,6 +38,14 @@ Current runtime behavior:
   - `va_smartva_form_runs` for form-level execution metadata and disk path
   - `va_smartva_runs` for durable per-submission attempt history
   - `va_smartva_run_outputs` for emitted per-run likelihood rows
+
+Current protected-payload repair rule:
+
+- `Gen SmartVA` may now repair protected finalized submissions whose current
+  payload has no matching active SmartVA projection but already has preserved
+  historical SmartVA
+- in that case DigitVA rebinds the preserved SmartVA to the current payload
+  instead of rerunning SmartVA
   - `va_smartva_results` for the active projection shown in the UI
 - exact raw SmartVA-generated files are now copied to disk under `APP_DATA`
   per form run

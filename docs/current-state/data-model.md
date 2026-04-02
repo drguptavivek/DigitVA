@@ -576,6 +576,7 @@ Purpose:
 Key fields:
 
 - `va_sid`
+- `payload_version_id`
 - `va_nqa_by`
 - six scored question fields
 - `va_nqa_score`
@@ -584,6 +585,11 @@ Key fields:
 
 Current behavior:
 
+- the table is now payload-version aware
+- the current NQA for a coder is the active row whose `payload_version_id`
+  matches the submission's `active_payload_version_id`
+- payload changes create a new current row on next save unless a protected
+  keep-current-ICD decision rebinds the preserved row to the promoted payload
 - normal coding leaves `demo_expires_at` null
 - demo coding (`vademo_start_coding`) stamps a 6-hour expiry timestamp so the
   hourly cleanup path can deactivate temporary demo artifacts
@@ -597,6 +603,7 @@ Purpose:
 Key fields:
 
 - `va_sid`
+- `payload_version_id`
 - `va_saa_by`
 - `va_saa_remark`
 - `va_saa_status`
@@ -604,7 +611,11 @@ Key fields:
 
 Current behavior:
 
-- one active analysis row is stored per `(va_sid, coder)`
+- the table is now payload-version aware
+- the current Social Autopsy row for a coder is the active row whose
+  `payload_version_id` matches the submission's `active_payload_version_id`
+- one active analysis row is stored per `(va_sid, coder)` at a time; older
+  payload versions are kept as inactive history
 - selected delay options are normalized into child rows, not flattened into the
   submission JSON
 - demo coding stamps a 6-hour expiry timestamp on the parent row so completed

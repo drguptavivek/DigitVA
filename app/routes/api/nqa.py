@@ -22,6 +22,10 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.coding_service import get_project_for_submission
+from app.services.payload_bound_coding_artifact_service import (
+    deactivate_other_active_narrative_assessments,
+    get_submission_with_current_payload,
+)
 
 bp = Blueprint("nqa_api", __name__)
 log = logging.getLogger(__name__)
@@ -103,11 +107,19 @@ def save_narrative_qa(va_sid: str):
         return jsonify({"error": f"Invalid or missing fields: {', '.join(missing)}"}), 400
 
     score = _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity)
+    _, active_payload_version = get_submission_with_current_payload(
+        va_sid,
+        for_update=True,
+        created_by_role="vacoder",
+        created_by=current_user.user_id,
+    )
 
     existing = db.session.scalar(
         sa.select(VaNarrativeAssessment).where(
             VaNarrativeAssessment.va_sid == va_sid,
             VaNarrativeAssessment.va_nqa_by == current_user.user_id,
+            VaNarrativeAssessment.payload_version_id
+            == active_payload_version.payload_version_id,
             VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
         )
     )
@@ -119,14 +131,22 @@ def save_narrative_qa(va_sid: str):
         existing.va_nqa_doc_review   = doc_review
         existing.va_nqa_comorbidity  = comorbidity
         existing.va_nqa_score        = score
+        existing.payload_version_id  = active_payload_version.payload_version_id
         existing.demo_expires_at     = _demo_expiry(va_actiontype)
         nqa = existing
         audit_operation = "u"
         audit_action = "narrative quality assessment updated"
     else:
+        deactivate_other_active_narrative_assessments(
+            va_sid,
+            current_user.user_id,
+            audit_byrole="vacoder",
+            audit_by=current_user.user_id,
+        )
         nqa = VaNarrativeAssessment(
             va_sid=va_sid,
             va_nqa_by=current_user.user_id,
+            payload_version_id=active_payload_version.payload_version_id,
             va_nqa_length=length,
             va_nqa_pos_symptoms=pos_symptoms,
             va_nqa_neg_symptoms=neg_symptoms,
@@ -141,6 +161,14 @@ def save_narrative_qa(va_sid: str):
         audit_operation = "c"
         audit_action = "narrative quality assessment saved"
 
+    if existing:
+        deactivate_other_active_narrative_assessments(
+            va_sid,
+            current_user.user_id,
+            keep_id=nqa.va_nqa_id,
+            audit_byrole="vacoder",
+            audit_by=current_user.user_id,
+        )
     db.session.flush()
     db.session.add(
         VaSubmissionsAuditlog(

@@ -12,6 +12,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 
@@ -94,8 +95,9 @@ class TestNarrativeQaRoute(BaseTestCase):
     def test_save_nqa_creates_assessment_and_audit_entry(self):
         self._login(self.base_admin_id)
         response = self.client.post(
-            f"/vaapi/vacode/vademo_start_coding/{self.sid}/narrative-qa",
+            f"/api/v1/va/{self.sid}/narrative-qa",
             json={
+                "va_actiontype": "vademo_start_coding",
                 "length": 2,
                 "pos_symptoms": 2,
                 "neg_symptoms": 1,
@@ -115,6 +117,7 @@ class TestNarrativeQaRoute(BaseTestCase):
         )
         self.assertIsNotNone(nqa)
         self.assertEqual(nqa.va_nqa_score, 8)
+        self.assertIsNotNone(nqa.payload_version_id)
 
         audit = db.session.scalar(
             db.select(VaSubmissionsAuditlog).where(
@@ -124,3 +127,55 @@ class TestNarrativeQaRoute(BaseTestCase):
             )
         )
         self.assertIsNotNone(audit)
+
+    def test_save_after_payload_change_creates_new_current_payload_row(self):
+        self._login(self.base_admin_id)
+        payload = {
+            "va_actiontype": "vademo_start_coding",
+            "length": 2,
+            "pos_symptoms": 2,
+            "neg_symptoms": 1,
+            "chronology": 1,
+            "doc_review": 1,
+            "comorbidity": 1,
+        }
+        response = self.client.post(
+            f"/api/v1/va/{self.sid}/narrative-qa",
+            json=payload,
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+
+        submission = db.session.get(VaSubmissions, self.sid)
+        first_payload_version_id = submission.active_payload_version_id
+
+        submission.va_data = {"changed": True}
+        submission.va_odk_updatedat = datetime.now(timezone.utc)
+        new_payload_version = ensure_active_payload_version(
+            submission,
+            payload_data=submission.va_data,
+            source_updated_at=submission.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
+        db.session.commit()
+
+        response = self.client.post(
+            f"/api/v1/va/{self.sid}/narrative-qa",
+            json={**payload, "length": 3},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200)
+
+        rows = db.session.scalars(
+            db.select(VaNarrativeAssessment)
+            .where(
+                VaNarrativeAssessment.va_sid == self.sid,
+                VaNarrativeAssessment.va_nqa_by == self.base_admin_user.user_id,
+            )
+            .order_by(VaNarrativeAssessment.va_nqa_createdat.asc())
+        ).all()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].payload_version_id, first_payload_version_id)
+        self.assertEqual(rows[0].va_nqa_status, VaStatuses.deactive)
+        self.assertEqual(rows[1].payload_version_id, new_payload_version.payload_version_id)
+        self.assertEqual(rows[1].va_nqa_status, VaStatuses.active)

@@ -26,6 +26,10 @@ from app.services.social_autopsy_analysis_service import (
     SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
     social_autopsy_option_set,
 )
+from app.services.payload_bound_coding_artifact_service import (
+    deactivate_other_active_social_autopsy_analyses,
+    get_submission_with_current_payload,
+)
 
 bp = Blueprint("so_api", __name__)
 log = logging.getLogger(__name__)
@@ -122,10 +126,18 @@ def save_social_autopsy(va_sid: str):
             "missing_delay_levels": missing_delay_levels,
         }), 400
 
+    _, active_payload_version = get_submission_with_current_payload(
+        va_sid,
+        for_update=True,
+        created_by_role="vacoder",
+        created_by=current_user.user_id,
+    )
     existing = db.session.scalar(
         sa.select(VaSocialAutopsyAnalysis).where(
             VaSocialAutopsyAnalysis.va_sid == va_sid,
             VaSocialAutopsyAnalysis.va_saa_by == current_user.user_id,
+            VaSocialAutopsyAnalysis.payload_version_id
+            == active_payload_version.payload_version_id,
             VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
         )
     )
@@ -140,9 +152,16 @@ def save_social_autopsy(va_sid: str):
         audit_operation = "u"
         audit_action = "social autopsy analysis updated"
     else:
+        deactivate_other_active_social_autopsy_analyses(
+            va_sid,
+            current_user.user_id,
+            audit_byrole="vacoder",
+            audit_by=current_user.user_id,
+        )
         analysis = VaSocialAutopsyAnalysis(
             va_sid=va_sid,
             va_saa_by=current_user.user_id,
+            payload_version_id=active_payload_version.payload_version_id,
             va_saa_remark=remark,
             va_saa_status=VaStatuses.active,
             demo_expires_at=_demo_expiry(va_actiontype),
@@ -160,6 +179,14 @@ def save_social_autopsy(va_sid: str):
             )
         )
 
+    if existing:
+        deactivate_other_active_social_autopsy_analyses(
+            va_sid,
+            current_user.user_id,
+            keep_id=analysis.va_saa_id,
+            audit_byrole="vacoder",
+            audit_by=current_user.user_id,
+        )
     db.session.flush()
     db.session.add(
         VaSubmissionsAuditlog(

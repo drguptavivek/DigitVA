@@ -11,6 +11,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 
@@ -106,8 +107,9 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         csrf_headers = self._csrf_headers()
 
         resp = self.client.post(
-            f"/vaapi/vacode/vademo_start_coding/{self.social_sid}/social-autopsy-analysis",
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
             json={
+                "va_actiontype": "vademo_start_coding",
                 "selected_options": [
                     {"delay_level": "delay_1_decision", "option_code": "recognition"},
                     {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
@@ -132,6 +134,7 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         self.assertIsNotNone(analysis)
         self.assertEqual(analysis.va_saa_remark, "Three delay factors selected")
         self.assertEqual(len(analysis.selected_options), 3)
+        self.assertIsNotNone(analysis.payload_version_id)
 
         selections = {
             (item.delay_level, item.option_code)
@@ -154,8 +157,9 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         csrf_headers = self._csrf_headers()
 
         resp = self.client.post(
-            f"/vaapi/vacode/vademo_start_coding/{self.social_sid}/social-autopsy-analysis",
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
             json={
+                "va_actiontype": "vademo_start_coding",
                 "selected_options": [
                     {"delay_level": "delay_1_decision", "option_code": "none"},
                     {"delay_level": "delay_1_decision", "option_code": "recognition"},
@@ -189,13 +193,68 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         self.assertIn(("delay_2_reaching", "financial_barrier"), selections)
         self.assertIn(("delay_3_receiving", "none"), selections)
 
+    def test_save_after_payload_change_creates_new_current_payload_row(self):
+        self._login(self.base_admin_id)
+        csrf_headers = self._csrf_headers()
+        payload = {
+            "va_actiontype": "vademo_start_coding",
+            "selected_options": [
+                {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
+                {"delay_level": "delay_3_receiving", "option_code": "delay_in_referral"},
+            ],
+            "remark": "payload one",
+        }
+
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json=payload,
+            headers=csrf_headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        submission = db.session.get(VaSubmissions, self.social_sid)
+        first_payload_version_id = submission.active_payload_version_id
+
+        submission.va_data = {"sa01": 2.0}
+        submission.va_odk_updatedat = datetime.now(timezone.utc)
+        new_payload_version = ensure_active_payload_version(
+            submission,
+            payload_data=submission.va_data,
+            source_updated_at=submission.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
+        db.session.commit()
+
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={**payload, "remark": "payload two"},
+            headers=csrf_headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+
+        rows = db.session.scalars(
+            db.select(VaSocialAutopsyAnalysis)
+            .where(
+                VaSocialAutopsyAnalysis.va_sid == self.social_sid,
+                VaSocialAutopsyAnalysis.va_saa_by == self.base_admin_user.user_id,
+            )
+            .order_by(VaSocialAutopsyAnalysis.va_saa_createdat.asc())
+        ).all()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].payload_version_id, first_payload_version_id)
+        self.assertEqual(rows[0].va_saa_status, VaStatuses.deactive)
+        self.assertEqual(rows[1].payload_version_id, new_payload_version.payload_version_id)
+        self.assertEqual(rows[1].va_saa_status, VaStatuses.active)
+
     def test_save_rejects_blank_or_incomplete_submission(self):
         self._login(self.base_admin_id)
         csrf_headers = self._csrf_headers()
 
         resp = self.client.post(
-            f"/vaapi/vacode/vademo_start_coding/{self.social_sid}/social-autopsy-analysis",
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
             json={
+                "va_actiontype": "vademo_start_coding",
                 "selected_options": [],
                 "remark": "",
             },

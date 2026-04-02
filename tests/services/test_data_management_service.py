@@ -16,14 +16,16 @@ from app import db
 from app.models import (
     VaAllocations,
     VaCoderReview,
+    VaDataManagerReview,
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
-    VaDataManagerReview,
+    VaNarrativeAssessment,
     VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
     VaReviewerFinalAssessments,
+    VaSocialAutopsyAnalysis,
     VaSiteMaster,
     VaSites,
     VaSmartvaRun,
@@ -209,6 +211,7 @@ class DataManagementAcceptRejectTests(BaseTestCase):
         # VaFinalAssessments requires va_finassess_by and va_conclusive_cod
         db.session.add(VaFinalAssessments(
             va_sid=va_sid,
+            payload_version_id=active_version.payload_version_id,
             va_finassess_by=self.base_admin_id,
             va_conclusive_cod="A00",
             va_finassess_status=VaStatuses.active,
@@ -228,6 +231,30 @@ class DataManagementAcceptRejectTests(BaseTestCase):
             va_creview_reason="completed",
             va_creview_status=VaStatuses.active,
         ))
+        db.session.add(
+            VaNarrativeAssessment(
+                va_sid=va_sid,
+                payload_version_id=active_version.payload_version_id,
+                va_nqa_by=self.base_admin_id,
+                va_nqa_length=2,
+                va_nqa_pos_symptoms=2,
+                va_nqa_neg_symptoms=1,
+                va_nqa_chronology=1,
+                va_nqa_doc_review=1,
+                va_nqa_comorbidity=1,
+                va_nqa_score=8,
+                va_nqa_status=VaStatuses.active,
+            )
+        )
+        db.session.add(
+            VaSocialAutopsyAnalysis(
+                va_sid=va_sid,
+                payload_version_id=active_version.payload_version_id,
+                va_saa_by=self.base_admin_id,
+                va_saa_remark="protected analysis",
+                va_saa_status=VaStatuses.active,
+            )
+        )
         smartva_run = VaSmartvaRun(
             va_sid=va_sid,
             payload_version_id=active_version.payload_version_id,
@@ -391,6 +418,28 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
             .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
         )
         self.assertEqual(active_count, 0)
+
+    def test_deactivates_payload_bound_coding_support_artifacts(self):
+        va_sid = self._create_revoked_submission("accept-supporting")
+        dm_user = self._create_dm_user()
+
+        dm_accept_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        active_nqa = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaNarrativeAssessment)
+            .where(VaNarrativeAssessment.va_sid == va_sid)
+            .where(VaNarrativeAssessment.va_nqa_status == VaStatuses.active)
+        )
+        active_social = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSocialAutopsyAnalysis)
+            .where(VaSocialAutopsyAnalysis.va_sid == va_sid)
+            .where(VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active)
+        )
+        self.assertEqual(active_nqa, 0)
+        self.assertEqual(active_social, 0)
 
     def test_creates_audit_log_entry(self):
         """Accept should create an audit log entry."""
@@ -605,6 +654,39 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         active_run = db.session.get(VaSmartvaRun, active_result.smartva_run_id)
         self.assertIsNotNone(active_run)
         self.assertEqual(active_run.payload_version_id, pending.payload_version_id)
+
+    def test_reject_promotes_nqa_and_social_autopsy_to_current_payload(self):
+        va_sid = self._create_revoked_submission("reject-supporting")
+        dm_user = self._create_dm_user()
+
+        pending = db.session.scalar(
+            sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == va_sid,
+                VaSubmissionPayloadVersion.version_status
+                == PAYLOAD_VERSION_STATUS_PENDING_UPSTREAM,
+            )
+        )
+        self.assertIsNotNone(pending)
+
+        dm_reject_upstream_change(dm_user, va_sid)
+        db.session.commit()
+
+        nqa = db.session.scalar(
+            sa.select(VaNarrativeAssessment).where(
+                VaNarrativeAssessment.va_sid == va_sid,
+                VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+            )
+        )
+        social = db.session.scalar(
+            sa.select(VaSocialAutopsyAnalysis).where(
+                VaSocialAutopsyAnalysis.va_sid == va_sid,
+                VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNotNone(nqa)
+        self.assertIsNotNone(social)
+        self.assertEqual(nqa.payload_version_id, pending.payload_version_id)
+        self.assertEqual(social.payload_version_id, pending.payload_version_id)
 
     def test_reject_deactivates_duplicate_active_smartva_rows(self):
         va_sid = self._create_revoked_submission("reject-smartva-dedupe")

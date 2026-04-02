@@ -1,9 +1,9 @@
 ---
 title: Social Autopsy Analysis Policy
 doc_type: policy
-status: draft
+status: active
 owner: engineering
-last_updated: 2026-03-13
+last_updated: 2026-04-02
 ---
 
 # Social Autopsy Analysis Policy
@@ -23,7 +23,10 @@ Current baseline:
 - it is rendered inside the `social_autopsy` category after the mapped Social
   Autopsy submission questions
 - it is available only in coder-facing coding flows
-- it stores one active analysis record per `(va_sid, coder)`
+- it is payload-version aware
+- the current Social Autopsy analysis for a coder is the active row whose
+  `payload_version_id` matches the submission's current
+  `active_payload_version_id`
 - each delay factor selection is stored as a normalized child row, not flattened
   into submission JSON
 - saving the analysis must create an audit log entry against the submission
@@ -55,8 +58,11 @@ top of the normalized write model.
 
 Current baseline:
 
-- save requests replace the coder's current active Social Autopsy analysis for the
-  submission
+- save requests target the submission's current active payload version
+- if the coder already has an active Social Autopsy row for that payload, that
+  row is updated in place
+- if the payload has changed, a new row is created for the new payload and the
+  coder's older active row is deactivated
 - every delay level must have an explicit saved answer before the analysis is
   considered complete; if no delay factor applies, the coder must select `none`
 - multiple selected options per delay level are allowed
@@ -66,6 +72,38 @@ Current baseline:
 - duplicate option selections in the same request must be ignored
 - invalid delay/option combinations must be rejected
 - optional free-text remarks may be stored on the parent analysis row
+
+## Upstream Change Handling
+
+Current baseline:
+
+- `Accept And Recode` after upstream ODK change deactivates the old active
+  Social Autopsy analysis because the case returns to coding against new data
+- `Keep Current ICD Decision` promotes the new ODK payload and rebinds the
+  preserved active Social Autopsy analysis to the new current payload
+
+## Simple Examples
+
+### Example: normal coding
+
+1. Submission `SID-1` currently uses payload `P1`
+2. Coder saves Social Autopsy analysis
+3. DigitVA stores one active Social Autopsy row for `(SID-1, coder, P1)`
+
+### Example: payload changed before coder saves again
+
+1. ODK data changes and DigitVA now uses payload `P2`
+2. Coder saves Social Autopsy again
+3. DigitVA deactivates the coder's old active row for `P1`
+4. DigitVA creates a new active row for `P2`
+
+### Example: keep current ICD decision
+
+1. `SID-1` was finalized on payload `P1`
+2. ODK sends a new payload `P2`
+3. Data manager chooses `Keep Current ICD Decision`
+4. DigitVA promotes `P2` and rebinds the active Social Autopsy row from `P1`
+   to `P2`
 
 ## Visibility
 

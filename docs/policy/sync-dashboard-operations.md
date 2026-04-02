@@ -3,7 +3,7 @@ title: Sync Dashboard Operations Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-17
+last_updated: 2026-04-02
 ---
 
 # Sync Dashboard Operations Policy
@@ -67,3 +67,21 @@ Policy:
 - `Sync Now` remains disabled while a run is active
 - `Gen SmartVA` remains disabled while a run is active
 - the stop control is the only operator action exposed for an active run
+
+## Coverage Table Sync Actions
+
+Operators use the coverage table to recover local gaps at the project/site
+mapping level, including mappings that do not yet have a local compatibility
+`va_forms` row.
+
+Policy:
+
+- rows with an existing local `va_forms` row may continue to expose the
+  per-form sync action
+- rows with an active mapping but no local `va_forms` row must still expose a
+  sync action
+- that zero-local-form sync action must first materialize the compatibility
+  `va_forms` row for the mapped project/site, then trigger the existing
+  single-form sync path
+- operators should not be forced to create local submissions manually before a
+  first sync can run for a mapped site

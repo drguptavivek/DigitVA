@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-03-18
+last_updated: 2026-04-02
 ---
 
 # Asynchronous Background Tasks
@@ -175,6 +175,35 @@ run_single_submission_sync.delay(
 **Purpose:** Run SmartVA analysis on submissions that have no SmartVA result yet, without triggering an ODK download.
 
 Triggered from the admin dashboard "Gen SmartVA" button via `POST /admin/api/sync/trigger-smartva`.
+
+---
+
+### `app.tasks.sync_tasks.run_single_form_sync`
+
+**Purpose:** Download and upsert one mapped form, sync attachments, and rebuild
+SmartVA for that local compatibility form.
+
+**Signature:**
+```python
+run_single_form_sync(form_id: str, triggered_by: str = "manual")
+```
+
+**Behavior:**
+1. Looks up the local `va_forms` row
+2. Revalidates request-time data-manager access in the worker for non-admin user-triggered runs
+3. Fetches all submissions for that mapped ODK form
+4. Upserts local submissions and syncs attachments
+5. Updates `map_project_site_odk.last_synced_at`
+6. Regenerates SmartVA for the affected form
+
+**When to use:** A form needs a targeted resync without running a full-system sync.
+
+**Admin dashboard coverage behavior:**
+- if a coverage row already has a local `va_forms` row, the per-form sync action
+  dispatches this task directly
+- if a coverage row has an active project/site ODK mapping but `0` local forms,
+  the dashboard first materializes the compatibility `va_forms` row from
+  `map_project_site_odk`, then dispatches this same task
 
 ---
 

@@ -3927,6 +3927,7 @@ def admin_sync_coverage():
                 "odk_project_id": mapping.odk_project_id,
                 "odk_form_id": mapping.odk_form_id,
                 "form_id": form.form_id if form else None,
+                "can_site_sync": True,
                 "odk_total": odk_count,
                 "local_total": local_count,
                 "missing": (odk_count - local_count) if odk_count is not None else None,
@@ -4000,6 +4001,60 @@ def admin_sync_form(form_id: str):
     except Exception as e:
         log.error("admin_sync_form failed for %s", form_id, exc_info=True)
         return _json_error(f"Failed to trigger sync for form {form_id}: {str(e)}", 500)
+
+
+@admin.post("/api/sync/project-site/<project_id>/<site_id>")
+@require_api_role("admin")
+def admin_sync_project_site(project_id: str, site_id: str):
+    """Materialize the runtime form for one mapping and trigger a form sync."""
+    try:
+        from app.services.runtime_form_sync_service import ensure_runtime_form_for_mapping
+        from app.tasks.sync_tasks import run_single_form_sync
+
+        mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == project_id,
+                MapProjectSiteOdk.site_id == site_id,
+            )
+        )
+        if mapping is None:
+            return _json_error(
+                f"ODK mapping not found for project/site '{project_id}/{site_id}'.",
+                404,
+            )
+
+        va_form = ensure_runtime_form_for_mapping(mapping)
+        db.session.commit()
+
+        user = _request_user()
+        log.info(
+            "Project/site sync of %s/%s (%s) triggered by user %s",
+            project_id,
+            site_id,
+            va_form.form_id,
+            user.user_id if user else "unknown",
+        )
+        task = run_single_form_sync.delay(
+            form_id=va_form.form_id,
+            triggered_by="manual",
+            user_id=str(user.user_id) if user else None,
+        )
+        return jsonify(
+            {
+                "message": (
+                    f"Sync started for {project_id}/{site_id} "
+                    f"using form {va_form.form_id}."
+                ),
+                "task_id": task.id,
+                "form_id": va_form.form_id,
+            }
+        ), 202
+    except Exception as e:
+        log.error("admin_sync_project_site failed for %s/%s", project_id, site_id, exc_info=True)
+        return _json_error(
+            f"Failed to trigger sync for project/site {project_id}/{site_id}: {str(e)}",
+            500,
+        )
 
 
 @admin.get("/api/sync/smartva-stats")

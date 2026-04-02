@@ -530,11 +530,18 @@
             + ' No action needed unless you want to manually clean up orphaned local records.';
         }
         var lastSync = m.last_synced_at ? fmtRelTime(m.last_synced_at) : '<span class="text-muted">never</span>';
-        var syncBtn = m.form_id
-          ? '<button class="btn btn-sm btn-outline-secondary py-0 px-1 form-sync-btn" '
+        var syncBtn = '';
+        if (m.form_id) {
+          syncBtn = '<button class="btn btn-sm btn-outline-secondary py-0 px-1 form-sync-btn" '
             + 'data-form-id="' + esc(m.form_id) + '" title="Force-resync (use with caution). Prefer normal sync — it auto-detects and fills gaps safely.">'
-            + '<i class="fa-solid fa-rotate-right"></i></button>'
-          : '';
+            + '<i class="fa-solid fa-rotate-right"></i></button>';
+        } else if (m.can_site_sync) {
+          syncBtn = '<button class="btn btn-sm btn-outline-secondary py-0 px-1 site-sync-btn" '
+            + 'data-project-id="' + esc(m.project_id) + '" '
+            + 'data-site-id="' + esc(m.site_id) + '" '
+            + 'title="Create the local runtime form for this active mapping, then sync the site submissions.">'
+            + '<i class="fa-solid fa-rotate-right"></i></button>';
+        }
         return '<tr>'
           + '<td class="small">' + esc(m.project_id) + ' / ' + esc(m.site_id)
           +   (m.form_id ? ' <span class="text-secondary">(' + esc(m.form_id) + ')</span>' : '') + '</td>'
@@ -575,6 +582,15 @@
       wrap.querySelectorAll('.form-sync-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
           syncForm(btn.getAttribute('data-form-id'), btn);
+        });
+      });
+      wrap.querySelectorAll('.site-sync-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          syncProjectSite(
+            btn.getAttribute('data-project-id'),
+            btn.getAttribute('data-site-id'),
+            btn
+          );
         });
       });
 
@@ -871,6 +887,29 @@
       btn.disabled = false;
       btn.innerHTML = origHtml;
       showToast('Network error.', 'danger');
+    });
+  }
+
+  function syncProjectSite(projectId, siteId, btn) {
+    var original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    apiJson(
+      '/admin/api/sync/project-site/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(siteId),
+      'POST'
+    ).then(function (res) {
+      if (!res.ok) {
+        alert(res.data.error || 'Failed to trigger sync.');
+        return;
+      }
+      loadStatus();
+      loadHistory();
+      loadCoverage();
+    }).catch(function () {
+      alert('Network error triggering sync.');
+    }).finally(function () {
+      btn.disabled = false;
+      btn.innerHTML = original;
     });
   }
 

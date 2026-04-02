@@ -70,38 +70,71 @@ def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
 
     runtime_forms: list[VaForms] = []
     for mapping in mappings:
-        _ensure_legacy_project_site_rows(mapping.project_id, mapping.site_id)
-
-        existing = forms_by_project_site.get((mapping.project_id, mapping.site_id))
-        if existing is None:
-            existing = VaForms(
-                form_id=_next_form_id(
-                    mapping.project_id,
-                    mapping.site_id,
-                    form_ids_in_use,
-                ),
-                project_id=mapping.project_id,
-                site_id=mapping.site_id,
-                odk_form_id=mapping.odk_form_id,
-                odk_project_id=str(mapping.odk_project_id),
-                form_type=_form_type_name(mapping),
-                form_type_id=mapping.form_type_id,
-                form_status=VaStatuses.active,
+        runtime_forms.append(
+            ensure_runtime_form_for_mapping(
+                mapping,
+                forms_by_project_site=forms_by_project_site,
+                form_ids_in_use=form_ids_in_use,
             )
-            db.session.add(existing)
-            forms_by_project_site[(mapping.project_id, mapping.site_id)] = existing
-            form_ids_in_use.add(existing.form_id)
-        else:
-            existing.odk_form_id = mapping.odk_form_id
-            existing.odk_project_id = str(mapping.odk_project_id)
-            existing.form_type = _form_type_name(mapping, existing.form_type)
-            existing.form_type_id = mapping.form_type_id
-            existing.form_status = VaStatuses.active
-
-        runtime_forms.append(existing)
+        )
 
     db.session.flush()
     return runtime_forms
+
+
+def ensure_runtime_form_for_mapping(
+    mapping: MapProjectSiteOdk,
+    *,
+    forms_by_project_site: dict[tuple[str, str], VaForms] | None = None,
+    form_ids_in_use: set[str] | None = None,
+) -> VaForms:
+    """Materialize or update the compatibility ``va_forms`` row for one mapping."""
+
+    _ensure_legacy_project_site_rows(mapping.project_id, mapping.site_id)
+
+    if forms_by_project_site is None:
+        forms_by_project_site = {
+            (form.project_id, form.site_id): form
+            for form in db.session.scalars(
+                sa.select(VaForms).order_by(
+                    VaForms.project_id,
+                    VaForms.site_id,
+                    VaForms.form_id,
+                )
+            ).all()
+        }
+    if form_ids_in_use is None:
+        form_ids_in_use = set(
+            db.session.scalars(sa.select(VaForms.form_id)).all()
+        )
+
+    existing = forms_by_project_site.get((mapping.project_id, mapping.site_id))
+    if existing is None:
+        existing = VaForms(
+            form_id=_next_form_id(
+                mapping.project_id,
+                mapping.site_id,
+                form_ids_in_use,
+            ),
+            project_id=mapping.project_id,
+            site_id=mapping.site_id,
+            odk_form_id=mapping.odk_form_id,
+            odk_project_id=str(mapping.odk_project_id),
+            form_type=_form_type_name(mapping),
+            form_type_id=mapping.form_type_id,
+            form_status=VaStatuses.active,
+        )
+        db.session.add(existing)
+        forms_by_project_site[(mapping.project_id, mapping.site_id)] = existing
+        form_ids_in_use.add(existing.form_id)
+    else:
+        existing.odk_form_id = mapping.odk_form_id
+        existing.odk_project_id = str(mapping.odk_project_id)
+        existing.form_type = _form_type_name(mapping, existing.form_type)
+        existing.form_type_id = mapping.form_type_id
+        existing.form_status = VaStatuses.active
+
+    return existing
 
 
 def _form_type_name(mapping: MapProjectSiteOdk, fallback: str | None = None) -> str:

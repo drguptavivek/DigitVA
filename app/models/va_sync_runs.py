@@ -37,6 +37,12 @@ class VaSyncRun(db.Model):
     records_added: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     records_updated: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     records_skipped: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    attachment_forms_total: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    attachment_forms_completed: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    attachment_downloaded: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    attachment_skipped: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    attachment_errors: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    smartva_records_generated: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     error_message: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     # JSON array of {"ts": ISO-string, "msg": str} — appended during run for live progress
     progress_log: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)

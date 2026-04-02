@@ -17,7 +17,7 @@ def va_form_updateform(
     form_smartvamalaria=None,
     form_smartvahce=None,
     form_smartvafreetext=None,
-    form_smartvacounty=None,
+    form_smartvacountry=None,
 ):
     session = db.session
     va_form = session.scalars(
@@ -66,9 +66,9 @@ def va_form_updateform(
             va_form.form_smartvafreetext = form_smartvafreetext
         else:
             return
-    if form_smartvacounty:
-        if validate_smartva_country(form_smartvacounty):
-            va_form.form_smartvacounty = form_smartvacounty
+    if form_smartvacountry:
+        if validate_smartva_country(form_smartvacountry):
+            va_form.form_smartvacountry = form_smartvacountry
         else:
             return
     session.commit()

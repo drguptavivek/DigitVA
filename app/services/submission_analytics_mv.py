@@ -6,6 +6,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.services.workflow.definition import (
+    WORKFLOW_ATTACHMENT_SYNC_PENDING,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -433,6 +434,7 @@ def build_dm_mv_filter_conditions(
         if workflow == "pending_coding":
             conditions.append(mv.c.workflow_state.in_([
                 WORKFLOW_SCREENING_PENDING,
+                WORKFLOW_ATTACHMENT_SYNC_PENDING,
                 WORKFLOW_SMARTVA_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
@@ -548,6 +550,7 @@ def get_dm_kpi_from_mv(
         .where(sa.and_(*conditions))
         .where(mv.c.workflow_state.in_([
             WORKFLOW_SCREENING_PENDING,
+            WORKFLOW_ATTACHMENT_SYNC_PENDING,
             WORKFLOW_SMARTVA_PENDING,
             WORKFLOW_READY_FOR_CODING,
             WORKFLOW_CODING_IN_PROGRESS,

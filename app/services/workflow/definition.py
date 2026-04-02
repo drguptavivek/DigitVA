@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 
 WORKFLOW_SCREENING_PENDING = "screening_pending"
+WORKFLOW_ATTACHMENT_SYNC_PENDING = "attachment_sync_pending"
 WORKFLOW_SMARTVA_PENDING = "smartva_pending"
 WORKFLOW_READY_FOR_CODING = "ready_for_coding"
 WORKFLOW_CODING_IN_PROGRESS = "coding_in_progress"
@@ -27,6 +28,7 @@ WORKFLOW_CONSENT_REFUSED = "consent_refused"
 ALL_WORKFLOW_STATES = frozenset(
     {
         WORKFLOW_SCREENING_PENDING,
+        WORKFLOW_ATTACHMENT_SYNC_PENDING,
         WORKFLOW_SMARTVA_PENDING,
         WORKFLOW_READY_FOR_CODING,
         WORKFLOW_CODING_IN_PROGRESS,
@@ -63,6 +65,7 @@ CODER_READY_POOL_STATES = frozenset({WORKFLOW_READY_FOR_CODING})
 
 
 TRANSITION_SYNC_NEW_PAYLOAD = "sync_new_payload_routed"
+TRANSITION_ATTACHMENTS_SYNCED = "attachments_synced"
 TRANSITION_UPSTREAM_CHANGE_DETECTED = "upstream_change_detected"
 TRANSITION_SMARTVA_COMPLETED = "smartva_completed"
 TRANSITION_SMARTVA_FAILED_RECORDED = "smartva_failed_recorded"
@@ -100,6 +103,11 @@ TRANSITIONS = {
     TRANSITION_SYNC_NEW_PAYLOAD: TransitionDefinition(
         transition_id=TRANSITION_SYNC_NEW_PAYLOAD,
         label="Sync New Payload Routed",
+    ),
+    TRANSITION_ATTACHMENTS_SYNCED: TransitionDefinition(
+        transition_id=TRANSITION_ATTACHMENTS_SYNCED,
+        label="Attachments Synced",
+        target_state=WORKFLOW_SMARTVA_PENDING,
     ),
     TRANSITION_UPSTREAM_CHANGE_DETECTED: TransitionDefinition(
         transition_id=TRANSITION_UPSTREAM_CHANGE_DETECTED,

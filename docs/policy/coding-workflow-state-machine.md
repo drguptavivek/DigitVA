@@ -138,6 +138,7 @@ following business states:
   explicitly refused; stored in full but excluded from coding queue; ODK
   updates flow freely so consent corrections are picked up automatically
 - `screening_pending`
+- `attachment_sync_pending`
 - `smartva_pending`
 - `ready_for_coding`
 - `coding_in_progress`
@@ -158,7 +159,8 @@ These states describe the local business outcome for the submission.
 synced identically to all other submissions. They are excluded from coding
 allocation, SmartVA generation, and all coding-queue counts. If ODK data is
 updated and consent becomes valid, the next sync automatically transitions
-the submission into `smartva_pending`.
+the submission into `attachment_sync_pending`, then `smartva_pending` once
+attachment syncing for the current payload finishes.
 
 Current naming:
 
@@ -174,8 +176,10 @@ Current implementation note:
   runtime terminal close endpoint for ordinary cases
 - `screening_pending` is now supported as an optional project-configured gate
   with explicit pass/reject transitions
-- `smartva_pending` is now written in current runtime for newly synced and
-  payload-changed consent-valid submissions
+- `attachment_sync_pending` is now written in current runtime for newly synced
+  and payload-changed consent-valid submissions
+- `smartva_pending` is now written after attachment syncing finishes for the
+  current payload
 
 Legacy compatibility note:
 
@@ -247,6 +251,15 @@ Desired target state machine:
                                       |
                      data manager     | pass / no flag
                      may inspect      v
+                           +----------------------+
+                           | attachment_sync_     |
+                           |        pending       |
+                           +----------+-----------+
+                                      |
+                                      | attachment sync
+                                      | completed for
+                                      | current payload
+                                      v
                            +----------------------+
                            |    smartva_pending   |
                            +----------+-----------+

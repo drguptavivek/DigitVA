@@ -127,6 +127,7 @@ Implemented in current runtime:
 
 - `consent_refused`
 - `screening_pending`
+- `attachment_sync_pending`
 - `smartva_pending`
 - `ready_for_coding`
 - `coding_in_progress`
@@ -157,14 +158,16 @@ Current rename note:
 1. ODK sync writes or updates `va_submissions`.
 2. The workflow layer routes new or payload-changed submissions to:
    - `consent_refused`, or
-   - `smartva_pending`
-3. SmartVA completion for the current payload moves the submission to
+   - `attachment_sync_pending`
+3. Attachment completion for the current payload moves the submission to
+   `smartva_pending`.
+4. SmartVA completion for the current payload moves the submission to
    `ready_for_coding`.
-4. Eligible submissions become visible in coding dashboards only after they are
+5. Eligible submissions become visible in coding dashboards only after they are
    `ready_for_coding`.
-5. A user starts coding or review, which creates an allocation.
-6. The user works through the category UI and submits outcomes.
-7. The allocation is released when work is completed or a terminal workflow
+6. A user starts coding or review, which creates an allocation.
+7. The user works through the category UI and submits outcomes.
+8. The allocation is released when work is completed or a terminal workflow
    decision is recorded.
 
 ## Coder Workflow
@@ -308,8 +311,11 @@ historical rows and protection logic, but current runtime does not write it in
 normal case handling. Current runtime treats `reviewer_eligible` as the
 post-24-hour resting state for coder-finalized submissions.
 
-`smartva_pending` is now written for newly synced and payload-changed
-submissions before SmartVA completes.
+`attachment_sync_pending` is now written for newly synced and payload-changed
+submissions while attachment batching finishes for the current payload.
+
+`smartva_pending` is now written only after attachment syncing completes for
+the current payload and before SmartVA completes.
 
 Current remaining reader/reporting gap:
 

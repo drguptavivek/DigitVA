@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-04-02
 ---
 
 # Admin And Setup Model
@@ -26,7 +26,7 @@ The `/admin` interface provides the following management panels:
 - **Project PIs** — manage PI assignments scoped to a project
 - **Projects** — project master management (create, activate, deactivate)
 - **Sites** — site master management (create, activate, deactivate)
-- **Users** — user account management (create, reset password, toggle active status)
+- **Users** — user account management (create, reset password, toggle active status, assign coder languages)
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
 - **Languages** — canonical language list management with ODK alias mapping. Shows unmapped language values found in submissions.
 
@@ -95,6 +95,15 @@ Key behavior:
 - each project-site pair maps to at most one ODK form and at most one form type
 - the mapping is stored in `map_project_site_odk` (columns: `odk_project_id`, `odk_form_id`, `form_type_id`)
 - the table summary shows the configured form type as a badge next to the ODK form info; a warning badge is shown if no form type is selected
+- the same Configure row also edits the materialized compatibility `va_forms`
+  SmartVA execution settings for that project/site form:
+  - HIV
+  - malaria
+  - HCE
+  - freetext
+  - country
+- saving a mapping now ensures the runtime `va_forms` row exists immediately,
+  so SmartVA settings can be persisted before the first sync run
 - the connection bar now shows the assigned connection's current cooldown or
   recent failure state so operators can see degraded ODK health before trying
   more live lookups
@@ -144,7 +153,20 @@ The Languages panel manages the canonical language list and ODK alias mappings u
 - **unmapped values alert**: the panel detects language values in `va_submissions` that don't match any alias and displays them prominently so the admin can add them
 - aliases can be added or removed inline; the language code itself is always kept as an alias
 - alias conflicts across languages are prevented (one alias maps to exactly one language)
-- deactivated languages are hidden from coder profile language selection but existing data is preserved
+- deactivated languages are hidden from admin user-language assignment but existing data is preserved
+
+## Users Panel And Language Assignment
+
+The Users panel is the operational place to manage each user's `vacode_language`
+selection.
+
+Current behavior:
+
+- admins assign one or more active canonical languages when creating a user
+- admins can later edit that language set for existing users
+- those assigned languages drive coder and reviewer narration-language filters
+- the self-service My Profile page no longer edits coding languages; it only
+  handles password and timezone changes
 
 ### Sync Integration
 

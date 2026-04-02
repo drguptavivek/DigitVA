@@ -21,7 +21,7 @@ def va_form_addform(
     form_smartvamalaria=None,
     form_smartvahce=None,
     form_smartvafreetext=None,
-    form_smartvacounty=None,
+    form_smartvacountry=None,
 ):
     session = db.session
     if not all(
@@ -34,7 +34,7 @@ def va_form_addform(
             validate_boolean_string(form_smartvahiv),
             validate_boolean_string(form_smartvamalaria),
             validate_odk_form(odk_project_id, odk_form_id, session),
-            validate_smartva_country(form_smartvacounty),
+            validate_smartva_country(form_smartvacountry),
         ]
     ):
         return
@@ -54,8 +54,8 @@ def va_form_addform(
         data["form_smartvahce"] = form_smartvahce
     if form_smartvafreetext:
         data["form_smartvafreetext"] = form_smartvafreetext
-    if form_smartvacounty:
-        data["form_smartvacounty"] = form_smartvacounty
+    if form_smartvacountry:
+        data["form_smartvacountry"] = form_smartvacountry
 
     va_form = VaForms(**data)
     session.add(va_form)

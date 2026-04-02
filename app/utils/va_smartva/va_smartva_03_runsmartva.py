@@ -4,9 +4,12 @@ import subprocess
 from flask import current_app
 
 
-def va_smartva_runsmartva(va_form, workspace_dir: str):
+def va_smartva_runsmartva(va_form, workspace_dir: str, *, run_options=None):
     va_smartva_inputfile = os.path.join(workspace_dir, "smartva_input.csv")
     va_smartva_outputdir = os.path.join(workspace_dir, "smartva_output")
+    run_options = run_options or {}
+    hiv_value = run_options.get("hiv", va_form.form_smartvahiv)
+    malaria_value = run_options.get("malaria", va_form.form_smartvamalaria)
     
     os.makedirs(va_smartva_outputdir, exist_ok=True)
     
@@ -22,9 +25,9 @@ def va_smartva_runsmartva(va_form, workspace_dir: str):
             "--figures",
             "False",
             "--hiv",
-            va_form.form_smartvahiv,
+            hiv_value,
             "--malaria",
-            va_form.form_smartvamalaria,
+            malaria_value,
             "--hce",
             va_form.form_smartvahce,
             "--freetext",

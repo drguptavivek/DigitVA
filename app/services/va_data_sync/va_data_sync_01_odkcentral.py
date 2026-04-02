@@ -75,6 +75,9 @@ from app.utils import (
     va_preprocess_summcatenotification,
     va_preprocess_categoriestodisplay,
 )
+from app.utils.va_form.va_form_02_formtyperesolution import (
+    va_get_form_type_code_from_form,
+)
 
 log = logging.getLogger(__name__)
 
@@ -491,6 +494,87 @@ def _enrich_submission_payload_for_storage(va_form, va_submission: dict, *, clie
     return _sanitize_payload_value(enriched)
 
 
+def _submission_projection_fields(va_form, va_submission: dict) -> dict:
+    va_submission_sid = va_submission.get("sid")
+    va_submission_formid = va_submission.get("form_def")
+    form_type_code = va_get_form_type_code_from_form(va_form)
+    va_submission_date = parser.isoparse(va_submission.get("SubmissionDate"))
+    va_submission_updatedat = (
+        parser.isoparse(va_submission.get("updatedAt")).replace(tzinfo=None)
+        if va_submission.get("updatedAt")
+        else None
+    )
+    va_submission_datacollector = va_submission.get("SubmitterName") or "unknown"
+    va_submission_reviewstate = va_submission.get("ReviewState")
+    va_submission_reviewcomments = va_submission.get("OdkReviewComments")
+    va_submission_instancename = va_submission.get("instanceName")
+    va_submission_uniqueid = va_submission.get("unique_id")
+    va_submission_uniqueidmask = va_submission.get("unique_id2") or "Unavailable"
+    va_submission_consent = _normalize_consent(va_submission.get("Id10013"))
+    _raw_lang = (
+        va_submission.get("narr_language")
+        if va_submission.get("narr_language")
+        else va_submission.get("language")
+    )
+    va_submission_narrlang = _normalize_language(_raw_lang)
+    normalized_age = normalize_who_2022_age(va_submission)
+    va_submission_age = normalized_age.legacy_age_years
+    va_submission_gender = va_submission.get("Id10019") or "unknown"
+    return {
+        "va_sid": va_submission_sid,
+        "va_form_id": va_submission_formid,
+        "va_submission_date": va_submission_date,
+        "va_odk_updatedat": va_submission_updatedat,
+        "va_data_collector": va_submission_datacollector,
+        "va_odk_reviewstate": va_submission_reviewstate,
+        "va_odk_reviewcomments": va_submission_reviewcomments,
+        "va_instance_name": va_submission_instancename,
+        "va_uniqueid_real": va_submission_uniqueid,
+        "va_uniqueid_masked": va_submission_uniqueidmask,
+        "va_consent": va_submission_consent,
+        "va_narration_language": va_submission_narrlang,
+        "va_deceased_age": va_submission_age,
+        "va_deceased_age_normalized_days": normalized_age.normalized_age_days,
+        "va_deceased_age_normalized_years": normalized_age.normalized_age_years,
+        "va_deceased_age_source": normalized_age.normalized_age_source,
+        "va_deceased_gender": va_submission_gender,
+        "va_summary": va_preprocess_summcatenotification(va_submission)[0],
+        "va_catcount": va_preprocess_summcatenotification(va_submission)[1],
+        "va_category_list": va_preprocess_categoriestodisplay(
+            va_submission,
+            va_submission_formid,
+            form_type_code=form_type_code,
+        ),
+    }
+
+
+def _apply_submission_projection(submission: VaSubmissions, fields: dict, payload_data: dict) -> None:
+    submission.va_sid = fields["va_sid"]
+    submission.va_form_id = fields["va_form_id"]
+    submission.va_submission_date = fields["va_submission_date"]
+    submission.va_odk_updatedat = fields["va_odk_updatedat"]
+    submission.va_data_collector = fields["va_data_collector"]
+    submission.va_odk_reviewstate = fields["va_odk_reviewstate"]
+    submission.va_odk_reviewcomments = fields["va_odk_reviewcomments"]
+    submission.va_instance_name = fields["va_instance_name"]
+    submission.va_uniqueid_real = fields["va_uniqueid_real"]
+    submission.va_uniqueid_masked = fields["va_uniqueid_masked"]
+    submission.va_consent = fields["va_consent"]
+    submission.va_narration_language = fields["va_narration_language"]
+    submission.va_deceased_age = fields["va_deceased_age"]
+    submission.va_deceased_age_normalized_days = fields["va_deceased_age_normalized_days"]
+    submission.va_deceased_age_normalized_years = fields["va_deceased_age_normalized_years"]
+    submission.va_deceased_age_source = fields["va_deceased_age_source"]
+    submission.va_deceased_gender = fields["va_deceased_gender"]
+    submission.va_sync_issue_code = None
+    submission.va_sync_issue_detail = None
+    submission.va_sync_issue_updated_at = None
+    submission.va_data = payload_data
+    submission.va_summary = fields["va_summary"]
+    submission.va_catcount = fields["va_catcount"]
+    submission.va_category_list = fields["va_category_list"]
+
+
 def _mark_form_sync_issues(va_form, odk_instance_ids: list[str], *, by_role: str = "vaadmin"):
     """Mark local submissions that no longer exist in ODK for a form."""
     expected_sids = {
@@ -544,6 +628,8 @@ def _upsert_form_submissions(
     upserted_map=None,
     *,
     client=None,
+    enrich_payloads: bool = True,
+    defer_protected_updates: bool = False,
 ):
     """Upsert a single form's submissions into the DB.
 
@@ -559,37 +645,19 @@ def _upsert_form_submissions(
     skipped = 0
 
     for va_submission in (va_submissions or []):
-        va_submission = _enrich_submission_payload_for_storage(
-            va_form,
-            va_submission,
-            client=client,
-        )
+        if enrich_payloads:
+            va_submission = _enrich_submission_payload_for_storage(
+                va_form,
+                va_submission,
+                client=client,
+            )
         va_submission_amended = False
 
-        va_submission_sid         = va_submission.get("sid")
-        va_submission_formid      = va_submission.get("form_def")
-        va_submission_date        = parser.isoparse(va_submission.get("SubmissionDate"))
-        va_submission_updatedat   = (
-            parser.isoparse(va_submission.get("updatedAt")).replace(tzinfo=None)
-            if va_submission.get("updatedAt")
-            else None
-        )
-        va_submission_datacollector  = va_submission.get("SubmitterName") or "unknown"
-        va_submission_reviewstate    = va_submission.get("ReviewState")
-        va_submission_reviewcomments = va_submission.get("OdkReviewComments")
-        va_submission_instancename   = va_submission.get("instanceName")
-        va_submission_uniqueid       = va_submission.get("unique_id")
-        va_submission_uniqueidmask   = va_submission.get("unique_id2") or "Unavailable"
-        va_submission_consent        = _normalize_consent(va_submission.get("Id10013"))
-        _raw_lang = (
-            va_submission.get("narr_language")
-            if va_submission.get("narr_language")
-            else va_submission.get("language")
-        )
-        va_submission_narrlang = _normalize_language(_raw_lang)
-        normalized_age = normalize_who_2022_age(va_submission)
-        va_submission_age = normalized_age.legacy_age_years
-        va_submission_gender = va_submission.get("Id10019") or "unknown"
+        fields = _submission_projection_fields(va_form, va_submission)
+        va_submission_sid = fields["va_sid"]
+        va_submission_formid = fields["va_form_id"]
+        va_submission_updatedat = fields["va_odk_updatedat"]
+        va_submission_consent = fields["va_consent"]
         incoming_payload_fingerprint = canonical_payload_fingerprint(va_submission)
 
         existing = db.session.scalar(
@@ -612,46 +680,17 @@ def _upsert_form_submissions(
         if existing and active_payload_changed:
             current_state = get_submission_workflow_state(va_submission_sid)
             if current_state in SYNC_PROTECTED_STATES:
-                _handle_protected_submission_update(existing, va_submission)
+                if not defer_protected_updates:
+                    _handle_protected_submission_update(existing, va_submission)
                 va_submission_amended = True
                 updated += 1
-                print(
-                    f"DataSync Process [Revoked protected VA submission "
-                    f"'{va_submission_formid}: {va_submission_sid}' (was {current_state})]"
-                )
+                if not defer_protected_updates:
+                    print(
+                        f"DataSync Process [Revoked protected VA submission "
+                        f"'{va_submission_formid}: {va_submission_sid}' (was {current_state})]"
+                    )
             else:
-                existing.va_sid                = va_submission_sid
-                existing.va_form_id            = va_submission_formid
-                existing.va_submission_date    = va_submission_date
-                existing.va_odk_updatedat      = va_submission_updatedat
-                existing.va_data_collector     = va_submission_datacollector
-                existing.va_odk_reviewstate    = va_submission_reviewstate
-                existing.va_odk_reviewcomments = va_submission_reviewcomments
-                existing.va_instance_name      = va_submission_instancename
-                existing.va_uniqueid_real      = va_submission_uniqueid
-                existing.va_uniqueid_masked    = va_submission_uniqueidmask
-                existing.va_consent            = va_submission_consent
-                existing.va_narration_language = va_submission_narrlang
-                existing.va_deceased_age       = va_submission_age
-                existing.va_deceased_age_normalized_days = (
-                    normalized_age.normalized_age_days
-                )
-                existing.va_deceased_age_normalized_years = (
-                    normalized_age.normalized_age_years
-                )
-                existing.va_deceased_age_source = normalized_age.normalized_age_source
-                existing.va_deceased_gender    = va_submission_gender
-                existing.va_sync_issue_code    = None
-                existing.va_sync_issue_detail  = None
-                existing.va_sync_issue_updated_at = None
-                existing.va_data               = va_submission
-                (
-                    existing.va_summary,
-                    existing.va_catcount,
-                ) = va_preprocess_summcatenotification(va_submission)
-                existing.va_category_list = va_preprocess_categoriestodisplay(
-                    va_submission, va_submission_formid
-                )
+                _apply_submission_projection(existing, fields, va_submission)
                 ensure_active_payload_version(
                     existing,
                     payload_data=va_submission,
@@ -798,38 +837,32 @@ def _upsert_form_submissions(
                 print(f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']")
 
         elif not existing:
-            va_submission_summary, va_submission_catcount = (
-                va_preprocess_summcatenotification(va_submission)
-            )
-            va_submission_categorylist = va_preprocess_categoriestodisplay(
-                va_submission, va_submission_formid
-            )
             db.session.add(
                 VaSubmissions(
                     va_sid=va_submission_sid,
-                    va_form_id=va_submission_formid,
-                    va_submission_date=va_submission_date,
+                    va_form_id=fields["va_form_id"],
+                    va_submission_date=fields["va_submission_date"],
                     va_odk_updatedat=va_submission_updatedat,
-                    va_data_collector=va_submission_datacollector,
-                    va_odk_reviewstate=va_submission_reviewstate,
-                    va_odk_reviewcomments=va_submission_reviewcomments,
-                    va_instance_name=va_submission_instancename,
-                    va_uniqueid_real=va_submission_uniqueid,
-                    va_uniqueid_masked=va_submission_uniqueidmask,
-                    va_consent=va_submission_consent,
-                    va_narration_language=va_submission_narrlang,
-                    va_deceased_age=va_submission_age,
-                    va_deceased_age_normalized_days=normalized_age.normalized_age_days,
-                    va_deceased_age_normalized_years=normalized_age.normalized_age_years,
-                    va_deceased_age_source=normalized_age.normalized_age_source,
-                    va_deceased_gender=va_submission_gender,
+                    va_data_collector=fields["va_data_collector"],
+                    va_odk_reviewstate=fields["va_odk_reviewstate"],
+                    va_odk_reviewcomments=fields["va_odk_reviewcomments"],
+                    va_instance_name=fields["va_instance_name"],
+                    va_uniqueid_real=fields["va_uniqueid_real"],
+                    va_uniqueid_masked=fields["va_uniqueid_masked"],
+                    va_consent=fields["va_consent"],
+                    va_narration_language=fields["va_narration_language"],
+                    va_deceased_age=fields["va_deceased_age"],
+                    va_deceased_age_normalized_days=fields["va_deceased_age_normalized_days"],
+                    va_deceased_age_normalized_years=fields["va_deceased_age_normalized_years"],
+                    va_deceased_age_source=fields["va_deceased_age_source"],
+                    va_deceased_gender=fields["va_deceased_gender"],
                     va_sync_issue_code=None,
                     va_sync_issue_detail=None,
                     va_sync_issue_updated_at=None,
                     va_data=va_submission,
-                    va_summary=va_submission_summary,
-                    va_catcount=va_submission_catcount,
-                    va_category_list=va_submission_categorylist,
+                    va_summary=fields["va_summary"],
+                    va_catcount=fields["va_catcount"],
+                    va_category_list=fields["va_category_list"],
                 )
             )
             db.session.flush()
@@ -860,9 +893,9 @@ def _upsert_form_submissions(
 
         elif existing and va_submission_updatedat != existing.va_odk_updatedat:
             existing.va_odk_updatedat = va_submission_updatedat
-            existing.va_odk_reviewstate = va_submission_reviewstate
-            existing.va_odk_reviewcomments = va_submission_reviewcomments
-            existing.va_instance_name = va_submission_instancename
+            existing.va_odk_reviewstate = fields["va_odk_reviewstate"]
+            existing.va_odk_reviewcomments = fields["va_odk_reviewcomments"]
+            existing.va_instance_name = fields["va_instance_name"]
             existing.va_sync_issue_code = None
             existing.va_sync_issue_detail = None
             existing.va_sync_issue_updated_at = None
@@ -883,6 +916,74 @@ def _upsert_form_submissions(
                 upserted_map[va_submission_sid] = va_submission.get("KEY", "")
 
     return added, updated, discarded, skipped
+
+
+def _finalize_enriched_submissions_for_form(
+    va_form,
+    raw_submissions,
+    upserted_map,
+    amended_sids,
+    *,
+    client,
+    log_progress=None,
+):
+    finalized = 0
+    total = len(upserted_map or {})
+    raw_by_sid = {
+        submission.get("sid"): submission
+        for submission in (raw_submissions or [])
+        if submission.get("sid")
+    }
+
+    for index, va_sid in enumerate((upserted_map or {}).keys(), start=1):
+        raw_submission = raw_by_sid.get(va_sid)
+        if raw_submission is None:
+            continue
+
+        enriched_submission = _enrich_submission_payload_for_storage(
+            va_form,
+            raw_submission,
+            client=client,
+        )
+        fields = _submission_projection_fields(va_form, enriched_submission)
+        existing = db.session.scalar(
+            sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_sid)
+        )
+        if existing is None:
+            continue
+
+        incoming_payload_fingerprint = canonical_payload_fingerprint(enriched_submission)
+        active_payload_version = get_active_payload_version(va_sid)
+        existing_payload_fingerprint = (
+            canonical_payload_fingerprint(active_payload_version.payload_data or {})
+            if active_payload_version is not None
+            else canonical_payload_fingerprint(existing.va_data or {})
+        )
+        active_payload_changed = existing_payload_fingerprint != incoming_payload_fingerprint
+        current_state = get_submission_workflow_state(va_sid)
+
+        if current_state in SYNC_PROTECTED_STATES and active_payload_changed:
+            _handle_protected_submission_update(existing, enriched_submission)
+        else:
+            _apply_submission_projection(existing, fields, enriched_submission)
+            ensure_active_payload_version(
+                existing,
+                payload_data=enriched_submission,
+                source_updated_at=fields["va_odk_updatedat"],
+                created_by_role="vasystem",
+            )
+
+        amended_sids.add(va_sid)
+        finalized += 1
+        if log_progress and (
+            finalized == total or finalized % 50 == 0
+        ):
+            log_progress(
+                f"[{va_form.form_id}] enrich: metadata enriched for "
+                f"{finalized}/{total} submission(s)"
+            )
+
+    return finalized
 
 
 def _release_active_allocations_after_sync() -> None:
@@ -941,7 +1042,7 @@ def _release_active_allocations_after_sync() -> None:
     db.session.commit()
 
 
-def va_data_sync_odkcentral(log_progress=None):
+def va_data_sync_odkcentral(log_progress=None, attachment_sync_dispatcher=None):
     def _progress(msg):
         ts = datetime.now().strftime("%H:%M:%S")
         print(f"{ts} {msg}")
@@ -974,10 +1075,11 @@ def va_data_sync_odkcentral(log_progress=None):
         va_submissions_added = 0
         va_submissions_updated = 0
         va_discarded_relrecords = 0
+        va_smartva_updated = 0
         amended_sids: set[str] = set()
         failed_form_ids: list[str] = []
         cooldown_skipped_form_ids: list[str] = []
-        downloaded_forms: list = []  # forms that were downloaded (not skipped)
+        attachment_sync_forms_enqueued = 0
         # Connections that entered cooldown mid-run — remaining forms on the
         # same connection are skipped without touching ODK.
         connections_in_cooldown: set = set()
@@ -1081,6 +1183,8 @@ def va_data_sync_odkcentral(log_progress=None):
                     gap_discarded_total = 0
                     gap_skipped_total = 0  # Submissions skipped due to consent
                     gap_errors = 0
+                    gap_upserted_map: dict[str, str] = {}
+                    gap_records_for_finalize: list[dict] = []
                     form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
                     media_dir = os.path.join(form_dir, "media")
                     os.makedirs(media_dir, exist_ok=True)
@@ -1091,36 +1195,22 @@ def va_data_sync_odkcentral(log_progress=None):
                             va_form, batch_ids, client=odk_client,
                         )
                         if batch_records:
-                            batch_records = _attach_all_odk_comments(
-                                va_form,
-                                batch_records,
-                                client=odk_client,
-                                log_progress=_progress,
-                            )
+                            gap_records_for_finalize.extend(batch_records)
                             upserted_map_batch: dict[str, str] = {}
                             b_added, b_updated, b_discarded, b_skipped = _upsert_form_submissions(
                                 va_form,
                                 batch_records,
                                 amended_sids,
                                 upserted_map_batch,
-                                client=odk_client,
+                                enrich_payloads=False,
+                                defer_protected_updates=True,
                             )
                             db.session.commit()
                             gap_added_total += b_added
                             gap_updated_total += b_updated
                             gap_skipped_total += b_skipped
                             gap_discarded_total += b_discarded
-
-                            # Sync attachments for this batch
-                            if upserted_map_batch:
-                                va_odk_sync_form_attachments(
-                                    va_form, upserted_map_batch, media_dir,
-                                    client_factory=lambda: _get_or_create_sync_odk_client(
-                                        clients_by_group, connection_by_project,
-                                        va_form, mapping,
-                                    ),
-                                )
-                                db.session.commit()
+                            gap_upserted_map.update(upserted_map_batch)
 
                         done = min(batch_start + _GAP_BATCH, len(missing_ids))
                         skip_msg = f", {gap_skipped_total} skipped" if gap_skipped_total else ""
@@ -1143,12 +1233,97 @@ def va_data_sync_odkcentral(log_progress=None):
                         f"[{va_form.form_id}] gap sync done: "
                         f"+{gap_added_total} added, {gap_updated_total} updated{skip_msg}"
                     )
-                    downloaded_forms.append(va_form)
+                    if gap_upserted_map:
+                        _progress(
+                            f"[{va_form.form_id}] enrich: adding ODK review comments to "
+                            f"{len(gap_records_for_finalize)} submission(s)…"
+                        )
+                        gap_records_for_finalize = _attach_all_odk_comments(
+                            va_form,
+                            gap_records_for_finalize,
+                            client=odk_client,
+                            log_progress=_progress,
+                        )
+                        _progress(
+                            f"[{va_form.form_id}] enrich: review comments added for "
+                            f"{len(gap_records_for_finalize)} submission(s)"
+                        )
+                        _progress(
+                            f"[{va_form.form_id}] enrich: enriching submission metadata…"
+                        )
+                        enriched_count = _finalize_enriched_submissions_for_form(
+                            va_form,
+                            gap_records_for_finalize,
+                            gap_upserted_map,
+                            amended_sids,
+                            client=odk_client,
+                            log_progress=_progress,
+                        )
+                        db.session.commit()
+                        _progress(
+                            f"[{va_form.form_id}] enrich: complete — "
+                            f"metadata enriched for {enriched_count} submission(s)"
+                        )
+                        if attachment_sync_dispatcher is not None:
+                            attachment_sync_dispatcher(
+                                va_form,
+                                gap_upserted_map,
+                                media_dir,
+                                _progress,
+                            )
+                            attachment_sync_forms_enqueued += 1
+                        else:
+                            attachment_totals = va_odk_sync_form_attachments(
+                                va_form,
+                                gap_upserted_map,
+                                media_dir,
+                                client_factory=lambda: _get_or_create_sync_odk_client(
+                                    clients_by_group, connection_by_project,
+                                    va_form, mapping,
+                                ),
+                                progress_callback=_progress,
+                            )
+                            db.session.commit()
+                            _progress(
+                                f"[{va_form.form_id}] attachments: complete — "
+                                f"{attachment_totals['downloaded']} downloaded, "
+                                f"{attachment_totals['skipped']} skipped"
+                                + (
+                                    f", {attachment_totals['errors']} errors"
+                                    if attachment_totals["errors"]
+                                    else ""
+                                )
+                            )
+                            _progress(
+                                f"[{va_form.form_id}] workflow: attachments finished for "
+                                f"{len(gap_upserted_map)} submission(s); ready for SmartVA"
+                            )
+                            from app.services import smartva_service
+                            _progress(
+                                f"SmartVA {va_form.form_id}: starting for "
+                                f"{len(gap_upserted_map)} submission(s)…"
+                            )
+                            saved = smartva_service.generate_for_form(
+                                va_form,
+                                amended_sids=set(gap_upserted_map),
+                                log_progress=_progress,
+                            )
+                            va_smartva_updated += saved
+                            _progress(
+                                f"[{va_form.form_id}] pipeline: complete — "
+                                f"{attachment_totals['downloaded']} attachments downloaded, "
+                                f"{saved} SmartVA result(s) generated"
+                                + (
+                                    f", {attachment_totals['errors']} attachment error(s)"
+                                    if attachment_totals["errors"]
+                                    else ""
+                                )
+                            )
                     continue  # skip the normal upsert/attachment flow below
                 else:
                     # Normal delta or first-sync fetch
                     log.info("DataSync [Fetching submissions via OData: %s].", va_form.form_id)
-                    _progress(f"[{va_form.form_id}] fetching submissions from ODK…")
+                    _progress(f"[{va_form.form_id}] fetch: downloading submissions from ODK…")
                     va_submissions_raw = _run_with_odk_connectivity_backoff(
                         f"[{va_form.form_id}] ODK fetch",
                         lambda attempt: va_odk_fetch_submissions(
@@ -1164,27 +1339,29 @@ def va_data_sync_odkcentral(log_progress=None):
                         ),
                         log_progress=_progress,
                     )
+                    _progress(
+                        f"[{va_form.form_id}] fetch: downloaded "
+                        f"{len(va_submissions_raw)} submission(s) from ODK"
+                    )
 
                 form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
                 media_dir = os.path.join(form_dir, "media")
                 os.makedirs(media_dir, exist_ok=True)
-                va_submissions_raw = _attach_all_odk_comments(
-                    va_form,
-                    va_submissions_raw,
-                    client=odk_client,
-                    log_progress=_progress,
-                )
 
                 # Upsert submissions for this form only
                 log.info("DataSync [Upserting submissions: %s].", va_form.form_id)
-                _progress(f"[{va_form.form_id}] upserting {len(va_submissions_raw)} submission(s)…")
+                _progress(
+                    f"[{va_form.form_id}] upsert: saving basic submission data for "
+                    f"{len(va_submissions_raw)} submission(s)…"
+                )
                 upserted_map: dict[str, str] = {}  # {va_sid: instance_id}
                 form_added, form_updated, form_discarded, form_skipped = _upsert_form_submissions(
                     va_form,
                     va_submissions_raw,
                     amended_sids,
                     upserted_map,
-                    client=odk_client,
+                    enrich_payloads=False,
+                    defer_protected_updates=True,
                 )
                 va_submissions_added += form_added
                 va_submissions_updated += form_updated
@@ -1194,9 +1371,40 @@ def va_data_sync_odkcentral(log_progress=None):
                 db.session.commit()
                 skip_msg = f", {form_skipped} skipped" if form_skipped else ""
                 _progress(
-                    f"[{va_form.form_id}] done: "
+                    f"[{va_form.form_id}] upsert: complete — "
                     f"+{form_added} added, {form_updated} updated{skip_msg}"
                 )
+                if upserted_map:
+                    _progress(
+                        f"[{va_form.form_id}] enrich: adding ODK review comments to "
+                        f"{len(va_submissions_raw)} submission(s)…"
+                    )
+                    va_submissions_raw = _attach_all_odk_comments(
+                        va_form,
+                        va_submissions_raw,
+                        client=odk_client,
+                        log_progress=_progress,
+                    )
+                    _progress(
+                        f"[{va_form.form_id}] enrich: review comments added for "
+                        f"{len(va_submissions_raw)} submission(s)"
+                    )
+                    _progress(
+                        f"[{va_form.form_id}] enrich: enriching submission metadata…"
+                    )
+                    enriched_count = _finalize_enriched_submissions_for_form(
+                        va_form,
+                        va_submissions_raw,
+                        upserted_map,
+                        amended_sids,
+                        client=odk_client,
+                        log_progress=_progress,
+                    )
+                    db.session.commit()
+                    _progress(
+                        f"[{va_form.form_id}] enrich: complete — "
+                        f"metadata enriched for {enriched_count} submission(s)"
+                    )
                 log.info(
                     "DataSync [%s]: committed — added=%d updated=%d discarded=%d skipped=%d",
                     va_form.form_id, form_added, form_updated, form_discarded, form_skipped,
@@ -1204,41 +1412,77 @@ def va_data_sync_odkcentral(log_progress=None):
 
                 # Sync attachments for upserted submissions (ETag-based, no rmtree)
                 if upserted_map:
-                    total_attach = len(upserted_map)
-                    _progress(
-                        f"[{va_form.form_id}] syncing attachments for "
-                        f"{total_attach} submission(s)…"
-                    )
-                    attachment_totals = va_odk_sync_form_attachments(
-                        va_form,
-                        upserted_map,
-                        media_dir,
-                        client_factory=lambda: _get_or_create_sync_odk_client(
-                            clients_by_group,
-                            connection_by_project,
-                            va_form,
-                            mapping,
-                        ),
-                        progress_callback=_progress,
-                    )
-                    db.session.commit()  # commit ETag records
-                    _progress(
-                        f"[{va_form.form_id}] attachments done: "
-                        f"{attachment_totals['downloaded']} downloaded, "
-                        f"{attachment_totals['skipped']} skipped"
-                        + (
-                            f", {attachment_totals['errors']} errors"
-                            if attachment_totals["errors"]
-                            else ""
+                    if attachment_sync_dispatcher is not None:
+                        _progress(
+                            f"[{va_form.form_id}] attachments: queueing downloads for "
+                            f"{len(upserted_map)} changed submission(s)…"
                         )
-                    )
+                        attachment_sync_dispatcher(
+                            va_form,
+                            upserted_map,
+                            media_dir,
+                            _progress,
+                        )
+                        attachment_sync_forms_enqueued += 1
+                    else:
+                        total_attach = len(upserted_map)
+                        _progress(
+                            f"[{va_form.form_id}] attachments: downloading files for "
+                            f"{total_attach} submission(s)…"
+                        )
+                        attachment_totals = va_odk_sync_form_attachments(
+                            va_form,
+                            upserted_map,
+                            media_dir,
+                            client_factory=lambda: _get_or_create_sync_odk_client(
+                                clients_by_group,
+                                connection_by_project,
+                                va_form,
+                                mapping,
+                            ),
+                            progress_callback=_progress,
+                        )
+                        db.session.commit()  # commit ETag records
+                        _progress(
+                            f"[{va_form.form_id}] attachments: complete — "
+                            f"{attachment_totals['downloaded']} downloaded, "
+                            f"{attachment_totals['skipped']} skipped"
+                            + (
+                                f", {attachment_totals['errors']} errors"
+                                if attachment_totals["errors"]
+                                else ""
+                            )
+                        )
+                        _progress(
+                            f"[{va_form.form_id}] workflow: attachments finished for "
+                            f"{len(upserted_map)} submission(s); ready for SmartVA"
+                        )
+                        from app.services import smartva_service
+                        _progress(
+                            f"SmartVA {va_form.form_id}: starting for "
+                            f"{len(upserted_map)} submission(s)…"
+                        )
+                        saved = smartva_service.generate_for_form(
+                            va_form,
+                            amended_sids=set(upserted_map),
+                            log_progress=_progress,
+                        )
+                        va_smartva_updated += saved
+                        _progress(
+                            f"[{va_form.form_id}] pipeline: complete — "
+                            f"{attachment_totals['downloaded']} attachments downloaded, "
+                            f"{saved} SmartVA result(s) generated"
+                            + (
+                                f", {attachment_totals['errors']} attachment error(s)"
+                                if attachment_totals["errors"]
+                                else ""
+                            )
+                        )
 
                 # Record successful sync time
                 if mapping:
                     mapping.last_synced_at = snapshot_time
                     db.session.commit()
-
-                downloaded_forms.append(va_form)
 
             except OdkConnectionCooldownError as form_err:
                 db.session.rollback()
@@ -1268,7 +1512,7 @@ def va_data_sync_odkcentral(log_progress=None):
         _release_active_allocations_after_sync()
 
         phase1_msg = (
-            f"Downloads complete — added: {va_submissions_added}, "
+            f"Per-form sync loop complete — added: {va_submissions_added}, "
             f"updated: {va_submissions_updated}, discarded: {va_discarded_relrecords}"
         )
         if failed_form_ids:
@@ -1283,25 +1527,11 @@ def va_data_sync_odkcentral(log_progress=None):
         )
         _progress(phase1_msg)
 
-        # ── Phase 2: SmartVA ────────────────────────────────────────────────────
-        from app.services import smartva_service
-
-        va_smartva_updated = 0
-        for va_form in downloaded_forms:
-            try:
-                saved = smartva_service.generate_for_form(
-                    va_form,
-                    amended_sids=amended_sids,
-                    log_progress=_progress,
-                )
-                va_smartva_updated += saved
-            except Exception as e:
-                db.session.rollback()
-                log.warning(
-                    "DataSync SmartVA [%s] failed, skipping: %s",
-                    va_form.form_id, e, exc_info=True,
-                )
-                _progress(f"SmartVA {va_form.form_id}: FAILED — {e}")
+        if attachment_sync_dispatcher is not None and attachment_sync_forms_enqueued:
+            _progress(
+                f"Attachment sync queued for {attachment_sync_forms_enqueued} form(s); "
+                "SmartVA will run after attachment batches finish."
+            )
 
         log.info(
             "DataSync complete: added=%d updated=%d smartva=%d discarded=%d failed=%s",
@@ -1318,6 +1548,7 @@ def va_data_sync_odkcentral(log_progress=None):
             "smartva_updated": va_smartva_updated,
             "discarded": va_discarded_relrecords,
             "failed_forms": failed_form_ids,
+            "attachment_sync_forms_enqueued": attachment_sync_forms_enqueued,
         }
 
     except Exception as e:

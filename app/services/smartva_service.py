@@ -779,8 +779,21 @@ def generate_for_form(
         )
         processing_tx = db.session.begin_nested()
         try:
-            va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
-            va_smartva_runsmartva(va_form, workspace_dir)
+            prep_result = va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
+            run_options = prep_result.get("run_options", {})
+            if log_progress and run_options.get("hiv_overridden"):
+                log_progress(
+                    f"SmartVA {va_form.form_id}: HIV flag overridden from ODK payload to {run_options.get('hiv')}."
+                )
+            if log_progress and run_options.get("malaria_overridden"):
+                log_progress(
+                    f"SmartVA {va_form.form_id}: malaria flag overridden from ODK payload to {run_options.get('malaria')}."
+                )
+            va_smartva_runsmartva(
+                va_form,
+                workspace_dir,
+                run_options=run_options,
+            )
             raw_outputs_by_sid = _read_raw_likelihood_outputs(workspace_dir, pending)
             rejected_by_sid = _read_rejected_sids_from_report(workspace_dir, pending)
             output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
@@ -958,8 +971,21 @@ def generate_for_submission(
         )
         processing_tx = db.session.begin_nested()
         try:
-            va_smartva_prepdata(va_form, workspace_dir, pending_sids={va_sid})
-            va_smartva_runsmartva(va_form, workspace_dir)
+            prep_result = va_smartva_prepdata(va_form, workspace_dir, pending_sids={va_sid})
+            run_options = prep_result.get("run_options", {})
+            if log_progress and run_options.get("hiv_overridden"):
+                log_progress(
+                    f"[{va_sid}] SmartVA HIV flag overridden from ODK payload to {run_options.get('hiv')}."
+                )
+            if log_progress and run_options.get("malaria_overridden"):
+                log_progress(
+                    f"[{va_sid}] SmartVA malaria flag overridden from ODK payload to {run_options.get('malaria')}."
+                )
+            va_smartva_runsmartva(
+                va_form,
+                workspace_dir,
+                run_options=run_options,
+            )
             raw_outputs_by_sid = _read_raw_likelihood_outputs(workspace_dir, {va_sid})
             rejected_by_sid = _read_rejected_sids_from_report(workspace_dir, {va_sid})
             output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)

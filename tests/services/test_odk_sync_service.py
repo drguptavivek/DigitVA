@@ -33,6 +33,7 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     _upsert_form_submissions,
 )
 from app.services.workflow.definition import (
+    WORKFLOW_ATTACHMENT_SYNC_PENDING,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_SMARTVA_PENDING,
@@ -174,7 +175,7 @@ class OdkSyncServiceTests(BaseTestCase):
             consent_map[f"uuid:sync-consent-missing-{self.FORM_ID.lower()}"], ""
         )
 
-    def test_upsert_sets_consented_submission_to_smartva_pending(self):
+    def test_upsert_sets_consented_submission_to_attachment_sync_pending(self):
         amended_sids = set()
         sid = f"uuid:sync-consent-yes-{self.FORM_ID.lower()}"
 
@@ -191,7 +192,7 @@ class OdkSyncServiceTests(BaseTestCase):
                 VaSubmissionWorkflow.va_sid == sid
             )
         )
-        self.assertEqual(workflow_state, WORKFLOW_SMARTVA_PENDING)
+        self.assertEqual(workflow_state, WORKFLOW_ATTACHMENT_SYNC_PENDING)
 
     def test_upsert_creates_active_payload_version_for_new_submission(self):
         amended_sids = set()
@@ -397,7 +398,7 @@ class OdkSyncServiceTests(BaseTestCase):
                 VaSubmissionWorkflow.va_sid == sid
             )
         )
-        self.assertEqual(workflow_state, WORKFLOW_SMARTVA_PENDING)
+        self.assertEqual(workflow_state, WORKFLOW_ATTACHMENT_SYNC_PENDING)
 
     def test_unchanged_payload_does_not_create_new_payload_version(self):
         amended_sids = set()
@@ -499,7 +500,7 @@ class OdkSyncServiceTests(BaseTestCase):
                 VaInitialAssessments.va_sid == sid
             )
         )
-        self.assertEqual(workflow_state, WORKFLOW_SMARTVA_PENDING)
+        self.assertEqual(workflow_state, WORKFLOW_ATTACHMENT_SYNC_PENDING)
         self.assertEqual(allocation_status, VaStatuses.deactive)
         self.assertEqual(initial_status, VaStatuses.deactive)
 

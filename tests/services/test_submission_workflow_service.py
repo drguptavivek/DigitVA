@@ -22,6 +22,7 @@ from app.services.workflow.definition import (
     PROTECTED_WORKFLOW_STATES,
     SMARTVA_BLOCKED_WORKFLOW_STATES,
     WORKFLOW_CONSENT_REFUSED,
+    WORKFLOW_ATTACHMENT_SYNC_PENDING,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -35,6 +36,7 @@ from app.services.workflow.definition import (
     WORKFLOW_SCREENING_PENDING,
     WORKFLOW_SMARTVA_PENDING,
     TRANSITIONS,
+    TRANSITION_ATTACHMENTS_SYNCED,
     TRANSITION_REVIEWER_ELIGIBLE_AFTER_RECODE_WINDOW,
 )
 from app.services.workflow.state_store import (
@@ -49,6 +51,7 @@ from app.services.workflow.transitions import (
     coder_actor,
     data_manager_actor,
     mark_admin_override_to_recode,
+    mark_attachment_sync_completed,
     mark_coder_finalized,
     mark_coding_started,
     mark_data_manager_not_codeable,
@@ -169,6 +172,28 @@ class TestSubmissionWorkflowService(BaseTestCase):
         self.assertIn(WORKFLOW_CONSENT_REFUSED, ALL_WORKFLOW_STATES)
         self.assertNotIn(WORKFLOW_CONSENT_REFUSED, PROTECTED_WORKFLOW_STATES)
         self.assertIn(WORKFLOW_CONSENT_REFUSED, SMARTVA_BLOCKED_WORKFLOW_STATES)
+
+    def test_attachment_sync_pending_is_registered_before_smartva(self):
+        self.assertIn(WORKFLOW_ATTACHMENT_SYNC_PENDING, ALL_WORKFLOW_STATES)
+        self.assertEqual(
+            TRANSITIONS[TRANSITION_ATTACHMENTS_SYNCED].target_state,
+            WORKFLOW_SMARTVA_PENDING,
+        )
+
+    def test_mark_attachment_sync_completed_advances_to_smartva_pending(self):
+        sid = "uuid:wf-attachments"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_ATTACHMENT_SYNC_PENDING,
+            by_role="vasystem",
+            reason="test_seed",
+        )
+        db.session.commit()
+
+        result = mark_attachment_sync_completed(sid, actor=system_actor())
+
+        self.assertEqual(result.current_state, WORKFLOW_SMARTVA_PENDING)
 
     def test_infer_coding_in_progress_from_active_allocation(self):
         sid = "uuid:wf-alloc"

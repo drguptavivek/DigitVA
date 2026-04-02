@@ -44,6 +44,7 @@ SYNC_SOURCE_STATES = (
     None,
     wd.WORKFLOW_CONSENT_REFUSED,
     wd.WORKFLOW_SCREENING_PENDING,
+    wd.WORKFLOW_ATTACHMENT_SYNC_PENDING,
     wd.WORKFLOW_SMARTVA_PENDING,
     wd.WORKFLOW_READY_FOR_CODING,
     wd.WORKFLOW_CODING_IN_PROGRESS,
@@ -238,7 +239,7 @@ def route_synced_submission(
     actor: WorkflowActor | None = None,
 ) -> TransitionResult:
     target_state = (
-        wd.WORKFLOW_SMARTVA_PENDING
+        wd.WORKFLOW_ATTACHMENT_SYNC_PENDING
         if consent_valid
         else wd.WORKFLOW_CONSENT_REFUSED
     )
@@ -247,6 +248,23 @@ def route_synced_submission(
         transition_id=wd.TRANSITION_SYNC_NEW_PAYLOAD,
         target_state=target_state,
         allowed_from=SYNC_SOURCE_STATES,
+        allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
+        reason=reason,
+        actor=actor or system_actor(),
+    )
+
+
+def mark_attachment_sync_completed(
+    va_sid: str,
+    *,
+    reason: str = "attachments_synced_for_current_payload",
+    actor: WorkflowActor | None = None,
+) -> TransitionResult:
+    return _apply_transition(
+        va_sid,
+        transition_id=wd.TRANSITION_ATTACHMENTS_SYNCED,
+        target_state=wd.WORKFLOW_SMARTVA_PENDING,
+        allowed_from=(wd.WORKFLOW_ATTACHMENT_SYNC_PENDING,),
         allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
         reason=reason,
         actor=actor or system_actor(),

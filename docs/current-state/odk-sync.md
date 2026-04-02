@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-01
+last_updated: 2026-04-02
 ---
 
 # ODK Sync And Attachments
@@ -16,14 +16,16 @@ ODK sync is an incremental batch process that:
 2. Materializes compatibility `va_forms` rows for those mappings
 3. For each form, runs an OData filter-gated delta check — skips if nothing changed since last sync
 4. Fetches changed submissions via OData JSON (paginated, no ZIP download)
-5. Writes or updates `va_submissions` rows for all fetched ODK submissions, including consent=`no` and consent-missing rows
-6. Reuses one pyODK client/session per `(connection_id, odk_project_id)` group across delta, fetch, targeted single-record refresh, and attachment sync
-7. Per-form commit — earlier forms are not rolled back if a later form fails
-8. Syncs attachments for upserted submissions using ETag-based conditional download
-9. Rebuilds full CSV from DB for SmartVA compatibility
-10. Records `last_synced_at` on the mapping row after each successful form
-11. Marks local sync issues when a local submission is missing from active ODK submissions
-12. Runs SmartVA on any new or updated submissions
+5. Thin-upserts `va_submissions` rows for all fetched ODK submissions, including consent=`no` and consent-missing rows
+6. Enriches the changed submissions for that same form into the canonical stored payload
+7. Reuses one pyODK client/session per `(connection_id, odk_project_id)` group across delta, fetch, targeted single-record refresh, and attachment sync
+8. Per-form commit — earlier forms are not rolled back if a later form fails
+9. Routes consent-valid changed submissions into `attachment_sync_pending`
+10. Syncs attachments for upserted submissions using bounded Celery batch subtasks and ETag-based conditional download
+11. Advances those submissions to `smartva_pending` only after all attachment batches for that form finish
+12. Rebuilds full CSV from DB for SmartVA compatibility and then runs SmartVA for that same form
+13. Records `last_synced_at` on the mapping row after each successful form
+14. Marks local sync issues when a local submission is missing from active ODK submissions
 
 ## Current Identity Rule
 
@@ -184,7 +186,8 @@ Behavior:
 - Loads active `map_project_site_odk` rows for active project-site assignments
 - Upserts compatibility `va_forms` rows for those mappings
 - Captures `snapshot_time = datetime.now(UTC)` before any ODK calls
-- Loops over forms, running the delta check → fetch → upsert → attach → commit pipeline per form
+- Loops over forms, running the delta check → fetch → thin upsert → enrich →
+  attachments → SmartVA pipeline per form
 
 Important detail:
 
@@ -523,9 +526,12 @@ The sync path also maintains:
 
 Current behavior:
 
-- newly inserted consented submissions are initialized as `smartva_pending`
+- newly inserted consented submissions are initialized as
+  `attachment_sync_pending`
 - updated submissions refresh their canonical workflow row after local
   workflow artifacts are deactivated
+- attachment completion transitions `attachment_sync_pending` submissions into
+  `smartva_pending`
 - SmartVA generation transitions `smartva_pending` submissions to
   `ready_for_coding` once results are saved
 - active SmartVA projections are expected to align to the submission's current
@@ -533,7 +539,8 @@ Current behavior:
 
 Desired target behavior:
 
-- consent-valid submissions should enter `smartva_pending` first
+- consent-valid submissions should enter `attachment_sync_pending` first
+- only after attachment syncing finishes should they become `smartva_pending`
 - only after SmartVA is generated, regenerated, or explicitly failed-and-recorded,
   should the submission become `ready_for_coding`
 - only new or changed payloads should pass through that gate
@@ -579,7 +586,7 @@ Tasks:
 
 - [`run_odk_sync()`](../../app/tasks/sync_tasks.py) — full sync across all active forms; records outcome in `va_sync_runs`
 - [`run_single_form_sync(form_id)`](../../app/tasks/sync_tasks.py) — force-resync one form, bypasses delta check
-- [`run_single_submission_sync(va_sid)`](../../app/tasks/sync_tasks.py) — refreshes one local submission from ODK, syncs its attachments, and reruns SmartVA for that submission
+- [`run_single_submission_sync(va_sid)`](../../app/tasks/sync_tasks.py) — refreshes one local submission from ODK, queues bounded attachment batches for that submission's form, and reruns SmartVA only after attachment completion
 
 Default schedule: every 6 hours (configurable via admin sync dashboard without restart).
 

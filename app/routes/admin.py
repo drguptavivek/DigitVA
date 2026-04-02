@@ -1138,6 +1138,7 @@ def _serialize_user(user):
         "status": user.user_status.value,
         "phone": user.phone,
         "landing_page": user.landing_page,
+        "languages": user.vacode_language or [],
     }
 
 
@@ -1174,15 +1175,28 @@ def admin_create_user():
     user = _request_user()
     if not user.is_admin():
         return _json_error("Admin access required.", 403)
-        
+    from app.models.mas_languages import MasLanguages
+
     payload = request.get_json(silent=True) or {}
     email = (payload.get("email") or "").strip().lower()
     name = (payload.get("name") or "").strip()
     phone = (payload.get("phone") or "").strip()
     password = payload.get("password")
+    languages = payload.get("languages")
     
     if not email or not name or not password:
         return _json_error("email, name, and password are required.", 400)
+    if not isinstance(languages, list) or not languages:
+        return _json_error("At least one language must be selected.", 400)
+
+    valid_codes = set(
+        db.session.scalars(
+            sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)
+        ).all()
+    )
+    invalid = [code for code in languages if code not in valid_codes]
+    if invalid:
+        return _json_error(f"Invalid language codes: {invalid}", 400)
         
     existing = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
     if existing:
@@ -1193,7 +1207,7 @@ def admin_create_user():
         name=name,
         phone=phone or None,
         user_status=VaStatuses.active,
-        vacode_language=["English"],
+        vacode_language=languages,
         permission={},
         landing_page="coder",
         pw_reset_t_and_c=False,
@@ -1212,7 +1226,8 @@ def admin_update_user(target_user_id):
     user = _request_user()
     if not user.is_admin():
         return _json_error("Admin access required.", 403)
-        
+    from app.models.mas_languages import MasLanguages
+
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user:
         return _json_error("User not found.", 404)
@@ -1236,6 +1251,22 @@ def admin_update_user(target_user_id):
             
     if payload.get("password"):
         target_user.set_password(payload["password"])
+
+    if "languages" in payload:
+        languages = payload.get("languages")
+        if not isinstance(languages, list) or not languages:
+            return _json_error("At least one language must be selected.", 400)
+        valid_codes = set(
+            db.session.scalars(
+                sa.select(MasLanguages.language_code).where(
+                    MasLanguages.is_active == True
+                )
+            ).all()
+        )
+        invalid = [code for code in languages if code not in valid_codes]
+        if invalid:
+            return _json_error(f"Invalid language codes: {invalid}", 400)
+        target_user.vacode_language = languages
         
     db.session.commit()
     return jsonify({"user": _serialize_user(target_user)})
@@ -1557,7 +1588,12 @@ def admin_panel_project_forms():
     user = _request_user()
     if not user.is_admin():
         return render_template("va_errors/va_403.html"), 403
-    return render_template("admin/panels/project_forms.html")
+    from app.utils import smartva_allowed_countries
+
+    return render_template(
+        "admin/panels/project_forms.html",
+        smartva_countries=smartva_allowed_countries,
+    )
 
 
 @admin.get("/panels/projects")
@@ -1590,7 +1626,20 @@ def admin_panel_users():
     user = _request_user()
     if not user.is_admin():
         return render_template("va_errors/va_403.html"), 403
-    return render_template("admin/panels/users.html")
+    from app.models.mas_languages import MasLanguages
+
+    languages = db.session.scalars(
+        sa.select(MasLanguages)
+        .where(MasLanguages.is_active == True)
+        .order_by(MasLanguages.language_name)
+    ).all()
+    return render_template(
+        "admin/panels/users.html",
+        available_languages=[
+            {"code": language.language_code, "name": language.language_name}
+            for language in languages
+        ],
+    )
 
 
 @admin.get("/panels/project-pi")
@@ -3380,6 +3429,12 @@ def admin_odk_site_mappings_list(project_id):
             MapProjectSiteOdk.project_id == project_id
         )
     ).all()
+    forms_by_site = {
+        form.site_id: form
+        for form in db.session.scalars(
+            sa.select(VaForms).where(VaForms.project_id == project_id)
+        ).all()
+    }
     return jsonify({
         "mappings": [
             {
@@ -3388,6 +3443,32 @@ def admin_odk_site_mappings_list(project_id):
                 "odk_form_id": r.odk_form_id,
                 "form_type_id": str(r.form_type_id) if r.form_type_id else None,
                 "form_type_code": r.form_type.form_type_code if r.form_type else None,
+                "form_id": forms_by_site.get(r.site_id).form_id if forms_by_site.get(r.site_id) else None,
+                "form_smartvahiv": (
+                    forms_by_site.get(r.site_id).form_smartvahiv
+                    if forms_by_site.get(r.site_id)
+                    else "False"
+                ),
+                "form_smartvamalaria": (
+                    forms_by_site.get(r.site_id).form_smartvamalaria
+                    if forms_by_site.get(r.site_id)
+                    else "False"
+                ),
+                "form_smartvahce": (
+                    forms_by_site.get(r.site_id).form_smartvahce
+                    if forms_by_site.get(r.site_id)
+                    else "True"
+                ),
+                "form_smartvafreetext": (
+                    forms_by_site.get(r.site_id).form_smartvafreetext
+                    if forms_by_site.get(r.site_id)
+                    else "True"
+                ),
+                "form_smartvacountry": (
+                    forms_by_site.get(r.site_id).form_smartvacountry
+                    if forms_by_site.get(r.site_id)
+                    else "IND"
+                ),
             }
             for r in rows
         ]
@@ -3408,6 +3489,8 @@ def admin_odk_site_mappings_save(project_id):
         return _json_error("Admin access required.", 403)
 
     from app.models.va_field_mapping import MasFormTypes
+    from app.services.runtime_form_sync_service import ensure_runtime_form_for_mapping
+    from app.utils import validate_boolean_string, validate_smartva_country
     import uuid as _uuid
 
     data = request.get_json(silent=True) or {}
@@ -3416,6 +3499,11 @@ def admin_odk_site_mappings_save(project_id):
     odk_project_id = data.get("odk_project_id")
     odk_form_id = (data.get("odk_form_id") or "").strip()
     form_type_id_raw = (data.get("form_type_id") or "").strip()
+    form_smartvahiv = (data.get("form_smartvahiv") or "False").strip()
+    form_smartvamalaria = (data.get("form_smartvamalaria") or "False").strip()
+    form_smartvahce = (data.get("form_smartvahce") or "True").strip()
+    form_smartvafreetext = (data.get("form_smartvafreetext") or "True").strip()
+    form_smartvacountry = (data.get("form_smartvacountry") or "IND").strip().upper()
 
     if not site_id or odk_project_id is None or not odk_form_id:
         return _json_error("site_id, odk_project_id, and odk_form_id are required.", 400)
@@ -3436,6 +3524,17 @@ def admin_odk_site_mappings_save(project_id):
         if not ft:
             return _json_error("form_type_id not found.", 404)
         form_type_id = parsed_uuid
+
+    for value in (
+        form_smartvahiv,
+        form_smartvamalaria,
+        form_smartvahce,
+        form_smartvafreetext,
+    ):
+        if not validate_boolean_string(value):
+            return _json_error("SmartVA boolean settings must be 'True' or 'False'.", 400)
+    if not validate_smartva_country(form_smartvacountry):
+        return _json_error("form_smartvacountry is invalid.", 400)
 
     project = db.session.get(VaProjectMaster, project_id)
     if not project:
@@ -3467,9 +3566,16 @@ def admin_odk_site_mappings_save(project_id):
         db.session.add(existing)
         status_code = 201
 
+    runtime_form = ensure_runtime_form_for_mapping(existing)
+    runtime_form.form_smartvahiv = form_smartvahiv
+    runtime_form.form_smartvamalaria = form_smartvamalaria
+    runtime_form.form_smartvahce = form_smartvahce
+    runtime_form.form_smartvafreetext = form_smartvafreetext
+    runtime_form.form_smartvacountry = form_smartvacountry
+
     db.session.commit()
-    # Refresh to load the relationship
     db.session.refresh(existing)
+    db.session.refresh(runtime_form)
     return jsonify({
         "mapping": {
             "site_id": existing.site_id,
@@ -3477,6 +3583,12 @@ def admin_odk_site_mappings_save(project_id):
             "odk_form_id": existing.odk_form_id,
             "form_type_id": str(existing.form_type_id) if existing.form_type_id else None,
             "form_type_code": existing.form_type.form_type_code if existing.form_type else None,
+            "form_id": runtime_form.form_id,
+            "form_smartvahiv": runtime_form.form_smartvahiv,
+            "form_smartvamalaria": runtime_form.form_smartvamalaria,
+            "form_smartvahce": runtime_form.form_smartvahce,
+            "form_smartvafreetext": runtime_form.form_smartvafreetext,
+            "form_smartvacountry": runtime_form.form_smartvacountry,
         }
     }), status_code
 

@@ -20,6 +20,31 @@ ODK is the source of truth for submission content. All submissions present in OD
 
 **Consent determines workflow routing, not storage.** Submissions without valid explicit consent are stored but never enter the coding workflow.
 
+## Per-Form Sync Pipeline
+
+Sync must complete work form-by-form rather than treating SmartVA as one global
+second pass after all forms are fetched.
+
+Current required order for each form:
+
+1. fetch thin ODK rows for that form
+2. thin-upsert those submissions locally
+3. enrich the changed submissions for that same form into the canonical stored
+   payload
+4. sync attachments for that form's changed submissions
+5. move those submissions from `attachment_sync_pending` to `smartva_pending`
+6. run SmartVA for that form
+7. only then move on to the next form in the sync loop
+
+Policy reasons:
+
+- each form reaches a logical completion point before the next form starts
+- progress logging stays easy to read and troubleshoot
+- coding remains blocked until enrichment, attachments, and SmartVA are
+  complete for the current payload
+- partial form failure does not require waiting for a whole-run global SmartVA
+  phase to understand what happened
+
 ## Payload Versioning Baseline
 
 The sync model must distinguish the current live submission row from the
@@ -220,7 +245,7 @@ Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refu
 
 | Condition | Workflow state set |
 |---|---|
-| Consent valid | `smartva_pending` in current runtime for newly synced or payload-changed submissions; target state remains `smartva_pending` until SmartVA is generated, regenerated, or explicitly failed-and-recorded |
+| Consent valid | `attachment_sync_pending` immediately after sync; after attachment syncing for the current payload completes, the submission advances to `smartva_pending` |
 | Consent = `"no"` | `consent_refused` |
 | Consent missing / empty | `consent_refused` |
 
@@ -230,9 +255,25 @@ Examples: `"yes"`, `"telephonic_consent"` → valid. `"no"`, `""`, null → refu
 - The submission never enters the coding queue.
 - SmartVA is not run on `consent_refused` submissions.
 - If consent is corrected in ODK Central, the next sync automatically re-evaluates and transitions the submission into the coding-eligibility path.
-  Current runtime: `smartva_pending` before `ready_for_coding`
-  Desired target: `smartva_pending` before `ready_for_coding`
+  Current runtime: `attachment_sync_pending -> smartva_pending -> ready_for_coding`
+  Desired target: `attachment_sync_pending -> smartva_pending -> ready_for_coding`
 - Data managers can see and filter `consent_refused` submissions and view their count on the dashboard.
+
+## Attachment Sync Gate
+
+Current baseline:
+
+- newly inserted or payload-changed consent-valid submissions first enter
+  `attachment_sync_pending`
+- attachment downloads may run in chunked Celery subtasks per form
+- only after all attachment batches for that form finish does the workflow
+  advance to `smartva_pending`
+- only after SmartVA generate/regenerate/failure-recording may the submission
+  become `ready_for_coding`
+
+This keeps submissions non-allocatable while attachment syncing is still in
+progress, even when large forms are split across many background attachment
+batches.
 
 ## Workflow State Guards
 
@@ -421,9 +462,9 @@ Target routing rules:
 
 | Situation | Payload version action | Workflow action |
 |---|---|---|
-| First sync | Create initial active payload version | Route by consent to `consent_refused` or `smartva_pending` |
+| First sync | Create initial active payload version | Route by consent to `consent_refused` or `attachment_sync_pending`; then advance to `smartva_pending` after attachment sync finishes |
 | Unchanged sync | No new payload version | No SmartVA rerun; preserve current workflow unless other sync-issue handling applies |
-| Changed sync on non-protected state | Create new active payload version | Route to `smartva_pending` and regenerate SmartVA for the new payload |
+| Changed sync on non-protected state | Create new active payload version | Route to `attachment_sync_pending`; then `smartva_pending` and regenerate SmartVA for the new payload after attachment sync finishes |
 | Changed sync on protected finalized state | Create pending upstream payload version | Route to `finalized_upstream_changed` |
 | Accept And Recode | Promote pending payload version to active and update `va_submissions` from it | Route to `smartva_pending` and regenerate SmartVA for the new payload |
 | Keep Current ICD Decision | Promote pending payload version to active and update `va_submissions` from it | Return to prior finalized path while preserving COD artifacts and rebinding the preserved SmartVA projection to the new payload |
@@ -467,6 +508,7 @@ coder_finalized -- ODK data changed during sync --> finalized_upstream_changed
                                                   UI: Finalized - ODK Data Changed
 
 finalized_upstream_changed -- data manager or admin accepts upstream change --> smartva_pending
+attachment_sync_pending --- attachment sync finished -----------------------> smartva_pending
 smartva_pending ----------- SmartVA generated / regenerated / recorded failure --> ready_for_coding
 finalized_upstream_changed -- data manager or admin keeps current ICD decision --> prior finalized state
 
@@ -474,10 +516,12 @@ coder_finalized -- recode window expires automatically --> reviewer_eligible
 coder_finalized -- admin override final COD -----------> ready_for_coding
 ```
 
-SmartVA gate note:
+Attachment and SmartVA gate note:
 
-- in the desired target model, any path that introduces a new or changed
-  payload into the coding queue must first pass through `smartva_pending`
+- any path that introduces a newly synced ODK payload must first pass through
+  `attachment_sync_pending`
+- any path that introduces a new or changed payload into the coding queue must
+  then pass through `smartva_pending`
 - that includes initial sync eligibility and accept-upstream-change
 - same-payload returns such as timeout cleanup, demo cleanup, or admin override
   do not require a SmartVA rerun

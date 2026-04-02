@@ -41,28 +41,8 @@
       </div>
     </div>
 
-    <!-- Languages Card -->
-    <div class="col-md-4 d-flex">
-      <div class="card shadow-sm w-100 border-0 h-100">
-        <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
-          <h5 class="card-title text-primary"><i class="fa fa-language me-2"></i>VA Languages</h5>
-        </div>
-        <div class="card-body d-flex flex-column">
-          <div class="mb-4 flex-grow-1">
-            <label class="form-label text-muted small fw-bold">VA Languages</label>
-            <select id="lang-select" class="form-select form-select-sm" multiple></select>
-            <div class="form-text small mt-2">Select the languages you are comfortable coding in.</div>
-          </div>
-          <div id="lang-msg" class="small mb-2"></div>
-          <div class="mt-auto">
-            <button id="lang-btn" class="btn btn-primary btn-sm w-100">Update Languages</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Timezone Card -->
-    <div class="col-md-4 d-flex">
+    <div class="col-md-8 d-flex">
       <div class="card shadow-sm w-100 border-0 h-100">
         <div class="card-header bg-white border-bottom-0 pt-4 pb-0">
           <h5 class="card-title text-primary"><i class="fa fa-clock me-2"></i>Time Zone</h5>
@@ -103,18 +83,7 @@ function showMsg(id, message, ok) {
 
 $(document).ready(async function () {
 
-  // ── Load profile + languages in parallel ──────────────────────────────
-  const [{ data: profile }, { data: langData }] = await Promise.all([
-    apiFetch('/api/v1/profile/'),
-    apiFetch('/api/v1/profile/languages'),
-  ]);
-
-  // Populate language select
-  const $lang = $('#lang-select');
-  langData.languages.forEach(l => {
-    $lang.append(new Option(l.name, l.code, false, langData.selected.includes(l.code)));
-  });
-  $lang.select2({ placeholder: 'Select VA Languages', width: '100%', theme: 'bootstrap-5' });
+  const { data: profile } = await apiFetch('/api/v1/profile/');
 
   // Populate timezone select
   const tzSel = document.getElementById('tz-select');
@@ -138,14 +107,6 @@ $(document).ready(async function () {
       document.getElementById('pw-new').value = '';
       document.getElementById('pw-confirm').value = '';
     }
-  });
-
-  // ── Languages ─────────────────────────────────────────────────────────
-  document.getElementById('lang-btn').addEventListener('click', async () => {
-    const { ok, data } = await apiFetch('/api/v1/profile/language', 'PATCH', {
-      languages: $('#lang-select').val(),
-    });
-    showMsg('lang-msg', data.message || data.error, ok);
   });
 
   // ── Timezone ──────────────────────────────────────────────────────────

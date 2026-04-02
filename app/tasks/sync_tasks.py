@@ -6,11 +6,12 @@ in va_sync_runs so the admin dashboard can show history and current status.
 import json
 import logging
 import sqlalchemy as sa
-from celery import shared_task
+from celery import chord, shared_task
 from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
 ANALYTICS_MV_TRIGGER = "analytics_mv"
+ATTACHMENT_SYNC_BATCH_SIZE = 50
 
 
 def _get_single_form_odk_client(va_form):
@@ -88,6 +89,65 @@ def _sync_run_in_progress():
     )
 
 
+def _append_run_error(run, message: str) -> None:
+    if not message:
+        return
+    if run.error_message:
+        if message in run.error_message:
+            return
+        run.error_message = f"{run.error_message}\n{message}"[:2000]
+    else:
+        run.error_message = message[:2000]
+
+
+def _schedule_attachment_sync_for_form(run_id, form_id: str, upserted_map: dict[str, str], log_progress) -> None:
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+
+    items = list(upserted_map.items())
+    batches = [
+        dict(items[i:i + ATTACHMENT_SYNC_BATCH_SIZE])
+        for i in range(0, len(items), ATTACHMENT_SYNC_BATCH_SIZE)
+    ]
+    if not batches:
+        return
+
+    run = db.session.execute(
+        sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == run_id).with_for_update()
+    ).scalar_one()
+    run.attachment_forms_total = (run.attachment_forms_total or 0) + 1
+    if run.attachment_forms_completed is None:
+        run.attachment_forms_completed = 0
+    if run.attachment_downloaded is None:
+        run.attachment_downloaded = 0
+    if run.attachment_skipped is None:
+        run.attachment_skipped = 0
+    if run.attachment_errors is None:
+        run.attachment_errors = 0
+    if run.smartva_records_generated is None:
+        run.smartva_records_generated = 0
+    db.session.commit()
+
+    log_progress(
+        f"[{form_id}] attachments: queued {len(batches)} download batch(es) "
+        f"for {len(items)} submission(s)…"
+    )
+    header = [
+        run_attachment_sync_batch.s(
+            form_id=form_id,
+            batch_map=batch,
+            run_id=str(run_id),
+        )
+        for batch in batches
+    ]
+    callback = finalize_form_attachment_sync.s(
+        form_id=form_id,
+        va_sids=list(upserted_map.keys()),
+        run_id=str(run_id),
+    )
+    chord(header)(callback)
+
+
 @shared_task(
     name="app.tasks.sync_tasks.run_odk_sync",
     bind=True,
@@ -118,16 +178,31 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
         _log_progress(db, run_id, msg)
 
     try:
-        result = va_data_sync_odkcentral(log_progress=log_progress)
+        def dispatch_attachments(va_form, upserted_map, _media_dir, progress_callback):
+            _schedule_attachment_sync_for_form(
+                run_id,
+                va_form.form_id,
+                upserted_map,
+                progress_callback,
+            )
+
+        result = va_data_sync_odkcentral(
+            log_progress=log_progress,
+            attachment_sync_dispatcher=dispatch_attachments,
+        )
         run = db.session.get(VaSyncRun, run_id)
         failed_forms = result.get("failed_forms", []) if result else []
-        run.status = "partial" if failed_forms else "success"
-        run.finished_at = datetime.now(timezone.utc)
         if result:
             run.records_added = result.get("added", 0)
             run.records_updated = result.get("updated", 0)
+            run.smartva_records_generated = result.get("smartva_updated", 0)
         if failed_forms:
-            run.error_message = f"Failed forms: {', '.join(failed_forms)}"
+            _append_run_error(run, f"Failed forms: {', '.join(failed_forms)}")
+        if result and result.get("attachment_sync_forms_enqueued", 0):
+            run.status = "running"
+        else:
+            run.status = "partial" if failed_forms else "success"
+            run.finished_at = datetime.now(timezone.utc)
         db.session.commit()
 
     except Exception as exc:
@@ -214,13 +289,14 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
     from app.utils import (
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions,
-        va_odk_sync_form_attachments,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
-        _mark_form_sync_issues, _upsert_form_submissions,
+        _attach_all_odk_comments,
+        _finalize_enriched_submissions_for_form,
+        _mark_form_sync_issues,
+        _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
     )
-    from app.models import VaStatuses, VaSubmissionsAuditlog, VaSubmissions
 
     run = VaSyncRun(
         triggered_by=triggered_by,
@@ -255,41 +331,62 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         _mark_form_sync_issues(va_form, odk_ids)
 
         # Fetch ALL submissions (force-resync = no since filter)
-        log_progress(f"[{form_id}] fetching all submissions from ODK…")
+        log_progress(f"[{form_id}] fetch: downloading submissions from ODK…")
         va_submissions_raw = va_odk_fetch_submissions(
             va_form,
             since=None,
             client=odk_client,
         )
-        # Upsert
+        log_progress(
+            f"[{form_id}] fetch: downloaded {len(va_submissions_raw)} submission(s) from ODK"
+        )
         upserted_map: dict[str, str] = {}
+        log_progress(
+            f"[{form_id}] upsert: saving basic submission data for {len(va_submissions_raw)} submission(s)…"
+        )
         added, updated, discarded, skipped = _upsert_form_submissions(
-            va_form, va_submissions_raw, amended_sids, upserted_map
+            va_form,
+            va_submissions_raw,
+            amended_sids,
+            upserted_map,
+            enrich_payloads=False,
+            defer_protected_updates=True,
         )
         db.session.commit()
         log_progress(
-            f"[{form_id}] upserted: +{added} added, {updated} updated"
+            f"[{form_id}] upsert: complete — +{added} added, {updated} updated"
             + (f", {skipped} skipped" if skipped else "")
         )
-
-        # Sync attachments for upserted submissions
         if upserted_map:
-            attachment_totals = va_odk_sync_form_attachments(
+            log_progress(
+                f"[{form_id}] enrich: adding ODK review comments to "
+                f"{len(va_submissions_raw)} submission(s)…"
+            )
+            va_submissions_raw = _attach_all_odk_comments(
                 va_form,
+                va_submissions_raw,
+                client=odk_client,
+                log_progress=log_progress,
+            )
+            log_progress(
+                f"[{form_id}] enrich: review comments added for "
+                f"{len(va_submissions_raw)} submission(s)"
+            )
+            log_progress(
+                f"[{form_id}] enrich: enriching submission metadata…"
+            )
+            enriched_count = _finalize_enriched_submissions_for_form(
+                va_form,
+                va_submissions_raw,
                 upserted_map,
-                media_dir,
-                client_factory=lambda: _get_single_form_odk_client(va_form),
+                amended_sids,
+                client=odk_client,
+                log_progress=log_progress,
             )
             db.session.commit()
             log_progress(
-                f"[{form_id}] attachments: "
-                f"{attachment_totals['downloaded']} downloaded, "
-                f"{attachment_totals['skipped']} skipped"
-                + (
-                    f", {attachment_totals['errors']} errors"
-                    if attachment_totals["errors"]
-                    else ""
-                )
+                f"[{form_id}] enrich: complete — metadata enriched for "
+                f"{enriched_count} submission(s)"
             )
 
         # Update last_synced_at
@@ -303,21 +400,20 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             mapping.last_synced_at = snapshot_time
             db.session.commit()
 
-        # SmartVA
-        from app.services import smartva_service
-        smartva_updated = smartva_service.generate_for_form(
-            va_form,
-            amended_sids=amended_sids,
-            log_progress=log_progress,
-        )
-
         run = db.session.get(VaSyncRun, run_id)
-        run.status = "success"
-        run.finished_at = datetime.now(timezone.utc)
         run.records_added = added
         run.records_updated = updated
+        run.smartva_records_generated = 0
+        if upserted_map:
+            db.session.commit()
+            _schedule_attachment_sync_for_form(run_id, form_id, upserted_map, log_progress)
+            run = db.session.get(VaSyncRun, run_id)
+            run.status = "running"
+        else:
+            run.status = "success"
+            run.finished_at = datetime.now(timezone.utc)
         db.session.commit()
-        log.info("SingleFormSync [%s]: complete — added=%d updated=%d smartva=%d", form_id, added, updated, smartva_updated)
+        log.info("SingleFormSync [%s]: queued attachment sync — added=%d updated=%d", form_id, added, updated)
 
     except Exception as exc:
         try:
@@ -330,6 +426,194 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         except Exception:
             db.session.rollback()
         raise
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_attachment_sync_batch",
+    bind=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def run_attachment_sync_batch(self, *, form_id: str, batch_map: dict[str, str], run_id: str):
+    """Sync one bounded attachment batch for a form."""
+    import os
+    from flask import current_app
+    from app import db
+    from app.models.va_forms import VaForms
+    from app.utils import va_odk_sync_form_attachments
+
+    va_form = db.session.get(VaForms, form_id)
+    if va_form is None:
+        return {
+            "downloaded": 0,
+            "skipped": 0,
+            "errors": len(batch_map or {}),
+            "error_message": f"Form '{form_id}' not found for attachment batch.",
+        }
+
+    form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
+    media_dir = os.path.join(form_dir, "media")
+    os.makedirs(media_dir, exist_ok=True)
+    try:
+        totals = va_odk_sync_form_attachments(
+            va_form,
+            batch_map or {},
+            media_dir,
+            client_factory=lambda: _get_single_form_odk_client(va_form),
+        )
+        db.session.commit()
+        _log_progress(
+            db,
+            run_id,
+            (
+                f"[{form_id}] attachments: batch complete — "
+                f"{totals['downloaded']} downloaded, "
+                f"{totals['skipped']} skipped"
+                + (f", {totals['errors']} errors" if totals["errors"] else "")
+            ),
+        )
+        return {
+            "downloaded": totals["downloaded"],
+            "skipped": totals["skipped"],
+            "errors": totals["errors"],
+            "error_message": None,
+        }
+    except Exception as exc:
+        db.session.rollback()
+        _log_progress(db, run_id, f"[{form_id}] attachments: batch FAILED — {exc}")
+        return {
+            "downloaded": 0,
+            "skipped": 0,
+            "errors": len(batch_map or {}),
+            "error_message": str(exc)[:500],
+        }
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.finalize_form_attachment_sync",
+    bind=True,
+    soft_time_limit=900,
+    time_limit=1800,
+)
+def finalize_form_attachment_sync(self, results, *, form_id: str, va_sids: list[str], run_id: str):
+    """Finalize all attachment batches for one form, then run SmartVA."""
+    from uuid import UUID
+    from app import db
+    from app.models.va_forms import VaForms
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services import smartva_service
+    from app.services.workflow.definition import WORKFLOW_ATTACHMENT_SYNC_PENDING
+    from app.services.workflow.state_store import get_submission_workflow_state
+    from app.services.workflow.transitions import (
+        WorkflowTransitionError,
+        mark_attachment_sync_completed,
+        system_actor,
+    )
+
+    downloaded = sum(int((row or {}).get("downloaded", 0)) for row in results or [])
+    skipped = sum(int((row or {}).get("skipped", 0)) for row in results or [])
+    errors = sum(int((row or {}).get("errors", 0)) for row in results or [])
+    error_messages = [
+        (row or {}).get("error_message")
+        for row in results or []
+        if (row or {}).get("error_message")
+    ]
+
+    _log_progress(
+        db,
+        run_id,
+        (
+            f"[{form_id}] attachments: complete — {downloaded} downloaded, "
+            f"{skipped} skipped"
+            + (f", {errors} errors" if errors else "")
+        ),
+    )
+
+    transitioned_count = 0
+    for va_sid in va_sids:
+        if get_submission_workflow_state(va_sid) != WORKFLOW_ATTACHMENT_SYNC_PENDING:
+            continue
+        try:
+            mark_attachment_sync_completed(
+                va_sid,
+                reason="attachments_synced_for_current_payload",
+                actor=system_actor(),
+            )
+            transitioned_count += 1
+        except WorkflowTransitionError as exc:
+            error_messages.append(f"{va_sid}: {exc}")
+    db.session.commit()
+    _log_progress(
+        db,
+        run_id,
+        f"[{form_id}] workflow: attachments finished for {transitioned_count} "
+        f"submission(s); ready for SmartVA",
+    )
+
+    smartva_updated = 0
+    va_form = db.session.get(VaForms, form_id)
+    if va_form is not None:
+        try:
+            _log_progress(
+                db,
+                run_id,
+                f"SmartVA {form_id}: starting after attachments finished.",
+            )
+            smartva_updated = smartva_service.generate_for_form(
+                va_form,
+                amended_sids=set(va_sids),
+                log_progress=lambda msg: _log_progress(db, run_id, msg),
+            )
+            _log_progress(
+                db,
+                run_id,
+                f"SmartVA {form_id}: finished — {smartva_updated} result(s) generated.",
+            )
+        except Exception as exc:
+            db.session.rollback()
+            error_messages.append(f"SmartVA {form_id}: {exc}")
+            _log_progress(db, run_id, f"SmartVA {form_id}: FAILED — {exc}")
+
+    run = db.session.execute(
+        sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == UUID(run_id)).with_for_update()
+    ).scalar_one_or_none()
+    if run is None:
+        return
+
+    run.attachment_forms_completed = (run.attachment_forms_completed or 0) + 1
+    run.attachment_downloaded = (run.attachment_downloaded or 0) + downloaded
+    run.attachment_skipped = (run.attachment_skipped or 0) + skipped
+    run.attachment_errors = (run.attachment_errors or 0) + errors
+    run.smartva_records_generated = (run.smartva_records_generated or 0) + smartva_updated
+    for message in error_messages:
+        _append_run_error(run, message)
+    _log_progress(
+        db,
+        run_id,
+        (
+            f"[{form_id}] pipeline: complete — "
+            f"{downloaded} attachments downloaded, "
+            f"{smartva_updated} SmartVA result(s) generated"
+            + (f", {errors} attachment error(s)" if errors else "")
+        ),
+    )
+
+    if (run.attachment_forms_completed or 0) >= (run.attachment_forms_total or 0):
+        run.finished_at = datetime.now(timezone.utc)
+        run.status = "partial" if run.error_message or (run.attachment_errors or 0) else "success"
+        _log_progress(
+            db,
+            run_id,
+            (
+                "Sync finished: "
+                f"{run.records_added or 0} added, "
+                f"{run.records_updated or 0} updated, "
+                f"{run.attachment_downloaded or 0} attachments downloaded, "
+                f"{run.smartva_records_generated or 0} SmartVA result(s) generated."
+            ),
+        )
+
+    db.session.commit()
 
 
 @shared_task(
@@ -409,10 +693,10 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
     from app.utils import (
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions_by_ids,
-        va_odk_sync_form_attachments,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
         _attach_all_odk_comments,
+        _finalize_enriched_submissions_for_form,
         _mark_form_sync_issues,
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
@@ -446,17 +730,14 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
 
         odk_client = _get_single_form_odk_client(va_form)
         instance_id = resolve_odk_instance_id(va_sid)
-        log_progress(f"[{va_sid}] fetching latest submission from ODK…")
+        log_progress(f"[{va_form.form_id}] fetch: downloading submissions from ODK…")
         records = va_odk_fetch_submissions_by_ids(
             va_form,
             [instance_id],
             client=odk_client,
         )
-        records = _attach_all_odk_comments(
-            va_form,
-            records,
-            client=odk_client,
-            log_progress=log_progress,
+        log_progress(
+            f"[{va_form.form_id}] fetch: downloaded {len(records)} submission(s) from ODK"
         )
 
         if not records:
@@ -475,43 +756,77 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
             return
 
         upserted_map = {}
+        log_progress(
+            f"[{va_form.form_id}] upsert: saving basic submission data for {len(records)} submission(s)…"
+        )
         added, updated, discarded, skipped = _upsert_form_submissions(
             va_form,
             records,
             amended_sids=set(),
             upserted_map=upserted_map,
             client=odk_client,
+            enrich_payloads=False,
+            defer_protected_updates=True,
         )
+        db.session.commit()
+        log_progress(
+            f"[{va_form.form_id}] upsert: complete — +{added} added, {updated} updated"
+            + (f", {skipped} skipped" if skipped else "")
+        )
+        if upserted_map:
+            log_progress(
+                f"[{va_form.form_id}] enrich: adding ODK review comments to "
+                f"{len(records)} submission(s)…"
+            )
+            records = _attach_all_odk_comments(
+                va_form,
+                records,
+                client=odk_client,
+                log_progress=log_progress,
+            )
+            log_progress(
+                f"[{va_form.form_id}] enrich: review comments added for "
+                f"{len(records)} submission(s)"
+            )
+            log_progress(
+                f"[{va_form.form_id}] enrich: enriching submission metadata…"
+            )
+            enriched_count = _finalize_enriched_submissions_for_form(
+                va_form,
+                records,
+                upserted_map,
+                amended_sids=set(),
+                client=odk_client,
+                log_progress=log_progress,
+            )
+            db.session.commit()
+            log_progress(
+                f"[{va_form.form_id}] enrich: complete — metadata enriched for "
+                f"{enriched_count} submission(s)"
+            )
         _mark_form_sync_issues(va_form, va_odk_fetch_instance_ids(va_form, client=odk_client))
         db.session.commit()
 
         form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
         media_dir = os.path.join(form_dir, "media")
         os.makedirs(media_dir, exist_ok=True)
-        if upserted_map:
-            va_odk_sync_form_attachments(
-                va_form,
-                upserted_map,
-                media_dir,
-                client_factory=lambda: _get_single_form_odk_client(va_form),
-            )
-            db.session.commit()
-        from app.services import smartva_service
-        smartva_updated = smartva_service.generate_for_submission(
-            va_sid, log_progress=log_progress
-        )
-
         run = db.session.get(VaSyncRun, run_id)
-        run.status = "success"
-        run.finished_at = _dt.now(timezone.utc)
         run.records_added = added
         run.records_updated = updated
+        run.smartva_records_generated = 0
+        if upserted_map:
+            db.session.commit()
+            _schedule_attachment_sync_for_form(run_id, va_form.form_id, upserted_map, log_progress)
+            run = db.session.get(VaSyncRun, run_id)
+            run.status = "running"
+        else:
+            run.status = "success"
+            run.finished_at = _dt.now(timezone.utc)
         db.session.commit()
         log_progress(
             f"[{va_sid}] refreshed from ODK: +{added} added, {updated} updated"
             + (f", {discarded} discarded" if discarded else "")
             + (f", {skipped} skipped" if skipped else "")
-            + (f", {smartva_updated} smartva" if smartva_updated else "")
         )
     except Exception as exc:
         try:

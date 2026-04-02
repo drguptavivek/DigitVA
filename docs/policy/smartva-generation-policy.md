@@ -180,6 +180,28 @@ Current implementation note:
 - `va_smartva_results` remains the active/inactive projection used by the app
 - `va_smartva_run_artifacts` has been retired from the active design
 
+## Per-Form Execution Options
+
+SmartVA execution options are configured per materialized `va_forms` row, not
+per individual run.
+
+Current configurable options:
+
+- `form_smartvahiv`
+- `form_smartvamalaria`
+- `form_smartvahce`
+- `form_smartvafreetext`
+- `form_smartvacountry`
+
+Operational baseline:
+
+- these settings are edited from `/admin/?panel=%2Fadmin%2Fpanels%2Fproject-forms`
+  under the site-level `Configure` action
+- saving the project-site ODK mapping must also persist these SmartVA settings
+  onto the compatibility `va_forms` row used by the runner
+- the SmartVA runner must pass these values directly to the SmartVA binary for
+  every run of that form
+
 ### Active vs Inactive Results
 
 - **Active**: `va_smartva_status = 'active'` — current result shown to coders

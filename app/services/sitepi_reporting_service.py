@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses
 from app.services.workflow.definition import (
+    WORKFLOW_ATTACHMENT_SYNC_PENDING,
     TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
     TRANSITION_CODER_FINALIZED,
     TRANSITION_RECODE_FINALIZED,
@@ -31,6 +32,7 @@ from app.services.workflow.definition import (
 
 _PENDING_STATES = (
     WORKFLOW_SCREENING_PENDING,
+    WORKFLOW_ATTACHMENT_SYNC_PENDING,
     WORKFLOW_SMARTVA_PENDING,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_CODING_IN_PROGRESS,

@@ -52,6 +52,8 @@
 (function () {
   'use strict';
 
+  var SMARTVA_COUNTRIES = {{ smartva_countries | tojson }};
+
   function csrf() { return window._adminCsrf || ''; }
 
   function apiJson(url, method, body) {
@@ -248,6 +250,15 @@
     var rows = _sites.map(function (site) {
       var saved = _siteMappings.find(function (m) { return m.site_id === site.site_id; });
       var isMapped = !!saved;
+      var smartvaInfo = saved
+        ? '<div class="mt-1 small text-muted">'
+          + '<span class="badge rounded-pill text-bg-light border me-1">HIV ' + esc(saved.form_smartvahiv || 'False') + '</span>'
+          + '<span class="badge rounded-pill text-bg-light border me-1">Malaria ' + esc(saved.form_smartvamalaria || 'False') + '</span>'
+          + '<span class="badge rounded-pill text-bg-light border me-1">HCE ' + esc(saved.form_smartvahce || 'True') + '</span>'
+          + '<span class="badge rounded-pill text-bg-light border me-1">Free Text ' + esc(saved.form_smartvafreetext || 'True') + '</span>'
+          + '<span class="badge rounded-pill text-bg-light border">Country ' + esc(saved.form_smartvacountry || 'IND') + '</span>'
+          + '</div>'
+        : '';
 
       var odkInfo = isMapped
         ? '<span class="text-success small">'
@@ -257,6 +268,7 @@
               ? ' &nbsp;<span class="badge text-bg-secondary fw-normal">' + esc(saved.form_type_code) + '</span>'
               : ' &nbsp;<span class="badge text-bg-warning text-dark fw-normal">No form type</span>')
           + '</span>'
+          + smartvaInfo
         : '<span class="text-muted small"><i class="fa-regular fa-circle me-1"></i>Not mapped</span>';
 
       var configBtn = '<button class="btn btn-sm btn-outline-secondary pf-config-btn py-0 px-2" '
@@ -303,6 +315,11 @@
     var savedOpid   = saved ? String(saved.odk_project_id) : '';
     var savedFid    = saved ? saved.odk_form_id : '';
     var savedFtId   = saved ? (saved.form_type_id || '') : '';
+    var savedHiv = saved ? (saved.form_smartvahiv || 'False') : 'False';
+    var savedMalaria = saved ? (saved.form_smartvamalaria || 'False') : 'False';
+    var savedHce = saved ? (saved.form_smartvahce || 'True') : 'True';
+    var savedFreetext = saved ? (saved.form_smartvafreetext || 'True') : 'True';
+    var savedCountry = saved ? (saved.form_smartvacountry || 'IND') : 'IND';
 
     var projOptions = '<option value="">Loading ODK projects…</option>';
     if (_odkProjectsLoaded) {
@@ -329,6 +346,18 @@
       ? '<button class="btn btn-sm btn-outline-danger pf-clear-btn" data-sid="' + esc(site.site_id) + '">'
         + '<i class="fa-solid fa-xmark me-1"></i>Remove</button>'
       : '';
+    var boolOptions = function (selectedValue) {
+      return ['True', 'False'].map(function (value) {
+        return '<option value="' + value + '"' + (value === selectedValue ? ' selected' : '') + '>'
+          + value
+          + '</option>';
+      }).join('');
+    };
+    var countryOptions = SMARTVA_COUNTRIES.map(function (countryCode) {
+      return '<option value="' + esc(countryCode) + '"' + (countryCode === savedCountry ? ' selected' : '') + '>'
+        + esc(countryCode)
+        + '</option>';
+    }).join('');
 
     return '<div class="d-flex flex-column gap-2">'
 
@@ -374,6 +403,43 @@
           ? '<div class="text-warning small mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>'
             + 'No form types registered. Create one in Field Mapping.</div>'
           : '')
+      + '</div>'
+
+      // SmartVA configuration
+      + '<div class="border rounded p-2 bg-white">'
+      + '<div class="small fw-semibold text-muted mb-2">SmartVA Configuration</div>'
+      + '<div class="row g-2">'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">HIV</label>'
+      + '<select class="form-select form-select-sm" id="pf-smartva-hiv-' + esc(site.site_id) + '">'
+      + boolOptions(savedHiv)
+      + '</select>'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">Malaria</label>'
+      + '<select class="form-select form-select-sm" id="pf-smartva-malaria-' + esc(site.site_id) + '">'
+      + boolOptions(savedMalaria)
+      + '</select>'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">HCE</label>'
+      + '<select class="form-select form-select-sm" id="pf-smartva-hce-' + esc(site.site_id) + '">'
+      + boolOptions(savedHce)
+      + '</select>'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">Free Text</label>'
+      + '<select class="form-select form-select-sm" id="pf-smartva-freetext-' + esc(site.site_id) + '">'
+      + boolOptions(savedFreetext)
+      + '</select>'
+      + '</div>'
+      + '<div class="col-md-4">'
+      + '<label class="form-label small mb-1 text-muted">Country</label>'
+      + '<select class="form-select form-select-sm" id="pf-smartva-country-' + esc(site.site_id) + '">'
+      + countryOptions
+      + '</select>'
+      + '</div>'
+      + '</div>'
       + '</div>'
 
       // Actions
@@ -530,6 +596,11 @@
     var odkProjectId = (document.getElementById('pf-opid-' + sid) || {}).value;
     var odkFormId    = (document.getElementById('pf-form-' + sid) || {}).value;
     var formTypeId   = (document.getElementById('pf-ft-' + sid) || {}).value;
+    var formSmartvaHiv = (document.getElementById('pf-smartva-hiv-' + sid) || {}).value || 'False';
+    var formSmartvaMalaria = (document.getElementById('pf-smartva-malaria-' + sid) || {}).value || 'False';
+    var formSmartvaHce = (document.getElementById('pf-smartva-hce-' + sid) || {}).value || 'True';
+    var formSmartvaFreetext = (document.getElementById('pf-smartva-freetext-' + sid) || {}).value || 'True';
+    var formSmartvaCountry = (document.getElementById('pf-smartva-country-' + sid) || {}).value || 'IND';
 
     if (!odkProjectId || !odkFormId) {
       showError('Select both an ODK project and a form before saving.');
@@ -541,6 +612,11 @@
       odk_project_id: parseInt(odkProjectId, 10),
       odk_form_id: odkFormId,
       form_type_id: formTypeId || null,
+      form_smartvahiv: formSmartvaHiv,
+      form_smartvamalaria: formSmartvaMalaria,
+      form_smartvahce: formSmartvaHce,
+      form_smartvafreetext: formSmartvaFreetext,
+      form_smartvacountry: formSmartvaCountry,
     };
 
     apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings', 'POST', payload)
@@ -555,6 +631,12 @@
           odk_form_id: m.odk_form_id,
           form_type_id: m.form_type_id || null,
           form_type_code: m.form_type_code || null,
+          form_id: m.form_id || null,
+          form_smartvahiv: m.form_smartvahiv || 'False',
+          form_smartvamalaria: m.form_smartvamalaria || 'False',
+          form_smartvahce: m.form_smartvahce || 'True',
+          form_smartvafreetext: m.form_smartvafreetext || 'True',
+          form_smartvacountry: m.form_smartvacountry || 'IND',
         });
         renderTable();  // re-render to show updated mapping info
       }).catch(function () { showError('Network error.'); });

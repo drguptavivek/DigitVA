@@ -7,6 +7,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasLanguages,
     MasOdkConnections,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -42,6 +43,16 @@ class AdminApiTests(BaseTestCase):
         now = datetime.now(timezone.utc)
         db.session.add_all(
             [
+                MasLanguages(
+                    language_code="english",
+                    language_name="English",
+                    is_active=True,
+                ),
+                MasLanguages(
+                    language_code="hindi",
+                    language_name="Hindi",
+                    is_active=True,
+                ),
                 VaProjectMaster(
                     project_id=cls.project_id,
                     project_code=cls.project_id,
@@ -583,12 +594,17 @@ class AdminApiTests(BaseTestCase):
                 "email": "new.admin.user@example.com",
                 "name": "New Admin User",
                 "password": "SecurePassword123!",
-                "phone": "1234567890"
+                "phone": "1234567890",
+                "languages": ["english", "hindi"],
             },
             headers=headers
         )
         self.assertEqual(create_resp.status_code, 201)
         new_user_id = create_resp.get_json()["user"]["user_id"]
+        self.assertEqual(
+            create_resp.get_json()["user"]["languages"],
+            ["english", "hindi"],
+        )
         
         # Ensure non-admin cannot access master list
         self._login(self.manager_id)
@@ -603,13 +619,15 @@ class AdminApiTests(BaseTestCase):
             f"/admin/api/users/{new_user_id}",
             json={
                 "name": "Updated Admin User",
-                "status": "deactive"
+                "status": "deactive",
+                "languages": ["hindi"],
             },
             headers=headers
         )
         self.assertEqual(edit_resp.status_code, 200)
         self.assertEqual(edit_resp.get_json()["user"]["name"], "Updated Admin User")
         self.assertEqual(edit_resp.get_json()["user"]["status"], "deactive")
+        self.assertEqual(edit_resp.get_json()["user"]["languages"], ["hindi"])
         
         # Toggle user status
         toggle_resp = self.client.post(
@@ -729,15 +747,40 @@ class AdminApiTests(BaseTestCase):
         save_resp = self.client.post(f"/admin/api/projects/{self.project_id}/odk-site-mappings", json={
             "site_id": self.site_a,
             "odk_project_id": 10,
-            "odk_form_id": "test_form"
+            "odk_form_id": "test_form",
+            "form_smartvahiv": "True",
+            "form_smartvamalaria": "True",
+            "form_smartvahce": "False",
+            "form_smartvafreetext": "False",
+            "form_smartvacountry": "ZAF",
         }, headers=headers)
         self.assertEqual(save_resp.status_code, 201)
+        saved_mapping = save_resp.get_json()["mapping"]
+        self.assertEqual(saved_mapping["form_smartvahiv"], "True")
+        self.assertEqual(saved_mapping["form_smartvamalaria"], "True")
+        self.assertEqual(saved_mapping["form_smartvahce"], "False")
+        self.assertEqual(saved_mapping["form_smartvafreetext"], "False")
+        self.assertEqual(saved_mapping["form_smartvacountry"], "ZAF")
         
         # List mapping
         list_resp = self.client.get(f"/admin/api/projects/{self.project_id}/odk-site-mappings")
         self.assertEqual(list_resp.status_code, 200)
         mappings = list_resp.get_json()["mappings"]
-        self.assertTrue(any(m["site_id"] == self.site_a and m["odk_project_id"] == 10 for m in mappings))
+        saved = next(m for m in mappings if m["site_id"] == self.site_a)
+        self.assertEqual(saved["odk_project_id"], 10)
+        self.assertEqual(saved["form_smartvahiv"], "True")
+        self.assertEqual(saved["form_smartvamalaria"], "True")
+        self.assertEqual(saved["form_smartvahce"], "False")
+        self.assertEqual(saved["form_smartvafreetext"], "False")
+        self.assertEqual(saved["form_smartvacountry"], "ZAF")
+
+        form = db.session.get(VaForms, "ADM001AA0101")
+        self.assertIsNotNone(form)
+        self.assertEqual(form.form_smartvahiv, "True")
+        self.assertEqual(form.form_smartvamalaria, "True")
+        self.assertEqual(form.form_smartvahce, "False")
+        self.assertEqual(form.form_smartvafreetext, "False")
+        self.assertEqual(form.form_smartvacountry, "ZAF")
         
         # Delete mapping
         del_resp = self.client.delete(f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}", headers=headers)

@@ -6,21 +6,11 @@ from app.models.va_forms import VaForms
 from app.services.field_mapping_service import get_mapping_service
 
 
-def va_get_form_type_code_for_form(va_form_id: str | None) -> str:
-    """Resolve the effective form type code for a VA form.
-
-    Resolution order:
-    1. `va_forms.form_type_id` -> `mas_form_types.form_type_code`
-    2. legacy `va_forms.form_type` if it matches an active registered form type
-    3. field-mapping service default form type
-    """
+def va_get_form_type_code_from_form(form: VaForms | None) -> str:
+    """Resolve the effective form type code from a loaded VaForms row."""
     mapping_service = get_mapping_service()
     default_form_type = mapping_service.get_default_form_type()
 
-    if not va_form_id:
-        return default_form_type
-
-    form = db.session.get(VaForms, va_form_id)
     if not form:
         return default_form_type
 
@@ -41,3 +31,20 @@ def va_get_form_type_code_for_form(va_form_id: str | None) -> str:
             return legacy_match.form_type_code
 
     return default_form_type
+
+
+def va_get_form_type_code_for_form(va_form_id: str | None) -> str:
+    """Resolve the effective form type code for a VA form.
+
+    Resolution order:
+    1. `va_forms.form_type_id` -> `mas_form_types.form_type_code`
+    2. legacy `va_forms.form_type` if it matches an active registered form type
+    3. field-mapping service default form type
+    """
+    default_form_type = get_mapping_service().get_default_form_type()
+
+    if not va_form_id:
+        return default_form_type
+
+    form = db.session.get(VaForms, va_form_id)
+    return va_get_form_type_code_from_form(form)

@@ -53,6 +53,11 @@
             <option value="deactive">Inactive</option>
           </select>
         </div>
+        <div class="col-12">
+          <label class="form-label small mb-1">VA Languages <span class="text-danger">*</span></label>
+          <select class="form-select form-select-sm" id="user-languages-input" multiple></select>
+          <div class="form-text">Select the languages this user can code in.</div>
+        </div>
       </div>
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
@@ -114,6 +119,7 @@
   var _editingId = null;
   var _searchTimeout = null;
   var CURRENT_USER_ID = window._adminState && window._adminState.user ? window._adminState.user.user_id : null;
+  var AVAILABLE_LANGUAGES = {{ available_languages | tojson }};
 
   function loadUsers() {
     var wrap = document.getElementById('user-table-wrap');
@@ -171,6 +177,7 @@
         +   '<div class="small text-muted">' + esc(u.email) + '</div>'
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(u.phone || '') + '</td>'
+        + '<td class="align-middle py-2 small">' + esc((u.languages || []).join(', ')) + '</td>'
         + '<td class="align-middle py-2">'
         + (isActive
             ? '<span class="badge text-bg-success">Active</span>'
@@ -184,6 +191,7 @@
       + '<thead class="table-light"><tr>'
       + '<th class="fw-medium small text-muted">User</th>'
       + '<th class="fw-medium small text-muted" style="width:20%;">Phone</th>'
+      + '<th class="fw-medium small text-muted" style="width:20%;">VA Languages</th>'
       + '<th class="fw-medium small text-muted" style="width:15%;">Status</th>'
       + '<th class="fw-medium small text-muted text-end" style="width:15%;">Actions</th>'
       + '</tr></thead>'
@@ -274,6 +282,7 @@
   var passwordAsterisk = document.getElementById('user-password-asterisk');
   var passwordHelp = document.getElementById('user-password-help');
   var statusInput = document.getElementById('user-status-input');
+  var languagesInput = $('#user-languages-input');
   var errEl = document.getElementById('user-form-error');
 
   function resetForm() {
@@ -288,6 +297,7 @@
     passwordHelp.textContent = '';
     statusInput.value = 'active';
     statusInput.disabled = true; // New users are always active
+    languagesInput.val([]).trigger('change');
     errEl.textContent = '';
   }
 
@@ -306,6 +316,7 @@
     passwordHelp.textContent = '(Leave blank to keep unchanged)';
     statusInput.value = user.status;
     statusInput.disabled = (userId === CURRENT_USER_ID); // Cannot change own status
+    languagesInput.val(user.languages || []).trigger('change');
     errEl.textContent = '';
     
     formContainer.classList.remove('d-none');
@@ -329,7 +340,8 @@
     var data = {
       name: nameInput.value.trim(),
       phone: phoneInput.value.trim(),
-      password: passwordInput.value
+      password: passwordInput.value,
+      languages: languagesInput.val()
     };
     
     var url, method;
@@ -348,6 +360,10 @@
     }
     
     if (!data.name) { errEl.textContent = 'Name is required.'; return; }
+    if (!data.languages || !data.languages.length) {
+      errEl.textContent = 'At least one VA language is required.';
+      return;
+    }
 
     var btn = this;
     btn.disabled = true;
@@ -363,6 +379,15 @@
   });
 
   // ── init ──────────────────────────────────────────────────────────────────
+
+  AVAILABLE_LANGUAGES.forEach(function (lang) {
+    languagesInput.append(new Option(lang.name, lang.code, false, false));
+  });
+  languagesInput.select2({
+    placeholder: 'Select VA Languages',
+    width: '100%',
+    theme: 'bootstrap-5'
+  });
 
   loadUsers();
 

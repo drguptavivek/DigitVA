@@ -61,6 +61,7 @@ from app.services.submission_payload_version_service import (
 from app.services.workflow.transitions import admin_actor, data_manager_actor
 from app.services.workflow.state_store import get_submission_workflow_record
 from app.services.workflow.definition import (
+    WORKFLOW_ATTACHMENT_SYNC_PENDING,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -339,6 +340,7 @@ _WORKFLOW_LABEL = {
     "not_codeable_by_coder":        "Not Codeable By Coder",
     "ready_for_coding":             "Ready for Coding",
     "screening_pending":            "Screening Pending",
+    "attachment_sync_pending":      "Attachment Sync Pending",
     "coding_in_progress":           "Coding In Progress",
     "coder_finalized":              "Coder Finalized",
     "finalized_upstream_changed":   "Finalized - ODK Data Changed",
@@ -443,6 +445,7 @@ def dm_submissions_page(
         if workflow == "pending_coding":
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([
                 WORKFLOW_SCREENING_PENDING,
+                WORKFLOW_ATTACHMENT_SYNC_PENDING,
                 WORKFLOW_SMARTVA_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,
@@ -626,6 +629,7 @@ def _dm_submission_query_parts(
         if workflow == "pending_coding":
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([
                 WORKFLOW_SCREENING_PENDING,
+                WORKFLOW_ATTACHMENT_SYNC_PENDING,
                 WORKFLOW_SMARTVA_PENDING,
                 WORKFLOW_READY_FOR_CODING,
                 WORKFLOW_CODING_IN_PROGRESS,

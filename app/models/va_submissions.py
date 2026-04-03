@@ -70,7 +70,7 @@ class VaSubmissions(db.Model):
         sa.String(32), nullable=True
     )
     va_deceased_gender: so.Mapped[str] = so.mapped_column(sa.String(20), nullable=False)
-    va_data: so.Mapped[dict] = so.mapped_column(JSONB, nullable=False)
+    va_data: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
     va_summary: so.Mapped[Optional[list[str]]] = so.mapped_column(
         ARRAY(sa.String), nullable=True
     )

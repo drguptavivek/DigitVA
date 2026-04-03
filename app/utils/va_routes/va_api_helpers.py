@@ -25,6 +25,7 @@ from app.services.category_rendering_service import (
     get_visible_category_codes,
 )
 from app.services.field_mapping_service import get_mapping_service
+from app.services.submission_payload_version_service import get_active_payload_version
 
 
 VA_RENDER_FOR_ALL = set(
@@ -101,12 +102,15 @@ def va_get_category_context(va_sid, va_action, va_partial):
     if not submission:
         return None
 
+    active_version = get_active_payload_version(va_sid)
+    payload_data = active_version.payload_data if active_version else None
+
     form_type_code = va_get_form_type_code_for_form(submission.va_form_id)
 
     mapping_svc = get_mapping_service()
 
     visible_category_codes = get_visible_category_codes(
-        submission.va_data,
+        payload_data,
         submission.va_form_id,
     )
     datalevel = va_get_render_datalevel(
@@ -119,7 +123,7 @@ def va_get_category_context(va_sid, va_action, va_partial):
     va_mapping_info = mapping_svc.get_info_labels(form_type_code)
 
     processed = va_render_processcategorydata(
-        submission.va_data,
+        payload_data,
         submission.va_form_id,
         datalevel,
         va_mapping_choice,
@@ -272,18 +276,13 @@ def va_request_is_htmx():
 
 
 def va_get_age_labels(va_sid):
-    result = (
-        db.session.execute(
-            sa.select(
-                VaSubmissions.va_data["isNeonatal"].astext.label("isNeonatal"),
-                VaSubmissions.va_data["isChild"].astext.label("isChild"),
-                VaSubmissions.va_data["isAdult"].astext.label("isAdult"),
-            ).where(VaSubmissions.va_sid == va_sid)
-        )
-        .mappings()
-        .first()
-    )
-    return result or {}
+    active_version = get_active_payload_version(va_sid)
+    payload_data = active_version.payload_data if active_version else {}
+    return {
+        "isNeonatal": payload_data.get("isNeonatal"),
+        "isChild": payload_data.get("isChild"),
+        "isAdult": payload_data.get("isAdult"),
+    }
 
 
 def va_assign_other_condition_choices(form, agelabels):

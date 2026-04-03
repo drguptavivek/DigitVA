@@ -22,7 +22,7 @@ from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
     upsert_final_cod_authority,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submission_payload_version_service import ensure_active_payload_version, get_active_payload_version
 from app.services.field_mapping_service import get_mapping_service
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.payload_bound_coding_artifact_service import (
@@ -182,11 +182,13 @@ def renderpartial(va_sid, va_partial):
     va_action = request.values.get("action", "vacode")
     va_actiontype = request.values.get("actiontype", "")
     va_submission = db.session.get(VaSubmissions, va_sid)
+    _active_version = get_active_payload_version(va_sid) if va_submission else None
+    va_payload_data = _active_version.payload_data if _active_version else None
     _form_type_code = va_get_form_type_code_for_form(
         va_submission.va_form_id if va_submission else None
     )
     visible_category_codes = get_visible_category_codes(
-        va_submission.va_data if va_submission else None,
+        va_payload_data,
         va_submission.va_form_id if va_submission else None,
     )
     category_service = get_category_rendering_service()
@@ -383,7 +385,7 @@ def renderpartial(va_sid, va_partial):
         )
         summary_items = build_submission_summary(
             _form_type_code,
-            va_submission.va_data if va_submission else None,
+            va_payload_data,
         )
 
         va_datalevel = va_get_render_datalevel(
@@ -391,7 +393,7 @@ def renderpartial(va_sid, va_partial):
             _form_type_code,
             visible_category_codes,
         )
-        va_processedcategorydata = va_render_processcategorydata(va_submission.va_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial)
+        va_processedcategorydata = va_render_processcategorydata(va_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial)
         va_previouscategory, va_nextcategory = category_service.get_category_neighbours(
             _form_type_code,
             va_action,
@@ -477,7 +479,7 @@ def renderpartial(va_sid, va_partial):
             }
         if category_config and category_config.render_mode == "workflow_panel":
             cod_attachments_data = va_render_processcategorydata(
-                va_submission.va_data,
+                va_payload_data,
                 va_submission.va_form_id,
                 va_datalevel,
                 va_mapping_choice,
@@ -492,7 +494,7 @@ def renderpartial(va_sid, va_partial):
                 "vanarrationanddocuments",
             )
             cod_health_history_data = va_render_processcategorydata(
-                va_submission.va_data,
+                va_payload_data,
                 va_submission.va_form_id,
                 va_datalevel,
                 va_mapping_choice,
@@ -577,8 +579,6 @@ def renderpartial(va_sid, va_partial):
             _, active_payload_version = get_submission_with_current_payload(
                 va_sid,
                 for_update=True,
-                created_by_role="reviewer",
-                created_by=current_user.user_id,
             )
             existing_review = db.session.scalar(
                 sa.select(VaReviewerReview).where(
@@ -676,13 +676,11 @@ def renderpartial(va_sid, va_partial):
         form = VaInitialAssessmentForm()
         save_clicked = form.va_save_assessment.data
         not_codeable_clicked = form.va_not_codeable.data
-        agelabels = db.session.execute(
-            sa.select(
-                VaSubmissions.va_data["isNeonatal"].astext.label("isNeonatal"),
-                VaSubmissions.va_data["isChild"].astext.label("isChild"),
-                VaSubmissions.va_data["isAdult"].astext.label("isAdult")
-            ).where(VaSubmissions.va_sid == va_sid)
-        ).mappings().first()
+        agelabels = {
+            "isNeonatal": (va_payload_data or {}).get("isNeonatal"),
+            "isChild": (va_payload_data or {}).get("isChild"),
+            "isAdult": (va_payload_data or {}).get("isAdult"),
+        }
         active_age_label = next(
             (k for k, v in agelabels.items() if str(v).strip() in ("1", "1.0")),
             None
@@ -795,11 +793,13 @@ def renderpartial(va_sid, va_partial):
                         "Narrative Quality Assessment must be completed before submitting the final COD."
                     )
             _submission = db.session.get(VaSubmissions, va_sid)
+            _sub_active_version = get_active_payload_version(va_sid) if _submission else None
+            _sub_payload_data = _sub_active_version.payload_data if _sub_active_version else None
             _form_type_code = va_get_form_type_code_for_form(
                 _submission.va_form_id if _submission else None
             )
             _visible_category_codes = get_visible_category_codes(
-                _submission.va_data if _submission else None,
+                _sub_payload_data,
                 _submission.va_form_id if _submission else None,
             )
             _category_service = get_category_rendering_service()
@@ -828,13 +828,9 @@ def renderpartial(va_sid, va_partial):
                 return redirect(request.referrer or url_for("coding.dashboard"))
             gen_uuid = uuid.uuid4()
             submission = db.session.get(VaSubmissions, va_sid)
-            active_payload_version = ensure_active_payload_version(
-                submission,
-                payload_data=submission.va_data or {},
-                source_updated_at=submission.va_odk_updatedat,
-                created_by_role="vacoder",
-                created_by=current_user.user_id,
-            )
+            active_payload_version = get_active_payload_version(va_sid)
+            if active_payload_version is None:
+                raise ValueError(f"Submission {va_sid} has no active payload version.")
             active_recode_episode = get_active_recode_episode(va_sid)
             prior_authoritative_final = get_authoritative_final_assessment(va_sid)
             existing_active_finals = db.session.scalars(

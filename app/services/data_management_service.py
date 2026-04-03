@@ -932,7 +932,7 @@ def dm_submissions_export_csv(
             VaSubmissions.va_deceased_age_normalized_days,
             VaSubmissions.va_deceased_age_normalized_years,
             VaSubmissions.va_deceased_age_source,
-            VaSubmissions.va_data,
+            VaSubmissionPayloadVersion.payload_data,
             sa.func.coalesce(attachment_counts.c.cnt, 0).label("attachment_count"),
             sa.case((smartva_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva"),
             analytics_age_band_column,
@@ -981,6 +981,10 @@ def dm_submissions_export_csv(
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .outerjoin(
+            VaSubmissionPayloadVersion,
+            VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
+        )
         .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(active_dm_review, active_dm_review.c.va_sid == VaSubmissions.va_sid)
@@ -1073,7 +1077,7 @@ def dm_submissions_export_csv(
         key
         for row in rows
         for key in _filter_export_payload(
-            row.get("va_data") or {},
+            row.get("payload_data") or {},
             form_id=row.get("va_form_id"),
             pii_fields_by_form=pii_payload_fields_by_form,
         ).keys()
@@ -1086,7 +1090,7 @@ def dm_submissions_export_csv(
 
     for row in rows:
         payload = _filter_export_payload(
-            row.get("va_data") or {},
+            row.get("payload_data") or {},
             form_id=row.get("va_form_id"),
             pii_fields_by_form=pii_payload_fields_by_form,
         )

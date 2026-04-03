@@ -15,6 +15,7 @@ from app.models import (
     VaSubmissionUpstreamChange,
     VaStatuses,
 )
+from app.services.submission_payload_version_service import get_payload_version
 
 
 UPSTREAM_CHANGE_STATUS_PENDING = "pending"
@@ -53,6 +54,7 @@ def record_protected_upstream_change(
     pending = get_latest_pending_upstream_change(existing_submission.va_sid)
 
     if pending is None:
+        previous_version = get_payload_version(previous_payload_version_id)
         pending = VaSubmissionUpstreamChange(
             va_sid=existing_submission.va_sid,
             workflow_state_before=workflow_state_before,
@@ -60,7 +62,7 @@ def record_protected_upstream_change(
             previous_reviewer_final_assessment_id=authoritative_reviewer_final_id,
             previous_payload_version_id=previous_payload_version_id,
             incoming_payload_version_id=incoming_payload_version_id,
-            previous_va_data=existing_submission.va_data,
+            previous_va_data=previous_version.payload_data if previous_version else {},
             incoming_va_data=incoming_va_data,
             detected_odk_updatedat=detected_odk_updatedat,
             resolution_status=UPSTREAM_CHANGE_STATUS_PENDING,

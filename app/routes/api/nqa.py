@@ -105,8 +105,6 @@ def save_narrative_qa(va_sid: str):
     _, active_payload_version = get_submission_with_current_payload(
         va_sid,
         for_update=True,
-        created_by_role="vacoder",
-        created_by=current_user.user_id,
     )
 
     existing = db.session.scalar(

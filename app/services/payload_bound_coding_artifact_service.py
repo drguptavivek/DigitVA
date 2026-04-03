@@ -14,15 +14,13 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submission_payload_version_service import get_active_payload_version
 
 
 def get_submission_with_current_payload(
     va_sid: str,
     *,
     for_update: bool = False,
-    created_by_role: str = "vasystem",
-    created_by=None,
 ) -> tuple[VaSubmissions, VaSubmissionPayloadVersion]:
     """Return the submission and ensure it has an active payload version."""
     stmt = sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_sid)
@@ -32,13 +30,9 @@ def get_submission_with_current_payload(
     if submission is None:
         raise ValueError("Submission not found.")
 
-    active_payload_version = ensure_active_payload_version(
-        submission,
-        payload_data=submission.va_data or {},
-        source_updated_at=submission.va_odk_updatedat,
-        created_by_role=created_by_role,
-        created_by=created_by,
-    )
+    active_payload_version = get_active_payload_version(va_sid)
+    if active_payload_version is None:
+        raise ValueError("Submission has no active payload version.")
     return submission, active_payload_version
 
 

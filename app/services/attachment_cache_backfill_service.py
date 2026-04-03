@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 
 from app import db
 from app.models import VaForms, VaSubmissionAttachments, VaSubmissions
+from app.services.submission_payload_version_service import get_active_payload_version
 from app.utils.va_render.va_render_06_processcategorydata import va_isattachment
 
 
@@ -35,11 +36,12 @@ def _candidate_attachment_paths(media_dir: str, raw_value: str) -> list[tuple[st
 
 
 def _submission_attachment_refs(submission: VaSubmissions, media_dir: str) -> tuple[list[dict], int]:
-    """Return attachment refs from va_data that exist on disk and a missing count."""
+    """Return attachment refs from payload_data that exist on disk and a missing count."""
     refs: list[dict] = []
     seen_filenames: set[str] = set()
     missing_count = 0
-    va_data = submission.va_data or {}
+    active_version = get_active_payload_version(submission.va_sid)
+    va_data = active_version.payload_data if active_version else {}
 
     for field_id in va_isattachment:
         raw_value = va_data.get(field_id)

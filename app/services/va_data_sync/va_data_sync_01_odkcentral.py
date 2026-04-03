@@ -213,14 +213,6 @@ def _handle_protected_submission_update(existing, va_submission: dict) -> None:
             va_submission.get("SubmissionDate")
         ).replace(tzinfo=None)
 
-    if existing.active_payload_version_id is None and existing.va_data:
-        ensure_active_payload_version(
-            existing,
-            payload_data=existing.va_data,
-            source_updated_at=existing.va_odk_updatedat,
-            created_by_role="vasystem",
-        )
-
     previous_payload_version_id = existing.active_payload_version_id
     pending_payload_version = create_or_update_pending_upstream_payload_version(
         existing,
@@ -569,7 +561,6 @@ def _apply_submission_projection(submission: VaSubmissions, fields: dict, payloa
     submission.va_sync_issue_code = None
     submission.va_sync_issue_detail = None
     submission.va_sync_issue_updated_at = None
-    submission.va_data = payload_data
     submission.va_summary = fields["va_summary"]
     submission.va_catcount = fields["va_catcount"]
     submission.va_category_list = fields["va_category_list"]
@@ -666,14 +657,13 @@ def _upsert_form_submissions(
 
         if existing:
             active_payload_version = get_active_payload_version(va_submission_sid)
-            existing_payload_fingerprint = (
-                canonical_payload_fingerprint(active_payload_version.payload_data or {})
-                if active_payload_version is not None
-                else canonical_payload_fingerprint(existing.va_data or {})
-            )
-            active_payload_changed = (
-                existing_payload_fingerprint != incoming_payload_fingerprint
-            )
+            if active_payload_version is not None:
+                active_payload_changed = (
+                    canonical_payload_fingerprint(active_payload_version.payload_data or {})
+                    != incoming_payload_fingerprint
+                )
+            else:
+                active_payload_changed = True
         else:
             active_payload_changed = True
 
@@ -859,7 +849,6 @@ def _upsert_form_submissions(
                     va_sync_issue_code=None,
                     va_sync_issue_detail=None,
                     va_sync_issue_updated_at=None,
-                    va_data=va_submission,
                     va_summary=fields["va_summary"],
                     va_catcount=fields["va_catcount"],
                     va_category_list=fields["va_category_list"],
@@ -954,12 +943,13 @@ def _finalize_enriched_submissions_for_form(
 
         incoming_payload_fingerprint = canonical_payload_fingerprint(enriched_submission)
         active_payload_version = get_active_payload_version(va_sid)
-        existing_payload_fingerprint = (
-            canonical_payload_fingerprint(active_payload_version.payload_data or {})
-            if active_payload_version is not None
-            else canonical_payload_fingerprint(existing.va_data or {})
-        )
-        active_payload_changed = existing_payload_fingerprint != incoming_payload_fingerprint
+        if active_payload_version is not None:
+            active_payload_changed = (
+                canonical_payload_fingerprint(active_payload_version.payload_data or {})
+                != incoming_payload_fingerprint
+            )
+        else:
+            active_payload_changed = True
         current_state = get_submission_workflow_state(va_sid)
 
         if current_state in SYNC_PROTECTED_STATES and active_payload_changed:

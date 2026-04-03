@@ -87,46 +87,48 @@ WITH base AS (
         s.va_deceased_age_normalized_days,
         s.va_deceased_age_normalized_years,
         s.va_deceased_age_source,
-        LOWER(NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_group', '')), '')) AS age_group_raw,
+        LOWER(NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'age_group', '')), '')) AS age_group_raw,
         CASE
-            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_neonate_hours', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (s.va_data ->> 'age_neonate_hours')::numeric
+            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'age_neonate_hours', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
+                THEN (pv.payload_data ->> 'age_neonate_hours')::numeric
             ELSE NULL
         END AS age_neonate_hours_num,
         CASE
-            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'age_neonate_days', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (s.va_data ->> 'age_neonate_days')::numeric
+            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'age_neonate_days', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
+                THEN (pv.payload_data ->> 'age_neonate_days')::numeric
             ELSE NULL
         END AS age_neonate_days_num,
         CASE
-            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInDays', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (s.va_data ->> 'ageInDays')::numeric
+            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInDays', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
+                THEN (pv.payload_data ->> 'ageInDays')::numeric
             ELSE NULL
         END AS age_in_days_num,
         CASE
-            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInMonths', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (s.va_data ->> 'ageInMonths')::numeric
+            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInMonths', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
+                THEN (pv.payload_data ->> 'ageInMonths')::numeric
             ELSE NULL
         END AS age_in_months_num,
         CASE
-            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInYears', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (s.va_data ->> 'ageInYears')::numeric
+            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInYears', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
+                THEN (pv.payload_data ->> 'ageInYears')::numeric
             ELSE NULL
         END AS age_in_years_num,
         CASE
-            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'ageInYears2', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (s.va_data ->> 'ageInYears2')::numeric
+            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInYears2', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
+                THEN (pv.payload_data ->> 'ageInYears2')::numeric
             ELSE NULL
         END AS age_in_years2_num,
         CASE
-            WHEN NULLIF(BTRIM(COALESCE(s.va_data ->> 'finalAgeInYears', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (s.va_data ->> 'finalAgeInYears')::numeric
+            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'finalAgeInYears', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
+                THEN (pv.payload_data ->> 'finalAgeInYears')::numeric
             ELSE NULL
         END AS final_age_years_num,
-        COALESCE(s.va_data ->> 'isNeonatal', '') IN ('1', '1.0', 'true', 'True') AS is_neonatal,
-        COALESCE(s.va_data ->> 'isChild', '') IN ('1', '1.0', 'true', 'True') AS is_child,
-        COALESCE(s.va_data ->> 'isAdult', '') IN ('1', '1.0', 'true', 'True') AS is_adult
+        COALESCE(pv.payload_data ->> 'isNeonatal', '') IN ('1', '1.0', 'true', 'True') AS is_neonatal,
+        COALESCE(pv.payload_data ->> 'isChild', '') IN ('1', '1.0', 'true', 'True') AS is_child,
+        COALESCE(pv.payload_data ->> 'isAdult', '') IN ('1', '1.0', 'true', 'True') AS is_adult
     FROM va_submissions s
+    LEFT JOIN va_submission_payload_versions pv
+        ON pv.payload_version_id = s.active_payload_version_id
 ),
 age_source AS (
     SELECT

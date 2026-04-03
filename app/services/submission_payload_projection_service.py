@@ -70,7 +70,6 @@ def apply_payload_to_submission_summary(submission, payload_data: dict, *, sourc
     submission.va_sync_issue_code = None
     submission.va_sync_issue_detail = None
     submission.va_sync_issue_updated_at = None
-    submission.va_data = payload_data
     submission.va_summary, submission.va_catcount = (
         va_preprocess_summcatenotification(payload_data)
     )

@@ -39,6 +39,7 @@ from app.services.workflow.definition import (
 from app.services.workflow.state_store import (
     set_submission_workflow_state,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     _upsert_form_submissions,
 )
@@ -117,6 +118,7 @@ class UpsertWorkflowGuardTests(BaseTestCase):
         """Insert a submission with an old updatedAt so we can trigger an update."""
         old_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         sid = f"{instance_id}-{self.FORM_ID.lower()}"
+        payload = {"sid": sid, "form_def": self.FORM_ID}
         sub = VaSubmissions(
             va_sid=sid,
             va_form_id=self.FORM_ID,
@@ -129,13 +131,18 @@ class UpsertWorkflowGuardTests(BaseTestCase):
             va_deceased_age=50,
             va_deceased_gender="female",
             va_uniqueid_masked="masked",
-            va_data={"sid": sid, "form_def": self.FORM_ID},
             va_summary=[],
             va_catcount={},
             va_category_list=[],
         )
         db.session.add(sub)
         db.session.flush()
+        ensure_active_payload_version(
+            sub,
+            payload_data=payload,
+            source_updated_at=old_time.replace(tzinfo=None),
+            created_by_role="vasystem",
+        )
         return sub
 
     def _make_final_assessment(self, va_sid: str) -> VaFinalAssessments:
@@ -353,7 +360,7 @@ class UpsertWorkflowGuardTests(BaseTestCase):
 
     def test_metadata_only_payload_churn_does_not_revoke_protected_submission(self):
         sub = self._make_submission("uuid:guard-metadata-only")
-        sub.va_data = {
+        full_payload = {
             "sid": sub.va_sid,
             "form_def": self.FORM_ID,
             "KEY": "uuid:guard-metadata-only",
@@ -374,6 +381,12 @@ class UpsertWorkflowGuardTests(BaseTestCase):
             "instanceID": "uuid:guard-metadata-only",
             "survey_state": 29,
         }
+        ensure_active_payload_version(
+            sub,
+            payload_data=full_payload,
+            source_updated_at=sub.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
         set_submission_workflow_state(
             sub.va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test"
         )

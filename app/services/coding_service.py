@@ -38,11 +38,14 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     from app.utils import va_get_form_type_code_for_form
     from app.services.category_rendering_service import get_category_rendering_service, get_visible_category_codes
     from app.services.coder_workflow_service import is_upstream_recode
+    from app.services.submission_payload_version_service import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
 
     form_type_code = va_get_form_type_code_for_form(submission.va_form_id)
     category_service = get_category_rendering_service()
-    visible_codes = get_visible_category_codes(submission.va_data, submission.va_form_id)
+    active_version = get_active_payload_version(submission.va_sid)
+    payload_data = active_version.payload_data if active_version else {}
+    visible_codes = get_visible_category_codes(payload_data, submission.va_form_id)
     category_nav = category_service.get_category_nav(form_type_code, va_action, visible_codes)
     default_category_code = category_service.get_default_category_code(form_type_code, va_action, visible_codes)
     has_pending_upstream_change = (

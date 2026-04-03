@@ -15,6 +15,7 @@ from app.models import (
     VaSubmissions,
 )
 from app.services.attachment_cache_backfill_service import backfill_attachment_cache
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 
@@ -117,6 +118,18 @@ class AttachmentCacheBackfillServiceTests(BaseTestCase):
                     va_category_list=[],
                 ),
             ]
+        )
+        db.session.flush()
+        submission = db.session.get(VaSubmissions, cls.SID)
+        ensure_active_payload_version(
+            submission,
+            payload_data={
+                "Id10476_audio": "voice.amr",
+                "imagenarr": "photo.jpg",
+                "md_im1": "missing.png",
+            },
+            source_updated_at=now,
+            created_by_role="vasystem",
         )
         db.session.commit()
 

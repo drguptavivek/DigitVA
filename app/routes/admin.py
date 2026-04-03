@@ -35,6 +35,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 
 
 admin = Blueprint("admin", __name__)
@@ -4255,19 +4256,19 @@ def admin_sync_backfill_stats():
                 sa.and_(
                     VaSubmissions.va_summary.is_not(None),
                     VaSubmissions.va_category_list.is_not(None),
-                    VaSubmissions.va_data["FormVersion"].astext.is_not(None),
-                    VaSubmissions.va_data["DeviceID"].astext.is_not(None),
-                    VaSubmissions.va_data["SubmitterID"].astext.is_not(None),
-                    VaSubmissions.va_data["instanceID"].astext.is_not(None),
-                    VaSubmissions.va_data["AttachmentsExpected"].astext.is_not(None),
-                    VaSubmissions.va_data["AttachmentsPresent"].astext.is_not(None),
+                    VaSubmissionPayloadVersion.payload_data["FormVersion"].astext.is_not(None),
+                    VaSubmissionPayloadVersion.payload_data["DeviceID"].astext.is_not(None),
+                    VaSubmissionPayloadVersion.payload_data["SubmitterID"].astext.is_not(None),
+                    VaSubmissionPayloadVersion.payload_data["instanceID"].astext.is_not(None),
+                    VaSubmissionPayloadVersion.payload_data["AttachmentsExpected"].astext.is_not(None),
+                    VaSubmissionPayloadVersion.payload_data["AttachmentsPresent"].astext.is_not(None),
                 ),
                 1,
             ),
             else_=0,
         )
         attachment_expected_expr = sa.func.coalesce(
-            sa.cast(sa.func.nullif(VaSubmissions.va_data["AttachmentsExpected"].astext, ""), sa.Integer),
+            sa.cast(sa.func.nullif(VaSubmissionPayloadVersion.payload_data["AttachmentsExpected"].astext, ""), sa.Integer),
             0,
         )
         attachment_present_expr = sa.func.coalesce(attachment_counts_sq.c.attachment_count, 0)
@@ -4304,6 +4305,10 @@ def admin_sync_backfill_stats():
                     sa.func.coalesce(sa.func.sum(smartva_complete_expr), 0).label("smartva_complete"),
                 )
                 .select_from(VaSubmissions)
+                .outerjoin(
+                    VaSubmissionPayloadVersion,
+                    VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
+                )
                 .outerjoin(
                     attachment_counts_sq,
                     attachment_counts_sq.c.va_sid == VaSubmissions.va_sid,

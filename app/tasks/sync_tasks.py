@@ -340,6 +340,7 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
     from app import db
     from app.models import VaSubmissions, VaSubmissionAttachments, VaSmartvaResults
     from app.models.va_selectives import VaStatuses
+    from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 
     raw_by_sid = {
         submission.get("sid"): submission
@@ -374,11 +375,15 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
     rows = db.session.execute(
         sa.select(
             VaSubmissions.va_sid,
-            VaSubmissions.va_data,
+            VaSubmissionPayloadVersion.payload_data,
             VaSubmissions.va_summary,
             VaSubmissions.va_category_list,
             attachment_counts_sq.c.attachment_count,
             smartva_current_sq.c.va_sid.label("smartva_present_sid"),
+        )
+        .outerjoin(
+            VaSubmissionPayloadVersion,
+            VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
         )
         .outerjoin(
             attachment_counts_sq,
@@ -408,8 +413,8 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
         "attachments_missing": 0,
         "smartva_missing": 0,
     }
-    for va_sid, va_data, va_summary, va_category_list, attachment_count, smartva_present_sid in rows:
-        payload = va_data or {}
+    for va_sid, payload_data, va_summary, va_category_list, attachment_count, smartva_present_sid in rows:
+        payload = payload_data or {}
         instance_id = (
             raw_by_sid.get(va_sid, {}).get("KEY")
             or payload.get("KEY")
@@ -903,6 +908,7 @@ def run_enrichment_sync_batch(
     """Enrich one bounded batch of submissions for a form."""
     from app import db
     from app.models import VaForms, VaSubmissions
+    from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
         _attach_all_odk_comments,
         _finalize_enriched_submissions_for_form,
@@ -923,9 +929,12 @@ def run_enrichment_sync_batch(
         if item.get("needs_metadata")
     ]
     submission_rows = db.session.execute(
-        sa.select(VaSubmissions.va_sid, VaSubmissions.va_data).where(
-            VaSubmissions.va_sid.in_(metadata_sids)
+        sa.select(VaSubmissions.va_sid, VaSubmissionPayloadVersion.payload_data)
+        .outerjoin(
+            VaSubmissionPayloadVersion,
+            VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
         )
+        .where(VaSubmissions.va_sid.in_(metadata_sids))
     ).all() if metadata_sids else []
     if not submission_rows:
         if _batch_stage_counts(batch_plan)["attachments"] > 0:
@@ -962,10 +971,10 @@ def run_enrichment_sync_batch(
             )
         return {"enriched": 0, "errors": 0, "error_message": None}
 
-    raw_submissions = [dict(va_data or {}) for _, va_data in submission_rows]
+    raw_submissions = [dict(payload_data or {}) for _, payload_data in submission_rows]
     upserted_map = {
-        va_sid: (va_data or {}).get("KEY", "")
-        for va_sid, va_data in submission_rows
+        va_sid: (payload_data or {}).get("KEY", "")
+        for va_sid, payload_data in submission_rows
     }
     amended_sids: set[str] = set()
     _release_read_transaction(va_form)
@@ -1097,6 +1106,7 @@ def finalize_form_enrichment_sync(self, results, *, form_id: str, va_sids: list[
     from uuid import UUID
     from app import db
     from app.models import VaSubmissions
+    from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
     from app.models.va_sync_runs import VaSyncRun
 
     db.session.rollback()
@@ -1116,13 +1126,18 @@ def finalize_form_enrichment_sync(self, results, *, form_id: str, va_sids: list[
 
     upserted_map = {}
     if va_sids:
-        rows = db.session.scalars(
-            sa.select(VaSubmissions).where(VaSubmissions.va_sid.in_(va_sids))
+        rows = db.session.execute(
+            sa.select(VaSubmissions.va_sid, VaSubmissionPayloadVersion.payload_data)
+            .outerjoin(
+                VaSubmissionPayloadVersion,
+                VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
+            )
+            .where(VaSubmissions.va_sid.in_(va_sids))
         ).all()
         upserted_map = {
-            row.va_sid: (row.va_data or {}).get("KEY", "")
-            for row in rows
-            if (row.va_data or {}).get("KEY")
+            va_sid: (payload_data or {}).get("KEY", "")
+            for va_sid, payload_data in rows
+            if (payload_data or {}).get("KEY")
         }
 
     if not upserted_map:

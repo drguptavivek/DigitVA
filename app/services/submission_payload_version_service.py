@@ -178,18 +178,6 @@ def ensure_active_payload_version(
                 active.source_updated_at = source_updated_at
             return active
 
-    if active is None and submission.va_data:
-        seeded = _bootstrap_active_payload_version(
-            submission,
-            payload_data=submission.va_data,
-            source_updated_at=submission.va_odk_updatedat,
-            created_by_role=created_by_role,
-            created_by=created_by,
-        )
-        if seeded.payload_fingerprint == fingerprint:
-            return seeded
-        active = seeded
-
     now = datetime.now(timezone.utc)
     if active is not None:
         active.version_status = PAYLOAD_VERSION_STATUS_SUPERSEDED

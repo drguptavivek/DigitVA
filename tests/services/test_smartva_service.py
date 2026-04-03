@@ -30,7 +30,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submission_payload_version_service import ensure_active_payload_version, get_active_payload_version
 from app.services.smartva_service import (
     generate_for_form,
     generate_for_submission,
@@ -140,7 +140,6 @@ class PendingSmartVaSidsTests(BaseTestCase):
             va_deceased_age=45,
             va_deceased_gender="male",
             va_uniqueid_masked="masked",
-            va_data=payload_data,
             va_summary=[],
             va_catcount={},
             va_category_list=[],
@@ -372,7 +371,6 @@ class GenerateForSubmissionTests(BaseTestCase):
             va_deceased_age=45,
             va_deceased_gender="male",
             va_uniqueid_masked="masked",
-            va_data=payload_data,
             va_summary=[],
             va_catcount={},
             va_category_list=[],
@@ -390,8 +388,10 @@ class GenerateForSubmissionTests(BaseTestCase):
     def _add_historical_smartva_projection(self, sub: VaSubmissions) -> uuid.UUID:
         """Create an older SmartVA result tied to a superseded payload version."""
         old_payload_version_id = sub.active_payload_version_id
+        active_version = get_active_payload_version(sub.va_sid)
+        old_payload_data = active_version.payload_data if active_version else {}
         new_payload = {
-            **sub.va_data,
+            **old_payload_data,
             "updatedAt": datetime.now(timezone.utc).isoformat(),
             "test": "payload-changed",
         }
@@ -721,8 +721,9 @@ class GenerateForSubmissionTests(BaseTestCase):
             with open(f"{workspace_dir}/smartva_input.csv", "w", newline="") as handle:
                 handle.write("sid\n")
                 handle.write(f"{sub.va_sid}\n")
+            return {}
 
-        def fake_runsmartva(_va_form, workspace_dir):
+        def fake_runsmartva(_va_form, workspace_dir, run_options=None):
             import os
 
             report_dir = os.path.join(
@@ -851,8 +852,9 @@ class GenerateForSubmissionTests(BaseTestCase):
             with open(f"{workspace_dir}/smartva_input.csv", "w", newline="") as handle:
                 handle.write("sid,narr\n")
                 handle.write(f"{sub.va_sid},\"line1\\nline2\"\n")
+            return {}
 
-        def fake_runsmartva(_va_form, workspace_dir):
+        def fake_runsmartva(_va_form, workspace_dir, run_options=None):
             import os
             import csv
             from openpyxl import Workbook

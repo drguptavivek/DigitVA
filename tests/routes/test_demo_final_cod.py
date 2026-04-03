@@ -86,7 +86,6 @@ class TestDemoFinalCodRoute(BaseTestCase):
             va_narration_language="English",
             va_deceased_age=60,
             va_deceased_gender="Male",
-            va_data={},
             va_summary=[],
             va_catcount={},
             va_category_list=["vademographicdetails", "vacodassessment"],

@@ -185,7 +185,6 @@ class DataManagementAcceptRejectTests(BaseTestCase):
             va_narration_language="English",
             va_deceased_age=42,
             va_deceased_gender="male",
-            va_data=active_payload,
             va_summary=[],
             va_catcount={},
             va_category_list=[],
@@ -542,7 +541,7 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
             refreshed_pending.payload_version_id,
         )
         self.assertEqual(refreshed_previous.version_status, PAYLOAD_VERSION_STATUS_SUPERSEDED)
-        self.assertEqual(refreshed_submission.va_data["test"], "updated-data")
+        self.assertEqual(refreshed_pending.payload_data["test"], "updated-data")
 
     def test_accept_deactivates_reviewer_final_assessments(self):
         va_sid = self._create_revoked_submission(
@@ -860,7 +859,7 @@ class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
         self.assertEqual(
             refreshed_previous.version_status, PAYLOAD_VERSION_STATUS_SUPERSEDED
         )
-        self.assertEqual(refreshed_submission.va_data["test"], "updated-data")
+        self.assertEqual(refreshed_pending.payload_data["test"], "updated-data")
 
     def test_reject_records_kept_current_icd_resolution_status(self):
         va_sid = self._create_revoked_submission("reject-resolution")

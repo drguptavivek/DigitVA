@@ -98,7 +98,6 @@ class SitePiReportingServiceTests(BaseTestCase):
                 va_narration_language="English",
                 va_deceased_age=42,
                 va_deceased_gender="male",
-                va_data={},
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],

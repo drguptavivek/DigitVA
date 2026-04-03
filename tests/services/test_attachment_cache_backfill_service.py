@@ -108,11 +108,6 @@ class AttachmentCacheBackfillServiceTests(BaseTestCase):
                     va_instance_name=cls.SID,
                     va_uniqueid_real=cls.SID,
                     va_uniqueid_masked="masked-attachment-backfill",
-                    va_data={
-                        "Id10476_audio": "voice.amr",
-                        "imagenarr": "photo.jpg",
-                        "md_im1": "missing.png",
-                    },
                     va_summary=[],
                     va_catcount={},
                     va_category_list=[],

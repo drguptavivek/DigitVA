@@ -113,12 +113,13 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
             va_narration_language="English",
             va_deceased_age=45,
             va_deceased_gender="Male",
-            va_data={"sa01": 1.0},
             va_summary=["fever"],
             va_catcount={},
             va_category_list=["social_autopsy"],
         )
         db.session.add(submission)
+        db.session.flush()
+        ensure_active_payload_version(submission, payload_data={"sa01": 1.0}, source_updated_at=None, created_by_role="vasystem")
         db.session.commit()
         cls.social_sid = submission.va_sid
 
@@ -263,11 +264,10 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         submission = db.session.get(VaSubmissions, self.social_sid)
         first_payload_version_id = submission.active_payload_version_id
 
-        submission.va_data = {"sa01": 2.0}
         submission.va_odk_updatedat = datetime.now(timezone.utc)
         new_payload_version = ensure_active_payload_version(
             submission,
-            payload_data=submission.va_data,
+            payload_data={"sa01": 2.0},
             source_updated_at=submission.va_odk_updatedat,
             created_by_role="vasystem",
         )

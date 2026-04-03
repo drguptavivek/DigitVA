@@ -130,7 +130,6 @@ class TestReviewerCodingService(BaseTestCase):
             va_narration_language="English",
             va_deceased_age=42,
             va_deceased_gender="male",
-            va_data={},
             va_summary=[],
             va_catcount={},
             va_category_list=[],
@@ -139,7 +138,7 @@ class TestReviewerCodingService(BaseTestCase):
         db.session.flush()
         ensure_active_payload_version(
             submission,
-            payload_data=submission.va_data or {},
+            payload_data={},
             source_updated_at=submission.va_odk_updatedat,
         )
         db.session.commit()

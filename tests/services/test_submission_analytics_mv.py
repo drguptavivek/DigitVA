@@ -21,6 +21,7 @@ from app.services.final_cod_authority_service import (
     upsert_final_cod_authority,
     upsert_reviewer_final_cod_authority,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.submission_analytics_mv import (
     build_submission_analytics_core_mv_sql,
     build_submission_analytics_demographics_mv_sql,
@@ -153,13 +154,14 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 va_deceased_age_normalized_years=normalized_years,
                 va_deceased_age_source=normalized_source,
                 va_deceased_gender=gender,
-                va_data=payload,
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],
             )
         )
         db.session.flush()
+        submission = db.session.get(VaSubmissions, sid)
+        ensure_active_payload_version(submission, payload_data=payload, source_updated_at=None, created_by_role="vasystem")
         db.session.add(
             VaSubmissionWorkflow(
                 va_sid=sid,
@@ -563,13 +565,14 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                     va_narration_language="English",
                     va_deceased_age=0,
                     va_deceased_gender="female",
-                    va_data=payload,
                     va_summary=[],
                     va_catcount={},
                     va_category_list=[],
                 )
             )
             db.session.flush()
+            kpi_submission = db.session.get(VaSubmissions, sid)
+            ensure_active_payload_version(kpi_submission, payload_data=payload, source_updated_at=None, created_by_role="vasystem")
             db.session.add(
                 VaSubmissionWorkflow(
                     va_sid=sid,

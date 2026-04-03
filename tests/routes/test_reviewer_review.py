@@ -145,7 +145,6 @@ class TestReviewerReviewRoute(BaseTestCase):
             va_narration_language="English",
             va_deceased_age=55,
             va_deceased_gender="Female",
-            va_data={"field": "one"},
             va_summary=[],
             va_catcount={},
             va_category_list=["vanarrationanddocuments"],
@@ -155,7 +154,7 @@ class TestReviewerReviewRoute(BaseTestCase):
 
         ensure_active_payload_version(
             submission,
-            payload_data=submission.va_data,
+            payload_data={"field": "one"},
             source_updated_at=submission.va_odk_updatedat,
             created_by_role="vasystem",
         )
@@ -238,11 +237,10 @@ class TestReviewerReviewRoute(BaseTestCase):
         submission = db.session.get(VaSubmissions, self.sid)
         first_payload_version_id = submission.active_payload_version_id
 
-        submission.va_data = {"field": "two"}
         submission.va_odk_updatedat = datetime.now(timezone.utc)
         new_payload_version = ensure_active_payload_version(
             submission,
-            payload_data=submission.va_data,
+            payload_data={"field": "two"},
             source_updated_at=submission.va_odk_updatedat,
             created_by_role="vasystem",
         )

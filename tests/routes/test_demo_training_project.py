@@ -117,7 +117,6 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
                 va_narration_language="English",
                 va_deceased_age=34,
                 va_deceased_gender="Female",
-                va_data={},
                 va_summary=[],
                 va_catcount={},
                 va_category_list=["vademographicdetails", "vacodassessment"],

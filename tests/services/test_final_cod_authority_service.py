@@ -96,7 +96,6 @@ class TestFinalCodAuthorityService(BaseTestCase):
             va_narration_language="English",
             va_deceased_age=42,
             va_deceased_gender="male",
-            va_data={},
             va_summary=[],
             va_catcount={},
             va_category_list=[],
@@ -105,7 +104,7 @@ class TestFinalCodAuthorityService(BaseTestCase):
         db.session.flush()
         ensure_active_payload_version(
             submission,
-            payload_data=submission.va_data or {},
+            payload_data={},
             source_updated_at=submission.va_odk_updatedat,
         )
         db.session.commit()
@@ -256,11 +255,10 @@ class TestFinalCodAuthorityService(BaseTestCase):
             updated_by=self.base_coder_user.user_id,
         )
 
-        submission.va_data = {"updated": True}
         submission.va_odk_updatedat = datetime.now(timezone.utc)
         ensure_active_payload_version(
             submission,
-            payload_data=submission.va_data,
+            payload_data={"updated": True},
             source_updated_at=submission.va_odk_updatedat,
         )
         db.session.flush()

@@ -329,13 +329,7 @@ class OdkSyncServiceTests(BaseTestCase):
         )
         db.session.commit()
 
-        submission = db.session.get(VaSubmissions, sid)
-        self.assertEqual(submission.va_data["FormVersion"], "SYNC_TEST_FORM_20260101")
-        self.assertEqual(submission.va_data["DeviceID"], "collect:test-device")
-        self.assertEqual(submission.va_data["SubmitterID"], 23)
-        self.assertEqual(submission.va_data["instanceID"], "uuid:sync-enriched")
-        self.assertEqual(submission.va_data["AttachmentsExpected"], 2)
-        self.assertEqual(submission.va_data["AttachmentsPresent"], 2)
+        db.session.get(VaSubmissions, sid)
         versions = db.session.scalars(
             db.select(VaSubmissionPayloadVersion).where(
                 VaSubmissionPayloadVersion.va_sid == sid
@@ -343,6 +337,10 @@ class OdkSyncServiceTests(BaseTestCase):
         ).all()
         self.assertEqual(len(versions), 1)
         self.assertEqual(versions[0].payload_data.get("FormVersion"), "SYNC_TEST_FORM_20260101")
+        self.assertEqual(versions[0].payload_data.get("DeviceID"), "collect:test-device")
+        self.assertEqual(versions[0].payload_data.get("SubmitterID"), 23)
+        self.assertEqual(versions[0].payload_data.get("instanceID"), "uuid:sync-enriched")
+        self.assertEqual(versions[0].payload_data.get("AttachmentsExpected"), 2)
         self.assertEqual(versions[0].payload_data.get("AttachmentsPresent"), 2)
 
     def test_changed_payload_creates_new_active_payload_version(self):
@@ -363,7 +361,7 @@ class OdkSyncServiceTests(BaseTestCase):
 
         updated = dict(initial)
         updated["updatedAt"] = datetime.now(timezone.utc).isoformat()
-        updated["finalAgeInYears"] = "47"
+        updated["Id10019"] = "female"
 
         _upsert_form_submissions(
             db.session.get(VaForms, self.FORM_ID),
@@ -391,7 +389,7 @@ class OdkSyncServiceTests(BaseTestCase):
             versions[1].payload_version_id,
             refreshed_submission.active_payload_version_id,
         )
-        self.assertEqual(versions[1].payload_data.get("finalAgeInYears"), "47")
+        self.assertEqual(versions[1].payload_data.get("Id10019"), "female")
 
         workflow_state = db.session.scalar(
             db.select(VaSubmissionWorkflow.workflow_state).where(
@@ -451,7 +449,6 @@ class OdkSyncServiceTests(BaseTestCase):
                 va_deceased_age=42,
                 va_deceased_gender="male",
                 va_uniqueid_masked="masked",
-                va_data={"sid": sid},
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],
@@ -500,7 +497,7 @@ class OdkSyncServiceTests(BaseTestCase):
                 VaInitialAssessments.va_sid == sid
             )
         )
-        self.assertEqual(workflow_state, WORKFLOW_ATTACHMENT_SYNC_PENDING)
+        self.assertEqual(workflow_state, WORKFLOW_SMARTVA_PENDING)
         self.assertEqual(allocation_status, VaStatuses.deactive)
         self.assertEqual(initial_status, VaStatuses.deactive)
 
@@ -519,7 +516,6 @@ class OdkSyncServiceTests(BaseTestCase):
                 va_deceased_age=42,
                 va_deceased_gender="male",
                 va_uniqueid_masked="masked",
-                va_data={"sid": sid},
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],
@@ -578,7 +574,6 @@ class OdkSyncServiceTests(BaseTestCase):
                 va_deceased_age_source="finalAgeInYears",
                 va_deceased_gender="male",
                 va_uniqueid_masked="masked",
-                va_data={"sid": sid},
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],

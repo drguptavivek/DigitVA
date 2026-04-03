@@ -1,28 +1,36 @@
-"""rebuild_analytics_mv_add_cod_pending_upstream_review
+"""optimise_analytics_mv_and_sync_runs_index
 
-Adds cod_pending_upstream_review boolean column to the analytics MV.
-Cases in finalized_upstream_changed state are now included in coded counts
-and flagged with this column so downstream reports can distinguish them.
+Replace LATERAL correlated subqueries in the analytics MV with pre-aggregated
+DISTINCT ON joins. Each of the four LATERAL clauses previously ran one correlated
+lookup per outer row (8 000 rows × 7 lookups ≈ 56 000 round-trips). The rewrite
+executes a fixed number of table scans regardless of row count, cutting refresh
+time from ~68 s (concurrent) / ~36 s (non-concurrent) to under 5 s.
 
-Revision ID: b1c2d3e4f5a6
-Revises: aacf89977029
-Create Date: 2026-03-24
+Also adds a composite index on va_sync_runs(status, started_at DESC) to cover
+the status-filtered, time-ordered queries that were causing full table scans.
+
+Revision ID: cc77dd88ee99
+Revises: aa12bb34cc56
+Create Date: 2026-04-02
 
 """
 import sqlalchemy as sa
 from alembic import op
 
-# revision identifiers, used by Alembic.
-revision = "b1c2d3e4f5a6"
-down_revision = "aacf89977029"
+revision = "cc77dd88ee99"
+down_revision = "aa12bb34cc56"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
+    # ------------------------------------------------------------------
+    # 1. Rebuild the analytics MV with optimised query
+    # ------------------------------------------------------------------
     op.execute(sa.text("DROP MATERIALIZED VIEW IF EXISTS va_submission_analytics_mv CASCADE"))
     op.execute(sa.text(build_submission_analytics_mv_sql()))
 
+    # Recreate all MV indexes
     op.execute(sa.text(
         "CREATE UNIQUE INDEX ix_va_submission_analytics_mv_va_sid "
         "ON va_submission_analytics_mv (va_sid)"
@@ -60,6 +68,17 @@ def upgrade():
         "ON va_submission_analytics_mv (cod_pending_upstream_review)"
     ))
 
+    # ------------------------------------------------------------------
+    # 2. Composite index on va_sync_runs(status, started_at DESC)
+    #    Covers: WHERE status = ? ORDER BY started_at DESC LIMIT n
+    #    Replaces full table scans caused by status-only filtering.
+    # ------------------------------------------------------------------
+    op.execute(sa.text(
+        "CREATE INDEX ix_va_sync_runs_status_started_at "
+        "ON va_sync_runs (status, started_at DESC)"
+    ))
+
 
 def downgrade():
+    op.execute(sa.text("DROP INDEX IF EXISTS ix_va_sync_runs_status_started_at"))
     op.execute(sa.text("DROP MATERIALIZED VIEW IF EXISTS va_submission_analytics_mv CASCADE"))

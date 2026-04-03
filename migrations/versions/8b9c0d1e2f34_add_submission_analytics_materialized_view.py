@@ -9,8 +9,6 @@ Create Date: 2026-03-18 23:10:00.000000
 from alembic import op
 import sqlalchemy as sa
 
-from app.services.submission_analytics_mv import build_submission_analytics_mv_sql
-
 
 # revision identifiers, used by Alembic.
 revision = "8b9c0d1e2f34"

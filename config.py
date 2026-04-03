@@ -47,11 +47,14 @@ class Config:
         or "postgresql://minerva:minerva@localhost:5432/minerva"
     )
     # Database connection pool settings - prevents connection leaks and pool exhaustion
+    # 3 services × (pool_size=3 + max_overflow=5) = 24 max connections → fits within max_connections=40
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_pre_ping": True,  # Detect stale connections before use
-        "pool_size": 5,         # 5 connections per pool (default)
-        "max_overflow": 10,     # Allow 10 extra connections when pool is full
-        "pool_recycle": 300,    # Recycle connections after 5 minutes (good for Celery + cloud DBs)
+        "pool_pre_ping": True,      # Detect stale connections before use
+        "pool_size": 3,             # Reduced from 5 — sufficient for low-concurrency Flask/Celery
+        "max_overflow": 5,          # Burst up to 8 total per process when needed
+        "pool_recycle": 300,        # Recycle connections after 5 minutes
+        "pool_use_lifo": True,      # Reuse most-recently-used connections; lets cold ones expire naturally
+        "pool_timeout": 20,         # Fail fast if pool exhausted (default is 30s)
     }
     APP_BASEDIR = basedir
     APP_RESOURCE = os.path.join(basedir, "resource")
@@ -89,6 +92,8 @@ class Config:
         "beat_dburi": SQLALCHEMY_DATABASE_URI,
         "timezone": "UTC",
         "enable_utc": True,
+        "worker_prefetch_multiplier": 1,    # Fetch one task at a time — prevents memory hoarding
+        "worker_max_tasks_per_child": 100,  # Recycle worker after 100 tasks to prevent memory drift
     }
 
 

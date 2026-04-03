@@ -1861,7 +1861,7 @@ def cleanup_stale_runs():
     time_limit=1800,
 )
 def refresh_submission_analytics_mv_task(self):
-    """Refresh the submission analytics materialized view and record the run."""
+    """Refresh the submission analytics materialized views and record the run."""
     from app import db
     from app.models.va_sync_runs import VaSyncRun
     from app.services.submission_analytics_mv import refresh_submission_analytics_mv
@@ -1876,19 +1876,19 @@ def refresh_submission_analytics_mv_task(self):
     run_id = run.sync_run_id
 
     try:
-        _log_progress(db, run_id, "Refreshing submission analytics materialized view.")
+        _log_progress(db, run_id, "Refreshing submission analytics materialized views.")
         refresh_submission_analytics_mv(concurrently=True)
         run = db.session.get(VaSyncRun, run_id)
         run.status = "success"
         run.finished_at = datetime.now(timezone.utc)
         run.records_updated = db.session.scalar(
-            sa.text("SELECT COUNT(*) FROM public.va_submission_analytics_mv")
+            sa.text("SELECT COUNT(*) FROM public.va_submission_analytics_core_mv")
         )
         db.session.commit()
         _log_progress(
             db,
             run_id,
-            f"Submission analytics materialized view refreshed: {run.records_updated} rows.",
+            f"Submission analytics materialized views refreshed: {run.records_updated} rows.",
         )
     except Exception as exc:
         try:

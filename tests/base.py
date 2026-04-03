@@ -77,9 +77,15 @@ class BaseTestCase(unittest.TestCase):
 
     @classmethod
     def _drop_test_materialized_views(cls):
-        db.session.execute(
-            sa.text("DROP MATERIALIZED VIEW IF EXISTS va_submission_analytics_mv CASCADE")
-        )
+        for mv in (
+            "va_submission_cod_detail_mv",
+            "va_submission_analytics_demographics_mv",
+            "va_submission_analytics_core_mv",
+            "va_submission_analytics_mv",
+        ):
+            db.session.execute(
+                sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE")
+            )
         db.session.commit()
 
     @classmethod

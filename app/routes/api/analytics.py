@@ -23,7 +23,9 @@ from flask_login import login_required, current_user
 
 from app import db, limiter, cache
 from app.services.submission_analytics_mv import (
-    MV_NAME,
+    CORE_MV_NAME,
+    DEMOGRAPHICS_MV_NAME,
+    COD_MV_NAME,
     build_dm_mv_filter_conditions,
     get_dm_kpi_from_mv,
     refresh_submission_analytics_mv,
@@ -33,11 +35,11 @@ bp = Blueprint("analytics", __name__)
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Shared MV table reference
+# Shared MV table references
 # ---------------------------------------------------------------------------
 
-_mv = sa.table(
-    MV_NAME,
+_core = sa.table(
+    CORE_MV_NAME,
     sa.column("va_sid"),
     sa.column("project_id"),
     sa.column("site_id"),
@@ -47,15 +49,30 @@ _mv = sa.table(
     sa.column("workflow_state"),
     sa.column("odk_review_state"),
     sa.column("has_sync_issue"),
-    sa.column("has_smartva"),
+    sa.column("odk_sync_issue_code"),
+    sa.column("cod_pending_upstream_review"),
+)
+
+_demo = sa.table(
+    DEMOGRAPHICS_MV_NAME,
+    sa.column("va_sid"),
     sa.column("sex"),
     sa.column("analytics_age_band"),
+    sa.column("has_smartva"),
+    sa.column("has_human_initial_cod"),
     sa.column("has_human_final_cod"),
+)
+
+_cod = sa.table(
+    COD_MV_NAME,
+    sa.column("va_sid"),
+    sa.column("initial_immediate_icd"),
     sa.column("final_icd"),
     sa.column("final_cod_text"),
-    sa.column("has_human_initial_cod"),
-    sa.column("initial_immediate_icd"),
 )
+
+# Legacy alias kept for filter helpers that expect _mv
+_mv = _core
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -77,11 +94,11 @@ def _dm_scope_filter():
 
     project_clause = sa.false()
     if project_ids:
-        project_clause = _mv.c.project_id.in_(project_ids)
+        project_clause = _core.c.project_id.in_(project_ids)
 
     site_clause = sa.false()
     if project_site_pairs:
-        site_clause = sa.tuple_(_mv.c.project_id, _mv.c.site_id).in_(
+        site_clause = sa.tuple_(_core.c.project_id, _core.c.site_id).in_(
             list(project_site_pairs)
         )
 
@@ -152,13 +169,13 @@ def submissions_by_date():
         scope = _dm_scope_filter()
         rows = db.session.execute(
             sa.select(
-                _mv.c.submission_date.label("date"),
+                _core.c.submission_date.label("date"),
                 sa.func.count().label("count"),
             )
             .where(scope)
-            .where(_mv.c.submission_date.isnot(None))
-            .group_by(_mv.c.submission_date)
-            .order_by(_mv.c.submission_date.desc())
+            .where(_core.c.submission_date.isnot(None))
+            .group_by(_core.c.submission_date)
+            .order_by(_core.c.submission_date.desc())
             .limit(limit)
         ).mappings().all()
         return [{"date": str(r["date"]), "count": r["count"]} for r in rows]
@@ -179,13 +196,13 @@ def submissions_by_week():
         scope = _dm_scope_filter()
         rows = db.session.execute(
             sa.select(
-                _mv.c.submission_week_start.label("week_start"),
+                _core.c.submission_week_start.label("week_start"),
                 sa.func.count().label("count"),
             )
             .where(scope)
-            .where(_mv.c.submission_week_start.isnot(None))
-            .group_by(_mv.c.submission_week_start)
-            .order_by(_mv.c.submission_week_start.desc())
+            .where(_core.c.submission_week_start.isnot(None))
+            .group_by(_core.c.submission_week_start)
+            .order_by(_core.c.submission_week_start.desc())
             .limit(limit)
         ).mappings().all()
         return [{"week_start": str(r["week_start"]), "count": r["count"]} for r in rows]
@@ -206,13 +223,13 @@ def submissions_by_month():
         scope = _dm_scope_filter()
         rows = db.session.execute(
             sa.select(
-                _mv.c.submission_month_start.label("month_start"),
+                _core.c.submission_month_start.label("month_start"),
                 sa.func.count().label("count"),
             )
             .where(scope)
-            .where(_mv.c.submission_month_start.isnot(None))
-            .group_by(_mv.c.submission_month_start)
-            .order_by(_mv.c.submission_month_start.desc())
+            .where(_core.c.submission_month_start.isnot(None))
+            .group_by(_core.c.submission_month_start)
+            .order_by(_core.c.submission_month_start.desc())
             .limit(limit)
         ).mappings().all()
         return [{"month_start": str(r["month_start"]), "count": r["count"]} for r in rows]
@@ -229,39 +246,44 @@ def demographics():
         return err
 
     def compute():
-        scope = sa.and_(
-            *build_dm_mv_filter_conditions(
-                _mv,
-                project_ids=sorted(current_user.get_data_manager_projects()),
-                project_site_pairs=current_user.get_data_manager_project_sites(),
-                project=request.args.get("project", ""),
-                site=request.args.get("site", ""),
-                date_from=request.args.get("date_from") or None,
-                date_to=request.args.get("date_to") or None,
-                odk_status=request.args.get("odk_status", ""),
-                smartva=request.args.get("smartva", ""),
-                age_group=request.args.get("age_group", ""),
-                gender=request.args.get("gender", ""),
-                odk_sync=request.args.get("odk_sync", ""),
-                workflow=request.args.get("workflow", ""),
-            )
+        core_conditions = build_dm_mv_filter_conditions(
+            _core,
+            _demo,
+            project_ids=sorted(current_user.get_data_manager_projects()),
+            project_site_pairs=current_user.get_data_manager_project_sites(),
+            project=request.args.get("project", ""),
+            site=request.args.get("site", ""),
+            date_from=request.args.get("date_from") or None,
+            date_to=request.args.get("date_to") or None,
+            odk_status=request.args.get("odk_status", ""),
+            smartva=request.args.get("smartva", ""),
+            age_group=request.args.get("age_group", ""),
+            gender=request.args.get("gender", ""),
+            odk_sync=request.args.get("odk_sync", ""),
+            workflow=request.args.get("workflow", ""),
         )
+
+        joined = _core.join(_demo, _core.c.va_sid == _demo.c.va_sid)
+        scope = sa.and_(*core_conditions)
+
         age_rows = db.session.execute(
             sa.select(
-                _mv.c.analytics_age_band.label("band"),
+                _demo.c.analytics_age_band.label("band"),
                 sa.func.count().label("count"),
             )
+            .select_from(joined)
             .where(scope)
-            .group_by(_mv.c.analytics_age_band)
+            .group_by(_demo.c.analytics_age_band)
             .order_by(sa.func.count().desc())
         ).mappings().all()
         sex_rows = db.session.execute(
             sa.select(
-                _mv.c.sex.label("sex"),
+                _demo.c.sex.label("sex"),
                 sa.func.count().label("count"),
             )
+            .select_from(joined)
             .where(scope)
-            .group_by(_mv.c.sex)
+            .group_by(_demo.c.sex)
             .order_by(sa.func.count().desc())
         ).mappings().all()
         return {
@@ -283,11 +305,11 @@ def workflow():
         scope = _dm_scope_filter()
         rows = db.session.execute(
             sa.select(
-                _mv.c.workflow_state.label("state"),
+                _core.c.workflow_state.label("state"),
                 sa.func.count().label("count"),
             )
             .where(scope)
-            .group_by(_mv.c.workflow_state)
+            .group_by(_core.c.workflow_state)
             .order_by(sa.func.count().desc())
         ).mappings().all()
         return [{"state": r["state"], "count": r["count"]} for r in rows]
@@ -307,14 +329,23 @@ def cod():
 
     def compute():
         scope = _dm_scope_filter()
+        joined = _core.join(_cod, _core.c.va_sid == _cod.c.va_sid)
+
         if cod_type == "initial":
-            icd_col = _mv.c.initial_immediate_icd
+            # Initial COD also needs the has_human_initial_cod flag from demographics
+            joined = joined.join(
+                _demo, _core.c.va_sid == _demo.c.va_sid
+            )
+            icd_col = _cod.c.initial_immediate_icd
             text_col = sa.literal(None)
-            has_col = _mv.c.has_human_initial_cod
+            has_col = _demo.c.has_human_initial_cod
         else:
-            icd_col = _mv.c.final_icd
-            text_col = _mv.c.final_cod_text
-            has_col = _mv.c.has_human_final_cod
+            joined = joined.join(
+                _demo, _core.c.va_sid == _demo.c.va_sid
+            )
+            icd_col = _cod.c.final_icd
+            text_col = _cod.c.final_cod_text
+            has_col = _demo.c.has_human_final_cod
 
         rows = db.session.execute(
             sa.select(
@@ -322,6 +353,7 @@ def cod():
                 sa.func.max(text_col).label("cod_text"),
                 sa.func.count().label("count"),
             )
+            .select_from(joined)
             .where(scope)
             .where(has_col.is_(True))
             .where(icd_col.isnot(None))
@@ -338,7 +370,7 @@ def cod():
 @login_required
 @limiter.limit("1 per minute")
 def mv_refresh():
-    """Refresh the submission analytics materialized view on demand."""
+    """Refresh the submission analytics materialized views on demand."""
     try:
         err = _require_data_manager()
         if err:

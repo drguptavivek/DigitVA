@@ -19,6 +19,10 @@ services:
       - minerva_db_service
       - minerva_redis_service
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
       interval: 2m
@@ -45,6 +49,10 @@ services:
       - minerva_db_service
       - minerva_redis_service
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 768m
 
   minerva_celery_beat:
     build: .
@@ -65,13 +73,22 @@ services:
       - minerva_redis_service
       - minerva_app_service
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 192m
 
   minerva_redis_service:
     image: redis:7
     container_name: minerva_redis
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 96m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -81,6 +98,23 @@ services:
   minerva_db_service:
     image: postgres:17
     container_name: minerva_db
+    # Tuned for 1.87 GB host with 183 MB database and ≤24 application connections.
+    # shared_buffers=128MB keeps entire DB hot in cache (DB is 183MB).
+    # max_connections=40 matches pool headroom (3 services × 8 max = 24 + 16 admin margin).
+    # idle_in_transaction_session_timeout kills hung transactions after 30s.
+    # tcp_keepalives_idle detects dead connections within 60s.
+    # log_min_duration_statement logs queries slower than 1s for performance diagnosis.
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=512MB
+      -c max_connections=40
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+      -c wal_buffers=8MB
+      -c checkpoint_completion_target=0.9
+      -c idle_in_transaction_session_timeout=30000
+      -c log_min_duration_statement=1000
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -88,6 +122,10 @@ services:
     volumes:
       - pgdata_minerva:/var/lib/postgresql/data
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U minerva"]
       interval: 30s

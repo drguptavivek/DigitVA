@@ -250,10 +250,10 @@ def _csv_values(raw: str) -> list[str]:
 
 
 def _submission_analytics_mv_available() -> bool:
-    """Return whether the analytics materialized view currently exists."""
+    """Return whether the analytics demographics materialized view currently exists."""
     return bool(
         db.session.execute(
-            sa.text("SELECT to_regclass('va_submission_analytics_mv')")
+            sa.text("SELECT to_regclass('va_submission_analytics_demographics_mv')")
         ).scalar_one()
     )
 
@@ -403,7 +403,7 @@ def dm_submissions_page(
     _mv_ref = None
     if _submission_analytics_mv_available():
         _mv_ref = sa.table(
-            "va_submission_analytics_mv",
+            "va_submission_analytics_demographics_mv",
             sa.column("va_sid"),
             sa.column("analytics_age_band"),
         )
@@ -629,7 +629,7 @@ def _dm_submission_query_parts(
     _mv_ref = None
     if _submission_analytics_mv_available():
         _mv_ref = sa.table(
-            "va_submission_analytics_mv",
+            "va_submission_analytics_demographics_mv",
             sa.column("va_sid"),
             sa.column("analytics_age_band"),
         )

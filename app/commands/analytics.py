@@ -18,9 +18,9 @@ def analytics_group():
     help="Use REFRESH MATERIALIZED VIEW CONCURRENTLY.",
 )
 def refresh_submission_mv(concurrently):
-    """Refresh the submission analytics materialized view."""
+    """Refresh the submission analytics materialized views."""
     refresh_submission_analytics_mv(concurrently=concurrently)
-    click.echo("Submission analytics materialized view refreshed.")
+    click.echo("Submission analytics materialized views refreshed.")
 
 
 def init_app(app):

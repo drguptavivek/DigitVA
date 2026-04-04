@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-04
 ---
 
 # SmartVA Generation Policy
@@ -199,7 +199,7 @@ Operational baseline:
   under the site-level `Configure` action
 - saving the project-site ODK mapping must also persist these SmartVA settings
   onto the compatibility `va_forms` row used by the runner
-- the SmartVA runner must pass these values directly to the SmartVA binary for
+- the SmartVA runner must pass these values directly to the SmartVA module for
   every run of that form
 
 ### Active vs Inactive Results
@@ -400,7 +400,7 @@ Phase 1: ODK Sync
 Phase 2: SmartVA
 ├── get_pending_sids() — excludes protected
 ├── prep_input_csv()
-├── run_smartva_binary()
+├── run_smartva_module()
 └── save_results() / record explicit failure
 
 Phase 3: Coding readiness

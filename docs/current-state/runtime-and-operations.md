@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-04
 ---
 
 # Runtime And Operations
@@ -55,7 +55,8 @@ Current behavior:
 - installs `postgresql-client` and `ffmpeg`
 - installs Python dependencies via `uv sync`
 - copies the repo into `/app`
-- marks `resource/smartva` and `boot.sh` executable
+- installs SmartVA-Analyze from `vendor/smartva-analyze` via `uv pip install --no-deps`
+- marks `boot.sh` executable
 - exposes port `5000`
 
 Why the extra system packages exist:

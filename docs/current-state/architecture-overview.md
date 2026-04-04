@@ -38,7 +38,7 @@ Main code areas:
 - `app/templates`
   - server-rendered HTML templates and HTMX partials
 - `resource`
-  - mapping spreadsheets, SmartVA resources, and pyODK config files
+  - mapping spreadsheets, legacy SmartVA binary, and pyODK config files
 - `data`
   - downloaded ODK CSV and attachment files grouped by app form id
 

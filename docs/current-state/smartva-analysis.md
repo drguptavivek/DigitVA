@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-04
 ---
 
 # SmartVA Analysis
@@ -60,11 +60,12 @@ policy baseline.
 
 ## Overview
 
-SmartVA is run as a subprocess via a bundled x86-64 binary (`resource/smartva`).
-It consumes a CSV exported from ODK submissions and produces a multi-age-group
-cause-of-death ranking per submission. Current runtime stores the active
-summary result in `va_smartva_results` and surfaces that record to coders in
-the VA coding interface.
+SmartVA is run as a Python subprocess via the vendored `smartva` package
+(`vendor/smartva-analyze`, git submodule, v3.0.0). It consumes a CSV exported
+from ODK submissions and produces a multi-age-group cause-of-death ranking per
+submission. Current runtime stores the active summary result in
+`va_smartva_results` and surfaces that record to coders in the VA coding
+interface.
 
 Current lineage note:
 
@@ -85,32 +86,31 @@ SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions hav
 
 ## Architecture
 
-### Binary
+### SmartVA Package
 
 | Property | Value |
 |---|---|
-| Path | `resource/smartva` |
-| Architecture | x86-64 Linux (ELF) |
-| Source | `vendor/smartva-analyze` (v3.0.0) |
-| Execution environment | `minerva_celery_worker` container (`platform: linux/amd64`) |
-| Must NOT run in | `minerva_app_service` (aarch64 on ARM hosts — exit code 2) |
+| Source | `vendor/smartva-analyze` (git submodule, pinned to v3.0.0) |
+| Install | `uv pip install --no-deps vendor/smartva-analyze` in Dockerfile |
+| CLI entry point | `python -m smartva.va_cli` |
+| Execution environment | `minerva_celery_worker` container |
+| Required deps | `click`, `numpy`, `pandas`, `progressbar2`, `stemming`, `python-dateutil`, `xlsxwriter`, `matplotlib` |
 
-The binary must be executable on the host filesystem (not only inside the image). Because the repo is bind-mounted into the container, run:
-
-```bash
-chmod +x resource/smartva
-```
-
-on the host after checkout if the permission is lost.
+SmartVA runs natively as a Python module — no PyInstaller binary or `/tmp/_MEI*`
+extraction overhead. The `--no-deps` install skips GUI-only dependencies
+(`wxpython`, `tornado`, `colorama`, `pyparsing`) declared in SmartVA's
+`pyproject.toml`. CLI-only deps are declared in DigitVA's own `pyproject.toml`.
 
 ### Containers
 
-SmartVA is CPU-intensive and architecture-specific:
+SmartVA runs inside the Celery worker. Since SmartVA is now pure Python (no
+PyInstaller binary), it is architecture-independent and shares the same Python
+interpreter as the worker process. Memory overhead is reduced by ~150-300MB
+compared to the previous PyInstaller `--onefile` binary which extracted a
+temporary runtime on each invocation.
 
-- **`minerva_celery_worker`** — `platform: linux/amd64` — runs SmartVA via Celery tasks
-- **`minerva_app_service`** — `platform: linux/amd64` — required to match the bind-mounted `.venv` (which has x86-64 `.so` files)
-
-Both services must be `linux/amd64` because the host `.venv` (bind-mounted at `/app/.venv`) contains x86-64 shared libraries (e.g. `pydantic_core._pydantic_core`).
+- **`minerva_celery_worker`** — runs SmartVA via Celery tasks (batch size 10)
+- **`minerva_app_service`** — runs tests and admin tasks; not used for production SmartVA
 
 ---
 
@@ -208,7 +208,7 @@ va_smartva_prepdata()
   - write → temp workspace smartva_input.csv
     │
     ▼
-va_smartva_runsmartva()       # subprocess: ./resource/smartva smartva_input.csv
+va_smartva_runsmartva()       # subprocess: python -m smartva.va_cli smartva_input.csv smartva_output/
     │
     ▼
 smartva_output/               # adult-predictions.csv, child-predictions.csv, neonate-predictions.csv
@@ -289,12 +289,12 @@ submissions in `va_smartva_results`.
 
 ## Execution (`va_smartva_03_runsmartva.py`)
 
-SmartVA is invoked as a subprocess:
+SmartVA is invoked as a Python subprocess:
 
 ```bash
-./resource/smartva --country=Unknown \
-    --hiv=False --malaria=False --hce=False \
-    smartva_input.csv
+python -m smartva.va_cli --country=Unknown \
+    --figures=False --hiv=False --malaria=False --hce=True \
+    smartva_input.csv smartva_output/
 ```
 
 Output is first written to the temporary workspace, then the full workspace is
@@ -308,9 +308,11 @@ copied to:
 |---|---|
 | 0 | Success |
 | 1 | SmartVA internal error — check stderr; usually a column/data validation issue |
-| 2 | Binary architecture mismatch — running x86-64 ELF in an aarch64 container |
 
-If exit code ≠ 0, the exception is caught per-form in Phase 2: the DB session is rolled back, a warning is logged, and processing continues to the next form.
+If exit code ≠ 0, the exception is caught per-batch: the DB session is rolled
+back, a warning is logged, and processing continues to the next batch. Batches
+are processed in groups of `SMARTVA_BATCH_SIZE = 10` submissions per
+invocation.
 
 ---
 
@@ -496,10 +498,13 @@ WHERE status = 'running';
 
 ### SmartVA binary permissions
 
-If `resource/smartva` loses its executable bit (e.g. after a fresh checkout):
+SmartVA runs as a Python module — no binary permissions to manage. The vendored
+source is installed via `uv pip install --no-deps vendor/smartva-analyze` during
+Docker image build. To reinstall in a running container:
 
 ```bash
-chmod +x resource/smartva
+docker compose exec minerva_celery_worker bash -c \
+    "uv pip install --python /app/.venv/bin/python --no-deps /app/vendor/smartva-analyze"
 ```
 
 ### Diagnosing a new form failure

@@ -1461,7 +1461,16 @@ def va_data_sync_odkcentral(
                             ),
                             progress_callback=_progress,
                         )
-                        db.session.commit()  # commit ETag records
+                        try:
+                            db.session.commit()  # commit ETag records
+                        except sa.exc.OperationalError:
+                            db.session.rollback()
+                            db.session.remove()
+                            log.warning(
+                                "DataSync [%s]: stale DB connection after attachment "
+                                "download, ETag records lost — will re-sync next run.",
+                                va_form.form_id,
+                            )
                         _progress(
                             f"[{va_form.form_id}] attachments: complete — "
                             f"{attachment_totals['downloaded']} downloaded, "
@@ -1518,6 +1527,7 @@ def va_data_sync_odkcentral(
                 cooldown_skipped_form_ids.append(va_form.form_id)
             except Exception as form_err:
                 db.session.rollback()
+                db.session.remove()
                 log.error(
                     "DataSync [%s] failed: %s",
                     va_form.form_id, form_err, exc_info=True,

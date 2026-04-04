@@ -6,7 +6,7 @@ import os
 import sqlalchemy as sa
 
 from app import db
-from app.models import MasChoiceMappings, MasFormTypes, VaSubmissionPayloadVersion, VaSubmissions
+from app.models import VaSubmissionPayloadVersion, VaSubmissions
 
 log = logging.getLogger(__name__)
 
@@ -51,11 +51,6 @@ _NAN_CHECK_COLUMNS = (
     "ageInMonthsRemain",
 )
 
-_HIV_REGION_FIELD = "Id10002"
-_MALARIA_REGION_FIELD = "Id10003"
-_TRUE_LIKE = {"yes", "y", "true", "1", "high"}
-_FALSE_LIKE = {"no", "n", "false", "0", "low", "very low", "verylow"}
-
 
 def _should_drop(header: str) -> bool:
     clean_header = header.strip()
@@ -79,95 +74,16 @@ def _stringify(value) -> str:
     return str(value)
 
 
-def _normalize_smartva_flag(value) -> str | None:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return "True" if value else "False"
-    normalized = str(value).strip().casefold()
-    if not normalized:
-        return None
-    if normalized in _TRUE_LIKE:
-        return "True"
-    if normalized in _FALSE_LIKE:
-        return "False"
-    return None
 
+def _derive_smartva_run_options(va_form) -> dict[str, str]:
+    """Derive SmartVA run options from form-level configuration only.
 
-def _choice_labels_for_form(va_form, field_ids: tuple[str, ...]) -> dict[tuple[str, str], str]:
-    if va_form.form_type_id is not None:
-        form_type_id = va_form.form_type_id
-    else:
-        form_type_id = db.session.scalar(
-            sa.select(MasFormTypes.form_type_id).where(
-                MasFormTypes.form_type_code == "WHO_2022_VA"
-            )
-        )
-    if form_type_id is None:
-        return {}
-
-    rows = db.session.execute(
-        sa.select(
-            MasChoiceMappings.field_id,
-            MasChoiceMappings.choice_value,
-            MasChoiceMappings.choice_label,
-        ).where(
-            MasChoiceMappings.form_type_id == form_type_id,
-            MasChoiceMappings.field_id.in_(field_ids),
-            MasChoiceMappings.is_active.is_(True),
-        )
-    ).all()
+    HIV, malaria, HCE, and freetext flags are all form-level settings.
+    Per-submission payload values (Id10002, Id10003) are ignored.
+    """
     return {
-        (field_id, str(choice_value)): choice_label
-        for field_id, choice_value, choice_label in rows
-        if choice_value is not None and choice_label is not None
-    }
-
-
-def _derive_run_option(
-    payload_rows,
-    field_name: str,
-    fallback: str,
-    *,
-    choice_labels: dict[tuple[str, str], str],
-) -> tuple[str, bool]:
-    seen = {
-        normalized
-        for _va_sid, payload_data in payload_rows
-        for raw_value in [(payload_data or {}).get(field_name)]
-        for display_value in [choice_labels.get((field_name, str(raw_value)), raw_value)]
-        for normalized in [_normalize_smartva_flag(display_value)]
-        if normalized is not None
-    }
-    if not seen:
-        return fallback, False
-    if len(seen) == 1:
-        return next(iter(seen)), True
-    return fallback, False
-
-
-def _derive_smartva_run_options(va_form, payload_rows) -> dict[str, str | bool]:
-    choice_labels = _choice_labels_for_form(
-        va_form,
-        (_HIV_REGION_FIELD, _MALARIA_REGION_FIELD),
-    )
-    hiv_value, hiv_overridden = _derive_run_option(
-        payload_rows,
-        _HIV_REGION_FIELD,
-        va_form.form_smartvahiv,
-        choice_labels=choice_labels,
-    )
-    malaria_value, malaria_overridden = _derive_run_option(
-        payload_rows,
-        _MALARIA_REGION_FIELD,
-        va_form.form_smartvamalaria,
-        choice_labels=choice_labels,
-    )
-    return {
-        "hiv": hiv_value,
-        "malaria": malaria_value,
-        "hiv_overridden": hiv_overridden,
-        "malaria_overridden": malaria_overridden,
+        "hiv": va_form.form_smartvahiv,
+        "malaria": va_form.form_smartvamalaria,
     }
 
 
@@ -243,7 +159,7 @@ def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
     """
     smartva_input_path = os.path.join(workspace_dir, "smartva_input.csv")
     payload_rows = _prepared_payload_rows(va_form, pending_sids=pending_sids)
-    run_options = _derive_smartva_run_options(va_form, payload_rows)
+    run_options = _derive_smartva_run_options(va_form)
 
     prepared_rows: list[dict] = []
     skipped = 0

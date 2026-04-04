@@ -689,6 +689,195 @@ def _form_run_outcome(success_count: int, failure_count: int) -> str:
     return VaSmartvaFormRun.OUTCOME_FAILED
 
 
+SMARTVA_BATCH_SIZE = 10  # max submissions per SmartVA binary invocation
+
+
+def _generate_batch(
+    va_form,
+    batch_sids: set[str],
+    *,
+    trigger_source: str = "form_batch",
+    log_progress=None,
+) -> int:
+    """Run one SmartVA binary invocation for a bounded set of submissions.
+
+    Creates its own workspace, form run, and nested transaction.
+    Returns the total number of result rows (successes + failures) saved.
+    """
+    from app.utils import (
+        va_smartva_formatsmartvaresult,
+        va_smartva_prepdata,
+        va_smartva_runsmartva,
+    )
+
+    if not batch_sids:
+        return 0
+
+    active_payload_by_sid = _active_payload_versions_by_sid(batch_sids)
+
+    with tempfile.TemporaryDirectory() as workspace_dir:
+        form_run = _create_smartva_form_run(
+            va_form,
+            pending_sid_count=len(batch_sids),
+            trigger_source=trigger_source,
+        )
+        processing_tx = db.session.begin_nested()
+        try:
+            prep_result = va_smartva_prepdata(
+                va_form, workspace_dir, pending_sids=batch_sids
+            )
+            run_options = prep_result.get("run_options", {})
+            va_smartva_runsmartva(
+                va_form,
+                workspace_dir,
+                run_options=run_options,
+            )
+            raw_outputs_by_sid = _read_raw_likelihood_outputs(
+                workspace_dir, batch_sids
+            )
+            rejected_by_sid = _read_rejected_sids_from_report(
+                workspace_dir, batch_sids
+            )
+            output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
+            new_results = _read_formatted_results(output_file)
+
+            rejected_failure_count = 0
+            if rejected_by_sid:
+                rejected_failure_count = _record_smartva_failures(
+                    set(rejected_by_sid),
+                    form_run_id=form_run.form_run_id,
+                    trigger_source=trigger_source,
+                    failure_stage="smartva_rejected",
+                    failure_detail=(
+                        "SmartVA rejected this submission for quality reasons."
+                    ),
+                    failure_details_by_sid=rejected_by_sid,
+                )
+            eligible_pending = batch_sids - set(rejected_by_sid)
+
+            if new_results is None:
+                remaining_failure_count = 0
+                if eligible_pending:
+                    remaining_failure_count = _record_smartva_failures(
+                        eligible_pending,
+                        form_run_id=form_run.form_run_id,
+                        trigger_source=trigger_source,
+                        failure_stage="format_output",
+                        failure_detail=(
+                            "SmartVA produced no output file for the current payload."
+                        ),
+                    )
+                _finalize_smartva_form_run(
+                    form_run,
+                    workspace_dir=workspace_dir,
+                    outcome=VaSmartvaFormRun.OUTCOME_FAILED,
+                )
+                db.session.commit()
+                return rejected_failure_count + remaining_failure_count
+
+            current_existing = _active_smartva_results_for_sids(
+                active_payload_by_sid
+            )
+            success_count = 0
+            seen_sids: set[str] = set()
+            for record in new_results.itertuples():
+                va_sid = getattr(record, "sid", None)
+                if va_sid is None or va_sid not in eligible_pending:
+                    continue
+                seen_sids.add(va_sid)
+                existing = current_existing.get(va_sid, [])
+                payload_version_id = active_payload_by_sid.get(va_sid)
+                has_current_payload_result = any(
+                    row.payload_version_id == payload_version_id for row in existing
+                )
+                if has_current_payload_result:
+                    continue
+
+                _save_smartva_result(
+                    va_sid,
+                    record,
+                    form_run_id=form_run.form_run_id,
+                    payload_version_id=payload_version_id,
+                    trigger_source=trigger_source,
+                    raw_outputs=raw_outputs_by_sid.get(va_sid),
+                    existing=existing,
+                )
+                _transition_to_ready_after_smartva_if_pending(va_sid)
+                success_count += 1
+
+            missing_sids = eligible_pending - seen_sids
+            failure_count = rejected_failure_count
+            if missing_sids:
+                failure_count += _record_smartva_failures(
+                    missing_sids,
+                    form_run_id=form_run.form_run_id,
+                    trigger_source=trigger_source,
+                    failure_stage="missing_row",
+                    failure_detail=(
+                        "SmartVA completed but returned no row for this submission."
+                    ),
+                )
+
+            _finalize_smartva_form_run(
+                form_run,
+                workspace_dir=workspace_dir,
+                outcome=_form_run_outcome(success_count, failure_count),
+            )
+            processing_tx.commit()
+            db.session.commit()
+            total_saved = success_count + failure_count
+            log.info(
+                "SmartVA [%s]: batch committed %d result row(s).",
+                va_form.form_id,
+                total_saved,
+            )
+            return total_saved
+        except Exception as exc:
+            try:
+                processing_tx.rollback()
+            except Exception:
+                db.session.rollback()
+                log.warning(
+                    "SmartVA [%s]: savepoint rollback failed (stale DB "
+                    "connection), falling back to full session rollback.",
+                    va_form.form_id,
+                )
+            try:
+                failure_count = _record_smartva_failures(
+                    batch_sids,
+                    form_run_id=form_run.form_run_id,
+                    trigger_source=trigger_source,
+                    failure_stage="execution",
+                    failure_detail=str(exc),
+                )
+                _finalize_smartva_form_run(
+                    form_run,
+                    workspace_dir=workspace_dir,
+                    outcome=VaSmartvaFormRun.OUTCOME_FAILED,
+                )
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                failure_count = 0
+                log.warning(
+                    "SmartVA [%s]: failed to record failures after exception.",
+                    va_form.form_id,
+                    exc_info=True,
+                )
+            log.warning(
+                "SmartVA [%s]: recorded %d failure row(s) after exception: %s",
+                va_form.form_id,
+                failure_count,
+                exc,
+                exc_info=True,
+            )
+            if log_progress:
+                log_progress(
+                    f"SmartVA {va_form.form_id}: {failure_count} failure record(s) saved."
+                )
+            return failure_count
+
+
 def generate_for_form(
     va_form,
     *,
@@ -699,11 +888,6 @@ def generate_for_form(
     log_progress=None,
 ) -> int:
     from app.models import VaSubmissionWorkflow
-    from app.utils import (
-        va_smartva_formatsmartvaresult,
-        va_smartva_prepdata,
-        va_smartva_runsmartva,
-    )
 
     amended_sids = amended_sids or set()
     target_sids = target_sids or set()
@@ -759,165 +943,58 @@ def generate_for_form(
             db.session.commit()
         return preserved_count
 
+    pending_list = sorted(pending)
+    batches = [
+        pending_list[i : i + SMARTVA_BATCH_SIZE]
+        for i in range(0, len(pending_list), SMARTVA_BATCH_SIZE)
+    ]
+
     log.info(
-        "SmartVA [%s]: preparing input (%d pending).",
+        "SmartVA [%s]: %d pending in %d batch(es) of ≤%d.",
         va_form.form_id,
         len(pending),
+        len(batches),
+        SMARTVA_BATCH_SIZE,
     )
     if log_progress:
         log_progress(
-            f"SmartVA {va_form.form_id}: preparing input ({len(pending)} pending)…"
+            f"SmartVA {va_form.form_id}: {len(pending)} pending → "
+            f"{len(batches)} batch(es)."
         )
 
-    active_payload_by_sid = _active_payload_versions_by_sid(pending)
-
-    with tempfile.TemporaryDirectory() as workspace_dir:
-        form_run = _create_smartva_form_run(
-            va_form,
-            pending_sid_count=len(pending),
-            trigger_source=trigger_source,
-        )
-        processing_tx = db.session.begin_nested()
+    total = preserved_count
+    for batch_index, batch_sids_list in enumerate(batches, 1):
+        batch_sids = set(batch_sids_list)
+        if log_progress:
+            log_progress(
+                f"SmartVA {va_form.form_id}: batch {batch_index}/{len(batches)} "
+                f"({len(batch_sids)} submission(s))…"
+            )
         try:
-            prep_result = va_smartva_prepdata(va_form, workspace_dir, pending_sids=pending)
-            run_options = prep_result.get("run_options", {})
-            if log_progress and run_options.get("hiv_overridden"):
-                log_progress(
-                    f"SmartVA {va_form.form_id}: HIV flag overridden from ODK payload to {run_options.get('hiv')}."
-                )
-            if log_progress and run_options.get("malaria_overridden"):
-                log_progress(
-                    f"SmartVA {va_form.form_id}: malaria flag overridden from ODK payload to {run_options.get('malaria')}."
-                )
-            va_smartva_runsmartva(
+            saved = _generate_batch(
                 va_form,
-                workspace_dir,
-                run_options=run_options,
-            )
-            raw_outputs_by_sid = _read_raw_likelihood_outputs(workspace_dir, pending)
-            rejected_by_sid = _read_rejected_sids_from_report(workspace_dir, pending)
-            output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
-            new_results = _read_formatted_results(output_file)
-            rejected_failure_count = 0
-            if rejected_by_sid:
-                rejected_failure_count = _record_smartva_failures(
-                    set(rejected_by_sid),
-                    form_run_id=form_run.form_run_id,
-                    trigger_source=trigger_source,
-                    failure_stage="smartva_rejected",
-                    failure_detail=(
-                        "SmartVA rejected this submission for quality reasons."
-                    ),
-                    failure_details_by_sid=rejected_by_sid,
-                )
-            eligible_pending = pending - set(rejected_by_sid)
-
-            if new_results is None:
-                remaining_failure_count = 0
-                if eligible_pending:
-                    remaining_failure_count = _record_smartva_failures(
-                        eligible_pending,
-                        form_run_id=form_run.form_run_id,
-                        trigger_source=trigger_source,
-                        failure_stage="format_output",
-                        failure_detail=(
-                            "SmartVA produced no output file for the current payload."
-                        ),
-                    )
-                _finalize_smartva_form_run(
-                    form_run,
-                    workspace_dir=workspace_dir,
-                    outcome=VaSmartvaFormRun.OUTCOME_FAILED,
-                )
-                db.session.commit()
-                return preserved_count + rejected_failure_count + remaining_failure_count
-
-            current_existing = _active_smartva_results_for_sids(active_payload_by_sid)
-            success_count = 0
-            seen_sids: set[str] = set()
-            for record in new_results.itertuples():
-                va_sid = getattr(record, "sid", None)
-                if va_sid is None or va_sid not in eligible_pending:
-                    continue
-                seen_sids.add(va_sid)
-                existing = current_existing.get(va_sid, [])
-                payload_version_id = active_payload_by_sid.get(va_sid)
-                has_current_payload_result = any(
-                    row.payload_version_id == payload_version_id for row in existing
-                )
-                if va_sid not in requested_sids and has_current_payload_result:
-                    continue
-
-                _save_smartva_result(
-                    va_sid,
-                    record,
-                    form_run_id=form_run.form_run_id,
-                    payload_version_id=payload_version_id,
-                    trigger_source=trigger_source,
-                    raw_outputs=raw_outputs_by_sid.get(va_sid),
-                    existing=existing,
-                )
-                _transition_to_ready_after_smartva_if_pending(va_sid)
-                success_count += 1
-
-            missing_sids = eligible_pending - seen_sids
-            failure_count = rejected_failure_count
-            if missing_sids:
-                failure_count += _record_smartva_failures(
-                    missing_sids,
-                    form_run_id=form_run.form_run_id,
-                    trigger_source=trigger_source,
-                    failure_stage="missing_row",
-                    failure_detail=(
-                        "SmartVA completed but returned no row for this submission."
-                    ),
-                )
-
-            _finalize_smartva_form_run(
-                form_run,
-                workspace_dir=workspace_dir,
-                outcome=_form_run_outcome(success_count, failure_count),
-            )
-            processing_tx.commit()
-            db.session.commit()
-            total_saved = success_count + failure_count
-            log.info(
-                "SmartVA [%s]: committed %d result row(s).",
-                va_form.form_id,
-                total_saved,
-            )
-            if log_progress:
-                log_progress(
-                    f"SmartVA {va_form.form_id}: {total_saved} result(s) saved."
-                )
-            return preserved_count + total_saved
-        except Exception as exc:
-            processing_tx.rollback()
-            failure_count = _record_smartva_failures(
-                pending,
-                form_run_id=form_run.form_run_id,
+                batch_sids,
                 trigger_source=trigger_source,
-                failure_stage="execution",
-                failure_detail=str(exc),
+                log_progress=log_progress,
             )
-            _finalize_smartva_form_run(
-                form_run,
-                workspace_dir=workspace_dir,
-                outcome=VaSmartvaFormRun.OUTCOME_FAILED,
-            )
-            db.session.commit()
+            total += saved
+        except Exception as exc:
+            db.session.rollback()
+            db.session.remove()
             log.warning(
-                "SmartVA [%s]: recorded %d failure row(s) after exception: %s",
+                "SmartVA [%s] batch %d/%d failed: %s",
                 va_form.form_id,
-                failure_count,
+                batch_index,
+                len(batches),
                 exc,
                 exc_info=True,
             )
             if log_progress:
                 log_progress(
-                    f"SmartVA {va_form.form_id}: {failure_count} failure record(s) saved."
+                    f"SmartVA {va_form.form_id}: batch {batch_index} FAILED — {exc}"
                 )
-            return preserved_count + failure_count
+
+    return total
 
 
 def generate_for_submission(
@@ -928,11 +1005,6 @@ def generate_for_submission(
     log_progress=None,
 ) -> int:
     from app.models import VaForms, VaSubmissionWorkflow
-    from app.utils import (
-        va_smartva_formatsmartvaresult,
-        va_smartva_prepdata,
-        va_smartva_runsmartva,
-    )
 
     submission = db.session.get(VaSubmissions, va_sid)
     if submission is None:
@@ -963,130 +1035,18 @@ def generate_for_submission(
         )
         return 0
 
-    with tempfile.TemporaryDirectory() as workspace_dir:
-        form_run = _create_smartva_form_run(
-            va_form,
-            pending_sid_count=1,
-            trigger_source=trigger_source,
-        )
-        processing_tx = db.session.begin_nested()
-        try:
-            prep_result = va_smartva_prepdata(va_form, workspace_dir, pending_sids={va_sid})
-            run_options = prep_result.get("run_options", {})
-            if log_progress and run_options.get("hiv_overridden"):
-                log_progress(
-                    f"[{va_sid}] SmartVA HIV flag overridden from ODK payload to {run_options.get('hiv')}."
-                )
-            if log_progress and run_options.get("malaria_overridden"):
-                log_progress(
-                    f"[{va_sid}] SmartVA malaria flag overridden from ODK payload to {run_options.get('malaria')}."
-                )
-            va_smartva_runsmartva(
-                va_form,
-                workspace_dir,
-                run_options=run_options,
-            )
-            raw_outputs_by_sid = _read_raw_likelihood_outputs(workspace_dir, {va_sid})
-            rejected_by_sid = _read_rejected_sids_from_report(workspace_dir, {va_sid})
-            output_file = va_smartva_formatsmartvaresult(va_form, workspace_dir)
-            new_results = _read_formatted_results(output_file)
-            rejected_failure_count = 0
-            if rejected_by_sid:
-                rejected_failure_count = _record_smartva_failures(
-                    set(rejected_by_sid),
-                    form_run_id=form_run.form_run_id,
-                    trigger_source=trigger_source,
-                    failure_stage="smartva_rejected",
-                    failure_detail=(
-                        "SmartVA rejected this submission for quality reasons."
-                    ),
-                    failure_details_by_sid=rejected_by_sid,
-                )
-            eligible_sids = {va_sid} - set(rejected_by_sid)
-
-            if new_results is None:
-                remaining_failure_count = 0
-                if eligible_sids:
-                    remaining_failure_count = _record_smartva_failures(
-                        eligible_sids,
-                        form_run_id=form_run.form_run_id,
-                        trigger_source=trigger_source,
-                        failure_stage="format_output",
-                        failure_detail=(
-                            "SmartVA produced no output file for the current payload."
-                        ),
-                    )
-                _finalize_smartva_form_run(
-                    form_run,
-                    workspace_dir=workspace_dir,
-                    outcome=VaSmartvaFormRun.OUTCOME_FAILED,
-                )
-                db.session.commit()
-                return rejected_failure_count + remaining_failure_count
-
-            saved = 0
-            active_payload_by_sid = _active_payload_versions_by_sid({va_sid})
-            current_existing = _active_smartva_results_for_sids(active_payload_by_sid)
-            for record in new_results.itertuples():
-                result_sid = getattr(record, "sid", None)
-                if result_sid != va_sid or result_sid not in eligible_sids:
-                    continue
-                existing = current_existing.get(result_sid, [])
-                _save_smartva_result(
-                    result_sid,
-                    record,
-                    form_run_id=form_run.form_run_id,
-                    payload_version_id=active_payload_by_sid.get(result_sid),
-                    trigger_source=trigger_source,
-                    raw_outputs=raw_outputs_by_sid.get(result_sid),
-                    existing=existing,
-                )
-                _transition_to_ready_after_smartva_if_pending(result_sid)
-                saved += 1
-
-            failure_count = rejected_failure_count
-            if saved == 0 and eligible_sids:
-                failure_count += _record_smartva_failures(
-                    eligible_sids,
-                    form_run_id=form_run.form_run_id,
-                    trigger_source=trigger_source,
-                    failure_stage="missing_row",
-                    failure_detail=(
-                        "SmartVA completed but returned no row for this submission."
-                    ),
-                )
-
-            _finalize_smartva_form_run(
-                form_run,
-                workspace_dir=workspace_dir,
-                outcome=_form_run_outcome(saved, failure_count),
-            )
-            processing_tx.commit()
-            db.session.commit()
-            return saved + failure_count
-        except Exception as exc:
-            processing_tx.rollback()
-            failure_count = _record_smartva_failures(
-                {va_sid},
-                form_run_id=form_run.form_run_id,
-                trigger_source=trigger_source,
-                failure_stage="execution",
-                failure_detail=str(exc),
-            )
-            _finalize_smartva_form_run(
-                form_run,
-                workspace_dir=workspace_dir,
-                outcome=VaSmartvaFormRun.OUTCOME_FAILED,
-            )
-            db.session.commit()
-            log.warning(
-                "SmartVA [%s]: recorded submission failure for %s: %s",
-                va_form.form_id,
-                va_sid,
-                exc,
-                exc_info=True,
-            )
-            return failure_count
+    saved = _generate_batch(
+        va_form,
+        {va_sid},
+        trigger_source=trigger_source,
+        log_progress=log_progress,
+    )
+    log.info(
+        "SmartVA [%s]: single-submission committed %d result row(s).",
+        va_sid,
+        saved,
+    )
+    return saved
 
 
 def generate_all_pending(*, log_progress=None) -> dict:
@@ -1109,6 +1069,7 @@ def generate_all_pending(*, log_progress=None) -> dict:
             total += saved
         except Exception as exc:
             db.session.rollback()
+            db.session.remove()
             log.warning(
                 "SmartVA-only [%s] failed: %s",
                 va_form.form_id,

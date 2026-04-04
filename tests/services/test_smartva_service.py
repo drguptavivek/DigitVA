@@ -7,6 +7,7 @@ Critical behavior under test:
 - generate_for_submission() proceeds for allowed states (SmartVA utilities mocked)
 """
 import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -35,6 +36,7 @@ from app.services.smartva_service import (
     generate_for_form,
     generate_for_submission,
     pending_smartva_sids,
+    resolve_form_run_disk_path,
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
@@ -572,6 +574,30 @@ class GenerateForSubmissionTests(BaseTestCase):
             generate_for_submission(sub.va_sid)
             mock_run.assert_not_called()
 
+    def test_resolve_form_run_disk_path_supports_new_and_legacy_layouts(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            legacy_data_dir = os.path.join(temp_dir, "data")
+            smartva_runs_dir = os.path.join(temp_dir, "smartva_runs")
+            self.app.config["APP_DATA"] = legacy_data_dir
+            self.app.config["APP_SMARTVA_RUNS"] = smartva_runs_dir
+
+            new_path = resolve_form_run_disk_path("SVA02/SVA02ST0201/form-run-id")
+            legacy_path = resolve_form_run_disk_path(
+                "smartva_runs/SVA02/SVA02ST0201/form-run-id"
+            )
+
+            self.assertEqual(
+                new_path,
+                os.path.join(smartva_runs_dir, "SVA02/SVA02ST0201/form-run-id"),
+            )
+            self.assertEqual(
+                legacy_path,
+                os.path.join(
+                    legacy_data_dir,
+                    "smartva_runs/SVA02/SVA02ST0201/form-run-id",
+                ),
+            )
+
     def test_generate_for_form_rebinds_historical_smartva_for_protected_submission(self):
         sub = self._make_submission("uuid:gen-protected-rebind")
         previous_payload_version_id = self._add_historical_smartva_projection(sub)
@@ -945,7 +971,7 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
         form_run = db.session.get(VaSmartvaFormRun, run_row.form_run_id)
         self.assertIsNotNone(form_run)
-        workspace_path = os.path.join(self.app.config["APP_DATA"], form_run.disk_path)
+        workspace_path = resolve_form_run_disk_path(form_run.disk_path)
 
         self.assertTrue(os.path.exists(os.path.join(workspace_path, "smartva_input.csv")))
         self.assertTrue(os.path.exists(os.path.join(workspace_path, "smartva_output.csv")))

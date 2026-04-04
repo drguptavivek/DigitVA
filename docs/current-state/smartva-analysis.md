@@ -47,8 +47,9 @@ Current protected-payload repair rule:
 - in that case DigitVA rebinds the preserved SmartVA to the current payload
   instead of rerunning SmartVA
   - `va_smartva_results` for the active projection shown in the UI
-- exact raw SmartVA-generated files are now copied to disk under `APP_DATA`
-  per form run
+- exact raw SmartVA-generated files may also be copied to disk under the
+  configured `APP_SMARTVA_RUNS` base directory per form run for operational
+  debugging
 - `report.txt` rejection lines are now parsed, and submissions removed by
   SmartVA quality checks are recorded as `smartva_rejected` failures rather
   than generic missing-row failures
@@ -217,7 +218,7 @@ smartva_output/               # adult-predictions.csv, child-predictions.csv, ne
 va_smartva_formatsmartvaresult()   # merge age-group CSVs, normalise columns
     │
     ▼
-copy workspace to APP_DATA/smartva_runs/{project_id}/{form_id}/{form_run_id}
+copy workspace to APP_SMARTVA_RUNS/{project_id}/{form_id}/{form_run_id}
     │
     ├─ likelihood rows → va_smartva_run_outputs
     ├─ per-submission attempts → va_smartva_runs
@@ -300,7 +301,7 @@ python -m smartva.va_cli --country=Unknown \
 Output is first written to the temporary workspace, then the full workspace is
 copied to:
 
-`{APP_DATA}/smartva_runs/{project_id}/{form_id}/{form_run_id}/`
+`{APP_SMARTVA_RUNS}/{project_id}/{form_id}/{form_run_id}/`
 
 **Exit codes:**
 
@@ -339,8 +340,9 @@ Current storage behavior:
 - DigitVA reads those files through the formatter, persists the emitted
   likelihood row for each submission run in `va_smartva_run_outputs`, and then
   projects the active summary into `va_smartva_results`
-- the full raw SmartVA workspace is copied once per form run to the
-  persisted `disk_path` recorded in `va_smartva_form_runs`
+- the full raw SmartVA workspace may be copied once per form run to the
+  persisted `disk_path` recorded in `va_smartva_form_runs` for operational
+  debugging
 
 ---
 
@@ -376,32 +378,10 @@ Current architectural behavior:
 - `va_smartva_results` now serves as the active projection layer
 - durable run history is stored in `va_smartva_runs`
 - emitted per-run likelihood rows are stored in `va_smartva_run_outputs`
-- exact raw SmartVA files are stored on disk under the form-run `disk_path`
-
-## One-Time Backfill Script
-
-DigitVA now includes a one-time recompute script for current active payloads
-whose active SmartVA runs are missing one or more of:
-
-- `likelihood_row`
-- persisted form-run disk output
-
-Script:
-
-```bash
-docker compose exec minerva_app_service uv run python \
-  scripts/backfill_smartva_current_outputs.py --dry-run --limit 10
-```
-
-Backfill behavior:
-
-- reruns SmartVA only for current active payloads
-- uses `force=True` to allow explicit recompute even when the submission is in
-  a protected workflow state
-- marks the new run as `trigger_source='backfill_recompute'`
-- does not reconstruct exact historical raw outputs for superseded old runs
-- each active projection row points back to the originating run via
-  `smartva_run_id`
+- exact raw SmartVA files may also be stored on disk under the configured
+  `APP_SMARTVA_RUNS` base directory at the form-run `disk_path`, but normal
+  regeneration now derives from versioned payloads and persisted DB outputs
+  rather than requiring preserved raw workspaces
 
 Each saved result or failure record creates a `va_submissions_auditlog` entry.
 Each form's results are committed independently so a failure on one form does
@@ -513,13 +493,13 @@ If SmartVA fails on a new form with `Cannot process data without: gen_5_4*`:
 
 1. Inspect the generated input file:
    ```bash
-   head -1 /app/data/smartva_runs/{project_id}/{form_id}/{form_run_id}/smartva_input.csv | tr ',' '\n' | grep -v 'Id[0-9]' | wc -l
+   head -1 /app/smartva_runs/{project_id}/{form_id}/{form_run_id}/smartva_input.csv | tr ',' '\n' | grep -v 'Id[0-9]' | wc -l
    ```
    Count non-`Id####` headers. If this is high relative to total columns, the WHO detection threshold is being missed.
 
 2. Check age fields are present:
    ```bash
-   head -1 /app/data/smartva_runs/{project_id}/{form_id}/{form_run_id}/smartva_input.csv | tr ',' '\n' | grep -E 'ageIn|finalAge|isAdult|isChild|isNeonate'
+   head -1 /app/smartva_runs/{project_id}/{form_id}/{form_run_id}/smartva_input.csv | tr ',' '\n' | grep -E 'ageIn|finalAge|isAdult|isChild|isNeonate'
    ```
    At least one must appear and have non-empty values in data rows.
 

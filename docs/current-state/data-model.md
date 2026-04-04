@@ -361,7 +361,7 @@ Key fields:
 
 Current behavior:
 
-- stores the persisted on-disk workspace path for exact raw SmartVA files
+- stores the optional on-disk workspace path for raw SmartVA debug artifacts
 - groups multiple `va_smartva_runs` created during the same form execution
 
 ## Analytics Materialized View

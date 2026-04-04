@@ -45,7 +45,9 @@ Current implementation note:
   - `va_smartva_runs` for per-submission attempt history
   - `va_smartva_run_outputs` for likelihood-row storage
   - `va_smartva_results` for the active projection row used by the UI
-  - raw SmartVA-generated files stored on disk under `APP_DATA`, not in DB
+- raw SmartVA-generated files may also be retained on disk under the configured
+  `APP_SMARTVA_RUNS` base directory as an operational/debug artifact layer,
+  not in DB
 
 ## Workflow State Guards
 
@@ -169,7 +171,10 @@ Required target storage layers:
    - one current active result per active payload version used by the app UI
    - this is a projection concern, not the whole SmartVA history
 5. Raw SmartVA files on disk
-   - exact generated files retained under `APP_DATA`
+   - optional operational/debug artifacts retained under the configured
+     `APP_SMARTVA_RUNS` base directory
+   - not required for normal regeneration because SmartVA reruns derive from
+     versioned submission payloads
    - not stored as DB artifact blobs
 
 Current implementation note:
@@ -422,12 +427,11 @@ If an admin forces regeneration:
 3. Create new active result (audit logged)
 4. Do NOT change workflow state
 
-One-time operational note:
+Operational note:
 
-- a one-time recompute/backfill may explicitly rerun SmartVA for current active
-  payloads in protected states when the purpose is to populate missing
-  run-output artifacts
-- such runs must be clearly marked, e.g. `trigger_source='backfill_recompute'`
+- SmartVA regeneration and repair should derive from the current or historical
+  `va_submission_payload_versions` rows plus the stored SmartVA run/output
+  records rather than depending on preserved raw filesystem workspaces
 
 ## Authorization Matrix
 

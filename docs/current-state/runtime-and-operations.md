@@ -42,6 +42,9 @@ Operational implication:
 
 - this is a synchronous Flask application with ORM-backed DB access and file-based integration steps.
 - **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login.
+- SmartVA form-run evidence is stored under the configured
+  `APP_SMARTVA_RUNS` directory, which defaults to `/app/smartva_runs` in the
+  container.
 
 ## Container And Docker Setup
 

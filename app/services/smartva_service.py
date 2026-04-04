@@ -32,6 +32,19 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def smartva_runs_base_dir() -> str:
+    return current_app.config["APP_SMARTVA_RUNS"]
+
+
+def resolve_form_run_disk_path(disk_path: str | None) -> str | None:
+    if not disk_path:
+        return None
+    normalized = str(disk_path).replace("\\", "/").lstrip("/")
+    if normalized.startswith("smartva_runs/"):
+        return os.path.join(current_app.config["APP_DATA"], normalized)
+    return os.path.join(smartva_runs_base_dir(), normalized)
+
+
 def _normalize_json_value(value):
     if value is None:
         return None
@@ -145,7 +158,6 @@ def _read_rejected_sids_from_report(
 
 def _smartva_form_run_relpath(form_run: VaSmartvaFormRun) -> str:
     return os.path.join(
-        "smartva_runs",
         form_run.project_id,
         form_run.form_id,
         str(form_run.form_run_id),
@@ -160,7 +172,7 @@ def _copy_form_run_workspace(
     if not workspace_dir or not os.path.isdir(workspace_dir):
         return
     rel_path = _smartva_form_run_relpath(form_run)
-    abs_path = os.path.join(current_app.config["APP_DATA"], rel_path)
+    abs_path = resolve_form_run_disk_path(rel_path)
     if os.path.exists(abs_path):
         shutil.rmtree(abs_path)
     os.makedirs(os.path.dirname(abs_path), exist_ok=True)

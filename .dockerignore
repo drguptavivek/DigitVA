@@ -6,5 +6,6 @@ __pycache__
 .env
 .venv
 data/
+smartva_runs/
 output/
 private/

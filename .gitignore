@@ -8,6 +8,8 @@ backup/*
 !backup/.gitkeep
 data/*
 !data/.gitkeep
+smartva_runs/*
+!smartva_runs/.gitkeep
 logs/*
 !logs/.gitkeep
 resource/depreciated/*

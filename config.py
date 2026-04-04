@@ -59,6 +59,10 @@ class Config:
     APP_BASEDIR = basedir
     APP_RESOURCE = os.path.join(basedir, "resource")
     APP_DATA = os.path.join(basedir, "data")
+    APP_SMARTVA_RUNS = os.environ.get(
+        "APP_SMARTVA_RUNS",
+        os.path.join(basedir, "smartva_runs"),
+    )
     APP_BACKUP = os.path.join(basedir, "backup")
     APP_LOG = os.path.join(basedir, "logs")
 

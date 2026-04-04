@@ -35,6 +35,11 @@ dependencies = [
     "Flask-Limiter==4.1.1",
     "Flask-Talisman>=1.1.0",
     "flask-caching>=2.3.1",
+    "progressbar2>=4.5.0",
+    "stemming>=1.0.1",
+    "python-dateutil>=2.9.0.post0",
+    "xlsxwriter>=3.2.9",
+    "matplotlib>=3.10.8",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +55,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build]
 packages = ["app"]
+
+[tool.uv.sources]
 
 [tool.uv]
 override-dependencies = ["pydantic>=2.12.5"]

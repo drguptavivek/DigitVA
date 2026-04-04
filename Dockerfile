@@ -13,7 +13,10 @@ RUN uv sync --frozen --no-dev
 # Copy application code
 COPY . .
 
-RUN chmod +x resource/smartva boot.sh scripts/wait-for-celery-beat-db.sh
+# Install SmartVA-Analyze from vendored source (--no-deps: CLI deps are in pyproject.toml)
+RUN uv pip install --python /app/.venv/bin/python --no-deps /app/vendor/smartva-analyze
+
+RUN chmod +x boot.sh scripts/wait-for-celery-beat-db.sh
 
 ENV FLASK_APP=run.py
 ENV UV_SYSTEM_PYTHON=1

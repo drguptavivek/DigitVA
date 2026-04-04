@@ -35,7 +35,7 @@ services:
     platform: linux/amd64
     container_name: minerva_celery_worker
     entrypoint: []
-    command: uv run celery -A make_celery:celery_app worker --loglevel=info --concurrency=2
+    command: uv run celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
     volumes:
       - .:/app
       - venv_worker:/app/.venv
@@ -52,7 +52,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768m
+          memory: 1536m
+        reservations:
+          memory: 400m
 
   minerva_celery_beat:
     build: .
@@ -126,6 +128,8 @@ services:
       resources:
         limits:
           memory: 512m
+        reservations:
+          memory: 200m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U minerva"]
       interval: 30s

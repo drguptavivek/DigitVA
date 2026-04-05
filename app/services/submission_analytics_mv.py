@@ -308,19 +308,40 @@ def build_submission_analytics_mv_sql(view_name: str = "va_submission_analytics_
 # Filter helpers (used by analytics routes and data-management queries)
 # ---------------------------------------------------------------------------
 
-def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs):
-    """Return a WHERE clause scoped to the given project/project-site grants."""
-    project_clause = sa.false()
-    if project_ids:
-        project_clause = mv.c.project_id.in_(project_ids)
+def _expand_project_ids_to_active_pairs(project_ids: list[str]) -> set[tuple[str, str]]:
+    """Expand project-level grants to the currently active (project_id, site_id) pairs.
 
-    site_clause = sa.false()
-    if project_site_pairs:
-        site_clause = sa.tuple_(mv.c.project_id, mv.c.site_id).in_(
-            list(project_site_pairs)
+    A project-level DM grant covers all sites in that project, but only those
+    whose ``va_project_sites.project_site_status`` is currently active.  This
+    ensures that sites removed from a project are excluded from all scoped
+    queries without requiring changes to ``va_forms.project_id``.
+    """
+    if not project_ids:
+        return set()
+    from app.models import VaProjectSites, VaStatuses
+    rows = db.session.execute(
+        sa.select(VaProjectSites.project_id, VaProjectSites.site_id).where(
+            VaProjectSites.project_id.in_(project_ids),
+            VaProjectSites.project_site_status == VaStatuses.active,
         )
+    ).all()
+    return {(row.project_id, row.site_id) for row in rows}
 
-    return sa.or_(project_clause, site_clause)
+
+def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs):
+    """Return a WHERE clause scoped to the given project/project-site grants.
+
+    Project-level grants are expanded to their currently active
+    (project_id, site_id) pairs so that sites removed from a project are
+    not included.
+    """
+    all_pairs: set[tuple[str, str]] = set(project_site_pairs)
+    all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
+
+    if not all_pairs:
+        return sa.false()
+
+    return sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs))
 
 
 def _csv_values(raw: str | None) -> list[str]:

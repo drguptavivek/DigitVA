@@ -1012,6 +1012,7 @@
           initProjectTomSelect(data.projects || []);
           initSiteTomSelect(data.sites || []);
           syncInputsFromState();
+          cascadeSiteFilter();
           return data;
         });
       })

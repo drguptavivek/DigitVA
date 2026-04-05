@@ -88,21 +88,24 @@ def _require_data_manager():
 
 
 def _dm_scope_filter():
-    """WHERE clause restricted to the current data-manager user's grants."""
+    """WHERE clause restricted to the current data-manager user's grants.
+
+    Project-level grants are expanded to their currently active
+    (project_id, site_id) pairs so that sites removed from a project are
+    not included.
+    """
+    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+
     project_ids = sorted(current_user.get_data_manager_projects())
     project_site_pairs = current_user.get_data_manager_project_sites()
 
-    project_clause = sa.false()
-    if project_ids:
-        project_clause = _core.c.project_id.in_(project_ids)
+    all_pairs: set[tuple[str, str]] = set(project_site_pairs)
+    all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
 
-    site_clause = sa.false()
-    if project_site_pairs:
-        site_clause = sa.tuple_(_core.c.project_id, _core.c.site_id).in_(
-            list(project_site_pairs)
-        )
+    if not all_pairs:
+        return sa.false()
 
-    return sa.or_(project_clause, site_clause)
+    return sa.tuple_(_core.c.project_id, _core.c.site_id).in_(list(all_pairs))
 
 
 def _cache_key(suffix: str) -> str:

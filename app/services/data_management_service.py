@@ -161,21 +161,24 @@ UPSTREAM_REVIEW_HIDDEN_FIELDS = frozenset(
 # ---------------------------------------------------------------------------
 
 def dm_scope_filter(user):
-    """SQLAlchemy WHERE clause scoped to the user's data-manager grants."""
+    """SQLAlchemy WHERE clause scoped to the user's data-manager grants.
+
+    Project-level grants are expanded to their currently active
+    (project_id, site_id) pairs so that sites removed from a project are
+    not included.
+    """
+    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+
     project_ids = sorted(user.get_data_manager_projects())
     project_site_pairs = user.get_data_manager_project_sites()
 
-    project_clause = sa.false()
-    if project_ids:
-        project_clause = VaForms.project_id.in_(project_ids)
+    all_pairs: set[tuple[str, str]] = set(project_site_pairs)
+    all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
 
-    site_clause = sa.false()
-    if project_site_pairs:
-        site_clause = sa.tuple_(VaForms.project_id, VaForms.site_id).in_(
-            list(project_site_pairs)
-        )
+    if not all_pairs:
+        return sa.false()
 
-    return sa.or_(project_clause, site_clause)
+    return sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(all_pairs))
 
 
 def dm_form_in_scope(user, form_id: str) -> bool:

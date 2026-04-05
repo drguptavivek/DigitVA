@@ -11,6 +11,7 @@ from app import db
 from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
+from app.models.va_forms import VaForms
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.services.odk_connection_guard_service import (
     OdkConnectionCooldownError,

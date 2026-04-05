@@ -79,7 +79,7 @@ def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
     try:
         cache.set(full_key, data, timeout=timeout)
     except Exception as exc:
-        log.warning("Data-manager cache set failed (%s): %s", full_key, exc)
+        log.warning("Data-manager cache set failed (%s): %s", full_key, exc, exc_info=True)
     return data
 
 
@@ -89,7 +89,7 @@ def _refresh_dm_dashboard_analytics() -> None:
     try:
         cache.clear()
     except Exception as exc:
-        log.warning("Data-manager cache clear failed after analytics refresh: %s", exc)
+        log.warning("Data-manager cache clear failed after analytics refresh: %s", exc, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -607,7 +607,7 @@ def accept_upstream_change(va_sid: str):
             task = run_smartva_for_submission.delay(va_sid=va_sid, triggered_by="data-manager-accept")
             task_id = task.id
     except Exception:
-        log.warning("accept_upstream_change: could not enqueue SmartVA for %s", va_sid)
+        log.warning("accept_upstream_change: could not enqueue SmartVA for %s", va_sid, exc_info=True)
 
     return jsonify({
         "message": "Upstream change accepted for recoding. Submission moved to SmartVA pending.",

@@ -518,8 +518,11 @@ def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = N
             file_size = os.path.getsize(amr_path)
             source_kbps = int((file_size * 8) / duration / 1000)
             target_bitrate = max(16, min(64, source_kbps * 2))
-        except Exception:
-            pass  # fallback to default
+        except Exception as probe_err:
+            log.warning(
+                "AMR→MP3 [%s]: soxi probe failed for %s, using default %dkbps — %s",
+                form_id, os.path.basename(amr_path), target_bitrate, probe_err,
+            )
 
         subprocess.run(
             ["sox", amr_path, "-C", str(target_bitrate), mp3_path],
@@ -534,8 +537,9 @@ def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = N
         )
         return mp3_path
     except Exception as e:
-        log.warning(
+        log.error(
             "AMR→MP3 conversion failed [%s/%s]: %s — keeping source",
             form_id, os.path.basename(amr_path), e,
+            exc_info=True,
         )
         return amr_path

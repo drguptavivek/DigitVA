@@ -1,10 +1,16 @@
 import logging
+import time
 from logging.handlers import TimedRotatingFileHandler
 import os
 import uuid
 from flask import request, session
 from flask_login import current_user
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from app.logging.va_queryfilter import SQLWriteFilter
+
+# Log any write query (INSERT/UPDATE/DELETE) that takes longer than this
+SLOW_QUERY_THRESHOLD_S = 0.5
 
 SENSITIVE_FIELDS = ['password', 'token', 'csrf_token', "new_password", "va_current_password", "va_new_password", "va_confirm_password", "confirm_password"]
 
@@ -104,8 +110,10 @@ def va_logging(app):
         error_logger.error(f"Error: {str(e)}", exc_info=True)
         return e
 
-    # Enable SQL query logging
-    logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+    # Slow-query logging via SQLAlchemy engine events.
+    # Only write statements (INSERT/UPDATE/DELETE) that exceed SLOW_QUERY_THRESHOLD_S
+    # are logged — avoids flooding sql.log with fast session heartbeats while still
+    # catching genuinely slow writes on any table.
     sql_handler = TimedRotatingFileHandler(
         filename='logs/sql.log',
         when='W0',
@@ -114,5 +122,22 @@ def va_logging(app):
         encoding='utf-8'
     )
     sql_handler.setFormatter(va_detailed_formatter)
-    sql_handler.addFilter(SQLWriteFilter())
-    logging.getLogger('sqlalchemy.engine').addHandler(sql_handler)
+    slow_query_logger = logging.getLogger('slow_sql')
+    slow_query_logger.setLevel(logging.WARNING)
+    slow_query_logger.addHandler(sql_handler)
+
+    @event.listens_for(Engine, "before_cursor_execute")
+    def _before_execute(conn, cursor, statement, parameters, context, executemany):
+        conn.info["query_start"] = time.monotonic()
+
+    @event.listens_for(Engine, "after_cursor_execute")
+    def _after_execute(conn, cursor, statement, parameters, context, executemany):
+        elapsed = time.monotonic() - conn.info.pop("query_start", time.monotonic())
+        if elapsed >= SLOW_QUERY_THRESHOLD_S and any(
+            statement.lstrip().upper().startswith(kw) for kw in ("INSERT", "UPDATE", "DELETE")
+        ):
+            slow_query_logger.warning(
+                "SLOW QUERY (%.3fs): %s",
+                elapsed,
+                statement.split("\n")[0][:200],
+            )

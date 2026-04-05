@@ -1,7 +1,6 @@
 import os
 import time
 import logging
-import traceback
 import math
 from decimal import Decimal
 import sqlalchemy as sa
@@ -169,7 +168,7 @@ def _run_with_odk_connectivity_backoff(label: str, callback, log_progress=None):
                 f"{label} connectivity/auth failure on attempt "
                 f"{attempt}/{_ODK_CONNECTIVITY_MAX_ATTEMPTS} — retrying in {delay}s"
             )
-            log.warning(message + ": %s", exc)
+            log.warning(message + ": %s", exc, exc_info=True)
             if log_progress:
                 log_progress(message)
             time.sleep(delay)
@@ -1479,6 +1478,7 @@ def va_data_sync_odkcentral(
                                 "DataSync [%s]: stale DB connection after attachment "
                                 "download, ETag records lost — will re-sync next run.",
                                 form_id,
+                                exc_info=True,
                             )
                             # Session reset detaches all ORM instances.
                             # Reload form + mapping for the current iteration.
@@ -1613,8 +1613,6 @@ def va_data_sync_odkcentral(
 
     except Exception as e:
         log.error("DataSync failed: %s", e, exc_info=True)
-        print(f"DataSync Failed [Error: {str(e)}].")
-        print(traceback.format_exc())
         raise
 
 

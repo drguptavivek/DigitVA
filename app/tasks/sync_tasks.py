@@ -5,8 +5,10 @@ in va_sync_runs so the admin dashboard can show history and current status.
 """
 import json
 import logging
+import traceback
 import sqlalchemy as sa
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from datetime import datetime, timezone
 
 log = logging.getLogger(__name__)
@@ -107,6 +109,7 @@ def _release_read_transaction(*entities) -> None:
         try:
             db.session.expunge(entity)
         except Exception:
+            log.debug("_release_read_transaction: expunge failed for %r", entity, exc_info=True)
             continue
     db.session.rollback()
 
@@ -133,6 +136,17 @@ def _log_progress(db, run_id, msg: str):
             conn.commit()
     except Exception:
         log.warning("_log_progress failed for run %s", run_id, exc_info=True)
+
+
+def _log_progress_exc(db, run_id, label: str, exc: BaseException):
+    """Log an exception's full traceback to progress_log so it's dashboard-visible.
+
+    Writes two entries: a short summary line followed by the traceback block.
+    Falls back silently — never raises.
+    """
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    _log_progress(db, run_id, f"ERROR [{label}]: {exc}")
+    _log_progress(db, run_id, f"TRACEBACK:\n{tb[:3000]}")
 
 
 def _get_request_user(user_id):
@@ -482,6 +496,7 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
     db.session.add(run)
     db.session.commit()
     run_id = run.sync_run_id
+    log.info("OdkSync [%s]: started (triggered_by=%s)", run_id, triggered_by)
 
     def log_progress(msg):
         _log_progress(db, run_id, msg)
@@ -516,8 +531,24 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
             run.status = "partial" if failed_forms else "success"
             run.finished_at = datetime.now(timezone.utc)
         db.session.commit()
+        log.info("OdkSync [%s]: finished status=%s", run_id, run.status)
+
+    except SoftTimeLimitExceeded:
+        log.error("OdkSync [%s]: soft time limit exceeded — task killed after 30 min", run_id)
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_message = "Task exceeded soft time limit (30 min) and was stopped."
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
 
     except Exception as exc:
+        log.error("OdkSync [%s]: failed — %s", run_id, exc, exc_info=True)
+        _log_progress_exc(db, run_id, f"OdkSync run={run_id}", exc)
         try:
             run = db.session.get(VaSyncRun, run_id)
             if run:
@@ -553,6 +584,7 @@ def run_smartva_pending(self, triggered_by="manual", user_id=None):
     db.session.add(run)
     db.session.commit()
     run_id = run.sync_run_id
+    log.info("SmartVAPending [%s]: started (triggered_by=%s)", run_id, triggered_by)
 
     def log_progress(msg):
         _log_progress(db, run_id, msg)
@@ -565,8 +597,24 @@ def run_smartva_pending(self, triggered_by="manual", user_id=None):
         if result:
             run.records_added = result.get("smartva_updated", 0)
         db.session.commit()
+        log.info("SmartVAPending [%s]: finished status=success", run_id)
+
+    except SoftTimeLimitExceeded:
+        log.error("SmartVAPending [%s]: soft time limit exceeded — task killed after 30 min", run_id)
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_message = "Task exceeded soft time limit (30 min) and was stopped."
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
 
     except Exception as exc:
+        log.error("SmartVAPending [%s]: failed — %s", run_id, exc, exc_info=True)
+        _log_progress_exc(db, run_id, f"SmartVAPending run={run_id}", exc)
         try:
             run = db.session.get(VaSyncRun, run_id)
             if run:
@@ -716,7 +764,22 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             len(repair_map),
         )
 
+    except SoftTimeLimitExceeded:
+        log.error("SingleFormSync [%s]: soft time limit exceeded — task killed after 10 min", form_id)
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_message = "Task exceeded soft time limit (10 min) and was stopped."
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
+
     except Exception as exc:
+        log.error("SingleFormSync [%s]: failed — %s", form_id, exc, exc_info=True)
+        _log_progress_exc(db, run_id, f"SingleFormSync form={form_id}", exc)
         try:
             run = db.session.get(VaSyncRun, run_id)
             if run:
@@ -1051,13 +1114,25 @@ def run_enrichment_sync_batch(
             "errors": 0,
             "error_message": None,
         }
+    except SoftTimeLimitExceeded:
+        log.error(
+            "EnrichmentSync [%s] batch %d/%d: soft time limit exceeded — task killed",
+            form_id, batch_index, batch_total,
+        )
+        raise
+
     except Exception as exc:
+        log.error(
+            "EnrichmentSync [%s] batch %d/%d: failed — %s",
+            form_id, batch_index, batch_total, exc, exc_info=True,
+        )
         db.session.rollback()
         _log_progress(
             db,
             run_id,
             f"[{form_id}] enrich: batch {batch_index}/{batch_total} FAILED — {exc}",
         )
+        _log_progress_exc(db, run_id, f"EnrichmentSync form={form_id} batch={batch_index}/{batch_total}", exc)
         from uuid import UUID
         from app.models.va_sync_runs import VaSyncRun
 
@@ -1294,13 +1369,25 @@ def run_attachment_sync_batch(
             "errors": totals["errors"],
             "error_message": None,
         }
+    except SoftTimeLimitExceeded:
+        log.error(
+            "AttachmentSync [%s] batch %d/%d: soft time limit exceeded — task killed",
+            form_id, batch_index, batch_total,
+        )
+        raise
+
     except Exception as exc:
+        log.error(
+            "AttachmentSync [%s] batch %d/%d: failed — %s",
+            form_id, batch_index, batch_total, exc, exc_info=True,
+        )
         db.session.rollback()
         _log_progress(
             db,
             run_id,
             f"[{form_id}] attachments: batch {batch_index}/{batch_total} FAILED — {exc}",
         )
+        _log_progress_exc(db, run_id, f"AttachmentSync form={form_id} batch={batch_index}/{batch_total}", exc)
         from uuid import UUID
         from app.models.va_sync_runs import VaSyncRun
 
@@ -1414,9 +1501,21 @@ def run_smartva_sync_batch(
             "errors": 0,
             "error_message": None,
         }
+    except SoftTimeLimitExceeded:
+        log.error(
+            "SmartVASync [%s] batch %d/%d: soft time limit exceeded — task killed",
+            form_id, batch_index, batch_total,
+        )
+        raise
+
     except Exception as exc:
+        log.error(
+            "SmartVASync [%s] batch %d/%d: failed — %s",
+            form_id, batch_index, batch_total, exc, exc_info=True,
+        )
         db.session.rollback()
         _log_progress(db, run_id, f"SmartVA {form_id}: FAILED — {exc}")
+        _log_progress_exc(db, run_id, f"SmartVASync form={form_id} batch={batch_index}/{batch_total}", exc)
         _finalize_repair_batch(
             form_id=form_id,
             run_id=run_id,
@@ -1788,7 +1887,7 @@ def run_smartva_for_submission(self, va_sid: str, triggered_by: str = "manual"):
         return {"va_sid": va_sid, "smartva_updated": saved}
     except Exception as exc:
         db.session.rollback()
-        log.warning("SmartVA task [%s]: failed — %s", va_sid, exc, exc_info=True)
+        log.error("SmartVA task [%s]: failed — %s", va_sid, exc, exc_info=True)
         raise
 
 
@@ -1836,9 +1935,9 @@ def ensure_sync_scheduled():
                     "VALUES (NOW()) ON CONFLICT DO NOTHING"
                 ))
 
-        print("Sync beat schedule seeded: every 6 hours.")
+        log.info("Sync beat schedule seeded: every 6 hours.")
     except Exception as e:
-        print(f"Warning: Could not seed sync schedule: {e}")
+        log.warning("Could not seed sync schedule: %s", e)
 
 
 def cleanup_stale_runs():
@@ -1998,9 +2097,9 @@ def ensure_coding_timeout_cleanup_scheduled():
                     )
                 )
 
-        print("Coding allocation cleanup beat schedule seeded: every 1 hour.")
+        log.info("Coding allocation cleanup beat schedule seeded: every 1 hour.")
     except Exception as e:
-        print(f"Warning: Could not seed coding allocation cleanup schedule: {e}")
+        log.warning("Could not seed coding allocation cleanup schedule: %s", e)
 
 
 def ensure_submission_analytics_mv_refresh_scheduled():
@@ -2057,6 +2156,6 @@ def ensure_submission_analytics_mv_refresh_scheduled():
                     )
                 )
 
-        print("Submission analytics MV refresh beat schedule seeded: every 1 hour.")
+        log.info("Submission analytics MV refresh beat schedule seeded: every 1 hour.")
     except Exception as e:
-        print(f"Warning: Could not seed submission analytics MV refresh schedule: {e}")
+        log.warning("Could not seed submission analytics MV refresh schedule: %s", e)

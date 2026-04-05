@@ -122,7 +122,7 @@ def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
     try:
         cache.set(full_key, data, timeout=timeout)
     except Exception as exc:
-        log.warning("Analytics cache set failed (%s): %s", full_key, exc)
+        log.warning("Analytics cache set failed (%s): %s", full_key, exc, exc_info=True)
     return data
 
 
@@ -135,7 +135,7 @@ def _bust_user_analytics_cache():
         if keys:
             redis_client.delete(*keys)
     except Exception as exc:
-        log.warning("Could not bust analytics cache for user %s: %s", current_user.user_id, exc)
+        log.warning("Could not bust analytics cache for user %s: %s", current_user.user_id, exc, exc_info=True)
 
 
 # ---------------------------------------------------------------------------

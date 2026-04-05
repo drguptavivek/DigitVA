@@ -33,7 +33,7 @@ services:
     platform: linux/amd64
     container_name: minerva_celery_worker
     entrypoint: []
-    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
+    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1 --logfile=/app/logs/celery.log
     volumes:
       - .:/app
       - /app/.venv

@@ -871,13 +871,13 @@ def _generate_batch(
             except Exception:
                 db.session.rollback()
                 failure_count = 0
-                log.warning(
+                log.error(
                     "SmartVA [%s]: failed to record failures after exception.",
                     va_form.form_id,
                     exc_info=True,
                 )
-            log.warning(
-                "SmartVA [%s]: recorded %d failure row(s) after exception: %s",
+            log.error(
+                "SmartVA [%s]: batch failed — recorded %d failure row(s): %s",
                 va_form.form_id,
                 failure_count,
                 exc,
@@ -993,7 +993,7 @@ def generate_for_form(
         except Exception as exc:
             db.session.rollback()
             db.session.remove()
-            log.warning(
+            log.error(
                 "SmartVA [%s] batch %d/%d failed: %s",
                 va_form.form_id,
                 batch_index,
@@ -1082,7 +1082,7 @@ def generate_all_pending(*, log_progress=None) -> dict:
         except Exception as exc:
             db.session.rollback()
             db.session.remove()
-            log.warning(
+            log.error(
                 "SmartVA-only [%s] failed: %s",
                 va_form.form_id,
                 exc,

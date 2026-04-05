@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def va_smartva_runsmartva(va_form, workspace_dir: str, *, run_options=None):
@@ -43,15 +43,20 @@ def va_smartva_runsmartva(va_form, workspace_dir: str, *, run_options=None):
                 )
             return va_smartva_outputdir
         except subprocess.CalledProcessError as e:
-            error_message = f"VA Form ({va_form.form_id}): SmartVA execution failed with code {e.returncode}.\n"
-            error_message += f"Command: {' '.join(e.cmd)}\n"
-            if e.stdout:
-                error_message += f"Stdout: {e.stdout}\n"
-            if e.stderr:
-                error_message += f"Stderr: {e.stderr}"
+            stderr_tail = (e.stderr or "")[-500:]
+            log.error(
+                "SmartVA [%s]: process exited %d — stderr: %s",
+                va_form.form_id, e.returncode, stderr_tail,
+            )
+            error_message = (
+                f"VA Form ({va_form.form_id}): SmartVA execution failed with code {e.returncode}."
+                + (f"\nStdout: {e.stdout}" if e.stdout else "")
+                + (f"\nStderr: {e.stderr}" if e.stderr else "")
+            )
             raise Exception(error_message)
 
         except Exception as e:
+            log.error("SmartVA [%s]: unexpected error — %s", va_form.form_id, e, exc_info=True)
             raise Exception(
                 f"VA Form ({va_form.form_id}): Failed to run SmartVA. Error: {str(e)}"
             )

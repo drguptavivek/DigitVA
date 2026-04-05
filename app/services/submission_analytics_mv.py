@@ -77,144 +77,42 @@ WITH DATA
 def build_submission_analytics_demographics_mv_sql(
     view_name: str = DEMOGRAPHICS_MV_NAME,
 ) -> str:
-    """Return the CREATE MATERIALIZED VIEW statement for the demographics MV."""
+    """Return the CREATE MATERIALIZED VIEW statement for the demographics MV.
+
+    Age band is derived entirely from the pre-computed columns on va_submissions
+    (va_deceased_age_normalized_days, va_deceased_age_normalized_years) — no join
+    to va_submission_payload_versions is needed.  The old 3-CTE JSONB extraction
+    path was redundant for 99.7% of rows once those columns were backfilled by
+    migration d2f6a8b9c1e3.
+    """
     return f"""
 CREATE MATERIALIZED VIEW {view_name} AS
-WITH base AS (
-    SELECT
-        s.va_sid,
-        s.va_deceased_gender AS sex,
-        s.va_deceased_age_normalized_days,
-        s.va_deceased_age_normalized_years,
-        s.va_deceased_age_source,
-        LOWER(NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'age_group', '')), '')) AS age_group_raw,
-        CASE
-            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'age_neonate_hours', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (pv.payload_data ->> 'age_neonate_hours')::numeric
-            ELSE NULL
-        END AS age_neonate_hours_num,
-        CASE
-            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'age_neonate_days', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (pv.payload_data ->> 'age_neonate_days')::numeric
-            ELSE NULL
-        END AS age_neonate_days_num,
-        CASE
-            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInDays', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (pv.payload_data ->> 'ageInDays')::numeric
-            ELSE NULL
-        END AS age_in_days_num,
-        CASE
-            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInMonths', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (pv.payload_data ->> 'ageInMonths')::numeric
-            ELSE NULL
-        END AS age_in_months_num,
-        CASE
-            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInYears', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (pv.payload_data ->> 'ageInYears')::numeric
-            ELSE NULL
-        END AS age_in_years_num,
-        CASE
-            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'ageInYears2', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (pv.payload_data ->> 'ageInYears2')::numeric
-            ELSE NULL
-        END AS age_in_years2_num,
-        CASE
-            WHEN NULLIF(BTRIM(COALESCE(pv.payload_data ->> 'finalAgeInYears', '')), '') ~ '^(-?\\d+)(\\.\\d+)?$'
-                THEN (pv.payload_data ->> 'finalAgeInYears')::numeric
-            ELSE NULL
-        END AS final_age_years_num,
-        COALESCE(pv.payload_data ->> 'isNeonatal', '') IN ('1', '1.0', 'true', 'True') AS is_neonatal,
-        COALESCE(pv.payload_data ->> 'isChild', '') IN ('1', '1.0', 'true', 'True') AS is_child,
-        COALESCE(pv.payload_data ->> 'isAdult', '') IN ('1', '1.0', 'true', 'True') AS is_adult
-    FROM va_submissions s
-    LEFT JOIN va_submission_payload_versions pv
-        ON pv.payload_version_id = s.active_payload_version_id
-),
-age_source AS (
-    SELECT
-        b.*,
-        COALESCE(
-            b.va_deceased_age_source,
-            CASE
-                WHEN b.age_neonate_hours_num IS NOT NULL THEN 'age_neonate_hours'
-                WHEN b.age_neonate_days_num IS NOT NULL THEN 'age_neonate_days'
-                WHEN b.is_neonatal AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
-                WHEN b.is_child AND b.age_in_days_num IS NOT NULL THEN 'ageInDays'
-                WHEN b.is_child AND b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
-                WHEN b.is_child AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
-                WHEN b.is_child AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
-                WHEN b.is_child AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
-                WHEN b.is_adult AND b.age_in_years_num IS NOT NULL THEN 'ageInYears'
-                WHEN b.is_adult AND b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
-                WHEN b.is_adult AND b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
-                WHEN b.age_in_years_num IS NOT NULL THEN 'ageInYears'
-                WHEN b.age_in_days_num IS NOT NULL THEN 'ageInDays'
-                WHEN b.age_in_months_num IS NOT NULL THEN 'ageInMonths'
-                WHEN b.age_in_years2_num IS NOT NULL THEN 'ageInYears2'
-                WHEN b.final_age_years_num IS NOT NULL THEN 'finalAgeInYears'
-                ELSE NULL
-            END
-        ) AS normalized_age_source
-    FROM base b
-),
-age_normalized AS (
-    SELECT
-        a.va_sid,
-        COALESCE(
-            a.va_deceased_age_normalized_years,
-            CASE
-                WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
-                WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num / {_DAYS_PER_YEAR}
-                WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num / {_DAYS_PER_YEAR}
-                WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num / 12
-                WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num
-                WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num
-                WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num
-                ELSE NULL
-            END
-        ) AS normalized_age_years,
-        COALESCE(
-            a.va_deceased_age_normalized_days,
-            CASE
-                WHEN a.normalized_age_source = 'age_neonate_hours' THEN 0::numeric
-                WHEN a.normalized_age_source = 'age_neonate_days' THEN a.age_neonate_days_num
-                WHEN a.normalized_age_source = 'ageInDays' THEN a.age_in_days_num
-                WHEN a.normalized_age_source = 'ageInMonths' THEN a.age_in_months_num * {_DAYS_PER_MONTH}
-                WHEN a.normalized_age_source = 'ageInYears' THEN a.age_in_years_num * {_DAYS_PER_YEAR}
-                WHEN a.normalized_age_source = 'ageInYears2' THEN a.age_in_years2_num * {_DAYS_PER_YEAR}
-                WHEN a.normalized_age_source = 'finalAgeInYears' THEN a.final_age_years_num * {_DAYS_PER_YEAR}
-                ELSE NULL
-            END
-        ) AS normalized_age_days
-    FROM age_source a
-)
 SELECT
-    an.va_sid,
-    b.sex,
+    s.va_sid,
+    s.va_deceased_gender AS sex,
     CASE
-        WHEN an.normalized_age_days IS NOT NULL AND an.normalized_age_days <= 28 THEN 'neonate'
-        WHEN an.normalized_age_years IS NULL THEN 'unknown'
-        WHEN an.normalized_age_years < 15 THEN 'child'
-        WHEN an.normalized_age_years < 50 THEN '15_49y'
-        WHEN an.normalized_age_years < 65 THEN '50_64y'
+        WHEN s.va_deceased_age_normalized_days IS NOT NULL
+             AND s.va_deceased_age_normalized_days <= 28 THEN 'neonate'
+        WHEN s.va_deceased_age_normalized_years IS NULL  THEN 'unknown'
+        WHEN s.va_deceased_age_normalized_years < 15     THEN 'child'
+        WHEN s.va_deceased_age_normalized_years < 50     THEN '15_49y'
+        WHEN s.va_deceased_age_normalized_years < 65     THEN '50_64y'
         ELSE '65_plus'
     END AS analytics_age_band,
-    (smartva.va_smartva_id IS NOT NULL) AS has_smartva,
-    (init_assess.va_iniassess_id IS NOT NULL) AS has_human_initial_cod,
+    (smartva.va_smartva_id IS NOT NULL)        AS has_smartva,
+    (init_assess.va_iniassess_id IS NOT NULL)  AS has_human_initial_cod,
     (
         reviewer_final.va_rfinassess_id IS NOT NULL
         OR coder_final.va_finassess_id IS NOT NULL
     ) AS has_human_final_cod
-FROM age_normalized an
-JOIN base b ON b.va_sid = an.va_sid
--- EXISTS-style checks: only need to know IF a row exists, not fetch details
+FROM va_submissions s
 LEFT JOIN (
     SELECT DISTINCT ON (va_sid)
         va_sid, va_iniassess_id
     FROM va_initial_assessments
     WHERE va_iniassess_status = 'active'
     ORDER BY va_sid, va_iniassess_createdat DESC, va_iniassess_id DESC
-) AS init_assess ON init_assess.va_sid = an.va_sid
+) AS init_assess ON init_assess.va_sid = s.va_sid
 LEFT JOIN (
     SELECT DISTINCT ON (va_sid)
         va_sid, va_rfinassess_id
@@ -234,7 +132,7 @@ LEFT JOIN (
         WHERE rf.va_rfinassess_status = 'active'
     ) x
     ORDER BY va_sid, priority, va_rfinassess_createdat DESC, va_rfinassess_id DESC
-) AS reviewer_final ON reviewer_final.va_sid = an.va_sid
+) AS reviewer_final ON reviewer_final.va_sid = s.va_sid
 LEFT JOIN (
     SELECT DISTINCT ON (va_sid)
         va_sid, va_finassess_id
@@ -254,14 +152,14 @@ LEFT JOIN (
         WHERE f.va_finassess_status = 'active'
     ) x
     ORDER BY va_sid, priority, va_finassess_createdat DESC, va_finassess_id DESC
-) AS coder_final ON coder_final.va_sid = an.va_sid
+) AS coder_final ON coder_final.va_sid = s.va_sid
 LEFT JOIN (
     SELECT DISTINCT ON (va_sid)
         va_sid, va_smartva_id
     FROM va_smartva_results
     WHERE va_smartva_status = 'active'
     ORDER BY va_sid, va_smartva_updatedat DESC, va_smartva_id DESC
-) AS smartva ON smartva.va_sid = an.va_sid
+) AS smartva ON smartva.va_sid = s.va_sid
 WITH DATA
 """
 

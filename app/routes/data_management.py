@@ -8,9 +8,10 @@ import logging
 
 import sqlalchemy as sa
 from flask import Blueprint, render_template, redirect
-from flask_login import login_required, current_user
+from flask_login import current_user
 
 from app import db
+from app.decorators import role_required
 from app.models import (
     VaSubmissions,
     VaForms,
@@ -29,11 +30,8 @@ log = logging.getLogger(__name__)
 
 
 @data_management.get("/")
-@login_required
+@role_required("data_manager")
 def dashboard():
-    if not current_user.is_data_manager():
-        va_permission_abortwithflash("Data-manager access is required.", 403)
-
     project_ids = sorted(current_user.get_data_manager_projects())
     project_site_pairs = current_user.get_data_manager_project_sites()
     if not project_ids and not project_site_pairs:
@@ -53,7 +51,7 @@ def dashboard():
 
 
 @data_management.get("/view/<va_sid>")
-@login_required
+@role_required("data_manager")
 def view_submission(va_sid):
     """Data manager read-only view of a submission."""
     import uuid
@@ -62,7 +60,7 @@ def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:
         va_permission_abortwithflash("Submission not found.", 404)
-    # Authorization check
+    # ABAC: verify the DM's grant scope covers this submission's project/site
     form_meta = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form.va_form_id)
     ).mappings().first()
@@ -82,7 +80,7 @@ def view_submission(va_sid):
 
 
 @data_management.get("/submissions/<path:va_sid>/odk-edit")
-@login_required
+@role_required("data_manager")
 def submission_odk_edit(va_sid):
     odk_edit_url = dm_odk_edit_url(current_user, va_sid)
     if not odk_edit_url:

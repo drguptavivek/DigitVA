@@ -1,8 +1,9 @@
 import sqlalchemy as sa
 from app import db
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms
-from flask_login import current_user, login_required
+from flask_login import current_user
 from flask import Blueprint, render_template, url_for, redirect, request
+from app.decorators import role_required
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
@@ -36,11 +37,8 @@ def _handle_allocation_error(e: AllocationError):
 
 
 @coding.get("/")
-@login_required
+@role_required("coder", "admin")
 def dashboard():
-    if not current_user.is_coder() and not current_user.is_admin():
-        va_permission_abortwithflash("Coder access is required.", 403)
-
     va_form_access = current_user.get_coder_va_forms()
     if va_form_access:
         narration_language_filter = _narration_language_filter(current_user)
@@ -139,10 +137,8 @@ def dashboard():
 
 
 @coding.get("/start")
-@login_required
+@role_required("coder")
 def start():
-    if not current_user.is_coder():
-        va_permission_abortwithflash("Coder access is required.", 403)
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
         result = allocate_random_form(current_user, project_id=project_id)
@@ -155,10 +151,8 @@ def start():
 
 
 @coding.get("/resume")
-@login_required
+@role_required("coder", "admin")
 def resume():
-    if not current_user.is_coder() and not current_user.is_admin():
-        va_permission_abortwithflash("Coder access is required.", 403)
     va_sid = get_active_coding_allocation(current_user.user_id)
     if not va_sid:
         va_permission_abortwithflash("No active coding allocation found.", 404)
@@ -172,7 +166,7 @@ def resume():
 
 
 @coding.get("/pick/<va_sid>")
-@login_required
+@role_required("coder")
 def pick(va_sid):
     try:
         result = allocate_pick_form(current_user, va_sid)
@@ -183,10 +177,8 @@ def pick(va_sid):
 
 
 @coding.get("/recode/<va_sid>")
-@login_required
+@role_required("coder")
 def recode(va_sid):
-    if not current_user.is_coder():
-        va_permission_abortwithflash("Coder access is required.", 403)
     try:
         start_recode_allocation(current_user, va_sid)
     except AllocationError as e:
@@ -195,10 +187,8 @@ def recode(va_sid):
 
 
 @coding.get("/demo")
-@login_required
+@role_required("admin")
 def demo():
-    if not current_user.is_admin():
-        va_permission_abortwithflash("Only admin users can start a demo coding session.", 403)
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
         result = start_demo_allocation(current_user, project_id)
@@ -209,7 +199,7 @@ def demo():
 
 
 @coding.get("/view/<va_sid>")
-@login_required
+@role_required("coder", "admin")
 def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:

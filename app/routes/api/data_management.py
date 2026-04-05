@@ -16,9 +16,10 @@ from types import SimpleNamespace
 
 import sqlalchemy as sa
 from flask import Blueprint, Response, jsonify, request, current_app
-from flask_login import login_required, current_user
+from flask_login import current_user
 
 from app import cache, db, limiter
+from app.decorators import role_required
 from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
@@ -48,18 +49,6 @@ from app.services.submission_analytics_mv import (
 bp = Blueprint("data_management_api", __name__)
 log = logging.getLogger(__name__)
 _CACHE_TTL = 300
-
-
-def _require_data_manager():
-    if not current_user.is_data_manager():
-        return jsonify({"error": "Data-manager access is required."}), 403
-    return None
-
-
-def _require_data_manager_or_admin():
-    if not current_user.is_admin() and not current_user.is_data_manager():
-        return jsonify({"error": "Data-manager or admin access is required."}), 403
-    return None
 
 
 def _cache_key(suffix: str) -> str:
@@ -97,12 +86,9 @@ def _refresh_dm_dashboard_analytics() -> None:
 # ---------------------------------------------------------------------------
 
 @bp.get("/submissions")
-@login_required
+@role_required("data_manager")
 @limiter.limit("120 per minute")
 def submissions():
-    err = _require_data_manager()
-    if err:
-        return err
 
     page     = max(1, request.args.get("page", 1, type=int))
     per_page = min(100, max(10, request.args.get("size", 25, type=int)))
@@ -133,12 +119,9 @@ def submissions():
 
 
 @bp.get("/submissions/export.csv")
-@login_required
+@role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_csv():
-    err = _require_data_manager()
-    if err:
-        return err
 
     sort_field = request.args.get("sort[0][field]", "va_submission_date")
     sort_dir = request.args.get("sort[0][dir]", "desc")
@@ -169,12 +152,9 @@ def submissions_export_csv():
 
 
 @bp.get("/submissions/export-smartva-input.csv")
-@login_required
+@role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_input_csv():
-    err = _require_data_manager()
-    if err:
-        return err
 
     sort_field = request.args.get("sort[0][field]", "va_submission_date")
     sort_dir = request.args.get("sort[0][dir]", "desc")
@@ -205,12 +185,9 @@ def submissions_export_smartva_input_csv():
 
 
 @bp.get("/submissions/export-smartva-results.csv")
-@login_required
+@role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_results_csv():
-    err = _require_data_manager()
-    if err:
-        return err
 
     sort_field = request.args.get("sort[0][field]", "va_submission_date")
     sort_dir = request.args.get("sort[0][dir]", "desc")
@@ -241,12 +218,9 @@ def submissions_export_smartva_results_csv():
 
 
 @bp.get("/submissions/export-smartva-likelihoods.csv")
-@login_required
+@role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_likelihoods_csv():
-    err = _require_data_manager()
-    if err:
-        return err
 
     sort_field = request.args.get("sort[0][field]", "va_submission_date")
     sort_dir = request.args.get("sort[0][dir]", "desc")
@@ -281,12 +255,9 @@ def submissions_export_smartva_likelihoods_csv():
 # ---------------------------------------------------------------------------
 
 @bp.get("/kpi")
-@login_required
+@role_required("data_manager")
 @limiter.limit("120 per minute")
 def kpi():
-    err = _require_data_manager()
-    if err:
-        return err
 
     project_ids = sorted(current_user.get_data_manager_projects())
     project_site_pairs = current_user.get_data_manager_project_sites()
@@ -313,22 +284,16 @@ def kpi():
 # ---------------------------------------------------------------------------
 
 @bp.get("/filter-options")
-@login_required
+@role_required("data_manager")
 @limiter.limit("120 per minute")
 def filter_options():
-    err = _require_data_manager()
-    if err:
-        return err
     return jsonify(dm_filter_options(current_user))
 
 
 @bp.get("/submissions/<path:va_sid>/upstream-change-details")
-@login_required
+@role_required("data_manager", "admin")
 @limiter.limit("120 per minute")
 def upstream_change_details(va_sid: str):
-    err = _require_data_manager_or_admin()
-    if err:
-        return err
     try:
         return jsonify(dm_upstream_change_details(current_user, va_sid))
     except PermissionError as exc:
@@ -342,11 +307,8 @@ def upstream_change_details(va_sid: str):
 # ---------------------------------------------------------------------------
 
 @bp.post("/forms/<form_id>/sync")
-@login_required
+@role_required("data_manager")
 def sync_form(form_id: str):
-    err = _require_data_manager()
-    if err:
-        return err
     if not dm_form_in_scope(current_user, form_id):
         return jsonify({"error": "You do not have access to sync this form."}), 403
 
@@ -368,11 +330,8 @@ def sync_form(form_id: str):
 
 
 @bp.post("/sync/preview")
-@login_required
+@role_required("data_manager")
 def sync_preview():
-    err = _require_data_manager()
-    if err:
-        return err
 
     payload = request.get_json(silent=True) or {}
     project_ids = payload.get("project_ids") or []
@@ -466,11 +425,8 @@ def sync_preview():
 
 
 @bp.get("/sync/runs")
-@login_required
+@role_required("data_manager")
 def sync_runs():
-    err = _require_data_manager()
-    if err:
-        return err
 
     scoped_form_ids = {f["form_id"] for f in dm_scoped_forms(current_user)}
     runs = db.session.scalars(
@@ -503,12 +459,9 @@ def sync_runs():
 
 
 @bp.get("/project-site-submissions")
-@login_required
+@role_required("data_manager")
 @limiter.limit("120 per minute")
 def project_site_submissions():
-    err = _require_data_manager()
-    if err:
-        return err
 
     timezone_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
     project_ids = sorted(current_user.get_data_manager_projects())
@@ -534,11 +487,8 @@ def project_site_submissions():
 
 
 @bp.post("/submissions/<va_sid>/sync")
-@login_required
+@role_required("data_manager")
 def sync_submission(va_sid: str):
-    err = _require_data_manager()
-    if err:
-        return err
 
     submission = db.session.get(VaSubmissions, va_sid)
     if submission is None:
@@ -580,12 +530,9 @@ def sync_submission(va_sid: str):
 # ---------------------------------------------------------------------------
 
 @bp.post("/submissions/<va_sid>/accept-upstream-change")
-@login_required
+@role_required("data_manager", "admin")
 def accept_upstream_change(va_sid: str):
     """Accept an upstream ODK data change: clear COD artifacts and reopen coding."""
-    err = _require_data_manager_or_admin()
-    if err:
-        return err
     try:
         dm_accept_upstream_change(current_user, va_sid)
         db.session.commit()
@@ -616,12 +563,9 @@ def accept_upstream_change(va_sid: str):
 
 
 @bp.post("/submissions/<va_sid>/screening-pass")
-@login_required
+@role_required("data_manager", "admin")
 def screening_pass(va_sid: str):
     """Pass a screening-pending submission into SmartVA processing."""
-    err = _require_data_manager_or_admin()
-    if err:
-        return err
     try:
         dm_screening_pass(current_user, va_sid)
         db.session.commit()
@@ -637,12 +581,9 @@ def screening_pass(va_sid: str):
 
 
 @bp.post("/submissions/<va_sid>/screening-reject")
-@login_required
+@role_required("data_manager", "admin")
 def screening_reject(va_sid: str):
     """Reject a screening-pending submission before SmartVA/coding."""
-    err = _require_data_manager_or_admin()
-    if err:
-        return err
     try:
         dm_screening_reject(current_user, va_sid)
         db.session.commit()
@@ -658,12 +599,9 @@ def screening_reject(va_sid: str):
 
 
 @bp.post("/submissions/<va_sid>/reject-upstream-change")
-@login_required
+@role_required("data_manager", "admin")
 def reject_upstream_change(va_sid: str):
     """Keep the current ICD decision while adopting the latest upstream ODK data."""
-    err = _require_data_manager_or_admin()
-    if err:
-        return err
     try:
         dm_reject_upstream_change(current_user, va_sid)
         db.session.commit()

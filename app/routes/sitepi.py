@@ -1,5 +1,6 @@
-from flask_login import current_user, login_required
+from flask_login import current_user
 from flask import Blueprint, render_template, request
+from app.decorators import role_required
 from app.services.sitepi_reporting_service import get_sitepi_dashboard_data
 from app.utils.va_permission.va_permission_01_abortwithflash import va_permission_abortwithflash
 
@@ -7,11 +8,8 @@ sitepi = Blueprint("sitepi", __name__)
 
 
 @sitepi.get("/")
-@login_required
+@role_required("site_pi")
 def dashboard():
-    if not current_user.is_site_pi():
-        va_permission_abortwithflash("No sites assigned for supervision.", 403)
-
     sitepi_sites = sorted(current_user.get_site_pi_sites())
     if not sitepi_sites:
         va_permission_abortwithflash("No sites assigned for supervision.", 403)
@@ -31,7 +29,7 @@ def dashboard():
 
 
 @sitepi.get("/data")
-@login_required
+@role_required("site_pi")
 def sitepi_data():
     site_id = request.args.get("siteSelect")
     if not site_id:
@@ -39,7 +37,8 @@ def sitepi_data():
 
     sitepi_sites = sorted(current_user.get_site_pi_sites())
     if site_id not in sitepi_sites:
-        return "<div class='text-center py-5'><p class='text-danger'>Access denied for this site.</p></div>"
+        # Fixed: was returning HTTP 200 with inline HTML — must be a proper 403
+        va_permission_abortwithflash("Access denied for this site.", 403)
 
     site_data = get_sitepi_dashboard_data(site_id)
 

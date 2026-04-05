@@ -3,7 +3,7 @@
   'use strict';
 
   var _sessionExpired = false;
-  var _loginUrl = '/auth/login';
+  var _loginUrl = '/vaauth/valogin';
 
   function showSessionExpiredModal() {
     if (_sessionExpired) return; // Only show once

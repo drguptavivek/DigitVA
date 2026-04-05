@@ -10,12 +10,11 @@ import logging
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
+from flask_login import current_user
 
 from app import db
+from app.decorators import role_required
 from app.models import (
-    VaAllocations,
-    VaAllocation,
     VaStatuses,
     VaSocialAutopsyAnalysis,
     VaSocialAutopsyAnalysisOption,
@@ -31,43 +30,19 @@ from app.services.payload_bound_coding_artifact_service import (
 )
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
-    is_demo_training_submission,
 )
 from app.services.coding_service import get_project_for_submission
+from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
 
 bp = Blueprint("so_api", __name__)
 log = logging.getLogger(__name__)
 
-def _require_coding_access(va_sid: str):
-    """Return a JSON 403 if the user lacks an active coding allocation.
-
-    Admin users with va_actiontype == "vademo_start_coding" in the body are allowed through.
-    """
-    data = request.get_json(silent=True) or {}
-    if data.get("va_actiontype") == "vademo_start_coding":
-        if current_user.is_admin():
-            return None
-        if not current_user.is_coder() or not is_demo_training_submission(va_sid):
-            return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
-
-    alloc = db.session.scalar(
-        sa.select(VaAllocations.va_sid).where(
-            VaAllocations.va_allocated_to == current_user.user_id,
-            VaAllocations.va_allocation_for == VaAllocation.coding,
-            VaAllocations.va_allocation_status == VaStatuses.active,
-            VaAllocations.va_sid == va_sid,
-        )
-    )
-    if not alloc:
-        return jsonify({"error": "Active coding allocation required."}), 403
-    return None
-
 
 @bp.post("/<va_sid>/social-autopsy")
-@login_required
+@role_required("coder", "admin")
 def save_social_autopsy(va_sid: str):
     """Save or update the Social Autopsy analysis selections for a coder."""
-    err = _require_coding_access(va_sid)
+    err = require_coding_access(va_sid)
     if err:
         return err
 

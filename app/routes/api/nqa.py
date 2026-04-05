@@ -10,12 +10,11 @@ import logging
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
+from flask_login import current_user
 
 from app import db
+from app.decorators import role_required
 from app.models import (
-    VaAllocations,
-    VaAllocation,
     VaStatuses,
     VaNarrativeAssessment,
     VaSubmissionsAuditlog,
@@ -23,39 +22,15 @@ from app.models import (
 from app.services.coding_service import get_project_for_submission
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
-    is_demo_training_submission,
 )
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_narrative_assessments,
     get_submission_with_current_payload,
 )
+from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
 
 bp = Blueprint("nqa_api", __name__)
 log = logging.getLogger(__name__)
-
-def _require_coding_access(va_sid: str):
-    """Return a JSON 403 if the user lacks an active coding allocation.
-
-    Admin users with va_actiontype == "vademo_start_coding" in the body are allowed through.
-    """
-    data = request.get_json(silent=True) or {}
-    if data.get("va_actiontype") == "vademo_start_coding":
-        if current_user.is_admin():
-            return None
-        if not current_user.is_coder() or not is_demo_training_submission(va_sid):
-            return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
-
-    alloc = db.session.scalar(
-        sa.select(VaAllocations.va_sid).where(
-            VaAllocations.va_allocated_to == current_user.user_id,
-            VaAllocations.va_allocation_for == VaAllocation.coding,
-            VaAllocations.va_allocation_status == VaStatuses.active,
-            VaAllocations.va_sid == va_sid,
-        )
-    )
-    if not alloc:
-        return jsonify({"error": "Active coding allocation required."}), 403
-    return None
 
 
 def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity) -> int:
@@ -63,10 +38,10 @@ def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comor
 
 
 @bp.post("/<va_sid>/narrative-qa")
-@login_required
+@role_required("coder", "admin")
 def save_narrative_qa(va_sid: str):
     """Save or update the Narrative Quality Assessment for a coder on a submission."""
-    err = _require_coding_access(va_sid)
+    err = require_coding_access(va_sid)
     if err:
         return err
 

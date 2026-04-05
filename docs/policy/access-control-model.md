@@ -1,9 +1,9 @@
 ---
 title: Access Control Model
 doc_type: policy
-status: draft
+status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-04-05
 ---
 
 # Access Control Model
@@ -295,6 +295,10 @@ Migration policy:
 5. do not carry forward ambiguous permissions
 
 ## Implementation Baseline
+
+See [`docs/policy/auth-decorator-rbac.md`](auth-decorator-rbac.md) for the
+decorator specification, HTTP status contract, blueprint migration map, and
+audit findings addressed.
 
 Implementation should separate:
 

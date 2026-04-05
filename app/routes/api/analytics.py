@@ -19,9 +19,10 @@ import logging
 
 import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
-from flask_login import login_required, current_user
+from flask_login import current_user
 
 from app import db, limiter, cache
+from app.decorators import role_required
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
@@ -79,12 +80,6 @@ _mv = _core
 # ---------------------------------------------------------------------------
 
 _CACHE_TTL = 300  # 5 minutes
-
-
-def _require_data_manager():
-    if not current_user.is_data_manager():
-        return jsonify({"error": "Data-manager access is required."}), 403
-    return None
 
 
 def _dm_scope_filter():
@@ -146,11 +141,8 @@ def _bust_user_analytics_cache():
 # ---------------------------------------------------------------------------
 
 @bp.get("/kpi")
-@login_required
+@role_required("data_manager")
 def kpi():
-    err = _require_data_manager()
-    if err:
-        return err
 
     data = _cached("kpi", lambda: get_dm_kpi_from_mv(
         project_ids=sorted(current_user.get_data_manager_projects()),
@@ -160,11 +152,8 @@ def kpi():
 
 
 @bp.get("/submissions/by-date")
-@login_required
+@role_required("data_manager")
 def submissions_by_date():
-    err = _require_data_manager()
-    if err:
-        return err
 
     limit = min(int(request.args.get("limit", 90)), 365)
 
@@ -187,11 +176,8 @@ def submissions_by_date():
 
 
 @bp.get("/submissions/by-week")
-@login_required
+@role_required("data_manager")
 def submissions_by_week():
-    err = _require_data_manager()
-    if err:
-        return err
 
     limit = min(int(request.args.get("limit", 26)), 104)
 
@@ -214,11 +200,8 @@ def submissions_by_week():
 
 
 @bp.get("/submissions/by-month")
-@login_required
+@role_required("data_manager")
 def submissions_by_month():
-    err = _require_data_manager()
-    if err:
-        return err
 
     limit = min(int(request.args.get("limit", 12)), 60)
 
@@ -241,12 +224,9 @@ def submissions_by_month():
 
 
 @bp.get("/demographics")
-@login_required
+@role_required("data_manager")
 @limiter.limit("120 per minute")
 def demographics():
-    err = _require_data_manager()
-    if err:
-        return err
 
     def compute():
         core_conditions = build_dm_mv_filter_conditions(
@@ -298,11 +278,8 @@ def demographics():
 
 
 @bp.get("/workflow")
-@login_required
+@role_required("data_manager")
 def workflow():
-    err = _require_data_manager()
-    if err:
-        return err
 
     def compute():
         scope = _dm_scope_filter()
@@ -321,11 +298,8 @@ def workflow():
 
 
 @bp.get("/cod")
-@login_required
+@role_required("data_manager")
 def cod():
-    err = _require_data_manager()
-    if err:
-        return err
 
     cod_type = request.args.get("type", "final")
     limit = min(int(request.args.get("limit", 20)), 100)
@@ -370,14 +344,11 @@ def cod():
 
 
 @bp.post("/mv/refresh")
-@login_required
+@role_required("data_manager")
 @limiter.limit("1 per minute")
 def mv_refresh():
     """Refresh the submission analytics materialized views on demand."""
     try:
-        err = _require_data_manager()
-        if err:
-            return err
         refresh_submission_analytics_mv(concurrently=True)
         _bust_user_analytics_cache()
         return jsonify({"message": "Analytics data refreshed successfully."}), 200

@@ -1,8 +1,9 @@
 """Reviewer secondary-coding JSON API."""
 
 from flask import Blueprint, jsonify, request
-from flask_login import current_user, login_required
+from flask_login import current_user
 
+from app.decorators import role_required
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
@@ -20,19 +21,15 @@ def _error(message: str, status_code: int):
 
 
 @bp.get("/allocation")
-@login_required
+@role_required("reviewer")
 def get_allocation():
-    if not current_user.is_reviewer():
-        return _error("Reviewer access is required.", 403)
     va_sid = get_active_reviewing_allocation(current_user.user_id)
     return jsonify({"allocation": {"va_sid": va_sid} if va_sid else None})
 
 
 @bp.post("/allocation/<va_sid>")
-@login_required
+@role_required("reviewer")
 def allocate(va_sid):
-    if not current_user.is_reviewer():
-        return _error("Reviewer access is required.", 403)
     try:
         result = start_reviewer_coding(current_user, va_sid)
     except ReviewerCodingError as exc:
@@ -41,10 +38,8 @@ def allocate(va_sid):
 
 
 @bp.post("/finalize/<va_sid>")
-@login_required
+@role_required("reviewer")
 def finalize(va_sid):
-    if not current_user.is_reviewer():
-        return _error("Reviewer access is required.", 403)
     body = request.get_json(silent=True) or {}
     conclusive_cod = (body.get("conclusive_cod") or "").strip()
     remark = (body.get("remark") or "").strip() or None

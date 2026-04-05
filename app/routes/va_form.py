@@ -218,6 +218,8 @@ def renderpartial(va_sid, va_partial):
             success_message = None
 
             if request.method == "POST":
+                # Defense-in-depth: the route is already guarded by @role_required("data_manager"),
+                # but vadmtriage POSTs arrive via the shared va_form endpoint, so we re-check here.
                 if not current_user.is_data_manager():
                     abort(403)
                 if submission_workflow not in DATA_MANAGER_TRIAGE_ALLOWED_STATES:

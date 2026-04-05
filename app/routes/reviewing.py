@@ -8,8 +8,9 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from flask_login import current_user, login_required
+from flask_login import current_user
 from flask import Blueprint, render_template
+from app.decorators import role_required
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.utils import va_permission_ensureanyallocation, va_permission_ensurereviewed
 from app.services.coding_service import render_va_coding_page
@@ -23,11 +24,8 @@ reviewing = Blueprint("reviewing", __name__)
 
 
 @reviewing.get("/")
-@login_required
+@role_required("reviewer")
 def dashboard():
-    if not current_user.is_reviewer():
-        va_permission_abortwithflash("Reviewer access is required.", 403)
-
     va_form_access = current_user.get_reviewer_va_forms()
     if va_form_access:
         va_total_forms = db.session.scalar(
@@ -136,7 +134,7 @@ def dashboard():
 
 
 @reviewing.get("/start/<va_sid>")
-@login_required
+@role_required("reviewer")
 def start(va_sid):
     try:
         result = start_reviewer_coding(current_user, va_sid)
@@ -148,10 +146,8 @@ def start(va_sid):
 
 
 @reviewing.get("/resume")
-@login_required
+@role_required("reviewer")
 def resume():
-    if not current_user.is_reviewer():
-        va_permission_abortwithflash("Reviewer access is required.", 403)
     va_permission_ensureanyallocation("reviewing")
     va_sid = get_active_reviewing_allocation(current_user.user_id)
     form = db.session.get(VaSubmissions, va_sid)
@@ -159,7 +155,7 @@ def resume():
 
 
 @reviewing.get("/view/<va_sid>")
-@login_required
+@role_required("reviewer")
 def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:

@@ -380,7 +380,7 @@ Primary key: `(va_sid, filename)`.
 
 ### Audio conversion
 
-`.amr` files are converted to `.mp3` using `pydub` immediately after download. The `.amr` file is deleted after successful conversion. Conversion failure keeps the `.amr` on disk (better than data loss).
+`.amr` files are converted to `.mp3` using **SoX** immediately after download. The converter probes the source bitrate via `soxi` and targets 2x the source bitrate (capped 16–64 kbps) — AMR-NB speech at ~12 kbps produces 24 kbps MP3 output, optimal quality for the source without bloated file size. The `.amr` file is deleted after successful conversion. Conversion failure keeps the `.amr` on disk (better than data loss).
 
 ### API call volume
 

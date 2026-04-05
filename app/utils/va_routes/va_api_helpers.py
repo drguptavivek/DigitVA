@@ -128,6 +128,7 @@ def va_get_category_context(va_sid, va_action, va_partial):
         datalevel,
         va_mapping_choice,
         va_partial,
+        va_sid=submission.va_sid,
     )
     previous_category, next_category = category_service.get_category_neighbours(
         form_type_code,

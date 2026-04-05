@@ -1,13 +1,17 @@
+import logging
 import os
 import re
 import uuid
+
+log = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from app import db
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog
+from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.decorators import va_validate_permissions
 from flask_login import current_user, login_required
-from flask import Blueprint, render_template, current_app, send_from_directory, flash, redirect, url_for, jsonify, request, abort
+from flask import Blueprint, render_template, current_app, send_file, send_from_directory, flash, redirect, url_for, jsonify, request, abort
 from werkzeug.utils import secure_filename
 from app.utils import va_get_form_type_code_for_form, va_render_processcategorydata, va_permission_abortwithflash
 from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
@@ -393,7 +397,7 @@ def renderpartial(va_sid, va_partial):
             _form_type_code,
             visible_category_codes,
         )
-        va_processedcategorydata = va_render_processcategorydata(va_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial)
+        va_processedcategorydata = va_render_processcategorydata(va_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial, va_sid=va_submission.va_sid)
         va_previouscategory, va_nextcategory = category_service.get_category_neighbours(
             _form_type_code,
             va_action,
@@ -484,6 +488,7 @@ def renderpartial(va_sid, va_partial):
                 va_datalevel,
                 va_mapping_choice,
                 "vanarrationanddocuments",
+                va_sid=va_submission.va_sid,
             )
             cod_attachments_labels = _mapping_svc.get_subcategory_labels(
                 _form_type_code,
@@ -499,6 +504,7 @@ def renderpartial(va_sid, va_partial):
                 va_datalevel,
                 va_mapping_choice,
                 "vahealthhistorydetails",
+                va_sid=va_submission.va_sid,
             )
             cod_health_history_labels = _mapping_svc.get_subcategory_labels(
                 _form_type_code,
@@ -1082,9 +1088,86 @@ def renderpartial(va_sid, va_partial):
         
         
 
+@va_form.route('/attachment/<path:storage_name_raw>')
+def serve_attachment(storage_name_raw):
+    """Serve an attachment by opaque storage_name token.
+
+    Security contract (Option B — auth-first):
+      1. Hard 401 for unauthenticated requests (no DB lookup)
+      2. Format validation → 404
+      3. DB lookup (exists_on_odk=True only) → 404
+      4. Permission check → 403
+      5. Path guard → 404
+      6. File existence → 404
+      7. Serve file
+    """
+    from app import cache as flask_cache
+
+    if not current_user.is_authenticated:
+        abort(401)
+
+    if not re.match(r'^[a-f0-9]{32}\.[a-z0-9]{1,5}$', storage_name_raw):
+        abort(404)
+
+    storage_name = storage_name_raw
+
+    # Cache lookup
+    cached = flask_cache.get(f"att:{storage_name}")
+    if cached:
+        local_path = cached["local_path"]
+        mime_type = cached["mime_type"]
+        va_form_id = cached["va_form_id"]
+    else:
+        # DB fallback
+        row = db.session.execute(
+            sa.select(
+                VaSubmissionAttachments.local_path,
+                VaSubmissionAttachments.mime_type,
+                VaSubmissions.va_form_id,
+            )
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .where(VaSubmissionAttachments.storage_name == storage_name)
+            .where(VaSubmissionAttachments.exists_on_odk == True)  # noqa: E712
+        ).first()
+        if not row:
+            abort(404)
+        local_path, mime_type, va_form_id = row
+
+    # Permission check
+    if not current_user.has_va_form_access(va_form_id):
+        abort(403)
+
+    # Path guard — ensure local_path stays under APP_DATA/{va_form_id}/media/
+    media_base = os.path.realpath(
+        os.path.join(current_app.config["APP_DATA"], va_form_id, "media")
+    )
+    resolved = os.path.realpath(local_path)
+    if not resolved.startswith(media_base + os.sep) and resolved != media_base:
+        abort(404)
+
+    # File existence check
+    if not os.path.isfile(resolved):
+        flask_cache.delete(f"att:{storage_name}")
+        abort(404)
+
+    # Write cache after all checks pass (only for rows we verified exist_on_odk=True)
+    if not cached:
+        flask_cache.set(f"att:{storage_name}", {
+            "local_path": local_path,
+            "mime_type": mime_type,
+            "va_form_id": va_form_id,
+        }, timeout=3600)
+
+    return send_file(resolved, mimetype=mime_type)
+
+
 @va_form.route('/media/<va_form_id>/<va_filename>')
 @login_required
 def serve_media(va_form_id, va_filename):
+    # DEPRECATED: use /attachment/<storage_name> for new attachments.
+    # Kept for backward compatibility during migration (storage_name IS NULL rows).
+    log.info("serve_media legacy hit: form=%s file=%s", va_form_id, va_filename)
+
     # Validate form_id format to prevent path traversal
     if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
         abort(400, description="Invalid form ID format")

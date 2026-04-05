@@ -30,6 +30,9 @@ class VaSubmissionAttachments(db.Model):
     last_downloaded_at: so.Mapped[datetime | None] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )
+    storage_name: so.Mapped[str | None] = so.mapped_column(
+        sa.String(64), nullable=True,
+    )
 
     def __repr__(self) -> str:
         return f"<VaSubmissionAttachments {self.va_sid}/{self.filename}>"

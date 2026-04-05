@@ -1,25 +1,33 @@
-FROM astral/uv:python3.13-trixie
+# ---- Builder: install Python dependencies ----
+FROM python:3.13-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+COPY vendor/smartva-analyze vendor/smartva-analyze
+RUN uv sync --frozen --no-dev
+
+# ---- Runtime: minimal image ----
+FROM python:3.13-slim
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client ffmpeg && \
+    apt-get install -y --no-install-recommends postgresql-client sox libsox-fmt-all && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Install dependencies first for better caching
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+# Copy venv from builder (no uv binary, no build artifacts)
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy application code
 COPY . .
 
-# Install SmartVA-Analyze from vendored source (--no-deps: CLI deps are in pyproject.toml)
-RUN uv pip install --python /app/.venv/bin/python --no-deps /app/vendor/smartva-analyze
-
 RUN chmod +x boot.sh scripts/wait-for-celery-beat-db.sh
 
 ENV FLASK_APP=run.py
-ENV UV_SYSTEM_PYTHON=1
+ENV PATH="/app/.venv/bin:${PATH}"
 
 ENTRYPOINT ["./boot.sh"]
 EXPOSE 5000

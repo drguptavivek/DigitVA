@@ -19,6 +19,6 @@ done
 
 echo "Celery beat database dependencies are ready."
 
-exec uv run celery -A make_celery:celery_app beat \
+exec celery -A make_celery:celery_app beat \
   --loglevel=info \
   -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler

@@ -92,15 +92,16 @@ SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions hav
 | Property | Value |
 |---|---|
 | Source | `vendor/smartva-analyze` (git submodule, pinned to v3.0.0) |
-| Install | `uv pip install --no-deps vendor/smartva-analyze` in Dockerfile |
+| Install | uv path dependency (`[tool.uv.sources]` in `pyproject.toml`) |
 | CLI entry point | `python -m smartva.va_cli` |
 | Execution environment | `minerva_celery_worker` container |
-| Required deps | `click`, `numpy`, `pandas`, `progressbar2`, `stemming`, `python-dateutil`, `xlsxwriter`, `matplotlib` |
+| Required deps | `click`, `numpy`, `pandas`, `progressbar2`, `stemming`, `python-dateutil`, `xlsxwriter`, `matplotlib`, `colorama`, `pyparsing` (all via transitive deps) |
 
 SmartVA runs natively as a Python module — no PyInstaller binary or `/tmp/_MEI*`
-extraction overhead. The `--no-deps` install skips GUI-only dependencies
-(`wxpython`, `tornado`, `colorama`, `pyparsing`) declared in SmartVA's
-`pyproject.toml`. CLI-only deps are declared in DigitVA's own `pyproject.toml`.
+extraction overhead. It is installed as a uv path dependency, meaning `uv sync`
+installs it from the local `vendor/smartva-analyze` directory. GUI-only
+dependencies (`wxpython`, `tornado`) are excluded via
+`[tool.uv] exclude-dependencies` in `pyproject.toml`.
 
 ### Containers
 
@@ -479,12 +480,12 @@ WHERE status = 'running';
 ### SmartVA binary permissions
 
 SmartVA runs as a Python module — no binary permissions to manage. The vendored
-source is installed via `uv pip install --no-deps vendor/smartva-analyze` during
-Docker image build. To reinstall in a running container:
+source is installed as a uv path dependency during Docker image build via
+`uv sync`. To reinstall in a running container:
 
 ```bash
 docker compose exec minerva_celery_worker bash -c \
-    "uv pip install --python /app/.venv/bin/python --no-deps /app/vendor/smartva-analyze"
+    "cd /app && uv sync --frozen --no-dev"
 ```
 
 ### Diagnosing a new form failure

@@ -4,9 +4,14 @@ Base test case for DigitVA tests.
 Uses TestConfig which points to a separate `minerva_test` database so that
 the development database is never touched during test runs.
 
-Schema lifecycle (per test class):
-  - setUpClass: create app context, create all tables, seed standard fixtures
-  - tearDownClass: drop all tables, pop context
+Schema lifecycle (session-scoped, managed by conftest.py):
+  - conftest.pytest_sessionstart: creates schema ONCE for the entire session
+  - conftest.pytest_sessionfinish: drops schema ONCE after all tests
+
+Per-class setup (BaseTestCase.setUpClass):
+  - Re-uses the session schema and app; no drop_all/create_all per class.
+  - Seeds base fixtures idempotently (shared across all classes in the session).
+  - Subclass fixtures use unique IDs and accumulate harmlessly; schema is dropped at session end.
 
 Per-test isolation (savepoint rollback):
   - setUp: open a PostgreSQL SAVEPOINT via db.session.begin_nested()
@@ -24,7 +29,8 @@ Standard fixtures available on every test class (via class attributes):
   - BASE_PROJECT_ID / BASE_SITE_ID          — project + site + mapping
 
 Subclasses may add class-level fixtures in their own setUpClass (call
-super().setUpClass() first).
+super().setUpClass() first). Subclass fixtures must use unique IDs so they
+do not conflict with base fixtures or other test classes in the same session.
 
 Provisioning the test database (one-time, already done):
   docker exec minerva_db psql -U minerva -c "CREATE DATABASE minerva_test;"
@@ -43,11 +49,9 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from itsdangerous import URLSafeTimedSerializer
 import sqlalchemy as sa
-from sqlalchemy.exc import ProgrammingError
 
-from app import create_app, db
+from app import db
 from app.models import (
-    VaAllocation,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaProjectMaster,
@@ -55,7 +59,6 @@ from app.models import (
     VaSiteMaster,
     VaStatuses,
     VaUserAccessGrants,
-    VaUsernotesFor,
     VaUsers,
 )
 from config import TestConfig
@@ -76,161 +79,151 @@ class BaseTestCase(unittest.TestCase):
     BASE_SITE_ID = "BS01"
 
     @classmethod
-    def _drop_test_materialized_views(cls):
-        for mv in (
-            "va_submission_cod_detail_mv",
-            "va_submission_analytics_demographics_mv",
-            "va_submission_analytics_core_mv",
-            "va_submission_analytics_mv",
-        ):
-            db.session.execute(
-                sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE")
-            )
-        db.session.commit()
-
-    @classmethod
-    def _ensure_named_enums(cls):
-        enum_defs = {
-            "status_enum": [member.value for member in VaStatuses],
-            "allocation_enum": [member.value for member in VaAllocation],
-            "usernote_enum": [member.value for member in VaUsernotesFor],
-            "access_role_enum": [member.value for member in VaAccessRoles],
-            "access_scope_enum": [member.value for member in VaAccessScopeTypes],
-        }
-
-        for table in db.Model.metadata.tables.values():
-            for column in table.columns:
-                col_type = getattr(column, "type", None)
-                if isinstance(col_type, sa.Enum) and col_type.name in enum_defs:
-                    col_type.create_type = False
-
-        for enum_name, values in enum_defs.items():
-            quoted_values = ", ".join(f"'{value}'" for value in values)
-            db.session.execute(
-                sa.text(
-                    f"""
-                    DO $$
-                    BEGIN
-                        IF NOT EXISTS (
-                            SELECT 1
-                            FROM pg_type t
-                            JOIN pg_namespace n ON n.oid = t.typnamespace
-                            WHERE t.typname = '{enum_name}'
-                              AND n.nspname = current_schema()
-                        ) THEN
-                            CREATE TYPE {enum_name} AS ENUM ({quoted_values});
-                        END IF;
-                    END
-                    $$;
-                    """
-                )
-            )
-        db.session.commit()
-
-    @classmethod
     def setUpClass(cls):
-        cls.app = create_app(cls.config_class)
-        cls.ctx = cls.app.app_context()
-        cls.ctx.push()
-        cls._drop_test_materialized_views()
-        try:
-            db.drop_all()
-        except ProgrammingError:
-            db.session.rollback()
-        cls._ensure_named_enums()
-        db.create_all()
+        # Reuse the session-scoped app and context created by conftest.pytest_sessionstart.
+        # Schema already exists — no drop_all/create_all here.
+        #
+        # Retrieve the app from the currently-active app context.
+        # conftest.pytest_sessionstart pushes the context before any setUpClass
+        # runs, so current_app is always available here.  This avoids any
+        # module-identity issues with how pytest imports conftest plugins.
+        from flask import current_app
+        cls.app = current_app._get_current_object()
+        cls.ctx = None  # context is managed by conftest; do not push/pop per class
+
+        # _seed_base_fixtures is idempotent: safe to call once per class.
+        # Base fixtures (BASE_PROJECT_ID, BASE_SITE_ID, 3 users) are shared across
+        # all test classes and seeded once; subsequent classes find and reuse them.
+        # Subclass-specific fixtures use unique IDs so they never conflict.
         cls._seed_base_fixtures()
 
     @classmethod
     def tearDownClass(cls):
-        db.session.remove()
-        cls._drop_test_materialized_views()
-        try:
-            db.drop_all()
-        except ProgrammingError:
-            db.session.rollback()
-        db.engine.dispose()   # close all pool connections so next class can acquire DDL locks
-        cls.ctx.pop()
+        # Per-class teardown is lightweight: per-test savepoints handle data isolation.
+        # The full schema drop happens once at session end in conftest.pytest_sessionfinish.
+        db.session.expire_all()
 
     @classmethod
     def _seed_base_fixtures(cls):
         """
-        Create the minimal reference data that every test class may rely on:
-        one project, one site, one project-site mapping, and three users
-        (admin, project_pi, coder).
+        Create (or find) the minimal reference data that every test class may rely on.
+
+        Idempotent: if BASE_PROJECT_ID/BASE_SITE_ID/users already exist (seeded by a
+        previous test class in the same session), they are reused rather than re-inserted.
+        This allows all test classes to share a single copy of the base fixtures for the
+        whole pytest session without unique-constraint conflicts.
         """
         now = datetime.now(timezone.utc)
 
-        project = VaProjectMaster(
-            project_id=cls.BASE_PROJECT_ID,
-            project_code=cls.BASE_PROJECT_ID,
-            project_name="Base Test Project",
-            project_nickname="BaseTest",
-            project_status=VaStatuses.active,
-            project_registered_at=now,
-            project_updated_at=now,
-        )
-        site = VaSiteMaster(
-            site_id=cls.BASE_SITE_ID,
-            site_name="Base Test Site",
-            site_abbr=cls.BASE_SITE_ID,
-            site_status=VaStatuses.active,
-            site_registered_at=now,
-            site_updated_at=now,
-        )
-        db.session.add_all([project, site])
-        db.session.flush()
+        project = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
+        if project is None:
+            project = VaProjectMaster(
+                project_id=cls.BASE_PROJECT_ID,
+                project_code=cls.BASE_PROJECT_ID,
+                project_name="Base Test Project",
+                project_nickname="BaseTest",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+            db.session.add(project)
+            db.session.flush()
 
-        project_site = VaProjectSites(
-            project_id=cls.BASE_PROJECT_ID,
-            site_id=cls.BASE_SITE_ID,
-            project_site_status=VaStatuses.active,
-            project_site_registered_at=now,
-            project_site_updated_at=now,
-        )
-        db.session.add(project_site)
-        db.session.flush()
+        site = db.session.get(VaSiteMaster, cls.BASE_SITE_ID)
+        if site is None:
+            site = VaSiteMaster(
+                site_id=cls.BASE_SITE_ID,
+                site_name="Base Test Site",
+                site_abbr=cls.BASE_SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+            db.session.add(site)
+            db.session.flush()
 
-        cls.base_admin_user = cls._make_user(
-            "base.admin@test.local", "BaseAdmin123"
+        project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
+                VaProjectSites.site_id == cls.BASE_SITE_ID,
+            )
         )
-        cls.base_project_pi_user = cls._make_user(
-            "base.project_pi@test.local", "BaseProjectPi123"
-        )
-        cls.base_coder_user = cls._make_user(
-            "base.coder@test.local", "BaseCoder123"
-        )
+        if project_site is None:
+            project_site = VaProjectSites(
+                project_id=cls.BASE_PROJECT_ID,
+                site_id=cls.BASE_SITE_ID,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+            db.session.add(project_site)
+            db.session.flush()
 
-        db.session.add_all([
-            VaUserAccessGrants(
+        cls.base_admin_user = cls._get_or_make_user("base.admin@test.local", "BaseAdmin123")
+        cls.base_project_pi_user = cls._get_or_make_user("base.project_pi@test.local", "BaseProjectPi123")
+        cls.base_coder_user = cls._get_or_make_user("base.coder@test.local", "BaseCoder123")
+
+        # Grants are idempotent via the role+user+scope combination
+        admin_grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == cls.base_admin_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.admin,
+            )
+        )
+        if admin_grant is None:
+            db.session.add(VaUserAccessGrants(
                 user_id=cls.base_admin_user.user_id,
                 role=VaAccessRoles.admin,
                 scope_type=VaAccessScopeTypes.global_scope,
                 notes="base admin grant",
                 grant_status=VaStatuses.active,
-            ),
-            VaUserAccessGrants(
+            ))
+
+        pi_grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == cls.base_project_pi_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.project_pi,
+            )
+        )
+        if pi_grant is None:
+            db.session.add(VaUserAccessGrants(
                 user_id=cls.base_project_pi_user.user_id,
                 role=VaAccessRoles.project_pi,
                 scope_type=VaAccessScopeTypes.project,
                 project_id=cls.BASE_PROJECT_ID,
                 notes="base project pi grant",
                 grant_status=VaStatuses.active,
-            ),
-            VaUserAccessGrants(
+            ))
+
+        coder_grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == cls.base_coder_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.coder,
+            )
+        )
+        if coder_grant is None:
+            db.session.add(VaUserAccessGrants(
                 user_id=cls.base_coder_user.user_id,
                 role=VaAccessRoles.coder,
                 scope_type=VaAccessScopeTypes.project_site,
                 project_site_id=project_site.project_site_id,
                 notes="base coder grant",
                 grant_status=VaStatuses.active,
-            ),
-        ])
+            ))
+
         db.session.commit()
 
         cls.base_admin_id = str(cls.base_admin_user.user_id)
         cls.base_project_pi_id = str(cls.base_project_pi_user.user_id)
         cls.base_coder_id = str(cls.base_coder_user.user_id)
+
+    @classmethod
+    def _get_or_make_user(cls, email, password):
+        """Return an existing user by email, or create one if not found."""
+        user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
+        if user is None:
+            user = cls._make_user(email, password)
+        return user
 
     @classmethod
     def _make_user(cls, email, password):

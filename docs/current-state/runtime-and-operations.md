@@ -16,9 +16,10 @@ This document captures the current Python runtime, container setup, migrations, 
 
 Current Python/runtime characteristics:
 
-- Python `3.13` base image in [`Dockerfile`](../../Dockerfile)
+- Python `3.13` base image (`python:3.13-slim`) in [`Dockerfile`](../../Dockerfile)
 - Flask application entrypoint via `FLASK_APP=run.py`
 - primary dependency management via `uv` (see [`pyproject.toml`](../../pyproject.toml) and [`uv.lock`](../../uv.lock))
+- SmartVA installed as a uv path dependency from `vendor/smartva-analyze` (git submodule)
 
 Key current libraries:
 
@@ -33,10 +34,10 @@ Key current libraries:
 - pandas
 - openpyxl
 - pyodk
-- pydub
 - python-dotenv
 - redis
 - celery
+- smartva (via path dependency, GUI deps excluded)
 
 Operational implication:
 
@@ -54,18 +55,19 @@ The app container is defined in [`Dockerfile`](../../Dockerfile).
 
 Current behavior:
 
-- starts from `astral/uv:python3.13-trixie`
-- installs `postgresql-client` and `ffmpeg`
-- installs Python dependencies via `uv sync`
-- copies the repo into `/app`
-- installs SmartVA-Analyze from `vendor/smartva-analyze` via `uv pip install --no-deps`
+- multi-stage build:
+  - **Builder stage**: `python:3.13-slim` + `uv` binary, runs `uv sync --frozen --no-dev`
+  - **Runtime stage**: `python:3.13-slim`, copies `.venv` from builder (no uv binary in final image)
+- installs `postgresql-client`, `sox`, and `libsox-fmt-all` for audio conversion
+- SmartVA installed as a uv path dependency (`vendor/smartva-analyze`)
 - marks `boot.sh` executable
 - exposes port `5000`
+- `PATH` includes `/app/.venv/bin` so all Python entrypoints (`flask`, `celery`, `gunicorn`) work without `uv run`
 
 Why the extra system packages exist:
 
-- `postgresql-client` is needed for DB-related operational commands
-- `ffmpeg` is needed for audio conversion via `pydub`
+- `postgresql-client` is needed for `pg_dump`/`psql` in DB backup and Celery beat startup
+- `sox` and `libsox-fmt-all` handle AMR→M4A/AAC audio conversion (replaces `ffmpeg`)
 
 ### Compose setup
 
@@ -81,17 +83,18 @@ Current services:
 
 Current behavior:
 
-- local override binds the app to `127.0.0.1:5005`
-- postgres is bound to host port `8450`
+- local override (`docker-compose.override.yml`) runs Flask dev server on `0.0.0.0:5000`, mapped to host port `8051`
 - redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`
+- an anonymous volume preserves the image's `/app/.venv` from the host mount
 - postgres data is persisted in a named docker volume
-- celery beat startup now waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
-- celery worker startup uses `--concurrency=2`
+- celery beat startup waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
+- celery worker startup uses `--concurrency=1`
+- all services run Python entrypoints directly (`flask`, `celery`, `gunicorn`) — no `uv run` wrapper needed
 
 Current health checks:
 
-- app: `GET /health`
+- app: Python `urllib.request.urlopen('/health')` (no `curl`/`wget` in slim image)
 - db: `pg_isready -U minerva`
 
 ## Boot And Startup

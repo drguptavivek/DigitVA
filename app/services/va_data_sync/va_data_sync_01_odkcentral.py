@@ -1057,14 +1057,11 @@ def va_data_sync_odkcentral(
             _progress("No active mapped VA forms found — nothing to sync.")
             return
 
-        # Build (project_id, site_id) → MapProjectSiteOdk lookup for delta check
-        all_mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
-        mappings_by_ps = {(m.project_id, m.site_id): m for m in all_mappings}
         connection_by_project = _resolve_project_connections()
         clients_by_group = {}
 
         form_ids = [f.form_id for f in va_forms]
-        _progress(f"Processing {len(va_forms)} form(s): {', '.join(form_ids)}")
+        _progress(f"Processing {len(form_ids)} form(s): {', '.join(form_ids)}")
 
         va_submissions_added = 0
         va_submissions_updated = 0
@@ -1081,18 +1078,30 @@ def va_data_sync_odkcentral(
 
         # ── Per-form: delta check → download → upsert → commit ─────────────────
 
-        for va_form in va_forms:
-            mapping = mappings_by_ps.get((va_form.project_id, va_form.site_id))
+        for form_id in form_ids:
+            # Re-query each form and mapping fresh so that db.session.remove()
+            # in a previous iteration's exception handler does not leave us with
+            # detached ORM instances.
+            va_form = db.session.get(VaForms, form_id)
+            if va_form is None:
+                _progress(f"[{form_id}] form not found — skipping")
+                continue
+            mapping = db.session.scalar(
+                sa.select(MapProjectSiteOdk).where(
+                    MapProjectSiteOdk.project_id == va_form.project_id,
+                    MapProjectSiteOdk.site_id == va_form.site_id,
+                )
+            )
             # Preemptive cooldown skip — if this connection already tripped
             # cooldown for an earlier form this run, skip immediately.
             _form_connection_id = connection_by_project.get(va_form.project_id)
             if _form_connection_id and _form_connection_id in connections_in_cooldown:
                 log.warning(
                     "DataSync [%s] skipped: connection %s still in cooldown",
-                    va_form.form_id, _form_connection_id,
+                    form_id, _form_connection_id,
                 )
-                _progress(f"[{va_form.form_id}] SKIPPED — connection in cooldown")
-                cooldown_skipped_form_ids.append(va_form.form_id)
+                _progress(f"[{form_id}] SKIPPED — connection in cooldown")
+                cooldown_skipped_form_ids.append(form_id)
                 continue
             try:
                 odk_client = _get_or_create_sync_odk_client(
@@ -1469,7 +1478,23 @@ def va_data_sync_odkcentral(
                             log.warning(
                                 "DataSync [%s]: stale DB connection after attachment "
                                 "download, ETag records lost — will re-sync next run.",
-                                va_form.form_id,
+                                form_id,
+                            )
+                            # Session reset detaches all ORM instances.
+                            # Reload form + mapping for the current iteration.
+                            va_form = db.session.get(VaForms, form_id)
+                            if va_form is None:
+                                _progress(
+                                    f"[{form_id}] attachments: form missing after DB "
+                                    "session reset — skipping SmartVA for this form"
+                                )
+                                failed_form_ids.append(form_id)
+                                continue
+                            mapping = db.session.scalar(
+                                sa.select(MapProjectSiteOdk).where(
+                                    MapProjectSiteOdk.project_id == va_form.project_id,
+                                    MapProjectSiteOdk.site_id == va_form.site_id,
+                                )
                             )
                         _progress(
                             f"[{va_form.form_id}] attachments: complete — "
@@ -1518,22 +1543,22 @@ def va_data_sync_odkcentral(
                     connections_in_cooldown.add(_form_connection_id)
                 log.warning(
                     "DataSync [%s] skipped: ODK connection in cooldown until %s — %s",
-                    va_form.form_id, form_err.cooldown_until, form_err.last_failure_message,
+                    form_id, form_err.cooldown_until, form_err.last_failure_message,
                 )
                 _progress(
-                    f"[{va_form.form_id}] SKIPPED (connection cooldown until "
+                    f"[{form_id}] SKIPPED (connection cooldown until "
                     f"{form_err.cooldown_until.strftime('%H:%M:%S UTC')})"
                 )
-                cooldown_skipped_form_ids.append(va_form.form_id)
+                cooldown_skipped_form_ids.append(form_id)
             except Exception as form_err:
                 db.session.rollback()
                 db.session.remove()
                 log.error(
                     "DataSync [%s] failed: %s",
-                    va_form.form_id, form_err, exc_info=True,
+                    form_id, form_err, exc_info=True,
                 )
-                _progress(f"[{va_form.form_id}] FAILED: {form_err}")
-                failed_form_ids.append(va_form.form_id)
+                _progress(f"[{form_id}] FAILED: {form_err}")
+                failed_form_ids.append(form_id)
 
         # ── Release allocations (global — runs after all forms) ─────────────────
 

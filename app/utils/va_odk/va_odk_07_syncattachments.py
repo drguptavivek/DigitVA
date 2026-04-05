@@ -4,8 +4,12 @@ Replaces the full ZIP attachment extraction. For each submission:
   1. Fetch attachment list from ODK Central (cheap — no binary).
   2. For each file with exists=true, check the stored ETag.
   3. Conditional GET with If-None-Match → 304 (skip) or 200 (download).
-  4. .amr files are converted to .mp3; images stored as-is.
-  5. ETag and local path stored in va_submission_attachments.
+  4. .amr files are converted to .mp3 via SoX; images stored as-is.
+  5. ETag, local path, and storage_name stored in va_submission_attachments.
+
+Files are stored on disk as {storage_name} (uuid4().hex + ext) instead of
+their original ODK filename.  The original filename is preserved in the DB
+row for lookup; the opaque storage_name is used for serving URLs.
 
 The form media directory is NEVER cleared (no rmtree). Existing files for
 unchanged submissions remain on disk, so coders never see missing attachments
@@ -13,14 +17,17 @@ during an active sync.
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
 import os
+import subprocess
 import threading
+import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from flask import current_app, has_app_context
 
 from app.services.odk_connection_guard_service import guarded_odk_call
@@ -30,6 +37,54 @@ _ATTACHMENT_SYNC_MAX_WORKERS = 3
 _STREAM_CHUNK_SIZE = 64 * 1024
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _normalize_attachment_filename(filename: str) -> str:
+    """Normalize filename for cache key use. Case-insensitive .amr → .mp3."""
+    if filename.lower().endswith(".amr"):
+        return filename[: -len(".amr")] + ".mp3"
+    return filename
+
+
+def _generate_storage_name(original_filename: str) -> str:
+    """Generate a unique opaque storage name (uuid4 hex + lowercase ext)."""
+    ext = os.path.splitext(original_filename)[1].lower()
+    if ext == ".amr":
+        ext = ".mp3"
+    return uuid.uuid4().hex + ext
+
+
+def _invalidate_attachment_cache(
+    storage_name: str | None,
+    va_sid: str,
+    filename: str,
+    extra_storage_name: str | None = None,
+) -> None:
+    """Delete Redis cache entries for an attachment.
+
+    Deletes:
+      att:{storage_name}            — serving route cache
+      att_name:{va_sid}:{normalized} — render resolver cache
+      att:{extra_storage_name}      — pre-emptive new-token invalidation (optional)
+    """
+    try:
+        from app import cache as flask_cache
+        normalized = _normalize_attachment_filename(filename)
+        if storage_name:
+            flask_cache.delete(f"att:{storage_name}")
+        flask_cache.delete(f"att_name:{va_sid}:{normalized}")
+        if extra_storage_name:
+            flask_cache.delete(f"att:{extra_storage_name}")
+    except Exception as exc:
+        log.warning("Cache invalidation error for %s/%s: %s", va_sid, filename, exc)
+
+
+# ---------------------------------------------------------------------------
+# Dataclasses
+# ---------------------------------------------------------------------------
+
 @dataclass(slots=True)
 class AttachmentChange:
     filename: str
@@ -38,6 +93,7 @@ class AttachmentChange:
     mime_type: str | None = None
     etag: str | None = None
     last_downloaded_at: datetime | None = None
+    storage_name: str | None = None
 
 
 @dataclass(slots=True)
@@ -48,6 +104,10 @@ class SubmissionAttachmentSyncResult:
     errors: int
     changes: list[AttachmentChange]
 
+
+# ---------------------------------------------------------------------------
+# Network-only sync (no DB, no ORM)
+# ---------------------------------------------------------------------------
 
 def _sync_submission_attachments_no_db(
     va_form,
@@ -109,6 +169,7 @@ def _sync_submission_attachments_no_db(
             f"/submissions/{instance_id}/attachments/{filename}"
         )
         dl_resp = None
+        tmp_path: str | None = None
         try:
             dl_resp = guarded_odk_call(
                 lambda: client.session.get(
@@ -133,15 +194,24 @@ def _sync_submission_attachments_no_db(
             raw_mime: str = dl_resp.headers.get("Content-Type", "")
             mime_type: str | None = raw_mime.split(";")[0].strip() or None
 
-            write_path = os.path.join(media_dir, filename)
-            with open(write_path, "wb") as f:
+            storage_name = _generate_storage_name(filename)
+            tmp_path = os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}")
+
+            # Download to temp file
+            with open(tmp_path, "wb") as f:
                 for chunk in dl_resp.iter_content(chunk_size=_STREAM_CHUNK_SIZE):
                     if chunk:
                         f.write(chunk)
 
-            local_path = write_path
+            # Rename / convert to final storage_name path
+            final_path = os.path.join(media_dir, storage_name)
             if filename.lower().endswith(".amr"):
-                local_path = _convert_amr_to_mp3(write_path, va_form.form_id)
+                local_path = _convert_amr_to_mp3(tmp_path, va_form.form_id, output_path=final_path)
+                tmp_path = None  # conversion consumed the temp file
+            else:
+                os.rename(tmp_path, final_path)
+                tmp_path = None  # rename consumed the temp file
+                local_path = final_path
 
             changes.append(
                 AttachmentChange(
@@ -151,6 +221,7 @@ def _sync_submission_attachments_no_db(
                     mime_type=mime_type,
                     etag=new_etag,
                     last_downloaded_at=datetime.now(timezone.utc),
+                    storage_name=storage_name,
                 )
             )
             downloaded += 1
@@ -160,6 +231,12 @@ def _sync_submission_attachments_no_db(
                 "Attachment sync error [%s/%s]: %s", va_sid, filename, exc, exc_info=True
             )
         finally:
+            # Clean up temp file if it still exists (rename/conversion didn't consume it)
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
             if dl_resp is not None and hasattr(dl_resp, "close"):
                 dl_resp.close()
 
@@ -172,6 +249,10 @@ def _sync_submission_attachments_no_db(
     )
 
 
+# ---------------------------------------------------------------------------
+# DB apply
+# ---------------------------------------------------------------------------
+
 def _apply_submission_attachment_result(existing_records, result):
     """Apply a network-only attachment sync result using PK-safe upserts."""
     from app import db
@@ -181,14 +262,30 @@ def _apply_submission_attachment_result(existing_records, result):
     for change in result.changes:
         rec = existing.get(change.filename)
         if rec:
-            rec.exists_on_odk = change.exists_on_odk
-            if change.exists_on_odk:
+            if change.exists_on_odk and change.local_path is not None:
+                # Fresh download — rotate storage_name
+                old_storage_name = rec.storage_name
+                rec.exists_on_odk = True
                 rec.local_path = change.local_path
                 rec.mime_type = change.mime_type
                 rec.etag = change.etag
                 rec.last_downloaded_at = change.last_downloaded_at
+                rec.storage_name = change.storage_name
+                if old_storage_name is not None:
+                    _invalidate_attachment_cache(
+                        old_storage_name,
+                        result.va_sid,
+                        change.filename,
+                        extra_storage_name=change.storage_name,
+                    )
+            else:
+                # File removed on ODK — update flag and invalidate cache
+                old_storage_name = rec.storage_name
+                rec.exists_on_odk = change.exists_on_odk
+                _invalidate_attachment_cache(old_storage_name, result.va_sid, change.filename)
             continue
 
+        # New record — upsert with collision retry
         values = {
             "va_sid": result.va_sid,
             "filename": change.filename,
@@ -199,25 +296,46 @@ def _apply_submission_attachment_result(existing_records, result):
             "last_downloaded_at": (
                 change.last_downloaded_at if change.exists_on_odk else None
             ),
+            "storage_name": change.storage_name if change.exists_on_odk else None,
         }
-        insert_stmt = pg_insert(VaSubmissionAttachments).values(**values)
-        db.session.execute(
-            insert_stmt.on_conflict_do_update(
-                index_elements=[
-                    VaSubmissionAttachments.va_sid,
-                    VaSubmissionAttachments.filename,
-                ],
-                set_={
-                    "exists_on_odk": insert_stmt.excluded.exists_on_odk,
-                    "local_path": insert_stmt.excluded.local_path,
-                    "mime_type": insert_stmt.excluded.mime_type,
-                    "etag": insert_stmt.excluded.etag,
-                    "last_downloaded_at": insert_stmt.excluded.last_downloaded_at,
-                },
-            )
-        )
+
+        for attempt in range(3):
+            try:
+                insert_stmt = pg_insert(VaSubmissionAttachments).values(**values)
+                db.session.execute(
+                    insert_stmt.on_conflict_do_update(
+                        index_elements=[
+                            VaSubmissionAttachments.va_sid,
+                            VaSubmissionAttachments.filename,
+                        ],
+                        set_={
+                            "exists_on_odk": insert_stmt.excluded.exists_on_odk,
+                            "local_path": insert_stmt.excluded.local_path,
+                            "mime_type": insert_stmt.excluded.mime_type,
+                            "etag": insert_stmt.excluded.etag,
+                            "last_downloaded_at": insert_stmt.excluded.last_downloaded_at,
+                            "storage_name": insert_stmt.excluded.storage_name,
+                        },
+                    )
+                )
+                break
+            except IntegrityError as exc:
+                db.session.rollback()
+                if "ix_va_submission_attachments_storage_name" in str(exc) and attempt < 2:
+                    log.warning(
+                        "storage_name collision for %s/%s, retrying (%d/3)",
+                        result.va_sid, change.filename, attempt + 1,
+                    )
+                    values["storage_name"] = _generate_storage_name(change.filename)
+                else:
+                    raise
+
         existing.pop(change.filename, None)
 
+
+# ---------------------------------------------------------------------------
+# Batch form sync
+# ---------------------------------------------------------------------------
 
 def _load_existing_attachment_records(va_sids):
     """Load existing ORM attachment records keyed by submission and filename."""
@@ -343,21 +461,7 @@ def va_odk_sync_submission_attachments(
     media_dir: str,
     client=None,
 ) -> dict:
-    """Sync attachments for one submission using ETag-based conditional download.
-
-    Reads existing ETags from va_submission_attachments. Only downloads
-    files that are new or have changed (HTTP 200). Skips unchanged files
-    (HTTP 304). Updates ETag records after each download.
-
-    Args:
-        va_form: VaForms instance (used for ODK project/form IDs and project_id).
-        instance_id: ODK submission UUID (the ``__id`` / KEY value).
-        va_sid: Application submission ID (FK in va_submission_attachments).
-        media_dir: Absolute path to the form's media directory.
-
-    Returns:
-        {"downloaded": int, "skipped": int, "errors": int}
-    """
+    """Sync attachments for one submission using ETag-based conditional download."""
     from app import db
     from app.models.va_submission_attachments import VaSubmissionAttachments
     from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
@@ -389,24 +493,49 @@ def va_odk_sync_submission_attachments(
     }
 
 
-def _convert_amr_to_mp3(amr_path: str, form_id: str) -> str:
-    """Convert an .amr file to .mp3 in-place. Returns the .mp3 path.
+# ---------------------------------------------------------------------------
+# AMR conversion
+# ---------------------------------------------------------------------------
 
-    If conversion fails, the .amr is kept and its path is returned so the
-    file is still on disk (better than losing it).
+def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = None) -> str:
+    """Convert an .amr file to .mp3. Returns the .mp3 path.
+
+    Uses SoX with smart bitrate: probes source via soxi, then targets 2x
+    the source bitrate (capped 16–64 kbps). AMR-NB speech (~12 kbps) ends
+    up at 24 kbps — optimal quality for the source without bloated output.
+
+    If output_path is provided, write the .mp3 there (and delete amr_path).
+    Otherwise derive the output path by replacing the .amr extension.
+
+    If conversion fails, the source file is kept and its path returned.
     """
-    from pydub import AudioSegment
-
-    mp3_path = amr_path.rsplit(".", 1)[0] + ".mp3"
+    mp3_path = output_path or amr_path.rsplit(".", 1)[0] + ".mp3"
     try:
-        audio = AudioSegment.from_file(amr_path, format="amr")
-        audio.export(mp3_path, format="mp3")
+        # Probe source bitrate via soxi
+        target_bitrate = 24  # sensible default
+        try:
+            duration = float(subprocess.check_output(["soxi", "-D", amr_path]).decode().strip())
+            file_size = os.path.getsize(amr_path)
+            source_kbps = int((file_size * 8) / duration / 1000)
+            target_bitrate = max(16, min(64, source_kbps * 2))
+        except Exception:
+            pass  # fallback to default
+
+        subprocess.run(
+            ["sox", amr_path, "-C", str(target_bitrate), mp3_path],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         os.remove(amr_path)
-        log.info("AMR→MP3 [%s]: %s → %s", form_id, os.path.basename(amr_path), os.path.basename(mp3_path))
+        log.info(
+            "AMR→MP3 [%s]: %s → %s (%dkbps)", form_id,
+            os.path.basename(amr_path), os.path.basename(mp3_path), target_bitrate,
+        )
         return mp3_path
     except Exception as e:
         log.warning(
-            "AMR→MP3 conversion failed [%s/%s]: %s — keeping .amr",
+            "AMR→MP3 conversion failed [%s/%s]: %s — keeping source",
             form_id, os.path.basename(amr_path), e,
         )
         return amr_path

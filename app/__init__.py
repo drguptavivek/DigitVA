@@ -134,6 +134,9 @@ def create_app(config_class=Config):
     from app.commands.analytics import init_app as init_analytics_commands
     init_analytics_commands(app)
 
+    from scripts.migrate_attachment_storage_names import init_app as init_migrate_attachment_commands
+    init_migrate_attachment_commands(app)
+
     from app.commands.users import init_app as init_users_commands
     init_users_commands(app)
     

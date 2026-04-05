@@ -3,12 +3,19 @@ import os
 import sqlalchemy as sa
 from datetime import datetime, timezone
 from flask import current_app
+from sqlalchemy.exc import IntegrityError
 from werkzeug.utils import secure_filename
 
 from app import db
 from app.models import VaForms, VaSubmissionAttachments, VaSubmissions
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.utils.va_render.va_render_06_processcategorydata import va_isattachment
+from app.utils.va_odk.va_odk_07_syncattachments import (
+    _generate_storage_name,
+    _normalize_attachment_filename,
+)
+
+_AUDIT_CSV = "audit.csv"
 
 
 def _candidate_attachment_paths(media_dir: str, raw_value: str) -> list[tuple[str, str]]:
@@ -49,6 +56,9 @@ def _submission_attachment_refs(submission: VaSubmissions, media_dir: str) -> tu
             continue
 
         original_name = raw_value.strip()
+        if original_name == _AUDIT_CSV:
+            continue
+
         for resolved_name, local_path in _candidate_attachment_paths(media_dir, original_name):
             if not os.path.exists(local_path):
                 continue
@@ -73,6 +83,24 @@ def _submission_attachment_refs(submission: VaSubmissions, media_dir: str) -> tu
     return refs, missing_count
 
 
+def _assign_storage_name_and_rename(media_dir: str, ref: dict) -> dict:
+    """Generate a storage_name, rename file on disk, return updated ref dict.
+
+    Skips if the file is already at a storage_name path (storage_name already set
+    is checked by callers; this handles the disk rename).
+    """
+    storage_name = _generate_storage_name(ref["filename"])
+    new_local_path = os.path.join(media_dir, storage_name)
+    old_local_path = ref["local_path"]
+
+    if os.path.exists(old_local_path):
+        os.rename(old_local_path, new_local_path)
+    # If old path doesn't exist, proceed anyway — storage_name will be assigned
+    # and local_path updated; the file may have been renamed by a previous run.
+
+    return {**ref, "local_path": new_local_path, "storage_name": storage_name}
+
+
 def _scoped_forms(project_id: str | None = None, site_id: str | None = None, form_id: str | None = None):
     stmt = sa.select(VaForms).order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
     if project_id:
@@ -93,9 +121,12 @@ def backfill_attachment_cache(
 ) -> dict:
     """Backfill va_submission_attachments from existing local files.
 
-    This scans submission attachment fields in `va_data`, checks whether the
-    referenced file exists in the form's `media` directory, and creates or
-    refreshes cache rows in `va_submission_attachments`.
+    Scans submission attachment fields in va_data, checks whether the
+    referenced file exists in the form's media directory, and creates or
+    refreshes cache rows in va_submission_attachments.
+
+    Also assigns storage_name and renames files on disk for rows that
+    don't yet have a storage_name (storage_name IS NULL).
     """
     totals = {
         "forms_scanned": 0,
@@ -138,26 +169,55 @@ def backfill_attachment_cache(
             }
 
             for ref in refs:
+                if ref["filename"] == _AUDIT_CSV:
+                    continue
+
                 row = existing.get(ref["filename"])
                 if row is None:
-                    db.session.add(
-                        VaSubmissionAttachments(
-                            va_sid=submission.va_sid,
-                            filename=ref["filename"],
-                            local_path=ref["local_path"],
-                            mime_type=ref["mime_type"],
-                            etag=None,
-                            exists_on_odk=True,
-                            last_downloaded_at=ref["last_downloaded_at"],
-                        )
-                    )
-                    totals["attachments_created"] += 1
+                    # New row — assign storage_name and rename file
+                    updated_ref = _assign_storage_name_and_rename(form_media_dir, ref)
+                    for attempt in range(3):
+                        try:
+                            db.session.add(
+                                VaSubmissionAttachments(
+                                    va_sid=submission.va_sid,
+                                    filename=updated_ref["filename"],
+                                    local_path=updated_ref["local_path"],
+                                    mime_type=updated_ref["mime_type"],
+                                    storage_name=updated_ref["storage_name"],
+                                    etag=None,
+                                    exists_on_odk=True,
+                                    last_downloaded_at=updated_ref["last_downloaded_at"],
+                                )
+                            )
+                            db.session.flush()
+                            totals["attachments_created"] += 1
+                            break
+                        except IntegrityError as exc:
+                            db.session.rollback()
+                            if "ix_va_submission_attachments_storage_name" in str(exc) and attempt < 2:
+                                updated_ref["storage_name"] = _generate_storage_name(ref["filename"])
+                                new_path = os.path.join(form_media_dir, updated_ref["storage_name"])
+                                if os.path.exists(updated_ref["local_path"]):
+                                    os.rename(updated_ref["local_path"], new_path)
+                                updated_ref["local_path"] = new_path
+                            else:
+                                raise
                     continue
 
                 changed = False
-                if row.local_path != ref["local_path"]:
-                    row.local_path = ref["local_path"]
+
+                # Assign storage_name if missing (pre-migration row)
+                if row.storage_name is None:
+                    updated_ref = _assign_storage_name_and_rename(form_media_dir, ref)
+                    row.storage_name = updated_ref["storage_name"]
+                    row.local_path = updated_ref["local_path"]
                     changed = True
+                else:
+                    if row.local_path != ref["local_path"] and row.local_path != os.path.join(form_media_dir, row.storage_name):
+                        row.local_path = ref["local_path"]
+                        changed = True
+
                 if row.mime_type != ref["mime_type"]:
                     row.mime_type = ref["mime_type"]
                     changed = True

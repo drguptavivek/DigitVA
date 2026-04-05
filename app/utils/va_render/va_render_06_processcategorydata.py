@@ -19,6 +19,63 @@ va_isattachment = ["Id10476_audio", "imagenarr", "md_im1", "md_im2", "md_im3", "
 va_multipleselect = ["Id10173_nc", "Id10199", "Id10235", "Id10477", "Id10478", "Id10479"]
 
 
+def _normalize_attachment_filename(filename: str) -> str:
+    """Normalize filename for cache key use. Case-insensitive .amr → .mp3."""
+    if filename.lower().endswith(".amr"):
+        return filename[: -len(".amr")] + ".mp3"
+    return filename
+
+
+def _prefetch_attachment_urls(va_sid: str) -> None:
+    """Load all storage_names for a va_sid in one query and warm the att_name cache.
+
+    Reduces per-render DB queries for attachments from O(fields) to O(1).
+    Called once at the top of va_render_processcategorydata when va_sid is known.
+    """
+    import sqlalchemy as sa
+    from app import db, cache as flask_cache
+    from app.models.va_submission_attachments import VaSubmissionAttachments
+
+    rows = db.session.execute(
+        sa.select(VaSubmissionAttachments.filename, VaSubmissionAttachments.storage_name)
+        .where(VaSubmissionAttachments.va_sid == va_sid)
+        .where(VaSubmissionAttachments.exists_on_odk == True)  # noqa: E712
+        .where(VaSubmissionAttachments.storage_name.is_not(None))
+    ).all()
+    for filename, storage_name in rows:
+        key = f"att_name:{va_sid}:{_normalize_attachment_filename(filename)}"
+        flask_cache.set(key, storage_name, timeout=300)
+
+
+def _resolve_attachment_url(va_sid: str, original_filename: str) -> str | None:
+    """Resolve attachment filename to a /attachment/{storage_name} URL.
+
+    Lookup order: Redis cache → DB.
+    Returns None if no storage_name exists for the (va_sid, filename) pair.
+    """
+    import sqlalchemy as sa
+    from app import db, cache as flask_cache
+    from app.models.va_submission_attachments import VaSubmissionAttachments
+
+    lookup_name = _normalize_attachment_filename(original_filename)
+    cache_key = f"att_name:{va_sid}:{lookup_name}"
+
+    storage_name = flask_cache.get(cache_key)
+    if storage_name is None:
+        storage_name = db.session.execute(
+            sa.select(VaSubmissionAttachments.storage_name)
+            .where(VaSubmissionAttachments.va_sid == va_sid)
+            .where(VaSubmissionAttachments.filename == original_filename)
+            .where(VaSubmissionAttachments.exists_on_odk == True)  # noqa: E712
+            .where(VaSubmissionAttachments.storage_name.is_not(None))
+        ).scalar_one_or_none()
+        if storage_name is None:
+            return None
+        flask_cache.set(cache_key, storage_name, timeout=300)
+
+    return url_for("va_form.serve_attachment", storage_name_raw=storage_name)
+
+
 def _choice_lookup_key_candidates(value):
     """Return candidate choice keys for values that may arrive as numeric JSON."""
     cleaned = va_render_cleannumericvalue(value)
@@ -31,13 +88,26 @@ def _choice_lookup_key_candidates(value):
 
 
 def va_render_processcategorydata(
-    va_data, va_form_id, va_datalevel, va_mapping_choice, va_partial
+    va_data, va_form_id, va_datalevel, va_mapping_choice, va_partial, *, va_sid=None
 ):
+    """Render a category's field data into a display dict.
+
+    va_sid: when provided, attachment fields are resolved to /attachment/ URLs
+    via the DB/cache. When None (visibility-check contexts), falls back to
+    disk-existence check and returns a truthy sentinel — callers must not
+    render the returned values in that case.
+    """
     if not va_data:
         return {}
     category_mapping = va_datalevel.get(va_partial)
     if not category_mapping:
         return {}
+
+    # Bulk-prefetch all attachment storage_names for this submission in one query.
+    # This warms the att_name cache so _resolve_attachment_url always hits cache.
+    if va_sid is not None:
+        _prefetch_attachment_urls(va_sid)
+
     va_categoryresult = {}
     for va_subcat, va_fieldmap in category_mapping.items():
         va_subcatresult = OrderedDict()
@@ -68,20 +138,26 @@ def va_render_processcategorydata(
                         va_fieldid, value, va_mapping_choice
                     )
                 if va_fieldid in va_isattachment:
-                    if value.endswith(".amr"):
-                        value = value.replace(".amr", ".mp3")
-                    if os.path.exists(
-                        os.path.join(
+                    if va_sid is not None:
+                        url = _resolve_attachment_url(va_sid, value)
+                        if url:
+                            value = url
+                        else:
+                            continue
+                    else:
+                        # Visibility-check context (va_sid=None).
+                        # Do NOT assign disk path to value — callers may render it.
+                        # Use a sentinel: truthy but never a real URL or path.
+                        # IMPORTANT: callers using va_sid=None only check non-empty
+                        # dict for category visibility — they never render values.
+                        if value.lower().endswith(".amr"):
+                            value = value[: -len(".amr")] + ".mp3"
+                        disk_path = os.path.join(
                             current_app.config["APP_DATA"], va_form_id, "media", value
                         )
-                    ):
-                        value = url_for(
-                            "va_form.serve_media",
-                            va_form_id=va_form_id,
-                            va_filename=value,
-                        )
-                    else:
-                        continue
+                        if not os.path.exists(disk_path):
+                            continue
+                        value = "__attachment_present__"
                 value = va_render_cleannumericvalue(value)
                 va_subcatresult[va_label] = value
         if va_subcatresult:

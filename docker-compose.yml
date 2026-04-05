@@ -6,9 +6,7 @@ services:
     command: ./boot.sh
     volumes:
       - .:/app
-      - venv_app:/app/.venv
-    ports:
-      - "8051:5000"
+      - /app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
@@ -22,9 +20,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 756m
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
       interval: 2m
       timeout: 10s
       retries: 3
@@ -35,10 +33,10 @@ services:
     platform: linux/amd64
     container_name: minerva_celery_worker
     entrypoint: []
-    command: uv run celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
+    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
     volumes:
       - .:/app
-      - venv_worker:/app/.venv
+      - /app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
@@ -63,7 +61,7 @@ services:
     command: bash ./scripts/wait-for-celery-beat-db.sh
     volumes:
       - .:/app
-      - venv_beat:/app/.venv
+      - /app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
@@ -127,9 +125,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 756m
         reservations:
-          memory: 200m
+          memory: 386m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U minerva"]
       interval: 30s
@@ -139,6 +137,3 @@ services:
 
 volumes:
   pgdata_minerva:
-  venv_app:
-  venv_worker:
-  venv_beat:

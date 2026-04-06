@@ -106,6 +106,70 @@
     </div>
   </div>
 
+  <!-- Eligibility card -->
+  {% if coder_eligibility or coder_languages %}
+  <div class="row mb-4 g-3">
+    <div class="col-12">
+      <div class="card shadow-sm border-0 rounded-3">
+        <button
+          class="card-header bg-white border-0 rounded-3 w-100 text-start d-flex align-items-center gap-2 px-4 py-3 collapsed"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#eligibilityCollapse"
+          aria-expanded="false"
+          aria-controls="eligibilityCollapse"
+          style="cursor:pointer;"
+        >
+          <i class="fas fa-id-badge text-primary fa-lg"></i>
+          <span class="text-primary fw-semibold fs-5 me-auto">Eligibility</span>
+          <i class="fas fa-chevron-down text-secondary small collapse-chevron"></i>
+        </button>
+        <div id="eligibilityCollapse" class="collapse">
+          <div class="card-body px-4 pb-4 pt-3">
+            <div class="row g-3">
+              {% if coder_eligibility %}
+              <div class="col-md-8">
+                <p class="text-secondary small mb-2 fw-semibold text-uppercase">Projects &amp; Sites</p>
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th class="text-secondary small fw-semibold">Project</th>
+                        <th class="text-secondary small fw-semibold">Site</th>
+                        <th class="text-secondary small fw-semibold">Form ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in coder_eligibility %}
+                      <tr>
+                        <td class="small">{{ row.project }}</td>
+                        <td class="small">{{ row.site }}</td>
+                        <td class="small text-secondary font-monospace">{{ row.form_id }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {% endif %}
+              {% if coder_languages %}
+              <div class="col-md-4">
+                <p class="text-secondary small mb-2 fw-semibold text-uppercase">Languages</p>
+                <div class="d-flex flex-wrap gap-2">
+                  {% for lang in coder_languages %}
+                  <span class="badge rounded-pill bg-primary-subtle text-primary border border-primary-subtle px-3 py-2">{{ lang }}</span>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Action buttons -->
   <div class="text-center mb-4" id="action-buttons">
     <!-- rendered by JS -->
@@ -198,6 +262,8 @@
 
   <style>
     .select2-container .select2-selection--multiple { min-height: 38px; }
+    .collapse-chevron { transition: transform 0.2s ease; }
+    [aria-expanded="true"] .collapse-chevron { transform: rotate(180deg); }
   </style>
 
   <script>

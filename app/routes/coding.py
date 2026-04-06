@@ -104,6 +104,24 @@ def dashboard():
         va_pick_ready_forms_count = len(pick_ready_rows)
         has_random_mode = bool(random_form_ids)
         has_pick_mode = bool(pick_form_ids)
+        from app.models import VaSites, VaResearchProjects  # noqa: PLC0415
+        eligibility_rows = db.session.execute(
+            sa.select(
+                VaResearchProjects.project_nickname,
+                VaSites.site_name,
+                VaSites.site_abbr,
+                VaForms.form_id,
+            )
+            .join(VaSites, VaSites.site_id == VaForms.site_id)
+            .join(VaResearchProjects, VaResearchProjects.project_id == VaForms.project_id)
+            .where(VaForms.form_id.in_(va_form_access))
+            .order_by(VaResearchProjects.project_id, VaSites.site_id)
+        ).all()
+        coder_eligibility = [
+            {"project": r.project_nickname, "site": r.site_name, "site_abbr": r.site_abbr, "form_id": r.form_id}
+            for r in eligibility_rows
+        ]
+        coder_languages = sorted(current_user.vacode_language or [])
     else:
         va_total_forms = 0
         va_random_ready_forms = 0
@@ -113,6 +131,8 @@ def dashboard():
         va_pick_ready_forms_count = 0
         has_random_mode = False
         has_pick_mode = False
+        coder_eligibility = []
+        coder_languages = []
 
     va_has_allocation = get_active_coding_allocation(current_user.user_id)
     demo_projects = []
@@ -133,6 +153,8 @@ def dashboard():
         va_recodeable=get_coder_recodeable_sids(current_user.user_id, va_form_access),
         is_admin=current_user.is_admin(),
         demo_projects=demo_projects,
+        coder_eligibility=coder_eligibility,
+        coder_languages=coder_languages,
     )
 
 

@@ -4110,6 +4110,8 @@ def admin_sync_backfill_stats():
                     sa.func.count(VaSubmissions.va_sid).label("local_total"),
                     sa.func.coalesce(sa.func.sum(metadata_complete_expr), 0).label("metadata_complete"),
                     sa.func.coalesce(sa.func.sum(attachments_complete_expr), 0).label("attachments_complete"),
+                    sa.func.coalesce(sa.func.sum(attachment_expected_expr), 0).label("attachments_files_total"),
+                    sa.func.coalesce(sa.func.sum(attachment_present_expr), 0).label("attachments_files_present"),
                     sa.func.coalesce(sa.func.sum(smartva_complete_expr), 0).label("smartva_complete"),
                 )
                 .select_from(VaSubmissions)
@@ -4133,6 +4135,8 @@ def admin_sync_backfill_stats():
         total_local = 0
         total_metadata = 0
         total_attachments = 0
+        total_att_files_total = 0
+        total_att_files_present = 0
         total_smartva = 0
 
         for form in forms:
@@ -4140,11 +4144,15 @@ def admin_sync_backfill_stats():
             local_total = int(counts.get("local_total") or 0)
             metadata_complete = int(counts.get("metadata_complete") or 0)
             attachments_complete = int(counts.get("attachments_complete") or 0)
+            att_files_total = int(counts.get("attachments_files_total") or 0)
+            att_files_present = int(counts.get("attachments_files_present") or 0)
             smartva_complete = int(counts.get("smartva_complete") or 0)
 
             total_local += local_total
             total_metadata += metadata_complete
             total_attachments += attachments_complete
+            total_att_files_total += att_files_total
+            total_att_files_present += att_files_present
             total_smartva += smartva_complete
 
             project = projects_map.setdefault(form.project_id, {
@@ -4154,11 +4162,15 @@ def admin_sync_backfill_stats():
                 "local_total": 0,
                 "metadata_complete": 0,
                 "attachments_complete": 0,
+                "attachments_files_total": 0,
+                "attachments_files_present": 0,
                 "smartva_complete": 0,
             })
             project["local_total"] += local_total
             project["metadata_complete"] += metadata_complete
             project["attachments_complete"] += attachments_complete
+            project["attachments_files_total"] += att_files_total
+            project["attachments_files_present"] += att_files_present
             project["smartva_complete"] += smartva_complete
 
             site = project["sites"].setdefault(form.site_id, {
@@ -4168,11 +4180,15 @@ def admin_sync_backfill_stats():
                 "local_total": 0,
                 "metadata_complete": 0,
                 "attachments_complete": 0,
+                "attachments_files_total": 0,
+                "attachments_files_present": 0,
                 "smartva_complete": 0,
             })
             site["local_total"] += local_total
             site["metadata_complete"] += metadata_complete
             site["attachments_complete"] += attachments_complete
+            site["attachments_files_total"] += att_files_total
+            site["attachments_files_present"] += att_files_present
             site["smartva_complete"] += smartva_complete
             site["forms"].append({
                 "form_id": form.form_id,
@@ -4181,6 +4197,9 @@ def admin_sync_backfill_stats():
                 "metadata_missing": max(local_total - metadata_complete, 0),
                 "attachments_complete": attachments_complete,
                 "attachments_missing": max(local_total - attachments_complete, 0),
+                "attachments_files_total": att_files_total,
+                "attachments_files_present": att_files_present,
+                "attachments_files_missing": max(att_files_total - att_files_present, 0),
                 "smartva_complete": smartva_complete,
                 "smartva_missing": max(local_total - smartva_complete, 0),
             })
@@ -4206,6 +4225,9 @@ def admin_sync_backfill_stats():
                 "local_total": total_local,
                 "metadata_complete": total_metadata,
                 "attachments_complete": total_attachments,
+                "attachments_files_total": total_att_files_total,
+                "attachments_files_present": total_att_files_present,
+                "attachments_files_missing": max(total_att_files_total - total_att_files_present, 0),
                 "smartva_complete": total_smartva,
             },
         })

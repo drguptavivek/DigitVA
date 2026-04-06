@@ -688,7 +688,7 @@
           + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.local_total || 0) + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.metadata_complete || 0) + '</td>'
-          + '<td class="small text-center fw-semibold">' + (proj.attachments_complete || 0) + '</td>'
+          + '<td class="small text-center fw-semibold">' + (proj.attachments_files_present || 0) + ' <span class="text-muted fw-normal">(' + Math.max((proj.attachments_files_total || 0) - (proj.attachments_files_present || 0), 0) + ' missing files)</span></td>'
           + '<td class="small text-center fw-semibold">' + (proj.smartva_complete || 0) + '</td>'
           + '<td class="small text-center text-muted">Project total</td>'
           + '</tr>'
@@ -701,14 +701,15 @@
             + '</td>'
             + '<td class="small text-center">' + (site.local_total || 0) + '</td>'
             + '<td class="small text-center">' + (site.metadata_complete || 0) + '</td>'
-            + '<td class="small text-center">' + (site.attachments_complete || 0) + '</td>'
+            + '<td class="small text-center">' + (site.attachments_files_present || 0) + ' <span class="text-muted">(' + Math.max((site.attachments_files_total || 0) - (site.attachments_files_present || 0), 0) + ' missing files)</span></td>'
             + '<td class="small text-center">' + (site.smartva_complete || 0) + '</td>'
             + '<td class="small text-center text-muted">Site total</td>'
             + '</tr>'
           );
           site.forms.forEach(function (form) {
             var metadataMissing = form.metadata_missing == null ? '—' : form.metadata_missing;
-            var attachmentsMissing = form.attachments_missing == null ? '—' : form.attachments_missing;
+            var attFilesPresent = form.attachments_files_present != null ? form.attachments_files_present : '—';
+            var attFilesMissing = form.attachments_files_missing != null ? form.attachments_files_missing : '—';
             var smartvaMissing = form.smartva_missing == null ? '—' : form.smartva_missing;
             rows.push(
               '<tr>'
@@ -717,7 +718,7 @@
               + '</td>'
               + '<td class="small text-center">' + form.local_total + '</td>'
               + '<td class="small text-center">' + form.metadata_complete + ' <span class="text-muted">(' + metadataMissing + ' missing)</span></td>'
-              + '<td class="small text-center">' + form.attachments_complete + ' <span class="text-muted">(' + attachmentsMissing + ' missing)</span></td>'
+              + '<td class="small text-center">' + attFilesPresent + ' <span class="text-muted">(' + attFilesMissing + ' missing files)</span></td>'
               + '<td class="small text-center">' + form.smartva_complete + ' <span class="text-muted">(' + smartvaMissing + ' missing)</span></td>'
               + '<td class="small text-center">'
               + '<button class="btn btn-sm btn-outline-secondary py-0 px-1 backfill-form-btn" data-form-id="' + esc(form.form_id) + '" title="Repair local gaps for this form.">'
@@ -746,7 +747,7 @@
         + '<td class="small fw-semibold">Total</td>'
         + '<td class="small text-center fw-semibold">' + (totals.local_total || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.metadata_complete || 0) + '</td>'
-        + '<td class="small text-center fw-semibold">' + (totals.attachments_complete || 0) + '</td>'
+        + '<td class="small text-center fw-semibold">' + (totals.attachments_files_present || 0) + ' <span class="fw-normal text-muted">(' + (totals.attachments_files_missing || 0) + ' missing files)</span></td>'
         + '<td class="small text-center fw-semibold">' + (totals.smartva_complete || 0) + '</td>'
         + '<td class="small text-center text-muted">All forms</td>'
         + '</tr></tfoot></table>'

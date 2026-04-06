@@ -1139,6 +1139,11 @@ def admin_create_user():
     
     if not email or not name or not password:
         return _json_error("email, name, and password are required.", 400)
+
+    from app.utils.password_policy import password_error_message
+    pw_err = password_error_message(password)
+    if pw_err:
+        return _json_error(pw_err, 400)
     if not isinstance(languages, list) or not languages:
         return _json_error("At least one language must be selected.", 400)
 
@@ -1202,6 +1207,10 @@ def admin_update_user(target_user_id):
             return _json_error("Invalid status.", 400)
             
     if payload.get("password"):
+        from app.utils.password_policy import password_error_message
+        pw_err = password_error_message(payload["password"])
+        if pw_err:
+            return _json_error(pw_err, 400)
         target_user.set_password(payload["password"])
 
     if "languages" in payload:

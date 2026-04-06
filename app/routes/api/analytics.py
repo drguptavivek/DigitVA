@@ -126,14 +126,16 @@ def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
 
 def _bust_user_analytics_cache():
     prefix = current_app.config.get("CACHE_KEY_PREFIX", "")
-    pattern = f"{prefix}analytics:{current_user.user_id}:*"
-    try:
-        redis_client = cache.cache._write_client
-        keys = redis_client.keys(pattern)
-        if keys:
-            redis_client.delete(*keys)
-    except Exception as exc:
-        log.warning("Could not bust analytics cache for user %s: %s", current_user.user_id, exc, exc_info=True)
+    redis_client = cache.cache._write_client
+    uid = current_user.user_id
+    for cache_prefix in ("analytics:", "dm_analytics:"):
+        pattern = f"{prefix}{cache_prefix}{uid}:*"
+        try:
+            keys = redis_client.keys(pattern)
+            if keys:
+                redis_client.delete(*keys)
+        except Exception as exc:
+            log.warning("Could not bust %s cache for user %s: %s", cache_prefix, uid, exc, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -345,7 +347,7 @@ def cod():
 
 @bp.post("/mv/refresh")
 @role_required("data_manager")
-@limiter.limit("1 per minute")
+@limiter.limit("5 per minute")
 def mv_refresh():
     """Refresh the submission analytics materialized views on demand."""
     try:

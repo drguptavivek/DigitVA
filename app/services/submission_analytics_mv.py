@@ -52,7 +52,7 @@ def build_submission_analytics_core_mv_sql(
 CREATE MATERIALIZED VIEW {view_name} AS
 SELECT
     s.va_sid,
-    f.project_id,
+    COALESCE(ps.project_id, f.project_id) AS project_id,
     f.site_id,
     s.va_submission_date AS submission_at,
     DATE(s.va_submission_date) AS submission_date,
@@ -65,6 +65,8 @@ SELECT
     (w.workflow_state = '{WORKFLOW_FINALIZED_UPSTREAM_CHANGED}') AS cod_pending_upstream_review
 FROM va_submissions s
 JOIN va_forms f ON f.form_id = s.va_form_id
+LEFT JOIN va_project_sites ps
+    ON ps.site_id = f.site_id AND ps.project_site_status = 'active'
 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
 WITH DATA
 """

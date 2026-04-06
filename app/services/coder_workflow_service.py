@@ -526,14 +526,6 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
     )
     db.session.commit()
 
-    if released_sid:
-        reset_demo_state(
-            released_sid,
-            reason="demo_allocation_reset_finalized",
-            actor=admin_actor(user.user_id),
-        )
-        db.session.commit()
-
     return AllocationResult(va_sid=va_new_sid, actiontype="vademo_start_coding")
 
 

@@ -223,3 +223,25 @@ class DemoRandomCodingRouteTests(BaseTestCase):
         start = self.client.post("/coding/start", headers=self._csrf_headers())
         self.assertEqual(start.status_code, 200)
         self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})
+
+    def test_api_demo_allocation_can_be_started_twice(self):
+        self._login(self.base_admin_id)
+        headers = {
+            "Content-Type": "application/json",
+            **self._csrf_headers(),
+        }
+
+        first = self.client.post(
+            "/api/v1/coding/allocation",
+            json={"demo": True},
+            headers=headers,
+        )
+        self.assertEqual(first.status_code, 201)
+
+        second = self.client.post(
+            "/api/v1/coding/allocation",
+            json={"demo": True},
+            headers=headers,
+        )
+        self.assertEqual(second.status_code, 201)
+        self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})

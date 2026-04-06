@@ -201,7 +201,6 @@
   </style>
 
   <script>
-  const IS_ADMIN = {{ 'true' if current_user.is_admin() else 'false' }};
   const CSRF_TOKEN = '{{ csrf_token() }}';
   const DEMO_PROJECTS = {{ demo_projects|tojson }};
 
@@ -230,6 +229,13 @@
   }
 
   // ── action buttons ────────────────────────────────────────────────────────
+  function continuePendingLabel(allocation) {
+    if (!allocation) return 'Continue Pending VA Coding';
+    return allocation.actiontype === 'vademo_start_coding'
+      ? 'Continue Pending Demo Coding'
+      : 'Continue Pending VA Coding';
+  }
+
   function renderActionButtons(allocation, randomReady, mode) {
     const el = document.getElementById('action-buttons');
     let html = '<div class="d-inline-flex align-items-center gap-2 flex-wrap justify-content-center">';
@@ -239,8 +245,9 @@
     }
 
     if (allocation) {
+      const continueLabel = continuePendingLabel(allocation);
       html += `<a href="/coding/resume" class="btn btn-primary">
-        <i class="fas fa-edit me-2"></i>Continue Pending VA Coding
+        <i class="fas fa-edit me-2"></i>${continueLabel}
       </a>`;
     } else if (randomReady > 0) {
       html += `<button id="start-btn" class="btn btn-primary">
@@ -251,12 +258,6 @@
     if (DEMO_PROJECTS.length) {
       html += `<button id="demo-coding-shortcut-btn" class="btn btn-outline-warning">
         <i class="fas fa-flask me-2"></i>DEMO-CODING
-      </button>`;
-    }
-
-    if (IS_ADMIN) {
-      html += `<button id="demo-btn" class="btn btn-outline-secondary">
-        <i class="fas fa-flask me-2"></i>Admin Testing Coding
       </button>`;
     }
 
@@ -461,16 +462,6 @@
           const pid = selectedProjectId();
           const body = pid ? { project_id: pid } : {};
           startAllocationBtn(startBtn, body, '<i class="fas fa-edit me-2"></i>Start Random Allocation Coding');
-        });
-      }
-
-      const demoBtn = document.getElementById('demo-btn');
-      if (demoBtn) {
-        demoBtn.addEventListener('click', () => {
-          const pid = selectedProjectId();
-          const body = { demo: true };
-          if (pid) body.project_id = pid;
-          startAllocationBtn(demoBtn, body, '<i class="fas fa-flask me-2"></i>Admin Testing Coding');
         });
       }
 

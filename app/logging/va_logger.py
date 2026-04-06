@@ -3,10 +3,11 @@ import time
 from logging.handlers import TimedRotatingFileHandler
 import os
 import uuid
-from flask import request, session
+from flask import jsonify, render_template, request, session
 from flask_login import current_user
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
+from werkzeug.exceptions import HTTPException
 from app.logging.va_queryfilter import SQLWriteFilter
 
 # Log any write query (INSERT/UPDATE/DELETE) that takes longer than this
@@ -108,7 +109,13 @@ def va_logging(app):
     @app.errorhandler(Exception)
     def handle_exception(e):
         error_logger.error(f"Error: {str(e)}", exc_info=True)
-        return e
+        if isinstance(e, HTTPException):
+            return e
+        from app import db
+        db.session.rollback()
+        if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
+            return jsonify({"error": "Internal server error."}), 500
+        return render_template("va_errors/va_500.html"), 500
 
     # Slow-query logging via SQLAlchemy engine events.
     # Only write statements (INSERT/UPDATE/DELETE) that exceed SLOW_QUERY_THRESHOLD_S

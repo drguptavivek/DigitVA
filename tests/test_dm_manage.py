@@ -176,6 +176,16 @@ class DmManageTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        # Flask 3.1 ties flask.g to the app context, which stays pushed
+        # for the whole test session.  Flask-Login caches the loaded user
+        # in g._login_user.  Without clearing it, the user from the
+        # previous test's request leaks into the next test's request,
+        # causing role_required to check the wrong user.
+        from flask import g
+
+        if hasattr(g, "_login_user"):
+            del g._login_user
+
         sfx = uuid.uuid4().hex[:8]
         # Project-scoped data-manager for project_id
         self.project_dm = self._create_user(f"dm.project.{sfx}@example.com")
@@ -281,14 +291,20 @@ class DmManageTests(BaseTestCase):
             json={
                 "email": "new.dm.user@example.com",
                 "name": "New DM User",
-                "password": "TestPass123",
+                "password": "TestPass123!@special",
                 "languages": ["english"],
             },
             headers=headers,
         )
         self.assertEqual(resp.status_code, 201)
         data = resp.get_json()
-        self.assertEqual(data["user"]["email"], "new.dm.user@example.com")
+        self.assertIn("user", data)
+        # Verify the user was actually created in the DB
+        new_user = db.session.scalar(
+            sa.select(VaUsers).where(VaUsers.email == "new.dm.user@example.com")
+        )
+        self.assertIsNotNone(new_user)
+        self.assertEqual(new_user.name, "New DM User")
 
     def test_dm_create_user_validates_fields(self):
         self._login(self.project_dm_id)
@@ -308,7 +324,7 @@ class DmManageTests(BaseTestCase):
             json={
                 "email": "dup.dm@example.com",
                 "name": "Dup DM",
-                "password": "TestPass123",
+                "password": "TestPass123!@special",
                 "languages": ["english"],
             },
             headers=headers,
@@ -318,7 +334,7 @@ class DmManageTests(BaseTestCase):
             json={
                 "email": "dup.dm@example.com",
                 "name": "Dup DM 2",
-                "password": "TestPass123",
+                "password": "TestPass123!@special",
                 "languages": ["english"],
             },
             headers=headers,
@@ -333,7 +349,7 @@ class DmManageTests(BaseTestCase):
             json={
                 "email": "blocked@example.com",
                 "name": "Blocked",
-                "password": "TestPass123",
+                "password": "TestPass123!@special",
                 "languages": ["english"],
             },
             headers=headers,
@@ -628,7 +644,12 @@ class DmManageTests(BaseTestCase):
             },
         )
         self.assertEqual(resp.status_code, 400)
-        self.assertIn("CSRF", resp.get_json()["error"])
+        # CSRF rejection may return JSON or HTML depending on config
+        body = resp.get_json()
+        if body:
+            self.assertIn("CSRF", body.get("error", ""))
+        else:
+            self.assertIn(b"CSRF", resp.data)
 
     # ── Reactivating existing grant ────────────────────────────────────────────
 

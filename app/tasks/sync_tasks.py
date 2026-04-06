@@ -9,9 +9,10 @@ import traceback
 import sqlalchemy as sa
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
+from celery.utils.log import get_task_logger
 from datetime import datetime, timezone
 
-log = logging.getLogger(__name__)
+log = get_task_logger(__name__)
 ANALYTICS_MV_TRIGGER = "analytics_mv"
 ENRICHMENT_SYNC_BATCH_SIZE = 10
 ATTACHMENT_SYNC_BATCH_SIZE = 10

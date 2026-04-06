@@ -10,8 +10,9 @@ import os
 import time
 
 from celery import shared_task
+from celery.utils.log import get_task_logger
 
-log = logging.getLogger(__name__)
+log = get_task_logger(__name__)
 
 _EXPORT_FUNCTIONS = {}  # lazy registry, populated on first call
 

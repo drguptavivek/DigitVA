@@ -79,15 +79,19 @@ class AdminSyncDashboardTests(BaseTestCase):
         )
         db.session.flush()
 
-        social_form_type = MasFormTypes(
-            form_type_id=uuid.uuid4(),
-            form_type_code="WHO_2022_VA_SOCIAL",
-            form_type_name="WHO VA Social Autopsy",
-            form_type_description="Social autopsy form",
-            is_active=True,
+        social_form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA_SOCIAL")
         )
-        db.session.add(social_form_type)
-        db.session.flush()
+        if not social_form_type:
+            social_form_type = MasFormTypes(
+                form_type_id=uuid.uuid4(),
+                form_type_code="WHO_2022_VA_SOCIAL",
+                form_type_name="WHO VA Social Autopsy",
+                form_type_description="Social autopsy form",
+                is_active=True,
+            )
+            db.session.add(social_form_type)
+            db.session.flush()
         cls.social_form_type_id = social_form_type.form_type_id
 
         db.session.add(

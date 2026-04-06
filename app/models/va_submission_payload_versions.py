@@ -98,6 +98,18 @@ class VaSubmissionPayloadVersion(db.Model):
         nullable=True,
     )
 
+    # Precomputed sync-completeness fields — set at insert time, never changed.
+    # Eliminates expensive per-row JSONB extraction in the backfill-stats query.
+    has_required_metadata: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(),
+        nullable=False,
+        server_default=sa.false(),
+    )
+    attachments_expected: so.Mapped[int | None] = so.mapped_column(
+        sa.Integer(),
+        nullable=True,
+    )
+
     def __repr__(self) -> str:
         return (
             "VaSubmissionPayloadVersion("

@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-04-05
 ---
 
 # Policy Docs
@@ -27,6 +27,7 @@ Current policy docs:
 - [SmartVA Generation Policy](smartva-generation-policy.md) — when SmartVA runs
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
+- [Test Harness Policy](test-harness.md) — session-scoped schema, savepoint isolation, fixture rules
 - [UI Notification Policy](ui-notifications.md)
 - [User Management CLI Policy](user-management-cli.md)
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)

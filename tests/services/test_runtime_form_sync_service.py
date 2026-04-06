@@ -40,13 +40,17 @@ class TestRuntimeFormSyncService(BaseTestCase):
         )
         db.session.commit()
 
-        cls.form_type = MasFormTypes(
-            form_type_id=uuid.uuid4(),
-            form_type_code="WHO_2022_VA_SOCIAL",
-            form_type_name="WHO 2022 VA with Social Autopsy",
-            is_active=True,
+        cls.form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA_SOCIAL")
         )
-        db.session.add(cls.form_type)
+        if not cls.form_type:
+            cls.form_type = MasFormTypes(
+                form_type_id=uuid.uuid4(),
+                form_type_code="WHO_2022_VA_SOCIAL",
+                form_type_name="WHO 2022 VA with Social Autopsy",
+                is_active=True,
+            )
+            db.session.add(cls.form_type)
 
         project_master = VaProjectMaster(
             project_id="SYNC01",

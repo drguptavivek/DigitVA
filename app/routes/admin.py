@@ -4041,10 +4041,10 @@ def admin_sync_backfill_stats():
     try:
         from app.models.va_forms import VaForms
         from app.models.va_project_master import VaProjectMaster
-        from app.models.va_smartva_results import VaSmartvaResults
         from app.models.va_sites import VaSites
         from app.models.va_submissions import VaSubmissions
         from app.models.va_submission_attachments import VaSubmissionAttachments
+        from app.services.submission_analytics_mv import DEMOGRAPHICS_MV_NAME
 
         forms = db.session.scalars(
             sa.select(VaForms)
@@ -4077,41 +4077,28 @@ def admin_sync_backfill_stats():
                 sa.and_(
                     VaSubmissions.va_summary.is_not(None),
                     VaSubmissions.va_category_list.is_not(None),
-                    VaSubmissionPayloadVersion.payload_data["FormVersion"].astext.is_not(None),
-                    VaSubmissionPayloadVersion.payload_data["DeviceID"].astext.is_not(None),
-                    VaSubmissionPayloadVersion.payload_data["SubmitterID"].astext.is_not(None),
-                    VaSubmissionPayloadVersion.payload_data["instanceID"].astext.is_not(None),
-                    VaSubmissionPayloadVersion.payload_data["AttachmentsExpected"].astext.is_not(None),
-                    VaSubmissionPayloadVersion.payload_data["AttachmentsPresent"].astext.is_not(None),
+                    VaSubmissionPayloadVersion.has_required_metadata.is_(True),
                 ),
                 1,
             ),
             else_=0,
         )
-        attachment_expected_expr = sa.func.coalesce(
-            sa.cast(sa.func.nullif(VaSubmissionPayloadVersion.payload_data["AttachmentsExpected"].astext, ""), sa.Integer),
-            0,
-        )
         attachment_present_expr = sa.func.coalesce(attachment_counts_sq.c.attachment_count, 0)
+        attachment_expected_expr = sa.func.coalesce(VaSubmissionPayloadVersion.attachments_expected, 0)
         attachments_complete_expr = sa.case(
             (attachment_present_expr >= attachment_expected_expr, 1),
             else_=0,
         )
-        smartva_complete_sq = (
-            sa.select(
-                VaSmartvaResults.va_sid.label("va_sid"),
-                sa.func.max(
-                    sa.case(
-                        (VaSmartvaResults.va_smartva_status == VaStatuses.active, 1),
-                        else_=0,
-                    )
-                ).label("has_active_smartva"),
-            )
-            .group_by(VaSmartvaResults.va_sid)
-            .subquery()
+        # Use the demographics MV for has_smartva — avoids a full scan + group-by
+        # on va_smartva_results. The MV is refreshed after every sync so it is
+        # current enough for this dashboard.
+        demographics_mv = sa.table(
+            DEMOGRAPHICS_MV_NAME,
+            sa.column("va_sid"),
+            sa.column("has_smartva"),
         )
         smartva_complete_expr = sa.case(
-            (sa.func.coalesce(smartva_complete_sq.c.has_active_smartva, 0) == 1, 1),
+            (demographics_mv.c.has_smartva.is_(True), 1),
             else_=0,
         )
 
@@ -4135,8 +4122,8 @@ def admin_sync_backfill_stats():
                     attachment_counts_sq.c.va_sid == VaSubmissions.va_sid,
                 )
                 .outerjoin(
-                    smartva_complete_sq,
-                    smartva_complete_sq.c.va_sid == VaSubmissions.va_sid,
+                    demographics_mv,
+                    demographics_mv.c.va_sid == VaSubmissions.va_sid,
                 )
                 .group_by(VaSubmissions.va_form_id)
             ).mappings().all()

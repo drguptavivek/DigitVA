@@ -43,14 +43,18 @@ class TestCategoryFormTypeResolution(BaseTestCase):
                 site_status=VaStatuses.active,
             )
         )
-        cls.social_form_type = MasFormTypes(
-            form_type_id=uuid.uuid4(),
-            form_type_code="WHO_2022_VA_SOCIAL",
-            form_type_name="WHO 2022 VA Social",
-            is_active=True,
+        cls.social_form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA_SOCIAL")
         )
-        db.session.add(cls.social_form_type)
-        db.session.flush()
+        if not cls.social_form_type:
+            cls.social_form_type = MasFormTypes(
+                form_type_id=uuid.uuid4(),
+                form_type_code="WHO_2022_VA_SOCIAL",
+                form_type_name="WHO 2022 VA Social",
+                is_active=True,
+            )
+            db.session.add(cls.social_form_type)
+            db.session.flush()
 
         db.session.add(
             MasCategoryOrder(

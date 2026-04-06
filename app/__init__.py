@@ -139,6 +139,9 @@ def create_app(config_class=Config):
 
     from app.commands.users import init_app as init_users_commands
     init_users_commands(app)
+
+    from app.commands.payload_backfill import init_app as init_payload_backfill_commands
+    init_payload_backfill_commands(app)
     
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

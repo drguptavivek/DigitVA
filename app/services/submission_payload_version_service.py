@@ -119,6 +119,37 @@ def canonical_payload_fingerprint(payload_data: dict) -> str:
     return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 
+_REQUIRED_METADATA_KEYS = (
+    "FormVersion",
+    "DeviceID",
+    "SubmitterID",
+    "instanceID",
+    "AttachmentsExpected",
+    "AttachmentsPresent",
+)
+
+
+def _derive_payload_metadata(payload_data: dict) -> tuple[bool, int | None]:
+    """Return (has_required_metadata, attachments_expected) for a payload dict.
+
+    has_required_metadata — True iff all six sync-completeness keys are present
+    with non-None values in payload_data.
+
+    attachments_expected — integer value of AttachmentsExpected, or None if
+    absent, empty, or non-numeric.
+    """
+    has_meta = all(payload_data.get(k) is not None for k in _REQUIRED_METADATA_KEYS)
+    raw = payload_data.get("AttachmentsExpected")
+    att_expected: int | None = None
+    if raw is not None:
+        try:
+            stripped = str(raw).strip()
+            att_expected = int(stripped) if stripped else None
+        except (ValueError, TypeError):
+            att_expected = None
+    return has_meta, att_expected
+
+
 def get_active_payload_version(va_sid: str) -> VaSubmissionPayloadVersion | None:
     return db.session.scalar(
         sa.select(VaSubmissionPayloadVersion).where(
@@ -183,6 +214,7 @@ def ensure_active_payload_version(
         active.version_status = PAYLOAD_VERSION_STATUS_SUPERSEDED
         active.superseded_at = now
 
+    has_meta, att_expected = _derive_payload_metadata(payload_data)
     version = VaSubmissionPayloadVersion(
         va_sid=submission.va_sid,
         source_updated_at=source_updated_at,
@@ -193,6 +225,8 @@ def ensure_active_payload_version(
         created_by=created_by,
         version_created_at=now,
         version_activated_at=now,
+        has_required_metadata=has_meta,
+        attachments_expected=att_expected,
     )
     db.session.add(version)
     db.session.flush()
@@ -222,6 +256,7 @@ def create_or_update_pending_upstream_payload_version(
         pending.rejected_at = now
         pending.rejected_reason = "superseded_by_newer_pending_upstream_payload"
 
+    has_meta, att_expected = _derive_payload_metadata(payload_data)
     version = VaSubmissionPayloadVersion(
         va_sid=submission.va_sid,
         source_updated_at=source_updated_at,
@@ -231,6 +266,8 @@ def create_or_update_pending_upstream_payload_version(
         created_by_role=created_by_role,
         created_by=created_by,
         version_created_at=now,
+        has_required_metadata=has_meta,
+        attachments_expected=att_expected,
     )
     db.session.add(version)
     db.session.flush()
@@ -284,6 +321,7 @@ def _bootstrap_active_payload_version(
     created_by,
 ) -> VaSubmissionPayloadVersion:
     now = datetime.now(timezone.utc)
+    has_meta, att_expected = _derive_payload_metadata(payload_data)
     version = VaSubmissionPayloadVersion(
         va_sid=submission.va_sid,
         source_updated_at=source_updated_at,
@@ -294,6 +332,8 @@ def _bootstrap_active_payload_version(
         created_by=created_by,
         version_created_at=now,
         version_activated_at=now,
+        has_required_metadata=has_meta,
+        attachments_expected=att_expected,
     )
     db.session.add(version)
     db.session.flush()

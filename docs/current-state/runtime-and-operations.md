@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-04
+last_updated: 2026-04-06
 ---
 
 # Runtime And Operations
@@ -174,24 +174,7 @@ Current implication:
 
 ## Operational CLI
 
-Current Flask CLI command groups include:
-
-- `flask seed run`
-- `flask form-types ...`
-- `flask analytics ...`
-- `flask odk-sync ...`
-- `flask users ...`
-
-Current `flask users ...` commands support:
-
-- `list`
-- `search`
-- `list-grants`
-- `create`
-- `reset-password`
-- `grant-admin`
-- `revoke-admin`
-- `set-status`
+Full command reference: [`docs/current-state/cli-reference.md`](cli-reference.md)
 
 Operational implication:
 

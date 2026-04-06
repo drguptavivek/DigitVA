@@ -1,0 +1,705 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | Manage Users{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 dm-mgmt-area" style="max-width:1200px;">
+
+  {# Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <a href="{{ url_for('data_management.dashboard') }}" class="text-decoration-none small">
+        <i class="fa-solid fa-arrow-left me-1"></i>Back to Dashboard
+      </a>
+      <h4 class="mt-1 mb-0 fw-semibold">
+        <i class="fa-solid fa-users-gear text-primary me-2"></i>User Management
+      </h4>
+    </div>
+  </div>
+
+  {# Tabs #}
+  <style>
+    /* Override base.css .nav-link white color for tab navigation */
+    #dm-mgmt-tabs .nav-link { color: var(--bs-body-color, #212529) !important; }
+    #dm-mgmt-tabs .nav-link.active { color: var(--bs-primary, #0d6efd) !important; }
+    #dm-mgmt-tabs .nav-link:hover { color: var(--bs-primary, #0d6efd) !important; }
+    /* Ensure form labels, muted text, and table headers are readable */
+    .dm-mgmt-area label { color: var(--bs-body-color, #212529) !important; }
+    .dm-mgmt-area .text-muted { color: #6c757d !important; }
+    .dm-mgmt-area .table th, .dm-mgmt-area .table td { color: var(--bs-body-color, #212529); }
+    .dm-mgmt-area .form-text { color: #6c757d !important; }
+    .dm-mgmt-area select, .dm-mgmt-area input { color: var(--bs-body-color, #212529); }
+  </style>
+  <ul class="nav nav-tabs mb-3" id="dm-mgmt-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="dm-users-tab" data-bs-toggle="tab"
+              data-bs-target="#dm-users-pane" type="button" role="tab">
+        <i class="fa-solid fa-user-plus me-1"></i>Users
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="dm-grants-tab" data-bs-toggle="tab"
+              data-bs-target="#dm-grants-pane" type="button" role="tab">
+        <i class="fa-solid fa-key me-1"></i>Access Grants
+      </button>
+    </li>
+  </ul>
+
+  {# Tab content #}
+  <div class="tab-content">
+
+    {# ═══════════════════════════ USERS TAB ═══════════════════════════ #}
+    <div class="tab-pane fade show active" id="dm-users-pane" role="tabpanel">
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="input-group input-group-sm" style="width:260px;">
+          <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+          <input type="text" id="dm-user-search-input" class="form-control" placeholder="Search name or email...">
+        </div>
+        <button class="btn btn-sm btn-primary" id="dm-user-show-form-btn">
+          <i class="fa-solid fa-plus me-1"></i>New User
+        </button>
+      </div>
+
+      {# Create user form #}
+      <div id="dm-user-form-container" class="card mb-4 d-none">
+        <div class="card-body">
+          <h6 class="card-title mb-3">Create User</h6>
+          <div class="row g-2 align-items-start">
+            <div class="col-sm-3">
+              <label class="form-label small mb-1">Email <span class="text-danger">*</span></label>
+              <input type="email" class="form-control form-control-sm" id="dm-user-email" placeholder="user@example.com">
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
+              <input type="text" class="form-control form-control-sm" id="dm-user-name" placeholder="Full Name">
+            </div>
+            <div class="col-sm-2">
+              <label class="form-label small mb-1">Phone</label>
+              <input type="text" class="form-control form-control-sm" id="dm-user-phone" placeholder="+1234567890">
+            </div>
+            <div class="col-sm-2">
+              <label class="form-label small mb-1">Password <span class="text-danger">*</span></label>
+              <input type="password" class="form-control form-control-sm" id="dm-user-password" placeholder="Min 8 chars">
+            </div>
+            <div class="col-12">
+              <label class="form-label small mb-1">VA Languages <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" id="dm-user-languages" multiple></select>
+              <div class="form-text" style="font-size:0.7rem;">Select the languages this user can code in.</div>
+            </div>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col-12 d-flex justify-content-end gap-2">
+              <button class="btn btn-sm btn-outline-secondary" id="dm-user-cancel-btn">Cancel</button>
+              <button class="btn btn-sm btn-success" id="dm-user-submit-btn">
+                <i class="fa-solid fa-check me-1"></i>Create User
+              </button>
+            </div>
+          </div>
+          <div id="dm-user-form-error" class="text-danger small mt-2"></div>
+        </div>
+      </div>
+
+      {# User search results #}
+      <div id="dm-user-table-wrap"></div>
+
+    </div>
+
+    {# ═══════════════════════════ GRANTS TAB ═══════════════════════════ #}
+    <div class="tab-pane fade" id="dm-grants-pane" role="tabpanel">
+
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center gap-2">
+            <label for="dm-ag-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
+            <select id="dm-ag-project-select" class="form-select form-select-sm" style="min-width:140px;">
+              <option value="">All projects</option>
+            </select>
+          </div>
+          <div class="input-group input-group-sm" style="width:220px;">
+            <span class="input-group-text bg-white"><i class="fa-solid fa-magnifying-glass text-muted"></i></span>
+            <input type="search" id="dm-ag-filter-text" class="form-control" placeholder="Search name or email...">
+          </div>
+          <select id="dm-ag-filter-role" class="form-select form-select-sm" style="max-width:150px;">
+            <option value="">All roles</option>
+            <option value="coder">Coder</option>
+            <option value="data_manager">Data Manager</option>
+          </select>
+        </div>
+        <button class="btn btn-sm btn-primary" id="dm-ag-show-form-btn">
+          <i class="fa-solid fa-plus me-1"></i>Grant Access
+        </button>
+      </div>
+
+      {# Grant creation form #}
+      <div id="dm-ag-form-container" class="card mb-4 d-none">
+        <div class="card-body">
+          <h6 class="card-title mb-3">New Grant</h6>
+          <div class="row g-2">
+
+            <div class="col-12">
+              <label class="form-label small mb-1">User <span class="text-danger">*</span></label>
+              <div class="input-group input-group-sm">
+                <input type="text" id="dm-ag-user-search" class="form-control"
+                       placeholder="Search by email or name..." autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="dm-ag-user-search-btn">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+              </div>
+              <div id="dm-ag-user-results" class="list-group mt-1 d-none" style="max-height:160px;overflow-y:auto;position:relative;z-index:10;"></div>
+              <input type="hidden" id="dm-ag-user-id">
+              <div id="dm-ag-selected-user" class="mt-1 small text-success d-none">
+                <i class="fa-solid fa-circle-check me-1"></i><span id="dm-ag-selected-user-label"></span>
+                <a href="#" id="dm-ag-clear-user" class="ms-2 text-secondary small">change</a>
+              </div>
+            </div>
+
+            <div class="col-sm-4">
+              <label class="form-label small mb-1">Role <span class="text-danger">*</span></label>
+              <select id="dm-ag-role" class="form-select form-select-sm">
+                <option value="">-- select --</option>
+                <option value="coder">Coder</option>
+                <option value="data_manager">Data Manager</option>
+              </select>
+            </div>
+
+            <div class="col-sm-4">
+              <label class="form-label small mb-1">Scope <span class="text-danger">*</span></label>
+              <select id="dm-ag-scope" class="form-select form-select-sm">
+                <option value="">-- select --</option>
+                <option value="project_site">Site-level</option>
+              </select>
+            </div>
+
+            <div class="col-sm-4" id="dm-ag-site-field" style="visibility:hidden;">
+              <label class="form-label small mb-1">Site <span class="text-danger">*</span></label>
+              <select id="dm-ag-site" class="form-select form-select-sm">
+                <option value="">-- select --</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label small mb-1">Notes</label>
+              <input type="text" id="dm-ag-notes" class="form-control form-control-sm"
+                     placeholder="Optional reason or context">
+            </div>
+
+            <div class="col-12 d-flex gap-2 mt-1">
+              <button class="btn btn-sm btn-success" id="dm-ag-submit-btn">
+                <i class="fa-solid fa-check me-1"></i>Create Grant
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" id="dm-ag-cancel-btn">Cancel</button>
+              <span id="dm-ag-form-error" class="text-danger small align-self-center ms-2"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Revoke confirmation modal #}
+      <div class="modal fade" id="dm-ag-revoke-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+          <div class="modal-content">
+            <div class="modal-header py-2">
+              <h6 class="modal-title"><i class="fa-solid fa-ban text-danger me-2"></i>Revoke Grant</h6>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body small py-3" id="dm-ag-revoke-modal-body">
+              Are you sure you want to revoke this grant?
+            </div>
+            <div class="modal-footer py-2">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-sm btn-danger" id="dm-ag-revoke-confirm-btn">Revoke</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Grants table #}
+      <div id="dm-ag-table-wrap"></div>
+
+    </div>
+
+  </div>{# /.tab-content #}
+</div>{# /.container #}
+
+<script>
+(function () {
+  'use strict';
+
+  // ── bootstrap state ────────────────────────────────────────────────────────
+  var _state = null;
+  var _csrfToken = '';
+
+  function csrf() { return _csrfToken; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    });
+  }
+
+  function esc(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── bootstrap ──────────────────────────────────────────────────────────────
+  apiJson('/data-management/api/bootstrap').then(function (res) {
+    if (!res.ok) { console.error('Bootstrap failed', res.data); return; }
+    _state = res.data;
+    _csrfToken = _state.csrf_token || '';
+    initUsersTab();
+    initGrantsTab();
+  });
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // USERS TAB
+  // ════════════════════════════════════════════════════════════════════════════
+
+  var _users = [];
+  var _langData = [];
+  var _searchTimeout = null;
+
+  function initUsersTab() {
+    // Load available languages from the admin bootstrap (reuse endpoint)
+    apiJson('/data-management/api/users?query=a').then(function () {
+      // We need language options; fetch from the languages API if available,
+      // otherwise just use a minimal approach.
+    });
+    loadLanguages();
+    loadUsers();
+
+    document.getElementById('dm-user-show-form-btn').addEventListener('click', function () {
+      document.getElementById('dm-user-form-container').classList.remove('d-none');
+      document.getElementById('dm-user-email').focus();
+    });
+    document.getElementById('dm-user-cancel-btn').addEventListener('click', function () {
+      document.getElementById('dm-user-form-container').classList.add('d-none');
+      resetUserForm();
+    });
+    document.getElementById('dm-user-submit-btn').addEventListener('click', submitUser);
+    document.getElementById('dm-user-search-input').addEventListener('input', function () {
+      clearTimeout(_searchTimeout);
+      _searchTimeout = setTimeout(loadUsers, 300);
+    });
+  }
+
+  function loadLanguages() {
+    _langData = {{ available_languages | tojson }};
+    var sel = $('#dm-user-languages');
+    sel.empty();
+    _langData.forEach(function (lang) {
+      sel.append(new Option(lang.name, lang.code, false, false));
+    });
+    sel.select2({ placeholder: 'Select VA Languages', width: '100%', theme: 'bootstrap-5' });
+  }
+
+  function loadUsers() {
+    var wrap = document.getElementById('dm-user-table-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading...</div>';
+    var query = document.getElementById('dm-user-search-input').value.trim();
+    var url = '/data-management/api/users';
+    if (query) url += '?query=' + encodeURIComponent(query);
+    apiJson(url).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      _users = res.data.users || [];
+      renderUserTable();
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function renderUserTable() {
+    var wrap = document.getElementById('dm-user-table-wrap');
+    if (!_users.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No users found.</p>';
+      return;
+    }
+    var rows = _users.map(function (u) {
+      return '<tr>'
+        + '<td class="align-middle py-2">'
+        +   '<div class="fw-semibold small">' + esc(u.name) + '</div>'
+        +   '<div class="small text-muted">' + esc(u.email) + '</div>'
+        + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(u.phone || '') + '</td>'
+        + '<td class="align-middle py-2 small">' + esc((u.languages || []).join(', ')) + '</td>'
+        + '<td class="align-middle py-2">'
+        + (u.status === 'active'
+            ? '<span class="badge text-bg-success">Active</span>'
+            : '<span class="badge text-bg-secondary">Inactive</span>')
+        + '</td>'
+        + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted">User</th>'
+      + '<th class="fw-medium small text-muted">Phone</th>'
+      + '<th class="fw-medium small text-muted">Languages</th>'
+      + '<th class="fw-medium small text-muted">Status</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function resetUserForm() {
+    document.getElementById('dm-user-email').value = '';
+    document.getElementById('dm-user-name').value = '';
+    document.getElementById('dm-user-phone').value = '';
+    document.getElementById('dm-user-password').value = '';
+    $('#dm-user-languages').val([]).trigger('change');
+    document.getElementById('dm-user-form-error').textContent = '';
+  }
+
+  function submitUser() {
+    var errEl = document.getElementById('dm-user-form-error');
+    errEl.textContent = '';
+    var data = {
+      email: document.getElementById('dm-user-email').value.trim().toLowerCase(),
+      name: document.getElementById('dm-user-name').value.trim(),
+      phone: document.getElementById('dm-user-phone').value.trim(),
+      password: document.getElementById('dm-user-password').value,
+      languages: $('#dm-user-languages').val(),
+    };
+    if (!data.email) { errEl.textContent = 'Email is required.'; return; }
+    if (!data.name) { errEl.textContent = 'Name is required.'; return; }
+    if (!data.password) { errEl.textContent = 'Password is required.'; return; }
+    if (!data.languages || !data.languages.length) {
+      errEl.textContent = 'At least one language is required.'; return;
+    }
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/data-management/api/users', 'POST', data).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed to create user.'; return; }
+      document.getElementById('dm-user-form-container').classList.add('d-none');
+      resetUserForm();
+      loadUsers();
+    }).catch(function () {
+      btn.disabled = false;
+      errEl.textContent = 'Network error.';
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // GRANTS TAB
+  // ════════════════════════════════════════════════════════════════════════════
+
+  var _allGrants = [];
+  var _projects = [];
+  var _projectSites = [];
+  var _pendingRevokeId = null;
+  var _revokeModal = null;
+
+  function initGrantsTab() {
+    loadProjects();
+    populateScopeOptions();
+
+    document.getElementById('dm-ag-show-form-btn').addEventListener('click', function () {
+      var fc = document.getElementById('dm-ag-form-container');
+      fc.classList.toggle('d-none');
+      if (!fc.classList.contains('d-none')) loadProjectSites();
+    });
+    document.getElementById('dm-ag-cancel-btn').addEventListener('click', function () {
+      document.getElementById('dm-ag-form-container').classList.add('d-none');
+      resetGrantForm();
+    });
+    document.getElementById('dm-ag-scope').addEventListener('change', function () {
+      document.getElementById('dm-ag-site-field').style.visibility =
+        this.value === 'project_site' ? 'visible' : 'hidden';
+    });
+    document.getElementById('dm-ag-submit-btn').addEventListener('click', submitGrant);
+    document.getElementById('dm-ag-revoke-confirm-btn').addEventListener('click', confirmRevoke);
+
+    // Project filter
+    document.getElementById('dm-ag-project-select').addEventListener('change', function () {
+      loadGrants();
+    });
+    // Search filter
+    document.getElementById('dm-ag-filter-text').addEventListener('input', applyFilters);
+    document.getElementById('dm-ag-filter-role').addEventListener('change', applyFilters);
+
+    // User search
+    var searchTimer = null;
+    document.getElementById('dm-ag-user-search').addEventListener('input', function () {
+      clearTimeout(searchTimer);
+      var q = this.value.trim();
+      if (q.length < 2) { hideUserResults(); return; }
+      searchTimer = setTimeout(function () { doUserSearch(q); }, 300);
+    });
+    document.getElementById('dm-ag-user-search-btn').addEventListener('click', function () {
+      var q = document.getElementById('dm-ag-user-search').value.trim();
+      if (q) doUserSearch(q);
+    });
+    document.getElementById('dm-ag-clear-user').addEventListener('click', function (e) {
+      e.preventDefault();
+      document.getElementById('dm-ag-user-id').value = '';
+      document.getElementById('dm-ag-selected-user').classList.add('d-none');
+    });
+    document.addEventListener('click', function (e) {
+      var results = document.getElementById('dm-ag-user-results');
+      if (!results) return;
+      if (!results.contains(e.target) && e.target.id !== 'dm-ag-user-search' && e.target.id !== 'dm-ag-user-search-btn') {
+        hideUserResults();
+      }
+    });
+
+    // Load grants when grants tab is shown
+    document.getElementById('dm-grants-tab').addEventListener('shown.bs.tab', function () {
+      loadGrants();
+    });
+  }
+
+  function populateScopeOptions() {
+    // If project-scoped, allow both project and project_site
+    // If site-scoped only, only project_site
+    if (!_state) return;
+    var scopeSel = document.getElementById('dm-ag-scope');
+    var isProjectScoped = _state.user.is_project_scoped;
+    if (isProjectScoped) {
+      scopeSel.innerHTML = '<option value="">-- select --</option>'
+        + '<option value="project_site">Site-level</option>'
+        + '<option value="project">Project-level</option>';
+    } else {
+      scopeSel.innerHTML = '<option value="">-- select --</option>'
+        + '<option value="project_site">Site-level</option>';
+    }
+  }
+
+  function loadProjects() {
+    apiJson('/data-management/api/projects').then(function (res) {
+      _projects = (res.data && res.data.projects) || [];
+      var sel = document.getElementById('dm-ag-project-select');
+      sel.innerHTML = '<option value="">All projects</option>'
+        + _projects.map(function (p) {
+          return '<option value="' + esc(p.project_id) + '">' + esc(p.project_id) + ' - ' + esc(p.project_name) + '</option>';
+        }).join('');
+    });
+  }
+
+  function loadProjectSites() {
+    var projectId = document.getElementById('dm-ag-project-select').value;
+    var url = '/data-management/api/project-sites';
+    if (projectId) url += '?project_id=' + encodeURIComponent(projectId);
+    apiJson(url).then(function (res) {
+      _projectSites = (res.data && res.data.project_sites) || [];
+      var sel = document.getElementById('dm-ag-site');
+      sel.innerHTML = '<option value="">-- select site --</option>'
+        + _projectSites.map(function (s) {
+          return '<option value="' + esc(s.project_site_id) + '">' + esc(s.site_id) + ' - ' + esc(s.site_name) + '</option>';
+        }).join('');
+    });
+  }
+
+  function loadGrants() {
+    var wrap = document.getElementById('dm-ag-table-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading...</div>';
+    var projectId = document.getElementById('dm-ag-project-select').value;
+    var url = '/data-management/api/access-grants';
+    if (projectId) url += '?project_id=' + encodeURIComponent(projectId);
+    apiJson(url).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load grants.') + '</div>';
+        return;
+      }
+      _allGrants = res.data.grants || [];
+      applyFilters();
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function applyFilters() {
+    var text = (document.getElementById('dm-ag-filter-text').value || '').toLowerCase();
+    var role = document.getElementById('dm-ag-filter-role').value;
+    var filtered = _allGrants.filter(function (g) {
+      if (role && g.role !== role) return false;
+      if (text && !g.user_email.toLowerCase().includes(text) && !g.user_name.toLowerCase().includes(text)) return false;
+      return true;
+    });
+    renderGrantsTable(filtered);
+  }
+
+  var ROLE_LABEL = { coder: 'Coder', data_manager: 'Data Manager' };
+  var ROLE_COLOR = { coder: 'primary', data_manager: 'secondary' };
+
+  function renderGrantsTable(grants) {
+    var wrap = document.getElementById('dm-ag-table-wrap');
+    if (!grants.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No grants found.</p>';
+      return;
+    }
+    var rows = grants.map(function (g) {
+      var color = ROLE_COLOR[g.role] || 'secondary';
+      var scopeLabel = g.site_id ? esc(g.site_id) : 'Project-level';
+      return '<tr>'
+        + '<td class="align-middle py-2">'
+        +   '<div class="fw-semibold small">' + esc(g.user_name) + '</div>'
+        +   '<div class="small text-muted">' + esc(g.user_email) + '</div>'
+        + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(g.project_id || '') + '</td>'
+        + '<td class="align-middle py-2 small">' + scopeLabel + '</td>'
+        + '<td class="align-middle py-2"><span class="badge text-bg-' + color + '">'
+        +   esc(ROLE_LABEL[g.role] || g.role)
+        + '</span></td>'
+        + '<td class="align-middle py-2 text-end">'
+        +   '<button class="btn btn-sm py-0 px-2 btn-outline-danger dm-ag-revoke-btn"'
+        +   ' data-grant-id="' + esc(g.grant_id) + '" title="Revoke">'
+        +   '<i class="fa-solid fa-ban"></i></button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted">User</th>'
+      + '<th class="fw-medium small text-muted">Project</th>'
+      + '<th class="fw-medium small text-muted">Scope</th>'
+      + '<th class="fw-medium small text-muted">Role</th>'
+      + '<th class="fw-medium small text-muted text-end">Actions</th>'
+      + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div>';
+
+    wrap.querySelectorAll('.dm-ag-revoke-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        revokeGrant(this.dataset.grantId);
+      });
+    });
+  }
+
+  function revokeGrant(grantId) {
+    var g = _allGrants.filter(function (x) { return x.grant_id === grantId; })[0];
+    var body = document.getElementById('dm-ag-revoke-modal-body');
+    if (g) {
+      body.innerHTML = 'Revoke <strong>' + esc(ROLE_LABEL[g.role] || g.role) + '</strong> for '
+        + '<strong>' + esc(g.user_name || g.user_email) + '</strong>'
+        + (g.site_id ? ' at <strong>' + esc(g.site_id) + '</strong>' : ' (project level)') + '?';
+    }
+    _pendingRevokeId = grantId;
+    if (!_revokeModal) _revokeModal = new bootstrap.Modal(document.getElementById('dm-ag-revoke-modal'));
+    _revokeModal.show();
+  }
+
+  function confirmRevoke() {
+    if (!_pendingRevokeId) return;
+    var grantId = _pendingRevokeId;
+    _pendingRevokeId = null;
+    _revokeModal.hide();
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/data-management/api/access-grants/' + grantId + '/toggle', 'POST').then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) {
+        var wrap = document.getElementById('dm-ag-table-wrap');
+        var errEl = document.createElement('div');
+        errEl.className = 'alert alert-danger small py-2 mt-2';
+        errEl.textContent = res.data.error || 'Failed to revoke grant.';
+        wrap.prepend(errEl);
+        setTimeout(function () { errEl.remove(); }, 4000);
+        return;
+      }
+      _allGrants = _allGrants.filter(function (g) { return g.grant_id !== grantId; });
+      applyFilters();
+    }).catch(function () { btn.disabled = false; });
+  }
+
+  // ── user search for grant form ─────────────────────────────────────────────
+  function doUserSearch(q) {
+    apiJson('/data-management/api/users?query=' + encodeURIComponent(q)).then(function (res) {
+      var users = (res.data && res.data.users) || [];
+      var list = document.getElementById('dm-ag-user-results');
+      if (!users.length) {
+        list.innerHTML = '<div class="list-group-item disabled small text-muted">No users found.</div>';
+        list.classList.remove('d-none');
+        return;
+      }
+      list.innerHTML = users.map(function (u) {
+        return '<button type="button" class="list-group-item list-group-item-action py-1 small"'
+          + ' data-uid="' + esc(u.user_id) + '" data-label="' + esc(u.email + ' (' + u.name + ')') + '">'
+          + esc(u.email) + ' <span class="text-muted">— ' + esc(u.name) + '</span></button>';
+      }).join('');
+      list.classList.remove('d-none');
+      list.querySelectorAll('button').forEach(function (b) {
+        b.addEventListener('click', function () { selectGrantUser(this.dataset.uid, this.dataset.label); });
+      });
+    });
+  }
+
+  function selectGrantUser(uid, label) {
+    document.getElementById('dm-ag-user-id').value = uid;
+    document.getElementById('dm-ag-selected-user-label').textContent = label;
+    document.getElementById('dm-ag-selected-user').classList.remove('d-none');
+    document.getElementById('dm-ag-user-search').value = '';
+    hideUserResults();
+  }
+
+  function hideUserResults() {
+    var list = document.getElementById('dm-ag-user-results');
+    list.innerHTML = '';
+    list.classList.add('d-none');
+  }
+
+  function resetGrantForm() {
+    document.getElementById('dm-ag-user-id').value = '';
+    document.getElementById('dm-ag-selected-user').classList.add('d-none');
+    document.getElementById('dm-ag-user-search').value = '';
+    document.getElementById('dm-ag-role').value = '';
+    document.getElementById('dm-ag-scope').value = '';
+    document.getElementById('dm-ag-notes').value = '';
+    document.getElementById('dm-ag-site-field').style.visibility = 'hidden';
+    document.getElementById('dm-ag-form-error').textContent = '';
+    hideUserResults();
+  }
+
+  function submitGrant() {
+    var errEl = document.getElementById('dm-ag-form-error');
+    errEl.textContent = '';
+
+    var userId = document.getElementById('dm-ag-user-id').value;
+    var role = document.getElementById('dm-ag-role').value;
+    var scope = document.getElementById('dm-ag-scope').value;
+    var notes = document.getElementById('dm-ag-notes').value.trim();
+
+    if (!userId) { errEl.textContent = 'Select a user.'; return; }
+    if (!role) { errEl.textContent = 'Select a role.'; return; }
+    if (!scope) { errEl.textContent = 'Select a scope.'; return; }
+
+    var body = { user_id: userId, role: role, scope_type: scope };
+    if (notes) body.notes = notes;
+
+    if (scope === 'project_site') {
+      var siteVal = document.getElementById('dm-ag-site').value;
+      if (!siteVal) { errEl.textContent = 'Select a site.'; return; }
+      body.project_site_id = siteVal;
+    } else if (scope === 'project') {
+      var projectId = document.getElementById('dm-ag-project-select').value;
+      if (!projectId) { errEl.textContent = 'Select a project from the filter above first.'; return; }
+      body.project_id = projectId;
+    }
+
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/data-management/api/access-grants', 'POST', body).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed to create grant.'; return; }
+      document.getElementById('dm-ag-form-container').classList.add('d-none');
+      resetGrantForm();
+      loadGrants();
+    }).catch(function () {
+      btn.disabled = false;
+      errEl.textContent = 'Network error.';
+    });
+  }
+
+}());
+</script>
+
+{% endblock %}

@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-06
 ---
 
 # Workflow And Permissions
@@ -593,6 +593,8 @@ Current baseline:
 
 - `admin` may manage all admin API resources
 - `project_pi` may manage project-site mappings and non-global access grants only inside explicitly granted projects
+- `data_manager` may create users and manage coder/data_manager grants within their own grant scope via `/data-management/users`
+- `admin` may also use the data-manager user management interface with full scope access
 - browser-originated mutating admin API requests require the `X-CSRFToken` header
 
 ## Important Current-State Limitation

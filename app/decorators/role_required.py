@@ -54,7 +54,11 @@ def role_required(*roles):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            is_api = request.path.startswith("/api/") or request.path.startswith("/admin/api/")
+            is_api = (
+                request.path.startswith("/api/")
+                or request.path.startswith("/admin/api/")
+                or request.path.startswith("/data-management/api/")
+            )
 
             # ── Layer 1: Authentication ──────────────────────────────────────
             if not current_user.is_authenticated:

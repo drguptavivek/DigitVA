@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-06
 ---
 
 # Data Manager Dashboard
@@ -243,6 +243,33 @@ It shows recent data-manager initiated sync runs with:
 - records added/updated
 - latest progress/error entries
 
+## User and Grant Management
+
+The data-manager dashboard includes a "Manage Users" button in the page header
+that links to `/data-management/users`.
+
+This page provides a separate interface (outside the admin panel) where
+data-managers and admins can:
+
+- **Users tab**: search active users and create new users (with email, name,
+  phone, password, and VA language selection)
+- **Grants tab**: view, create, and toggle coder and data-manager grants
+  scoped to the data-manager's own grant scope
+
+Scope rules:
+
+- project-scoped data-managers can assign grants at project or project-site
+  level within their project
+- site-scoped data-managers can only assign grants at project-site level for
+  their specific sites
+- admins bypass all scope restrictions through this interface
+
+Assignable roles are limited to `coder` and `data_manager`. The interface does
+not expose admin, project-PI, site-PI, reviewer, or collaborator grants.
+
+See [dm-user-grant-management.md](../../docs/policy/dm-user-grant-management.md)
+for the full policy baseline.
+
 ## Related Files
 
 Main route and query logic:
@@ -253,6 +280,7 @@ Template and client-side behavior:
 
 - [va_data_manager.html](../../app/templates/va_frontpages/va_data_manager.html)
 - [data_manager_partials](../../app/templates/va_frontpages/data_manager_partials)
+- [_user_management.html](../../app/templates/va_frontpages/data_manager_partials/_user_management.html)
 - [data_manager_dashboard.js](../../app/static/js/data_manager_dashboard.js)
 - [data_manager_workflow_guide.js](../../app/static/js/data_manager_workflow_guide.js)
 - [data_manager_dashboard.css](../../app/static/css/data_manager_dashboard.css)

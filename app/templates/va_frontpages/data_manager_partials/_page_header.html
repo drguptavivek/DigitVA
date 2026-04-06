@@ -6,6 +6,10 @@
     <small class="text-muted">{{ current_user.email }}</small>
   </div>
   <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-sm btn-outline-primary"
+       href="{{ url_for('data_management.user_management') }}">
+      <i class="fa-solid fa-users me-1"></i>Manage Users
+    </a>
     <button class="btn btn-sm btn-outline-secondary"
             type="button"
             data-bs-toggle="offcanvas"

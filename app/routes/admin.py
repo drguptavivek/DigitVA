@@ -2408,10 +2408,8 @@ def admin_panel_field_mapping_fields():
 
 @admin.route("/panels/field-mapping/field/<form_type_code>/<field_id>",
              methods=["GET", "POST"])
+@role_required("admin")
 def admin_panel_field_mapping_field_edit(form_type_code, field_id):
-    if not current_user.is_admin():
-        return render_template("va_errors/va_403.html"), 403
-
     from sqlalchemy import select as sa_select
     from app.models import MasFieldDisplayConfig, MasFormTypes
     from app.models.va_field_mapping import MasSubcategoryOrder
@@ -3471,9 +3469,8 @@ def admin_odk_site_mappings_delete(project_id, site_id):
 # ---------------------------------------------------------------------------
 
 @admin.get("/panels/sync")
+@role_required("admin")
 def admin_panel_sync():
-    if not current_user.is_admin():
-        return render_template("va_errors/va_403.html"), 403
     sync_forms = [
         {
             "form_id": row.form_id,
@@ -3497,10 +3494,8 @@ def admin_panel_sync():
 
 
 @admin.get("/panels/activity")
+@role_required("admin")
 def admin_panel_activity():
-    if not current_user.is_admin():
-        return render_template("va_errors/va_403.html"), 403
-
     sid = (request.args.get("sid") or "").strip()
     project_id = (request.args.get("project_id") or "").strip().upper()
     site_id = (request.args.get("site_id") or "").strip().upper()
@@ -3760,10 +3755,10 @@ def admin_sync_trigger():
                 409,
             )
 
-            log.info("Manual sync triggered by user %s", current_user.user_id if user else "unknown")
+            log.info("Manual sync triggered by user %s", current_user.user_id)
         task = run_odk_sync.delay(
             triggered_by="manual",
-            user_id=str(current_user.user_id) if user else None,
+            user_id=str(current_user.user_id),
         )
         return jsonify({"message": "Sync started.", "task_id": task.id}), 202
     except Exception as e:
@@ -3803,7 +3798,7 @@ def admin_attachment_backfill_trigger():
             site_id=site_id,
             form_id=form_id,
             triggered_by="attach_backfill",
-            user_id=str(current_user.user_id) if user else None,
+            user_id=str(current_user.user_id),
         )
         return jsonify(
             {
@@ -4256,12 +4251,12 @@ def admin_sync_backfill_form(form_id: str):
             log.info(
             "Backfill of %s triggered by user %s",
             form_id,
-            current_user.user_id if user else "unknown",
+            current_user.user_id,
         )
         task = run_single_form_backfill.delay(
             form_id=form_id,
             triggered_by="backfill",
-            user_id=str(current_user.user_id) if user else None,
+            user_id=str(current_user.user_id),
         )
         return jsonify({
             "message": f"Backfill started for form {form_id}.",
@@ -4289,10 +4284,10 @@ def admin_sync_trigger_smartva():
         if running:
             return _json_error("A sync is already in progress.", 409)
 
-            log.info("SmartVA-only run triggered by user %s", current_user.user_id if user else "unknown")
+            log.info("SmartVA-only run triggered by user %s", current_user.user_id)
         task = run_smartva_pending.delay(
             triggered_by="smartva-only",
-            user_id=str(current_user.user_id) if user else None,
+            user_id=str(current_user.user_id),
         )
         return jsonify({"message": "SmartVA run started.", "task_id": task.id}), 202
     except Exception as e:

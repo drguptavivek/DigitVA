@@ -60,6 +60,7 @@
     var rows = _users.map(function (u) {
       var isActive = u.status === 'active';
       var isSelf = u.user_id === CURRENT_USER_ID;
+      var isAdmin = !!u.is_admin;
 
       var toggleBtn = '';
       if (!isSelf) {
@@ -75,13 +76,29 @@
         toggleBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-secondary" disabled title="Cannot toggle self"><i class="fa-solid fa-toggle-on"></i></button>';
       }
 
+      var adminBtn = '';
+      if (!isSelf) {
+        adminBtn = '<button class="btn btn-sm py-0 px-2 user-admin-btn '
+          + (isAdmin ? 'btn-outline-warning' : 'btn-outline-secondary') + '"'
+          + ' data-id="' + esc(u.user_id) + '"'
+          + ' data-email="' + esc(u.email) + '"'
+          + ' data-admin="' + (isAdmin ? '1' : '0') + '"'
+          + ' title="' + (isAdmin ? 'Revoke admin' : 'Grant admin') + '">'
+          + '<i class="fa-solid fa-shield-halved"></i>'
+          + '</button>';
+      } else {
+        adminBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-secondary" disabled title="Cannot change own admin"><i class="fa-solid fa-shield-halved"></i></button>';
+      }
+
       var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary user-edit-btn" '
         + ' data-id="' + esc(u.user_id) + '" title="Edit">'
         + '<i class="fa-solid fa-pen"></i></button>';
 
+      var adminBadge = isAdmin ? ' <span class="badge text-bg-warning small">Admin</span>' : '';
+
       return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2">'
-        +   '<div class="fw-semibold small">' + esc(u.name) + '</div>'
+        +   '<div class="fw-semibold small">' + esc(u.name) + adminBadge + '</div>'
         +   '<div class="small text-muted">' + esc(u.email) + '</div>'
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(u.phone || '') + '</td>'
@@ -91,7 +108,7 @@
             ? '<span class="badge text-bg-success">Active</span>'
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
-        + '<td class="align-middle py-2 text-end">' + toggleBtn + ' ' + editBtn + '</td>'
+        + '<td class="align-middle py-2 text-end">' + adminBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
         + '</tr>';
     }).join('');
 
@@ -100,8 +117,8 @@
       + '<th class="fw-medium small text-muted">User</th>'
       + '<th class="fw-medium small text-muted" style="width:20%;">Phone</th>'
       + '<th class="fw-medium small text-muted" style="width:20%;">VA Languages</th>'
-      + '<th class="fw-medium small text-muted" style="width:15%;">Status</th>'
-      + '<th class="fw-medium small text-muted text-end" style="width:15%;">Actions</th>'
+      + '<th class="fw-medium small text-muted" style="width:10%;">Status</th>'
+      + '<th class="fw-medium small text-muted text-end" style="width:18%;">Actions</th>'
       + '</tr></thead>'
       + '<tbody>' + rows + '</tbody>'
       + '</table></div>';
@@ -120,6 +137,16 @@
     for (var j = 0; j < toggleBtns.length; j++) {
       toggleBtns[j].addEventListener('click', function () {
         promptToggle(this.getAttribute('data-id'), this.getAttribute('data-email'), this.getAttribute('data-active') === '1');
+      });
+    }
+
+    // Bind admin toggle buttons
+    var adminBtns = wrap.querySelectorAll('.user-admin-btn');
+    for (var k = 0; k < adminBtns.length; k++) {
+      adminBtns[k].addEventListener('click', function () {
+        var userId = this.getAttribute('data-id');
+        var isAdmin = this.getAttribute('data-admin') === '1';
+        toggleAdmin(userId, isAdmin);
       });
     }
   }
@@ -178,6 +205,22 @@
       renderTable();
     }).catch(function () { btn.disabled = false; });
   });
+
+  // ── admin toggle ──────────────────────────────────────────────────────────
+
+  function toggleAdmin(userId) {
+    apiJson('/admin/api/users/' + encodeURIComponent(userId) + '/toggle-admin', 'POST').then(function (res) {
+      if (!res.ok) {
+        var wrap = document.getElementById('user-table-wrap');
+        wrap.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger small py-2 mt-2">' + esc(res.data.error || 'Failed.') + '</div>');
+        return;
+      }
+      _users = _users.map(function (u) {
+        return u.user_id === userId ? Object.assign({}, u, { is_admin: res.data.is_admin }) : u;
+      });
+      renderTable();
+    });
+  }
 
   // ── form handling ─────────────────────────────────────────────────────────
 

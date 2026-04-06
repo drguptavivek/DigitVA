@@ -1094,6 +1094,7 @@ def _serialize_user(user):
         "phone": user.phone,
         "landing_page": user.landing_page,
         "languages": user.vacode_language or [],
+        "is_admin": user.is_admin(),
     }
 
 
@@ -1255,6 +1256,54 @@ def admin_toggle_user(target_user_id):
     return jsonify({
         "user_id": str(target_user.user_id),
         "status": target_user.user_status.value,
+    })
+
+
+@admin.post("/api/users/<uuid:target_user_id>/toggle-admin")
+@role_required("admin")
+def admin_toggle_user_admin(target_user_id):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+
+    if target_user.user_id == current_user.user_id:
+        return _json_error("You cannot change your own admin status.", 400)
+
+    from app.models.va_user_access_grants import VaUserAccessGrants
+    from app.models.va_selectives import VaAccessRoles, VaAccessScopeTypes
+
+    grant = db.session.scalar(
+        sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == target_user.user_id,
+            VaUserAccessGrants.role == VaAccessRoles.admin,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.global_scope,
+        )
+    )
+
+    if grant and grant.grant_status == VaStatuses.active:
+        grant.grant_status = VaStatuses.deactive
+        is_admin = False
+    else:
+        if grant is None:
+            grant = VaUserAccessGrants(
+                user_id=target_user.user_id,
+                role=VaAccessRoles.admin,
+                scope_type=VaAccessScopeTypes.global_scope,
+                grant_status=VaStatuses.active,
+                notes="toggled via admin panel",
+            )
+            db.session.add(grant)
+        else:
+            grant.grant_status = VaStatuses.active
+        is_admin = True
+
+    db.session.commit()
+    return jsonify({
+        "user_id": str(target_user.user_id),
+        "is_admin": is_admin,
     })
 
 

@@ -6,10 +6,17 @@ Usage:
   flask payload-backfill enrich --dry-run        # preview only
   flask payload-backfill status                  # show counts
 """
+import logging
 import click
 import sqlalchemy as sa
 
 from app import db
+
+
+class _ClickEchoHandler(logging.Handler):
+    """Forward log records to click.echo so CLI output is always visible."""
+    def emit(self, record):
+        click.echo(self.format(record))
 
 
 @click.group("payload-backfill")
@@ -56,9 +63,11 @@ def backfill_status():
 
 @payload_backfill_group.command("enrich")
 @click.option("--form-id", default=None, help="Restrict to a single form ID.")
-@click.option("--batch-size", default=50, show_default=True, help="Submissions per commit.")
-@click.option("--dry-run", is_flag=True, help="Preview without writing.")
-def enrich(form_id, batch_size, dry_run):
+@click.option("--batch-size", default=10, show_default=True, help="Submissions per commit.")
+@click.option("--max-forms", default=None, type=int, help="Stop after N forms (for test runs).")
+@click.option("--max-per-form", default=None, type=int, help="Cap submissions per form (for smoke tests).")
+@click.option("--dry-run", is_flag=True, help="Fetch enrichment data but write nothing.")
+def enrich(form_id, batch_size, max_forms, max_per_form, dry_run):
     """Fetch missing ODK enrichment metadata for unenriched active payload versions.
 
     Contacts ODK Central per form, adds FormVersion / DeviceID / SubmitterID /
@@ -66,19 +75,41 @@ def enrich(form_id, batch_size, dry_run):
     payload_data, and updates has_required_metadata and attachments_expected.
     These fields are all in VOLATILE_PAYLOAD_KEYS so the canonical fingerprint
     is unchanged — no new payload version is created.
+
+    Examples:
+
+      # Test run: enrich 2 forms only\n
+      flask payload-backfill enrich --max-forms=2
+
+      # Single form\n
+      flask payload-backfill enrich --form-id=UNSW01KA0101
+
+      # Full backfill\n
+      flask payload-backfill enrich
     """
     from app.services.payload_enrichment_backfill_service import enrich_unenriched_payloads
+
+    # Wire up click.echo handler so log.info/warning lines appear in CLI output
+    handler = _ClickEchoHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    svc_logger = logging.getLogger("app.services.payload_enrichment_backfill_service")
+    svc_logger.addHandler(handler)
+    svc_logger.setLevel(logging.DEBUG)
 
     if dry_run:
         click.echo("[dry-run] no changes will be written")
     if form_id:
         click.echo(f"Enriching payloads for form: {form_id}")
+    elif max_forms:
+        click.echo(f"Enriching up to {max_forms} form(s), {batch_size} submissions per batch...")
     else:
-        click.echo("Enriching all unenriched active payload versions...")
+        click.echo(f"Enriching all unenriched active payload versions ({batch_size} per batch)...")
 
     stats = enrich_unenriched_payloads(
         form_id=form_id,
         batch_size=batch_size,
+        max_forms=max_forms,
+        max_per_form=max_per_form,
         dry_run=dry_run,
     )
 
@@ -88,6 +119,8 @@ def enrich(form_id, batch_size, dry_run):
     )
     if stats["failed"]:
         click.echo(f"[warn] {stats['failed']} submissions failed enrichment — check logs")
+
+    svc_logger.removeHandler(handler)
 
 
 def init_app(app):

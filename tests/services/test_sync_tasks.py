@@ -1,15 +1,14 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from app import db
+from app.models import VaForms
+
 
 class SyncTaskBatchingTests(TestCase):
     def test_run_enrichment_sync_batch_releases_read_transaction_before_odk_calls(self):
-        from app import create_app, db
-        from app.models import VaForms
         from app.tasks.sync_tasks import run_enrichment_sync_batch
-        from config import TestConfig
 
-        app = create_app(TestConfig)
         fake_form = MagicMock(spec=VaForms)
         fake_form.form_id = "FORM04"
         fake_form.project_id = "PROJ04"
@@ -23,31 +22,30 @@ class SyncTaskBatchingTests(TestCase):
                 return fake_form
             return None
 
-        with app.app_context():
-            with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
-                with patch.object(db.session, "get", side_effect=fake_get):
-                    with patch.object(db.session, "execute", return_value=fake_rows):
-                        with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
-                            with patch.object(db.session, "commit", side_effect=lambda: events.append("commit")):
-                                with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
-                                    with patch("app.tasks.sync_tasks._get_single_form_odk_client", return_value=MagicMock()):
+        with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
+            with patch.object(db.session, "get", side_effect=fake_get):
+                with patch.object(db.session, "execute", return_value=fake_rows):
+                    with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
+                        with patch.object(db.session, "commit", side_effect=lambda: events.append("commit")):
+                            with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+                                with patch("app.tasks.sync_tasks._get_single_form_odk_client", return_value=MagicMock()):
+                                    with patch(
+                                        "app.services.va_data_sync.va_data_sync_01_odkcentral._attach_all_odk_comments",
+                                        side_effect=lambda *args, **kwargs: events.append("attach") or args[1],
+                                    ):
                                         with patch(
-                                            "app.services.va_data_sync.va_data_sync_01_odkcentral._attach_all_odk_comments",
-                                            side_effect=lambda *args, **kwargs: events.append("attach") or args[1],
+                                            "app.services.va_data_sync.va_data_sync_01_odkcentral._finalize_enriched_submissions_for_form",
+                                            side_effect=lambda *args, **kwargs: events.append("finalize") or 1,
                                         ):
-                                            with patch(
-                                                "app.services.va_data_sync.va_data_sync_01_odkcentral._finalize_enriched_submissions_for_form",
-                                                side_effect=lambda *args, **kwargs: events.append("finalize") or 1,
-                                            ):
-                                                with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
-                                                    result = run_enrichment_sync_batch.run(
-                                                        form_id="FORM04",
-                                                        batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": True, "needs_attachments": False, "needs_smartva": False}},
-                                                        remaining_batches=[],
-                                                        run_id="run-111",
-                                                        batch_index=1,
-                                                        batch_total=1,
-                                                    )
+                                            with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
+                                                result = run_enrichment_sync_batch.run(
+                                                    form_id="FORM04",
+                                                    batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": True, "needs_attachments": False, "needs_smartva": False}},
+                                                    remaining_batches=[],
+                                                    run_id="run-111",
+                                                    batch_index=1,
+                                                    batch_total=1,
+                                                )
 
         self.assertEqual(result["enriched"], 1)
         self.assertLess(events.index("rollback"), events.index("attach"))
@@ -116,8 +114,6 @@ class SyncTaskBatchingTests(TestCase):
             ENRICHMENT_SYNC_BATCH_SIZE,
             _schedule_enrichment_sync_for_form,
         )
-        from app import create_app, db
-        from config import TestConfig
 
         upserted_map = {f"sid-{index}": f"key-{index}" for index in range(101)}
         log_progress = MagicMock()
@@ -125,21 +121,19 @@ class SyncTaskBatchingTests(TestCase):
         fake_run = MagicMock()
         fake_execute = MagicMock()
         fake_execute.scalar_one.return_value = fake_run
-        app = create_app(TestConfig)
 
-        with app.app_context():
-            with patch.object(db.session, "execute", return_value=fake_execute):
-                with patch.object(db.session, "commit", MagicMock()):
-                    with patch(
-                        "app.tasks.sync_tasks.run_enrichment_sync_batch.delay",
-                        side_effect=lambda **kwargs: kwargs,
-                    ) as batch_delay:
-                        batch_count = _schedule_enrichment_sync_for_form(
-                            "run-123",
-                            "FORM01",
-                            upserted_map,
-                            log_progress,
-                        )
+        with patch.object(db.session, "execute", return_value=fake_execute):
+            with patch.object(db.session, "commit", MagicMock()):
+                with patch(
+                    "app.tasks.sync_tasks.run_enrichment_sync_batch.delay",
+                    side_effect=lambda **kwargs: kwargs,
+                ) as batch_delay:
+                    batch_count = _schedule_enrichment_sync_for_form(
+                        "run-123",
+                        "FORM01",
+                        upserted_map,
+                        log_progress,
+                    )
 
         self.assertEqual(batch_count, 11)
         batch_delay.assert_called_once()
@@ -160,8 +154,6 @@ class SyncTaskBatchingTests(TestCase):
             ATTACHMENT_SYNC_BATCH_SIZE,
             _schedule_attachment_sync_for_form,
         )
-        from app import create_app, db
-        from config import TestConfig
 
         upserted_map = {f"sid-{index}": f"key-{index}" for index in range(24)}
         log_progress = MagicMock()
@@ -169,21 +161,19 @@ class SyncTaskBatchingTests(TestCase):
         fake_run = MagicMock()
         fake_execute = MagicMock()
         fake_execute.scalar_one.return_value = fake_run
-        app = create_app(TestConfig)
 
-        with app.app_context():
-            with patch.object(db.session, "execute", return_value=fake_execute):
-                with patch.object(db.session, "commit", MagicMock()):
-                    with patch(
-                        "app.tasks.sync_tasks.run_attachment_sync_batch.delay",
-                        side_effect=lambda **kwargs: kwargs,
-                    ) as batch_delay:
-                        batch_count = _schedule_attachment_sync_for_form(
-                            "run-456",
-                            "FORM02",
-                            upserted_map,
-                            log_progress,
-                        )
+        with patch.object(db.session, "execute", return_value=fake_execute):
+            with patch.object(db.session, "commit", MagicMock()):
+                with patch(
+                    "app.tasks.sync_tasks.run_attachment_sync_batch.delay",
+                    side_effect=lambda **kwargs: kwargs,
+                ) as batch_delay:
+                    batch_count = _schedule_attachment_sync_for_form(
+                        "run-456",
+                        "FORM02",
+                        upserted_map,
+                        log_progress,
+                    )
 
         self.assertEqual(batch_count, 3)
         batch_delay.assert_called_once()
@@ -199,12 +189,8 @@ class SyncTaskBatchingTests(TestCase):
         self.assertIn("queued 3 download batch(es)", log_progress.call_args.args[0])
 
     def test_run_attachment_sync_batch_uses_internal_finalize_helper(self):
-        from app import create_app, db
-        from app.models.va_forms import VaForms
         from app.tasks.sync_tasks import run_attachment_sync_batch
-        from config import TestConfig
 
-        app = create_app(TestConfig)
         fake_form = MagicMock(spec=VaForms)
         fake_form.form_id = "FORM03"
 
@@ -213,47 +199,46 @@ class SyncTaskBatchingTests(TestCase):
                 return fake_form
             return None
 
-        with app.app_context():
-            with patch.object(db.session, "rollback", MagicMock()):
-                with patch.object(db.session, "get", side_effect=fake_get):
-                    with patch.object(db.session, "commit", MagicMock()):
-                        with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+        with patch.object(db.session, "rollback", MagicMock()):
+            with patch.object(db.session, "get", side_effect=fake_get):
+                with patch.object(db.session, "commit", MagicMock()):
+                    with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+                        with patch(
+                            "app.utils.va_odk_sync_form_attachments",
+                        ) as mocked_sync:
+                            mocked_sync.return_value = {
+                                "downloaded": 7,
+                                "skipped": 1,
+                                "errors": 0,
+                            }
                             with patch(
-                                "app.utils.va_odk_sync_form_attachments",
-                            ) as mocked_sync:
-                                mocked_sync.return_value = {
-                                    "downloaded": 7,
-                                    "skipped": 1,
-                                    "errors": 0,
-                                }
+                                "app.tasks.sync_tasks._finalize_repair_batch"
+                            ) as mocked_finalize:
                                 with patch(
-                                    "app.tasks.sync_tasks._finalize_repair_batch"
-                                ) as mocked_finalize:
-                                    with patch(
-                                        "app.services.workflow.state_store.get_submission_workflow_state",
-                                        return_value="ready_for_coding",
-                                    ):
-                                        result = run_attachment_sync_batch.run(
-                                            form_id="FORM03",
-                                            batch_map={
-                                                "sid-1": {
-                                                    "instance_id": "key-1",
-                                                    "needs_metadata": False,
-                                                    "needs_attachments": True,
-                                                    "needs_smartva": False,
-                                                },
-                                                "sid-2": {
-                                                    "instance_id": "key-2",
-                                                    "needs_metadata": False,
-                                                    "needs_attachments": True,
-                                                    "needs_smartva": False,
-                                                },
+                                    "app.services.workflow.state_store.get_submission_workflow_state",
+                                    return_value="ready_for_coding",
+                                ):
+                                    result = run_attachment_sync_batch.run(
+                                        form_id="FORM03",
+                                        batch_map={
+                                            "sid-1": {
+                                                "instance_id": "key-1",
+                                                "needs_metadata": False,
+                                                "needs_attachments": True,
+                                                "needs_smartva": False,
                                             },
-                                            remaining_batches=[{"sid-3": "key-3"}],
-                                            run_id="run-789",
-                                            batch_index=2,
-                                            batch_total=3,
-                                        )
+                                            "sid-2": {
+                                                "instance_id": "key-2",
+                                                "needs_metadata": False,
+                                                "needs_attachments": True,
+                                                "needs_smartva": False,
+                                            },
+                                        },
+                                        remaining_batches=[{"sid-3": "key-3"}],
+                                        run_id="run-789",
+                                        batch_index=2,
+                                        batch_total=3,
+                                    )
 
         self.assertEqual(result["downloaded"], 7)
         self.assertEqual(result["skipped"], 1)
@@ -286,12 +271,8 @@ class SyncTaskBatchingTests(TestCase):
         )
 
     def test_run_attachment_sync_batch_releases_read_transaction_before_download(self):
-        from app import create_app, db
-        from app.models.va_forms import VaForms
         from app.tasks.sync_tasks import run_attachment_sync_batch
-        from config import TestConfig
 
-        app = create_app(TestConfig)
         fake_form = MagicMock(spec=VaForms)
         fake_form.form_id = "FORM05"
         fake_form.project_id = "PROJ05"
@@ -302,40 +283,35 @@ class SyncTaskBatchingTests(TestCase):
                 return fake_form
             return None
 
-        with app.app_context():
-            with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
-                with patch.object(db.session, "get", side_effect=fake_get):
-                    with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
-                        with patch.object(db.session, "commit", MagicMock()):
-                            with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
-                                with patch(
-                                    "app.utils.va_odk_sync_form_attachments",
-                                    side_effect=lambda *args, **kwargs: events.append("download") or {"downloaded": 1, "skipped": 0, "errors": 0},
-                                ):
-                                    with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
-                                        with patch(
-                                            "app.services.workflow.state_store.get_submission_workflow_state",
-                                            return_value="ready_for_coding",
-                                        ):
-                                            run_attachment_sync_batch.run(
-                                                form_id="FORM05",
-                                                batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": False, "needs_attachments": True, "needs_smartva": False}},
-                                                remaining_batches=[],
-                                                run_id="run-222",
-                                                batch_index=1,
-                                                batch_total=1,
-                                            )
+        with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
+            with patch.object(db.session, "get", side_effect=fake_get):
+                with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
+                    with patch.object(db.session, "commit", MagicMock()):
+                        with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+                            with patch(
+                                "app.utils.va_odk_sync_form_attachments",
+                                side_effect=lambda *args, **kwargs: events.append("download") or {"downloaded": 1, "skipped": 0, "errors": 0},
+                            ):
+                                with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
+                                    with patch(
+                                        "app.services.workflow.state_store.get_submission_workflow_state",
+                                        return_value="ready_for_coding",
+                                    ):
+                                        run_attachment_sync_batch.run(
+                                            form_id="FORM05",
+                                            batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": False, "needs_attachments": True, "needs_smartva": False}},
+                                            remaining_batches=[],
+                                            run_id="run-222",
+                                            batch_index=1,
+                                            batch_total=1,
+                                        )
 
         self.assertLess(events.index("rollback"), events.index("download"))
         self.assertIn("expunge:FORM05", events)
 
     def test_run_smartva_sync_batch_releases_read_transaction_before_generation(self):
-        from app import create_app, db
-        from app.models.va_forms import VaForms
         from app.tasks.sync_tasks import run_smartva_sync_batch
-        from config import TestConfig
 
-        app = create_app(TestConfig)
         fake_form = MagicMock(spec=VaForms)
         fake_form.form_id = "FORM06"
         fake_form.project_id = "PROJ06"
@@ -346,24 +322,23 @@ class SyncTaskBatchingTests(TestCase):
                 return fake_form
             return None
 
-        with app.app_context():
-            with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
-                with patch.object(db.session, "get", side_effect=fake_get):
-                    with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
-                        with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
-                            with patch(
-                                "app.services.smartva_service.generate_for_form",
-                                side_effect=lambda *args, **kwargs: events.append("generate") or 2,
-                            ):
-                                with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
-                                    result = run_smartva_sync_batch.run(
-                                        form_id="FORM06",
-                                        batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": False, "needs_attachments": False, "needs_smartva": True}},
-                                        remaining_batches=[],
-                                        run_id="run-333",
-                                        batch_index=1,
-                                        batch_total=1,
-                                    )
+        with patch.object(db.session, "rollback", side_effect=lambda: events.append("rollback")):
+            with patch.object(db.session, "get", side_effect=fake_get):
+                with patch.object(db.session, "expunge", side_effect=lambda entity: events.append(f"expunge:{getattr(entity, 'form_id', 'unknown')}")):
+                    with patch("app.tasks.sync_tasks._log_progress", MagicMock()):
+                        with patch(
+                            "app.services.smartva_service.generate_for_form",
+                            side_effect=lambda *args, **kwargs: events.append("generate") or 2,
+                        ):
+                            with patch("app.tasks.sync_tasks._finalize_repair_batch", MagicMock()):
+                                result = run_smartva_sync_batch.run(
+                                    form_id="FORM06",
+                                    batch_map={"sid-1": {"instance_id": "key-1", "needs_metadata": False, "needs_attachments": False, "needs_smartva": True}},
+                                    remaining_batches=[],
+                                    run_id="run-333",
+                                    batch_index=1,
+                                    batch_total=1,
+                                )
 
         self.assertEqual(result["smartva_updated"], 2)
         self.assertLess(events.index("rollback"), events.index("generate"))

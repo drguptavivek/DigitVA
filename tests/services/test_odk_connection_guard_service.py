@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta, timezone
-import unittest
 import uuid
 
 import requests
 
-from app import create_app, db
+from app import db
 from app.models import MasOdkConnections, VaStatuses
 from app.services.odk_connection_guard_service import (
     OdkConnectionCooldownError,
@@ -15,33 +14,16 @@ from app.services.odk_connection_guard_service import (
     snapshot_connection_guard_state,
 )
 from app.utils.credential_crypto import encrypt_credential
-from config import TestConfig
+from tests.base import BaseTestCase
 
 
 PEPPER = "test-pepper-do-not-use-in-production"
 
 
-class OdkConnectionGuardServiceTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app = create_app(TestConfig)
-        cls.ctx = cls.app.app_context()
-        cls.ctx.push()
-        db.drop_all()
-        db.create_all()
+class OdkConnectionGuardServiceTests(BaseTestCase):
 
-    @classmethod
-    def tearDownClass(cls):
-        db.session.remove()
-        db.drop_all()
-        cls.ctx.pop()
-
-    def tearDown(self):
-        db.session.remove()
-        db.drop_all()
-        db.create_all()
-
-    def _create_connection(self, name="Guard Test"):
+    def _create_connection(self, name=None):
+        name = name or f"Guard Test {uuid.uuid4().hex[:8]}"
         username_enc, username_salt = encrypt_credential("guard@test.local", PEPPER)
         password_enc, password_salt = encrypt_credential("secret", PEPPER)
         conn = MasOdkConnections(

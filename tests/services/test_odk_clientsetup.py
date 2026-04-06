@@ -1,30 +1,23 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from app import create_app
-from config import TestConfig
-
 
 class TestOdkClientSetupLogging(TestCase):
-    def setUp(self):
-        self.app = create_app(TestConfig)
-
     def test_logs_db_backed_connection_usage_for_project(self):
-        with self.app.app_context():
+        with patch(
+            "app.utils.va_odk.va_odk_01_clientsetup._client_from_db",
+            return_value=MagicMock(name="db_client"),
+        ):
             with patch(
-                "app.utils.va_odk.va_odk_01_clientsetup._client_from_db",
-                return_value=MagicMock(name="db_client"),
-            ):
+                "app.utils.va_odk.va_odk_01_clientsetup._client_from_toml",
+            ) as toml_client:
                 with patch(
-                    "app.utils.va_odk.va_odk_01_clientsetup._client_from_toml",
-                ) as toml_client:
-                    with patch(
-                        "app.utils.va_odk.va_odk_01_clientsetup.log"
-                    ) as mock_log:
-                        client = __import__(
-                            "app.utils.va_odk.va_odk_01_clientsetup",
-                            fromlist=["va_odk_clientsetup"],
-                        ).va_odk_clientsetup(project_id="ROOT01")
+                    "app.utils.va_odk.va_odk_01_clientsetup.log"
+                ) as mock_log:
+                    client = __import__(
+                        "app.utils.va_odk.va_odk_01_clientsetup",
+                        fromlist=["va_odk_clientsetup"],
+                    ).va_odk_clientsetup(project_id="ROOT01")
 
         self.assertIsNotNone(client)
         toml_client.assert_not_called()
@@ -37,22 +30,21 @@ class TestOdkClientSetupLogging(TestCase):
     def test_logs_toml_fallback_when_project_has_no_active_mapping(self):
         fallback_client = MagicMock(name="fallback_client")
 
-        with self.app.app_context():
+        with patch(
+            "app.utils.va_odk.va_odk_01_clientsetup._client_from_db",
+            return_value=None,
+        ):
             with patch(
-                "app.utils.va_odk.va_odk_01_clientsetup._client_from_db",
-                return_value=None,
-            ):
+                "app.utils.va_odk.va_odk_01_clientsetup._client_from_toml",
+                return_value=fallback_client,
+            ) as toml_client:
                 with patch(
-                    "app.utils.va_odk.va_odk_01_clientsetup._client_from_toml",
-                    return_value=fallback_client,
-                ) as toml_client:
-                    with patch(
-                        "app.utils.va_odk.va_odk_01_clientsetup.log"
-                    ) as mock_log:
-                        client = __import__(
-                            "app.utils.va_odk.va_odk_01_clientsetup",
-                            fromlist=["va_odk_clientsetup"],
-                        ).va_odk_clientsetup(project_id="ROOT01")
+                    "app.utils.va_odk.va_odk_01_clientsetup.log"
+                ) as mock_log:
+                    client = __import__(
+                        "app.utils.va_odk.va_odk_01_clientsetup",
+                        fromlist=["va_odk_clientsetup"],
+                    ).va_odk_clientsetup(project_id="ROOT01")
 
         self.assertIs(client, fallback_client)
         toml_client.assert_called_once()

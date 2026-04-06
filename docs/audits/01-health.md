@@ -3,7 +3,7 @@ title: "Route Audit — health Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2025-04-05
+last_updated: 2026-04-05
 ---
 
 # health Blueprint Audit
@@ -14,9 +14,9 @@ last_updated: 2025-04-05
 
 ## Routes
 
-| # | Method | Path | Auth | Roles | Scope | Mutates |
-|---|--------|------|------|-------|-------|---------|
-| 1 | GET | `/health` | None | None | None | No |
+| # | Method | Path | Decorator | Auth | Roles | Scope | Mutates |
+|---|--------|------|-----------|------|-------|-------|---------|
+| 1 | GET | `/health` | `@limiter.exempt` | None | None | None | No |
 
 ## Route Details
 
@@ -36,4 +36,4 @@ last_updated: 2025-04-05
 
 ## Findings
 
-- **No issues.** This is a standard health-check endpoint. Rate-limit exemption is appropriate.
+None.

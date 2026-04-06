@@ -3,30 +3,31 @@ title: "Route Audit — profile Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2025-04-05
+last_updated: 2026-04-05
 ---
 
 # profile Blueprint Audit
 
-**File:** `app/routes/profile.py` (page routes)
-**API File:** `app/routes/api/profile.py` (JSON API under `/api/v1/profile/`)
+**Files:**
+- Page routes: `app/routes/profile.py` (`/profile/`)
+- API routes: `app/routes/api/profile.py` (`/api/v1/profile/`)
 
 ## Page Routes (`/profile/`)
 
-| # | Method | Path | Auth | Roles | Scope | Mutates | Rate Limit |
-|---|--------|------|------|-------|-------|---------|------------|
-| 1 | GET | `/profile/` | `@login_required` | Any authenticated | Self only | No | Default |
-| 2 | GET/POST | `/profile/force-password-change` | `@login_required` | Any authenticated | Self only | Yes (password) | 5/min POST |
+| # | Method | Path | Decorator | Auth | Roles | Scope | Mutates |
+|---|--------|------|-----------|------|-------|-------|---------|
+| 1 | GET | `/profile/` | `@login_required` | `@login_required` | Any | Self | No |
+| 2 | GET/POST | `/profile/force-password-change` | `@login_required`, `@limiter.limit("5/min", methods=["POST"])` | `@login_required` | Any (guarded by `pw_reset_t_and_c`) | Self | Yes |
 
 ## API Routes (`/api/v1/profile/`)
 
-| # | Method | Path | Auth | Roles | Scope | Mutates | Rate Limit |
-|---|--------|------|------|-------|-------|---------|------------|
-| 3 | GET | `/api/v1/profile/` | `@login_required` | Any authenticated | Self only | No | Default |
-| 4 | GET | `/api/v1/profile/languages` | `@login_required` | Any authenticated | Self only | No | Default |
-| 5 | PATCH | `/api/v1/profile/password` | `@login_required` | Any authenticated | Self only | Yes | 5/min |
-| 6 | PATCH | `/api/v1/profile/language` | `@login_required` | Any authenticated | Self only | Yes | Default |
-| 7 | PATCH | `/api/v1/profile/timezone` | `@login_required` | Any authenticated | Self only | Yes | Default |
+| # | Method | Path | Decorator | Auth | Roles | Scope | Mutates |
+|---|--------|------|-----------|------|-------|-------|---------|
+| 3 | GET | `/api/v1/profile/` | `@login_required` | `@login_required` | Any | Self | No |
+| 4 | GET | `/api/v1/profile/languages` | `@login_required` | `@login_required` | Any | Self | No |
+| 5 | PATCH | `/api/v1/profile/password` | `@login_required`, `@limiter.limit("5/min")` | `@login_required` | Any | Self | Yes |
+| 6 | PATCH | `/api/v1/profile/language` | `@login_required` | `@login_required` | Any | Self | Yes |
+| 7 | PATCH | `/api/v1/profile/timezone` | `@login_required` | `@login_required` | Any | Self | Yes |
 
 ## Route Details
 
@@ -36,36 +37,25 @@ last_updated: 2025-04-05
 - Renders profile page. Data loaded client-side via API.
 
 **2. `GET/POST /profile/force-password-change` — `force_password_change()`**
-- Enforced by `@app.before_request` when `pw_reset_t_and_c` is False.
-- POST validates current password, sets new password, sets `pw_reset_t_and_c = True`.
-- Rate limited to 5/min on POST.
+- Guarded by `pw_reset_t_and_c` flag. POST validates current password, sets new password, sets flag.
+- CSRF protected by WTForms on POST. Rate limited 5/min.
 
 ### API Routes
 
-**3. `GET /api/v1/profile/` — `get_profile()`**
-- Returns user_id, name, email, languages, timezone.
-
-**4. `GET /api/v1/profile/languages` — `get_languages()`**
-- Returns available and selected language options.
-
-**5. `PATCH /api/v1/profile/password` — `update_password()`**
-- Validates current password. Enforces new != current. Enforces password policy.
-- Rate limited to 5/min.
-
-**6. `PATCH /api/v1/profile/language` — `update_language()`**
-- Validates language codes against `MasLanguages`.
-
-**7. `PATCH /api/v1/profile/timezone` — `update_timezone()`**
-- Validates timezone against `pytz.common_timezones`.
+**3–7. Profile API**
+- All use `@login_required`. All mutations are self-scoped (`current_user` only).
+- CSRF protected by CSRFProtect on PATCH routes.
 
 ## Policy Compliance
 
 | Policy | Status | Notes |
 |--------|--------|-------|
-| Access Control Model | Compliant | Self-service only; no cross-user access |
-| CSRF Protection | Compliant | Password change form uses CSRF; API mutations use session + CSRF header |
-| PII Protection | Compliant | Passwords never logged |
+| Auth Decorator RBAC | Non-compliant | Uses `@login_required` instead of `@role_required` |
+| CSRF Protection | Compliant | POST/PATCH routes protected |
+| Rate Limiting | Compliant | 5/min on password changes |
 
 ## Findings
 
-- **No issues.** All profile operations are scoped to the current user only. Password changes are rate-limited and validated.
+1. **F1 — All 7 routes use `@login_required` instead of `@role_required()`.** This bypasses the active-status guard — a deactivated user with an unexpired session could still access profile routes. **Severity: Low** — self-scoped operations only, no cross-user impact. Consider `@role_required` with all workflow roles.
+
+2. **F2 — `/force-password-change` has no role restriction beyond `pw_reset_t_and_c` flag.** The route remains manually navigable after reset completion. **Severity: Low** — handler re-renders form but no security impact.

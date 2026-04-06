@@ -280,7 +280,7 @@
     tbody.innerHTML = forms.map(row => {
       const actionCell = hasAllocation
         ? `<button class="btn btn-sm btn-outline-secondary" disabled>Continue current coding first</button>`
-        : `<a href="/coding/pick/${row.va_sid}" class="btn btn-sm btn-outline-primary">Start Coding</a>`;
+        : `<form method="POST" action="/coding/pick/${row.va_sid}" style="display:inline"><input type="hidden" name="csrf_token" value="${CSRF_TOKEN}"><button type="submit" class="btn btn-sm btn-outline-primary">Start Coding</button></form>`;
       return `<tr>
         <td>${row.project_id || ''}</td>
         <td>${row.site_id || ''}</td>
@@ -340,7 +340,7 @@
             }
             let html = `<a href="/coding/view/${row.va_sid}" class="btn btn-sm btn-outline-primary me-1">View</a>`;
             if (row.recodeable) {
-              html += `<a href="/coding/recode/${row.va_sid}" class="btn btn-sm btn-outline-danger">Recode</a>`;
+              html += `<form method="POST" action="/coding/recode/${row.va_sid}" style="display:inline"><input type="hidden" name="csrf_token" value="${CSRF_TOKEN}"><button type="submit" class="btn btn-sm btn-outline-danger">Recode</button></form>`;
             }
             return html;
           }

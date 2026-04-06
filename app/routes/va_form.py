@@ -10,6 +10,7 @@ from app import db
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.decorators import va_validate_permissions
+from app.decorators import role_required
 from flask_login import current_user, login_required
 from flask import Blueprint, render_template, current_app, send_file, send_from_directory, flash, redirect, url_for, jsonify, request, abort
 from werkzeug.utils import secure_filename
@@ -1091,11 +1092,12 @@ def renderpartial(va_sid, va_partial):
         
 
 @va_form.route('/attachment/<path:storage_name_raw>')
+@role_required("coder", "reviewer", "data_manager", "site_pi", "project_pi", "admin")
 def serve_attachment(storage_name_raw):
     """Serve an attachment by opaque storage_name token.
 
-    Security contract (Option B — auth-first):
-      1. Hard 401 for unauthenticated requests (no DB lookup)
+    Security contract:
+      1. @role_required handles auth + active-status + role gate
       2. Format validation → 404
       3. DB lookup (exists_on_odk=True only) → 404
       4. Permission check → 403
@@ -1104,9 +1106,6 @@ def serve_attachment(storage_name_raw):
       7. Serve file
     """
     from app import cache as flask_cache
-
-    if not current_user.is_authenticated:
-        abort(401)
 
     if not re.match(r'^[a-f0-9]{32}\.[a-z0-9]{1,5}$', storage_name_raw):
         abort(404)

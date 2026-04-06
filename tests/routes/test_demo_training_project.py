@@ -191,7 +191,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
     def test_coder_can_start_demo_project_without_specific_project_grant(self):
         self._login(self.base_coder_id)
 
-        response = self.client.get(f"/coding/start?project_id={self.DEMO_PROJECT_ID}")
+        response = self.client.post(f"/coding/start?project_id={self.DEMO_PROJECT_ID}", headers=self._csrf_headers())
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_allocation_sid(), self.DEMO_SID)
@@ -199,7 +199,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
     def test_plain_user_can_start_demo_project_without_any_grant(self):
         self._login(self.demo_plain_user_id)
 
-        response = self.client.get(f"/coding/start?project_id={self.DEMO_PROJECT_ID}")
+        response = self.client.post(f"/coding/start?project_id={self.DEMO_PROJECT_ID}", headers=self._csrf_headers())
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(self.DEMO_SID, response.get_data(as_text=True))
@@ -218,14 +218,15 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
     def test_plain_user_cannot_start_non_demo_project(self):
         self._login(self.demo_plain_user_id)
 
-        response = self.client.get(f"/coding/start?project_id={self.BASE_PROJECT_ID}")
+        response = self.client.post(f"/coding/start?project_id={self.BASE_PROJECT_ID}", headers=self._csrf_headers())
 
         self.assertEqual(response.status_code, 403)
 
     def test_demo_project_final_cod_expires_after_project_retention_window(self):
         self._login(self.base_coder_id)
-        start_response = self.client.get(
+        start_response = self.client.post(
             f"/coding/start?project_id={self.DEMO_PROJECT_ID}",
+            headers=self._csrf_headers(),
             follow_redirects=True,
         )
         self.assertEqual(start_response.status_code, 200)

@@ -3,7 +3,7 @@ title: "Route Audit — reviewing Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2025-04-05
+last_updated: 2026-04-05
 ---
 
 # reviewing Blueprint Audit
@@ -14,48 +14,37 @@ last_updated: 2025-04-05
 
 ## Page Routes (`/reviewing/`)
 
-| # | Method | Path | Auth | Roles | Scope | Mutates |
-|---|--------|------|------|-------|-------|---------|
-| 1 | GET | `/reviewing/` | `@login_required` | `reviewer` | Form grants + language filter | No |
-| 2 | GET | `/reviewing/start/<va_sid>` | `@login_required` | `reviewer` (implicit via service) | Form grants + reviewer-eligible state | Yes (allocates) |
-| 3 | GET | `/reviewing/resume` | `@login_required` | `reviewer` | Active reviewing allocation ownership | No |
-| 4 | GET | `/reviewing/view/<va_sid>` | `@login_required` | `reviewer` | Form grants + reviewed state | No |
+| # | Method | Path | Decorator | Auth | Roles | Scope | Mutates |
+|---|--------|------|-----------|------|-------|-------|---------|
+| 1 | GET | `/reviewing/` | `@role_required("reviewer")` | `@role_required` | reviewer | `get_reviewer_va_forms()` | No |
+| 2 | GET | `/reviewing/start/<va_sid>` | `@role_required("reviewer")` | `@role_required` | reviewer | `start_reviewer_coding()` | Yes (allocates) |
+| 3 | GET | `/reviewing/resume` | `@role_required("reviewer")` | `@role_required` | reviewer | `va_permission_ensureanyallocation("reviewing")` | No |
+| 4 | GET | `/reviewing/view/<va_sid>` | `@role_required("reviewer")` | `@role_required` | reviewer | `has_va_form_access()` + `va_permission_ensurereviewed()` | No |
 
 ## API Routes (`/api/v1/reviewing/`)
 
-| # | Method | Path | Auth | Roles | Scope | Mutates |
-|---|--------|------|------|-------|-------|---------|
-| 5 | GET | `/api/v1/reviewing/allocation` | `@login_required` | `reviewer` | Self allocation | No |
-| 6 | POST | `/api/v1/reviewing/allocation/<va_sid>` | `@login_required` | `reviewer` | Form grants + workflow state | Yes |
-| 7 | POST | `/api/v1/reviewing/finalize/<va_sid>` | `@login_required` | `reviewer` | Active allocation ownership | Yes |
+| # | Method | Path | Decorator | Auth | Roles | Scope | Mutates |
+|---|--------|------|-----------|------|-------|-------|---------|
+| 5 | GET | `/api/v1/reviewing/allocation` | `@role_required("reviewer")` | `@role_required` | reviewer | Own active allocation | No |
+| 6 | POST | `/api/v1/reviewing/allocation/<va_sid>` | `@role_required("reviewer")` | `@role_required` | reviewer | `start_reviewer_coding()` | Yes |
+| 7 | POST | `/api/v1/reviewing/finalize/<va_sid>` | `@role_required("reviewer")` | `@role_required` | reviewer | `submit_reviewer_final_cod()` | Yes |
 
 ## Scoping Details
 
-### Reviewer Scoping
-- **Form-level:** `current_user.get_reviewer_va_forms()` returns set of `va_form_id` values
-- **Language filter:** Dashboard queries filter by `current_user.vacode_language` (same as coder)
-- **Workflow gate:** `start_reviewer_coding()` in the service layer enforces that the submission is in `reviewer_eligible` state
-- **Allocation ownership:** `resume` and `view` check that the current user owns the active reviewing allocation
-
-### Reviewer Final COD (API route 7)
-- `submit_reviewer_final_cod()` service enforces:
-  - Active reviewing allocation for this user + submission
-  - Submission in `reviewer_coding_in_progress` state
-  - Creates reviewer final assessment
-  - Transitions workflow to `reviewer_finalized`
-  - Creates/upserts final COD authority record (reviewer overrides coder)
+- **Form-level:** `current_user.get_reviewer_va_forms()` returns form IDs the user has reviewer grants for
+- **Language filter:** Submissions filtered by `current_user.vacode_language`
+- **Allocation check:** Active allocation ownership verified before viewing/resuming
+- **Workflow state:** `va_permission_ensurereviewed()` validates submission state
+- **Final COD authority:** Reviewer final COD takes precedence over coder final COD
 
 ## Policy Compliance
 
 | Policy | Status | Notes |
 |--------|--------|-------|
+| Auth Decorator RBAC | Compliant | All 7 routes use `@role_required("reviewer")` |
 | Access Control Model | Compliant | Reviewer role + form-grant scope |
-| Coding Workflow State Machine | Compliant | Reviewer workflow gates enforced at service layer |
-| Final COD Authority | Compliant | Reviewer final COD takes precedence over coder final COD |
-| CSRF Protection | Compliant | JSON POST endpoints use session + CSRF header |
+| CSRF Protection | Compliant | POST routes protected by CSRFProtect |
 
 ## Findings
 
-1. **`/reviewing/start/<va_sid>` (route 2) delegates auth entirely to `start_reviewer_coding()` service.** No explicit `is_reviewer()` check at route level. The service does enforce it. **Risk: Low** — consistent with the pattern used in coding blueprint, but slightly inconsistent with `dashboard()` and `resume()` which check at route level.
-
-2. **Reviewer dashboard (route 1) shows ALL submissions matching form access + language, not just reviewer-eligible ones.** This includes submissions in `coder_finalized`, `reviewer_finalized`, etc. This appears intentional for the dashboard overview but may confuse reviewers about which submissions they can actually act on. **Risk: Low** — informational only.
+None. Clean auth, ABAC, and CSRF coverage.

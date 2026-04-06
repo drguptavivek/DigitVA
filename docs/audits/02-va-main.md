@@ -3,7 +3,7 @@ title: "Route Audit — va_main Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2025-04-05
+last_updated: 2026-04-05
 ---
 
 # va_main Blueprint Audit
@@ -14,26 +14,27 @@ last_updated: 2025-04-05
 
 ## Routes
 
-| # | Method | Path | Auth | Roles | Scope | Mutates |
-|---|--------|------|------|-------|-------|---------|
-| 1 | GET | `/` | None | None | None | No |
-| 2 | GET | `/index` | None | None | None | No |
-| 3 | GET | `/vaindex` | None | None | None | No |
+| # | Method | Path | Decorator | Auth | Roles | Scope | Mutates |
+|---|--------|------|-----------|------|-------|-------|---------|
+| 1 | GET | `/` | — | None | None | None | No |
+| 2 | GET | `/index` | — | None | None | None | No |
+| 3 | GET | `/vaindex` | — | None | None | None | No |
 
 ## Route Details
 
-### 1-3. `GET /`, `GET /index`, `GET /vaindex` — `va_index()`
-- **Auth:** None (public landing page)
-- **Returns:** Rendered `va_frontpages/va_index.html`
-- **Notes:** Three URL aliases for the same public landing page.
+### 1–3. `GET /`, `GET /index`, `GET /vaindex` — `va_index()`
+- **Decorator:** None
+- **Auth:** None (public)
+- **Returns:** Landing page HTML
+- **Notes:** Three URL aliases for the same handler. All are intentionally public.
 
 ## Policy Compliance
 
 | Policy | Status | Notes |
 |--------|--------|-------|
-| Access Control Model | N/A | Public page |
+| Access Control Model | N/A | Public landing page |
 | CSRF Protection | N/A | GET, read-only |
 
 ## Findings
 
-- **No issues.** Standard public landing page.
+None. Public landing page is intentional.

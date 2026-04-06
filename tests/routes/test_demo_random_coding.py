@@ -220,6 +220,6 @@ class DemoRandomCodingRouteTests(BaseTestCase):
         self.assertEqual(dashboard.status_code, 200)
         self.assertIn("Start Random Allocation Coding", dashboard.get_data(as_text=True))
 
-        start = self.client.get("/coding/start")
+        start = self.client.post("/coding/start", headers=self._csrf_headers())
         self.assertEqual(start.status_code, 200)
         self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})

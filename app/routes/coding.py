@@ -136,8 +136,8 @@ def dashboard():
     )
 
 
-@coding.get("/start")
-@role_required("coder")
+@coding.post("/start")
+@role_required("coder", "admin")
 def start():
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
@@ -165,7 +165,7 @@ def resume():
     return render_va_coding_page(form, "vacode", actiontype, "coder")
 
 
-@coding.get("/pick/<va_sid>")
+@coding.post("/pick/<va_sid>")
 @role_required("coder")
 def pick(va_sid):
     try:
@@ -176,7 +176,7 @@ def pick(va_sid):
     return render_va_coding_page(form, "vacode", result.actiontype, "coder")
 
 
-@coding.get("/recode/<va_sid>")
+@coding.post("/recode/<va_sid>")
 @role_required("coder")
 def recode(va_sid):
     try:
@@ -186,7 +186,7 @@ def recode(va_sid):
     return redirect(url_for("coding.resume"))
 
 
-@coding.get("/demo")
+@coding.post("/demo")
 @role_required("admin")
 def demo():
     project_id = (request.args.get("project_id") or "").strip().upper() or None

@@ -3,162 +3,175 @@ title: "Route Audit — admin Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2025-04-05
+last_updated: 2026-04-05
 ---
 
 # admin Blueprint Audit
 
 **File:** `app/routes/admin.py`
 **URL Prefix:** `/admin`
+**Registration:** `app.register_blueprint(admin, url_prefix="/admin")`
 
-This is the largest blueprint. Routes are split into:
-1. **Admin API routes** (`/admin/api/...`) — JSON, role-checked via `@require_api_role()`
-2. **Admin UI panel routes** (`/admin/panels/...`) — HTML, role-checked via `_require_admin_ui_access()` or inline checks
+This is the largest blueprint (~4900 lines, ~94 routes). Routes are split into:
+1. **Admin API routes** (`/admin/api/...`) — JSON, gated by `@role_required()`
+2. **Admin UI panel routes** (`/admin/panels/...`) — HTML, gated by `@role_required()`
 3. **Field mapping routes** — Admin-only configuration
 
-## API Routes — Project Management (`/admin/api/projects/`)
+## API Routes — Bootstrap & Configuration
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 1 | GET | `/admin/api/bootstrap` | `@require_api_role("admin","project_pi")` | admin, project_pi | Scoped to user's projects | No |
-| 2 | GET | `/admin/api/projects` | `@require_api_role("admin","project_pi")` | admin, project_pi | PI: own projects only | No |
-| 3 | POST | `/admin/api/projects` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 4 | PUT | `/admin/api/projects/<id>` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 5 | POST | `/admin/api/projects/<id>/toggle` | `@require_api_role("admin")` | admin only | Global | Yes |
+| 1 | GET | `/admin/api/bootstrap` | `@role_required("admin","project_pi")` | admin, project_pi | Scoped to user's projects | No |
 
-## API Routes — Site Management (`/admin/api/sites/`)
+## API Routes — Projects CRUD
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 6 | GET | `/admin/api/sites` | `@require_api_role("admin","project_pi")` | admin, project_pi | PI: sites in own projects | No |
-| 7 | POST | `/admin/api/sites` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 8 | PUT | `/admin/api/sites/<id>` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 9 | POST | `/admin/api/sites/<id>/toggle` | `@require_api_role("admin")` | admin only | Global | Yes |
+| 2 | GET | `/admin/api/projects` | `@role_required("admin","project_pi")` | admin, project_pi | PI: own projects only | No |
+| 3 | POST | `/admin/api/projects` | `@role_required("admin")` | admin only | Global | Yes |
+| 4 | PUT | `/admin/api/projects/<id>` | `@role_required("admin")` | admin only | Global | Yes |
+| 5 | POST | `/admin/api/projects/<id>/toggle` | `@role_required("admin")` | admin only | Global | Yes |
 
-## API Routes — Project-Site Mapping (`/admin/api/project-sites/`)
-
-| # | Method | Path | Decorator | Roles | Scope | Mutates |
-|---|--------|------|-----------|-------|-------|---------|
-| 10 | GET | `/admin/api/project-sites` | `@require_api_role("admin","project_pi")` | admin, project_pi | Scoped | No |
-| 11 | POST | `/admin/api/project-sites` | `@require_api_role("admin","project_pi")` | admin, project_pi | PI: own projects only | Yes |
-| 12 | POST | `/admin/api/project-sites/<uuid>/toggle` | `@require_api_role("admin","project_pi")` | admin, project_pi | PI: own projects only | Yes |
-
-## API Routes — User Management (`/admin/api/users/`)
+## API Routes — Sites CRUD
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 13 | GET | `/admin/api/users` | `@require_api_role("admin","project_pi")` | admin, project_pi | Global | No |
-| 14 | POST | `/admin/api/users` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 15 | PUT | `/admin/api/users/<uuid>` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 16 | POST | `/admin/api/users/<uuid>/toggle` | `@require_api_role("admin")` | admin only | Global | Yes |
+| 6 | GET | `/admin/api/sites` | `@role_required("admin","project_pi")` | admin, project_pi | PI: sites in own projects | No |
+| 7 | POST | `/admin/api/sites` | `@role_required("admin")` | admin only | Global | Yes |
+| 8 | PUT | `/admin/api/sites/<id>` | `@role_required("admin")` | admin only | Global | Yes |
+| 9 | POST | `/admin/api/sites/<id>/toggle` | `@role_required("admin")` | admin only | Global | Yes |
 
-## API Routes — Access Grants (`/admin/api/access-grants/`)
-
-| # | Method | Path | Decorator | Roles | Scope | Mutates |
-|---|--------|------|-----------|-------|-------|---------|
-| 17 | GET | `/admin/api/access-grants` | `@require_api_role("admin","project_pi")` | admin, project_pi | Scoped via `_project_access_filter` | No |
-| 18 | GET | `/admin/api/access-grants/orphaned` | `@require_api_role("admin","project_pi")` | admin, project_pi | Scoped | No |
-| 19 | POST | `/admin/api/access-grants` | `@require_api_role("admin","project_pi")` | admin, project_pi | PI: cannot manage admin/pi grants | Yes |
-| 20 | POST | `/admin/api/access-grants/<uuid>/toggle` | `@require_api_role("admin","project_pi")` | admin, project_pi | PI: cannot toggle admin/pi grants | Yes |
-
-## API Routes — ODK Connections (`/admin/api/odk-connections/`)
+## API Routes — Project-Site Mappings
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 21 | GET | `/admin/api/odk-connections` | `@require_api_role("admin")` | admin only | Global | No |
-| 22 | POST | `/admin/api/odk-connections` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 23 | PUT | `/admin/api/odk-connections/<uuid>` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 24 | POST | `/admin/api/odk-connections/<uuid>/toggle` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 25 | POST | `/admin/api/odk-connections/<uuid>/test` | `@require_api_role("admin")` | admin only | Global | No |
-| 26 | GET | `/admin/api/odk-connections/<uuid>/odk-projects` | `@require_api_role("admin")` | admin only | Global | No |
-| 27 | GET | `/admin/api/odk-connections/<uuid>/odk-projects/<int>/forms` | `@require_api_role("admin")` | admin only | Global | No |
-| 28 | GET | `/admin/api/odk-connections/<uuid>/projects` | `@require_api_role("admin")` | admin only | Global | No |
-| 29 | POST | `/admin/api/odk-connections/<uuid>/assign-project` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 30 | DELETE | `/admin/api/odk-connections/<uuid>/assign-project/<id>` | `@require_api_role("admin")` | admin only | Global | Yes |
+| 10 | GET | `/admin/api/project-sites` | `@role_required("admin","project_pi")` | admin, project_pi | `_current_user_can_manage_project()` | No |
+| 11 | POST | `/admin/api/project-sites` | `@role_required("admin","project_pi")` | admin, project_pi | `_current_user_can_manage_project()` | Yes |
+| 12 | POST | `/admin/api/project-sites/<uuid>/toggle` | `@role_required("admin","project_pi")` | admin, project_pi | `_current_user_can_manage_project()` | Yes |
 
-## API Routes — Sync Operations (`/admin/api/sync/`)
+## API Routes — Users CRUD
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 31 | GET | `/admin/api/sync/status` | `@require_api_role("admin")` | admin only | Global | No |
-| 32 | GET | `/admin/api/sync/history` | `@require_api_role("admin")` | admin only | Global | No |
-| 33 | POST | `/admin/api/sync/trigger` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 34 | POST | `/admin/api/sync/attachment-backfill` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 35 | POST | `/admin/api/sync/stop` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 36 | POST | `/admin/api/sync/schedule` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 37 | GET | `/admin/api/sync/coverage` | `@require_api_role("admin")` | admin only | Global | No |
-| 38 | GET | `/admin/api/sync/backfill-stats` | `@require_api_role("admin")` | admin only | Global | No |
-| 39 | POST | `/admin/api/sync/backfill/form/<form_id>` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 40 | POST | `/admin/api/sync/trigger-smartva` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 41 | POST | `/admin/api/sync/form/<form_id>` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 42 | POST | `/admin/api/sync/project-site/<id>/<id>` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 43 | GET | `/admin/api/sync/smartva-stats` | `@require_api_role("admin")` | admin only | Global | No |
-| 44 | GET | `/admin/api/sync/revoked-stats` | `@require_api_role("admin")` | admin only | Global | No |
-| 45 | GET | `/admin/api/sync/progress` | `@require_api_role("admin")` | admin only | Global | No |
+| 13 | GET | `/admin/api/users` | `@role_required("admin","project_pi")` | admin, project_pi | PI: active users only | No |
+| 14 | POST | `/admin/api/users` | `@role_required("admin")` | admin only | Global | Yes |
+| 15 | PUT | `/admin/api/users/<uuid>` | `@role_required("admin")` | admin only | Global | Yes |
+| 16 | POST | `/admin/api/users/<uuid>/toggle` | `@role_required("admin")` | admin only | Global | Yes |
 
-## API Routes — Field Mapping (`/admin/api/form-types/`)
+## API Routes — Access Grants
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 46-57 | CRUD | Various form-type/category/subcategory/field endpoints | `@require_api_role("admin")` | admin only | Global | Mixed |
+| 17 | GET | `/admin/api/access-grants` | `@role_required("admin","project_pi")` | admin, project_pi | `_project_access_filter()` | No |
+| 18 | GET | `/admin/api/access-grants/orphaned` | `@role_required("admin","project_pi")` | admin, project_pi | `_project_access_filter()` | No |
+| 19 | POST | `/admin/api/access-grants` | `@role_required("admin","project_pi")` | admin, project_pi | PI: cannot manage admin/pi grants | Yes |
+| 20 | POST | `/admin/api/access-grants/<uuid>/toggle` | `@role_required("admin","project_pi")` | admin, project_pi | PI: cannot toggle admin/pi grants | Yes |
 
-## API Routes — Languages (`/admin/api/languages/`)
-
-| # | Method | Path | Decorator | Roles | Scope | Mutates |
-|---|--------|------|-----------|-------|-------|---------|
-| 58-63 | CRUD | Language management endpoints | `@require_api_role("admin")` | admin only | Global | Mixed |
-
-## API Routes — Project ODK Mappings (`/admin/api/projects/<id>/odk-*`)
+## API Routes — ODK Connections
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 64 | GET | `/admin/api/projects/<id>/odk-connection` | `@require_api_role("admin")` | admin only | Global | No |
-| 65 | GET | `/admin/api/projects/<id>/odk-site-mappings` | `@require_api_role("admin")` | admin only | Global | No |
-| 66 | POST | `/admin/api/projects/<id>/odk-site-mappings` | `@require_api_role("admin")` | admin only | Global | Yes |
-| 67 | DELETE | `/admin/api/projects/<id>/odk-site-mappings/<site>` | `@require_api_role("admin")` | admin only | Global | Yes |
+| 21 | GET | `/admin/api/odk-connections` | `@role_required("admin")` | admin | Global | No |
+| 22 | POST | `/admin/api/odk-connections` | `@role_required("admin")` | admin | Global | Yes |
+| 23 | PUT | `/admin/api/odk-connections/<uuid>` | `@role_required("admin")` | admin | Global | Yes |
+| 24 | POST | `/admin/api/odk-connections/<uuid>/toggle` | `@role_required("admin")` | admin | Global | Yes |
+| 25 | POST | `/admin/api/odk-connections/<uuid>/test` | `@role_required("admin")` | admin | Global | No |
+| 26 | GET | `/admin/api/odk-connections/<uuid>/odk-projects` | `@role_required("admin")` | admin | Global | No |
+| 27 | GET | `/admin/api/odk-connections/<uuid>/odk-projects/<int>/forms` | `@role_required("admin")` | admin | Global | No |
+| 28 | GET | `/admin/api/odk-connections/<uuid>/projects` | `@role_required("admin")` | admin | Global | No |
+| 29 | POST | `/admin/api/odk-connections/<uuid>/assign-project` | `@role_required("admin")` | admin | Global | Yes |
+| 30 | DELETE | `/admin/api/odk-connections/<uuid>/assign-project/<id>` | `@role_required("admin")` | admin | Global | Yes |
+
+## API Routes — Sync Operations
+
+| # | Method | Path | Decorator | Roles | Scope | Mutates |
+|---|--------|------|-----------|-------|-------|---------|
+| 31 | GET | `/admin/api/sync/status` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 32 | GET | `/admin/api/sync/history` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 33 | POST | `/admin/api/sync/trigger` | `@role_required("admin")` | admin | Global | Yes |
+| 34 | POST | `/admin/api/sync/attachment-backfill` | `@role_required("admin")` | admin | Global | Yes |
+| 35 | POST | `/admin/api/sync/stop` | `@role_required("admin")` | admin | Global | Yes |
+| 36 | POST | `/admin/api/sync/schedule` | `@role_required("admin")` | admin | Global | Yes |
+| 37 | GET | `/admin/api/sync/coverage` | `@role_required("admin")` | admin | Global | No |
+| 38 | GET | `/admin/api/sync/backfill-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 39 | POST | `/admin/api/sync/backfill/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
+| 40 | POST | `/admin/api/sync/trigger-smartva` | `@role_required("admin")` | admin | Global | Yes |
+| 41 | POST | `/admin/api/sync/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
+| 42 | POST | `/admin/api/sync/project-site/<id>/<id>` | `@role_required("admin")` | admin | Global | Yes |
+| 43 | GET | `/admin/api/sync/smartva-stats` | `@role_required("admin")` | admin | Global | No |
+| 44 | GET | `/admin/api/sync/revoked-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 45 | GET | `/admin/api/sync/progress` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+
+## API Routes — Field Mapping
+
+| # | Method | Path | Decorator | Roles | Mutates |
+|---|--------|------|-----------|-------|---------|
+| 46 | GET | `/admin/api/form-types` | `@role_required("admin")` | admin | No |
+| 47 | POST | `/admin/api/form-types` | `@role_required("admin")` | admin | Yes |
+| 48 | PATCH | `/admin/api/form-types/<code>` | `@role_required("admin")` | admin | Yes |
+| 49 | POST | `/admin/api/form-types/<code>/duplicate` | `@role_required("admin")` | admin | Yes |
+| 50 | GET | `/admin/api/form-types/<code>/export` | `@role_required("admin")` | admin | No |
+| 51 | POST | `/admin/api/form-types/import` | `@role_required("admin")` | admin | Yes |
+| 52 | GET | `/admin/api/form-types/<code>/categories/<code>/subcategories` | `@role_required("admin")` | admin | No |
+| 53 | GET | `/admin/api/form-types/<code>/categories/<code>/browser-state` | `@role_required("admin")` | admin | No |
+| 54 | POST | `/admin/api/form-types/<code>/categories/<code>/fields/reorder` | `@role_required("admin")` | admin | Yes |
+| 55 | POST | `/admin/api/form-types/<code>/fields/<field_id>/move` | `@role_required("admin")` | admin | Yes |
+| 56 | GET | `/admin/api/form-types/<code>/fields/search` | `@role_required("admin")` | admin | No |
+| 57 | POST | `/admin/api/form-types/<code>/categories` | `@role_required("admin")` | admin | Yes |
+| 58 | PUT | `/admin/api/form-types/<code>/categories/<code>` | `@role_required("admin")` | admin | Yes |
+| 59 | DELETE | `/admin/api/form-types/<code>/categories/<code>` | `@role_required("admin")` | admin | Yes |
+| 60 | POST | `/admin/api/form-types/<code>/categories/<code>/subcategories` | `@role_required("admin")` | admin | Yes |
+| 61 | PUT | `/admin/api/form-types/<code>/categories/<code>/subcategories/<code>` | `@role_required("admin")` | admin | Yes |
+| 62 | DELETE | `/admin/api/form-types/<code>/categories/<code>/subcategories/<code>` | `@role_required("admin")` | admin | Yes |
+
+## API Routes — Languages
+
+| # | Method | Path | Decorator | Roles | Mutates |
+|---|--------|------|-----------|-------|---------|
+| 63 | GET | `/admin/api/languages` | `@role_required("admin")` | admin | No |
+| 64 | POST | `/admin/api/languages` | `@role_required("admin")` | admin | Yes |
+| 65 | PUT | `/admin/api/languages/<code>` | `@role_required("admin")` | admin | Yes |
+| 66 | POST | `/admin/api/languages/<code>/toggle` | `@role_required("admin")` | admin | Yes |
+| 67 | DELETE | `/admin/api/languages/<code>/aliases/<alias>` | `@role_required("admin")` | admin | Yes |
+
+## API Routes — Project ODK Mappings
+
+| # | Method | Path | Decorator | Roles | Mutates |
+|---|--------|------|-----------|-------|---------|
+| 68 | GET | `/admin/api/projects/<id>/odk-connection` | `@role_required("admin")` | admin | No |
+| 69 | GET | `/admin/api/projects/<id>/odk-site-mappings` | `@role_required("admin")` | admin | No |
+| 70 | POST | `/admin/api/projects/<id>/odk-site-mappings` | `@role_required("admin")` | admin | Yes |
+| 71 | DELETE | `/admin/api/projects/<id>/odk-site-mappings/<site>` | `@role_required("admin")` | admin | Yes |
 
 ## UI Panel Routes (`/admin/panels/`)
 
-| # | Method | Path | Auth Check | Admin Only | Notes |
-|---|--------|------|------------|------------|-------|
-| 68 | GET | `/admin/` | `_require_admin_ui_access()` | No (PI too) | Shell for admin SPA |
-| 69 | GET | `/admin/panels/access-grants` | `_require_admin_ui_access()` | No (PI too) | |
-| 70 | GET | `/admin/panels/project-sites` | `_require_admin_ui_access()` | No (PI too) | |
-| 71 | GET | `/admin/panels/project-forms` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 72 | GET | `/admin/panels/projects` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 73 | GET | `/admin/panels/sites` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 74 | GET | `/admin/panels/users` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 75 | GET | `/admin/panels/project-pi` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 76 | GET | `/admin/panels/languages` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 77 | GET | `/admin/panels/odk-connections` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 78 | GET | `/admin/panels/field-mapping` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 79 | GET | `/admin/panels/field-mapping/fields` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 80 | GET | `/admin/panels/field-mapping/field/<code>/<id>` | `_require_admin_ui_access()` + `is_admin()` | Yes | GET/POST |
-| 81 | PATCH | `/admin/panels/field-mapping/field/<code>/<id>/category` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 82 | PATCH | `/admin/panels/field-mapping/field/<code>/<id>/order` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 83 | GET | `/admin/panels/field-mapping/categories` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 84 | GET | `/admin/panels/field-mapping/choices` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 85 | GET | `/admin/panels/field-mapping/sync` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 86 | POST | `/admin/panels/field-mapping/sync/preview` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 87 | POST | `/admin/panels/field-mapping/sync/apply` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 88 | POST | `/admin/panels/field-mapping/sync` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 89 | GET | `/admin/panels/sync` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
-| 90 | GET | `/admin/panels/activity` | `_require_admin_ui_access()` + `is_admin()` | Yes | |
+| # | Method | Path | Decorator | Roles | Notes |
+|---|--------|------|-----------|-------|-------|
+| 72 | GET | `/admin/` | `@role_required("admin","project_pi")` | admin, project_pi | SPA shell |
+| 73 | GET | `/admin/panels/access-grants` | `@role_required("admin","project_pi")` | admin, project_pi | |
+| 74 | GET | `/admin/panels/project-sites` | `@role_required("admin","project_pi")` | admin, project_pi | |
+| 75 | GET | `/admin/panels/project-forms` | `@role_required("admin")` | admin | |
+| 76 | GET | `/admin/panels/projects` | `@role_required("admin")` | admin | |
+| 77 | GET | `/admin/panels/sites` | `@role_required("admin")` | admin | |
+| 78 | GET | `/admin/panels/users` | `@role_required("admin")` | admin | |
+| 79 | GET | `/admin/panels/project-pi` | `@role_required("admin")` | admin | |
+| 80 | GET | `/admin/panels/languages` | `@role_required("admin")` | admin | |
+| 81 | GET | `/admin/panels/odk-connections` | `@role_required("admin")` | admin | |
+| 82 | GET | `/admin/panels/field-mapping` | `@role_required("admin")` | admin | |
+| 83 | GET | `/admin/panels/field-mapping/fields` | `@role_required("admin")` | admin | |
+| **84** | GET,POST | `/admin/panels/field-mapping/field/<code>/<id>` | **None** | Inline `is_admin()` only | **See F1** |
+| 85 | PATCH | `/admin/panels/field-mapping/field/<code>/<id>/category` | `@role_required("admin")` | admin | |
+| 86 | PATCH | `/admin/panels/field-mapping/field/<code>/<id>/order` | `@role_required("admin")` | admin | |
+| 87 | GET | `/admin/panels/field-mapping/categories` | `@role_required("admin")` | admin | |
+| 88 | GET | `/admin/panels/field-mapping/choices` | `@role_required("admin")` | admin | |
+| 89 | GET | `/admin/panels/field-mapping/sync` | `@role_required("admin")` | admin | |
+| 90 | POST | `/admin/panels/field-mapping/sync/preview` | `@role_required("admin")` | admin | |
+| 91 | POST | `/admin/panels/field-mapping/sync/apply` | `@role_required("admin")` | admin | |
+| 92 | POST | `/admin/panels/field-mapping/sync` | `@role_required("admin")` | admin | |
+| **93** | GET | `/admin/panels/sync` | **None** | Inline `is_admin()` only | **See F1** |
+| **94** | GET | `/admin/panels/activity` | **None** | Inline `is_admin()` only | **See F1** |
 
 ## Scoping Details
-
-### `@require_api_role()` Decorator
-- Uses `_request_user()` (reads from session, not `current_user`) to authenticate
-- Checks `user_status == VaStatuses.active`
-- Admin bypass: always allowed
-- Project PI: allowed only if they have `get_project_pi_projects()` grants
-- All other roles: denied
-
-### `_require_admin_ui_access()` Helper
-- Checks session-based user is authenticated and active
-- Allows `admin` or any user with `get_project_pi_projects()` grants
-- Redirects to login if not authenticated
-- Returns 403 page if authenticated but no admin/PI role
 
 ### Project PI Scoping on API Routes
 - **Read operations:** PI sees only projects in `get_project_pi_projects()`
@@ -166,22 +179,23 @@ This is the largest blueprint. Routes are split into:
 - **Grant restrictions:** PI cannot manage `admin` or `project_pi` grants
 - **Cross-project protection:** `_current_user_can_manage_project()` validates project ownership
 
+### Admin Bypass
+- Admin users (`@role_required("admin")`) have global access
+- Some admin-only routes have redundant inline `is_admin()` checks after `@role_required("admin")` — harmless artifact from before standardization
+
 ## Policy Compliance
 
 | Policy | Status | Notes |
 |--------|--------|-------|
+| Auth Decorator RBAC | Partial | 91/94 routes use `@role_required()`. 3 routes use inline checks |
 | Access Control Model | Compliant | Admin = global; PI = project-scoped |
-| Admin API Access Policy | Compliant | Only admin and PI can access; PI scope restricted |
-| CSRF Protection | Compliant | API routes use session + CSRF header |
-| Grant Rules | Compliant | Explicit scope, idempotent, logical deactivation |
+| CSRF Protection | Compliant | CSRFProtect enforced on all mutating routes |
 | PII Protection | Compliant | ODK credentials encrypted; never serialized in responses |
 
 ## Findings
 
-1. **`_require_admin_ui_access()` does NOT use `@login_required`.** It manually reads the session to find the user. This works because admin panel routes need to redirect to login (not return 401). **Risk: None** — appropriate for HTML routes.
+1. **F1 — Three routes missing `@role_required()` decorator (routes 84, 93, 94).** `admin_panel_field_mapping_field_edit`, `admin_panel_sync`, and `admin_panel_activity` use inline `is_admin()` checks instead of `@role_required()`. This skips the active-status gate — a deactivated user with a valid session could reach the inline check (which would return 403, but without triggering `logout_user()`). **Severity: Medium** — should be migrated to `@role_required("admin")`.
 
-2. **Panel routes 72-90 (projects, sites, users, etc.) use inline `if not user.is_admin()` checks** after `_require_admin_ui_access()`. This means a PI user can access the admin index (route 68) but gets a 403 page when they navigate to admin-only panels. The API routes behind those panels are separately protected by `@require_api_role("admin")`. **Risk: None** — double-layered protection.
+2. **F2 — Redundant inline `is_admin()` checks on 12+ routes.** Routes 3–5, 7–9, 14–16, and 92 have `@role_required("admin")` AND an inline `is_admin()` guard. The decorator already enforces admin access. **Severity: Info** — harmless but noisy. Cleanup candidate.
 
-3. **The admin blueprint is very large** (~5057 lines). Most of this is route handlers with inline business logic. Many operations (ODK connection management, sync operations, field mapping CRUD) could be extracted to service classes for maintainability.
-
-4. **Activity log (route 90) is admin-only.** PI users cannot see the activity log even for their own projects. This may be intentional but is worth confirming against policy requirements.
+3. **F3 — Activity log (route 94) is admin-only.** PI users cannot see the activity log even for their own projects. May be intentional but worth confirming against policy. **Severity: Info**.

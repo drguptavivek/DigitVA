@@ -51,6 +51,7 @@ def save_narrative_qa(va_sid: str):
 
     data = request.get_json(force=True) or {}
     va_actiontype = data.get("va_actiontype")
+    cannot_grade = bool(data.get("cannot_grade"))
 
     def _int(key, min_val, max_val):
         try:
@@ -61,22 +62,26 @@ def save_narrative_qa(va_sid: str):
         except (KeyError, TypeError, ValueError):
             return None
 
-    length       = _int("length",       1, 3)
-    pos_symptoms = _int("pos_symptoms", 1, 3)
-    neg_symptoms = _int("neg_symptoms", 0, 1)
-    chronology   = _int("chronology",   0, 1)
-    doc_review   = _int("doc_review",   0, 1)
-    comorbidity  = _int("comorbidity",  0, 1)
+    if cannot_grade:
+        length = pos_symptoms = neg_symptoms = chronology = doc_review = comorbidity = 0
+        score = 0
+    else:
+        length       = _int("length",       1, 3)
+        pos_symptoms = _int("pos_symptoms", 1, 3)
+        neg_symptoms = _int("neg_symptoms", 0, 1)
+        chronology   = _int("chronology",   0, 1)
+        doc_review   = _int("doc_review",   0, 1)
+        comorbidity  = _int("comorbidity",  0, 1)
 
-    missing = [k for k, v in {
-        "length": length, "pos_symptoms": pos_symptoms,
-        "neg_symptoms": neg_symptoms, "chronology": chronology,
-        "doc_review": doc_review, "comorbidity": comorbidity,
-    }.items() if v is None]
-    if missing:
-        return jsonify({"error": f"Invalid or missing fields: {', '.join(missing)}"}), 400
+        missing = [k for k, v in {
+            "length": length, "pos_symptoms": pos_symptoms,
+            "neg_symptoms": neg_symptoms, "chronology": chronology,
+            "doc_review": doc_review, "comorbidity": comorbidity,
+        }.items() if v is None]
+        if missing:
+            return jsonify({"error": f"Invalid or missing fields: {', '.join(missing)}"}), 400
 
-    score = _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity)
+        score = _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity)
     _, active_payload_version = get_submission_with_current_payload(
         va_sid,
         for_update=True,
@@ -99,6 +104,7 @@ def save_narrative_qa(va_sid: str):
         existing.va_nqa_doc_review   = doc_review
         existing.va_nqa_comorbidity  = comorbidity
         existing.va_nqa_score        = score
+        existing.va_nqa_cannot_grade = cannot_grade
         existing.payload_version_id  = active_payload_version.payload_version_id
         existing.demo_expires_at     = get_demo_expiry_for_submission(va_sid, va_actiontype)
         nqa = existing
@@ -122,6 +128,7 @@ def save_narrative_qa(va_sid: str):
             va_nqa_doc_review=doc_review,
             va_nqa_comorbidity=comorbidity,
             va_nqa_score=score,
+            va_nqa_cannot_grade=cannot_grade,
             va_nqa_status=VaStatuses.active,
             demo_expires_at=get_demo_expiry_for_submission(va_sid, va_actiontype),
         )

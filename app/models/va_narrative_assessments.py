@@ -49,6 +49,10 @@ class VaNarrativeAssessment(db.Model):
     va_nqa_comorbidity: so.Mapped[int] = so.mapped_column(sa.SmallInteger(), nullable=False)
     # Computed total (0-10)
     va_nqa_score: so.Mapped[int] = so.mapped_column(sa.SmallInteger(), nullable=False)
+    # True when narrative cannot be graded (missing / different language)
+    va_nqa_cannot_grade: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
 
     va_nqa_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),
@@ -72,6 +76,8 @@ class VaNarrativeAssessment(db.Model):
 
     @property
     def rating(self) -> str:
+        if self.va_nqa_cannot_grade:
+            return "Cannot Grade"
         if self.va_nqa_score >= 7:
             return "Good"
         if self.va_nqa_score >= 5:
@@ -80,6 +86,8 @@ class VaNarrativeAssessment(db.Model):
 
     @property
     def rating_class(self) -> str:
+        if self.va_nqa_cannot_grade:
+            return "secondary"
         if self.va_nqa_score >= 7:
             return "success"
         if self.va_nqa_score >= 5:

@@ -625,13 +625,30 @@
           <i class="fas fa-star-half-alt"></i>
           Narrative Quality Assessment
         </div>
-        <div class="card shadow-sm border-0" id="nqa-card">
+        <div class="card shadow-sm border-0" id="nqa-card"
+             data-save-url="{{ url_for('api_v1.nqa_api.save_narrative_qa', va_sid=va_sid) }}"
+             data-reload-url="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vanarrationanddocuments', action=va_action, actiontype=va_actiontype) }}"
+             data-actiontype="{{ va_actiontype }}"
+             data-csrf="{{ csrf_token() }}">
           <div class="card-body p-3">
 
             {# Pre-fill from existing assessment if saved #}
             {% set nqa = va_narrative_assessment %}
 
-            <div class="row g-3">
+            {# Cannot Grade toggle #}
+            <div class="col-12 mb-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="nqa-cannot-grade"
+                       {% if nqa and nqa.va_nqa_cannot_grade %}checked{% endif %}
+                       onchange="nqaToggleCannotGrade()">
+                <label class="form-check-label fw-semibold text-danger" for="nqa-cannot-grade">
+                  Cannot Grade Narrative (e.g. missing or different language)
+                </label>
+              </div>
+            </div>
+
+            <div id="nqa-questions" class="row g-3"
+                 {% if nqa and nqa.va_nqa_cannot_grade %}style="display:none;"{% endif %}>
 
               {# Q1: Length of Narrative #}
               <div class="col-12">
@@ -727,12 +744,12 @@
 
             {# Live score display + Save button #}
             <div class="d-flex align-items-center gap-3 mt-3 flex-wrap">
-              <div>
+              <div id="nqa-score-wrap">
                 <span class="text-muted small me-1">Score:</span>
                 <span id="nqa-score-val" class="fw-bold fs-5">
-                  {% if nqa %}{{ nqa.va_nqa_score }}{% else %}—{% endif %}
+                  {% if nqa and not nqa.va_nqa_cannot_grade %}{{ nqa.va_nqa_score }}{% else %}—{% endif %}
                 </span>
-                <span class="text-muted small">/ 10</span>
+                <span class="text-muted small" id="nqa-score-max">/ 10</span>
               </div>
               <div>
                 <span id="nqa-rating-badge"
@@ -742,7 +759,7 @@
                 </span>
               </div>
               <button type="button" class="btn btn-primary btn-sm ms-auto" id="nqa-save-btn"
-                      onclick="nqaSave('{{ url_for('api_v1.nqa_api.save_narrative_qa', va_sid=va_sid) }}', '{{ va_actiontype }}')">
+                      onclick="nqaSave()">
                 <i class="fas fa-save me-1"></i>
                 {% if nqa %}Update NQA{% else %}Save NQA{% endif %}
               </button>
@@ -754,10 +771,29 @@
         </div>
 
         <script>
+          function nqaToggleCannotGrade() {
+            var cb = document.getElementById('nqa-cannot-grade');
+            var questions = document.getElementById('nqa-questions');
+            var scoreWrap = document.getElementById('nqa-score-wrap');
+            var badgeEl = document.getElementById('nqa-rating-badge');
+            if (cb.checked) {
+              questions.style.display = 'none';
+              scoreWrap.style.display = 'none';
+              badgeEl.className = 'badge px-3 py-2 bg-secondary';
+              badgeEl.textContent = 'Cannot Grade';
+            } else {
+              questions.style.display = '';
+              scoreWrap.style.display = '';
+              badgeEl.className = 'badge px-3 py-2 bg-secondary';
+              badgeEl.textContent = 'Not Assessed';
+              nqaUpdateScore();
+            }
+          }
+
           (function () {
             var weights = { nqa_length: 1, nqa_pos_symptoms: 1, nqa_neg_symptoms: 1, nqa_chronology: 1, nqa_doc_review: 1, nqa_comorbidity: 1 };
 
-            function nqaUpdateScore() {
+            window.nqaUpdateScore = function () {
               var score = 0;
               var allAnswered = true;
               Object.keys(weights).forEach(function (name) {
@@ -782,43 +818,52 @@
                   badgeEl.textContent = 'Not Assessed';
                 }
               }
-            }
+            };
 
             document.querySelectorAll('.nqa-radio').forEach(function (el) {
               el.addEventListener('change', nqaUpdateScore);
             });
 
-            // Initialise display from pre-filled values
             nqaUpdateScore();
           })();
 
-          function nqaSave(url, actiontype) {
-            var fields = ['nqa_length', 'nqa_pos_symptoms', 'nqa_neg_symptoms', 'nqa_chronology', 'nqa_doc_review', 'nqa_comorbidity'];
-            var payload = {};
+          function nqaSave() {
+            var card = document.getElementById('nqa-card');
+            var saveUrl = card.dataset.saveUrl;
+            var reloadUrl = card.dataset.reloadUrl;
+            var actiontype = card.dataset.actiontype;
+            var csrfToken = card.dataset.csrf;
+
+            var cannotGrade = document.getElementById('nqa-cannot-grade').checked;
+            var payload = { cannot_grade: cannotGrade };
             if (actiontype) { payload.va_actiontype = actiontype; }
-            var missing = [];
-            var keyMap = { nqa_length: 'length', nqa_pos_symptoms: 'pos_symptoms', nqa_neg_symptoms: 'neg_symptoms', nqa_chronology: 'chronology', nqa_doc_review: 'doc_review', nqa_comorbidity: 'comorbidity' };
-            fields.forEach(function (name) {
-              var checked = document.querySelector('input[name="' + name + '"]:checked');
-              if (checked) {
-                payload[keyMap[name]] = parseInt(checked.value, 10);
-              } else {
-                missing.push(name);
-              }
-            });
 
             var alertEl = document.getElementById('nqa-alert');
-            if (missing.length > 0) {
-              alertEl.style.display = '';
-              alertEl.innerHTML = '<div class="alert alert-warning py-2 mb-0">Please answer all 6 questions before saving.</div>';
-              return;
+
+            if (!cannotGrade) {
+              var fields = ['nqa_length', 'nqa_pos_symptoms', 'nqa_neg_symptoms', 'nqa_chronology', 'nqa_doc_review', 'nqa_comorbidity'];
+              var missing = [];
+              var keyMap = { nqa_length: 'length', nqa_pos_symptoms: 'pos_symptoms', nqa_neg_symptoms: 'neg_symptoms', nqa_chronology: 'chronology', nqa_doc_review: 'doc_review', nqa_comorbidity: 'comorbidity' };
+              fields.forEach(function (name) {
+                var checked = document.querySelector('input[name="' + name + '"]:checked');
+                if (checked) {
+                  payload[keyMap[name]] = parseInt(checked.value, 10);
+                } else {
+                  missing.push(name);
+                }
+              });
+
+              if (missing.length > 0) {
+                alertEl.style.display = '';
+                alertEl.innerHTML = '<div class="alert alert-warning py-2 mb-0">Please answer all 6 questions before saving.</div>';
+                return;
+              }
             }
 
-            var csrfToken = '{{ csrf_token() }}';
             var btn = document.getElementById('nqa-save-btn');
             btn.disabled = true;
 
-            fetch(url, {
+            fetch(saveUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
               body: JSON.stringify(payload)
@@ -828,16 +873,33 @@
               btn.disabled = false;
               if (res.ok && res.data.saved) {
                 alertEl.style.display = '';
-                alertEl.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="fas fa-check me-1"></i>NQA saved — Score: <strong>' + res.data.score + '/10</strong> (<strong>' + res.data.rating + '</strong>)</div>';
+                if (res.data.rating === 'Cannot Grade') {
+                  alertEl.innerHTML = '<div class="alert alert-secondary py-2 mb-0"><i class="fas fa-check me-1"></i>NQA saved — <strong>Cannot Grade</strong></div>';
+                } else {
+                  alertEl.innerHTML = '<div class="alert alert-success py-2 mb-0"><i class="fas fa-check me-1"></i>NQA saved — Score: <strong>' + res.data.score + '/10</strong> (<strong>' + res.data.rating + '</strong>)</div>';
+                }
                 btn.innerHTML = '<i class="fas fa-save me-1"></i>Update NQA';
-                // Refresh badge/score from server response
                 var scoreEl = document.getElementById('nqa-score-val');
                 var badgeEl = document.getElementById('nqa-rating-badge');
-                if (scoreEl) scoreEl.textContent = res.data.score;
-                if (badgeEl) {
-                  var cls = { Good: 'bg-success', Fair: 'bg-warning', Poor: 'bg-danger' }[res.data.rating] || 'bg-secondary';
-                  badgeEl.className = 'badge px-3 py-2 ' + cls;
-                  badgeEl.textContent = res.data.rating;
+                var scoreWrap = document.getElementById('nqa-score-wrap');
+                if (res.data.rating === 'Cannot Grade') {
+                  if (scoreWrap) scoreWrap.style.display = 'none';
+                  if (badgeEl) {
+                    badgeEl.className = 'badge px-3 py-2 bg-secondary';
+                    badgeEl.textContent = 'Cannot Grade';
+                  }
+                } else {
+                  if (scoreWrap) scoreWrap.style.display = '';
+                  if (scoreEl) scoreEl.textContent = res.data.score;
+                  if (badgeEl) {
+                    var cls = { Good: 'bg-success', Fair: 'bg-warning', Poor: 'bg-danger' }[res.data.rating] || 'bg-secondary';
+                    badgeEl.className = 'badge px-3 py-2 ' + cls;
+                    badgeEl.textContent = res.data.rating;
+                  }
+                }
+                // Reload partial to clear block message and enable Next button
+                if (window.htmx) {
+                  htmx.ajax('GET', reloadUrl, '#form-content');
                 }
               } else {
                 alertEl.style.display = '';

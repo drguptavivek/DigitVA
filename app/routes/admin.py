@@ -1,8 +1,10 @@
+import ipaddress
 import logging
 import json
 import re
 import uuid
 import secrets
+from urllib.parse import urlparse
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from secrets import token_hex
@@ -46,6 +48,40 @@ admin = Blueprint("admin", __name__)
 
 def _json_error(message, status_code):
     return jsonify({"error": message}), status_code
+
+
+# Allowlist of schemes; block private/loopback/link-local IPs and reserved hostnames
+# to prevent SSRF via ODK connection base_url.
+_BLOCKED_HOSTNAMES = frozenset({"localhost", "metadata.google.internal"})
+
+def _validate_odk_base_url(raw: str) -> str:
+    """Validate an ODK Central base URL and reject SSRF-prone targets.
+
+    Raises ValueError with a user-safe message on any violation.
+    Returns the stripped URL on success.
+    """
+    try:
+        parsed = urlparse(raw)
+    except Exception:
+        raise ValueError("Malformed URL.")
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError("Only http and https schemes are allowed.")
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        raise ValueError("URL must include a hostname.")
+    if hostname in _BLOCKED_HOSTNAMES:
+        raise ValueError("That hostname is not allowed.")
+    try:
+        addr = ipaddress.ip_address(hostname)
+        if addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_reserved:
+            raise ValueError("Private, loopback, and link-local addresses are not allowed.")
+    except ValueError as exc:
+        # ip_address() raises ValueError for non-IP strings — only re-raise
+        # if the message is ours (i.e. a real SSRF block), not just "not an IP".
+        if "not allowed" in str(exc) or "Malformed" in str(exc):
+            raise
+        # hostname is a valid domain name — allowed
+    return raw.rstrip("/")
 
 
 def _validate_entity_id(entity_id, length, name="ID"):
@@ -3053,6 +3089,10 @@ def admin_odk_connections_create():
         return _json_error("connection_name is required.", 400)
     if not base_url:
         return _json_error("base_url is required.", 400)
+    try:
+        base_url = _validate_odk_base_url(base_url)
+    except ValueError as exc:
+        return _json_error(f"Invalid base_url: {exc}", 400)
     if not username:
         return _json_error("username is required.", 400)
     if not password:
@@ -3120,9 +3160,13 @@ def admin_odk_connections_update(connection_id):
         conn.connection_name = name
 
     if "base_url" in payload:
-        base_url = (payload["base_url"] or "").strip().rstrip("/")
+        base_url = (payload["base_url"] or "").strip()
         if not base_url:
             return _json_error("base_url cannot be empty.", 400)
+        try:
+            base_url = _validate_odk_base_url(base_url)
+        except ValueError as exc:
+            return _json_error(f"Invalid base_url: {exc}", 400)
         conn.base_url = base_url
 
     if "notes" in payload:

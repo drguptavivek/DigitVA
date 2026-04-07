@@ -12,7 +12,7 @@ from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.decorators import va_validate_permissions
 from app.decorators import role_required
 from flask_login import current_user, login_required
-from flask import Blueprint, render_template, current_app, send_file, send_from_directory, flash, redirect, url_for, jsonify, request, abort
+from flask import Blueprint, render_template, current_app, send_file, send_from_directory, flash, redirect, url_for, jsonify, request, abort, make_response
 from werkzeug.utils import secure_filename
 from app.utils import va_get_form_type_code_for_form, va_render_processcategorydata, va_permission_abortwithflash
 from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
@@ -568,7 +568,7 @@ def renderpartial(va_sid, va_partial):
             template_name = "va_formcategory_partials/category_va_cod_assessment.html"
         elif category_config and category_config.render_mode == "data_manager_panel":
             template_name = "va_formcategory_partials/category_data_manager_triage.html"
-        return render_template(
+        response = make_response(render_template(
             template_name,
             instance_name = va_submission.va_uniqueid_masked,
             category_data = va_processedcategorydata,
@@ -609,7 +609,10 @@ def renderpartial(va_sid, va_partial):
             cod_health_history_data = cod_health_history_data,
             cod_health_history_labels = cod_health_history_labels,
             va_usernote = va_usernote,
-        )
+        ))
+        response.cache_control.private = True
+        response.cache_control.max_age = 300  # 5 minutes — PHI data
+        return response
     if va_partial == "vareviewform":
         # Narrative Quality Assessment (NQA) — supporting artifact only.
         #

@@ -1223,6 +1223,34 @@ def serve_media(va_form_id, va_filename):
     if not current_user.has_va_form_access(va_form_id):
         va_permission_abortwithflash(f"You don't have permissions to access the media files for '{va_form_id}'", 403)
 
+    # OW-002: submission-level access check for coder/reviewer roles.
+    # Admins and data managers have form-level access (already verified above).
+    # Coders and reviewers must have an active allocation for the specific submission
+    # that owns this file — form-level access alone is insufficient.
+    if not (current_user.is_admin() or current_user.is_data_manager()):
+        attachment = db.session.scalar(
+            sa.select(VaSubmissionAttachments)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .where(
+                VaSubmissions.va_form_id == va_form_id,
+                VaSubmissionAttachments.filename == va_filename,
+            )
+        )
+        if attachment:
+            has_allocation = db.session.scalar(
+                sa.select(sa.func.count()).where(
+                    VaAllocations.va_sid == attachment.va_sid,
+                    VaAllocations.va_allocated_to == current_user.user_id,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            )
+            if not has_allocation:
+                log.warning(
+                    "serve_media: user=%s denied submission-level access to %s/%s (sid=%s)",
+                    current_user.user_id, va_form_id, va_filename, attachment.va_sid,
+                )
+                abort(403)
+
     # Sanitize filename to prevent path traversal attacks
     safe_filename = secure_filename(va_filename)
     if not safe_filename:

@@ -159,7 +159,7 @@ def burndown():
             sa.text("""
                 SELECT
                     e.actor_user_id AS coder_id,
-                    u.user_name AS coder_name,
+                    u.name AS coder_name,
                     COUNT(*) AS coded_7d,
                     ROUND(COUNT(*)::NUMERIC / 7.0, 1) AS daily_rate
                 FROM va_submission_workflow_events e
@@ -170,7 +170,7 @@ def burndown():
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND e.event_created_at >= :cutoff
                   AND e.actor_user_id IS NOT NULL
-                GROUP BY e.actor_user_id, u.user_name
+                GROUP BY e.actor_user_id, u.name
                 ORDER BY coded_7d DESC
             """),
             {"site_ids": site_ids, "cutoff": seven_days_ago},

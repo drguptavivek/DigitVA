@@ -144,7 +144,7 @@ def coder_output():
             sa.text(f"""
                 SELECT
                     fa.va_finassess_by,
-                    u.user_name AS coder_name,
+                    u.name AS coder_name,
                     s.va_narration_language,
                     COUNT(*) AS count
                 FROM va_final_assessments fa
@@ -154,7 +154,7 @@ def coder_output():
                 WHERE f.site_id = ANY(:site_ids)
                   AND fa.va_finassess_status = 'active'
                   {date_filter}
-                GROUP BY fa.va_finassess_by, u.user_name, s.va_narration_language
+                GROUP BY fa.va_finassess_by, u.name, s.va_narration_language
                 ORDER BY count DESC
             """),
             params,
@@ -220,8 +220,8 @@ def coder_roster():
             sa.text("""
                 SELECT
                     u.user_id,
-                    u.user_name,
-                    u.user_email,
+                    u.name,
+                    u.email,
                     u.vacode_language,
                     g.project_id,
                     (
@@ -248,8 +248,8 @@ def coder_roster():
                       g.project_id = ANY(:project_ids)
                       OR g.project_id IS NULL
                   )
-                GROUP BY u.user_id, u.user_name, u.user_email, u.vacode_language, g.project_id
-                ORDER BY u.user_name
+                GROUP BY u.user_id, u.name, u.email, u.vacode_language, g.project_id
+                ORDER BY u.name
             """),
             {"project_ids": project_ids, "site_ids": site_ids},
         ).mappings().all()
@@ -258,8 +258,8 @@ def coder_roster():
             "coders": [
                 {
                     "user_id": str(r["user_id"]),
-                    "name": r["user_name"],
-                    "email": r["user_email"],
+                    "name": r["name"],
+                    "email": r["email"],
                     "languages": r["vacode_language"] or [],
                     "project_id": r["project_id"],
                     "total_coded": r["total_coded"] or 0,

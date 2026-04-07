@@ -597,7 +597,7 @@ def backlog_trend():
                     SELECT COUNT(*) FROM va_daily_kpi_aggregates
                     WHERE site_id = ANY(:site_ids) AND snapshot_date >= :from_date
                 """),
-                {"site_ids": tuple(site_ids), "from_date": from_date},
+                {"site_ids": list(site_ids), "from_date": from_date},
             ))
         except Exception as e:
             # Table doesn't exist yet (migration not run) — fall back to live

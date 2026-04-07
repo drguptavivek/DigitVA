@@ -6,7 +6,10 @@ Usage:
   flask payload-backfill enrich --dry-run        # preview only
   flask payload-backfill status                  # show counts
 """
+from datetime import datetime, timezone
 import logging
+import os
+import uuid
 import click
 import sqlalchemy as sa
 
@@ -91,36 +94,89 @@ def enrich(form_id, batch_size, max_forms, max_per_form, dry_run):
 
     # Wire up click.echo handler so log.info/warning lines appear in CLI output
     handler = _ClickEchoHandler()
-    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    # Show clean per-submission stage lines in console without logger-name noise.
+    handler.setLevel(logging.INFO)
     svc_logger = logging.getLogger("app.services.payload_enrichment_backfill_service")
     svc_logger.addHandler(handler)
-    svc_logger.setLevel(logging.DEBUG)
+    svc_logger.setLevel(logging.INFO)
+    run_id = uuid.uuid4().hex[:12]
+    run_ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    run_log_path = os.path.join(log_dir, f"payload_backfill_enrich_{run_ts}_{run_id}.log")
+
+    run_file_handler = logging.FileHandler(run_log_path, encoding="utf-8")
+    run_file_handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S%z",
+        )
+    )
+    run_file_handler.setLevel(logging.DEBUG)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(run_file_handler)
 
     if dry_run:
         click.echo("[dry-run] no changes will be written")
+    click.echo(f"Run log: {run_log_path}")
     if form_id:
         click.echo(f"Enriching payloads for form: {form_id}")
     elif max_forms:
         click.echo(f"Enriching up to {max_forms} form(s), {batch_size} submissions per batch...")
     else:
         click.echo(f"Enriching all unenriched active payload versions ({batch_size} per batch)...")
+    try:
+        stats = enrich_unenriched_payloads(
+            form_id=form_id,
+            batch_size=batch_size,
+            max_forms=max_forms,
+            max_per_form=max_per_form,
+            dry_run=dry_run,
+        )
 
-    stats = enrich_unenriched_payloads(
-        form_id=form_id,
-        batch_size=batch_size,
-        max_forms=max_forms,
-        max_per_form=max_per_form,
-        dry_run=dry_run,
-    )
-
-    click.echo(
-        f"\nDone — processed={stats['processed']}  enriched={stats['enriched']}"
-        f"  failed={stats['failed']}  skipped={stats['skipped']}"
-    )
-    if stats["failed"]:
-        click.echo(f"[warn] {stats['failed']} submissions failed enrichment — check logs")
-
-    svc_logger.removeHandler(handler)
+        click.echo(
+            f"\nDone — processed={stats['processed']}  enriched={stats['enriched']}"
+            f"  failed={stats['failed']}  skipped={stats['skipped']}"
+        )
+        if "smartva_checked" in stats:
+            click.echo(
+                "Attachments — "
+                f"checked={stats.get('attachments_checked', 0)} "
+                f"downloaded={stats.get('attachments_downloaded', 0)} "
+                f"skipped={stats.get('attachments_skipped', 0)} "
+                f"errors={stats.get('attachments_errors', 0)} "
+                f"etag_not_modified={stats.get('attachments_etag_not_modified', 0)} "
+                f"local_present_on_etag={stats.get('attachments_local_present_on_etag', 0)} "
+                f"local_missing_on_etag={stats.get('attachments_local_missing_on_etag', 0)}"
+            )
+            click.echo(
+                "SmartVA — "
+                f"checked={stats['smartva_checked']} "
+                f"missing_current_payload={stats.get('smartva_missing', 0)} "
+                f"generated={stats.get('smartva_generated', 0)} "
+                f"failed={stats.get('smartva_failed', 0)} "
+                f"noop={stats.get('smartva_noop', 0)}"
+            )
+            click.echo(
+                "Workflow — "
+                f"attachment_sync→smartva_pending={stats.get('workflow_attachment_to_smartva', 0)} "
+                f"smartva_pending→ready_for_coding={stats.get('workflow_smartva_to_ready', 0)} "
+                f"errors={stats.get('workflow_errors', 0)}"
+            )
+            click.echo(
+                "Submission Audit — "
+                f"completed={stats.get('audit_completed', 0)} "
+                f"partial={stats.get('audit_partial', 0)} "
+                f"failed={stats.get('audit_failed', 0)}"
+            )
+        if stats["failed"]:
+            click.echo(f"[warn] {stats['failed']} submissions failed enrichment — check logs")
+    finally:
+        svc_logger.removeHandler(handler)
+        root_logger.removeHandler(run_file_handler)
+        run_file_handler.close()
+        click.echo(f"Run log saved: {run_log_path}")
 
 
 @payload_backfill_group.command("transition-stuck")

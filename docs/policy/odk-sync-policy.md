@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-07
 ---
 
 # ODK Sync Policy
@@ -66,6 +66,25 @@ Policy baseline:
 - backfill actions should be logged with clear form-scoped progress so an
   operator can tell whether the repair is fetching data, enriching metadata,
   syncing attachments, or advancing workflow
+
+CLI repair baseline:
+
+- `flask payload-backfill enrich` is a metadata-enrichment-first repair path
+  for active payload versions
+- after metadata writes, it may run attachment sync for the same candidate
+  submissions, reusing ETag conditional downloads and existing local file cache
+- AMR attachments should continue to convert to MP3 during attachment sync with
+  existing conversion policy and tooling
+- the repair path may then advance eligible workflow states from
+  `attachment_sync_pending` to `smartva_pending`, and to `ready_for_coding`
+  when current-payload SmartVA is present
+- it must emit explicit per-submission stage logs for enrichment and SmartVA
+  follow-through
+- after metadata writes complete, it must check whether each candidate
+  submission has an active SmartVA projection for the current
+  `active_payload_version_id`
+- if current-payload SmartVA is missing and the submission is eligible under
+  SmartVA policy protections, it may trigger per-submission SmartVA generation
 
 ## Payload Versioning Baseline
 

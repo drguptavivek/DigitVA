@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-06
+last_updated: 2026-04-07
 ---
 
 # CLI Reference
@@ -78,7 +78,7 @@ Additional `users create` options: `--landing-page` (default: `coder`), `--timez
 | Command | Description |
 |---------|-------------|
 | `payload-backfill status` | Show unenriched vs enriched payload version counts per form. |
-| `payload-backfill enrich` | Fetch missing ODK metadata (FormVersion, DeviceID, AttachmentsExpected, etc.) from ODK Central. |
+| `payload-backfill enrich` | Fetch missing ODK metadata, run attachment sync (including AMR→MP3 conversion), transition eligible workflow states, then check/generate SmartVA for missing current-payload rows. |
 | `payload-backfill transition-stuck` | Advance `attachment_sync_pending` submissions that have complete metadata + attachments through the workflow. |
 
 ### `enrich` options
@@ -89,7 +89,12 @@ Additional `users create` options: `--landing-page` (default: `coder`), `--timez
 | `--batch-size=N` | 10 | Submissions per commit. |
 | `--max-forms=N` | all | Stop after N forms. |
 | `--max-per-form=N` | all | Cap submissions per form. |
-| `--dry-run` | off | Fetch metadata but write nothing. |
+| `--dry-run` | off | Run stage checks only (metadata/attachment/SmartVA counts) but write nothing. |
+
+`payload-backfill enrich` now emits a run-scoped log path at start/end:
+
+- `logs/payload_backfill_enrich_<UTC_TIMESTAMP>_<RUN_ID>.log`
+- this file contains full per-stage logs for that specific CLI invocation
 
 ### `transition-stuck` options
 

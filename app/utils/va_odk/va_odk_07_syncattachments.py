@@ -102,6 +102,9 @@ class SubmissionAttachmentSyncResult:
     downloaded: int
     skipped: int
     errors: int
+    etag_not_modified: int
+    local_present_on_etag: int
+    local_missing_on_etag: int
     changes: list[AttachmentChange]
 
 
@@ -115,6 +118,7 @@ def _sync_submission_attachments_no_db(
     va_sid: str,
     media_dir: str,
     existing_etags: dict[str, str | None],
+    existing_local_paths: dict[str, str | None],
     client,
 ) -> SubmissionAttachmentSyncResult:
     """Sync one submission's attachments without touching the ORM session."""
@@ -146,6 +150,9 @@ def _sync_submission_attachments_no_db(
     downloaded = 0
     skipped = 0
     errors = 0
+    etag_not_modified = 0
+    local_present_on_etag = 0
+    local_missing_on_etag = 0
     changes: list[AttachmentChange] = []
 
     for attachment in attachments:
@@ -182,8 +189,32 @@ def _sync_submission_attachments_no_db(
             )
 
             if dl_resp.status_code == 304:
-                skipped += 1
-                continue
+                etag_not_modified += 1
+                local_path = existing_local_paths.get(filename)
+                local_exists = bool(local_path and os.path.exists(local_path))
+                if local_exists:
+                    skipped += 1
+                    local_present_on_etag += 1
+                    continue
+                else:
+                    local_missing_on_etag += 1
+                    # Self-heal: ETag says unchanged but local blob is missing.
+                    # Re-fetch without If-None-Match to restore the file.
+                    if dl_resp is not None and hasattr(dl_resp, "close"):
+                        dl_resp.close()
+                    dl_resp = guarded_odk_call(
+                        lambda: client.session.get(
+                            dl_url,
+                            stream=True,
+                            timeout=request_timeout,
+                        ),
+                        client=client,
+                    )
+                    if dl_resp.status_code != 200:
+                        raise Exception(
+                            "ETag=304 with missing local file; forced re-download "
+                            f"failed HTTP {dl_resp.status_code}: {dl_resp.text[:200]}"
+                        )
 
             if dl_resp.status_code != 200:
                 raise Exception(f"HTTP {dl_resp.status_code}: {dl_resp.text[:200]}")
@@ -245,6 +276,9 @@ def _sync_submission_attachments_no_db(
         downloaded=downloaded,
         skipped=skipped,
         errors=errors,
+        etag_not_modified=etag_not_modified,
+        local_present_on_etag=local_present_on_etag,
+        local_missing_on_etag=local_missing_on_etag,
         changes=changes,
     )
 
@@ -258,6 +292,26 @@ def _apply_submission_attachment_result(existing_records, result):
     from app import db
     from app.models.va_submission_attachments import VaSubmissionAttachments
 
+    def _maybe_remove_old_file(old_local_path: str | None, new_local_path: str | None) -> None:
+        if not old_local_path or old_local_path == new_local_path:
+            return
+        # Remove the stale blob only if no active row still points to it.
+        in_use = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSubmissionAttachments)
+            .where(
+                VaSubmissionAttachments.local_path == old_local_path,
+                VaSubmissionAttachments.exists_on_odk.is_(True),
+            )
+        )
+        if in_use and int(in_use) > 0:
+            return
+        if os.path.exists(old_local_path):
+            try:
+                os.remove(old_local_path)
+            except OSError:
+                log.warning("Could not remove stale attachment file: %s", old_local_path, exc_info=True)
+
     existing = existing_records.setdefault(result.va_sid, {})
     for change in result.changes:
         rec = existing.get(change.filename)
@@ -265,6 +319,7 @@ def _apply_submission_attachment_result(existing_records, result):
             if change.exists_on_odk and change.local_path is not None:
                 # Fresh download — rotate storage_name
                 old_storage_name = rec.storage_name
+                old_local_path = rec.local_path
                 rec.exists_on_odk = True
                 rec.local_path = change.local_path
                 rec.mime_type = change.mime_type
@@ -278,6 +333,7 @@ def _apply_submission_attachment_result(existing_records, result):
                         change.filename,
                         extra_storage_name=change.storage_name,
                     )
+                _maybe_remove_old_file(old_local_path, change.local_path)
             else:
                 # File removed on ODK — update flag and invalidate cache
                 old_storage_name = rec.storage_name
@@ -375,6 +431,10 @@ def va_odk_sync_form_attachments(
         va_sid: {name: rec.etag for name, rec in rows.items()}
         for va_sid, rows in existing_records.items()
     }
+    per_sid_local_paths = {
+        va_sid: {name: rec.local_path for name, rec in rows.items()}
+        for va_sid, rows in existing_records.items()
+    }
     app = current_app._get_current_object() if has_app_context() else None
 
     thread_local = threading.local()
@@ -395,6 +455,7 @@ def va_odk_sync_form_attachments(
                     va_sid,
                     media_dir,
                     per_sid_etags.get(va_sid, {}),
+                    per_sid_local_paths.get(va_sid, {}),
                     _get_client(),
                 )
         return _sync_submission_attachments_no_db(
@@ -403,6 +464,7 @@ def va_odk_sync_form_attachments(
             va_sid,
             media_dir,
             per_sid_etags.get(va_sid, {}),
+            per_sid_local_paths.get(va_sid, {}),
             _get_client(),
         )
 
@@ -436,6 +498,9 @@ def va_odk_sync_form_attachments(
                         downloaded=0,
                         skipped=0,
                         errors=1,
+                        etag_not_modified=0,
+                        local_present_on_etag=0,
+                        local_missing_on_etag=0,
                         changes=[],
                     )
                 )
@@ -443,11 +508,21 @@ def va_odk_sync_form_attachments(
             if progress_callback and completed % 50 == 0:
                 progress_callback(f"[{va_form.form_id}] attachments: {completed}/{total_count}")
 
-    totals = {"downloaded": 0, "skipped": 0, "errors": 0}
+    totals = {
+        "downloaded": 0,
+        "skipped": 0,
+        "errors": 0,
+        "etag_not_modified": 0,
+        "local_present_on_etag": 0,
+        "local_missing_on_etag": 0,
+    }
     for result in results:
         totals["downloaded"] += result.downloaded
         totals["skipped"] += result.skipped
         totals["errors"] += result.errors
+        totals["etag_not_modified"] += result.etag_not_modified
+        totals["local_present_on_etag"] += result.local_present_on_etag
+        totals["local_missing_on_etag"] += result.local_missing_on_etag
         _apply_submission_attachment_result(existing_records, result)
 
     db.session.flush()
@@ -482,6 +557,7 @@ def va_odk_sync_submission_attachments(
         va_sid,
         media_dir,
         {name: rec.etag for name, rec in existing.items()},
+        {name: rec.local_path for name, rec in existing.items()},
         client,
     )
     _apply_submission_attachment_result({va_sid: existing}, result)
@@ -490,6 +566,9 @@ def va_odk_sync_submission_attachments(
         "downloaded": result.downloaded,
         "skipped": result.skipped,
         "errors": result.errors,
+        "etag_not_modified": result.etag_not_modified,
+        "local_present_on_etag": result.local_present_on_etag,
+        "local_missing_on_etag": result.local_missing_on_etag,
     }
 
 

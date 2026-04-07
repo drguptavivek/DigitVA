@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-05
+last_updated: 2026-04-07
 ---
 
 # Data Manager KPI Framework
@@ -210,7 +210,7 @@ A 7-column table, last 8 rows (today + 7 prior days), slicable by project and si
 ### C-10: Upstream Change Queue
 
 - **Definition:** COUNT where `workflow_state = 'finalized_upstream_changed'`
-- **Source:** MV `revoked_submissions`
+- **Source:** `va_submission_workflow` WHERE `workflow_state = 'finalized_upstream_changed'`
 - **Scope:** CODED
 - **Time Frame:** Snapshot
 

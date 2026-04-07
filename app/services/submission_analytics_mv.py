@@ -91,6 +91,7 @@ def build_submission_analytics_demographics_mv_sql(
 CREATE MATERIALIZED VIEW {view_name} AS
 SELECT
     s.va_sid,
+    s.va_narration_language,
     s.va_deceased_gender AS sex,
     CASE
         WHEN s.va_deceased_age_normalized_days IS NOT NULL

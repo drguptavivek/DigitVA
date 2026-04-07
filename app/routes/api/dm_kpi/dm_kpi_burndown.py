@@ -152,7 +152,7 @@ def burndown():
         if mean_daily_rate > 0:
             predicted_days = round(pending / mean_daily_rate, 1)
         elif pending > 0:
-            predicted_days = float("inf")
+            predicted_days = "infinite"  # Special string value for JSON serialization
 
         # Per-coder rate
         per_coder = db.session.execute(

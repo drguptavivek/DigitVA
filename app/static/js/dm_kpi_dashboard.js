@@ -71,7 +71,7 @@
         document.getElementById('kpi-rate-value').textContent = (burndown.c16_mean_daily_rate || 0).toFixed(1);
 
         const daysVal = burndown.c17_predicted_days;
-        if (daysVal === Infinity) {
+        if (daysVal === 'infinite' || daysVal === Infinity) {
           document.getElementById('kpi-days-value').textContent = '∞';
         } else if (daysVal === null) {
           document.getElementById('kpi-days-value').textContent = '—';
@@ -117,7 +117,7 @@
             { field: 'consent_refused', headerName: 'Consent Refused', width: 110, type: 'rightAligned' },
           ],
           rowData: gridData,
-          domLayout: 'fill',
+          domLayout: 'normal',
           defaultColDef: { resizable: false, sortable: true },
         };
 
@@ -341,7 +341,7 @@
 
         languages.forEach(lang => {
           const row = document.createElement('tr');
-          const daysText = lang.predicted_days_to_clear === Infinity ? '∞'
+          const daysText = lang.predicted_days_to_clear === 'infinite' || lang.predicted_days_to_clear === Infinity ? '∞'
             : lang.predicted_days_to_clear === null ? '—'
             : lang.predicted_days_to_clear.toFixed(1);
 

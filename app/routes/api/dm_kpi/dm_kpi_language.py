@@ -137,7 +137,7 @@ def language_gap():
             if daily_rate > 0:
                 predicted_days = round(pending / daily_rate, 1)
             elif pending > 0:
-                predicted_days = float("inf")
+                predicted_days = "infinite"  # Special string value for JSON serialization
 
             entry = {
                 "language": lang,

@@ -1228,26 +1228,39 @@ def serve_media(va_form_id, va_filename):
     # Coders and reviewers must have an active allocation for the specific submission
     # that owns this file — form-level access alone is insufficient.
     if not (current_user.is_admin() or current_user.is_data_manager()):
-        attachment = db.session.scalar(
-            sa.select(VaSubmissionAttachments)
-            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
-            .where(
-                VaSubmissions.va_form_id == va_form_id,
-                VaSubmissionAttachments.filename == va_filename,
-            )
-        )
-        if attachment:
-            has_allocation = db.session.scalar(
-                sa.select(sa.func.count()).where(
-                    VaAllocations.va_sid == attachment.va_sid,
-                    VaAllocations.va_allocated_to == current_user.user_id,
-                    VaAllocations.va_allocation_status == VaStatuses.active,
+        # Cache the attachment → va_sid mapping (static; long TTL)
+        att_cache_key = f"media:att:{va_form_id}:{va_filename}"
+        cached_sid = flask_cache.get(att_cache_key)
+        if cached_sid is None:
+            att_row = db.session.execute(
+                sa.select(VaSubmissionAttachments.va_sid)
+                .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+                .where(
+                    VaSubmissions.va_form_id == va_form_id,
+                    VaSubmissionAttachments.filename == va_filename,
                 )
-            )
+            ).scalar_one_or_none()
+            cached_sid = att_row or ""  # empty string = no record found
+            flask_cache.set(att_cache_key, cached_sid, timeout=300)  # 5 min
+
+        if cached_sid:  # non-empty means an attachment record exists
+            # Cache the allocation check per (sid, user); shorter TTL as allocations change
+            alloc_cache_key = f"media:alloc:{cached_sid}:{current_user.user_id}"
+            has_allocation = flask_cache.get(alloc_cache_key)
+            if has_allocation is None:
+                has_allocation = bool(db.session.scalar(
+                    sa.select(sa.func.count()).where(
+                        VaAllocations.va_sid == cached_sid,
+                        VaAllocations.va_allocated_to == current_user.user_id,
+                        VaAllocations.va_allocation_status == VaStatuses.active,
+                    )
+                ))
+                flask_cache.set(alloc_cache_key, has_allocation, timeout=300)  # 5 min
+
             if not has_allocation:
                 log.warning(
                     "serve_media: user=%s denied submission-level access to %s/%s (sid=%s)",
-                    current_user.user_id, va_form_id, va_filename, attachment.va_sid,
+                    current_user.user_id, va_form_id, va_filename, cached_sid,
                 )
                 abort(403)
 

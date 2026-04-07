@@ -10,9 +10,10 @@ import uuid
 import secrets
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, redirect, render_template, request
+from flask import Blueprint, g, jsonify, redirect, render_template, request
 from flask_login import current_user
 from flask_wtf.csrf import generate_csrf
+from functools import wraps
 
 from app import db
 from app.decorators import role_required
@@ -116,6 +117,62 @@ def _dm_grant_filter(project_id_expression):
     if not conditions:
         return sa.false()
     return sa.or_(*conditions)
+
+
+def require_dm_scope(f):
+    """Structural authz gate for grant mutation endpoints.
+
+    Runs _dm_can_manage_scope() before the handler so the check is
+    structurally unskippable. Two paths:
+
+    - Toggle (grant_id in URL kwargs): loads grant from DB, resolves scope.
+    - Create (no grant_id): resolves scope from JSON payload and stores the
+      parsed values in g.dm_scope so the handler avoids re-parsing.
+    """
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        grant_id = kwargs.get("grant_id")
+
+        if grant_id is not None:
+            # Toggle path — scope comes from the existing grant record.
+            grant = db.session.get(VaUserAccessGrants, grant_id)
+            if not grant:
+                return _json_error("Grant not found.", 404)
+            if grant.scope_type == VaAccessScopeTypes.project:
+                resolved_project_id = grant.project_id
+            elif grant.scope_type == VaAccessScopeTypes.project_site:
+                ps = db.session.get(VaProjectSites, grant.project_site_id)
+                resolved_project_id = ps.project_id if ps else None
+            else:
+                return _json_error("Invalid scope type.", 400)
+            ok, err = _dm_can_manage_scope(
+                current_user, grant.role, grant.scope_type,
+                resolved_project_id, grant.project_site_id,
+            )
+        else:
+            # Create path — scope comes from the request payload.
+            payload = request.get_json(silent=True) or {}
+            try:
+                role, scope_type, resolved_project_id, project_site_id = (
+                    _resolve_scope_from_payload(payload)
+                )
+            except ValueError as exc:
+                return _json_error(str(exc), 400)
+            ok, err = _dm_can_manage_scope(
+                current_user, role, scope_type, resolved_project_id, project_site_id,
+            )
+            # Store parsed scope on g so the handler doesn't need to re-parse.
+            g.dm_scope = (role, scope_type, resolved_project_id, project_site_id)
+
+        if not ok:
+            log.warning(
+                "Grant scope denied: user=%s path=%s reason=%s",
+                current_user.get_id(), request.path, err,
+            )
+            return _json_error(err, 403)
+
+        return f(*args, **kwargs)
+    return wrapper
 
 
 @data_management.get("/")
@@ -604,8 +661,12 @@ def manage_access_grants():
 
 @data_management.post("/api/access-grants")
 @role_required("data_manager", "admin")
+@require_dm_scope
 def manage_create_access_grant():
     """Create a coder or data_manager grant within the DM's scope."""
+    # Scope already validated by @require_dm_scope; retrieve parsed values from g.
+    role, scope_type, resolved_project_id, project_site_id = g.dm_scope
+
     payload = request.get_json(silent=True) or {}
     user_id_value = payload.get("user_id")
     if not user_id_value:
@@ -618,16 +679,6 @@ def manage_create_access_grant():
     target_user = db.session.get(VaUsers, user_id)
     if not target_user or target_user.user_status != VaStatuses.active:
         return _json_error("Active user not found.", 404)
-
-    try:
-        role, scope_type, resolved_project_id, project_site_id = _resolve_scope_from_payload(payload)
-    except ValueError as exc:
-        return _json_error(str(exc), 400)
-
-    # DM-specific authorization
-    ok, err = _dm_can_manage_scope(current_user, role, scope_type, resolved_project_id, project_site_id)
-    if not ok:
-        return _json_error(err, 403)
 
     if scope_type == VaAccessScopeTypes.project:
         project = db.session.get(VaProjectMaster, resolved_project_id)
@@ -701,27 +752,13 @@ def manage_create_access_grant():
 
 @data_management.post("/api/access-grants/<uuid:grant_id>/toggle")
 @role_required("data_manager", "admin")
+@require_dm_scope
 def manage_toggle_access_grant(grant_id):
     """Toggle (activate/deactivate) a coder or data_manager grant."""
+    # Scope already validated by @require_dm_scope; load grant for the update.
     grant = db.session.get(VaUserAccessGrants, grant_id)
     if not grant:
         return _json_error("Grant not found.", 404)
-
-    # Resolve project_id for scope check
-    if grant.scope_type == VaAccessScopeTypes.project:
-        resolved_project_id = grant.project_id
-    elif grant.scope_type == VaAccessScopeTypes.project_site:
-        ps = db.session.get(VaProjectSites, grant.project_site_id)
-        resolved_project_id = ps.project_id if ps else None
-    else:
-        return _json_error("Invalid scope type.", 400)
-
-    # DM cannot toggle non-coder/data_manager grants
-    ok, err = _dm_can_manage_scope(
-        current_user, grant.role, grant.scope_type, resolved_project_id, grant.project_site_id
-    )
-    if not ok:
-        return _json_error(err, 403)
 
     grant.grant_status = (
         VaStatuses.deactive if grant.grant_status == VaStatuses.active else VaStatuses.active

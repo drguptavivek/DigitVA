@@ -1,6 +1,6 @@
 # Data Manager KPIs Policy Document
 
-- **Status:** pending
+- **Status:** in_progress — API endpoints implemented, schema + Celery task pending
 - **Priority:** high
 - **Created:** 2026-04-05
 - **Goal:** Create `docs/policy/kpis.md` — a formal KPI framework for project-site data managers with precise definitions, denominator scopes, and storage/display architecture.
@@ -700,3 +700,33 @@ Potential MV improvements noted for future implementation:
 - [ ] NQA/SA linked to project flags with exclusion rules
 - [ ] MV enhancement appendix included
 - [ ] Cross-references existing policy docs
+
+---
+
+## Implementation Progress
+
+### Phase 3: API Endpoints — DONE (2026-04-07)
+
+Created 8 files under `app/routes/api/dm_kpi/`, 27 endpoints total:
+
+| File | Endpoints | KPIs |
+|------|-----------|------|
+| `dm_kpi_scope.py` | shared helpers | DM scope resolution, caching |
+| `dm_kpi_grid.py` | `GET /` | C-01 daily grid |
+| `dm_kpi_sync.py` | `GET /status`, `/latency`, `/attachment-health`, `/smartva-failure-rate` | C-02, C-03, C-13, C-14, D-SH-01, D-SH-04 |
+| `dm_kpi_language.py` | `GET /gap`, `/distribution`, `/missing` | C-15, C-20, D-LC-01, D-LC-03, D-LC-07 |
+| `dm_kpi_exclusions.py` | `GET /rates`, `/breakdown`, `/blocked`, `/nqa-sa`, `/odk-issues` | C-05, C-06, C-23, D-QG-01–09 |
+| `dm_kpi_coders.py` | `GET /utilization`, `/output`, `/roster`, `/disagreement` | C-12, C-21, C-24, D-LC-04, D-LC-06, D-QG-09 |
+| `dm_kpi_pipeline.py` | `GET /pending`, `/aging`, `/time-to-code`, `/reviewed`, `/upstream-changes`, `/inflow-outflow`, `/site-bottleneck`, `/reviewer-throughput`, `/backlog-trend` | C-04, C-07, C-08, C-09, C-10, C-11, C-19, C-22, D-WT-01–04 |
+| `dm_kpi_burndown.py` | `GET /` | C-16, C-17, C-18 |
+
+All blueprints registered in `app/routes/api/__init__.py` under `/api/v1/analytics/dm-kpi/`.
+Every endpoint has self-documenting docstrings with KPI ID, numerator/denominator, scope, time frame, source.
+
+### Remaining work
+
+- [ ] Phase 1a: Migration — `va_daily_kpi_aggregates` table
+- [ ] Phase 1b: Migration — `project_target_completion_date` on `va_project_master`
+- [ ] Phase 1c: MV update — add `va_narration_language` to demographics MV
+- [ ] Phase 2: Celery task — `compute_daily_kpi_snapshot` + backfill CLI command
+- [ ] Phase 4: Policy doc fix — C-10 source reference (`revoked_submissions` → direct query)

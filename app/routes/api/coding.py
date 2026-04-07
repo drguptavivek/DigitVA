@@ -6,7 +6,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
-from app.models import VaForms, VaSubmissions
+from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow, VaSubmissions
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
@@ -24,9 +24,11 @@ from app.services.coder_workflow_service import (
     get_pick_available_forms,
     is_upstream_recode,
     mark_reviewer_eligible_after_recode_window_submissions,
+    _narration_language_filter,
     start_demo_allocation,
     start_recode_allocation,
 )
+from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.transitions import admin_actor
@@ -215,3 +217,127 @@ def projects():
     va_form_access = current_user.get_coder_va_forms() or []
     project_ids = get_coder_project_ids(va_form_access)
     return jsonify({"projects": list(project_ids)})
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/coding/debug-stats  — runtime coder visibility diagnostics
+# ---------------------------------------------------------------------------
+
+@bp.get("/debug-stats")
+@role_required("coder", "admin")
+def debug_stats():
+    """Return detailed coder visibility diagnostics for the current session."""
+    form_ids = sorted(current_user.get_coder_va_forms() or [])
+    random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(form_ids)
+    narration_language_filter = _narration_language_filter(current_user)
+    language_list = sorted(
+        {
+            str(language).strip().lower()
+            for language in (current_user.vacode_language or [])
+            if str(language).strip()
+        }
+    )
+
+    form_rows = []
+    if form_ids:
+        form_rows = db.session.execute(
+            sa.select(
+                VaForms.form_id,
+                VaForms.project_id,
+                VaForms.site_id,
+                VaForms.form_status,
+                VaProjectSites.project_site_status,
+            )
+            .select_from(VaForms)
+            .outerjoin(
+                VaProjectSites,
+                sa.and_(
+                    VaProjectSites.project_id == VaForms.project_id,
+                    VaProjectSites.site_id == VaForms.site_id,
+                ),
+            )
+            .where(VaForms.form_id.in_(form_ids))
+            .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
+        ).all()
+
+    state_counts_rows = []
+    ready_by_language_rows = []
+    ready_by_form_rows = []
+    if form_ids:
+        state_counts_rows = db.session.execute(
+            sa.select(VaSubmissionWorkflow.workflow_state, sa.func.count())
+            .select_from(VaSubmissions)
+            .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+            .where(VaSubmissions.va_form_id.in_(form_ids))
+            .group_by(VaSubmissionWorkflow.workflow_state)
+            .order_by(VaSubmissionWorkflow.workflow_state)
+        ).all()
+
+        ready_filters = [
+            VaSubmissions.va_form_id.in_(form_ids),
+            VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+        ]
+        if narration_language_filter is not None:
+            ready_filters.append(narration_language_filter)
+
+        ready_by_language_rows = db.session.execute(
+            sa.select(sa.func.lower(VaSubmissions.va_narration_language), sa.func.count())
+            .select_from(VaSubmissions)
+            .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+            .where(sa.and_(*ready_filters))
+            .group_by(sa.func.lower(VaSubmissions.va_narration_language))
+            .order_by(sa.func.lower(VaSubmissions.va_narration_language))
+        ).all()
+
+        ready_by_form_rows = db.session.execute(
+            sa.select(VaSubmissions.va_form_id, sa.func.count())
+            .select_from(VaSubmissions)
+            .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+            .where(sa.and_(*ready_filters))
+            .group_by(VaSubmissions.va_form_id)
+            .order_by(VaSubmissions.va_form_id)
+        ).all()
+
+    return jsonify({
+        "user": {
+            "user_id": str(current_user.user_id),
+            "email": current_user.email,
+            "is_admin": bool(current_user.is_admin()),
+        },
+        "coder_scope": {
+            "languages": language_list,
+            "form_count": len(form_ids),
+            "form_ids": form_ids,
+            "random_form_ids": sorted(random_form_ids),
+            "pick_form_ids": sorted(pick_form_ids),
+        },
+        "form_mapping_status": [
+            {
+                "form_id": row.form_id,
+                "project_id": row.project_id,
+                "site_id": row.site_id,
+                "form_status": row.form_status.value if row.form_status else None,
+                "project_site_status": row.project_site_status.value if row.project_site_status else None,
+                "project_site_active": row.project_site_status == VaStatuses.active,
+            }
+            for row in form_rows
+        ],
+        "workflow_visibility": {
+            "coder_ready_pool_states": sorted(CODER_READY_POOL_STATES),
+            "state_counts_by_form_scope": [
+                {"state": state, "count": count}
+                for state, count in state_counts_rows
+            ],
+            "ready_for_coding_after_language_filter": {
+                "count_by_language": [
+                    {"language": language, "count": count}
+                    for language, count in ready_by_language_rows
+                ],
+                "count_by_form": [
+                    {"form_id": form_id, "count": count}
+                    for form_id, count in ready_by_form_rows
+                ],
+                "total": int(sum(count for _, count in ready_by_form_rows)),
+            },
+        },
+    })

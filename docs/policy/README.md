@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-06
+last_updated: 2026-04-07
 ---
 
 # Policy Docs
@@ -18,6 +18,7 @@ Current policy docs:
 - [Category Navigation Visibility Policy](category-navigation-visibility.md)
 - [Coding Workflow State Machine Policy](coding-workflow-state-machine.md)
 - [Coding Allocation Timeout Policy](coding-allocation-timeouts.md)
+- [Coding Debug Stats API Policy](coding-debug-stats-api.md)
 - [Data Manager User and Grant Management Policy](dm-user-grant-management.md)
 - [Data Manager Workflow Policy](data-manager-workflow.md)
 - [Demo Coding Retention Policy](demo-coding-retention.md)

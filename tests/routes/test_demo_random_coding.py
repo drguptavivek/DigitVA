@@ -245,3 +245,21 @@ class DemoRandomCodingRouteTests(BaseTestCase):
         )
         self.assertEqual(second.status_code, 201)
         self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})
+
+    def test_api_debug_stats_returns_runtime_visibility_breakdown(self):
+        self._login(self.base_admin_id)
+
+        response = self.client.get("/api/v1/coding/debug-stats")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+
+        self.assertEqual(payload["user"]["email"], self.base_admin_user.email)
+        self.assertIn("coder_scope", payload)
+        self.assertIn("workflow_visibility", payload)
+        self.assertIn("form_mapping_status", payload)
+        self.assertIn("DMO01D10101", payload["coder_scope"]["form_ids"])
+        self.assertIn("DMO02D20101", payload["coder_scope"]["form_ids"])
+        self.assertIn(
+            "ready_for_coding",
+            payload["workflow_visibility"]["coder_ready_pool_states"],
+        )

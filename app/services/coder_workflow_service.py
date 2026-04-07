@@ -69,6 +69,16 @@ def _narration_language_filter(user):
         return None
     return sa.func.lower(VaSubmissions.va_narration_language).in_(normalized)
 
+
+def _tr01_cutoff_filter(user):
+    """Limit TR01 site submissions by date without restricting other forms."""
+    if not user or not user.is_coder(va_form="UNSW01TR0101"):
+        return None
+    return sa.or_(
+        VaSubmissions.va_form_id != "UNSW01TR0101",
+        sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
+    )
+
 def get_coder_ready_stats(user) -> dict:
     """Return ready-pool counts for the coder dashboard.
 
@@ -86,8 +96,6 @@ def get_coder_ready_stats(user) -> dict:
 
     def _count_ready(form_ids):
         filters = _available_submission_filters(form_ids, user=user)
-        if user.is_coder(va_form="UNSW01TR0101"):
-            filters.append(sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date())
         return db.session.scalar(
             sa.select(sa.func.count())
             .select_from(VaSubmissions)
@@ -144,6 +152,9 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
                 sa.select(VaForms.form_id).where(VaForms.project_id == project_id)
             )
         )
+    tr01_filter = _tr01_cutoff_filter(user)
+    if tr01_filter is not None:
+        filters.append(tr01_filter)
     return filters
 
 
@@ -255,13 +266,6 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
             raise AllocationError("You do not have coder access to the selected project.")
 
     base_filters = _available_submission_filters(random_form_ids, project_id=project_id, user=user)
-
-    # Temporary: TR01 site restricted to submissions up to 2025-09-09
-    if user.is_coder(va_form="UNSW01TR0101"):
-        base_filters = [
-            *_available_submission_filters(random_form_ids, project_id=project_id, user=user),
-            sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
-        ]
 
     va_new_sid = db.session.scalar(
         sa.select(VaSubmissions.va_sid)
@@ -557,11 +561,6 @@ def get_pick_available_forms(user, pick_form_ids: list[str]) -> list[dict]:
             VaSubmissions.va_uniqueid_masked,
         )
     )
-    if user.is_coder(va_form="UNSW01TR0101"):
-        stmt = stmt.where(
-            sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date()
-        )
-
     from app.utils import va_render_serialisedates
     return [
         va_render_serialisedates(row, ["va_submission_date"])

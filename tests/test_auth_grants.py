@@ -293,6 +293,25 @@ class AuthGrantResolutionTests(BaseTestCase):
         self.assertFalse(user.is_coder())
         self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
 
+    def test_coder_project_grant_excludes_inactive_project_site_forms(self):
+        user = self._create_user("test.auth.coder.project@example.com")
+        self._grant(
+            user,
+            VaAccessRoles.coder,
+            VaAccessScopeTypes.project,
+            "test coder project grant",
+            project_id=self.project_id,
+        )
+        project_site = db.session.get(VaProjectSites, self._project_site_id(self.site_a))
+        project_site.project_site_status = VaStatuses.deactive
+        db.session.flush()
+        db.session.refresh(user)
+
+        self.assertEqual(user.get_coder_va_forms(), {self.form_b})
+        self.assertTrue(user.is_coder())
+        self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
+        self.assertTrue(user.has_va_form_access(self.form_b, "coder"))
+
     def test_inactive_grant_does_not_authorize_access(self):
         user = self._create_user("test.auth.reviewer@example.com")
         grant = VaUserAccessGrants(

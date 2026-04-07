@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-06
+last_updated: 2026-04-07
 ---
 
 # Workflow And Permissions
@@ -201,6 +201,8 @@ Coder dashboard behavior:
 
 - the coder sees submissions only if:
   - the submission's `va_form_id` is in the coder's permitted forms
+  - the form's `(project_id, site_id)` pair is currently active in
+    `va_project_sites`
   - the submission language is in the coder's allowed languages
   - the submission's canonical workflow state is eligible for coding
 - completed-history rows and the cumulative coded count now use canonical

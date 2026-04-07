@@ -281,11 +281,20 @@ class VaUsers(UserMixin, db.Model):
                 VaProjectSites.site_id == VaForms.site_id,
             )
         )
+        active_project_site_exists = sa.exists(
+            sa.select(1).where(
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+                VaProjectSites.project_site_status == active_status,
+            )
+        )
         stmt = (
             sa.select(VaForms.form_id)
             .where(VaForms.form_status == active_status)
             .where(sa.or_(project_scope_exists, project_site_scope_exists))
         )
+        if role == "coder":
+            stmt = stmt.where(active_project_site_exists)
         granted_form_ids = set(db.session.scalars(stmt).all())
         if role != "coder":
             return granted_form_ids

@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-05
+last_updated: 2026-04-07
 ---
 
 # Access Control Model
@@ -116,6 +116,14 @@ May:
 - resume owned coding
 - submit coding outcomes
 - view coding records when allowed by workflow policy
+
+Coder eligibility guard:
+
+- coder-visible forms must resolve to an active project-site mapping in
+  `va_project_sites`
+- if a site is moved between projects and the old project-site row is
+  deactivated, old forms from that deactivated pair are excluded from coder
+  access and random allocation
 
 ### `reviewer`
 

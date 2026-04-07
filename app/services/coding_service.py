@@ -32,6 +32,46 @@ if TYPE_CHECKING:
     from app.models import VaSubmissions
 
 
+def _count_attachments_per_category(form_type_code: str, payload_data: dict, va_sid: str) -> dict[str, int]:
+    """Count non-empty attachment fields per category for media_gallery subcategories.
+
+    Returns {category_code: count} for categories whose render_mode is 'attachments',
+    counting only fields that belong to subcategories with render_mode 'media_gallery'.
+
+    Result is cached in Redis for 30 min (payload rarely changes).
+    Reuses the cached field mapping service — no extra DB queries on cache hit.
+    """
+    from app import cache as flask_cache
+
+    cache_key = f"attachment_counts:{va_sid}"
+    cached = flask_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    from app.services.field_mapping_service import get_mapping_service
+
+    _mapping_svc = get_mapping_service()
+    fieldsitepi = _mapping_svc.get_fieldsitepi(form_type_code)
+
+    # Build {category_code: [field_ids]} for media_gallery subcategories
+    counts: dict[str, int] = {}
+    for cat_code, subcats in fieldsitepi.items():
+        render_modes = _mapping_svc.get_subcategory_render_modes(form_type_code, cat_code)
+        attachment_fields = [
+            field_id
+            for sub_code, mode in render_modes.items()
+            if mode == "media_gallery"
+            for field_id in subcats.get(sub_code, {})
+        ]
+        if attachment_fields:
+            count = sum(1 for f in attachment_fields if payload_data.get(f))
+            if count >= 1:
+                counts[cat_code] = count
+
+    flask_cache.set(cache_key, counts, timeout=1800)
+    return counts
+
+
 def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_dashboard_role: str):
     """Render va_coding.html for a VA form session entry point."""
     from flask import render_template, url_for
@@ -48,6 +88,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     visible_codes = get_visible_category_codes(payload_data, submission.va_form_id)
     category_nav = category_service.get_category_nav(form_type_code, va_action, visible_codes)
     default_category_code = category_service.get_default_category_code(form_type_code, va_action, visible_codes)
+    attachment_counts = _count_attachments_per_category(form_type_code, payload_data, submission.va_sid)
     has_pending_upstream_change = (
         back_dashboard_role == "data_manager"
         and get_latest_pending_upstream_change(submission.va_sid) is not None
@@ -61,6 +102,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         category_nav=category_nav,
         default_category_code=default_category_code,
         catcount=submission.va_catcount,
+        attachment_counts=attachment_counts,
         form_type_code=form_type_code,
         va_uniqueid=submission.va_uniqueid_masked,
         va_age=submission.va_deceased_age,

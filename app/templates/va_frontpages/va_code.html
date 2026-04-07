@@ -285,6 +285,8 @@
   }
 
   // ── project selector ──────────────────────────────────────────────────────
+  const _PROJECT_SELECT_KEY = 'digitva_coding_project_select';
+
   function populateProjectSelector(projects) {
     const sel = document.getElementById('project-select-top');
     projects.forEach(p => {
@@ -292,6 +294,11 @@
       opt.value = p; opt.textContent = p;
       sel.appendChild(opt);
     });
+    // Restore previous selection
+    const saved = localStorage.getItem(_PROJECT_SELECT_KEY);
+    if (saved && Array.from(sel.options).some(o => o.value === saved)) {
+      sel.value = saved;
+    }
   }
 
   // ── action buttons ────────────────────────────────────────────────────────
@@ -542,6 +549,7 @@
       const projectSelectTop = document.getElementById('project-select-top');
       if (projectSelectTop) {
         projectSelectTop.addEventListener('change', () => {
+          localStorage.setItem(_PROJECT_SELECT_KEY, projectSelectTop.value);
           syncDemoTrainingBanner();
           applyProjectFilterToHistory();
         });

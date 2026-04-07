@@ -33,6 +33,7 @@
     {% endblock %}
     {% block htmx_js %}
       <script src="{{ url_for('static', filename='vendors/htmx/htmx.min.js') }}"></script>
+      <script src="{{ url_for('static', filename='vendors/htmx/preload.js') }}"></script>
     {% endblock %}
     <script src="{{ url_for('static', filename='js/base.js') }}"></script>
     {% block datatables_js %}

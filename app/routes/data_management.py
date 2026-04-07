@@ -7,6 +7,7 @@ Shared helpers live in app/services/data_management_service.py.
 
 import logging
 import uuid
+import secrets
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, redirect, render_template, request
@@ -307,10 +308,8 @@ def manage_project_sites():
     if project_id:
         stmt = stmt.where(VaProjectSites.project_id == project_id)
 
-    # Admins see all project-sites
-    if current_user.is_admin():
-        pass  # no additional filter
-    else:
+    # Admins see all project-sites.
+    if not current_user.is_admin():
         # Filter to DM's accessible sites
         conditions = []
         if dm_projects:
@@ -325,10 +324,6 @@ def manage_project_sites():
             stmt = stmt.where(sa.or_(*conditions))
         else:
             return jsonify({"project_sites": []})
-    if conditions:
-        stmt = stmt.where(sa.or_(*conditions))
-    else:
-        return jsonify({"project_sites": []})
 
     rows = db.session.execute(
         stmt.order_by(VaProjectSites.project_id, VaProjectSites.site_id)
@@ -341,7 +336,10 @@ def manage_project_sites():
 def manage_users():
     """User search for data-manager grant assignment."""
     query = (request.args.get("query") or "").strip()
-    stmt = sa.select(VaUsers).where(VaUsers.user_status == VaStatuses.active)
+    include_inactive = request.args.get("include_inactive", "1") == "1"
+    stmt = sa.select(VaUsers)
+    if not include_inactive:
+        stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
     if query:
         pattern = f"%{query}%"
         stmt = stmt.where(
@@ -359,18 +357,18 @@ def manage_create_user():
 
     payload = request.get_json(silent=True) or {}
     email = (payload.get("email") or "").strip().lower()
+    email_confirm = (payload.get("email_confirm") or "").strip().lower()
     name = (payload.get("name") or "").strip()
     phone = (payload.get("phone") or "").strip()
-    password = payload.get("password")
     languages = payload.get("languages")
+    initial_role_value = payload.get("initial_role")
+    initial_scope_value = payload.get("initial_scope_type")
+    initial_project_id = (payload.get("initial_project_id") or "").strip() or None
 
-    if not email or not name or not password:
-        return _json_error("email, name, and password are required.", 400)
-
-    from app.utils.password_policy import password_error_message
-    pw_err = password_error_message(password)
-    if pw_err:
-        return _json_error(pw_err, 400)
+    if not email or not email_confirm or not name:
+        return _json_error("email, email_confirm, and name are required.", 400)
+    if email != email_confirm:
+        return _json_error("Email confirmation does not match.", 400)
     if not isinstance(languages, list) or not languages:
         return _json_error("At least one language must be selected.", 400)
 
@@ -387,6 +385,48 @@ def manage_create_user():
     if existing:
         return _json_error("Email already in use.", 400)
 
+    if not initial_role_value or not initial_scope_value:
+        return _json_error("initial_role and initial_scope_type are required.", 400)
+    if not initial_project_id:
+        return _json_error("initial_project_id is required.", 400)
+    if initial_role_value not in {r.value for r in VaAccessRoles}:
+        return _json_error("Invalid initial_role.", 400)
+    if initial_scope_value not in {s.value for s in VaAccessScopeTypes}:
+        return _json_error("Invalid initial_scope_type.", 400)
+    role = VaAccessRoles(initial_role_value)
+    scope_type = VaAccessScopeTypes(initial_scope_value)
+
+    resolved_project_id = None
+    project_site_id = None
+    if scope_type == VaAccessScopeTypes.project:
+        resolved_project_id = initial_project_id
+    elif scope_type == VaAccessScopeTypes.project_site:
+        raw_psid = payload.get("initial_project_site_id")
+        if not raw_psid:
+            return _json_error("initial_project_site_id is required for site scope.", 400)
+        try:
+            project_site_id = uuid.UUID(raw_psid)
+        except (ValueError, TypeError):
+            return _json_error("Invalid initial_project_site_id.", 400)
+        ps = db.session.get(VaProjectSites, project_site_id)
+        if not ps or ps.project_site_status != VaStatuses.active:
+            return _json_error("Active project-site mapping not found.", 404)
+        if ps.project_id != initial_project_id:
+            return _json_error("initial_project_site_id does not belong to initial_project_id.", 400)
+        resolved_project_id = ps.project_id
+    else:
+        return _json_error("Invalid initial_scope_type.", 400)
+
+    ok, err = _dm_can_manage_scope(
+        current_user,
+        role,
+        scope_type,
+        resolved_project_id,
+        project_site_id,
+    )
+    if not ok:
+        return _json_error(err, 403)
+
     new_user = VaUsers(
         email=email,
         name=name,
@@ -397,22 +437,121 @@ def manage_create_user():
         landing_page="coder",
         pw_reset_t_and_c=False,
         email_verified=False,
+        other={"created_by_user_id": str(current_user.user_id)},
     )
-    new_user.set_password(password)
+    # Invite-only onboarding: user sets their own password via reset link.
+    new_user.set_password(secrets.token_urlsafe(32))
 
     db.session.add(new_user)
+    db.session.flush()
+    new_grant = VaUserAccessGrants(
+        user_id=new_user.user_id,
+        role=role,
+        scope_type=scope_type,
+        project_id=resolved_project_id if scope_type == VaAccessScopeTypes.project else None,
+        project_site_id=project_site_id,
+        notes="auto-created with user",
+        grant_status=VaStatuses.active,
+    )
+    db.session.add(new_grant)
     db.session.commit()
 
-    # Send email verification (async via Celery)
+    # Send verification + password-setup emails (async via Celery).
+    try:
+        from app.services.token_service import generate_token
+        from app.services.email_service import (
+            send_verification_email,
+            send_password_reset_email,
+        )
+        verify_token = generate_token(new_user.user_id, "email_verify")
+        reset_token = generate_token(new_user.user_id, "password_reset")
+        send_verification_email(new_user, verify_token)
+        send_password_reset_email(new_user, reset_token)
+    except Exception:
+        pass  # non-critical — user can request resend/reset
+
+    return jsonify({"user": _serialize_user(new_user)}), 201
+
+
+@data_management.get("/api/users/<uuid:target_user_id>")
+@role_required("data_manager", "admin")
+def manage_user_detail(target_user_id):
+    """Return user details for DM/admin view."""
+    user = db.session.get(VaUsers, target_user_id)
+    if not user:
+        return _json_error("User not found.", 404)
+    return jsonify({"user": _serialize_user(user)})
+
+
+@data_management.post("/api/users/<uuid:target_user_id>/resend-verification")
+@role_required("data_manager", "admin")
+def manage_resend_verification(target_user_id):
+    """Resend email verification link for a user."""
+    user = db.session.get(VaUsers, target_user_id)
+    if not user:
+        return _json_error("User not found.", 404)
+    if user.email_verified:
+        return _json_error("User email is already verified.", 400)
     try:
         from app.services.token_service import generate_token
         from app.services.email_service import send_verification_email
-        token = generate_token(new_user.user_id, "email_verify")
-        send_verification_email(new_user, token)
-    except Exception:
-        pass  # non-critical — user can request resend
 
-    return jsonify({"user": _serialize_user(new_user)}), 201
+        verify_token = generate_token(user.user_id, "email_verify")
+        send_verification_email(user, verify_token)
+    except Exception as exc:
+        log.exception("Resend verification failed for %s: %s", user.email, exc)
+        return _json_error("Failed to send verification email.", 500)
+    return jsonify({"message": "Verification email sent."})
+
+
+def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
+    """DM can edit email only for users created by them; admins bypass."""
+    if current_user.is_admin():
+        return True
+    other = target_user.other or {}
+    created_by = other.get("created_by_user_id")
+    return created_by == str(current_user.user_id)
+
+
+@data_management.put("/api/users/<uuid:target_user_id>")
+@role_required("data_manager", "admin")
+def manage_update_user(target_user_id):
+    """Update user email (DM restricted to users created by them)."""
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+    if not _dm_can_edit_user_email(target_user):
+        return _json_error("You may update email only for users created by you.", 403)
+
+    payload = request.get_json(silent=True) or {}
+    email = (payload.get("email") or "").strip().lower()
+    email_confirm = (payload.get("email_confirm") or "").strip().lower()
+    if not email or not email_confirm:
+        return _json_error("email and email_confirm are required.", 400)
+    if email != email_confirm:
+        return _json_error("Email confirmation does not match.", 400)
+
+    if email != target_user.email:
+        existing = db.session.scalar(
+            sa.select(VaUsers).where(
+                VaUsers.email == email,
+                VaUsers.user_id != target_user.user_id,
+            )
+        )
+        if existing:
+            return _json_error("Email already in use.", 400)
+        target_user.email = email
+        target_user.email_verified = False
+        db.session.commit()
+        try:
+            from app.services.token_service import generate_token
+            from app.services.email_service import send_verification_email
+
+            verify_token = generate_token(target_user.user_id, "email_verify")
+            send_verification_email(target_user, verify_token)
+        except Exception:
+            pass
+    return jsonify({"user": _serialize_user(target_user)})
 
 
 @data_management.get("/api/access-grants")

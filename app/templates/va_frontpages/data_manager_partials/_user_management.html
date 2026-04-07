@@ -71,21 +71,47 @@
               <input type="email" class="form-control form-control-sm" id="dm-user-email" placeholder="user@example.com">
             </div>
             <div class="col-sm-3">
+              <label class="form-label small mb-1">Confirm Email <span class="text-danger">*</span></label>
+              <input type="email" class="form-control form-control-sm" id="dm-user-email-confirm" placeholder="user@example.com">
+            </div>
+            <div class="col-sm-3">
               <label class="form-label small mb-1">Name <span class="text-danger">*</span></label>
               <input type="text" class="form-control form-control-sm" id="dm-user-name" placeholder="Full Name">
             </div>
-            <div class="col-sm-2">
+            <div class="col-sm-3">
               <label class="form-label small mb-1">Phone</label>
               <input type="text" class="form-control form-control-sm" id="dm-user-phone" placeholder="+1234567890">
             </div>
-            <div class="col-sm-2">
-              <label class="form-label small mb-1">Password <span class="text-danger">*</span></label>
-              <input type="password" class="form-control form-control-sm" id="dm-user-password" placeholder="Min 8 chars">
+            <div class="col-sm-3">
+              <label class="form-label small mb-1">Initial Grant Project <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" id="dm-user-initial-project">
+                <option value="">-- select project --</option>
+              </select>
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label small mb-1">Initial Grant Role <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" id="dm-user-initial-role" disabled>
+                <option value="">-- select --</option>
+                <option value="coder">Coder</option>
+                <option value="data_manager">Data Manager</option>
+              </select>
+            </div>
+            <div class="col-sm-3">
+              <label class="form-label small mb-1">Initial Grant Scope <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" id="dm-user-initial-scope" disabled>
+                <option value="">-- select --</option>
+              </select>
+            </div>
+            <div class="col-sm-3" id="dm-user-initial-site-wrap">
+              <label class="form-label small mb-1">Initial Grant Site <span class="text-danger">*</span></label>
+              <select class="form-select form-select-sm" id="dm-user-initial-site" disabled>
+                <option value="">-- select --</option>
+              </select>
             </div>
             <div class="col-12">
               <label class="form-label small mb-1">VA Languages <span class="text-danger">*</span></label>
               <select class="form-select form-select-sm" id="dm-user-languages" multiple></select>
-              <div class="form-text" style="font-size:0.7rem;">Select the languages this user can code in.</div>
+              <div class="form-text" style="font-size:0.7rem;">User receives an invite email + verification email; they set their own password.</div>
             </div>
           </div>
           <div class="row g-2 mt-1">
@@ -102,6 +128,41 @@
 
       {# User search results #}
       <div id="dm-user-table-wrap"></div>
+
+      {# User detail modal #}
+      <div class="modal fade" id="dm-user-detail-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header py-2">
+              <h6 class="modal-title"><i class="fa-solid fa-user me-2"></i>User Details</h6>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body small">
+              <div id="dm-user-detail-body"></div>
+              <hr class="my-2">
+              <div class="mb-2 fw-semibold">Update Email</div>
+              <div class="row g-2">
+                <div class="col-12">
+                  <input type="email" class="form-control form-control-sm" id="dm-user-edit-email" placeholder="new@example.com">
+                </div>
+                <div class="col-12">
+                  <input type="email" class="form-control form-control-sm" id="dm-user-edit-email-confirm" placeholder="confirm@example.com">
+                </div>
+              </div>
+              <div id="dm-user-detail-error" class="text-danger mt-2"></div>
+            </div>
+            <div class="modal-footer py-2 d-flex justify-content-between">
+              <button type="button" class="btn btn-sm btn-outline-primary" id="dm-user-resend-verify-btn">
+                Resend Verification
+              </button>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-success" id="dm-user-update-email-btn">Update Email</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
     </div>
 
@@ -264,6 +325,8 @@
   var _users = [];
   var _langData = [];
   var _searchTimeout = null;
+  var _selectedUserId = null;
+  var _userDetailModal = null;
 
   function initUsersTab() {
     // Load available languages from the admin bootstrap (reuse endpoint)
@@ -272,7 +335,12 @@
       // otherwise just use a minimal approach.
     });
     loadLanguages();
+    resetInitialGrantControls();
+    loadUserGrantProjects();
     loadUsers();
+    document.getElementById('dm-user-initial-project').addEventListener('change', onInitialProjectChanged);
+    document.getElementById('dm-user-initial-scope').addEventListener('change', onInitialScopeChanged);
+    onInitialScopeChanged();
 
     document.getElementById('dm-user-show-form-btn').addEventListener('click', function () {
       document.getElementById('dm-user-form-container').classList.remove('d-none');
@@ -283,6 +351,8 @@
       resetUserForm();
     });
     document.getElementById('dm-user-submit-btn').addEventListener('click', submitUser);
+    document.getElementById('dm-user-resend-verify-btn').addEventListener('click', resendVerificationForSelectedUser);
+    document.getElementById('dm-user-update-email-btn').addEventListener('click', updateSelectedUserEmail);
     document.getElementById('dm-user-search-input').addEventListener('input', function () {
       clearTimeout(_searchTimeout);
       _searchTimeout = setTimeout(loadUsers, 300);
@@ -317,6 +387,86 @@
     });
   }
 
+  function populateInitialScopeOptions() {
+    var sel = document.getElementById('dm-user-initial-scope');
+    var isProjectScoped = _state && _state.user && _state.user.is_project_scoped;
+    if (isProjectScoped) {
+      sel.innerHTML = '<option value="">-- select --</option>'
+        + '<option value="project_site">Site-level</option>'
+        + '<option value="project">Project-level</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">-- select --</option>'
+      + '<option value="project_site">Site-level</option>';
+  }
+
+  function onInitialScopeChanged() {
+    var scope = document.getElementById('dm-user-initial-scope').value;
+    var siteWrap = document.getElementById('dm-user-initial-site-wrap');
+    siteWrap.style.display = (scope === 'project_site') ? '' : 'none';
+    document.getElementById('dm-user-initial-site').disabled = (scope !== 'project_site');
+    if (scope !== 'project_site') {
+      document.getElementById('dm-user-initial-site').value = '';
+    }
+  }
+
+  function resetInitialGrantControls() {
+    document.getElementById('dm-user-initial-role').disabled = true;
+    document.getElementById('dm-user-initial-scope').disabled = true;
+    document.getElementById('dm-user-initial-site').disabled = true;
+    document.getElementById('dm-user-initial-role').value = '';
+    document.getElementById('dm-user-initial-scope').value = '';
+    document.getElementById('dm-user-initial-site').value = '';
+    document.getElementById('dm-user-initial-site-wrap').style.display = 'none';
+    populateInitialScopeOptions();
+  }
+
+  function onInitialProjectChanged() {
+    var projectId = document.getElementById('dm-user-initial-project').value;
+    var roleSel = document.getElementById('dm-user-initial-role');
+    var scopeSel = document.getElementById('dm-user-initial-scope');
+    if (!projectId) {
+      resetInitialGrantControls();
+      return;
+    }
+    roleSel.disabled = false;
+    scopeSel.disabled = false;
+    roleSel.value = '';
+    scopeSel.value = '';
+    loadUserGrantSites(projectId);
+    onInitialScopeChanged();
+  }
+
+  function loadUserGrantProjects() {
+    apiJson('/data-management/api/projects').then(function (res) {
+      if (!res.ok) return;
+      var projects = (res.data && res.data.projects) || [];
+      var sel = document.getElementById('dm-user-initial-project');
+      sel.innerHTML = '<option value="">-- select project --</option>'
+        + projects.map(function (p) {
+          return '<option value="' + esc(p.project_id) + '">'
+            + esc(p.project_id + ' - ' + p.project_name)
+            + '</option>';
+        }).join('');
+    });
+  }
+
+  function loadUserGrantSites(projectId) {
+    var url = '/data-management/api/project-sites';
+    if (projectId) url += '?project_id=' + encodeURIComponent(projectId);
+    apiJson(url).then(function (res) {
+      if (!res.ok) return;
+      var sites = (res.data && res.data.project_sites) || [];
+      var sel = document.getElementById('dm-user-initial-site');
+      sel.innerHTML = '<option value="">-- select --</option>'
+        + sites.map(function (s) {
+          return '<option value="' + esc(s.project_site_id) + '">'
+            + esc(s.project_id + ' / ' + s.site_id + ' - ' + s.site_name)
+            + '</option>';
+        }).join('');
+    });
+  }
+
   function renderUserTable() {
     var wrap = document.getElementById('dm-user-table-wrap');
     if (!_users.length) {
@@ -324,7 +474,7 @@
       return;
     }
     var rows = _users.map(function (u) {
-      return '<tr>'
+      return '<tr class="dm-user-row" data-user-id="' + esc(u.user_id) + '" style="cursor:pointer;">'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(u.name) + '</div>'
         +   '<div class="small text-muted">' + esc(u.email) + '</div>'
@@ -347,13 +497,108 @@
       + '<th class="fw-medium small text-muted">Status</th>'
       + '</tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
+
+    wrap.querySelectorAll('.dm-user-row').forEach(function (row) {
+      row.addEventListener('click', function () {
+        openUserDetail(this.dataset.userId);
+      });
+    });
+  }
+
+  function openUserDetail(userId) {
+    _selectedUserId = userId;
+    var body = document.getElementById('dm-user-detail-body');
+    var errEl = document.getElementById('dm-user-detail-error');
+    body.innerHTML = '<div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading...</div>';
+    errEl.textContent = '';
+    document.getElementById('dm-user-edit-email').value = '';
+    document.getElementById('dm-user-edit-email-confirm').value = '';
+    if (!_userDetailModal) _userDetailModal = new bootstrap.Modal(document.getElementById('dm-user-detail-modal'));
+    _userDetailModal.show();
+
+    apiJson('/data-management/api/users/' + encodeURIComponent(userId)).then(function (res) {
+      if (!res.ok) {
+        body.innerHTML = '<div class="text-danger">' + esc(res.data.error || 'Failed to load user details.') + '</div>';
+        return;
+      }
+      var u = res.data.user || {};
+      var statusBadge = u.status === 'active'
+        ? '<span class="badge text-bg-success">Active</span>'
+        : '<span class="badge text-bg-secondary">Inactive</span>';
+      var verifyBadge = u.email_verified
+        ? '<span class="badge text-bg-success">Verified</span>'
+        : '<span class="badge text-bg-warning text-dark">Unverified</span>';
+      body.innerHTML =
+        '<div><strong>Name:</strong> ' + esc(u.name) + '</div>'
+        + '<div><strong>Email:</strong> ' + esc(u.email) + '</div>'
+        + '<div><strong>Status:</strong> ' + statusBadge + '</div>'
+        + '<div><strong>Email Verification:</strong> ' + verifyBadge + '</div>';
+      document.getElementById('dm-user-resend-verify-btn').disabled = !!u.email_verified;
+    }).catch(function () {
+      body.innerHTML = '<div class="text-danger">Network error.</div>';
+    });
+  }
+
+  function resendVerificationForSelectedUser() {
+    if (!_selectedUserId) return;
+    var btn = this;
+    var errEl = document.getElementById('dm-user-detail-error');
+    errEl.textContent = '';
+    btn.disabled = true;
+    apiJson('/data-management/api/users/' + encodeURIComponent(_selectedUserId) + '/resend-verification', 'POST')
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { errEl.textContent = res.data.error || 'Failed to resend verification.'; return; }
+        errEl.classList.remove('text-danger');
+        errEl.classList.add('text-success');
+        errEl.textContent = res.data.message || 'Verification email sent.';
+      })
+      .catch(function () {
+        btn.disabled = false;
+        errEl.textContent = 'Network error.';
+      });
+  }
+
+  function updateSelectedUserEmail() {
+    if (!_selectedUserId) return;
+    var errEl = document.getElementById('dm-user-detail-error');
+    errEl.classList.remove('text-success');
+    errEl.classList.add('text-danger');
+    errEl.textContent = '';
+    var email = document.getElementById('dm-user-edit-email').value.trim().toLowerCase();
+    var emailConfirm = document.getElementById('dm-user-edit-email-confirm').value.trim().toLowerCase();
+    if (!email || !emailConfirm) { errEl.textContent = 'Both email fields are required.'; return; }
+    if (email !== emailConfirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+    var btn = this;
+    btn.disabled = true;
+    apiJson('/data-management/api/users/' + encodeURIComponent(_selectedUserId), 'PUT', {
+      email: email,
+      email_confirm: emailConfirm
+    }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { errEl.textContent = res.data.error || 'Failed to update email.'; return; }
+      errEl.classList.remove('text-danger');
+      errEl.classList.add('text-success');
+      errEl.textContent = 'Email updated. Verification email sent.';
+      openUserDetail(_selectedUserId);
+      loadUsers();
+    }).catch(function () {
+      btn.disabled = false;
+      errEl.textContent = 'Network error.';
+    });
   }
 
   function resetUserForm() {
     document.getElementById('dm-user-email').value = '';
+    document.getElementById('dm-user-email-confirm').value = '';
     document.getElementById('dm-user-name').value = '';
     document.getElementById('dm-user-phone').value = '';
-    document.getElementById('dm-user-password').value = '';
+    document.getElementById('dm-user-initial-project').value = '';
+    resetInitialGrantControls();
+    document.getElementById('dm-user-initial-role').value = '';
+    document.getElementById('dm-user-initial-scope').value = '';
+    document.getElementById('dm-user-initial-site').value = '';
+    onInitialScopeChanged();
     $('#dm-user-languages').val([]).trigger('change');
     document.getElementById('dm-user-form-error').textContent = '';
   }
@@ -363,14 +608,28 @@
     errEl.textContent = '';
     var data = {
       email: document.getElementById('dm-user-email').value.trim().toLowerCase(),
+      email_confirm: document.getElementById('dm-user-email-confirm').value.trim().toLowerCase(),
       name: document.getElementById('dm-user-name').value.trim(),
       phone: document.getElementById('dm-user-phone').value.trim(),
-      password: document.getElementById('dm-user-password').value,
+      initial_role: document.getElementById('dm-user-initial-role').value,
+      initial_scope_type: document.getElementById('dm-user-initial-scope').value,
+      initial_project_id: document.getElementById('dm-user-initial-project').value,
+      initial_project_site_id: document.getElementById('dm-user-initial-site').value,
       languages: $('#dm-user-languages').val(),
     };
     if (!data.email) { errEl.textContent = 'Email is required.'; return; }
+    if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
+    if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
     if (!data.name) { errEl.textContent = 'Name is required.'; return; }
-    if (!data.password) { errEl.textContent = 'Password is required.'; return; }
+    if (!data.initial_project_id) { errEl.textContent = 'Initial grant project is required.'; return; }
+    if (!data.initial_role) { errEl.textContent = 'Initial grant role is required.'; return; }
+    if (!data.initial_scope_type) { errEl.textContent = 'Initial grant scope is required.'; return; }
+    if (data.initial_scope_type === 'project' && !data.initial_project_id) {
+      errEl.textContent = 'Initial grant project is required.'; return;
+    }
+    if (data.initial_scope_type === 'project_site' && !data.initial_project_site_id) {
+      errEl.textContent = 'Initial grant site is required.'; return;
+    }
     if (!data.languages || !data.languages.length) {
       errEl.textContent = 'At least one language is required.'; return;
     }

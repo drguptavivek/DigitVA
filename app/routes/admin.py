@@ -2,6 +2,7 @@ import logging
 import json
 import re
 import uuid
+import secrets
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from secrets import token_hex
@@ -1091,6 +1092,7 @@ def _serialize_user(user):
         "email": user.email,
         "name": user.name,
         "status": user.user_status.value,
+        "email_verified": bool(user.email_verified),
         "phone": user.phone,
         "landing_page": user.landing_page,
         "languages": user.vacode_language or [],
@@ -1133,18 +1135,15 @@ def admin_create_user():
 
     payload = request.get_json(silent=True) or {}
     email = (payload.get("email") or "").strip().lower()
+    email_confirm = (payload.get("email_confirm") or "").strip().lower()
     name = (payload.get("name") or "").strip()
     phone = (payload.get("phone") or "").strip()
-    password = payload.get("password")
     languages = payload.get("languages")
     
-    if not email or not name or not password:
-        return _json_error("email, name, and password are required.", 400)
-
-    from app.utils.password_policy import password_error_message
-    pw_err = password_error_message(password)
-    if pw_err:
-        return _json_error(pw_err, 400)
+    if not email or not email_confirm or not name:
+        return _json_error("email, email_confirm, and name are required.", 400)
+    if email != email_confirm:
+        return _json_error("Email confirmation does not match.", 400)
     if not isinstance(languages, list) or not languages:
         return _json_error("At least one language must be selected.", 400)
 
@@ -1172,19 +1171,25 @@ def admin_create_user():
         pw_reset_t_and_c=False,
         email_verified=False
     )
-    new_user.set_password(password)
+    # Invite-only onboarding: user sets their own password via reset link.
+    new_user.set_password(secrets.token_urlsafe(32))
 
     db.session.add(new_user)
     db.session.commit()
 
-    # Send email verification (async via Celery)
+    # Send verification + password-setup emails (async via Celery).
     try:
         from app.services.token_service import generate_token
-        from app.services.email_service import send_verification_email
-        token = generate_token(new_user.user_id, "email_verify")
-        send_verification_email(new_user, token)
+        from app.services.email_service import (
+            send_verification_email,
+            send_password_reset_email,
+        )
+        verify_token = generate_token(new_user.user_id, "email_verify")
+        reset_token = generate_token(new_user.user_id, "password_reset")
+        send_verification_email(new_user, verify_token)
+        send_password_reset_email(new_user, reset_token)
     except Exception:
-        pass  # non-critical — user can request resend
+        pass  # non-critical — user can request resend/reset
 
     return jsonify({"user": _serialize_user(new_user)}), 201
 

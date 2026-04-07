@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-06
+last_updated: 2026-04-07
 ---
 
 # Data Manager Dashboard
@@ -251,8 +251,11 @@ that links to `/data-management/users`.
 This page provides a separate interface (outside the admin panel) where
 data-managers and admins can:
 
-- **Users tab**: search active users and create new users (with email, name,
-  phone, password, and VA language selection)
+- **Users tab**: search users, create new users (email + confirm email, name,
+  phone, VA language selection, and immediate initial grant selection with
+  project-first scope), and open per-user details with status and
+  email-verification visibility, verification resend, and creator-scoped email
+  update.
 - **Grants tab**: view, create, and toggle coder and data-manager grants
   scoped to the data-manager's own grant scope
 

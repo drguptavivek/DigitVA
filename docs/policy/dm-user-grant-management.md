@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-06
+last_updated: 2026-04-07
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -109,12 +109,20 @@ their scope.
 A data-manager may create new users. Created users:
 
 - receive status `active`
-- must set a password (force reset on first login via `pw_reset_t_and_c=False`)
+- must provide `email` and matching `email_confirm`
+- are created in invite mode (no operator-entered password)
+- receive both verification and password-setup emails
+- start with `pw_reset_t_and_c=False` so onboarding gate remains in effect
 - must have at least one VA language selected
 - receive `landing_page="coder"` by default
 
-Creating a user does **not** automatically assign any grants. The data-manager
-must create grants separately through the grants interface.
+Creating a user through this interface also requires an initial grant payload:
+
+- project selection first (project must be in DM-manageable scope)
+- role: `coder` or `data_manager`
+- scope: `project_site` for site-scoped DMs, `project_site` or `project` for
+  project-scoped DMs
+- target site/project must be inside the DM's own manageable scope
 
 ## Visibility
 
@@ -130,8 +138,13 @@ grants, even within their scope.
 
 ### User listing
 
-Data-managers may search all active users (up to 25 results). This is necessary
-for assigning grants to existing users.
+Data-managers may search users (up to 25 results) and open per-user details.
+The details panel includes:
+
+- account status (`active` / `deactive`)
+- email verification status
+- resend verification action (for unverified users)
+- email update action only for users created by the same data-manager
 
 ## CSRF
 

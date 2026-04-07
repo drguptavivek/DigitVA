@@ -187,8 +187,11 @@
   var formContainer = document.getElementById('user-form-container');
   var formTitle = document.getElementById('user-form-title');
   var emailInput = document.getElementById('user-email-input');
+  var emailConfirmInput = document.getElementById('user-email-confirm-input');
+  var emailConfirmAsterisk = document.getElementById('user-email-confirm-asterisk');
   var nameInput = document.getElementById('user-name-input');
   var phoneInput = document.getElementById('user-phone-input');
+  var passwordCol = document.getElementById('user-password-col');
   var passwordInput = document.getElementById('user-password-input');
   var passwordAsterisk = document.getElementById('user-password-asterisk');
   var passwordHelp = document.getElementById('user-password-help');
@@ -203,11 +206,15 @@
     formTitle.textContent = 'Create User';
     emailInput.value = '';
     emailInput.disabled = false;
+    emailConfirmInput.value = '';
+    emailConfirmInput.disabled = false;
+    emailConfirmAsterisk.classList.remove('d-none');
     nameInput.value = '';
     phoneInput.value = '';
     passwordInput.value = '';
-    passwordAsterisk.classList.remove('d-none');
-    passwordHelp.textContent = '';
+    passwordCol.classList.add('d-none');
+    passwordAsterisk.classList.add('d-none');
+    passwordHelp.textContent = 'Invite flow: user sets password from email link.';
     statusInput.value = 'active';
     statusInput.disabled = true; // New users are always active
     languagesInput.val([]).trigger('change');
@@ -224,8 +231,12 @@
     formTitle.textContent = 'Edit User';
     emailInput.value = user.email;
     emailInput.disabled = true;
+    emailConfirmInput.value = '';
+    emailConfirmInput.disabled = true;
+    emailConfirmAsterisk.classList.add('d-none');
     nameInput.value = user.name;
     phoneInput.value = user.phone || '';
+    passwordCol.classList.remove('d-none');
     passwordInput.value = '';
     passwordAsterisk.classList.add('d-none');
     passwordHelp.textContent = '(Leave blank to keep unchanged)';
@@ -304,8 +315,11 @@
       url = '/admin/api/users';
       method = 'POST';
       data.email = emailInput.value.trim().toLowerCase();
+      data.email_confirm = emailConfirmInput.value.trim().toLowerCase();
       if (!data.email) { errEl.textContent = 'Email is required.'; return; }
-      if (!data.password) { errEl.textContent = 'Password is required for new users.'; return; }
+      if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
+      if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+      delete data.password;
     }
 
     if (!data.name) { errEl.textContent = 'Name is required.'; return; }

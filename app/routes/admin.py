@@ -1595,6 +1595,21 @@ def admin_create_access_grant():
         db.session.add(grant)
 
     db.session.commit()
+
+    from app.logging.va_logger import log_grant_action
+    log_grant_action(
+        action="grant_reactivated" if (status_code == 200) else "grant_created",
+        actor_user_id=current_user.user_id,
+        actor_role="admin",
+        target_user_id=user_id,
+        grant_id=grant.grant_id,
+        role=role.value,
+        scope_type=scope_type.value,
+        project_id=resolved_project_id,
+        project_site_id=project_site_id,
+        request_ip=request.remote_addr,
+    )
+
     row = db.session.execute(
         sa.select(
             VaUserAccessGrants.grant_id,
@@ -1642,12 +1657,25 @@ def admin_toggle_access_grant(grant_id):
         ):
             return _json_error("This operation is not permitted for this resource.", 403)
 
-    grant.grant_status = (
-        VaStatuses.deactive
-        if grant.grant_status == VaStatuses.active
-        else VaStatuses.active
+    new_status = (
+        VaStatuses.deactive if grant.grant_status == VaStatuses.active else VaStatuses.active
     )
+    grant.grant_status = new_status
     db.session.commit()
+
+    from app.logging.va_logger import log_grant_action
+    log_grant_action(
+        action="grant_toggled_inactive" if new_status == VaStatuses.deactive else "grant_toggled_active",
+        actor_user_id=current_user.user_id,
+        actor_role="admin",
+        target_user_id=grant.user_id,
+        grant_id=grant.grant_id,
+        role=grant.role.value,
+        scope_type=grant.scope_type.value,
+        project_id=resolved_project_id,
+        project_site_id=grant.project_site_id,
+        request_ip=request.remote_addr,
+    )
 
     return jsonify({"grant_id": str(grant.grant_id), "status": grant.grant_status.value})
 

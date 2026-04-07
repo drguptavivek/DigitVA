@@ -39,10 +39,47 @@ def va_setup_logger(name, log_file, level=logging.INFO, formatter=None):
     logger.addHandler(handler)
     return logger
 
+# Formatters
+grant_audit_formatter = logging.Formatter('%(asctime)s %(message)s')
+
 # Initialize loggers
-request_logger = va_setup_logger('REQUEST_LOG', f'{va_log}/requests.log', logging.INFO, va_detailed_formatter)  
-error_logger = va_setup_logger('ERROR_LOG', f'{va_log}/errors.log', logging.ERROR, va_detailed_formatter)  
+request_logger = va_setup_logger('REQUEST_LOG', f'{va_log}/requests.log', logging.INFO, va_detailed_formatter)
+error_logger = va_setup_logger('ERROR_LOG', f'{va_log}/errors.log', logging.ERROR, va_detailed_formatter)
 sql_logger = va_setup_logger('SQL_LOG', f'{va_log}/sql.log', logging.INFO, va_detailed_formatter)
+grant_audit_logger = va_setup_logger('GRANT_AUDIT', f'{va_log}/grants.log', logging.INFO, grant_audit_formatter)
+
+
+def log_grant_action(
+    *,
+    action: str,
+    actor_user_id,
+    actor_role: str,
+    target_user_id,
+    grant_id,
+    role: str,
+    scope_type: str,
+    project_id=None,
+    project_site_id=None,
+    request_ip: str | None = None,
+):
+    """Write a structured line to grants.log for every grant mutation.
+
+    Fields (pipe-separated for easy grep / awk):
+      action | actor | actor_role | target | grant_id | role | scope | project | site | ip
+    """
+    grant_audit_logger.info(
+        "action=%s actor=%s actor_role=%s target=%s grant_id=%s role=%s scope=%s project=%s site=%s ip=%s",
+        action,
+        actor_user_id,
+        actor_role,
+        target_user_id,
+        grant_id,
+        role,
+        scope_type,
+        project_id or "-",
+        project_site_id or "-",
+        request_ip or "-",
+    )
 
 
 def _safe_current_user_email():

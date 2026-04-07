@@ -218,6 +218,61 @@
   }
 }
 
+/* Mini stat cards (quality gates, sync health) */
+.dm-kpi-mini-card {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  text-align: center;
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dm-kpi-mini-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6c757d;
+  margin-bottom: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.dm-kpi-mini-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 0.125rem;
+}
+
+.dm-kpi-mini-sub {
+  font-size: 0.75rem;
+  color: #6c757d;
+}
+
+/* Latency tiles (C-13) */
+.dm-kpi-latency-tile {
+  background: #f0f4f8;
+  border: 1px solid #d6e0eb;
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+  text-align: center;
+}
+
+.dm-kpi-latency-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0066cc;
+}
+
+.dm-kpi-latency-label {
+  font-size: 0.7rem;
+  color: #6c757d;
+  text-transform: uppercase;
+}
+
 /* Alerts */
 .alert {
   border-radius: 0.5rem;

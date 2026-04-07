@@ -1,6 +1,7 @@
 /**
  * DM KPI Dashboard — Real-time data manager analytics
  * Fetches from /api/v1/analytics/dm-kpi/* endpoints and renders charts/tables
+ * Covers: C-01 through C-24 + D-series drill-downs
  */
 (function () {
   'use strict';
@@ -14,7 +15,8 @@
   const CHARTJS_SRC = CONFIG.chartJsSrc || '';
 
   let dayWindow = 7;
-  let burndownData = null;  // shared cache for overview cards + burndown chart
+  let coderRange = '7d';
+  let burndownData = null;
   let chartBurndown = null;
   let chartInflow = null;
   let chartBacklog = null;
@@ -56,8 +58,34 @@
       });
   }
 
+  function showContent(containerId) {
+    const loadingEl = document.getElementById(containerId + '-loading');
+    const contentEl = document.getElementById(containerId + '-content');
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) contentEl.style.display = 'block';
+  }
+
+  function showError(containerId, message) {
+    const loadingEl = document.getElementById(containerId + '-loading');
+    if (loadingEl) {
+      loadingEl.innerHTML = '<div class="alert alert-danger mb-0 py-2"><small>' + (message || 'Could not load data') + '</small></div>';
+    }
+  }
+
+  function formatHours(seconds) {
+    if (!seconds || seconds === null) return '—';
+    const h = Math.round(seconds / 3600);
+    if (h < 24) return h + 'h';
+    return (h / 24).toFixed(1) + 'd';
+  }
+
+  function formatRate(val) {
+    if (val === null || val === undefined) return '—';
+    return val.toFixed(1) + '%';
+  }
+
   // ─────────────────────────────────────────────────────────────
-  // SECTION LOADERS
+  // SECTION: OVERVIEW CARDS (C-04 pending, C-16 rate, C-17 days, C-21 utilization)
   // ─────────────────────────────────────────────────────────────
 
   function loadOverviewCards() {
@@ -81,7 +109,6 @@
 
         document.getElementById('kpi-utilization-value').textContent = (utilization.rate || 0).toFixed(1) + '%';
 
-        // Show content, hide spinners
         document.querySelectorAll('.dm-kpi-card .dm-kpi-loading').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.dm-kpi-card .dm-kpi-content').forEach(el => el.style.display = 'block');
       })
@@ -92,6 +119,10 @@
         });
       });
   }
+
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: DAILY GRID (C-01)
+  // ─────────────────────────────────────────────────────────────
 
   function loadDailyGrid() {
     return jsonFetch('/api/v1/analytics/dm-kpi/grid/?days=8')
@@ -130,6 +161,129 @@
       });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: SYNC HEALTH (C-02, C-03, C-13, C-14)
+  // ─────────────────────────────────────────────────────────────
+
+  function loadSyncHealth() {
+    return Promise.all([
+      jsonFetch('/api/v1/analytics/dm-kpi/sync/status'),
+      jsonFetch('/api/v1/analytics/dm-kpi/sync/latency'),
+      jsonFetch('/api/v1/analytics/dm-kpi/sync/attachment-health'),
+    ])
+      .then(([status, latency, attachment]) => {
+        // C-02: Last sync — API returns latest_run, not last_sync_run
+        const lastRun = status.latest_run || {};
+        const lastTime = lastRun.started_at;
+        if (lastTime) {
+          document.getElementById('dm-kpi-sync-last-time').textContent =
+            new Date(lastTime).toLocaleString();
+        } else {
+          document.getElementById('dm-kpi-sync-last-time').textContent = 'Never';
+        }
+        const statusBadge = document.getElementById('dm-kpi-sync-last-status');
+        const syncStatus = lastRun.status || 'unknown';
+        statusBadge.textContent = syncStatus;
+        statusBadge.className = 'badge ' + (syncStatus === 'completed' ? 'bg-success' : syncStatus === 'failed' ? 'bg-danger' : 'bg-secondary');
+
+        // C-03: Error rate — API returns runs_7d.total/errors, error_rate_7d
+        const errorRate7d = status.error_rate_7d;
+        document.getElementById('dm-kpi-sync-error-rate').textContent = formatRate(errorRate7d);
+        const runs7d = status.runs_7d || {};
+        const errorDetail = (runs7d.errors || 0) + ' errors / ' + (runs7d.total || 0) + ' runs';
+        document.getElementById('dm-kpi-sync-error-detail').textContent = errorDetail;
+
+        // C-13: Sync latency
+        document.getElementById('dm-kpi-sync-latency-p50').textContent = formatHours(latency.p50_seconds);
+        document.getElementById('dm-kpi-sync-latency-p90').textContent = formatHours(latency.p90_seconds);
+        document.getElementById('dm-kpi-sync-latency-p99').textContent = formatHours(latency.p99_seconds);
+
+        showContent('dm-kpi-sync');
+
+        // C-14: Attachment health — API returns c14.total_past_smartva/missing_attachments/rate
+        const c14 = attachment.c14 || {};
+        const expected = c14.total_past_smartva || 0;
+        const missing = c14.missing_attachments || 0;
+        const present = expected - missing;
+        document.getElementById('dm-kpi-attach-expected').textContent = expected;
+        document.getElementById('dm-kpi-attach-present').textContent = present;
+        document.getElementById('dm-kpi-attach-missing').textContent = missing;
+        document.getElementById('dm-kpi-attach-health').textContent =
+          c14.rate !== null && c14.rate !== undefined ? (100 - c14.rate).toFixed(1) + '%' : '—';
+
+        showContent('dm-kpi-attachment');
+      })
+      .catch(error => {
+        console.error('Error loading sync health:', error);
+        showError('dm-kpi-sync');
+        showError('dm-kpi-attachment');
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: QUALITY GATES (C-05, C-06, C-09, C-10, C-11, C-23)
+  // ─────────────────────────────────────────────────────────────
+
+  function loadQualityGates() {
+    return Promise.all([
+      jsonFetch('/api/v1/analytics/dm-kpi/exclusions/rates'),
+      jsonFetch('/api/v1/analytics/dm-kpi/exclusions/blocked'),
+      jsonFetch('/api/v1/analytics/dm-kpi/pipeline/reviewed'),
+      jsonFetch('/api/v1/analytics/dm-kpi/pipeline/upstream-changes'),
+    ])
+      .then(([rates, blocked, reviewed, upstream]) => {
+        // C-05: Not codeable rate — API: rates.not_codeable_overall.rate
+        const nc = rates.not_codeable_overall || {};
+        document.getElementById('dm-kpi-not-codeable-rate').textContent =
+          formatRate(nc.rate);
+
+        // C-06: Consent refused rate — API: rates.consent_refused.rate
+        const cr = rates.consent_refused || {};
+        document.getElementById('dm-kpi-consent-refused-rate').textContent =
+          formatRate(cr.rate);
+
+        // C-09: % reviewed — API: reviewed.rate
+        document.getElementById('dm-kpi-reviewed-rate').textContent =
+          formatRate(reviewed.rate);
+
+        // C-10: Upstream queue — API: upstream.c10_queue_count
+        document.getElementById('dm-kpi-upstream-queue').textContent =
+          upstream.c10_queue_count || 0;
+
+        // C-11: Upstream rate — API: upstream.c11_rate
+        document.getElementById('dm-kpi-upstream-rate').textContent =
+          formatRate(upstream.c11_rate);
+
+        // C-23: Blocked forms — API: blocked.total_blocked, blocked.breakdown
+        const blockedTotal = blocked.total_blocked || 0;
+        document.getElementById('dm-kpi-blocked-total').textContent = blockedTotal;
+
+        // Blocked forms breakdown table
+        if (blocked.breakdown && blocked.breakdown.length > 0) {
+          const tbody = document.getElementById('dm-kpi-blocked-tbody');
+          tbody.innerHTML = '';
+          blocked.breakdown.forEach(item => {
+            const row = document.createElement('tr');
+            row.innerHTML =
+              '<td>' + (item.label || item.blockage_reason) + '</td>' +
+              '<td class="text-end">' + item.count + '</td>';
+            tbody.appendChild(row);
+          });
+          document.getElementById('dm-kpi-blocked-detail').style.display = 'block';
+        }
+
+        showContent('dm-kpi-quality');
+      })
+      .catch(error => {
+        console.error('Error loading quality gates:', error);
+        showError('dm-kpi-quality');
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: BURNDOWN CHART (C-18)
+  // ─────────────────────────────────────────────────────────────
+
   function loadBurndownChart() {
     if (!burndownData) return Promise.resolve();
     if (!burndownData.c18_burndown_available) {
@@ -147,7 +301,7 @@
     return loadChartJs().then(Chart => {
       const achieved = burndownData.c18_achieved || [];
       const projected = burndownData.c18_projected || [];
-      const dates = projected.map(p => p.date).slice(-30);  // limit to 30 points
+      const dates = projected.map(p => p.date).slice(-30);
 
       const achievedMap = {};
       achieved.forEach(a => { achievedMap[a.date] = a.remaining_achieved; });
@@ -204,9 +358,13 @@
     });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: INFLOW/OUTFLOW CHART (C-19)
+  // ─────────────────────────────────────────────────────────────
+
   function loadInflowChart() {
     return loadChartJs()
-      .then(() => jsonFetch(`/api/v1/analytics/dm-kpi/pipeline/inflow-outflow?days=${dayWindow}`))
+      .then(() => jsonFetch('/api/v1/analytics/dm-kpi/pipeline/inflow-outflow?days=' + dayWindow))
       .then(response => {
         const { data = [] } = response;
         const dates = data.map(d => d.date);
@@ -258,10 +416,14 @@
       });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: PIPELINE AGING (C-07) + TIME-TO-CODE (C-08)
+  // ─────────────────────────────────────────────────────────────
+
   function loadAgingSection() {
     return Promise.all([
       jsonFetch('/api/v1/analytics/dm-kpi/pipeline/aging'),
-      jsonFetch('/api/v1/analytics/dm-kpi/pipeline/time-to-code'),
+      jsonFetch('/api/v1/analytics/dm-kpi/pipeline/time-to-code?range=' + (dayWindow <= 7 ? '7d' : '7d')),
     ])
       .then(([aging, ttc]) => {
         document.getElementById('dm-kpi-aging-48h').textContent = (aging.gt_48h || 0).toString();
@@ -270,23 +432,54 @@
 
         const p50 = ttc.p50_seconds;
         if (p50) {
-          const hours = Math.round(p50 / 3600);
-          document.getElementById('dm-kpi-time-to-code-p50').textContent = `${hours}h`;
+          document.getElementById('dm-kpi-time-to-code-p50').textContent = formatHours(p50);
         }
 
-        document.getElementById('dm-kpi-aging-loading').style.display = 'none';
-        document.getElementById('dm-kpi-aging-content').style.display = 'block';
+        showContent('dm-kpi-aging');
       })
       .catch(error => {
         console.error('Error loading aging section:', error);
-        document.getElementById('dm-kpi-aging-loading').innerHTML =
-          '<div class="alert alert-danger mb-0">Could not load data</div>';
+        showError('dm-kpi-aging');
       });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: SITE BOTTLENECK (C-22)
+  // ─────────────────────────────────────────────────────────────
+
+  function loadSiteBottleneck() {
+    return jsonFetch('/api/v1/analytics/dm-kpi/pipeline/site-bottleneck')
+      .then(response => {
+        const { sites = [] } = response;
+        const tbody = document.getElementById('dm-kpi-bottleneck-tbody');
+        tbody.innerHTML = '';
+
+        sites.forEach(site => {
+          const row = document.createElement('tr');
+          const pctClass = site.pct_uncoded > 80 ? 'text-danger fw-bold' :
+                           site.pct_uncoded > 50 ? 'text-warning' : '';
+          row.innerHTML =
+            '<td>' + site.site_id + '</td>' +
+            '<td class="text-end ' + pctClass + '">' + (site.pct_uncoded || 0).toFixed(1) + '%</td>' +
+            '<td class="text-end">' + (site.pending || 0) + '</td>';
+          tbody.appendChild(row);
+        });
+
+        showContent('dm-kpi-bottleneck');
+      })
+      .catch(error => {
+        console.error('Error loading site bottleneck:', error);
+        showError('dm-kpi-bottleneck');
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: BACKLOG TREND (D-WT-03)
+  // ─────────────────────────────────────────────────────────────
+
   function loadBacklogChart() {
     return loadChartJs()
-      .then(() => jsonFetch(`/api/v1/analytics/dm-kpi/pipeline/backlog-trend?days=90`))
+      .then(() => jsonFetch('/api/v1/analytics/dm-kpi/pipeline/backlog-trend?days=' + dayWindow))
       .then(response => {
         const { data = [] } = response;
         const dates = data.map(d => d.date);
@@ -332,6 +525,10 @@
       });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: LANGUAGE GAP (C-15, C-20)
+  // ─────────────────────────────────────────────────────────────
+
   function loadLanguageGap() {
     return jsonFetch('/api/v1/analytics/dm-kpi/language/gap')
       .then(response => {
@@ -347,13 +544,12 @@
 
           const gapBadge = lang.gap ? '<span class="badge bg-danger ms-2">GAP</span>' : '';
 
-          row.innerHTML = `
-            <td>${lang.language}${gapBadge}</td>
-            <td>${lang.pending_count}</td>
-            <td>${lang.coders_available}</td>
-            <td>${lang.daily_coding_rate.toFixed(1)}</td>
-            <td>${daysText}</td>
-          `;
+          row.innerHTML =
+            '<td>' + lang.language + gapBadge + '</td>' +
+            '<td>' + lang.pending_count + '</td>' +
+            '<td>' + lang.coders_available + '</td>' +
+            '<td>' + (lang.daily_coding_rate || 0).toFixed(1) + '</td>' +
+            '<td>' + daysText + '</td>';
           tbody.appendChild(row);
         });
 
@@ -367,31 +563,67 @@
       });
   }
 
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: CODER PERFORMANCE (C-12, C-16, C-24)
+  // ─────────────────────────────────────────────────────────────
+
   function loadCoderTable() {
-    if (!burndownData || !burndownData.c16_per_coder) return Promise.resolve();
+    // Use burndown per-coder for C-16 rates, and coders/output for C-12/C-24
+    const rangeParam = coderRange === '7d' ? '7d' : 'cumulative';
 
-    const coders = burndownData.c16_per_coder || [];
-    const tbody = document.getElementById('dm-kpi-coders-tbody');
-    tbody.innerHTML = '';
+    return Promise.all([
+      Promise.resolve(burndownData ? burndownData.c16_per_coder || [] : []),
+      jsonFetch('/api/v1/analytics/dm-kpi/coders/output?range=' + rangeParam),
+    ])
+      .then(([perCoder, output]) => {
+        const tbody = document.getElementById('dm-kpi-coders-tbody');
+        tbody.innerHTML = '';
 
-    coders.forEach(coder => {
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${coder.coder_name || 'Unknown'}</td>
-        <td>${coder.coded_7d}</td>
-        <td>${coder.daily_rate.toFixed(1)}</td>
-      `;
-      tbody.appendChild(row);
-    });
+        // API returns per_coder array with total and by_language
+        const apiCoders = output.per_coder || [];
 
-    document.getElementById('dm-kpi-coders-loading').style.display = 'none';
-    document.getElementById('dm-kpi-coders-table').style.display = 'table';
+        // Build map from API output for language info (C-24)
+        const outputMap = {};
+        apiCoders.forEach(c => {
+          outputMap[c.coder_name] = c;
+        });
 
-    return Promise.resolve();
+        // Use burndown per-coder for rates if available, else API output
+        const coders = perCoder.length > 0 ? perCoder : apiCoders;
+
+        coders.forEach(coder => {
+          const name = coder.coder_name || 'Unknown';
+          const outputInfo = outputMap[name] || {};
+          const coded = coderRange === '7d'
+            ? (coder.coded_7d || outputInfo.total || 0)
+            : (outputInfo.total || coder.coded_7d || 0);
+          const rate = coder.daily_rate || 0;
+          const byLang = outputInfo.by_language || {};
+          const langList = Object.keys(byLang).length > 0
+            ? Object.entries(byLang).map(([l, c]) => l + '(' + c + ')').join(', ')
+            : '—';
+
+          const row = document.createElement('tr');
+          row.innerHTML =
+            '<td>' + name + '</td>' +
+            '<td>' + coded + '</td>' +
+            '<td>' + rate.toFixed(1) + '</td>' +
+            '<td><small>' + langList + '</small></td>';
+          tbody.appendChild(row);
+        });
+
+        document.getElementById('dm-kpi-coders-loading').style.display = 'none';
+        document.getElementById('dm-kpi-coders-table').style.display = 'table';
+      })
+      .catch(error => {
+        console.error('Error loading coder table:', error);
+        document.getElementById('dm-kpi-coders-loading').innerHTML =
+          '<div class="alert alert-danger mb-0">Could not load data</div>';
+      });
   }
 
   // ─────────────────────────────────────────────────────────────
-  // WINDOW SELECTOR
+  // WINDOW SELECTOR (7/30/90 days)
   // ─────────────────────────────────────────────────────────────
 
   function onWindowChange(days) {
@@ -404,8 +636,25 @@
       btn.classList.toggle('btn-outline-primary', parseInt(btn.dataset.window) !== days);
     });
 
-    // Reload time-series sections
+    // Reload time-series sections affected by day window
     Promise.all([loadInflowChart(), loadBacklogChart()]);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // CODER RANGE SELECTOR (7d / cumulative)
+  // ─────────────────────────────────────────────────────────────
+
+  function onCoderRangeChange(range) {
+    coderRange = range;
+
+    // Update button states
+    document.querySelectorAll('[data-coder-range]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.coderRange === range);
+      btn.classList.toggle('btn-secondary', btn.dataset.coderRange === range);
+      btn.classList.toggle('btn-outline-secondary', btn.dataset.coderRange !== range);
+    });
+
+    loadCoderTable();
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -422,15 +671,27 @@
       }
     });
 
+    // Wire up coder-range buttons
+    document.querySelectorAll('[data-coder-range]').forEach(btn => {
+      btn.addEventListener('click', () => onCoderRangeChange(btn.dataset.coderRange));
+      if (btn.dataset.coderRange === coderRange) {
+        btn.classList.add('active', 'btn-secondary');
+        btn.classList.remove('btn-outline-secondary');
+      }
+    });
+
     // Load overview cards first (needed by other sections)
     loadOverviewCards()
       .then(() => {
         // Then load everything else in parallel
         return Promise.all([
           loadDailyGrid(),
+          loadSyncHealth(),
+          loadQualityGates(),
           loadBurndownChart(),
           loadInflowChart(),
           loadAgingSection(),
+          loadSiteBottleneck(),
           loadBacklogChart(),
           loadLanguageGap(),
           loadCoderTable(),

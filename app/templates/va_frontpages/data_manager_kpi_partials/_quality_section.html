@@ -1,0 +1,87 @@
+{# C-05/C-06/C-09/C-10/C-11/C-23 Quality Gates & Exclusions #}
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-shield-halved me-2"></i>
+      Quality Gates &amp; Exclusions
+    </h5>
+  </div>
+  <div class="card-body">
+    <div id="dm-kpi-quality-loading" class="text-center text-muted py-4">
+      <div class="spinner-border spinner-border-sm" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+    <div id="dm-kpi-quality-content" style="display:none;">
+      {# 6 quality stat cards #}
+      <div class="row g-3 mb-3">
+        {# C-05 Not Codeable #}
+        <div class="col-lg-2 col-md-4 col-6">
+          <div class="dm-kpi-mini-card">
+            <div class="dm-kpi-mini-label">Not Codeable</div>
+            <div class="dm-kpi-mini-value" id="dm-kpi-not-codeable-rate">—</div>
+            <div class="dm-kpi-mini-sub text-muted">C-05</div>
+          </div>
+        </div>
+        {# C-06 Consent Refused #}
+        <div class="col-lg-2 col-md-4 col-6">
+          <div class="dm-kpi-mini-card">
+            <div class="dm-kpi-mini-label">Consent Refused</div>
+            <div class="dm-kpi-mini-value" id="dm-kpi-consent-refused-rate">—</div>
+            <div class="dm-kpi-mini-sub text-muted">C-06</div>
+          </div>
+        </div>
+        {# C-09 % Reviewed #}
+        <div class="col-lg-2 col-md-4 col-6">
+          <div class="dm-kpi-mini-card">
+            <div class="dm-kpi-mini-label">Reviewed</div>
+            <div class="dm-kpi-mini-value" id="dm-kpi-reviewed-rate">—</div>
+            <div class="dm-kpi-mini-sub text-muted">C-09</div>
+          </div>
+        </div>
+        {# C-10 Upstream Queue #}
+        <div class="col-lg-2 col-md-4 col-6">
+          <div class="dm-kpi-mini-card">
+            <div class="dm-kpi-mini-label">Upstream Queue</div>
+            <div class="dm-kpi-mini-value" id="dm-kpi-upstream-queue">—</div>
+            <div class="dm-kpi-mini-sub text-muted">C-10</div>
+          </div>
+        </div>
+        {# C-11 Upstream Rate #}
+        <div class="col-lg-2 col-md-4 col-6">
+          <div class="dm-kpi-mini-card">
+            <div class="dm-kpi-mini-label">Upstream Rate</div>
+            <div class="dm-kpi-mini-value" id="dm-kpi-upstream-rate">—</div>
+            <div class="dm-kpi-mini-sub text-muted">C-11</div>
+          </div>
+        </div>
+        {# C-23 Blocked Forms #}
+        <div class="col-lg-2 col-md-4 col-6">
+          <div class="dm-kpi-mini-card">
+            <div class="dm-kpi-mini-label">Blocked Forms</div>
+            <div class="dm-kpi-mini-value text-warning" id="dm-kpi-blocked-total">—</div>
+            <div class="dm-kpi-mini-sub text-muted">C-23</div>
+          </div>
+        </div>
+      </div>
+
+      {# Blocked Forms Breakdown Table (C-23 detail) #}
+      <div id="dm-kpi-blocked-detail" style="display:none;">
+        <div class="border-top pt-3">
+          <h6 class="small fw-bold text-muted mb-2">Blocked Forms Breakdown</h6>
+          <div class="table-responsive">
+            <table class="table table-sm dm-kpi-table mb-0">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th class="text-end">Count</th>
+                </tr>
+              </thead>
+              <tbody id="dm-kpi-blocked-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

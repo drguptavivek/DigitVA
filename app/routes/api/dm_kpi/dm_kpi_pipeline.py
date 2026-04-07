@@ -417,7 +417,7 @@ def inflow_outflow():
     if not site_ids:
         return jsonify({"data": []})
 
-    days = min(int(request.args.get("days", 7)), 30)
+    days = min(int(request.args.get("days", 7)), 90)
 
     def compute():
         from_date = date.today() - timedelta(days=days - 1)

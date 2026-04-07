@@ -1,7 +1,7 @@
-{# C-07 Aging + Backlog Trend (2-col layout) #}
+{# C-07 Aging + C-22 Site Bottleneck + Backlog Trend (3-section layout) #}
 <div class="row mb-4">
   {# Pipeline Aging #}
-  <div class="col-lg-5">
+  <div class="col-lg-4">
     <div class="card h-100">
       <div class="card-header">
         <h5 class="mb-0">
@@ -48,8 +48,39 @@
     </div>
   </div>
 
+  {# Site Bottleneck (C-22) #}
+  <div class="col-lg-3">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-triangle-exclamation me-2"></i>
+          Site Bottleneck (C-22)
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div id="dm-kpi-bottleneck-loading" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <div id="dm-kpi-bottleneck-content" style="display:none;">
+          <table class="table table-sm dm-kpi-table mb-0">
+            <thead>
+              <tr>
+                <th>Site</th>
+                <th class="text-end">Uncoded %</th>
+                <th class="text-end">Pending</th>
+              </tr>
+            </thead>
+            <tbody id="dm-kpi-bottleneck-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   {# Backlog Trend #}
-  <div class="col-lg-7">
+  <div class="col-lg-5">
     <div class="card h-100">
       <div class="card-header">
         <h5 class="mb-0">

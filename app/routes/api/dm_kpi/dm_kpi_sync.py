@@ -232,7 +232,7 @@ def attachment_health():
                       )
                 ),
                 with_attachments AS (
-                    SELECT ps.va_sid, COUNT(a.va_attachment_id) AS att_count
+                    SELECT ps.va_sid, COUNT(a.filename) AS att_count
                     FROM past_smartva ps
                     LEFT JOIN va_submission_attachments a ON a.va_sid = ps.va_sid
                     GROUP BY ps.va_sid

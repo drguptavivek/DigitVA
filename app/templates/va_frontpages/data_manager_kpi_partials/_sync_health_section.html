@@ -1,0 +1,116 @@
+{# C-02/C-03 Sync Status + C-13 Latency + C-14 Attachment Health (2-col layout) #}
+<div class="row mb-4">
+  {# Sync Status Cards #}
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-arrows-rotate me-2"></i>
+          Sync Health (C-02/C-03/C-13)
+        </h5>
+      </div>
+      <div class="card-body">
+        <div id="dm-kpi-sync-loading" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <div id="dm-kpi-sync-content" style="display:none;">
+          <div class="row g-3 mb-3">
+            {# Last Sync Status (C-02) #}
+            <div class="col-6">
+              <div class="dm-kpi-mini-card">
+                <div class="dm-kpi-mini-label">Last Sync</div>
+                <div class="dm-kpi-mini-value" id="dm-kpi-sync-last-time">—</div>
+                <div class="dm-kpi-mini-sub">
+                  <span id="dm-kpi-sync-last-status" class="badge bg-secondary">—</span>
+                </div>
+              </div>
+            </div>
+            {# Sync Error Rate (C-03) #}
+            <div class="col-6">
+              <div class="dm-kpi-mini-card">
+                <div class="dm-kpi-mini-label">Error Rate (7d)</div>
+                <div class="dm-kpi-mini-value" id="dm-kpi-sync-error-rate">—</div>
+                <div class="dm-kpi-mini-sub text-muted" id="dm-kpi-sync-error-detail">—</div>
+              </div>
+            </div>
+          </div>
+          {# Sync Latency (C-13) #}
+          <div class="border-top pt-3">
+            <h6 class="small fw-bold text-muted mb-2">Sync Latency (C-13)</h6>
+            <div class="row g-2">
+              <div class="col-4">
+                <div class="dm-kpi-latency-tile">
+                  <div class="dm-kpi-latency-value" id="dm-kpi-sync-latency-p50">—</div>
+                  <div class="dm-kpi-latency-label">P50</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="dm-kpi-latency-tile">
+                  <div class="dm-kpi-latency-value" id="dm-kpi-sync-latency-p90">—</div>
+                  <div class="dm-kpi-latency-label">P90</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="dm-kpi-latency-tile">
+                  <div class="dm-kpi-latency-value" id="dm-kpi-sync-latency-p99">—</div>
+                  <div class="dm-kpi-latency-label">P99</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Attachment Health (C-14) #}
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-paperclip me-2"></i>
+          Attachment Health (C-14)
+        </h5>
+      </div>
+      <div class="card-body">
+        <div id="dm-kpi-attachment-loading" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <div id="dm-kpi-attachment-content" style="display:none;">
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <div class="dm-kpi-mini-card">
+                <div class="dm-kpi-mini-label">Expected</div>
+                <div class="dm-kpi-mini-value" id="dm-kpi-attach-expected">—</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="dm-kpi-mini-card">
+                <div class="dm-kpi-mini-label">Present</div>
+                <div class="dm-kpi-mini-value" id="dm-kpi-attach-present">—</div>
+              </div>
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="dm-kpi-mini-card">
+                <div class="dm-kpi-mini-label">Missing</div>
+                <div class="dm-kpi-mini-value text-danger" id="dm-kpi-attach-missing">—</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="dm-kpi-mini-card">
+                <div class="dm-kpi-mini-label">Health %</div>
+                <div class="dm-kpi-mini-value" id="dm-kpi-attach-health">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

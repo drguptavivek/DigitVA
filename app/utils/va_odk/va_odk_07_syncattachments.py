@@ -120,6 +120,7 @@ def _sync_submission_attachments_no_db(
     existing_etags: dict[str, str | None],
     existing_local_paths: dict[str, str | None],
     client,
+    force_redownload: bool = False,
 ) -> SubmissionAttachmentSyncResult:
     """Sync one submission's attachments without touching the ORM session."""
     os.makedirs(media_dir, exist_ok=True)
@@ -167,7 +168,7 @@ def _sync_submission_attachments_no_db(
 
         headers: dict = {}
         stored_etag = existing_etags.get(filename)
-        if stored_etag:
+        if stored_etag and not force_redownload:
             headers["If-None-Match"] = stored_etag
 
         dl_url = (
@@ -419,6 +420,7 @@ def va_odk_sync_form_attachments(
     client_factory,
     max_workers: int = _ATTACHMENT_SYNC_MAX_WORKERS,
     progress_callback=None,
+    force_redownload: bool = False,
 ):
     """Sync attachments for all changed submissions in a form with bounded parallelism."""
     from app import db
@@ -457,6 +459,7 @@ def va_odk_sync_form_attachments(
                     per_sid_etags.get(va_sid, {}),
                     per_sid_local_paths.get(va_sid, {}),
                     _get_client(),
+                    force_redownload=force_redownload,
                 )
         return _sync_submission_attachments_no_db(
             va_form,
@@ -466,6 +469,7 @@ def va_odk_sync_form_attachments(
             per_sid_etags.get(va_sid, {}),
             per_sid_local_paths.get(va_sid, {}),
             _get_client(),
+            force_redownload=force_redownload,
         )
 
     results = []
@@ -535,6 +539,7 @@ def va_odk_sync_submission_attachments(
     va_sid: str,
     media_dir: str,
     client=None,
+    force_redownload: bool = False,
 ) -> dict:
     """Sync attachments for one submission using ETag-based conditional download."""
     from app import db
@@ -559,6 +564,7 @@ def va_odk_sync_submission_attachments(
         {name: rec.etag for name, rec in existing.items()},
         {name: rec.local_path for name, rec in existing.items()},
         client,
+        force_redownload=force_redownload,
     )
     _apply_submission_attachment_result({va_sid: existing}, result)
     db.session.flush()

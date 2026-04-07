@@ -70,7 +70,12 @@ def backfill_status():
 @click.option("--max-forms", default=None, type=int, help="Stop after N forms (for test runs).")
 @click.option("--max-per-form", default=None, type=int, help="Cap submissions per form (for smoke tests).")
 @click.option("--dry-run", is_flag=True, help="Fetch enrichment data but write nothing.")
-def enrich(form_id, batch_size, max_forms, max_per_form, dry_run):
+@click.option(
+    "--force-attachments-redownload",
+    is_flag=True,
+    help="Bypass ETag check and re-download attachments for processed submissions.",
+)
+def enrich(form_id, batch_size, max_forms, max_per_form, dry_run, force_attachments_redownload):
     """Fetch missing ODK enrichment metadata for unenriched active payload versions.
 
     Contacts ODK Central per form, adds FormVersion / DeviceID / SubmitterID /
@@ -119,6 +124,8 @@ def enrich(form_id, batch_size, max_forms, max_per_form, dry_run):
 
     if dry_run:
         click.echo("[dry-run] no changes will be written")
+    if force_attachments_redownload:
+        click.echo("[force] attachment re-download is enabled (ETag bypass)")
     click.echo(f"Run log: {run_log_path}")
     if form_id:
         click.echo(f"Enriching payloads for form: {form_id}")
@@ -133,6 +140,7 @@ def enrich(form_id, batch_size, max_forms, max_per_form, dry_run):
             max_forms=max_forms,
             max_per_form=max_per_form,
             dry_run=dry_run,
+            force_attachments_redownload=force_attachments_redownload,
         )
 
         click.echo(

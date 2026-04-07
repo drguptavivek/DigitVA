@@ -141,6 +141,7 @@ def enrich_unenriched_payloads(
     max_forms: int | None = None,
     max_per_form: int | None = None,
     dry_run: bool = False,
+    force_attachments_redownload: bool = False,
 ) -> dict:
     """Fetch ODK metadata for every active payload version missing has_required_metadata.
 
@@ -406,6 +407,7 @@ def enrich_unenriched_payloads(
                             client=client,
                             stats=stats,
                             audit_by_sid=audit_by_sid,
+                            force_redownload=force_attachments_redownload,
                         )
                         _run_single_submission_smartva(
                             va_sid=row["va_sid"],
@@ -500,6 +502,7 @@ def _run_single_submission_attachment(
     client,
     stats: dict,
     audit_by_sid: dict,
+    force_redownload: bool = False,
 ) -> None:
     from app.utils.va_odk.va_odk_07_syncattachments import va_odk_sync_submission_attachments
 
@@ -521,6 +524,7 @@ def _run_single_submission_attachment(
             va_sid,
             media_dir,
             client=client,
+            force_redownload=force_redownload,
         )
         db.session.commit()
         downloaded = int(per_sid.get("downloaded", 0) or 0)

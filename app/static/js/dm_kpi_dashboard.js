@@ -140,16 +140,16 @@
         const gridContainer = document.getElementById('dm-kpi-daily-grid');
         const gridOptions = {
           columnDefs: [
-            { field: 'date', headerName: 'Date', width: 100, sort: 'desc' },
-            { field: 'new', headerName: 'New', width: 80, type: 'rightAligned' },
-            { field: 'updated', headerName: 'Updated', width: 80, type: 'rightAligned' },
-            { field: 'coded', headerName: 'Coded', width: 80, type: 'rightAligned' },
-            { field: 'pending', headerName: 'Pending', width: 80, type: 'rightAligned' },
-            { field: 'consent_refused', headerName: 'Consent Refused', width: 110, type: 'rightAligned' },
+            { field: 'date', headerName: 'Date', flex: 1, sort: 'desc' },
+            { field: 'new', headerName: 'New', flex: 1, type: 'rightAligned' },
+            { field: 'updated', headerName: 'Updated', flex: 1, type: 'rightAligned' },
+            { field: 'coded', headerName: 'Coded', flex: 1, type: 'rightAligned' },
+            { field: 'pending', headerName: 'Pending', flex: 1, type: 'rightAligned' },
+            { field: 'consent_refused', headerName: 'Consent Refused', flex: 1, type: 'rightAligned' },
           ],
           rowData: gridData,
           domLayout: 'normal',
-          defaultColDef: { resizable: false, sortable: true },
+          defaultColDef: { resizable: true, sortable: true },
         };
 
         agGridInstance = agGrid.createGrid(gridContainer, gridOptions);

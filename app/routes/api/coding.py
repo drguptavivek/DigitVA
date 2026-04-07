@@ -40,6 +40,17 @@ def _error(message: str, status_code: int):
     return jsonify({"error": message}), status_code
 
 
+def _filter_forms_by_project(form_ids: list[str], project_id: str) -> list[str]:
+    """Return form_ids that belong to the given project."""
+    rows = db.session.scalars(
+        sa.select(VaForms.form_id).where(
+            VaForms.form_id.in_(form_ids),
+            VaForms.project_id == project_id,
+        )
+    ).all()
+    return list(rows)
+
+
 # ---------------------------------------------------------------------------
 # GET /api/v1/coding/allocation  — current active allocation
 # ---------------------------------------------------------------------------
@@ -184,8 +195,11 @@ def available_forms():
 @role_required("coder", "admin")
 def stats():
     """Return ready-pool counts and mode flags for the coder dashboard."""
-    kpis = get_coder_ready_stats(current_user)
+    project_id = (request.args.get("project_id") or "").strip().upper() or None
+    kpis = get_coder_ready_stats(current_user, project_id=project_id)
     va_form_access = current_user.get_coder_va_forms() or []
+    if project_id:
+        va_form_access = _filter_forms_by_project(va_form_access, project_id)
     kpis["completed"] = get_coder_completed_count(current_user.user_id, va_form_access)
     return jsonify(kpis)
 

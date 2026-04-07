@@ -79,7 +79,7 @@ def _tr01_cutoff_filter(user):
         sa.func.date(VaSubmissions.va_submission_date) <= datetime(2025, 9, 9).date(),
     )
 
-def get_coder_ready_stats(user) -> dict:
+def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
     """Return ready-pool counts for the coder dashboard.
 
     Returns a dict with:
@@ -91,6 +91,17 @@ def get_coder_ready_stats(user) -> dict:
     va_form_access = user.get_coder_va_forms()
     if not va_form_access:
         return {"random_ready": 0, "pick_ready": 0, "has_random_mode": False, "has_pick_mode": False}
+
+    if project_id:
+        from app.models import VaForms
+        va_form_access = db.session.scalars(
+            sa.select(VaForms.form_id).where(
+                VaForms.form_id.in_(va_form_access),
+                VaForms.project_id == project_id,
+            )
+        ).all() or []
+        if not va_form_access:
+            return {"random_ready": 0, "pick_ready": 0, "has_random_mode": False, "has_pick_mode": False}
 
     random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access)
 

@@ -465,8 +465,10 @@
   // ── bootstrap ─────────────────────────────────────────────────────────────
   $(document).ready(async function () {
     try {
+      const _savedProject = localStorage.getItem(_PROJECT_SELECT_KEY) || '';
+      const _statsQs = _savedProject ? '?project_id=' + encodeURIComponent(_savedProject) : '';
       const [statsData, allocData, availData, histData, projData] = await Promise.all([
-        apiFetch('/api/v1/coding/stats'),
+        apiFetch('/api/v1/coding/stats' + _statsQs),
         apiFetch('/api/v1/coding/allocation'),
         apiFetch('/api/v1/coding/available'),
         apiFetch('/api/v1/coding/history'),
@@ -548,10 +550,19 @@
 
       const projectSelectTop = document.getElementById('project-select-top');
       if (projectSelectTop) {
-        projectSelectTop.addEventListener('change', () => {
+        projectSelectTop.addEventListener('change', async () => {
           localStorage.setItem(_PROJECT_SELECT_KEY, projectSelectTop.value);
           syncDemoTrainingBanner();
           applyProjectFilterToHistory();
+          // Refresh KPI counts for selected project
+          const pid = selectedProjectId();
+          const qs = pid ? '?project_id=' + encodeURIComponent(pid) : '';
+          try {
+            const fresh = await apiFetch('/api/v1/coding/stats' + qs);
+            document.getElementById('kpi-random-ready').textContent = fresh.random_ready ?? 0;
+            document.getElementById('kpi-pick-ready').textContent   = fresh.pick_ready   ?? 0;
+            document.getElementById('kpi-completed').textContent    = fresh.completed    ?? 0;
+          } catch {}
         });
       }
 

@@ -12,6 +12,8 @@ va_auth = Blueprint("va_auth", __name__)
 
 @va_auth.route("/valogin", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
+@limiter.limit("20 per hour", methods=["POST"],
+               key_func=lambda: (request.form.get("email") or "").lower().strip())
 def va_login():
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())

@@ -79,8 +79,17 @@
       var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary user-edit-btn" '
         + ' data-id="' + esc(u.user_id) + '" title="Edit">'
         + '<i class="fa-solid fa-pen"></i></button>';
+      var verifyBtn = '';
+      if (!u.email_verified) {
+        verifyBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-warning user-resend-verify-btn" '
+          + ' data-id="' + esc(u.user_id) + '" title="Resend verification email">'
+          + '<i class="fa-solid fa-envelope"></i></button>';
+      }
 
       var adminBadge = isAdmin ? ' <span class="badge text-bg-warning small">Admin</span>' : '';
+      var verifyBadge = u.email_verified
+        ? '<span class="badge text-bg-success">Verified</span>'
+        : '<span class="badge text-bg-warning text-dark">Unverified</span>';
 
       return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2">'
@@ -94,7 +103,8 @@
             ? '<span class="badge text-bg-success">Active</span>'
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
-        + '<td class="align-middle py-2 text-end">' + toggleBtn + ' ' + editBtn + '</td>'
+        + '<td class="align-middle py-2">' + verifyBadge + '</td>'
+        + '<td class="align-middle py-2 text-end">' + verifyBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
         + '</tr>';
     }).join('');
 
@@ -104,7 +114,8 @@
       + '<th class="fw-medium small text-muted" style="width:20%;">Phone</th>'
       + '<th class="fw-medium small text-muted" style="width:20%;">VA Languages</th>'
       + '<th class="fw-medium small text-muted" style="width:10%;">Status</th>'
-      + '<th class="fw-medium small text-muted text-end" style="width:14%;">Actions</th>'
+      + '<th class="fw-medium small text-muted" style="width:10%;">Email</th>'
+      + '<th class="fw-medium small text-muted text-end" style="width:20%;">Actions</th>'
       + '</tr></thead>'
       + '<tbody>' + rows + '</tbody>'
       + '</table></div>';
@@ -115,6 +126,27 @@
       editBtns[i].addEventListener('click', function() {
         var id = this.getAttribute('data-id');
         openEditForm(id);
+      });
+    }
+    var verifyBtns = wrap.querySelectorAll('.user-resend-verify-btn');
+    for (var j = 0; j < verifyBtns.length; j++) {
+      verifyBtns[j].addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        var btn = this;
+        btn.disabled = true;
+        apiJson('/admin/api/users/' + encodeURIComponent(id) + '/resend-verification', 'POST')
+          .then(function(res) {
+            btn.disabled = false;
+            if (!res.ok) {
+              var w = document.getElementById('user-table-wrap');
+              w.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger small py-2 mt-2">' + esc(res.data.error || 'Failed to resend verification email.') + '</div>');
+              return;
+            }
+            loadUsers();
+          })
+          .catch(function() {
+            btn.disabled = false;
+          });
       });
     }
 
@@ -230,10 +262,10 @@
     _editingId = userId;
     formTitle.textContent = 'Edit User';
     emailInput.value = user.email;
-    emailInput.disabled = true;
-    emailConfirmInput.value = '';
-    emailConfirmInput.disabled = true;
-    emailConfirmAsterisk.classList.add('d-none');
+    emailInput.disabled = false;
+    emailConfirmInput.value = user.email;
+    emailConfirmInput.disabled = false;
+    emailConfirmAsterisk.classList.remove('d-none');
     nameInput.value = user.name;
     phoneInput.value = user.phone || '';
     passwordCol.classList.remove('d-none');
@@ -310,6 +342,11 @@
       url = '/admin/api/users/' + encodeURIComponent(_editingId);
       method = 'PUT';
       data.status = statusInput.value;
+      data.email = emailInput.value.trim().toLowerCase();
+      data.email_confirm = emailConfirmInput.value.trim().toLowerCase();
+      if (!data.email) { errEl.textContent = 'Email is required.'; return; }
+      if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
+      if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
       if (!data.password) delete data.password;
     } else {
       url = '/admin/api/users';

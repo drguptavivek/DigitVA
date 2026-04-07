@@ -1206,6 +1206,25 @@ def admin_update_user(target_user_id):
         return _json_error("User not found.", 404)
         
     payload = request.get_json(silent=True) or {}
+
+    if "email" in payload or "email_confirm" in payload:
+        new_email = (payload.get("email") or "").strip().lower()
+        new_email_confirm = (payload.get("email_confirm") or "").strip().lower()
+        if not new_email or not new_email_confirm:
+            return _json_error("email and email_confirm are required.", 400)
+        if new_email != new_email_confirm:
+            return _json_error("Email confirmation does not match.", 400)
+        if new_email != target_user.email:
+            existing = db.session.scalar(
+                sa.select(VaUsers).where(
+                    VaUsers.email == new_email,
+                    VaUsers.user_id != target_user.user_id,
+                )
+            )
+            if existing:
+                return _json_error("Email already in use.", 400)
+            target_user.email = new_email
+            target_user.email_verified = False
     
     if "name" in payload:
         name = (payload["name"] or "").strip()
@@ -1246,7 +1265,43 @@ def admin_update_user(target_user_id):
         target_user.vacode_language = languages
         
     db.session.commit()
+
+    # If email changed, send a fresh verification link.
+    if ("email" in payload or "email_confirm" in payload) and not target_user.email_verified:
+        try:
+            from app.services.token_service import generate_token
+            from app.services.email_service import send_verification_email
+
+            verify_token = generate_token(target_user.user_id, "email_verify")
+            send_verification_email(target_user, verify_token)
+        except Exception:
+            pass
+
     return jsonify({"user": _serialize_user(target_user)})
+
+
+@admin.post("/api/users/<uuid:target_user_id>/resend-verification")
+@role_required("admin")
+def admin_resend_verification(target_user_id):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user:
+        return _json_error("User not found.", 404)
+    if target_user.email_verified:
+        return _json_error("User email is already verified.", 400)
+
+    try:
+        from app.services.token_service import generate_token
+        from app.services.email_service import send_verification_email
+
+        token = generate_token(target_user.user_id, "email_verify")
+        send_verification_email(target_user, token)
+    except Exception:
+        return _json_error("Failed to send verification email.", 500)
+
+    return jsonify({"message": "Verification email sent."})
 
 
 @admin.post("/api/users/<uuid:target_user_id>/toggle")

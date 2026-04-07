@@ -473,6 +473,31 @@ footer {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
+.icd-codes-tab {
+  position: fixed;
+  right: 0;
+  top: 33vh;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: right bottom;
+  background-color: #6c757d;
+  color: var(--color-white);
+  padding: 8px 12px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  z-index: 1000;
+  font-weight: 500;
+  font-size: 0.9rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.icd-codes-tab:hover {
+  background-color: #5a6268;
+  color: var(--color-white);
+}
+
 .notes-header {
   padding: 10px 15px;
   background-color: var(--color-white);

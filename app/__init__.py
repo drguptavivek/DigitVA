@@ -93,7 +93,7 @@ def create_app(config_class=Config):
             'font-src': "'self' data:",
             'connect-src': "'self'",
         },
-        frame_options='DENY',
+        frame_options='SAMEORIGIN',
         x_content_type_options=True,
         x_xss_protection=True,
         referrer_policy='strict-origin-when-cross-origin',

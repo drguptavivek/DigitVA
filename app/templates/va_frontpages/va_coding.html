@@ -753,8 +753,8 @@ document.addEventListener("DOMContentLoaded", function () {
     const contentEl = document.getElementById('form-content');
     if (contentEl) {
       const currentGet = contentEl.getAttribute('hx-get') || '';
-      /* Replace the partial code segment in the URL (/renderpartial/<code>/) */
-      const updated = currentGet.replace(/\/renderpartial\/[^/]+\//, `/renderpartial/${section}/`);
+      /* Replace the partial code segment in the URL (/vaform/<sid>/<partial>) */
+      const updated = currentGet.replace(/\/vaform\/[^/]+\/[^/?]+/, `/vaform/${currentGet.match(/\/vaform\/([^/]+)/)?.[1] || ''}/${section}`);
       if (updated !== currentGet) contentEl.setAttribute('hx-get', updated);
     }
   }

@@ -50,10 +50,10 @@ def backfill(from_date, to_date, site_ids):
     if not site_ids:
         from app import db
         import sqlalchemy as sa
-        from app.models import VaSite
+        from app.models import VaSites
 
         site_ids = db.session.execute(
-            sa.select(VaSite.site_id).where(VaSite.site_status == "active")
+            sa.select(VaSites.site_id).where(VaSites.site_status == "active")
         ).scalars().all()
         site_ids = list(site_ids)
     else:

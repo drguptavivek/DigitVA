@@ -3,7 +3,7 @@
 Adds va_narration_language column to va_submission_analytics_demographics_mv
 to support D-LC-01 (submission language distribution) and D-LC-03 (language gap analysis).
 
-Revision ID: f0a1b2c3d4e5
+Revision ID: a1b3c5d7e9f0
 Revises: f9a0b1c2d3e4
 Create Date: 2026-04-07T00:00:00.000000
 
@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 from app.services.submission_analytics_mv import build_submission_analytics_demographics_mv_sql
 
-revision = 'f0a1b2c3d4e5'
+revision = 'a1b3c5d7e9f0'
 down_revision = 'f9a0b1c2d3e4'
 branch_labels = None
 depends_on = None

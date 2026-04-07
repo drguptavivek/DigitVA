@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, date, timedelta, timezone
 from celery import shared_task
 from celery.utils.log import get_task_logger
+import sqlalchemy as sa
 
 log = get_task_logger(__name__)
 
@@ -37,7 +38,6 @@ def compute_daily_kpi_snapshot(self, snapshot_date=None, site_ids=None):
     """
     from app import db
     import sqlalchemy as sa
-    from app.models import VaSite
 
     if snapshot_date is None:
         snapshot_date = (date.today() - timedelta(days=1)).isoformat()
@@ -55,8 +55,9 @@ def compute_daily_kpi_snapshot(self, snapshot_date=None, site_ids=None):
 
     # Get list of active sites if not provided
     if not site_ids:
+        from app.models import VaSites
         site_ids = db.session.execute(
-            sa.select(VaSite.site_id).where(VaSite.site_status == "active")
+            sa.select(VaSites.site_id).where(VaSites.site_status == "active")
         ).scalars().all()
         site_ids = list(site_ids)
 
@@ -88,8 +89,6 @@ def compute_daily_kpi_snapshot(self, snapshot_date=None, site_ids=None):
 
 def _compute_site_snapshot(db, snapshot_date: date, site_id: str) -> None:
     """Compute and upsert KPI aggregates for a single site and date."""
-    import sqlalchemy as sa
-
     # Resolve current owning project for this site
     project_id = db.session.execute(
         sa.text("""
@@ -327,33 +326,37 @@ def _count_reopened(db, site_id: str, snapshot_date: date) -> int:
 
 def _compute_coding_duration_percentiles(db, site_id: str, snapshot_date: date) -> dict:
     """Compute min, max, p50, p90 of coding duration for snapshot_date."""
-    result = db.session.execute(
-        sa.text("""
-            SELECT
-                MIN(e2.event_created_at - e1.event_created_at) AS min_duration,
-                MAX(e2.event_created_at - e1.event_created_at) AS max_duration,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (
-                    ORDER BY e2.event_created_at - e1.event_created_at
-                ) AS p50_duration,
-                PERCENTILE_CONT(0.9) WITHIN GROUP (
-                    ORDER BY e2.event_created_at - e1.event_created_at
-                ) AS p90_duration
-            FROM va_submission_workflow_events e2
-            JOIN va_submission_workflow_events e1
-                ON e1.va_sid = e2.va_sid
-                AND e1.transition_id = 'coding_started'
-            JOIN va_submissions s ON s.va_sid = e2.va_sid
-            JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE f.site_id = :site_id
-              AND e2.transition_id IN ('coder_finalized', 'recode_finalized')
-              AND DATE(e2.event_created_at) = :snapshot_date
-              AND NOT EXISTS (
-                  SELECT 1 FROM va_submission_workflow_events d
-                  WHERE d.va_sid = e2.va_sid AND d.transition_id = 'demo_started'
-              )
-        """),
-        {"site_id": site_id, "snapshot_date": snapshot_date},
-    ).mappings().first()
+    try:
+        result = db.session.execute(
+            sa.text("""
+                SELECT
+                    MIN(e2.event_created_at - e1.event_created_at) AS min_duration,
+                    MAX(e2.event_created_at - e1.event_created_at) AS max_duration,
+                    PERCENTILE_CONT(0.5) WITHIN GROUP (
+                        ORDER BY e2.event_created_at - e1.event_created_at
+                    ) AS p50_duration,
+                    PERCENTILE_CONT(0.9) WITHIN GROUP (
+                        ORDER BY e2.event_created_at - e1.event_created_at
+                    ) AS p90_duration
+                FROM va_submission_workflow_events e2
+                JOIN va_submission_workflow_events e1
+                    ON e1.va_sid = e2.va_sid
+                    AND e1.transition_id = 'coding_started'
+                JOIN va_submissions s ON s.va_sid = e2.va_sid
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE f.site_id = :site_id
+                  AND e2.transition_id IN ('coder_finalized', 'recode_finalized')
+                  AND DATE(e2.event_created_at) = :snapshot_date
+                  AND NOT EXISTS (
+                      SELECT 1 FROM va_submission_workflow_events d
+                      WHERE d.va_sid = e2.va_sid AND d.transition_id = 'demo_started'
+                  )
+            """),
+            {"site_id": site_id, "snapshot_date": snapshot_date},
+        ).mappings().first()
+    except Exception as e:
+        log.debug(f"Could not compute percentiles for {site_id} on {snapshot_date}: {e}")
+        result = None
 
     return {
         "coding_duration_min": result["min_duration"] if result else None,

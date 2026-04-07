@@ -87,6 +87,17 @@ class Config:
         os.environ.get("ODK_READ_TIMEOUT_SECONDS", "60")
     )
 
+    # Email (SMTP)
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "localhost")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() in ("true", "1", "yes")
+    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() in ("true", "1", "yes")
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@digitva.org")
+    # Base URL used for building links in emails (e.g. https://digitva.example.com)
+    MAIL_BASE_URL = os.environ.get("MAIL_BASE_URL", "")
+
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     
     CELERY = {

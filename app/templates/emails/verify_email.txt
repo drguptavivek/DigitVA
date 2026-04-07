@@ -1,0 +1,12 @@
+Hello {{ name }},
+
+Welcome to DigitVA! Please verify your email address to activate your account.
+
+Verify your email by visiting:
+{{ verify_url }}
+
+This link expires in 24 hours. If you did not create a DigitVA account, you can safely ignore this email.
+
+Thank You
+DigitVA Team
+AIIMS, New Delhi

@@ -1173,9 +1173,19 @@ def admin_create_user():
         email_verified=False
     )
     new_user.set_password(password)
-    
+
     db.session.add(new_user)
     db.session.commit()
+
+    # Send email verification (async via Celery)
+    try:
+        from app.services.token_service import generate_token
+        from app.services.email_service import send_verification_email
+        token = generate_token(new_user.user_id, "email_verify")
+        send_verification_email(new_user, token)
+    except Exception:
+        pass  # non-critical — user can request resend
+
     return jsonify({"user": _serialize_user(new_user)}), 201
 
 

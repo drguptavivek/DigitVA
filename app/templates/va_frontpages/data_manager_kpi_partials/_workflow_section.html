@@ -1,0 +1,110 @@
+{# Workflow State Distribution — CONSORT Flowchart + Stagnation + Velocity + Daily Transitions #}
+
+{# ── Pipeline Flowchart (D-WF-01) ── Full Width ── #}
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-diagram-project me-2"></i>
+      Pipeline Flowchart
+    </h5>
+  </div>
+  <div class="card-body">
+    <div id="wf-flowchart-loading" class="text-center text-muted py-4">
+      <div class="spinner-border spinner-border-sm" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+    <div id="wf-flowchart-content" style="display:none;"></div>
+  </div>
+</div>
+
+{# ── Daily Transitions (D-WF-04) + Stagnation Alerts (D-WF-03) ── 2-column ── #}
+<div class="row mb-4">
+  {# Daily Transitions Chart #}
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-arrows-spin me-2"></i>
+          Daily State Transitions
+        </h5>
+      </div>
+      <div class="card-body">
+        <div id="wf-transitions-loading" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <canvas id="wf-transitions-chart" style="display:none; max-height: 300px;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {# Stagnation Alerts #}
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-exclamation-triangle me-2"></i>
+          Stagnation Alerts
+        </h5>
+        <span class="badge bg-secondary" id="wf-stagnation-summary" style="display:none;"></span>
+      </div>
+      <div class="card-body p-0">
+        <div id="wf-stagnation-loading" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <div id="wf-stagnation-content" style="display:none;">
+          <table class="table table-sm dm-kpi-table mb-0">
+            <thead>
+              <tr>
+                <th>State</th>
+                <th class="text-end">Total</th>
+                <th class="text-end">&gt;48h</th>
+                <th class="text-end">&gt;7d</th>
+                <th>P50 Age</th>
+              </tr>
+            </thead>
+            <tbody id="wf-stagnation-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── State Velocity (D-WF-02) ── Full Width ── #}
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-gauge-high me-2"></i>
+      State Velocity
+    </h5>
+    <small class="text-muted" id="wf-velocity-range"></small>
+  </div>
+  <div class="card-body p-0">
+    <div id="wf-velocity-loading" class="text-center text-muted py-4">
+      <div class="spinner-border spinner-border-sm" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+    <div id="wf-velocity-content" style="display:none;">
+      <div class="table-responsive">
+        <table class="table table-sm dm-kpi-table mb-0">
+          <thead>
+            <tr>
+              <th>State</th>
+              <th class="text-end">Transitions</th>
+              <th class="text-end">Avg</th>
+              <th class="text-end">P50</th>
+              <th class="text-end">P90</th>
+            </tr>
+          </thead>
+          <tbody id="wf-velocity-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

@@ -36,6 +36,7 @@ dependencies = [
     "python-dateutil>=2.9.0.post0",
     "click>=8.0.0",
     "smartva",
+    "flask-mail>=0.10.0",
 ]
 
 [project.optional-dependencies]

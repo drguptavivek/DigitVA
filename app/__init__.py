@@ -77,6 +77,10 @@ def create_app(config_class=Config):
     app.config.setdefault("CACHE_KEY_PREFIX", "digitva_cache:")
     cache.init_app(app)
 
+    # Initialize email (Flask-Mail)
+    from app.services.email_service import init_mail
+    init_mail(app)
+
     # Initialize security headers with Flask-Talisman
     # In development/testing, disable HTTPS enforcement
     force_https = not (app.debug or app.testing)
@@ -200,6 +204,10 @@ def create_app(config_class=Config):
             'profile.force_password_change',
             'va_auth.va_logout',
             'va_auth.va_login',
+            'va_auth.forgot_password',
+            'va_auth.reset_password',
+            'va_auth.verify_email',
+            'va_auth.resend_verification',
         }
         if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
             return redirect(url_for('profile.force_password_change'))

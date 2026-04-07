@@ -15,7 +15,9 @@ from app.routes.api.dm_kpi import (  # noqa: E402, F401
     dm_kpi_coders,
     dm_kpi_pipeline,
     dm_kpi_burndown,
+    dm_kpi_workflow,
 )
+from app.routes.api.dm_kpi.dm_kpi_scope import bp as dm_kpi_cache_bp  # noqa: E402, F401
 
 api_v1.register_blueprint(analytics.bp, url_prefix="/analytics")
 api_v1.register_blueprint(coding.bp, url_prefix="/coding")
@@ -35,3 +37,5 @@ api_v1.register_blueprint(dm_kpi_exclusions.bp, url_prefix="/analytics/dm-kpi/ex
 api_v1.register_blueprint(dm_kpi_coders.bp, url_prefix="/analytics/dm-kpi/coders")
 api_v1.register_blueprint(dm_kpi_pipeline.bp, url_prefix="/analytics/dm-kpi/pipeline")
 api_v1.register_blueprint(dm_kpi_burndown.bp, url_prefix="/analytics/dm-kpi/burndown")
+api_v1.register_blueprint(dm_kpi_workflow.bp, url_prefix="/analytics/dm-kpi/workflow")
+api_v1.register_blueprint(dm_kpi_cache_bp, url_prefix="/analytics/dm-kpi")

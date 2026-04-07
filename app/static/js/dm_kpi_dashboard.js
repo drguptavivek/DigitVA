@@ -137,6 +137,12 @@
           consent_refused: row.consent_refused || 0,
         }));
 
+        // Destroy previous grid instance before recreating
+        if (agGridInstance) {
+          agGridInstance.destroy();
+          agGridInstance = null;
+        }
+
         const gridContainer = document.getElementById('dm-kpi-daily-grid');
         const gridOptions = {
           columnDefs: [
@@ -623,6 +629,371 @@
   }
 
   // ─────────────────────────────────────────────────────────────
+  // SECTION: WORKFLOW FLOWCHART (D-WF-01)
+  // ─────────────────────────────────────────────────────────────
+
+  function renderFlowchart(data) {
+    var container = document.getElementById('wf-flowchart-content');
+    var s = data.stages || {};
+    var total = data.total_synced || 0;
+
+    var html = '<div class="wf-flowchart">';
+
+    // Row 1: All Synced
+    html += '<div class="wf-node wf-entry">';
+    html += '<div class="wf-node-label">All Synced Submissions</div>';
+    html += '<div class="wf-node-count">' + total + '</div>';
+    html += '</div>';
+
+    // Row 2: Excluded at entry (left) + Eligible for Coding (trunk)
+    var excEntry = s.excluded_entry || {};
+    var excEntryTotal = excEntry.total || 0;
+    if (excEntryTotal > 0) {
+      html += '<div class="wf-connector-down"></div>';
+      html += '<div class="wf-branch-row">';
+      html += '<div class="wf-branch-side wf-branch-left">';
+      html += '<div class="wf-node wf-terminal">';
+      html += '<div class="wf-node-label">Excluded</div>';
+      if (excEntry.consent_refused > 0) {
+        html += '<div class="wf-excl-line"><small>Consent Refused: <strong>' + excEntry.consent_refused + '</strong></small></div>';
+      }
+      if (excEntry.not_codeable_dm > 0) {
+        html += '<div class="wf-excl-line"><small>Not Codeable (DM): <strong>' + excEntry.not_codeable_dm + '</strong></small></div>';
+      }
+      html += '<div class="wf-excl-total">' + excEntryTotal + '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '<div class="wf-branch-main">';
+      html += '<div class="wf-node wf-trunk">';
+      html += '<div class="wf-node-label">Eligible for Coding</div>';
+      html += '<div class="wf-node-count">' + (s.eligible_for_coding || 0) + '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>';
+    } else {
+      html += '<div class="wf-connector-down"></div>';
+      html += '<div class="wf-node wf-trunk">';
+      html += '<div class="wf-node-label">Eligible for Coding</div>';
+      html += '<div class="wf-node-count">' + (s.eligible_for_coding || 0) + '</div>';
+      html += '</div>';
+    }
+
+    // Row 3: Uncoded breakdown
+    html += '<div class="wf-connector-down"></div>';
+    html += '<div class="wf-node wf-pending">';
+    html += '<div class="wf-node-label">Uncoded (In Pipeline)</div>';
+    html += '<div class="wf-node-count">' + (s.uncoded_eligible || 0) + '</div>';
+    html += '</div>';
+
+    // Row 4: Excluded during coding (left) + Coded (trunk)
+    var excCoding = s.excluded_coding || {};
+    var excCodingTotal = excCoding.not_codeable_coder || 0;
+    if (excCodingTotal > 0) {
+      html += '<div class="wf-connector-down"></div>';
+      html += '<div class="wf-branch-row">';
+      html += '<div class="wf-branch-side wf-branch-left">';
+      html += '<div class="wf-node wf-terminal">';
+      html += '<div class="wf-node-label">Excluded</div>';
+      html += '<div class="wf-excl-line"><small>Not Codeable (Coder): <strong>' + excCoding.not_codeable_coder + '</strong></small></div>';
+      html += '<div class="wf-excl-total">' + excCodingTotal + '</div>';
+      html += '</div>';
+      html += '</div>';
+      html += '<div class="wf-branch-main">';
+      html += renderCodedNode(s);
+      html += '</div>';
+      html += '</div>';
+    } else {
+      html += '<div class="wf-connector-down"></div>';
+      html += renderCodedNode(s);
+    }
+
+    // Row 5: Reviewed
+    if ((s.reviewed || 0) > 0 || (s.upstream_changed || 0) > 0) {
+      html += '<div class="wf-connector-down"></div>';
+
+      var hasUpstream = (s.upstream_changed || 0) > 0;
+      if (hasUpstream) {
+        html += '<div class="wf-branch-row">';
+        html += '<div class="wf-branch-side wf-branch-left">';
+        html += '<div class="wf-node wf-exception">';
+        html += '<div class="wf-node-label"><small>Upstream Changed</small></div>';
+        html += '<div class="wf-node-count-small">' + s.upstream_changed + '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="wf-branch-main">';
+        html += '<div class="wf-node wf-review">';
+        html += '<div class="wf-node-label">Reviewed <small class="text-muted">(optional)</small></div>';
+        html += '<div class="wf-node-count">' + (s.reviewed || 0) + '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      } else {
+        html += '<div class="wf-node wf-review">';
+        html += '<div class="wf-node-label">Reviewed <small class="text-muted">(optional)</small></div>';
+        html += '<div class="wf-node-count">' + (s.reviewed || 0) + '</div>';
+        html += '</div>';
+      }
+    }
+
+    html += '</div>';
+
+    // Conversion summary bar
+    var conv = data.conversion || {};
+    html += '<div class="wf-conversion-bar mt-3">';
+    html += '<span class="wf-conv-item"><strong>' + ((conv.eligible_rate || 0) * 100).toFixed(1) + '%</strong> eligible</span>';
+    html += '<span class="wf-conv-item"><strong>' + ((conv.coding_rate || 0) * 100).toFixed(1) + '%</strong> coded</span>';
+    html += '<span class="wf-conv-item"><strong>' + ((conv.review_rate || 0) * 100).toFixed(1) + '%</strong> reviewed</span>';
+    html += '</div>';
+
+    container.innerHTML = html;
+    document.getElementById('wf-flowchart-loading').style.display = 'none';
+    container.style.display = 'block';
+  }
+
+  function renderCodedNode(s) {
+    var cf = s.coder_finalized || {};
+    var html = '<div class="wf-node wf-coded">';
+    html += '<div class="wf-node-label">Coded</div>';
+    html += '<div class="wf-node-count">' + (s.coded || 0) + '</div>';
+    if (cf.total > 0) {
+      html += '<div class="wf-sub-phases">';
+      html += '<div class="wf-sub-phase"><small>Within 24h: <strong>' + (cf.within_24h || 0) + '</strong></small></div>';
+      html += '<div class="wf-sub-phase"><small>Beyond 24h: <strong>' + (cf.beyond_24h || 0) + '</strong></small></div>';
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function escapeHtml(value) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(String(value || '')));
+    return div.innerHTML;
+  }
+
+  function loadFlowchart() {
+    return jsonFetch('/api/v1/analytics/dm-kpi/workflow/flowchart')
+      .then(function (response) {
+        renderFlowchart(response);
+      })
+      .catch(function (error) {
+        console.error('Error loading flowchart:', error);
+        document.getElementById('wf-flowchart-loading').innerHTML =
+          '<div class="alert alert-danger mb-0">Could not load pipeline flowchart</div>';
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: STAGNATION ALERTS (D-WF-03)
+  // ─────────────────────────────────────────────────────────────
+
+  function loadStagnationAlerts() {
+    return jsonFetch('/api/v1/analytics/dm-kpi/workflow/stagnation')
+      .then(function (response) {
+        var alerts = response.alerts || [];
+        var tbody = document.getElementById('wf-stagnation-tbody');
+        tbody.innerHTML = '';
+
+        alerts.forEach(function (alert) {
+          // Skip states with no stagnation
+          if (alert.alert_level === 'normal') return;
+
+          var row = document.createElement('tr');
+          var levelClass = alert.alert_level === 'critical' ? 'table-danger' :
+                           alert.alert_level === 'warning' ? 'table-warning' : '';
+          if (levelClass) row.className = levelClass;
+
+          var levelBadge = alert.alert_level === 'critical' ? '<span class="badge bg-danger">Critical</span>' :
+                           alert.alert_level === 'warning' ? '<span class="badge bg-warning text-dark">Warning</span>' :
+                           alert.alert_level === 'info' ? '<span class="badge bg-info">Info</span>' : '';
+
+          row.innerHTML =
+            '<td>' + levelBadge + ' ' + escapeHtml(alert.label) + '</td>' +
+            '<td class="text-end">' + alert.total + '</td>' +
+            '<td class="text-end">' + (alert.gt_48h || 0) + '</td>' +
+            '<td class="text-end">' + (alert.gt_7d || 0) + '</td>' +
+            '<td>' + formatHours(alert.p50_age_hours * 3600) + '</td>';
+          tbody.appendChild(row);
+        });
+
+        // Summary badge
+        var summaryEl = document.getElementById('wf-stagnation-summary');
+        if (response.total_stagnant_gt_7d > 0) {
+          summaryEl.textContent = response.total_stagnant_gt_7d + ' stale >7d';
+          summaryEl.className = 'badge bg-danger';
+        } else if (response.total_stagnant_gt_48h > 0) {
+          summaryEl.textContent = response.total_stagnant_gt_48h + ' stale >48h';
+          summaryEl.className = 'badge bg-warning text-dark';
+        } else {
+          summaryEl.textContent = 'No alerts';
+          summaryEl.className = 'badge bg-success';
+        }
+        summaryEl.style.display = 'inline';
+
+        document.getElementById('wf-stagnation-loading').style.display = 'none';
+        document.getElementById('wf-stagnation-content').style.display = 'block';
+      })
+      .catch(function (error) {
+        console.error('Error loading stagnation alerts:', error);
+        document.getElementById('wf-stagnation-loading').innerHTML =
+          '<div class="alert alert-danger mb-0 py-2"><small>Could not load stagnation data</small></div>';
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: STATE VELOCITY (D-WF-02)
+  // ─────────────────────────────────────────────────────────────
+
+  function loadStateVelocity() {
+    return jsonFetch('/api/v1/analytics/dm-kpi/workflow/state-velocity?days=30')
+      .then(function (response) {
+        var states = response.states || [];
+        var rangeEl = document.getElementById('wf-velocity-range');
+        rangeEl.textContent = 'Last ' + response.range_days + ' days';
+
+        var tbody = document.getElementById('wf-velocity-tbody');
+        tbody.innerHTML = '';
+
+        states.forEach(function (s) {
+          var row = document.createElement('tr');
+          // Highlight slow states
+          var rowClass = s.p50_hours > 72 ? 'table-warning' : '';
+          if (rowClass) row.className = rowClass;
+
+          row.innerHTML =
+            '<td>' + escapeHtml(s.label) + '</td>' +
+            '<td class="text-end">' + s.transition_count + '</td>' +
+            '<td class="text-end">' + s.avg_hours + 'h</td>' +
+            '<td class="text-end">' + s.p50_hours + 'h</td>' +
+            '<td class="text-end">' + s.p90_hours + 'h</td>';
+          tbody.appendChild(row);
+        });
+
+        document.getElementById('wf-velocity-loading').style.display = 'none';
+        document.getElementById('wf-velocity-content').style.display = 'block';
+      })
+      .catch(function (error) {
+        console.error('Error loading state velocity:', error);
+        document.getElementById('wf-velocity-loading').innerHTML =
+          '<div class="alert alert-danger mb-0 py-2"><small>Could not load velocity data</small></div>';
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // SECTION: DAILY TRANSITIONS (D-WF-04)
+  // ─────────────────────────────────────────────────────────────
+
+  var chartTransitions = null;
+
+  var PHASE_COLORS = {
+    intake: '#6c757d',
+    preprocessing: '#17a2b8',
+    coding: '#ffc107',
+    finalization: '#28a745',
+    review: '#0066cc',
+    exception: '#fd7e14',
+    exclusion: '#dc3545',
+  };
+
+  function loadDailyTransitions() {
+    return loadChartJs()
+      .then(function () {
+        return jsonFetch('/api/v1/analytics/dm-kpi/workflow/daily-transitions?days=' + dayWindow);
+      })
+      .then(function (response) {
+        var days = response.days || [];
+        var dates = days.map(function (d) { return d.date; });
+
+        // Collect all unique states across days
+        var allStates = {};
+        days.forEach(function (d) {
+          Object.keys(d.transitions || {}).forEach(function (s) {
+            if (!allStates[s]) allStates[s] = PHASE_COLORS[STATE_PHASES[s] || 'intake'] || '#6c757d';
+          });
+        });
+
+        var stateOrder = ['consent_refused', 'attachment_sync_pending', 'screening_pending',
+          'smartva_pending', 'ready_for_coding', 'coding_in_progress', 'coder_step1_saved',
+          'coder_finalized', 'reviewer_eligible', 'reviewer_coding_in_progress',
+          'reviewer_finalized', 'finalized_upstream_changed',
+          'not_codeable_by_coder', 'not_codeable_by_data_manager'];
+
+        var datasets = stateOrder
+          .filter(function (s) { return allStates[s]; })
+          .map(function (state) {
+            return {
+              label: STATE_LABELS[state] || state,
+              data: dates.map(function (date) {
+                var day = days.find(function (d) { return d.date === date; });
+                return day && day.transitions ? (day.transitions[state] || 0) : 0;
+              }),
+              backgroundColor: allStates[state],
+              stack: 'stack',
+            };
+          });
+
+        var ctx = document.getElementById('wf-transitions-chart').getContext('2d');
+        if (chartTransitions) chartTransitions.destroy();
+        chartTransitions = new window.Chart(ctx, {
+          type: 'bar',
+          data: { labels: dates, datasets: datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 12, font: { size: 10 } } } },
+            scales: {
+              x: { stacked: true },
+              y: { stacked: true, title: { display: true, text: 'Transitions' } },
+            },
+          },
+        });
+
+        document.getElementById('wf-transitions-loading').style.display = 'none';
+        document.getElementById('wf-transitions-chart').style.display = 'block';
+      })
+      .catch(function (error) {
+        console.error('Error loading daily transitions:', error);
+        document.getElementById('wf-transitions-loading').innerHTML =
+          '<div class="alert alert-danger mb-0">Could not load transitions chart</div>';
+      });
+  }
+
+  // State label and phase lookups for JS
+  var STATE_LABELS = {
+    screening_pending: 'DM Screening',
+    attachment_sync_pending: 'Attachment Sync',
+    smartva_pending: 'SmartVA Processing',
+    ready_for_coding: 'Ready for Coding',
+    coding_in_progress: 'Coding in Progress',
+    coder_step1_saved: 'Step 1 Saved',
+    coder_finalized: 'Coder Finalized',
+    reviewer_eligible: 'Reviewer Eligible',
+    reviewer_coding_in_progress: 'Reviewer in Progress',
+    reviewer_finalized: 'Reviewer Finalized',
+    finalized_upstream_changed: 'Upstream Changed',
+    not_codeable_by_coder: 'Not Codeable (Coder)',
+    not_codeable_by_data_manager: 'Not Codeable (DM)',
+    consent_refused: 'Consent Refused',
+  };
+
+  var STATE_PHASES = {
+    screening_pending: 'intake',
+    attachment_sync_pending: 'intake',
+    smartva_pending: 'preprocessing',
+    ready_for_coding: 'coding',
+    coding_in_progress: 'coding',
+    coder_step1_saved: 'coding',
+    coder_finalized: 'finalization',
+    reviewer_eligible: 'review',
+    reviewer_coding_in_progress: 'review',
+    reviewer_finalized: 'review',
+    finalized_upstream_changed: 'exception',
+    not_codeable_by_coder: 'exclusion',
+    not_codeable_by_data_manager: 'exclusion',
+    consent_refused: 'exclusion',
+  };
+
+  // ─────────────────────────────────────────────────────────────
   // WINDOW SELECTOR (7/30/90 days)
   // ─────────────────────────────────────────────────────────────
 
@@ -658,6 +1029,68 @@
   }
 
   // ─────────────────────────────────────────────────────────────
+  // REFRESH: MV refresh + dashboard reload
+  // ─────────────────────────────────────────────────────────────
+
+  function onRefreshDashboard() {
+    var btn = document.getElementById('dm-kpi-refresh-btn');
+    if (!btn || btn.disabled) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Refreshing...';
+
+    // Single endpoint: recompute KPIs + refresh MVs + bust cache
+    fetch('/api/v1/analytics/dm-kpi/refresh', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': CSRF,
+        'Content-Type': 'application/json',
+      },
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error('Refresh failed: HTTP ' + response.status);
+        return response.json();
+      })
+      .then(function () {
+        // Reload the entire dashboard with fresh data
+        return loadOverviewCards()
+          .then(function () {
+            return Promise.all([
+              loadDailyGrid(),
+              loadFlowchart(),
+              loadStagnationAlerts(),
+              loadStateVelocity(),
+              loadDailyTransitions(),
+              loadSyncHealth(),
+              loadQualityGates(),
+              loadBurndownChart(),
+              loadInflowChart(),
+              loadAgingSection(),
+              loadSiteBottleneck(),
+              loadBacklogChart(),
+              loadLanguageGap(),
+              loadCoderTable(),
+            ]);
+          });
+      })
+      .then(function () {
+        btn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Done';
+        setTimeout(function () {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1"></i>Refresh';
+        }, 2000);
+      })
+      .catch(function (error) {
+        console.error('Dashboard refresh error:', error);
+        btn.innerHTML = '<i class="fa-solid fa-triangle-exclamation me-1"></i>Error';
+        setTimeout(function () {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-arrows-rotate me-1"></i>Refresh';
+        }, 3000);
+      });
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // INIT
   // ─────────────────────────────────────────────────────────────
 
@@ -680,12 +1113,22 @@
       }
     });
 
+    // Wire up refresh button
+    var refreshBtn = document.getElementById('dm-kpi-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', onRefreshDashboard);
+    }
+
     // Load overview cards first (needed by other sections)
     loadOverviewCards()
       .then(() => {
         // Then load everything else in parallel
         return Promise.all([
           loadDailyGrid(),
+          loadFlowchart(),
+          loadStagnationAlerts(),
+          loadStateVelocity(),
+          loadDailyTransitions(),
           loadSyncHealth(),
           loadQualityGates(),
           loadBurndownChart(),

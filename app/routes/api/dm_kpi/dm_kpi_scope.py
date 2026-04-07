@@ -17,10 +17,11 @@ from __future__ import annotations
 import logging
 
 import sqlalchemy as sa
-from flask import request
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
 from app import cache, db
+from app.decorators import role_required
 from app.services.submission_analytics_mv import (
     _expand_project_ids_to_active_pairs,
 )
@@ -28,6 +29,8 @@ from app.services.submission_analytics_mv import (
 log = logging.getLogger(__name__)
 
 _CACHE_TTL = 300  # 5 minutes
+
+bp = Blueprint("dm_kpi_cache", __name__)
 
 
 # ---------------------------------------------------------------------------
@@ -126,3 +129,84 @@ def cached_kpi(key: str, compute_fn, timeout: int = _CACHE_TTL):
     except Exception as exc:
         log.warning("KPI cache set failed (%s): %s", full_key, exc, exc_info=True)
     return data
+
+
+def bust_dm_kpi_cache(user_id: int | None = None) -> int:
+    """Delete all cached KPI entries for the given user.
+
+    Returns the number of keys deleted.
+    """
+    uid = user_id or current_user.user_id
+    key_prefix = current_app.config.get("CACHE_KEY_PREFIX", "")
+    pattern = f"{key_prefix}dm_kpi:{uid}:*"
+    deleted = 0
+    try:
+        redis_client = cache.cache._write_client  # type: ignore[attr-defined]
+        keys = redis_client.keys(pattern)
+        if keys:
+            deleted = redis_client.delete(*keys)
+    except Exception as exc:
+        log.warning("KPI cache bust failed: %s", exc, exc_info=True)
+    return deleted
+
+
+@bp.post("/cache/bust")
+@role_required("data_manager")
+def cache_bust():
+    """Clear all cached KPI data for the current DM."""
+    deleted = bust_dm_kpi_cache()
+    return jsonify({"deleted": deleted}), 200
+
+
+@bp.post("/refresh")
+@role_required("data_manager")
+def refresh_dashboard():
+    """Full dashboard refresh: recompute daily KPIs, refresh MVs, bust cache.
+
+    Steps:
+      1. Recompute today's daily KPI aggregates for the DM's sites
+      2. Refresh all materialized views
+      3. Clear cached KPI data and analytics cache
+    """
+    from app.services.submission_analytics_mv import refresh_submission_analytics_mv
+    from app.tasks.kpi_tasks import compute_daily_kpi_snapshot
+
+    # Step 1: Recompute today's KPI aggregates for the DM's sites
+    site_ids = dm_site_ids()
+    kpi_result = {"status": "skipped", "sites_processed": 0}
+    if site_ids:
+        try:
+            from datetime import date as _date
+            result = compute_daily_kpi_snapshot.apply(kwargs={
+                "snapshot_date": _date.today().isoformat(),
+                "site_ids": site_ids,
+            })
+            kpi_result = result.result if result.successful() else {
+                "status": "error",
+                "reason": str(result.result),
+            }
+        except Exception as exc:
+            log.exception("KPI snapshot recomputation failed: %s", exc)
+            kpi_result = {"status": "error", "reason": str(exc)}
+
+    # Step 2: Refresh materialized views
+    mv_ok = False
+    try:
+        refresh_submission_analytics_mv(concurrently=True)
+        mv_ok = True
+    except Exception as exc:
+        log.exception("MV refresh failed: %s", exc)
+
+    # Step 3: Bust caches
+    cache_deleted = bust_dm_kpi_cache()
+    try:
+        from app.routes.api.analytics import _bust_user_analytics_cache
+        _bust_user_analytics_cache()
+    except Exception as exc:
+        log.warning("Analytics cache bust failed: %s", exc, exc_info=True)
+
+    return jsonify({
+        "kpi_snapshot": kpi_result,
+        "mv_refreshed": mv_ok,
+        "cache_deleted": cache_deleted,
+    }), 200

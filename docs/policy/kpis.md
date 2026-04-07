@@ -418,6 +418,69 @@ Backlog         27         8        10       25
 - Meaning: What fraction of finalized forms were re-opened for recoding
 - Time Frames: 7d, cumulative
 
+### Workflow State Distribution
+
+**D-WF-01: CONSORT Pipeline Flowchart**
+- Definition: Current count of submissions in each of the 14 workflow states, rendered as a CONSORT-style flowchart with:
+  - Main trunk flowing top-to-bottom through pipeline stages
+  - Branch points showing terminal states (consent_refused, not_codeable_by_*, finalized_upstream_changed)
+  - Flow-through numbers at each stage (total minus cumulative branches)
+  - Sub-phases within states (e.g., coder_finalized split by within/beyond 24h recode window)
+  - Optional states visually distinguished from mandatory trunk states
+- Source: `va_submission_workflow` GROUP BY `workflow_state`, scoped by DM sites
+- Response includes:
+  - `total_synced`: total submissions in DM scope
+  - `nodes[]`: each node with `id`, `label`, `count` (in state), `flow_through` (reached this stage), `type` (trunk/optional/terminal/branch), `phase`, `branch_from`
+  - `sub_phases` for `coder_finalized`: within_24h and beyond_24h counts
+  - `conversion`: consent_valid_rate, coding_completion_rate, review_rate
+- Rendering: CSS-based flowchart (no chart library). Vertical trunk with horizontal branches. Color-coded by phase.
+- Endpoint: `GET /api/v1/analytics/dm-kpi/workflow/flowchart`
+- Time Frame: Snapshot
+
+**D-WF-02: State Velocity**
+- Definition: Average time submissions spend in each workflow state before transitioning out
+- Source: CTE on `va_submission_workflow_events` computing per-transition durations, aggregated per `previous_state`
+- Aggregates: AVG, P50, P90 in hours
+- Response: `states[]` with `state`, `label`, `transition_count`, `avg_hours`, `p50_hours`, `p90_hours`
+- Rendering: Table with sortable columns, slow states highlighted
+- Endpoint: `GET /api/v1/analytics/dm-kpi/workflow/state-velocity?days=30`
+- Time Frame: 30d (configurable up to 90d)
+
+**D-WF-03: State Stagnation Alerts**
+- Definition: Submissions stuck in non-terminal states beyond configurable thresholds
+- Expands C-07 (which only covers `ready_for_coding`) to ALL non-terminal states
+- Source: `va_submission_workflow` with age buckets per state
+- Stagnation thresholds per state:
+
+| State | Normal | Alert | Critical |
+|-------|--------|-------|----------|
+| attachment_sync_pending | <2h | >2h | >24h |
+| screening_pending | <24h | >48h | >7d |
+| smartva_pending | <2h | >6h | >24h |
+| ready_for_coding | <48h | >48h | >7d |
+| coding_in_progress | <1h | >2h | >24h |
+| coder_step1_saved | <4h | >24h | >7d |
+| coder_finalized | <24h (recode window) | >24h | >7d |
+| reviewer_eligible | indefinite (optional) | N/A | N/A |
+| reviewer_coding_in_progress | <4h | >24h | >7d |
+| finalized_upstream_changed | <48h | >48h | >7d |
+
+- Terminal states excluded: reviewer_finalized, not_codeable_by_coder, not_codeable_by_data_manager, consent_refused
+- Response: `alerts[]` with `state`, `label`, `total`, `gt_48h`, `gt_7d`, `p50_age_hours`, `alert_level` (normal/warning/critical/info), `dm_action`
+- Special: coder_finalized includes `within_24h` and `gt_24h` split (24h recode window is normal)
+- Rendering: Alert table with traffic-light color coding
+- Endpoint: `GET /api/v1/analytics/dm-kpi/workflow/stagnation`
+- Time Frame: Snapshot
+
+**D-WF-04: Daily State Transitions**
+- Definition: How many submissions entered each state per day over the trailing window
+- Extends C-19 (which only tracks smartva_completed vs coder_finalized) to ALL states
+- Source: `va_submission_workflow_events` GROUP BY DATE(event_created_at), current_state
+- Response: `days[]` with `date`, `transitions` (dict of state→count), `total`
+- Rendering: Stacked bar chart (Chart.js), one bar per day, stacked by target state, color-coded by phase
+- Endpoint: `GET /api/v1/analytics/dm-kpi/workflow/daily-transitions?days=7`
+- Time Frame: 7d (configurable up to 90d)
+
 ### Exclusion Details
 
 **D-QG-01: Coder Not-Codeable Count & Rate**

@@ -136,7 +136,7 @@
       document.getElementById('dm-kpi-burndown-loading').style.display = 'none';
       document.getElementById('dm-kpi-burndown-fallback').style.display = 'block';
       const days = burndownData.c17_predicted_days;
-      if (days === Infinity) {
+      if (days === 'infinite' || days === Infinity) {
         document.getElementById('dm-kpi-fallback-days').textContent = '∞';
       } else if (days !== null) {
         document.getElementById('dm-kpi-fallback-days').textContent = days.toFixed(1);

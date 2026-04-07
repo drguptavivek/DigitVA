@@ -476,7 +476,7 @@ footer {
 .icd-codes-tab {
   position: fixed;
   right: 0;
-  top: 33vh;
+  top: 38vh;
   transform: translateY(-50%) rotate(-90deg);
   transform-origin: right bottom;
   background-color: #6c757d;

@@ -6,7 +6,7 @@ import uuid
 log = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
-from app import db
+from app import db, cache as flask_cache
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.decorators import va_validate_permissions
@@ -62,6 +62,28 @@ from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderRevi
 
 
 va_form = Blueprint("va_form", __name__)
+
+_SECTION_CACHE_TIMEOUT = 1800  # 30 minutes
+
+
+def _section_data_cache_key(va_sid: str, va_partial: str) -> str:
+    """Cache key for rendered category data (payload-derived, not user-specific)."""
+    return f"form_data:{va_sid}:{va_partial}"
+
+
+def _invalidate_section_data_cache(va_sid: str) -> None:
+    """Drop all cached form-data entries for a submission."""
+    sub = db.session.get(VaSubmissions, va_sid)
+    if not sub:
+        return
+    _ftc = va_get_form_type_code_for_form(sub.va_form_id)
+    _pv = get_active_payload_version(va_sid)
+    _pd = _pv.payload_data if _pv else None
+    visible = get_visible_category_codes(_pd, sub.va_form_id)
+    for _partial in visible:
+        flask_cache.delete(_section_data_cache_key(va_sid, _partial))
+
+
 def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     """Return the demo artifact expiry timestamp for demo coding saves."""
     return get_demo_expiry_for_submission(va_sid, va_actiontype)
@@ -390,17 +412,74 @@ def renderpartial(va_sid, va_partial):
             _form_type_code,
             va_partial,
         )
-        summary_items = build_submission_summary(
-            _form_type_code,
-            va_payload_data,
-        )
-
-        va_datalevel = va_get_render_datalevel(
-            va_action,
-            _form_type_code,
-            visible_category_codes,
-        )
-        va_processedcategorydata = va_render_processcategorydata(va_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial, va_sid=va_submission.va_sid)
+        # --- Cache expensive form-data queries (not user-specific) ---
+        _data_cache_key = _section_data_cache_key(va_sid, va_partial)
+        _cached_data = flask_cache.get(_data_cache_key)
+        if _cached_data is not None:
+            summary_items = _cached_data["summary_items"]
+            va_processedcategorydata = _cached_data["va_processedcategorydata"]
+            cod_attachments_data = _cached_data["cod_attachments_data"]
+            cod_attachments_labels = _cached_data["cod_attachments_labels"]
+            cod_attachments_render_modes = _cached_data["cod_attachments_render_modes"]
+            cod_health_history_data = _cached_data["cod_health_history_data"]
+            cod_health_history_labels = _cached_data["cod_health_history_labels"]
+            smartva = _cached_data["smartva"]
+        else:
+            summary_items = build_submission_summary(
+                _form_type_code,
+                va_payload_data,
+            )
+            va_datalevel = va_get_render_datalevel(
+                va_action,
+                _form_type_code,
+                visible_category_codes,
+            )
+            va_processedcategorydata = va_render_processcategorydata(va_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial, va_sid=va_submission.va_sid)
+            cod_attachments_data = {}
+            cod_attachments_labels = {}
+            cod_attachments_render_modes = {}
+            cod_health_history_data = {}
+            cod_health_history_labels = {}
+            if category_config and category_config.render_mode == "workflow_panel":
+                cod_attachments_data = va_render_processcategorydata(
+                    va_payload_data,
+                    va_submission.va_form_id,
+                    va_datalevel,
+                    va_mapping_choice,
+                    "vanarrationanddocuments",
+                    va_sid=va_submission.va_sid,
+                )
+                cod_attachments_labels = _mapping_svc.get_subcategory_labels(
+                    _form_type_code,
+                    "vanarrationanddocuments",
+                )
+                cod_attachments_render_modes = _mapping_svc.get_subcategory_render_modes(
+                    _form_type_code,
+                    "vanarrationanddocuments",
+                )
+                cod_health_history_data = va_render_processcategorydata(
+                    va_payload_data,
+                    va_submission.va_form_id,
+                    va_datalevel,
+                    va_mapping_choice,
+                    "vahealthhistorydetails",
+                    va_sid=va_submission.va_sid,
+                )
+                cod_health_history_labels = _mapping_svc.get_subcategory_labels(
+                    _form_type_code,
+                    "vahealthhistorydetails",
+                )
+            smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
+            flask_cache.set(_data_cache_key, {
+                "summary_items": summary_items,
+                "va_processedcategorydata": va_processedcategorydata,
+                "cod_attachments_data": cod_attachments_data,
+                "cod_attachments_labels": cod_attachments_labels,
+                "cod_attachments_render_modes": cod_attachments_render_modes,
+                "cod_health_history_data": cod_health_history_data,
+                "cod_health_history_labels": cod_health_history_labels,
+                "smartva": smartva,
+            }, timeout=_SECTION_CACHE_TIMEOUT)
         va_previouscategory, va_nextcategory = category_service.get_category_neighbours(
             _form_type_code,
             va_action,
@@ -433,7 +512,6 @@ def renderpartial(va_sid, va_partial):
         va_final_assess = authoritative_final_assess
         va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
         va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
-        smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
         da_va_final_assess = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.va_finassess_status == VaStatuses.deactive)&(VaFinalAssessments.va_sid == va_sid)&(VaFinalAssessments.va_finassess_by == current_user.user_id)))
         da_va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.deactive)&(VaInitialAssessments.va_sid == va_sid)&(VaInitialAssessments.va_iniassess_by == current_user.user_id)))
         da_va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.deactive)&(VaCoderReview.va_sid == va_sid)&(VaCoderReview.va_creview_by == current_user.user_id)))
@@ -461,11 +539,6 @@ def renderpartial(va_sid, va_partial):
                 current_user.user_id,
             )
         va_social_autopsy_analysis = None
-        cod_attachments_data = {}
-        cod_attachments_labels = {}
-        cod_attachments_render_modes = {}
-        cod_health_history_data = {}
-        cod_health_history_labels = {}
         va_usernote = db.session.scalar(
             sa.select(VaUsernotes).where(
                 VaUsernotes.note_by == current_user.user_id,
@@ -484,35 +557,6 @@ def renderpartial(va_sid, va_partial):
                 f"{item.delay_level}::{item.option_code}"
                 for item in va_social_autopsy_analysis.selected_options
             }
-        if category_config and category_config.render_mode == "workflow_panel":
-            cod_attachments_data = va_render_processcategorydata(
-                va_payload_data,
-                va_submission.va_form_id,
-                va_datalevel,
-                va_mapping_choice,
-                "vanarrationanddocuments",
-                va_sid=va_submission.va_sid,
-            )
-            cod_attachments_labels = _mapping_svc.get_subcategory_labels(
-                _form_type_code,
-                "vanarrationanddocuments",
-            )
-            cod_attachments_render_modes = _mapping_svc.get_subcategory_render_modes(
-                _form_type_code,
-                "vanarrationanddocuments",
-            )
-            cod_health_history_data = va_render_processcategorydata(
-                va_payload_data,
-                va_submission.va_form_id,
-                va_datalevel,
-                va_mapping_choice,
-                "vahealthhistorydetails",
-                va_sid=va_submission.va_sid,
-            )
-            cod_health_history_labels = _mapping_svc.get_subcategory_labels(
-                _form_type_code,
-                "vahealthhistorydetails",
-            )
         template_name = f"va_formcategory_partials/{va_partial}.html"
         if category_config and category_config.render_mode == "table_sections":
             template_name = "va_formcategory_partials/category_table_sections.html"

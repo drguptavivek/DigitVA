@@ -1,0 +1,70 @@
+{# C-07 Aging + Backlog Trend (2-col layout) #}
+<div class="row mb-4">
+  {# Pipeline Aging #}
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-clock me-2"></i>
+          Pipeline Aging (C-07)
+        </h5>
+      </div>
+      <div class="card-body">
+        <div id="dm-kpi-aging-loading" class="text-center text-muted py-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <div id="dm-kpi-aging-content" style="display:none;">
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <div class="dm-kpi-aging-tile dm-kpi-aging-yellow">
+                <div class="dm-kpi-aging-value" id="dm-kpi-aging-48h">—</div>
+                <div class="dm-kpi-aging-label">&gt;48h</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="dm-kpi-aging-tile dm-kpi-aging-orange">
+                <div class="dm-kpi-aging-value" id="dm-kpi-aging-7d">—</div>
+                <div class="dm-kpi-aging-label">&gt;7d</div>
+              </div>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-12">
+              <div class="dm-kpi-aging-tile dm-kpi-aging-red">
+                <div class="dm-kpi-aging-value" id="dm-kpi-aging-30d">—</div>
+                <div class="dm-kpi-aging-label">&gt;30d</div>
+              </div>
+            </div>
+          </div>
+          <div class="border-top mt-3 pt-3">
+            <small class="text-muted">
+              <strong>Time to Code P50:</strong> <span id="dm-kpi-time-to-code-p50">—</span>
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Backlog Trend #}
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-chart-area me-2"></i>
+          Backlog Trend
+        </h5>
+      </div>
+      <div class="card-body">
+        <div id="dm-kpi-backlog-loading" class="text-center text-muted">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <canvas id="dm-kpi-backlog-chart" style="display:none; max-height: 300px;"></canvas>
+      </div>
+    </div>
+  </div>
+</div>

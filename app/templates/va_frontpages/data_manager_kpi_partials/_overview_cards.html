@@ -1,0 +1,78 @@
+{# Overview stat cards: Pending, Daily Rate, Predicted Days, Utilization #}
+<div class="row mb-4 g-3">
+  {# Pending Backlog #}
+  <div class="col-md-6 col-lg-3">
+    <div class="dm-kpi-card">
+      <div class="dm-kpi-loading">
+        <div class="spinner-border spinner-border-sm" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <div class="dm-kpi-content" style="display:none;">
+        <div class="dm-kpi-icon dm-kpi-icon-warning">
+          <i class="fa-solid fa-hourglass-end"></i>
+        </div>
+        <div class="dm-kpi-value" id="kpi-pending-value">—</div>
+        <div class="dm-kpi-label">Pending Backlog</div>
+        <div class="dm-kpi-subtext" id="kpi-pending-pool">of coding pool</div>
+      </div>
+    </div>
+  </div>
+
+  {# Mean Daily Coding Rate #}
+  <div class="col-md-6 col-lg-3">
+    <div class="dm-kpi-card">
+      <div class="dm-kpi-loading">
+        <div class="spinner-border spinner-border-sm" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <div class="dm-kpi-content" style="display:none;">
+        <div class="dm-kpi-icon dm-kpi-icon-success">
+          <i class="fa-solid fa-rocket"></i>
+        </div>
+        <div class="dm-kpi-value" id="kpi-rate-value">—</div>
+        <div class="dm-kpi-label">Daily Coding Rate</div>
+        <div class="dm-kpi-subtext">submissions/day</div>
+      </div>
+    </div>
+  </div>
+
+  {# Predicted Days to Clear #}
+  <div class="col-md-6 col-lg-3">
+    <div class="dm-kpi-card">
+      <div class="dm-kpi-loading">
+        <div class="spinner-border spinner-border-sm" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <div class="dm-kpi-content" style="display:none;">
+        <div class="dm-kpi-icon dm-kpi-icon-info">
+          <i class="fa-solid fa-calendar-days"></i>
+        </div>
+        <div class="dm-kpi-value" id="kpi-days-value">—</div>
+        <div class="dm-kpi-label">Days to Clear</div>
+        <div class="dm-kpi-subtext">at current rate</div>
+      </div>
+    </div>
+  </div>
+
+  {# Coder Utilization #}
+  <div class="col-md-6 col-lg-3">
+    <div class="dm-kpi-card">
+      <div class="dm-kpi-loading">
+        <div class="spinner-border spinner-border-sm" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      <div class="dm-kpi-content" style="display:none;">
+        <div class="dm-kpi-icon dm-kpi-icon-primary">
+          <i class="fa-solid fa-people-group"></i>
+        </div>
+        <div class="dm-kpi-value" id="kpi-utilization-value">—</div>
+        <div class="dm-kpi-label">Coder Utilization</div>
+        <div class="dm-kpi-subtext">active / total</div>
+      </div>
+    </div>
+  </div>
+</div>

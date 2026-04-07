@@ -1,0 +1,64 @@
+{# C-15/20 Language Gap + C-16 Per-Coder Performance (2-col layout) #}
+<div class="row">
+  {# Language Gap Table #}
+  <div class="col-lg-6">
+    <div class="card mb-4 mb-lg-0">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-globe me-2"></i>
+          Language Gap Analysis (C-15/C-20)
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div id="dm-kpi-language-loading" class="text-center text-muted p-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <table class="table table-sm mb-0" id="dm-kpi-language-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Language</th>
+              <th>Pending</th>
+              <th>Coders</th>
+              <th>Daily Rate</th>
+              <th>Days</th>
+            </tr>
+          </thead>
+          <tbody id="dm-kpi-language-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# Per-Coder Performance Table #}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">
+          <i class="fa-solid fa-person me-2"></i>
+          Coder Performance (C-16)
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div id="dm-kpi-coders-loading" class="text-center text-muted p-4">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+        <table class="table table-sm mb-0" id="dm-kpi-coders-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Coder</th>
+              <th>Coded (7d)</th>
+              <th>Rate</th>
+            </tr>
+          </thead>
+          <tbody id="dm-kpi-coders-tbody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

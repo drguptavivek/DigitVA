@@ -1,0 +1,38 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | KPI Dashboard{% endblock %}
+
+{% block select2_css %}{% endblock %}
+{% block cropper_css %}{% endblock %}
+{% block datatables_css %}{% endblock %}
+{% block jquery_js %}{% endblock %}
+{% block select2_js %}{% endblock %}
+{% block cropper_js %}{% endblock %}
+{% block htmx_js %}{% endblock %}
+{% block datatables_js %}{% endblock %}
+
+{% block content %}
+{# ── Local vendors: AG Grid 33 + Chart.js (page-scoped only) ── #}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/ag-grid/ag-theme-alpine.min.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dm_kpi_dashboard.css') }}"/>
+
+{% include 'va_frontpages/data_manager_kpi_partials/_header.html' %}
+{% include 'va_frontpages/data_manager_kpi_partials/_overview_cards.html' %}
+{% include 'va_frontpages/data_manager_kpi_partials/_daily_grid.html' %}
+{% include 'va_frontpages/data_manager_kpi_partials/_burndown_section.html' %}
+{% include 'va_frontpages/data_manager_kpi_partials/_pipeline_section.html' %}
+{% include 'va_frontpages/data_manager_kpi_partials/_language_coders_section.html' %}
+
+{# ════════════════════════════════════════════════════════
+   JAVASCRIPT
+   ════════════════════════════════════════════════════════ #}
+<script src="{{ url_for('static', filename='vendor/ag-grid/ag-grid-community.min.js') }}"></script>
+<script>
+window.DM_KPI_CONFIG = {
+  csrfToken: {{ csrf_token()|tojson }},
+  chartJsSrc: {{ url_for('static', filename='vendor/chartjs/chart.umd.min.js')|tojson }}
+};
+</script>
+<script src="{{ url_for('static', filename='js/dm_kpi_dashboard.js') }}"></script>
+
+{% endblock %}

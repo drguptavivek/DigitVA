@@ -138,6 +138,22 @@ def dashboard():
     )
 
 
+@data_management.get("/dashboard")
+@role_required("data_manager", "admin")
+def kpi_dashboard():
+    """Data manager KPI analytics dashboard.
+
+    Shell template only — all data fetched client-side from /api/v1/analytics/dm-kpi/* endpoints.
+    """
+    if not current_user.is_admin():
+        project_ids = current_user.get_data_manager_projects()
+        project_site_pairs = current_user.get_data_manager_project_sites()
+        if not project_ids and not project_site_pairs:
+            va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
+
+    return render_template("va_frontpages/va_dm_kpi_dashboard.html")
+
+
 @data_management.get("/view/<va_sid>")
 @role_required("data_manager", "admin")
 def view_submission(va_sid):

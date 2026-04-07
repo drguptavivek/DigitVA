@@ -3070,7 +3070,8 @@ def admin_odk_connections_create():
     try:
         pepper = get_odk_pepper()
     except RuntimeError as exc:
-        return _json_error(str(exc), 500)
+        log.error("ODK pepper not available for connection creation: %s", exc)
+        return _json_error("Server configuration error. Contact an administrator.", 500)
 
     username_enc, username_salt = encrypt_credential(username, pepper)
     password_enc, password_salt = encrypt_credential(password, pepper)
@@ -3133,7 +3134,8 @@ def admin_odk_connections_update(connection_id):
         try:
             pepper = get_odk_pepper()
         except RuntimeError as exc:
-            return _json_error(str(exc), 500)
+            log.error("ODK pepper not available for connection update: %s", exc)
+            return _json_error("Server configuration error. Contact an administrator.", 500)
 
         if payload.get("username"):
             username = (payload["username"] or "").strip()
@@ -3215,7 +3217,8 @@ def admin_odk_connections_test(connection_id):
     except OdkConnectionCooldownError as exc:
         return jsonify({"ok": False, "message": str(exc)}), 200
     except Exception as exc:
-        return jsonify({"ok": False, "message": f"Connection error: {exc}"}), 200
+        log.error("ODK connection test failed: %s", exc, exc_info=True)
+        return jsonify({"ok": False, "message": "Connection test failed. Check server logs."}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -3838,7 +3841,7 @@ def admin_sync_status():
         })
     except Exception as e:
         log.error("admin_sync_status failed", exc_info=True)
-        return _json_error(f"Failed to load sync status: {str(e)}", 500)
+        return _json_error(f"Failed to load sync status", 500)
 
 
 @admin.get("/api/sync/history")
@@ -3862,7 +3865,7 @@ def admin_sync_history():
         return jsonify({"runs": [_sync_run_dict(r) for r in runs]})
     except Exception as e:
         log.error("admin_sync_history failed", exc_info=True)
-        return _json_error(f"Failed to load sync history: {str(e)}", 500)
+        return _json_error(f"Failed to load sync history", 500)
 
 
 @admin.post("/api/sync/trigger")
@@ -3891,7 +3894,7 @@ def admin_sync_trigger():
         return jsonify({"message": "Sync started.", "task_id": task.id}), 202
     except Exception as e:
         log.error("admin_sync_trigger failed", exc_info=True)
-        return _json_error(f"Failed to trigger sync: {str(e)}", 500)
+        return _json_error(f"Failed to trigger sync", 500)
 
 
 @admin.post("/api/sync/attachment-backfill")
@@ -3936,7 +3939,7 @@ def admin_attachment_backfill_trigger():
         ), 202
     except Exception as e:
         log.error("admin_attachment_backfill_trigger failed", exc_info=True)
-        return _json_error(f"Failed to trigger attachment backfill: {str(e)}", 500)
+        return _json_error(f"Failed to trigger attachment backfill", 500)
 
 
 @admin.post("/api/sync/stop")
@@ -3995,7 +3998,7 @@ def admin_sync_stop():
         )
     except Exception as e:
         log.error("admin_sync_stop failed", exc_info=True)
-        return _json_error(f"Failed to stop sync: {str(e)}", 500)
+        return _json_error(f"Failed to stop sync", 500)
 
 
 @admin.post("/api/sync/schedule")
@@ -4051,7 +4054,7 @@ def admin_sync_schedule():
         return jsonify({"interval_hours": hours})
     except Exception as e:
         log.error("admin_sync_schedule failed (hours=%s)", hours, exc_info=True)
-        return _json_error(f"Could not update schedule: {str(e)}", 503)
+        return _json_error(f"Could not update schedule", 503)
 
 
 @admin.get("/api/sync/coverage")
@@ -4111,7 +4114,7 @@ def admin_sync_coverage():
                         "coverage ODK count failed for %s/%s: %s",
                         mapping.project_id, mapping.site_id, e,
                     )
-                    return mapping, None, str(e)
+                    return mapping, None, "ODK count failed."
 
         odk_results = {}
         with ThreadPoolExecutor(max_workers=len(mappings) or 1) as ex:
@@ -4158,7 +4161,7 @@ def admin_sync_coverage():
         })
     except Exception as e:
         log.error("admin_sync_coverage failed", exc_info=True)
-        return _json_error(f"Failed to load coverage data: {str(e)}", 500)
+        return _json_error(f"Failed to load coverage data", 500)
 
 
 @admin.get("/api/sync/backfill-stats")
@@ -4361,7 +4364,7 @@ def admin_sync_backfill_stats():
         })
     except Exception as e:
         log.error("admin_sync_backfill_stats failed", exc_info=True)
-        return _json_error(f"Failed to load backfill stats: {str(e)}", 500)
+        return _json_error(f"Failed to load backfill stats", 500)
 
 
 @admin.post("/api/sync/backfill/form/<form_id>")
@@ -4402,7 +4405,7 @@ def admin_sync_backfill_form(form_id: str):
         }), 202
     except Exception as e:
         log.error("admin_sync_backfill_form failed for %s", form_id, exc_info=True)
-        return _json_error(f"Failed to trigger backfill for form {form_id}: {str(e)}", 500)
+        return _json_error(f"Failed to trigger backfill for form {form_id}", 500)
 
 
 @admin.post("/api/sync/trigger-smartva")
@@ -4429,7 +4432,7 @@ def admin_sync_trigger_smartva():
         return jsonify({"message": "SmartVA run started.", "task_id": task.id}), 202
     except Exception as e:
         log.error("admin_sync_trigger_smartva failed", exc_info=True)
-        return _json_error(f"Failed to trigger SmartVA run: {str(e)}", 500)
+        return _json_error(f"Failed to trigger SmartVA run", 500)
 
 
 @admin.post("/api/sync/form/<form_id>")
@@ -4454,7 +4457,7 @@ def admin_sync_form(form_id: str):
         return jsonify({"message": f"Force-resync started for form {form_id}.", "task_id": task.id}), 202
     except Exception as e:
         log.error("admin_sync_form failed for %s", form_id, exc_info=True)
-        return _json_error(f"Failed to trigger Force-resync for form {form_id}: {str(e)}", 500)
+        return _json_error(f"Failed to trigger Force-resync for form {form_id}", 500)
 
 
 @admin.post("/api/sync/project-site/<project_id>/<site_id>")
@@ -4505,7 +4508,7 @@ def admin_sync_project_site(project_id: str, site_id: str):
     except Exception as e:
         log.error("admin_sync_project_site failed for %s/%s", project_id, site_id, exc_info=True)
         return _json_error(
-            f"Failed to trigger sync for project/site {project_id}/{site_id}: {str(e)}",
+            f"Failed to trigger sync for project/site {project_id}/{site_id}.",
             500,
         )
 
@@ -4614,7 +4617,7 @@ def admin_sync_smartva_stats():
         })
     except Exception as e:
         log.error("admin_sync_smartva_stats failed", exc_info=True)
-        return _json_error(f"Failed to load SmartVA stats: {str(e)}", 500)
+        return _json_error(f"Failed to load SmartVA stats", 500)
 
 
 @admin.get("/api/sync/revoked-stats")
@@ -4713,7 +4716,7 @@ def admin_sync_revoked_stats():
         })
     except Exception as e:
         log.error("admin_sync_revoked_stats failed", exc_info=True)
-        return _json_error(f"Failed to load revoked stats: {str(e)}", 500)
+        return _json_error(f"Failed to load revoked stats", 500)
 
 
 @admin.get("/api/sync/progress")
@@ -4758,7 +4761,7 @@ def admin_sync_progress():
         })
     except Exception as e:
         log.error("admin_sync_progress failed", exc_info=True)
-        return _json_error(f"Failed to load progress: {str(e)}", 500)
+        return _json_error(f"Failed to load progress", 500)
 
 
 def _sync_run_dict(run) -> dict:

@@ -122,10 +122,13 @@
                 </a>
               </li>
               <li>
-                <a class="dropdown-item" href="{{ url_for('va_auth.va_logout') }}">
-                  <i class="fa-solid fa-right-from-bracket me-2"></i>
-                  Logout
-                </a>
+                <form action="{{ url_for('va_auth.va_logout') }}" method="post" style="display:contents">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="dropdown-item">
+                    <i class="fa-solid fa-right-from-bracket me-2"></i>
+                    Logout
+                  </button>
+                </form>
               </li>
             </ul>
           </li>

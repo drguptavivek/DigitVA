@@ -187,7 +187,7 @@ def refresh_dashboard():
             }
         except Exception as exc:
             log.exception("KPI snapshot recomputation failed: %s", exc)
-            kpi_result = {"status": "error", "reason": str(exc)}
+            kpi_result = {"status": "error", "reason": "KPI recomputation failed. Check server logs."}
 
     # Step 2: Refresh materialized views
     mv_ok = False

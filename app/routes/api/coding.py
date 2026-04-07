@@ -238,7 +238,7 @@ def projects():
 # ---------------------------------------------------------------------------
 
 @bp.get("/debug-stats")
-@role_required("coder", "admin")
+@role_required("admin")
 def debug_stats():
     """Return detailed coder visibility diagnostics for the current session."""
     form_ids = sorted(current_user.get_coder_va_forms() or [])

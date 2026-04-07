@@ -29,13 +29,7 @@ def va_login():
 
         # Block login if email not verified
         if not user.email_verified:
-            flash(
-                'Please verify your email address before logging in. '
-                '<a href="{}">Resend verification email</a>.'.format(
-                    url_for("va_auth.resend_verification")
-                ),
-                "warning",
-            )
+            flash("Please verify your email address before logging in.", "email_unverified")
             return redirect(url_for("va_auth.va_login"))
 
         session.permanent = True
@@ -49,7 +43,7 @@ def va_login():
     return render_template("va_frontpages/va_login.html", form=form)
 
 
-@va_auth.route("/valogout")
+@va_auth.route("/valogout", methods=["POST"])
 def va_logout():
     if current_user.is_anonymous:
         return redirect(url_for("va_main.va_index"))
@@ -85,7 +79,7 @@ def forgot_password():
 
 
 @va_auth.route("/reset-password/<token>", methods=["GET", "POST"])
-@limiter.limit("10 per minute")
+@limiter.limit("5 per minute", methods=["POST"])
 def reset_password(token):
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
@@ -137,7 +131,7 @@ def reset_password(token):
 # ---------------------------------------------------------------------------
 
 @va_auth.route("/verify-email/<token>", methods=["GET"])
-@limiter.limit("10 per minute")
+@limiter.limit("3 per minute")
 def verify_email(token):
     from app.services.token_service import validate_token
 

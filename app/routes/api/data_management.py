@@ -326,7 +326,7 @@ def sync_form(form_id: str):
         return jsonify({"message": f"Sync started for form {form_id}.", "task_id": task.id}), 202
     except Exception as exc:
         log.error("sync_form failed for %s", form_id, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "Operation failed. Check server logs."}), 500
 
 
 @bp.post("/sync/preview")
@@ -421,7 +421,7 @@ def sync_preview():
         return jsonify({"totals": totals, "forms": forms_preview})
     except Exception as exc:
         log.error("sync_preview failed", exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "Operation failed. Check server logs."}), 500
 
 
 @bp.get("/sync/runs")
@@ -521,7 +521,7 @@ def sync_submission(va_sid: str):
         return jsonify({"message": f"Refresh started for submission {va_sid}.", "task_id": task.id}), 202
     except Exception as exc:
         log.error("sync_submission failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "Operation failed. Check server logs."}), 500
 
 
 # ---------------------------------------------------------------------------
@@ -544,7 +544,7 @@ def accept_upstream_change(va_sid: str):
     except Exception as exc:
         db.session.rollback()
         log.error("accept_upstream_change failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "Operation failed. Check server logs."}), 500
 
     # Fire SmartVA immediately so the submission doesn't wait for the next scheduled sync.
     task_id = None
@@ -577,7 +577,7 @@ def screening_pass(va_sid: str):
     except Exception as exc:
         db.session.rollback()
         log.error("screening_pass failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "Operation failed. Check server logs."}), 500
 
 
 @bp.post("/submissions/<va_sid>/screening-reject")
@@ -595,7 +595,7 @@ def screening_reject(va_sid: str):
     except Exception as exc:
         db.session.rollback()
         log.error("screening_reject failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "Operation failed. Check server logs."}), 500
 
 
 @bp.post("/submissions/<va_sid>/reject-upstream-change")
@@ -618,4 +618,4 @@ def reject_upstream_change(va_sid: str):
     except Exception as exc:
         db.session.rollback()
         log.error("reject_upstream_change failed for %s", va_sid, exc_info=True)
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "Operation failed. Check server logs."}), 500

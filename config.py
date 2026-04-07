@@ -23,9 +23,9 @@ class Config:
     # SECURITY: SECRET_KEY must be set via environment variable in production.
     # The fallback is only for development convenience and should never be used in production.
     # Docker Compose will fail to start if .env is missing required variables.
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "5Ag92#2g]oLIHEk"
+    SECRET_KEY = _require_env("SECRET_KEY")
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
-    REMEMBER_COOKIE_DURATION = timedelta(minutes=30)
+    REMEMBER_COOKIE_DURATION = timedelta(days=30)
     STATIC_ASSET_CACHE_MAX_AGE = int(
         os.environ.get("STATIC_ASSET_CACHE_MAX_AGE", str(60 * 60 * 24 * 30))
     )
@@ -42,10 +42,7 @@ class Config:
     SESSION_USE_SIGNER = True
     SESSION_SQLALCHEMY_TABLE = "va_sessions"
     
-    SQLALCHEMY_DATABASE_URI = (
-        os.environ.get("DATABASE_URL")
-        or "postgresql://minerva:minerva@localhost:5432/minerva"
-    )
+    SQLALCHEMY_DATABASE_URI = _require_env("DATABASE_URL")
     # Database connection pool settings - prevents connection leaks and pool exhaustion
     # 3 services × (pool_size=3 + max_overflow=5) = 24 max connections → fits within max_connections=40
     SQLALCHEMY_ENGINE_OPTIONS = {

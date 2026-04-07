@@ -282,6 +282,8 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
         sa.select(VaSubmissions.va_sid)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*base_filters))
+        .order_by(sa.func.random())
+        .limit(1)
     )
     if not va_new_sid:
         msg = (

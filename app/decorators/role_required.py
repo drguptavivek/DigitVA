@@ -29,6 +29,7 @@ For web routes: redirect to login (401) or flash + abort(403).
 This decorator subsumes @login_required — do not stack both.
 """
 
+import logging
 from functools import wraps
 
 from flask import jsonify, redirect, request, url_for
@@ -38,6 +39,8 @@ from app.models import VaStatuses
 from app.utils.va_permission.va_permission_01_abortwithflash import (
     va_permission_abortwithflash,
 )
+
+log = logging.getLogger(__name__)
 
 _ROLE_METHODS = {
     "admin":        lambda u: u.is_admin(),
@@ -62,12 +65,20 @@ def role_required(*roles):
 
             # ── Layer 1: Authentication ──────────────────────────────────────
             if not current_user.is_authenticated:
+                log.warning(
+                    "Access denied — unauthenticated: path=%s method=%s ip=%s",
+                    request.path, request.method, request.remote_addr,
+                )
                 if is_api:
                     return jsonify({"error": "Authentication required."}), 401
                 return redirect(url_for("va_auth.va_login", next=request.url))
 
             # ── Layer 2: Active-status ────────────────────────────────────────
             if current_user.user_status != VaStatuses.active:
+                log.warning(
+                    "Access denied — inactive user: user=%s path=%s ip=%s",
+                    current_user.get_id(), request.path, request.remote_addr,
+                )
                 logout_user()
                 if is_api:
                     return jsonify({"error": "Authentication required."}), 401
@@ -80,6 +91,10 @@ def role_required(*roles):
                 if role in _ROLE_METHODS
             ):
                 role_label = " or ".join(roles)
+                log.warning(
+                    "Access denied — insufficient role: user=%s required=%s path=%s ip=%s",
+                    current_user.get_id(), role_label, request.path, request.remote_addr,
+                )
                 if is_api:
                     return jsonify({"error": f"{role_label} access is required."}), 403
                 va_permission_abortwithflash(f"{role_label} access is required.", 403)

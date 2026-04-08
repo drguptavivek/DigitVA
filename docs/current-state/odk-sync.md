@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-08
 ---
 
 # ODK Sync And Attachments
@@ -361,6 +361,10 @@ Rules:
 - Submissions that already exist with unchanged `updatedat` receive zero attachment API calls
 - Forms with delta = 0 receive zero attachment API calls
 - The media directory is **never cleared** (`rmtree` eliminated) — files for unchanged submissions remain on disk
+- operational cleanup scripts may quarantine orphaned files under
+  `media/.orphaned/` for inspection and rollback instead of deleting them
+- `.orphaned` subtrees are excluded from active attachment integrity scans so
+  quarantined files do not keep appearing as live orphaned media
 
 ### ETag cache
 

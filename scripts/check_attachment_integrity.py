@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
+from typing import Iterable
 
 import sqlalchemy as sa
 
@@ -36,14 +37,54 @@ def _scan_media_files(app_data: Path) -> tuple[int, list[Path]]:
     for media_dir in app_data.glob("*/media"):
         if not media_dir.is_dir():
             continue
-        for root, _, filenames in os.walk(media_dir):
+        for root, dirs, filenames in os.walk(media_dir):
+            dirs[:] = [d for d in dirs if d != ".orphaned"]
+            root_path = Path(root)
+            if ".orphaned" in root_path.parts:
+                continue
             for filename in filenames:
                 total += 1
-                files.append((Path(root) / filename).resolve(strict=False))
+                files.append((root_path / filename).resolve(strict=False))
     return total, files
 
 
-def run_check(form_id: str | None, max_report: int) -> int:
+def _orphan_destination(source_path: Path) -> Path:
+    try:
+        media_root = next(parent for parent in source_path.parents if parent.name == "media")
+    except StopIteration as exc:
+        raise ValueError(f"Path is not under a media directory: {source_path}") from exc
+    relative_path = source_path.relative_to(media_root)
+    destination = media_root / ".orphaned" / relative_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    if not destination.exists():
+        return destination
+
+    suffix = "".join(destination.suffixes)
+    stem = destination.name[: -len(suffix)] if suffix else destination.name
+    counter = 1
+    while True:
+        candidate_name = f"{stem}.{counter}{suffix}"
+        candidate = destination.with_name(candidate_name)
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def _quarantine_orphans(orphan_files: Iterable[Path]) -> list[tuple[Path, Path]]:
+    moved: list[tuple[Path, Path]] = []
+    for source_path in orphan_files:
+        destination = _orphan_destination(source_path)
+        source_path.replace(destination)
+        moved.append((source_path, destination))
+    return moved
+
+
+def run_check(
+    form_id: str | None,
+    max_report: int,
+    quarantine_orphans: bool = False,
+) -> int:
     app = create_app()
     with app.app_context():
         app_data = Path(app.config["APP_DATA"]).resolve(strict=False)
@@ -106,7 +147,12 @@ def run_check(form_id: str | None, max_report: int) -> int:
                     )
 
         disk_file_count, disk_files = _scan_media_files(app_data)
-        orphan_files = [str(p) for p in disk_files if str(p) not in referenced_paths]
+        orphan_paths = [p for p in disk_files if str(p) not in referenced_paths]
+        moved_orphans: list[tuple[Path, Path]] = []
+        if quarantine_orphans and orphan_paths:
+            moved_orphans = _quarantine_orphans(orphan_paths)
+            disk_file_count, disk_files = _scan_media_files(app_data)
+            orphan_paths = [p for p in disk_files if str(p) not in referenced_paths]
 
         print("Attachment Integrity Check")
         print(f"APP_DATA: {app_data}")
@@ -115,7 +161,7 @@ def run_check(form_id: str | None, max_report: int) -> int:
         print(f"Disk files scanned under */media: {disk_file_count}")
         print("")
         print(f"Missing files for DB rows (exists_on_odk=true): {len(missing_rows)}")
-        print(f"Orphan files on disk (not referenced by DB): {len(orphan_files)}")
+        print(f"Orphan files on disk (not referenced by DB): {len(orphan_paths)}")
         print(f"DB paths outside APP_DATA: {len(outside_app_data_rows)}")
 
         if missing_rows:
@@ -127,10 +173,16 @@ def run_check(form_id: str | None, max_report: int) -> int:
                     f"reason={row['reason']} path={row['local_path']}"
                 )
 
-        if orphan_files:
+        if moved_orphans:
+            print("")
+            print(f"Quarantined orphan files into .orphaned (max {max_report}):")
+            for source_path, destination in moved_orphans[:max_report]:
+                print(f"- {source_path} -> {destination}")
+
+        if orphan_paths:
             print("")
             print(f"Sample orphan files (max {max_report}):")
-            for path in orphan_files[:max_report]:
+            for path in orphan_paths[:max_report]:
                 print(f"- {path}")
 
         if outside_app_data_rows:
@@ -142,7 +194,7 @@ def run_check(form_id: str | None, max_report: int) -> int:
                     f"path={row['local_path']}"
                 )
 
-        return 0 if not missing_rows and not orphan_files else 2
+        return 0 if not missing_rows and not orphan_paths else 2
 
 
 def main() -> None:
@@ -160,8 +212,13 @@ def main() -> None:
         default=50,
         help="Maximum rows/files to print per section.",
     )
+    parser.add_argument(
+        "--quarantine-orphans",
+        action="store_true",
+        help="Move orphaned files into a .orphaned subdirectory under each media folder.",
+    )
     args = parser.parse_args()
-    raise SystemExit(run_check(args.form_id, args.max_report))
+    raise SystemExit(run_check(args.form_id, args.max_report, args.quarantine_orphans))
 
 
 if __name__ == "__main__":

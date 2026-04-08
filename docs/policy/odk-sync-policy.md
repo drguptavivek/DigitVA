@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-04-08
 ---
 
 # ODK Sync Policy
@@ -85,6 +85,22 @@ CLI repair baseline:
   `active_payload_version_id`
 - if current-payload SmartVA is missing and the submission is eligible under
   SmartVA policy protections, it may trigger per-submission SmartVA generation
+
+## Attachment Quarantine Baseline
+
+Operational attachment cleanup must preserve recoverability.
+
+Policy baseline:
+
+- orphaned attachment files should be quarantined under a `.orphaned`
+  directory inside the relevant `media` tree
+- cleanup must be reversible without requiring DB surgery or manual file
+  reconstruction
+- cleanup scans must ignore already quarantined `.orphaned` subtrees so
+  quarantined files do not keep reappearing as active orphaned media
+- cleanup tools must not overwrite existing quarantined files when a name
+  collision occurs; they should keep both copies and preserve the original
+  source path in the report
 
 ## Payload Versioning Baseline
 

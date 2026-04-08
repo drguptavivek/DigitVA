@@ -134,6 +134,42 @@ def _log_submission_audit_report(audit_by_sid: dict) -> dict[str, int]:
     return counts
 
 
+def _is_odk_auth_401_error(exc: Exception) -> bool:
+    """Return True when an exception indicates ODK auth failure (HTTP 401)."""
+    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code == 401:
+        return True
+
+    message = str(exc).lower()
+    return (
+        "http 401" in message
+        or "401.2" in message
+        or "could not authenticate with the provided credentials" in message
+        or "unauthorized" in message
+    )
+
+
+def _enrich_with_single_reauth_retry(
+    *,
+    va_form,
+    payload_data: dict,
+    client,
+    enrich_fn,
+    client_factory,
+    log_submission_step,
+):
+    """Run enrich once; on HTTP 401, rebuild client and retry exactly once."""
+    try:
+        return enrich_fn(va_form, payload_data, client=client), client
+    except Exception as exc:
+        if not _is_odk_auth_401_error(exc):
+            raise
+
+        log_submission_step("enrich: auth failed (401), reauth and retry once")
+        refreshed_client = client_factory(project_id=va_form.project_id)
+        return enrich_fn(va_form, payload_data, client=refreshed_client), refreshed_client
+
+
 def enrich_unenriched_payloads(
     *,
     form_id: str | None = None,
@@ -352,8 +388,13 @@ def enrich_unenriched_payloads(
 
                 _log_submission_step("enrich: fetch ODK metadata")
                 try:
-                    enriched = _enrich_submission_payload_for_storage(
-                        va_form, row["payload_data"], client=client
+                    enriched, client = _enrich_with_single_reauth_retry(
+                        va_form=va_form,
+                        payload_data=row["payload_data"],
+                        client=client,
+                        enrich_fn=_enrich_submission_payload_for_storage,
+                        client_factory=va_odk_clientsetup,
+                        log_submission_step=_log_submission_step,
                     )
                 except Exception as exc:
                     log.warning("  enrich: failed (ODK fetch): %s", exc)

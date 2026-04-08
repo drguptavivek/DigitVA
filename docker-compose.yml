@@ -6,7 +6,7 @@ services:
     command: ./boot.sh
     volumes:
       - .:/app
-      - /app/.venv
+      - minerva_venv:/app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
@@ -36,7 +36,7 @@ services:
     command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
     volumes:
       - .:/app
-      - /app/.venv
+      - minerva_venv:/app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
@@ -44,8 +44,12 @@ services:
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
     depends_on:
-      - minerva_db_service
-      - minerva_redis_service
+      minerva_app_service:
+        condition: service_healthy
+      minerva_db_service:
+        condition: service_healthy
+      minerva_redis_service:
+        condition: service_healthy
     restart: always
     deploy:
       resources:
@@ -61,7 +65,7 @@ services:
     command: bash ./scripts/wait-for-celery-beat-db.sh
     volumes:
       - .:/app
-      - /app/.venv
+      - minerva_venv:/app/.venv
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
@@ -69,9 +73,12 @@ services:
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
     depends_on:
-      - minerva_db_service
-      - minerva_redis_service
-      - minerva_app_service
+      minerva_app_service:
+        condition: service_healthy
+      minerva_db_service:
+        condition: service_healthy
+      minerva_redis_service:
+        condition: service_healthy
     restart: always
     deploy:
       resources:
@@ -135,3 +142,4 @@ services:
 
 volumes:
   pgdata_minerva:
+  minerva_venv:

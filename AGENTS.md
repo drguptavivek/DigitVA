@@ -14,6 +14,8 @@
 69. **Inside Docker**: Commands run via `uv run` in boot.sh and docker-compose (e.g., `uv run flask db upgrade`, `uv run gunicorn`).
 70. Add dependencies with `uv add <package>`, remove with `uv remove <package>`.
 71. Sync dependencies with `uv sync`. The lock file (`uv.lock`) is committed for reproducibility.
+72. When adding or removing a package, run the change inside `minerva_app_service` with `uv add` or `uv remove`, then restart `minerva_app_service`, `minerva_celery_worker`, and `minerva_celery_beat` so the shared `minerva_venv` volume picks up the updated environment.
+73. For release or CI validation after dependency changes, rebuild the images with `docker compose build minerva_app_service minerva_celery_worker minerva_celery_beat` before committing.
 6. Keep functions and modules focused. Do not increase coupling between sync, workflow, permissions, and rendering without clear necessity.
 7. Use idempotent patterns for sync, setup, seed, and migration-related code whenever feasible.
 8. Assume ODK is the source of truth for synced submission content. Do not introduce local mutations that conflict with that model without explicit design changes.

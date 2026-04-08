@@ -523,7 +523,7 @@ def manage_create_user():
         verify_token = generate_token(new_user.user_id, "email_verify")
         reset_token = generate_token(new_user.user_id, "password_reset")
         send_verification_email(new_user, verify_token)
-        send_password_reset_email(new_user, reset_token)
+        send_password_reset_email(new_user, reset_token, invite_mode=True)
     except Exception:
         pass  # non-critical — user can request resend/reset
 

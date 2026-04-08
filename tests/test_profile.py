@@ -29,14 +29,33 @@ class ProfileTests(BaseTestCase):
 
     def test_timezone_update(self):
         headers = self._csrf_headers()
-        resp = self.client.post(
-            "/vaprofile",
-            data={"va_timezone": "America/New_York", "va_update_timezone": "1"},
+        resp = self.client.patch(
+            "/api/v1/profile/timezone",
+            json={"timezone": "America/New_York"},
             headers=headers,
         )
 
         self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["timezone"], "America/New_York")
+
+    def test_force_password_change_is_terms_only(self):
+        user = db.session.get(VaUsers, uuid.UUID(self.user_id))
+        user.pw_reset_t_and_c = False
+        db.session.commit()
+
+        resp = self.client.get("/profile/force-password-change")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Terms & Conditions", resp.data)
+        self.assertNotIn(b"New Password", resp.data)
+
+        resp = self.client.post(
+            "/profile/force-password-change",
+            data={"accept_terms": "y"},
+            headers=self._csrf_headers(),
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
 
         user = db.session.get(VaUsers, uuid.UUID(self.user_id))
         db.session.refresh(user)
-        self.assertEqual(user.timezone, "America/New_York")
+        self.assertTrue(user.pw_reset_t_and_c)

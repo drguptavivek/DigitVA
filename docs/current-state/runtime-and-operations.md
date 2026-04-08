@@ -327,25 +327,25 @@ This visibility is driven from shared DB-backed guard state on
 
 ### Current state
 
-I did not find any actual outbound email implementation in the repository.
+The repository now includes an outbound email subsystem for onboarding and
+account recovery.
 
-No evidence found for:
+What exists today:
 
-- Flask-Mail
-- SMTP client setup
-- SES / SendGrid integration
-- mail sending services
-
-What does exist:
-
-- `email_validator` dependency in [`requirements.txt`](../../requirements.txt)
-- user model fields like `email` and `email_verified`
+- Flask-Mail integration in [`app/services/email_service.py`](../../app/services/email_service.py)
+- Celery task dispatch for verification and password-reset messages
+- SMTP settings in [`config.py`](../../config.py)
+- email verification and password reset templates under
+  [`app/templates/emails`](../../app/templates/emails)
 
 Current implication:
 
-- email addresses are stored and validated
-- there is no implemented email delivery feature in the current codebase
-- onboarding/password reset behavior is not driven by a real email delivery subsystem in this repo
+- new-user onboarding can send both verification and password-setup emails
+- password reset remains email-driven
+- the email verification link now hands off to password setup for users who
+  have not completed onboarding yet
+- the post-login onboarding gate is a terms-acceptance page only; password
+  creation happens in the password-reset step before login
 
 ## Infra Assumptions
 
@@ -367,7 +367,6 @@ This is a simple deployment shape, not a cloud-native split-service architecture
 
 ## Operational Gaps Worth Noting
 
-- no implemented email delivery subsystem
 - no UI for infrastructure/admin setup
 - logs are file-based, not centralized
 - attachment and sync data are stored on local/shared disk paths

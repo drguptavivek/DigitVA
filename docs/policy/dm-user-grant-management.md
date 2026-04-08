@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-04-08
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -111,7 +111,9 @@ A data-manager may create new users. Created users:
 - receive status `active`
 - must provide `email` and matching `email_confirm`
 - are created in invite mode (no operator-entered password)
-- receive both verification and password-setup emails
+- receive both verification and password-setup emails; the password-setup email uses invite wording ("set your password") instead of reset wording
+- when they verify their email for the first time, they are redirected to the password setup page
+- after password setup, first login shows a terms-and-conditions-only gate
 - start with `pw_reset_t_and_c=False` so onboarding gate remains in effect
 - must have at least one VA language selected
 - receive `landing_page="coder"` by default

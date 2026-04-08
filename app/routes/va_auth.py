@@ -157,15 +157,21 @@ def verify_email(token):
         flash("User not found.", "danger")
         return redirect(url_for("va_auth.va_login"))
 
-    if user.email_verified:
-        flash("Your email is already verified. Please log in.", "info")
-    else:
+    if not user.email_verified:
         user.email_verified = True
         db.session.commit()
+
+    if not user.pw_reset_t_and_c:
+        from app.services.token_service import generate_token
+
+        reset_token = generate_token(user.user_id, "password_reset")
         flash(
-            "Email verified successfully! You can now log in.",
+            "Email verified successfully. Please set your password to continue.",
             "success",
         )
+        return redirect(url_for("va_auth.reset_password", token=reset_token))
+
+    flash("Email verified successfully! You can now log in.", "success")
     return redirect(url_for("va_auth.va_login"))
 
 

@@ -39,9 +39,12 @@ def is_mail_configured() -> bool:
 # High-level helpers (called from routes)
 # ---------------------------------------------------------------------------
 
-def send_password_reset_email(user, token: str) -> None:
-    """Dispatch a password-reset email via Celery."""
-    from app.services.token_service import TOKEN_PURPOSES
+def send_password_reset_email(user, token: str, invite_mode: bool = False) -> None:
+    """Dispatch a password email via Celery.
+
+    invite_mode=True is used for first-time onboarding so the email copy
+    instructs the user to set a password instead of resetting one.
+    """
 
     base_url = current_app.config.get("MAIL_BASE_URL", "")
     if not base_url:
@@ -50,12 +53,17 @@ def send_password_reset_email(user, token: str) -> None:
             base_url = "https://" + base_url
 
     reset_url = f"{base_url}/vaauth/reset-password/{token}"
+    subject = "Set Your DigitVA Password" if invite_mode else "Reset Your DigitVA Password"
 
     _dispatch_email.delay(
         to=user.email,
-        subject="Reset Your DigitVA Password",
+        subject=subject,
         template_name="emails/reset_password",
-        context={"name": user.name, "reset_url": reset_url},
+        context={
+            "name": user.name,
+            "reset_url": reset_url,
+            "invite_mode": invite_mode,
+        },
     )
 
 
@@ -83,25 +91,21 @@ def send_verification_email(user, token: str) -> None:
 
 def _actually_send_email(to: str, subject: str, template_name: str, context: dict) -> None:
     """Render templates and send via Flask-Mail. Runs inside Celery worker."""
-    from app import create_app
+    if not is_mail_configured():
+        log.warning("Mail not configured — skipping email to %s", to)
+        return
 
-    app = create_app()
-    with app.app_context():
-        if not is_mail_configured():
-            log.warning("Mail not configured — skipping email to %s", to)
-            return
+    html = render_template(template_name + ".html", **context)
+    text = render_template(template_name + ".txt", **context)
 
-        html = render_template(template_name + ".html", **context)
-        text = render_template(template_name + ".txt", **context)
-
-        msg = Message(
-            subject=subject,
-            recipients=[to],
-            html=html,
-            body=text,
-        )
-        mail.send(msg)
-        log.info("Email sent to %s: %s", to, subject)
+    msg = Message(
+        subject=subject,
+        recipients=[to],
+        html=html,
+        body=text,
+    )
+    mail.send(msg)
+    log.info("Email sent to %s: %s", to, subject)
 
 
 try:

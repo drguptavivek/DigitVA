@@ -1,10 +1,10 @@
 {% extends "va_frontpages/va_base.html" %}
-{% block title %}DigitVA | First Login{% endblock %}
+{% block title %}DigitVA | Terms & Conditions{% endblock %}
 {% block content %}
 <div class="container mt-5">
-  <h3 class="mb-4">Update New Password</h3>
+  <h3 class="mb-4">Terms & Conditions</h3>
   <p>
-    To start using the VA Coding platform, please set a new password and accept the following terms and conditions:
+    Your password was set in the previous step. To start using the VA Coding platform, please accept the following terms and conditions:
   </p>
   <div class="alert alert-warning">
   <strong>Terms and Conditions:</strong>
@@ -18,22 +18,6 @@
 
   <form method="POST">
     {{ form.hidden_tag() }}
-
-    <div class="mb-3">
-      {{ form.new_password.label(class="form-label") }}
-      {{ form.new_password(class="form-control") }}
-      {% for error in form.new_password.errors %}
-        <div class="text-danger small">{{ error }}</div>
-      {% endfor %}
-    </div>
-
-    <div class="mb-3">
-      {{ form.confirm_password.label(class="form-label") }}
-      {{ form.confirm_password(class="form-control") }}
-      {% for error in form.confirm_password.errors %}
-        <div class="text-danger small">{{ error }}</div>
-      {% endfor %}
-    </div>
 
     <div class="form-check mb-3">
       {{ form.accept_terms(class="form-check-input") }}

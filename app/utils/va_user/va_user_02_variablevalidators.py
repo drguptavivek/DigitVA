@@ -4,6 +4,7 @@ from app.models import VaStatuses
 from app.models import VaUsers, VaSubmissions
 from app.utils.va_user.va_user_01_rolesenum import VaRoles
 from email_validator import validate_email, EmailNotValidError
+from app.utils.password_policy import password_error_message
 
 
 def fail(reason):
@@ -20,9 +21,8 @@ def validate_email_format(email):
 
 
 def validate_password_strength(password):
-    return (
-        True if len(password) >= 8 else fail(f"Password '{password}' must be at least 8 characters.")
-    )
+    error = password_error_message(password)
+    return True if error is None else fail(error)
 
 
 def validate_permissions_exist(*roles):

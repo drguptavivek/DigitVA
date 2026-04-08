@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-04-08
 ---
 
 # Policy Docs
@@ -28,6 +28,7 @@ Current policy docs:
 - [ODK Sync Policy](odk-sync-policy.md) — workflow state guards for ODK sync
 - [SmartVA Generation Policy](smartva-generation-policy.md) — when SmartVA runs
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
+- [Password Breach Check Policy](password-breach-checks.md)
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [Test Harness Policy](test-harness.md) — session-scoped schema, savepoint isolation, fixture rules
 - [UI Notification Policy](ui-notifications.md)

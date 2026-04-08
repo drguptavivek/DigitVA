@@ -73,7 +73,7 @@ class UserCliTestCase(BaseTestCase):
                 "--name",
                 "CLI User",
                 "--password",
-                "CliUser123",
+                "CliUser1234!A",
             ]
         )
 
@@ -84,7 +84,7 @@ class UserCliTestCase(BaseTestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user.user_status, VaStatuses.active)
         self.assertFalse(user.pw_reset_t_and_c)
-        self.assertTrue(user.check_password("CliUser123"))
+        self.assertTrue(user.check_password("CliUser1234!A"))
         self.assertIn("password_reset_required: true", result.output)
 
     def test_users_reset_password_updates_hash_and_flag(self):
@@ -95,14 +95,14 @@ class UserCliTestCase(BaseTestCase):
                 "--email",
                 self.base_coder_user.email,
                 "--password",
-                "ResetPass123",
+                "ResetPass123!A",
                 "--require-password-change",
             ]
         )
 
         self.assertEqual(result.exit_code, 0, result.output)
         user = db.session.get(VaUsers, self.base_coder_user.user_id)
-        self.assertTrue(user.check_password("ResetPass123"))
+        self.assertTrue(user.check_password("ResetPass123!A"))
         self.assertFalse(user.pw_reset_t_and_c)
 
     def test_users_grant_admin_creates_global_admin_grant(self):

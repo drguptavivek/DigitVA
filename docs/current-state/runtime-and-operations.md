@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-06
+last_updated: 2026-04-08
 ---
 
 # Runtime And Operations
@@ -43,6 +43,7 @@ Operational implication:
 
 - this is a synchronous Flask application with ORM-backed DB access and file-based integration steps.
 - **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login.
+- password creation and reset flows now reject passwords found in the Have I Been Pwned breach corpus using the shared password policy helper
 - SmartVA form-run evidence is stored under the configured
   `APP_SMARTVA_RUNS` directory, which defaults to `/app/smartva_runs` in the
   container.
@@ -171,6 +172,7 @@ Current implication:
 - Tests run inside the application container using `uv run python -m pytest tests/`.
 - `TestConfig` now uses filesystem-backed Flask sessions so the test harness
   does not fight schema lifecycle around `va_sessions`.
+- `TestConfig` disables external password breach lookups so test runs stay deterministic; the breach check itself is covered by focused unit tests with mocked HTTP responses.
 
 ## Operational CLI
 

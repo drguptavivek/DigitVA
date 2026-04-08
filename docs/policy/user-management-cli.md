@@ -3,7 +3,7 @@ title: User Management CLI Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-04-08
 ---
 
 # User Management CLI Policy
@@ -44,6 +44,7 @@ Required rules:
 
 - emails are normalized to lowercase before lookup or creation
 - password resets must write through the model password hashing helper
+- password-setting CLI actions must also enforce the shared password breach policy
 - users created through the CLI must always start with `pw_reset_t_and_c = false` so the first-login password change gate is enforced
 - status changes must use the existing `VaStatuses` enum values
 

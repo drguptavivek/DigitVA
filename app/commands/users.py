@@ -23,6 +23,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.utils.password_policy import password_error_message
 
 
 @click.group("users")
@@ -203,6 +204,10 @@ def create_user(
     if _get_user_by_email(normalized_email):
         click.echo(f"User already exists: {normalized_email}")
         raise SystemExit(1)
+    pw_err = password_error_message(password)
+    if pw_err:
+        click.echo(pw_err)
+        raise SystemExit(1)
 
     user = VaUsers(
         email=normalized_email,
@@ -239,6 +244,10 @@ def reset_password(email, password, onboarded):
     user = _get_user_by_email(email)
     if user is None:
         click.echo(f"User not found: {email.strip().lower()}")
+        raise SystemExit(1)
+    pw_err = password_error_message(password)
+    if pw_err:
+        click.echo(pw_err)
         raise SystemExit(1)
 
     user.set_password(password)

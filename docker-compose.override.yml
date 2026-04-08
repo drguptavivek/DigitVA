@@ -8,8 +8,7 @@ services:
     entrypoint: []
     command: >
       bash -c "
-        echo '[dev] Installing uv and dev dependencies...' &&
-        pip -q install uv &&
+        echo '[dev] Syncing dependencies...' &&
         uv sync --frozen &&
         echo '[dev] Waiting for database...' &&
         until flask db upgrade; do

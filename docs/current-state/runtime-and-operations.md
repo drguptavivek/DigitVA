@@ -58,7 +58,7 @@ Current behavior:
 
 - multi-stage build:
   - **Builder stage**: `python:3.13-slim` + `uv` binary, runs `uv sync --frozen --no-dev`
-  - **Runtime stage**: `python:3.13-slim`, copies `.venv` from builder (no uv binary in final image)
+  - **Runtime stage**: `python:3.13-slim`, copies `uv` and `.venv` from the build stages
 - installs `postgresql-client`, `sox`, and `libsox-fmt-all` for audio conversion
 - SmartVA installed as a uv path dependency (`vendor/smartva-analyze`)
 - marks `boot.sh` executable
@@ -89,6 +89,7 @@ Current behavior:
 - source code is mounted into the container via `.:/app`
 - a named `minerva_venv` volume preserves the image's `/app/.venv` from the host mount and is shared by the app, Celery worker, and Celery beat services
 - postgres data is persisted in a named docker volume
+- the dev override uses the image-bundled `uv` binary to run `uv sync --frozen` at container start, rather than installing `uv` with `pip`
 - Celery worker and beat wait for the app container to become healthy before starting so dependency refreshes propagate through the shared virtualenv before task processes launch
 - celery beat startup waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
 - celery worker startup uses `--concurrency=1`

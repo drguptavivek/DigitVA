@@ -56,6 +56,7 @@ from app.services.workflow.transitions import (
     mark_data_manager_not_codeable,
     mark_recode_finalized,
 )
+from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.odk_review_service import sync_not_codeable_review_state
 from app.services.demo_project_service import get_demo_expiry_for_submission
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaDataManagerReviewForm, VaFinalAssessmentForm, VaUsernoteForm
@@ -793,6 +794,9 @@ def renderpartial(va_sid, va_partial):
                     va_audit_entityid = gen_uuid
                 )
             )
+            session_timed_out = (
+                get_submission_workflow_state(va_sid) == WORKFLOW_READY_FOR_CODING
+            )
             mark_coder_step1_saved(
                 va_sid,
                 reason="initial_cod_submitted",
@@ -800,7 +804,7 @@ def renderpartial(va_sid, va_partial):
             )
             db.session.commit()
             va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
-            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None)
+            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, session_timed_out=session_timed_out)
         elif not_codeable_clicked:
             form2 = VaCoderReviewForm()
             return render_template("va_form_partials/vacoderreview.html", form = form2, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid)

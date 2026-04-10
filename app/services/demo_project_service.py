@@ -22,20 +22,31 @@ ADMIN_DEMO_RETENTION_HOURS = 6
 DEFAULT_DEMO_PROJECT_RETENTION_MINUTES = 10
 DEMO_CODING_ALLOCATION_TIMEOUT_MINUTES = 15
 
+_SCHEMA_READY: bool | None = None
+
 
 def demo_project_schema_ready() -> bool:
-    """Return whether demo/training project columns are present in the DB."""
+    """Return whether demo/training project columns are present in the DB.
+
+    Result is cached per-process: schema columns cannot change without a
+    migration + app restart, so a single inspect per worker is sufficient.
+    Transient connection errors return False without caching.
+    """
+    global _SCHEMA_READY
+    if _SCHEMA_READY is not None:
+        return _SCHEMA_READY
     inspector = sa.inspect(db.engine)
     try:
         column_names = {
             column["name"] for column in inspector.get_columns("va_project_master")
         }
     except Exception:
-        return False
-    return {
+        return False  # transient failure — do not cache
+    _SCHEMA_READY = {
         "demo_training_enabled",
         "demo_retention_minutes",
     }.issubset(column_names)
+    return _SCHEMA_READY
 
 
 def is_demo_training_project(project: VaProjectMaster | None) -> bool:

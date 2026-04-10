@@ -414,6 +414,7 @@ def mark_coder_step1_saved(
         target_state=wd.WORKFLOW_CODER_STEP1_SAVED,
         allowed_from=(
             wd.WORKFLOW_CODING_IN_PROGRESS,
+            wd.WORKFLOW_READY_FOR_CODING,  # session timed out mid-coding
         ),
         allowed_actor_kinds=CODING_ACTOR_KINDS,
         reason=reason,
@@ -613,6 +614,7 @@ def reset_incomplete_first_pass(
             None,
             wd.WORKFLOW_CODING_IN_PROGRESS,
             wd.WORKFLOW_CODER_STEP1_SAVED,
+            wd.WORKFLOW_READY_FOR_CODING,  # allocation deactivated before reset; state already correct
         ),
         allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
         reason=reason,

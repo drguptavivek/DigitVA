@@ -53,6 +53,7 @@ from app.services.workflow.transitions import (
     mark_admin_override_to_recode,
     mark_attachment_sync_completed,
     mark_coder_finalized,
+    mark_coder_step1_saved,
     mark_coding_started,
     mark_data_manager_not_codeable,
     mark_recode_finalized,
@@ -66,6 +67,7 @@ from app.services.workflow.transitions import (
     mark_smartva_failed_recorded,
     mark_smartva_completed,
     reset_demo_state,
+    reset_incomplete_first_pass,
     reset_incomplete_recode,
     system_actor,
 )
@@ -765,3 +767,64 @@ class TestSubmissionWorkflowService(BaseTestCase):
                 sid,
                 actor=system_actor(),
             )
+
+    def test_mark_coder_step1_saved_from_ready_for_coding_session_timeout(self):
+        """Step 1 save must succeed when allocation timed out (state = ready_for_coding).
+
+        This covers the race where release_stale_coding_allocations resets the
+        workflow state back to ready_for_coding while the coder's browser is still
+        open. The submission should be accepted rather than returning a 500.
+        """
+        sid = "uuid:wf-step1-timeout"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_READY_FOR_CODING,
+            reason="test_setup_timeout_simulation",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        result = mark_coder_step1_saved(
+            sid,
+            actor=coder_actor(self.base_coder_user.user_id),
+        )
+        db.session.commit()
+
+        self.assertEqual(result.previous_state, WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(result.current_state, WORKFLOW_CODER_STEP1_SAVED)
+        stored_state = db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+        self.assertEqual(stored_state, WORKFLOW_CODER_STEP1_SAVED)
+
+    def test_reset_incomplete_first_pass_tolerates_ready_for_coding_state(self):
+        """release_stale_coding_allocations deactivates the allocation record
+        before calling reset_incomplete_first_pass, so by the time the reset
+        runs, infer_workflow_state_after_coding_release returns ready_for_coding
+        (no active allocation found). The reset must succeed idempotently when
+        the recorded state is already ready_for_coding.
+        """
+        sid = "uuid:wf-reset-ready"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_READY_FOR_CODING,
+            reason="test_setup_inconsistent_state",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        result = reset_incomplete_first_pass(sid, actor=system_actor())
+        db.session.commit()
+
+        self.assertEqual(result.previous_state, WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(result.current_state, WORKFLOW_READY_FOR_CODING)
+        stored_state = db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+        self.assertEqual(stored_state, WORKFLOW_READY_FOR_CODING)

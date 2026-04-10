@@ -278,5 +278,77 @@ def _find_stuck_attachment_sync_submissions():
     return rows
 
 
+@payload_backfill_group.command("smartva-rerun")
+@click.option("--form-id", default=None, help="Limit to a single form.")
+@click.option(
+    "--dry-run", is_flag=True, help="Print counts only; do not run SmartVA."
+)
+def smartva_rerun(form_id, dry_run):
+    """Re-run SmartVA for submissions with failed or null results.
+
+    Targets all active SmartVA records where outcome='failed' or cause1 IS NULL,
+    grouped by form and processed in batches of 10.  Bypasses the protected-state
+    guard so coder_finalized / reviewer_eligible submissions are included.
+
+    Usage:
+      flask payload-backfill smartva-rerun
+      flask payload-backfill smartva-rerun --form-id ICMR01ND0101
+      flask payload-backfill smartva-rerun --dry-run
+    """
+    from collections import defaultdict
+    from app.models import VaForms, VaSmartvaResults, VaSubmissions
+    from app.services import smartva_service
+
+    # Find all SIDs with failed/null SmartVA grouped by form
+    rows = db.session.execute(sa.text("""
+        SELECT sub.va_form_id, s.va_sid
+        FROM va_smartva_results s
+        JOIN va_submissions sub ON sub.va_sid = s.va_sid
+        WHERE s.va_smartva_status = 'active'
+          AND (s.va_smartva_outcome = 'failed' OR s.va_smartva_cause1 IS NULL)
+        ORDER BY sub.va_form_id, s.va_sid
+    """)).all()
+
+    by_form: dict[str, list[str]] = defaultdict(list)
+    for form_id_val, sid in rows:
+        if form_id and form_id_val != form_id:
+            continue
+        by_form[form_id_val].append(sid)
+
+    total = sum(len(v) for v in by_form.values())
+    click.echo(f"Found {total} submissions with failed/null SmartVA across {len(by_form)} form(s).")
+    for fid, sids in by_form.items():
+        click.echo(f"  {fid}: {len(sids)}")
+
+    if dry_run:
+        click.echo("Dry run — no SmartVA runs executed.")
+        return
+
+    grand_total_saved = 0
+    for fid, sids in by_form.items():
+        va_form = db.session.get(VaForms, fid)
+        if not va_form:
+            click.echo(f"[warn] Form {fid} not found — skipping.")
+            continue
+
+        click.echo(f"\nProcessing {fid} ({len(sids)} SIDs)…")
+        try:
+            saved = smartva_service.generate_for_form(
+                va_form,
+                target_sids=set(sids),
+                force=True,
+                trigger_source="smartva_backfill",
+                log_progress=click.echo,
+            )
+            db.session.commit()
+            click.echo(f"  {fid}: {saved} result(s) saved.")
+            grand_total_saved += saved
+        except Exception as exc:
+            db.session.rollback()
+            click.echo(f"  [error] {fid}: {exc}")
+
+    click.echo(f"\nBackfill complete. Total results saved: {grand_total_saved}")
+
+
 def init_app(app):
     app.cli.add_command(payload_backfill_group)

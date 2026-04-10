@@ -1,3 +1,10 @@
+{% if session_timed_out %}
+<div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+  <i class="fas fa-clock me-1"></i>
+  Your coding session had expired, but your initial assessment has been saved successfully.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 <form method="POST" id="finalAssessmentForm"
       hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vafinalasses', action=va_action, actiontype=va_actiontype) }}"
       hx-target="#form-container2" hx-swap="innerHTML">

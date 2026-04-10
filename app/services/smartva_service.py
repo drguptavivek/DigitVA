@@ -799,10 +799,15 @@ def _generate_batch(
                 seen_sids.add(va_sid)
                 existing = current_existing.get(va_sid, [])
                 payload_version_id = active_payload_by_sid.get(va_sid)
-                has_current_payload_result = any(
-                    row.payload_version_id == payload_version_id for row in existing
+                # Skip only if there is already a *successful* result for this
+                # payload version — a failed result must not block a new
+                # successful re-run (e.g. after fixing missing data files).
+                has_successful_payload_result = any(
+                    row.payload_version_id == payload_version_id
+                    and row.va_smartva_outcome == VaSmartvaResults.OUTCOME_SUCCESS
+                    for row in existing
                 )
-                if has_current_payload_result:
+                if has_successful_payload_result:
                     continue
 
                 _save_smartva_result(

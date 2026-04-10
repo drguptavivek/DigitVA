@@ -1,7 +1,17 @@
+import io
 import os
 import pandas as pd
 from flask import current_app
 from app.utils.va_smartva.va_smartva_01_icdcodes import VA_SMARTVA_ICDS
+
+
+def _read_csv_no_nulls(file_path: str) -> pd.DataFrame:
+    """Read CSV stripping null bytes first — pandas C parser truncates at \\x00."""
+    with open(file_path, "rb") as fh:
+        raw = fh.read()
+    if b"\x00" in raw:
+        raw = raw.replace(b"\x00", b"")
+    return pd.read_csv(io.BytesIO(raw))
 
 
 def va_smartva_formatsmartvaresult(va_form, workspace_dir: str):
@@ -35,7 +45,7 @@ def va_smartva_formatsmartvaresult(va_form, workspace_dir: str):
             va_smartva_allresults = []
             for result_for, file_path in va_smartva_resultfiles.items():
                 if os.path.exists(file_path):
-                    df = pd.read_csv(file_path)
+                    df = _read_csv_no_nulls(file_path)
                     df["result_for"] = result_for
                     df["cause1_icd"] = df["cause1"].map(va_smartva_icddict)
                     df["cause2_icd"] = df["cause2"].map(va_smartva_icddict)
@@ -45,16 +55,6 @@ def va_smartva_formatsmartvaresult(va_form, workspace_dir: str):
                 va_smartva_combinedresults = pd.concat(
                     va_smartva_allresults, ignore_index=True
                 )
-                # SmartVA sometimes writes SID values padded with leading null
-                # bytes in fixed-width intermediate files.  Strip them so that
-                # downstream matching against clean submission IDs works.
-                if "sid" in va_smartva_combinedresults.columns:
-                    va_smartva_combinedresults["sid"] = (
-                        va_smartva_combinedresults["sid"]
-                        .astype(str)
-                        .str.lstrip("\x00")
-                        .str.strip()
-                    )
                 va_smartva_combinedresults.to_csv(va_smartva_outputfile, index=False)
                 return va_smartva_outputfile
             return None

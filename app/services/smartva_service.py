@@ -92,6 +92,27 @@ def _likelihood_output_path_map(workspace_dir: str) -> dict[str, str]:
     }
 
 
+def _read_smartva_csv(file_path: str) -> pd.DataFrame:
+    """Read a SmartVA output CSV, stripping null bytes before pandas parsing.
+
+    SmartVA's intermediate files (e.g. adult-likelihoods.csv) sometimes pad
+    fixed-width string fields with leading \\x00 null bytes.  Pandas' C CSV
+    parser treats \\x00 as a string terminator, so the SID value is silently
+    truncated to an empty string and the column is cast to float64 (NaN).
+    Reading the raw bytes and replacing \\x00 before parsing avoids this.
+    """
+    import io
+    with open(file_path, "rb") as fh:
+        raw = fh.read()
+    if b"\x00" in raw:
+        log.debug(
+            "SmartVA output file contains null bytes, stripping before parse: %s",
+            file_path,
+        )
+        raw = raw.replace(b"\x00", b"")
+    return pd.read_csv(io.BytesIO(raw))
+
+
 def _read_raw_likelihood_outputs(
     workspace_dir: str,
     pending_sids: set[str],
@@ -99,12 +120,19 @@ def _read_raw_likelihood_outputs(
     outputs_by_sid: dict[str, list[tuple[str | None, dict]]] = {}
     for result_for, file_path in _likelihood_output_path_map(workspace_dir).items():
         if not os.path.exists(file_path):
+            log.debug("SmartVA likelihood file not found (expected): %s", file_path)
             continue
-        df = pd.read_csv(file_path)
+        df = _read_smartva_csv(file_path)
         df = df.replace({pd.NA: None, float("nan"): None})
-        # Strip leading null bytes that SmartVA may pad into fixed-width SID fields.
-        if "sid" in df.columns:
-            df["sid"] = df["sid"].astype(str).str.lstrip("\x00").str.strip()
+        if "sid" not in df.columns:
+            log.warning("SmartVA likelihood file missing 'sid' column: %s", file_path)
+            continue
+        log.debug(
+            "SmartVA likelihood file %s: %d rows, sample sid=%r",
+            os.path.basename(file_path),
+            len(df),
+            str(df["sid"].iloc[0]) if len(df) else "(empty)",
+        )
         for record in df.itertuples():
             payload = _smartva_output_payload(record)
             sid = payload.get("sid")
@@ -114,19 +142,31 @@ def _read_raw_likelihood_outputs(
             outputs_by_sid.setdefault(sid, []).append(
                 (_smartva_source_name(result_for), payload)
             )
+    log.debug(
+        "SmartVA likelihood outputs matched %d/%d pending SIDs.",
+        len(outputs_by_sid),
+        len(pending_sids),
+    )
     return outputs_by_sid
 
 
 def _read_formatted_results(output_file: str) -> pd.DataFrame | None:
     if not output_file or not os.path.exists(output_file):
+        log.debug("SmartVA formatted output file not found: %s", output_file)
         return None
-    df = pd.read_csv(output_file)
+    df = _read_smartva_csv(output_file)
     df = df.replace({pd.NA: None, float("nan"): None})
     if "sid" not in df.columns:
+        log.warning("SmartVA formatted output missing 'sid' column: %s", output_file)
         return None
-    # Strip leading null bytes that SmartVA may pad into fixed-width SID fields.
-    df["sid"] = df["sid"].astype(str).str.lstrip("\x00").str.strip()
-    return df[df["sid"].notna() & (df["sid"] != "") & (df["sid"] != "None")]
+    valid = df[df["sid"].notna() & (df["sid"].astype(str) != "nan") & (df["sid"].astype(str) != "")]
+    log.debug(
+        "SmartVA formatted output %s: %d total rows, %d with valid sid.",
+        os.path.basename(output_file),
+        len(df),
+        len(valid),
+    )
+    return valid
 
 
 _SMARTVA_REPORT_REJECTION_RE = re.compile(

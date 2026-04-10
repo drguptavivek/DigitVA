@@ -161,9 +161,52 @@ document.body.addEventListener("htmx:afterSwap", function (event) {
       document.head.appendChild(styleEl);
     }
     
-    // Initialize the ICD selects
-    initSelect2Field("#immediate-cod-select", "va_immediate_cod");
-    initSelect2Field("#antecedent-cod-select", "va_antecedent_cod");
+    // Initialize the ICD selects, pre-seeding with any previously saved value
+    function initSelect2FieldWithPreset(selector, hiddenInputName, presetValue) {
+      const $select = $(selector);
+      $select.val(null).trigger('change');
+      const $hidden = document.querySelector(`input[name="${hiddenInputName}"]`);
+      if ($hidden) $hidden.value = "";
+
+      $select.select2({
+        ajax: {
+          url: icdUrl,
+          dataType: 'json',
+          delay: 250,
+          data: params => ({ q: params.term }),
+          processResults: data => ({
+            results: data.map(item => ({
+              id: item.icd_to_display,
+              text: item.icd_to_display
+            }))
+          }),
+          cache: true
+        },
+        placeholder: "Search ICD codes...",
+        minimumInputLength: 2,
+        width: '100%'
+      });
+
+      if (presetValue) {
+        const option = new Option(presetValue, presetValue, true, true);
+        $select.append(option).trigger('change');
+        if ($hidden) $hidden.value = presetValue;
+      }
+
+      $select.on("select2:select", function (e) {
+        const selectedCode = e.params.data.id;
+        if ($hidden) $hidden.value = selectedCode;
+      });
+    }
+
+    initSelect2FieldWithPreset(
+      "#immediate-cod-select", "va_immediate_cod",
+      {{ pre_immediate_cod | tojson if pre_immediate_cod else 'null' }}
+    );
+    initSelect2FieldWithPreset(
+      "#antecedent-cod-select", "va_antecedent_cod",
+      {{ pre_antecedent_cod | tojson if pre_antecedent_cod else 'null' }}
+    );
   }, 100);
 });
 </script>

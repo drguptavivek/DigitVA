@@ -510,12 +510,34 @@ def renderpartial(va_sid, va_partial):
         authoritative_final_assess = get_authoritative_final_cod_record(va_sid)
         vafinexists = authoritative_final_assess.va_sid if authoritative_final_assess else None
         vaerrexists = db.session.scalar(sa.select(VaCoderReview.va_sid).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
-        vainiexists = db.session.scalar(sa.select(VaInitialAssessments.va_sid).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
+        # For coding sessions scope vainiexists to the current user — a previous
+        # user's active initial assessment must not redirect this user to step 2.
+        # For review/view contexts leave it unscoped (show any coder's assessment).
+        _ini_filter = [
+            VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+            VaInitialAssessments.va_sid == va_sid,
+        ]
+        if va_action == "vacode":
+            _ini_filter.append(VaInitialAssessments.va_iniassess_by == current_user.user_id)
+        vainiexists = db.session.scalar(sa.select(VaInitialAssessments.va_sid).where(*_ini_filter))
         va_final_assess = authoritative_final_assess
         va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
         va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
         da_va_final_assess = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.va_finassess_status == VaStatuses.deactive)&(VaFinalAssessments.va_sid == va_sid)&(VaFinalAssessments.va_finassess_by == current_user.user_id)))
-        da_va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.deactive)&(VaInitialAssessments.va_sid == va_sid)&(VaInitialAssessments.va_iniassess_by == current_user.user_id)))
+        # Only surface the deactivated initial assessment (recovery aid) when the
+        # user has no active initial assessment in this session.  If they already
+        # have active step-1 data, showing the old record alongside it is noise.
+        da_va_initial_assess = (
+            db.session.scalar(
+                sa.select(VaInitialAssessments).where(
+                    (VaInitialAssessments.va_iniassess_status == VaStatuses.deactive)
+                    & (VaInitialAssessments.va_sid == va_sid)
+                    & (VaInitialAssessments.va_iniassess_by == current_user.user_id)
+                )
+            )
+            if not vainiexists
+            else None
+        )
         da_va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.deactive)&(VaCoderReview.va_sid == va_sid)&(VaCoderReview.va_creview_by == current_user.user_id)))
         # return render_template(
         #     f"va_formcategory_partials/{va_partial}.html",
@@ -819,8 +841,33 @@ def renderpartial(va_sid, va_partial):
         elif not_codeable_clicked:
             form2 = VaCoderReviewForm()
             return render_template("va_form_partials/vacoderreview.html", form = form2, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid)
+        # GET — pre-populate from any existing active initial assessment
+        existing_assess = db.session.scalar(
+            sa.select(VaInitialAssessments)
+            .where(
+                VaInitialAssessments.va_sid == va_sid,
+                VaInitialAssessments.va_iniassess_by == current_user.user_id,
+                VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+            )
+            .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
+        )
+        pre_immediate_cod = None
+        pre_antecedent_cod = None
+        if existing_assess:
+            pre_immediate_cod = existing_assess.va_immediate_cod
+            pre_antecedent_cod = existing_assess.va_antecedent_cod
+            form.va_immediate_cod.data = pre_immediate_cod
+            form.va_antecedent_cod.data = pre_antecedent_cod
+            if existing_assess.va_other_conditions:
+                form.va_other_conditions.data = existing_assess.va_other_conditions.split(" | ")
         return render_template(
-            f"va_form_partials/{va_partial}.html", form = form, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid,
+            f"va_form_partials/{va_partial}.html",
+            form=form,
+            va_action=va_action,
+            va_actiontype=va_actiontype,
+            va_sid=va_sid,
+            pre_immediate_cod=pre_immediate_cod,
+            pre_antecedent_cod=pre_antecedent_cod,
         )
     if va_partial == "vafinalasses":
         form1 = VaFinalAssessmentForm()
@@ -843,9 +890,9 @@ def renderpartial(va_sid, va_partial):
                 va_actiontype=va_actiontype,
                 va_sid=va_sid,
                 smartva=smartva,
-                va_immediate_cod=va_initial_assess.va_immediate_cod or None,
-                va_antecedent_cod=va_initial_assess.va_antecedent_cod or None,
-                va_other_conditions=va_initial_assess.va_other_conditions or None,
+                va_immediate_cod=va_initial_assess.va_immediate_cod if va_initial_assess else None,
+                va_antecedent_cod=va_initial_assess.va_antecedent_cod if va_initial_assess else None,
+                va_other_conditions=va_initial_assess.va_other_conditions if va_initial_assess else None,
                 form_error_messages=error_messages or [],
             )
 

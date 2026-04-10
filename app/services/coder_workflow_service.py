@@ -626,37 +626,19 @@ def mark_reviewer_eligible_after_recode_window_submissions(
     return transitioned
 
 
-def _get_data_manager_form_ids(user) -> set[str]:
-    """Return form IDs accessible to the user via data_manager grants."""
-    dm_projects = user.get_data_manager_projects()
-    dm_pairs = user.get_data_manager_project_sites()
-    if not dm_projects and not dm_pairs:
-        return set()
-    filters = []
-    if dm_projects:
-        filters.append(VaForms.project_id.in_(dm_projects))
-    if dm_pairs:
-        filters.append(
-            sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(dm_pairs))
-        )
-    return set(db.session.scalars(
-        sa.select(VaForms.form_id).where(sa.or_(*filters))
-    ).all())
-
-
 def start_demo_allocation(user, project_id: str | None = None) -> AllocationResult:
     """Start a demo coding session, releasing any existing allocation first.
 
     Accessible to admins, coding_testers, and data_managers in addition to
-    regular coders.  Form eligibility is the union of all coding-capable grants
-    the user holds.
+    regular coders.  All three role types automatically include demo project
+    forms via get_coder_demo_project_form_ids() in _get_granted_va_forms.
 
     Raises AllocationError if no forms are available.
     """
     coder_form_ids = (
         user.get_coder_va_forms()
         | user.get_coding_tester_va_forms()
-        | _get_data_manager_form_ids(user)
+        | user.get_data_manager_va_forms()
     )
     if not coder_form_ids:
         raise AllocationError("You do not have access to any VA forms for demo coding.")

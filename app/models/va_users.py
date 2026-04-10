@@ -205,6 +205,9 @@ class VaUsers(UserMixin, db.Model):
     def get_data_manager_projects(self):
         return self._get_granted_project_ids("data_manager")
 
+    def get_data_manager_va_forms(self):
+        return self._get_granted_va_forms("data_manager")
+
     def get_data_manager_project_sites(self):
         return self._get_granted_project_site_pairs("data_manager")
 
@@ -308,10 +311,9 @@ class VaUsers(UserMixin, db.Model):
         if role == "coder":
             stmt = stmt.where(active_project_site_exists)
         granted_form_ids = set(db.session.scalars(stmt).all())
-        if role != "coder":
-            return granted_form_ids
-
-        return granted_form_ids | get_coder_demo_project_form_ids()
+        if role in ("coder", "coding_tester", "data_manager"):
+            return granted_form_ids | get_coder_demo_project_form_ids()
+        return granted_form_ids
 
     def _get_granted_project_ids(self, role: str) -> set[str]:
         from app.models import (

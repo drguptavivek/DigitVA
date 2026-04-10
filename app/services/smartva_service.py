@@ -706,7 +706,7 @@ def _form_run_outcome(success_count: int, failure_count: int) -> str:
     return VaSmartvaFormRun.OUTCOME_FAILED
 
 
-SMARTVA_BATCH_SIZE = 10  # max submissions per SmartVA binary invocation
+SMARTVA_BATCH_SIZE = 50  # max submissions per SmartVA binary invocation
 
 
 def _generate_batch(
@@ -1000,6 +1000,7 @@ def generate_for_form(
                 log_progress=log_progress,
             )
             total += saved
+            db.session.commit()
         except Exception as exc:
             db.session.rollback()
             db.session.remove()

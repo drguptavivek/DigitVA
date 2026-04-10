@@ -88,7 +88,7 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
       has_random_mode – bool
       has_pick_mode   – bool
     """
-    va_form_access = user.get_coder_va_forms()
+    va_form_access = user.get_coder_va_forms() | user.get_coding_tester_va_forms()
     if not va_form_access:
         return {"random_ready": 0, "pick_ready": 0, "has_random_mode": False, "has_pick_mode": False}
 
@@ -409,7 +409,8 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
     if existing_sid:
         return AllocationResult(va_sid=existing_sid, actiontype="varesumecoding")
 
-    random_form_ids, _ = split_form_ids_by_coding_intake_mode(user.get_coder_va_forms())
+    all_form_ids = user.get_coder_va_forms() | user.get_coding_tester_va_forms()
+    random_form_ids, _ = split_form_ids_by_coding_intake_mode(all_form_ids)
     if not random_form_ids:
         raise AllocationError("No random-allocation coding projects are available to you.")
 
@@ -467,7 +468,7 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
     form = db.session.get(VaSubmissions, va_sid)
     if not form:
         raise AllocationError("Submission not found.", 404)
-    if not user.has_va_form_access(form.va_form_id, "coder"):
+    if not (user.has_va_form_access(form.va_form_id, "coder") or user.is_coding_tester(form.va_form_id)):
         raise AllocationError("You do not have coder access for this VA form.")
 
     sub_row = _require_submission_exists(va_sid)

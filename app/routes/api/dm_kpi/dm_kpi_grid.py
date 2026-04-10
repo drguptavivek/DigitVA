@@ -81,31 +81,39 @@ def daily_grid():
             has_aggregates = False
 
         if has_aggregates:
-            return _grid_from_aggregates(site_ids, days)
+            return _grid_from_aggregates_with_live_fill(site_ids, days)
         return _grid_from_live(site_ids, days)
 
     return jsonify(cached_kpi("grid", compute))
 
 
 # ---------------------------------------------------------------------------
-# Grid from pre-computed aggregates
+# Grid from pre-computed aggregates — with live fill for missing/today dates
 # ---------------------------------------------------------------------------
 
-def _grid_from_aggregates(site_ids: list[str], days: int) -> dict:
-    """Read daily grid from va_daily_kpi_aggregates."""
-    from_date = date.today() - timedelta(days=days - 1)
+def _grid_from_aggregates_with_live_fill(site_ids: list[str], days: int) -> dict:
+    """Read daily grid from va_daily_kpi_aggregates, filling gaps with live data.
 
-    rows = db.session.execute(
+    Aggregate rows are written once daily for *yesterday*. This means:
+    - Today's row is always missing or stale.
+    - Days where no task ran are also missing.
+    Use live workflow-event counts for any date not covered by the aggregates.
+    """
+    today = date.today()
+    from_date = today - timedelta(days=days - 1)
+
+    # Load what the aggregates have
+    agg_rows = db.session.execute(
         sa.text("""
             SELECT
-                snapshot_date                                          AS date,
-                SUM(total_submissions)                                 AS total,
-                SUM(new_from_odk)                                      AS new_from_odk,
-                SUM(updated_from_odk)                                  AS updated_from_odk,
-                SUM(coded_count)                                       AS coded,
-                SUM(pending_count)                                     AS pending,
-                SUM(consent_refused_count)                             AS consent_refused,
-                SUM(not_codeable_count)                                AS not_codeable
+                snapshot_date                  AS date,
+                SUM(total_submissions)         AS total,
+                SUM(new_from_odk)              AS new_from_odk,
+                SUM(updated_from_odk)          AS updated_from_odk,
+                SUM(coded_count)               AS coded,
+                SUM(pending_count)             AS pending,
+                SUM(consent_refused_count)     AS consent_refused,
+                SUM(not_codeable_count)        AS not_codeable
             FROM va_daily_kpi_aggregates
             WHERE site_id = ANY(:site_ids)
               AND snapshot_date >= :from_date
@@ -115,22 +123,133 @@ def _grid_from_aggregates(site_ids: list[str], days: int) -> dict:
         {"site_ids": site_ids, "from_date": from_date},
     ).mappings().all()
 
-    return {
-        "data": [
-            {
-                "date": str(r["date"]),
-                "total": r["total"] or 0,
-                "new_from_odk": r["new_from_odk"] or 0,
-                "updated_from_odk": r["updated_from_odk"] or 0,
-                "coded": r["coded"] or 0,
-                "pending": r["pending"] or 0,
-                "consent_refused": r["consent_refused"] or 0,
-                "not_codeable": r["not_codeable"] or 0,
+    agg_map = {str(r["date"]): dict(r) for r in agg_rows}
+
+    # Identify dates that need live fill: always today + any gap in the window
+    all_dates = [(today - timedelta(days=i)) for i in range(days)]
+    missing_dates = [d for d in all_dates if str(d) not in agg_map]
+
+    live_map: dict[str, dict] = {}
+    if missing_dates:
+        min_missing = min(missing_dates)
+
+        # Coded per day from live events
+        coded_rows = db.session.execute(
+            sa.text("""
+                SELECT DATE(e.event_created_at) AS d, COUNT(*) AS coded
+                FROM va_submission_workflow_events e
+                JOIN va_submissions s ON s.va_sid = e.va_sid
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE f.site_id = ANY(:site_ids)
+                  AND e.transition_id IN ('coder_finalized', 'recode_finalized')
+                  AND DATE(e.event_created_at) >= :from_date
+                GROUP BY DATE(e.event_created_at)
+            """),
+            {"site_ids": site_ids, "from_date": min_missing},
+        ).mappings().all()
+        coded_by_date = {str(r["d"]): r["coded"] for r in coded_rows}
+
+        # New submissions per day
+        new_rows = db.session.execute(
+            sa.text("""
+                SELECT DATE(s.va_created_at) AS d, COUNT(*) AS cnt
+                FROM va_submissions s
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE f.site_id = ANY(:site_ids)
+                  AND DATE(s.va_created_at) >= :from_date
+                GROUP BY DATE(s.va_created_at)
+            """),
+            {"site_ids": site_ids, "from_date": min_missing},
+        ).mappings().all()
+        new_by_date = {str(r["d"]): r["cnt"] for r in new_rows}
+
+        # Not-codeable per day
+        nc_rows = db.session.execute(
+            sa.text("""
+                SELECT DATE(e.event_created_at) AS d, COUNT(*) AS cnt
+                FROM va_submission_workflow_events e
+                JOIN va_submissions s ON s.va_sid = e.va_sid
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE f.site_id = ANY(:site_ids)
+                  AND e.transition_id IN ('coder_not_codeable', 'data_manager_not_codeable')
+                  AND DATE(e.event_created_at) >= :from_date
+                GROUP BY DATE(e.event_created_at)
+            """),
+            {"site_ids": site_ids, "from_date": min_missing},
+        ).mappings().all()
+        nc_by_date = {str(r["d"]): r["cnt"] for r in nc_rows}
+
+        # Consent refused per day
+        cr_rows = db.session.execute(
+            sa.text("""
+                SELECT DATE(e.event_created_at) AS d, COUNT(*) AS cnt
+                FROM va_submission_workflow_events e
+                JOIN va_submissions s ON s.va_sid = e.va_sid
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE f.site_id = ANY(:site_ids)
+                  AND e.current_state = 'consent_refused'
+                  AND DATE(e.event_created_at) >= :from_date
+                GROUP BY DATE(e.event_created_at)
+            """),
+            {"site_ids": site_ids, "from_date": min_missing},
+        ).mappings().all()
+        cr_by_date = {str(r["d"]): r["cnt"] for r in cr_rows}
+
+        # Current pending snapshot (attributed to today only)
+        pending_now = db.session.execute(
+            sa.text("""
+                SELECT COUNT(*) AS pending
+                FROM va_submission_workflow w
+                JOIN va_submissions s ON s.va_sid = w.va_sid
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE f.site_id = ANY(:site_ids)
+                  AND w.workflow_state IN (
+                      'ready_for_coding', 'coding_in_progress', 'coder_step1_saved'
+                  )
+            """),
+            {"site_ids": site_ids},
+        ).scalar() or 0
+
+        for d in missing_dates:
+            ds = str(d)
+            live_map[ds] = {
+                "date": ds,
+                "total": new_by_date.get(ds, 0),
+                "new_from_odk": new_by_date.get(ds, 0),
+                "updated_from_odk": 0,
+                "coded": coded_by_date.get(ds, 0),
+                "pending": pending_now if d == today else 0,
+                "consent_refused": cr_by_date.get(ds, 0),
+                "not_codeable": nc_by_date.get(ds, 0),
+                "_source": "live",
             }
-            for r in rows
-        ],
-        "source": "aggregates",
-    }
+
+    # Merge: live overrides agg for missing dates; agg wins for older covered dates
+    # But today always uses live even if an (stale) agg row exists
+    result = []
+    for d in all_dates:
+        ds = str(d)
+        if d == today and ds in live_map:
+            row = live_map[ds]
+        elif ds in agg_map:
+            row = dict(agg_map[ds])
+            row["date"] = ds
+        elif ds in live_map:
+            row = live_map[ds]
+        else:
+            continue
+        result.append({
+            "date": row["date"],
+            "total": row.get("total") or 0,
+            "new_from_odk": row.get("new_from_odk") or 0,
+            "updated_from_odk": row.get("updated_from_odk") or 0,
+            "coded": row.get("coded") or 0,
+            "pending": row.get("pending") or 0,
+            "consent_refused": row.get("consent_refused") or 0,
+            "not_codeable": row.get("not_codeable") or 0,
+        })
+
+    return {"data": result, "source": "aggregates+live"}
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,7 @@ class VaAccessRoles(enum.Enum):
     site_pi = "site_pi"
     collaborator = "collaborator"
     coder = "coder"
+    coding_tester = "coding_tester"
     reviewer = "reviewer"
     data_manager = "data_manager"
 

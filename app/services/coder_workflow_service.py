@@ -196,6 +196,7 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
 
     pi_project_ids = set(user.get_project_pi_projects())
     pi_site_ids = set(user.get_site_pi_sites())
+    tester_pairs = user.get_coding_tester_project_site_pairs()
 
     pairs = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).distinct()
@@ -238,13 +239,17 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
         if not ps:
             continue
         is_pi = p.project_id in pi_project_ids or p.site_id in pi_site_ids
-        if not is_pi:
+        is_tester = (p.project_id, p.site_id) in tester_pairs
+        # coding_enabled + date-window checks: waived for PI or tester.
+        # coding_end_date is always enforced for testers (not for PIs).
+        if not is_pi and not is_tester:
             if not ps.coding_enabled:
                 excluded.add(p.site_id)
                 continue
             if ps.coding_start_date and ps.coding_start_date > today:
                 excluded.add(p.site_id)
                 continue
+        if not is_pi:
             if ps.coding_end_date and ps.coding_end_date < today:
                 excluded.add(p.site_id)
                 continue
@@ -268,7 +273,9 @@ def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
 
     pi_project_ids = set(user.get_project_pi_projects())
     pi_site_ids = set(user.get_site_pi_sites())
+    tester_pairs = user.get_coding_tester_project_site_pairs()
     is_pi = project_id in pi_project_ids or site_id in pi_site_ids
+    is_tester = (project_id, site_id) in tester_pairs
 
     ps = db.session.scalar(
         sa.select(VaProjectSites).where(
@@ -278,11 +285,12 @@ def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
     )
     if not ps:
         return "Coding is not configured for this site."
-    if not is_pi:
+    if not is_pi and not is_tester:
         if not ps.coding_enabled:
             return "Coding is currently disabled for this site."
         if ps.coding_start_date and ps.coding_start_date > today:
             return f"Coding for this site opens on {ps.coding_start_date.strftime('%B %-d, %Y')}."
+    if not is_pi:
         if ps.coding_end_date and ps.coding_end_date < today:
             return f"Coding for this site ended on {ps.coding_end_date.strftime('%B %-d, %Y')}."
     count = db.session.scalar(

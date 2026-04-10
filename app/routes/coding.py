@@ -39,9 +39,9 @@ def _handle_allocation_error(e: AllocationError):
 
 
 @coding.get("/")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def dashboard():
-    va_form_access = current_user.get_coder_va_forms()
+    va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     if va_form_access:
         narration_language_filter = _narration_language_filter(current_user)
         random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access)
@@ -124,14 +124,17 @@ def dashboard():
 
         pi_project_ids = set(current_user.get_project_pi_projects())
         pi_site_ids = set(current_user.get_site_pi_sites())
+        tester_pairs = current_user.get_coding_tester_project_site_pairs()
 
         def _coding_status(r):
             is_pi = r.project_id in pi_project_ids or r.site_id in pi_site_ids
-            if not is_pi:
+            is_tester = (r.project_id, r.site_id) in tester_pairs
+            if not is_pi and not is_tester:
                 if r.coding_enabled is False:
                     return "disabled"
                 if r.coding_start_date and r.coding_start_date > today:
                     return "not_started"
+            if not is_pi:
                 if r.coding_end_date and r.coding_end_date < today:
                     return "ended"
             return "open"
@@ -190,7 +193,7 @@ def dashboard():
 
 
 @coding.post("/start")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def start():
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
@@ -204,7 +207,7 @@ def start():
 
 
 @coding.get("/resume")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def resume():
     va_sid = get_active_coding_allocation(current_user.user_id)
     if not va_sid:
@@ -219,7 +222,7 @@ def resume():
 
 
 @coding.post("/pick/<va_sid>")
-@role_required("coder")
+@role_required("coder", "coding_tester")
 def pick(va_sid):
     try:
         result = allocate_pick_form(current_user, va_sid)
@@ -230,7 +233,7 @@ def pick(va_sid):
 
 
 @coding.post("/recode/<va_sid>")
-@role_required("coder")
+@role_required("coder", "coding_tester")
 def recode(va_sid):
     try:
         start_recode_allocation(current_user, va_sid)
@@ -252,7 +255,7 @@ def demo():
 
 
 @coding.get("/view/<va_sid>")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:

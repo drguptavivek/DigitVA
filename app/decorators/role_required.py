@@ -43,12 +43,13 @@ from app.utils.va_permission.va_permission_01_abortwithflash import (
 log = logging.getLogger(__name__)
 
 _ROLE_METHODS = {
-    "admin":        lambda u: u.is_admin(),
-    "coder":        lambda u: u.is_coder(),
-    "reviewer":     lambda u: u.is_reviewer(),
-    "data_manager": lambda u: u.is_data_manager(),
-    "site_pi":      lambda u: u.is_site_pi(),
-    "project_pi":   lambda u: bool(u.get_project_pi_projects()),
+    "admin":          lambda u: u.is_admin(),
+    "coder":          lambda u: u.is_coder(),
+    "coding_tester":  lambda u: u.is_coding_tester(),
+    "reviewer":       lambda u: u.is_reviewer(),
+    "data_manager":   lambda u: u.is_data_manager(),
+    "site_pi":        lambda u: u.is_site_pi(),
+    "project_pi":     lambda u: bool(u.get_project_pi_projects()),
 }
 
 

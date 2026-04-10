@@ -98,6 +98,12 @@ class VaUsers(UserMixin, db.Model):
             return va_form in coder_va_form
         return bool(coder_va_form)
 
+    def is_coding_tester(self, va_form=None):
+        tester_forms = self.get_coding_tester_va_forms()
+        if va_form:
+            return va_form in tester_forms
+        return bool(tester_forms)
+
     def is_site_pi(self, va_form=None):
         site_pi_va_form = self.get_site_pi_va_forms()
         if va_form:
@@ -156,6 +162,12 @@ class VaUsers(UserMixin, db.Model):
 
     def get_coder_va_forms(self):
         return self._get_granted_va_forms("coder")
+
+    def get_coding_tester_va_forms(self):
+        return self._get_granted_va_forms("coding_tester")
+
+    def get_coding_tester_project_site_pairs(self) -> set[tuple[str, str]]:
+        return self._get_granted_project_site_pairs("coding_tester")
 
     def get_site_pi_va_forms(self):
         return self._get_granted_va_forms("site_pi")

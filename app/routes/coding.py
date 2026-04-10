@@ -243,7 +243,7 @@ def recode(va_sid):
 
 
 @coding.post("/demo")
-@role_required("admin")
+@role_required("admin", "coding_tester", "data_manager")
 def demo():
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:

@@ -626,21 +626,47 @@ def mark_reviewer_eligible_after_recode_window_submissions(
     return transitioned
 
 
+def _get_data_manager_form_ids(user) -> set[str]:
+    """Return form IDs accessible to the user via data_manager grants."""
+    dm_projects = user.get_data_manager_projects()
+    dm_pairs = user.get_data_manager_project_sites()
+    if not dm_projects and not dm_pairs:
+        return set()
+    filters = []
+    if dm_projects:
+        filters.append(VaForms.project_id.in_(dm_projects))
+    if dm_pairs:
+        filters.append(
+            sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(dm_pairs))
+        )
+    return set(db.session.scalars(
+        sa.select(VaForms.form_id).where(sa.or_(*filters))
+    ).all())
+
+
 def start_demo_allocation(user, project_id: str | None = None) -> AllocationResult:
-    """Start an admin demo coding session, releasing any existing allocation first.
+    """Start a demo coding session, releasing any existing allocation first.
+
+    Accessible to admins, coding_testers, and data_managers in addition to
+    regular coders.  Form eligibility is the union of all coding-capable grants
+    the user holds.
 
     Raises AllocationError if no forms are available.
     """
-    coder_form_ids = user.get_coder_va_forms()
+    coder_form_ids = (
+        user.get_coder_va_forms()
+        | user.get_coding_tester_va_forms()
+        | _get_data_manager_form_ids(user)
+    )
     if not coder_form_ids:
-        raise AllocationError("You do not have coder access to any VA forms for demo coding.")
+        raise AllocationError("You do not have access to any VA forms for demo coding.")
 
     if project_id:
         allowed = set(db.session.scalars(
             sa.select(VaForms.project_id).where(VaForms.form_id.in_(coder_form_ids))
         ).all())
         if project_id not in allowed:
-            raise AllocationError("You do not have coder access to the selected project.")
+            raise AllocationError("You do not have access to the selected project for demo coding.")
 
     existing_alloc = db.session.scalar(
         sa.select(VaAllocations).where(

@@ -107,6 +107,70 @@ def _safe_current_user_email():
         return "anonymous"
     return "anonymous"
 
+
+_slow_query_registered = set()  # guard against double-registration per logger name
+
+def setup_slow_query_logging(
+    log_file: str,
+    threshold_s: float = 0.5,
+    logger_name: str = 'slow_sql',
+    all_statements: bool = False,
+    stderr: bool = False,
+) -> None:
+    """Register SQLAlchemy engine event listeners for slow-query logging.
+
+    Parameters
+    ----------
+    log_file:        Path to the rotating log file.
+    threshold_s:     Minimum elapsed seconds before a query is logged.
+    logger_name:     Logger name (use distinct names for web vs celery).
+    all_statements:  True  → log all statement types (SELECT, REFRESH, writes).
+                     False → log writes only (INSERT/UPDATE/DELETE).
+    stderr:          Mirror slow-query warnings to stderr as well.
+    """
+    if logger_name in _slow_query_registered:
+        return  # already wired up — avoid duplicate listeners on hot-reload
+    _slow_query_registered.add(logger_name)
+
+    os.makedirs(os.path.dirname(os.path.abspath(log_file)), exist_ok=True)
+    handler = TimedRotatingFileHandler(
+        filename=log_file,
+        when='midnight',
+        interval=1,
+        backupCount=14,
+        encoding='utf-8',
+        utc=True,
+    )
+    handler.setFormatter(va_detailed_formatter)
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.WARNING)
+    logger.addHandler(handler)
+    if stderr:
+        logger.addHandler(logging.StreamHandler(sys.stderr))
+
+    info_key = f'_sq_start_{logger_name}'
+
+    @event.listens_for(Engine, "before_cursor_execute")
+    def _before(conn, cursor, statement, parameters, context, executemany):
+        conn.info[info_key] = time.monotonic()
+
+    @event.listens_for(Engine, "after_cursor_execute")
+    def _after(conn, cursor, statement, parameters, context, executemany):
+        elapsed = time.monotonic() - conn.info.pop(info_key, time.monotonic())
+        if elapsed < threshold_s:
+            return
+        stmt_upper = statement.lstrip().upper()
+        if not all_statements and not any(
+            stmt_upper.startswith(kw) for kw in ("INSERT", "UPDATE", "DELETE")
+        ):
+            return
+        logger.warning(
+            "SLOW QUERY (%.3fs): %s",
+            elapsed,
+            statement.split("\n")[0][:300],
+        )
+
+
 # Middleware for logging
 def va_logging(app):
     @app.before_request
@@ -160,34 +224,10 @@ def va_logging(app):
             return jsonify({"error": "Internal server error."}), 500
         return render_template("va_errors/va_500.html"), 500
 
-    # Slow-query logging via SQLAlchemy engine events.
-    # Only write statements (INSERT/UPDATE/DELETE) that exceed SLOW_QUERY_THRESHOLD_S
-    # are logged — avoids flooding sql.log with fast session heartbeats while still
-    # catching genuinely slow writes on any table.
-    sql_handler = TimedRotatingFileHandler(
-        filename='logs/sql.log',
-        when='W0',
-        interval=1,
-        backupCount=0,
-        encoding='utf-8'
+    setup_slow_query_logging(
+        log_file='logs/sql.log',
+        threshold_s=SLOW_QUERY_THRESHOLD_S,
+        logger_name='slow_sql',
+        all_statements=True,  # capture slow SELECTs as well as writes
+        stderr=False,
     )
-    sql_handler.setFormatter(va_detailed_formatter)
-    slow_query_logger = logging.getLogger('slow_sql')
-    slow_query_logger.setLevel(logging.WARNING)
-    slow_query_logger.addHandler(sql_handler)
-
-    @event.listens_for(Engine, "before_cursor_execute")
-    def _before_execute(conn, cursor, statement, parameters, context, executemany):
-        conn.info["query_start"] = time.monotonic()
-
-    @event.listens_for(Engine, "after_cursor_execute")
-    def _after_execute(conn, cursor, statement, parameters, context, executemany):
-        elapsed = time.monotonic() - conn.info.pop("query_start", time.monotonic())
-        if elapsed >= SLOW_QUERY_THRESHOLD_S and any(
-            statement.lstrip().upper().startswith(kw) for kw in ("INSERT", "UPDATE", "DELETE")
-        ):
-            slow_query_logger.warning(
-                "SLOW QUERY (%.3fs): %s",
-                elapsed,
-                statement.split("\n")[0][:200],
-            )

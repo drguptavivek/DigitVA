@@ -5,11 +5,24 @@ from logging.handlers import TimedRotatingFileHandler
 from celery.signals import after_setup_logger, after_setup_task_logger
 
 from app import create_app
+from app.logging.va_logger import setup_slow_query_logging
 
 flask_app = create_app()
 
 # Silence noisy SQLAlchemy INFO logging in Celery worker/beat output
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+
+# Slow-query logging for Celery — all statement types at a 1s threshold,
+# covering REFRESH MATERIALIZED VIEW and heavy SELECT aggregations that
+# the Flask write-only filter would miss.
+_log_dir = os.path.join(os.path.dirname(__file__), "logs")
+setup_slow_query_logging(
+    log_file=os.path.join(_log_dir, "celery_slow_queries.log"),
+    threshold_s=1.0,
+    logger_name='celery_slow_sql',
+    all_statements=True,
+    stderr=True,
+)
 
 
 def _add_daily_rotating_handler(logger, **kwargs):

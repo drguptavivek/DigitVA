@@ -37,7 +37,7 @@ def _rate_limit_key():
 # frequently).  Anonymous / unauthenticated requests are capped tightly by IP.
 limiter = Limiter(
     key_func=_rate_limit_key,
-    default_limits=["2000 per day", "300 per hour"],
+    default_limits=["12000 per day", "900 per hour"],
 )
 talisman = Talisman()
 cache = Cache()

@@ -128,7 +128,7 @@
           <div class="card-body px-4 pb-4 pt-3">
             <div class="row g-3">
               {% if coder_eligibility %}
-              <div class="col-md-8">
+              <div class="col-12">
                 <p class="text-secondary small mb-2 fw-semibold text-uppercase">Projects &amp; Sites</p>
                 <div class="table-responsive">
                   <table class="table table-sm table-hover align-middle mb-0">
@@ -137,14 +137,47 @@
                         <th class="text-secondary small fw-semibold">Project</th>
                         <th class="text-secondary small fw-semibold">Site</th>
                         <th class="text-secondary small fw-semibold">Form ID</th>
+                        <th class="text-secondary small fw-semibold">Coding</th>
+                        <th class="text-secondary small fw-semibold">Window</th>
+                        <th class="text-secondary small fw-semibold">Today</th>
                       </tr>
                     </thead>
                     <tbody>
                       {% for row in coder_eligibility %}
-                      <tr>
+                      {% set status = row.coding_status %}
+                      <tr class="eligibility-row" data-project="{{ row.project_id }}">
                         <td class="small">{{ row.project }}</td>
                         <td class="small">{{ row.site }}</td>
                         <td class="small text-secondary font-monospace">{{ row.form_id }}</td>
+                        <td class="small">
+                          {% if status == 'open' %}
+                            <span class="badge text-bg-success">Open</span>
+                          {% elif status == 'disabled' %}
+                            <span class="badge text-bg-danger">Closed</span>
+                          {% elif status == 'not_started' %}
+                            <span class="badge text-bg-warning text-dark">Pending</span>
+                          {% elif status == 'ended' %}
+                            <span class="badge text-bg-secondary">Ended</span>
+                          {% endif %}
+                        </td>
+                        <td class="small text-secondary">
+                          {% if row.coding_start_date or row.coding_end_date %}
+                            {{ row.coding_start_date.strftime('%b %-d') if row.coding_start_date else '∞' }}
+                            –
+                            {{ row.coding_end_date.strftime('%b %-d, %Y') if row.coding_end_date else '∞' }}
+                          {% else %}
+                            <span class="text-muted">Always</span>
+                          {% endif %}
+                        </td>
+                        <td class="small">
+                          {% set limit = row.daily_coder_limit %}
+                          {% set done = row.today_count %}
+                          {% if done >= limit %}
+                            <span class="text-danger fw-semibold">{{ done }} / {{ limit }}</span>
+                          {% else %}
+                            <span class="text-secondary">{{ done }} / {{ limit }}</span>
+                          {% endif %}
+                        </td>
                       </tr>
                       {% endfor %}
                     </tbody>
@@ -153,7 +186,7 @@
               </div>
               {% endif %}
               {% if coder_languages %}
-              <div class="col-md-4">
+              <div class="col-12">
                 <p class="text-secondary small mb-2 fw-semibold text-uppercase">Languages</p>
                 <div class="d-flex flex-wrap gap-2">
                   {% for lang in coder_languages %}
@@ -169,6 +202,24 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- Allocation error modal -->
+  <div class="modal fade" id="coding-error-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header border-0 pb-0">
+          <h6 class="modal-title text-danger">
+            <i class="fas fa-triangle-exclamation me-2"></i>Cannot Start Coding
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body pt-2" id="coding-error-modal-body"></div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Action buttons -->
   <div class="text-center mb-4" id="action-buttons">
@@ -303,10 +354,11 @@
 
   // ── action buttons ────────────────────────────────────────────────────────
   function continuePendingLabel(allocation) {
-    if (!allocation) return 'Continue Pending VA Coding';
-    return allocation.actiontype === 'vademo_start_coding'
-      ? 'Continue Pending Demo Coding'
-      : 'Continue Pending VA Coding';
+    if (!allocation) return 'Continue Pending Coding';
+    const loc = (allocation.project_id && allocation.site_id)
+      ? ` — ${allocation.project_id} / ${allocation.site_id}`
+      : (allocation.project_id ? ` — ${allocation.project_id}` : '');
+    return 'Continue Pending Coding' + loc;
   }
 
   function renderActionButtons(allocation, randomReady, mode) {
@@ -329,7 +381,7 @@
     }
 
     if (DEMO_PROJECTS.length) {
-      html += `<button id="demo-coding-shortcut-btn" class="btn btn-outline-warning">
+      html += `<button id="demo-coding-shortcut-btn" class="btn btn-outline-warning"${allocation ? ' disabled title="Finish your pending coding first"' : ''}>
         <i class="fas fa-flask me-2"></i>DEMO-CODING
       </button>`;
     }
@@ -481,8 +533,28 @@
       document.getElementById('kpi-completed').textContent    = statsData.completed    ?? 0;
 
       populateProjectSelector(projData.projects || []);
-      renderActionButtons(allocData.allocation, statsData.random_ready,
-                          modeLabel(statsData.has_random_mode, statsData.has_pick_mode));
+
+      function bindStartBtn() {
+        const btn = document.getElementById('start-btn');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+          const pid = selectedProjectId();
+          const body = pid ? { project_id: pid } : {};
+          startAllocationBtn(btn, body, '<i class="fas fa-edit me-2"></i>Start Random Allocation Coding');
+        });
+      }
+
+      function applyStats(alloc, stats) {
+        document.getElementById('kpi-random-ready').textContent = stats.random_ready ?? 0;
+        document.getElementById('kpi-pick-ready').textContent   = stats.pick_ready   ?? 0;
+        document.getElementById('kpi-completed').textContent    = stats.completed    ?? 0;
+        renderActionButtons(alloc, stats.random_ready,
+                            modeLabel(stats.has_random_mode, stats.has_pick_mode));
+        bindStartBtn();
+      }
+
+      applyStats(allocData.allocation, statsData);
+      applyProjectFilterToEligibility();
 
       function selectedProjectId() {
         const sel = document.getElementById('project-select-top');
@@ -493,6 +565,13 @@
         if (!historyTableInstance) return;
         const pid = selectedProjectId();
         historyTableInstance.column(1).search(pid || '', true, false).draw();
+      }
+
+      function applyProjectFilterToEligibility() {
+        const pid = selectedProjectId();
+        document.querySelectorAll('.eligibility-row').forEach(row => {
+          row.style.display = (!pid || row.dataset.project === pid) ? '' : 'none';
+        });
       }
 
       function isDemoProjectSelected() {
@@ -515,6 +594,13 @@
         return sel.value;
       }
 
+      let _codingErrorModal = null;
+      function showCodingError(msg) {
+        document.getElementById('coding-error-modal-body').textContent = msg;
+        if (!_codingErrorModal) _codingErrorModal = new bootstrap.Modal(document.getElementById('coding-error-modal'));
+        _codingErrorModal.show();
+      }
+
       function startAllocationBtn(btn, body, label) {
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Starting…';
@@ -525,19 +611,10 @@
         })
         .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
         .then(({ ok, data }) => {
-          if (!ok) { alert(data.error || 'Allocation failed.'); btn.disabled = false; btn.innerHTML = label; return; }
+          if (!ok) { showCodingError(data.error || 'Allocation failed.'); btn.disabled = false; btn.innerHTML = label; return; }
           window.location.href = '/coding/resume';
         })
-        .catch(() => { alert('Network error.'); btn.disabled = false; btn.innerHTML = label; });
-      }
-
-      const startBtn = document.getElementById('start-btn');
-      if (startBtn) {
-        startBtn.addEventListener('click', () => {
-          const pid = selectedProjectId();
-          const body = pid ? { project_id: pid } : {};
-          startAllocationBtn(startBtn, body, '<i class="fas fa-edit me-2"></i>Start Random Allocation Coding');
-        });
+        .catch(() => { showCodingError('Network error. Please try again.'); btn.disabled = false; btn.innerHTML = label; });
       }
 
       const demoCodingShortcutBtn = document.getElementById('demo-coding-shortcut-btn');
@@ -554,14 +631,12 @@
           localStorage.setItem(_PROJECT_SELECT_KEY, projectSelectTop.value);
           syncDemoTrainingBanner();
           applyProjectFilterToHistory();
-          // Refresh KPI counts for selected project
+          applyProjectFilterToEligibility();
           const pid = selectedProjectId();
           const qs = pid ? '?project_id=' + encodeURIComponent(pid) : '';
           try {
             const fresh = await apiFetch('/api/v1/coding/stats' + qs);
-            document.getElementById('kpi-random-ready').textContent = fresh.random_ready ?? 0;
-            document.getElementById('kpi-pick-ready').textContent   = fresh.pick_ready   ?? 0;
-            document.getElementById('kpi-completed').textContent    = fresh.completed    ?? 0;
+            applyStats(allocData.allocation, fresh);
           } catch {}
         });
       }

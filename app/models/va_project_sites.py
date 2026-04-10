@@ -2,7 +2,7 @@ import uuid
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from app import db
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date as date_type
 from app.models.va_selectives import VaStatuses
 
 
@@ -47,6 +47,14 @@ class VaProjectSites(db.Model):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+    coding_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, default=True, nullable=False
+    )
+    coding_start_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    coding_end_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    daily_coder_limit: so.Mapped[int] = so.mapped_column(
+        sa.Integer, default=100, nullable=False
     )
 
     def __repr__(self) -> str:

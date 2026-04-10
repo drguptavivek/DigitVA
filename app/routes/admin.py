@@ -627,6 +627,10 @@ def _serialize_project_site(row):
         "project_name": row.project_name,
         "site_name": row.site_name,
         "status": row.project_site_status.value,
+        "coding_enabled": row.coding_enabled,
+        "coding_start_date": row.coding_start_date.isoformat() if row.coding_start_date else None,
+        "coding_end_date": row.coding_end_date.isoformat() if row.coding_end_date else None,
+        "daily_coder_limit": row.daily_coder_limit,
     }
 
 
@@ -1025,6 +1029,10 @@ def admin_project_sites():
             VaProjectSites.project_id,
             VaProjectSites.site_id,
             VaProjectSites.project_site_status,
+            VaProjectSites.coding_enabled,
+            VaProjectSites.coding_start_date,
+            VaProjectSites.coding_end_date,
+            VaProjectSites.daily_coder_limit,
             VaProjectMaster.project_name,
             VaSiteMaster.site_name,
         )
@@ -1092,6 +1100,10 @@ def admin_create_project_site():
             VaProjectSites.project_id,
             VaProjectSites.site_id,
             VaProjectSites.project_site_status,
+            VaProjectSites.coding_enabled,
+            VaProjectSites.coding_start_date,
+            VaProjectSites.coding_end_date,
+            VaProjectSites.daily_coder_limit,
             VaProjectMaster.project_name,
             VaSiteMaster.site_name,
         )
@@ -1119,6 +1131,77 @@ def admin_toggle_project_site(project_site_id):
     return jsonify({
         "project_site_id": str(mapping.project_site_id),
         "status": mapping.project_site_status.value,
+    })
+
+
+@admin.put("/api/project-sites/<project_id>/<site_id>/coding-settings")
+@role_required("admin")
+def admin_update_project_site_coding_settings(project_id, site_id):
+    """Update coding settings for a project-site pair."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from datetime import date as _date
+
+    project_id = project_id.upper()
+    site_id = site_id.upper()
+
+    data = request.get_json(silent=True) or {}
+
+    coding_enabled = data.get("coding_enabled")
+    coding_start_raw = data.get("coding_start_date")
+    coding_end_raw = data.get("coding_end_date")
+    daily_coder_limit_raw = data.get("daily_coder_limit")
+
+    if not isinstance(coding_enabled, bool):
+        return _json_error("coding_enabled must be a boolean.", 400)
+
+    coding_start = None
+    coding_end = None
+    try:
+        if coding_start_raw:
+            coding_start = _date.fromisoformat(coding_start_raw)
+        if coding_end_raw:
+            coding_end = _date.fromisoformat(coding_end_raw)
+    except (ValueError, TypeError):
+        return _json_error("coding_start_date and coding_end_date must be ISO date strings (YYYY-MM-DD).", 400)
+
+    if coding_start and coding_end and coding_end < coding_start:
+        return _json_error("coding_end_date must be on or after coding_start_date.", 400)
+
+    if daily_coder_limit_raw is None:
+        daily_coder_limit = 100
+    else:
+        try:
+            daily_coder_limit = int(daily_coder_limit_raw)
+        except (ValueError, TypeError):
+            return _json_error("daily_coder_limit must be an integer.", 400)
+        if daily_coder_limit < 1:
+            return _json_error("daily_coder_limit must be at least 1.", 400)
+
+    ps = db.session.scalar(
+        sa.select(VaProjectSites).where(
+            VaProjectSites.project_id == project_id,
+            VaProjectSites.site_id == site_id,
+        )
+    )
+    if not ps:
+        return _json_error("Project-site mapping not found.", 404)
+
+    ps.coding_enabled = coding_enabled
+    ps.coding_start_date = coding_start
+    ps.coding_end_date = coding_end
+    ps.daily_coder_limit = daily_coder_limit
+    db.session.commit()
+
+    return jsonify({
+        "project_site_id": str(ps.project_site_id),
+        "project_id": ps.project_id,
+        "site_id": ps.site_id,
+        "coding_enabled": ps.coding_enabled,
+        "coding_start_date": ps.coding_start_date.isoformat() if ps.coding_start_date else None,
+        "coding_end_date": ps.coding_end_date.isoformat() if ps.coding_end_date else None,
+        "daily_coder_limit": ps.daily_coder_limit,
     })
 
 

@@ -169,6 +169,142 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
     return filters
 
 
+def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
+    """Return site_ids that are ineligible for new coding allocations.
+
+    A site is excluded when any of the following are true:
+      - coding_enabled is False  (waived for project_pi / site_pi)
+      - today is before coding_start_date  (waived for project_pi / site_pi)
+      - today is after coding_end_date  (waived for project_pi / site_pi)
+      - the user has already met the daily_coder_limit for that site today
+
+    PI waiver: users who hold a project_pi grant for the project OR a site_pi
+    grant for the site are exempt from enabled/date restrictions but still
+    subject to the daily_coder_limit.
+
+    Sites with no VaProjectSites row are not restricted.
+    """
+    from app.models.va_project_sites import VaProjectSites
+    from datetime import date
+
+    if not form_ids:
+        return set()
+
+    today = date.today()
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    user_id = user.user_id
+
+    pi_project_ids = set(user.get_project_pi_projects())
+    pi_site_ids = set(user.get_site_pi_sites())
+
+    pairs = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id).distinct()
+        .where(VaForms.form_id.in_(form_ids))
+    ).all()
+    if not pairs:
+        return set()
+
+    ps_rows = db.session.scalars(
+        sa.select(VaProjectSites).where(
+            sa.or_(*[
+                sa.and_(VaProjectSites.project_id == p.project_id, VaProjectSites.site_id == p.site_id)
+                for p in pairs
+            ])
+        )
+    ).all()
+    ps_by_pair = {(ps.project_id, ps.site_id): ps for ps in ps_rows}
+
+    site_ids = list({p.site_id for p in pairs})
+    today_counts = {
+        r.site_id: r.cnt
+        for r in db.session.execute(
+            sa.select(VaForms.site_id, sa.func.count().label("cnt"))
+            .select_from(VaAllocations)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .where(
+                VaAllocations.va_allocated_to == user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_createdat >= today_start,
+                VaForms.site_id.in_(site_ids),
+            )
+            .group_by(VaForms.site_id)
+        ).all()
+    }
+
+    excluded = set()
+    for p in pairs:
+        ps = ps_by_pair.get((p.project_id, p.site_id))
+        if not ps:
+            continue
+        is_pi = p.project_id in pi_project_ids or p.site_id in pi_site_ids
+        if not is_pi:
+            if not ps.coding_enabled:
+                excluded.add(p.site_id)
+                continue
+            if ps.coding_start_date and ps.coding_start_date > today:
+                excluded.add(p.site_id)
+                continue
+            if ps.coding_end_date and ps.coding_end_date < today:
+                excluded.add(p.site_id)
+                continue
+        if today_counts.get(p.site_id, 0) >= ps.daily_coder_limit:
+            excluded.add(p.site_id)
+    return excluded
+
+
+def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
+    """Return a human-readable reason why a specific site is blocked.
+
+    PI waiver applies to coding_enabled and date restrictions but not the
+    daily_coder_limit.
+    """
+    from app.models.va_project_sites import VaProjectSites
+    from datetime import date
+
+    today = date.today()
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    user_id = user.user_id
+
+    pi_project_ids = set(user.get_project_pi_projects())
+    pi_site_ids = set(user.get_site_pi_sites())
+    is_pi = project_id in pi_project_ids or site_id in pi_site_ids
+
+    ps = db.session.scalar(
+        sa.select(VaProjectSites).where(
+            VaProjectSites.project_id == project_id,
+            VaProjectSites.site_id == site_id,
+        )
+    )
+    if not ps:
+        return "Coding is not configured for this site."
+    if not is_pi:
+        if not ps.coding_enabled:
+            return "Coding is currently disabled for this site."
+        if ps.coding_start_date and ps.coding_start_date > today:
+            return f"Coding for this site opens on {ps.coding_start_date.strftime('%B %-d, %Y')}."
+        if ps.coding_end_date and ps.coding_end_date < today:
+            return f"Coding for this site ended on {ps.coding_end_date.strftime('%B %-d, %Y')}."
+    count = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(VaAllocations)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaAllocations.va_allocated_to == user_id,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+            VaAllocations.va_allocation_createdat >= today_start,
+            VaForms.site_id == site_id,
+        )
+    ) or 0
+    if count >= ps.daily_coder_limit:
+        return (
+            f"You have reached today's coding limit of {ps.daily_coder_limit} "
+            f"form{'s' if ps.daily_coder_limit != 1 else ''} for this site."
+        )
+    return "Coding is not available for this site."
+
+
 def _actiontype_for_submission(va_sid: str, default_actiontype: str) -> str:
     if should_use_demo_actiontype_for_submission(va_sid):
         return "vademo_start_coding"
@@ -276,7 +412,14 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
         if project_id not in allowed_projects:
             raise AllocationError("You do not have coder access to the selected project.")
 
+    excluded_sites = _get_excluded_sites_for_coding(random_form_ids, user)
     base_filters = _available_submission_filters(random_form_ids, project_id=project_id, user=user)
+    if excluded_sites:
+        base_filters.append(
+            VaSubmissions.va_form_id.not_in(
+                sa.select(VaForms.form_id).where(VaForms.site_id.in_(excluded_sites))
+            )
+        )
 
     va_new_sid = db.session.scalar(
         sa.select(VaSubmissions.va_sid)
@@ -318,6 +461,11 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
         raise AllocationError("Submission not found.", 404)
     if not user.has_va_form_access(form.va_form_id, "coder"):
         raise AllocationError("You do not have coder access for this VA form.")
+
+    sub_row = _require_submission_exists(va_sid)
+    excluded = _get_excluded_sites_for_coding([form.va_form_id], user)
+    if sub_row.site_id in excluded:
+        raise AllocationError(_get_site_coding_error(sub_row.project_id, sub_row.site_id, user))
 
     actiontype = _actiontype_for_submission(va_sid, "vapickcoding")
     _create_coding_allocation(

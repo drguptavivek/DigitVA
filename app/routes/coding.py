@@ -27,7 +27,8 @@ from app.services.coder_workflow_service import (
 )
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
-from datetime import datetime
+from app.models.va_project_sites import VaProjectSites
+from datetime import datetime, date as _date
 
 
 coding = Blueprint("coding", __name__)
@@ -82,20 +83,73 @@ def dashboard():
         has_random_mode = bool(random_form_ids)
         has_pick_mode = bool(pick_form_ids)
         from app.models import VaSites, VaResearchProjects  # noqa: PLC0415
+        today = _date.today()
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        _tc_rows = db.session.execute(
+            sa.select(VaForms.site_id, sa.func.count().label("cnt"))
+            .select_from(VaAllocations)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .where(
+                VaAllocations.va_allocated_to == current_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_createdat >= today_start,
+                VaForms.form_id.in_(va_form_access),
+            )
+            .group_by(VaForms.site_id)
+        ).all()
+        site_today_counts = {r.site_id: r.cnt for r in _tc_rows}
         eligibility_rows = db.session.execute(
             sa.select(
+                VaResearchProjects.project_id,
                 VaResearchProjects.project_nickname,
                 VaSites.site_name,
                 VaSites.site_abbr,
                 VaForms.form_id,
+                VaForms.site_id,
+                VaProjectSites.coding_enabled,
+                VaProjectSites.coding_start_date,
+                VaProjectSites.coding_end_date,
+                VaProjectSites.daily_coder_limit,
             )
             .join(VaSites, VaSites.site_id == VaForms.site_id)
             .join(VaResearchProjects, VaResearchProjects.project_id == VaForms.project_id)
+            .outerjoin(VaProjectSites, sa.and_(
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+            ))
             .where(VaForms.form_id.in_(va_form_access))
             .order_by(VaResearchProjects.project_id, VaSites.site_id)
         ).all()
+
+        pi_project_ids = set(current_user.get_project_pi_projects())
+        pi_site_ids = set(current_user.get_site_pi_sites())
+
+        def _coding_status(r):
+            is_pi = r.project_id in pi_project_ids or r.site_id in pi_site_ids
+            if not is_pi:
+                if r.coding_enabled is False:
+                    return "disabled"
+                if r.coding_start_date and r.coding_start_date > today:
+                    return "not_started"
+                if r.coding_end_date and r.coding_end_date < today:
+                    return "ended"
+            return "open"
+
         coder_eligibility = [
-            {"project": r.project_nickname, "site": r.site_name, "site_abbr": r.site_abbr, "form_id": r.form_id}
+            {
+                "project_id": r.project_id,
+                "project": r.project_nickname,
+                "site": r.site_name,
+                "site_abbr": r.site_abbr,
+                "form_id": r.form_id,
+                "site_id": r.site_id,
+                "coding_status": _coding_status(r),
+                "coding_start_date": r.coding_start_date,
+                "coding_end_date": r.coding_end_date,
+                "daily_coder_limit": r.daily_coder_limit if r.daily_coder_limit is not None else 100,
+                "today_count": site_today_counts.get(r.site_id, 0),
+            }
             for r in eligibility_rows
         ]
         coder_languages = sorted(current_user.vacode_language or [])

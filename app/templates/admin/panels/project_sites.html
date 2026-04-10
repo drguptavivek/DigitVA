@@ -119,6 +119,7 @@
   // ── load & render ─────────────────────────────────────────────────────────
 
   var _mappings = [];
+  var _expandedSite = null;
 
   function loadMappings() {
     var wrap = document.getElementById('ps-table-wrap');
@@ -138,6 +139,8 @@
     });
   }
 
+  // renderCodingForm and saveCodingSettings defined below renderTable
+
   function renderTable(showInactive) {
     var wrap = document.getElementById('ps-table-wrap');
     var visible = showInactive ? _mappings : _mappings.filter(function (m) { return m.status === 'active'; });
@@ -147,6 +150,7 @@
     }
     var rows = visible.map(function (m) {
       var isActive = m.status === 'active';
+      var codingEnabled = m.coding_enabled !== false;
       var toggleBtn = '<button class="btn btn-sm py-0 px-2 ps-toggle-btn '
         + (isActive ? 'btn-outline-danger' : 'btn-outline-success') + '"'
         + ' data-ps-id="' + esc(m.project_site_id) + '"'
@@ -156,21 +160,52 @@
         + ' title="' + (isActive ? 'Deactivate' : 'Activate') + '">'
         + '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
         + '</button>';
-      return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
+      var settingsBtn = isActive
+        ? '<button class="btn btn-sm btn-outline-secondary py-0 px-2 ps-settings-btn ms-1"'
+          + ' data-sid="' + esc(m.site_id) + '" data-pid="' + esc(m.project_id) + '"'
+          + ' title="Coding settings"><i class="fa-solid fa-sliders"></i></button>'
+        : '';
+      var codingBadge = isActive
+        ? (codingEnabled
+            ? '<span class="badge text-bg-success ms-2">Coding On</span>'
+            : '<span class="badge text-bg-secondary ms-2">Coding Off</span>')
+        : '';
+      var codingMeta = '';
+      if (isActive) {
+        var metaParts = [];
+        if (m.coding_start_date || m.coding_end_date) {
+          metaParts.push((m.coding_start_date || '∞') + ' → ' + (m.coding_end_date || '∞'));
+        }
+        if (m.daily_coder_limit != null) {
+          metaParts.push('limit ' + m.daily_coder_limit + '/day');
+        }
+        if (metaParts.length) {
+          codingMeta = '<div class="text-muted" style="font-size:0.72rem;line-height:1.3;">' + esc(metaParts.join(' · ')) + '</div>';
+        }
+      }
+      var mainRow = '<tr id="ps-row-' + esc(m.site_id) + '" class="' + (isActive ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(m.site_id) + '</span></td>'
         + '<td class="align-middle py-2 small">' + esc(m.site_name) + '</td>'
+        + '<td class="align-middle py-2 small text-muted">' + esc(m.project_id) + '</td>'
         + '<td class="align-middle py-2">'
-        + (isActive
-            ? '<span class="badge text-bg-success">Active</span>'
-            : '<span class="badge text-bg-secondary">Inactive</span>')
+        + (isActive ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>')
+        + codingBadge
+        + codingMeta
         + '</td>'
-        + '<td class="align-middle py-2 text-end">' + toggleBtn + '</td>'
+        + '<td class="align-middle py-2 text-end">' + toggleBtn + settingsBtn + '</td>'
         + '</tr>';
+      var cfgOpen = _expandedSite === m.site_id;
+      var configRow = isActive
+        ? '<tr id="ps-cfg-' + esc(m.site_id) + '" class="' + (cfgOpen ? 'bg-light' : 'd-none bg-light') + '">'
+          + '<td colspan="5" class="py-3 px-3">' + renderCodingForm(m) + '</td></tr>'
+        : '';
+      return mainRow + configRow;
     }).join('');
     wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
       + '<thead class="table-light"><tr>'
       + '<th class="fw-semibold small">Site ID</th>'
       + '<th class="fw-semibold small">Site Name</th>'
+      + '<th class="fw-semibold small">Project</th>'
       + '<th class="fw-semibold small">Status</th>'
       + '<th></th>'
       + '</tr></thead>'
@@ -180,6 +215,90 @@
         promptToggle(this.dataset.psId, this.dataset.siteId, this.dataset.siteName, this.dataset.active === '1');
       });
     });
+    wrap.querySelectorAll('.ps-settings-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { toggleCodingRow(this.dataset.sid); });
+    });
+    wrap.querySelectorAll('.ps-coding-save-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { saveCodingSettings(this.dataset.pid, this.dataset.sid); });
+    });
+    wrap.querySelectorAll('.ps-coding-close-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { closeCodingRow(this.dataset.sid); });
+    });
+  }
+
+  function renderCodingForm(m) {
+    var codingEnabled = m.coding_enabled !== false;
+    return '<div class="d-flex flex-column gap-2">'
+      + '<div class="small fw-semibold text-muted">Coding Settings \u2014 ' + esc(m.site_id) + '</div>'
+      + '<div class="row g-2 align-items-end">'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">Coding</label>'
+      + '<select class="form-select form-select-sm" id="ps-coding-enabled-' + esc(m.site_id) + '">'
+      + '<option value="true"' + (codingEnabled ? ' selected' : '') + '>Enabled</option>'
+      + '<option value="false"' + (!codingEnabled ? ' selected' : '') + '>Disabled</option>'
+      + '</select>'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">Start Date</label>'
+      + '<input type="date" class="form-control form-control-sm" id="ps-coding-start-' + esc(m.site_id) + '" value="' + esc(m.coding_start_date || '') + '">'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">End Date</label>'
+      + '<input type="date" class="form-control form-control-sm" id="ps-coding-end-' + esc(m.site_id) + '" value="' + esc(m.coding_end_date || '') + '">'
+      + '</div>'
+      + '<div class="col-md-2">'
+      + '<label class="form-label small mb-1 text-muted">Daily Coder Limit</label>'
+      + '<input type="number" min="1" class="form-control form-control-sm" id="ps-coding-limit-' + esc(m.site_id) + '" value="' + esc(m.daily_coder_limit != null ? m.daily_coder_limit : 100) + '">'
+      + '</div>'
+      + '<div class="col-md-auto d-flex gap-2">'
+      + '<button class="btn btn-sm btn-success ps-coding-save-btn" data-sid="' + esc(m.site_id) + '" data-pid="' + esc(m.project_id) + '">'
+      + '<i class="fa-solid fa-floppy-disk me-1"></i>Save</button>'
+      + '<button class="btn btn-sm btn-outline-secondary ps-coding-close-btn" data-sid="' + esc(m.site_id) + '">Close</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  function toggleCodingRow(sid) {
+    if (_expandedSite === sid) {
+      closeCodingRow(sid);
+    } else {
+      if (_expandedSite) closeCodingRow(_expandedSite);
+      _expandedSite = sid;
+      var row = document.getElementById('ps-cfg-' + sid);
+      if (row) row.classList.remove('d-none');
+    }
+  }
+
+  function closeCodingRow(sid) {
+    if (_expandedSite === sid) _expandedSite = null;
+    var row = document.getElementById('ps-cfg-' + sid);
+    if (row) row.classList.add('d-none');
+  }
+
+  function saveCodingSettings(pid, sid) {
+    var enabled   = (document.getElementById('ps-coding-enabled-' + sid) || {}).value === 'true';
+    var startDate = (document.getElementById('ps-coding-start-' + sid) || {}).value || null;
+    var endDate   = (document.getElementById('ps-coding-end-' + sid) || {}).value || null;
+    var limit     = parseInt((document.getElementById('ps-coding-limit-' + sid) || {}).value, 10) || 100;
+    apiJson(
+      '/admin/api/project-sites/' + encodeURIComponent(pid) + '/' + encodeURIComponent(sid) + '/coding-settings',
+      'PUT',
+      { coding_enabled: enabled, coding_start_date: startDate, coding_end_date: endDate, daily_coder_limit: limit }
+    ).then(function (res) {
+      if (!res.ok) { showError(res.data.error || 'Failed to save coding settings.'); return; }
+      _mappings = _mappings.map(function (m) {
+        if (m.site_id !== sid) return m;
+        return Object.assign({}, m, {
+          coding_enabled: enabled,
+          coding_start_date: startDate,
+          coding_end_date: endDate,
+          daily_coder_limit: limit,
+        });
+      });
+      _expandedSite = sid;
+      renderTable(document.getElementById('ps-show-inactive').checked);
+    }).catch(function () { showError('Network error.'); });
   }
 
   // ── toggle modal ──────────────────────────────────────────────────────────

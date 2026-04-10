@@ -107,6 +107,17 @@ def _apply_transition(
     previous_state = workflow_record.workflow_state if workflow_record else None
     normalized_actor = actor or system_actor()
     if allowed_from is not None and previous_state not in set(allowed_from):
+        log.warning(
+            "WorkflowTransitionError | transition=%s | sid=%s | from=%r | target=%s"
+            " | actor_kind=%s | actor_user=%s | allowed_from=%s",
+            transition_id,
+            va_sid,
+            previous_state,
+            target_state,
+            normalized_actor.kind,
+            normalized_actor.user_id,
+            list(allowed_from),
+        )
         raise WorkflowTransitionError(
             f"Transition {transition_id} not allowed from state {previous_state!r}."
         )
@@ -114,6 +125,17 @@ def _apply_transition(
         allowed_actor_kinds is not None
         and normalized_actor.kind not in set(allowed_actor_kinds)
     ):
+        log.warning(
+            "WorkflowTransitionError | transition=%s | sid=%s | from=%r | target=%s"
+            " | actor_kind=%s | actor_user=%s | allowed_actor_kinds=%s",
+            transition_id,
+            va_sid,
+            previous_state,
+            target_state,
+            normalized_actor.kind,
+            normalized_actor.user_id,
+            list(allowed_actor_kinds),
+        )
         raise WorkflowTransitionError(
             f"Transition {transition_id} not allowed for actor kind "
             f"{normalized_actor.kind!r}."
@@ -181,6 +203,16 @@ def _apply_release_reset_transition(
     previous_state = workflow_record.workflow_state if workflow_record else None
     normalized_actor = actor or system_actor()
     if allowed_from is not None and previous_state not in set(allowed_from):
+        log.warning(
+            "WorkflowTransitionError | transition=%s | sid=%s | from=%r"
+            " | actor_kind=%s | actor_user=%s | allowed_from=%s",
+            transition_id,
+            va_sid,
+            previous_state,
+            normalized_actor.kind,
+            normalized_actor.user_id,
+            list(allowed_from),
+        )
         raise WorkflowTransitionError(
             f"Transition {transition_id} not allowed from state {previous_state!r}."
         )
@@ -188,6 +220,16 @@ def _apply_release_reset_transition(
         allowed_actor_kinds is not None
         and normalized_actor.kind not in set(allowed_actor_kinds)
     ):
+        log.warning(
+            "WorkflowTransitionError | transition=%s | sid=%s | from=%r"
+            " | actor_kind=%s | actor_user=%s | allowed_actor_kinds=%s",
+            transition_id,
+            va_sid,
+            previous_state,
+            normalized_actor.kind,
+            normalized_actor.user_id,
+            list(allowed_actor_kinds),
+        )
         raise WorkflowTransitionError(
             f"Transition {transition_id} not allowed for actor kind "
             f"{normalized_actor.kind!r}."

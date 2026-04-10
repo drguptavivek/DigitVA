@@ -63,6 +63,15 @@ SMARTVA_BLOCKED_WORKFLOW_STATES = frozenset(
 
 CODER_READY_POOL_STATES = frozenset({WORKFLOW_READY_FOR_CODING})
 
+# Demo forms are shared across simultaneous coders — any coding-active state
+# is eligible for demo allocation regardless of who else is on the form.
+DEMO_CODER_POOL_STATES = frozenset({
+    WORKFLOW_READY_FOR_CODING,
+    WORKFLOW_CODING_IN_PROGRESS,
+    WORKFLOW_CODER_STEP1_SAVED,
+    WORKFLOW_CODER_FINALIZED,
+})
+
 
 TRANSITION_SYNC_NEW_PAYLOAD = "sync_new_payload_routed"
 TRANSITION_ATTACHMENTS_SYNCED = "attachments_synced"

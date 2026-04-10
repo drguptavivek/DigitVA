@@ -1,4 +1,5 @@
 import logging
+import sys
 import time
 from logging.handlers import TimedRotatingFileHandler
 import os
@@ -25,18 +26,23 @@ va_detailed_formatter = logging.Formatter(
 )
 
 # Setup logger
-def va_setup_logger(name, log_file, level=logging.INFO, formatter=None):
+def va_setup_logger(name, log_file, level=logging.INFO, formatter=None, stderr=False):
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    handler = TimedRotatingFileHandler(
+    fmt = formatter or va_detailed_formatter
+    file_handler = TimedRotatingFileHandler(
         filename=log_file,
         when='W0',
         interval=1,
         backupCount=0,
         encoding='utf-8'
     )
-    handler.setFormatter(formatter or va_detailed_formatter)
-    logger.addHandler(handler)
+    file_handler.setFormatter(fmt)
+    logger.addHandler(file_handler)
+    if stderr:
+        stream_handler = logging.StreamHandler(sys.stderr)
+        stream_handler.setFormatter(fmt)
+        logger.addHandler(stream_handler)
     return logger
 
 # Formatters
@@ -44,7 +50,7 @@ grant_audit_formatter = logging.Formatter('%(asctime)s %(message)s')
 
 # Initialize loggers
 request_logger = va_setup_logger('REQUEST_LOG', f'{va_log}/requests.log', logging.INFO, va_detailed_formatter)
-error_logger = va_setup_logger('ERROR_LOG', f'{va_log}/errors.log', logging.ERROR, va_detailed_formatter)
+error_logger = va_setup_logger('ERROR_LOG', f'{va_log}/errors.log', logging.ERROR, va_detailed_formatter, stderr=True)
 sql_logger = va_setup_logger('SQL_LOG', f'{va_log}/sql.log', logging.INFO, va_detailed_formatter)
 grant_audit_logger = va_setup_logger('GRANT_AUDIT', f'{va_log}/grants.log', logging.INFO, grant_audit_formatter)
 

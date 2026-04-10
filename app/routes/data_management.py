@@ -350,6 +350,10 @@ def manage_project_sites():
             VaProjectSites.project_id,
             VaProjectSites.site_id,
             VaProjectSites.project_site_status,
+            VaProjectSites.coding_enabled,
+            VaProjectSites.coding_start_date,
+            VaProjectSites.coding_end_date,
+            VaProjectSites.daily_coder_limit,
             VaProjectMaster.project_name,
             VaSiteMaster.site_name,
         )

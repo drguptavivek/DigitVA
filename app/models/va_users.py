@@ -166,6 +166,9 @@ class VaUsers(UserMixin, db.Model):
     def get_coding_tester_va_forms(self):
         return self._get_granted_va_forms("coding_tester")
 
+    def get_coding_tester_projects(self) -> set[str]:
+        return self._get_granted_project_ids("coding_tester")
+
     def get_coding_tester_project_site_pairs(self) -> set[tuple[str, str]]:
         return self._get_granted_project_site_pairs("coding_tester")
 

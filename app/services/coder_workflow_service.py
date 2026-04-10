@@ -196,6 +196,7 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
 
     pi_project_ids = set(user.get_project_pi_projects())
     pi_site_ids = set(user.get_site_pi_sites())
+    tester_projects = set(user.get_coding_tester_projects())
     tester_pairs = user.get_coding_tester_project_site_pairs()
 
     pairs = db.session.execute(
@@ -239,7 +240,7 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
         if not ps:
             continue
         is_pi = p.project_id in pi_project_ids or p.site_id in pi_site_ids
-        is_tester = (p.project_id, p.site_id) in tester_pairs
+        is_tester = p.project_id in tester_projects or (p.project_id, p.site_id) in tester_pairs
         # coding_enabled + date-window checks: waived for PI or tester.
         # coding_end_date is always enforced for testers (not for PIs).
         if not is_pi and not is_tester:
@@ -273,9 +274,10 @@ def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
 
     pi_project_ids = set(user.get_project_pi_projects())
     pi_site_ids = set(user.get_site_pi_sites())
+    tester_projects = set(user.get_coding_tester_projects())
     tester_pairs = user.get_coding_tester_project_site_pairs()
     is_pi = project_id in pi_project_ids or site_id in pi_site_ids
-    is_tester = (project_id, site_id) in tester_pairs
+    is_tester = project_id in tester_projects or (project_id, site_id) in tester_pairs
 
     ps = db.session.scalar(
         sa.select(VaProjectSites).where(

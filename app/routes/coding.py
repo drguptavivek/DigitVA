@@ -124,11 +124,12 @@ def dashboard():
 
         pi_project_ids = set(current_user.get_project_pi_projects())
         pi_site_ids = set(current_user.get_site_pi_sites())
+        tester_projects = set(current_user.get_coding_tester_projects())
         tester_pairs = current_user.get_coding_tester_project_site_pairs()
 
         def _coding_status(r):
             is_pi = r.project_id in pi_project_ids or r.site_id in pi_site_ids
-            is_tester = (r.project_id, r.site_id) in tester_pairs
+            is_tester = r.project_id in tester_projects or (r.project_id, r.site_id) in tester_pairs
             if not is_pi and not is_tester:
                 if r.coding_enabled is False:
                     return "disabled"

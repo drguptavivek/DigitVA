@@ -60,10 +60,12 @@ with flask_app.app_context():
     from app.tasks.sync_tasks import (
         cleanup_stale_runs,
         ensure_coding_timeout_cleanup_scheduled,
+        ensure_demo_cleanup_scheduled,
         ensure_submission_analytics_mv_refresh_scheduled,
         ensure_sync_scheduled,
     )
     cleanup_stale_runs()
     ensure_sync_scheduled()
     ensure_coding_timeout_cleanup_scheduled()
+    ensure_demo_cleanup_scheduled()
     ensure_submission_analytics_mv_refresh_scheduled()

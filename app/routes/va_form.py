@@ -797,10 +797,11 @@ def renderpartial(va_sid, va_partial):
             )
             current_state = get_submission_workflow_state(va_sid)
             session_timed_out = (current_state == WORKFLOW_READY_FOR_CODING)
+            step1_resaved = (current_state == WORKFLOW_CODER_STEP1_SAVED)
             try:
                 mark_coder_step1_saved(
                     va_sid,
-                    reason="initial_cod_submitted",
+                    reason="initial_cod_updated" if step1_resaved else "initial_cod_submitted",
                     actor=coder_actor(current_user.user_id),
                 )
             except WorkflowTransitionError:
@@ -814,7 +815,7 @@ def renderpartial(va_sid, va_partial):
                 raise
             db.session.commit()
             va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
-            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, session_timed_out=session_timed_out)
+            return render_template("va_form_partials/vafinalasses.html", form = form1, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid, smartva=smartva, va_immediate_cod = va_initial_assess.va_immediate_cod or None, va_antecedent_cod = va_initial_assess.va_antecedent_cod or None, va_other_conditions = va_initial_assess.va_other_conditions or None, session_timed_out=session_timed_out, step1_resaved=step1_resaved)
         elif not_codeable_clicked:
             form2 = VaCoderReviewForm()
             return render_template("va_form_partials/vacoderreview.html", form = form2, va_action = va_action, va_actiontype= va_actiontype, va_sid = va_sid)

@@ -456,7 +456,8 @@ def mark_coder_step1_saved(
         target_state=wd.WORKFLOW_CODER_STEP1_SAVED,
         allowed_from=(
             wd.WORKFLOW_CODING_IN_PROGRESS,
-            wd.WORKFLOW_READY_FOR_CODING,  # session timed out mid-coding
+            wd.WORKFLOW_READY_FOR_CODING,      # session timed out mid-coding
+            wd.WORKFLOW_CODER_STEP1_SAVED,     # re-save / back-navigation
         ),
         allowed_actor_kinds=CODING_ACTOR_KINDS,
         reason=reason,

@@ -4,6 +4,18 @@
   Your coding session had expired, but your initial assessment has been saved successfully.
   <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
+{% elif step1_resaved %}
+<div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+  <i class="fas fa-check-circle me-1"></i>
+  Updated Responses
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% else %}
+<div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+  <i class="fas fa-check-circle me-1"></i>
+  Saved Responses
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
 {% endif %}
 <form method="POST" id="finalAssessmentForm"
       hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vafinalasses', action=va_action, actiontype=va_actiontype) }}"

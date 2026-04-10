@@ -2103,6 +2103,79 @@ def ensure_coding_timeout_cleanup_scheduled():
         log.warning("Could not seed coding allocation cleanup schedule: %s", e)
 
 
+@shared_task(
+    name="app.tasks.sync_tasks.cleanup_expired_demo_coding_task",
+    bind=True,
+    soft_time_limit=120,
+    time_limit=240,
+)
+def cleanup_expired_demo_coding_task(self):
+    """Deactivate expired demo-coding artifacts and return forms to the ready pool."""
+    from app.services.coding_allocation_service import cleanup_expired_demo_coding_artifacts
+
+    expired = cleanup_expired_demo_coding_artifacts()
+    return {"expired_demo_artifacts": expired}
+
+
+def ensure_demo_cleanup_scheduled():
+    """Seed the demo coding artifact cleanup task (every 15 minutes). Idempotent."""
+    try:
+        from app import db
+
+        with db.engine.begin() as conn:
+            interval_id = conn.execute(
+                sa.text(
+                    "SELECT id FROM public.celery_intervalschedule "
+                    "WHERE every = 15 AND period = 'minutes' LIMIT 1"
+                )
+            ).scalar()
+            if interval_id is None:
+                interval_id = conn.execute(
+                    sa.text(
+                        "INSERT INTO public.celery_intervalschedule (every, period) "
+                        "VALUES (15, 'minutes') RETURNING id"
+                    )
+                ).scalar()
+
+            exists = conn.execute(
+                sa.text(
+                    "SELECT id FROM public.celery_periodictask WHERE name = :name LIMIT 1"
+                ),
+                {"name": "Demo coding cleanup — every 15 minutes"},
+            ).scalar()
+
+            if not exists:
+                conn.execute(
+                    sa.text(
+                        """
+                        INSERT INTO public.celery_periodictask
+                            (name, task, args, kwargs, queue, exchange, routing_key, headers,
+                             priority, one_off, enabled, total_run_count, description,
+                             discriminator, schedule_id)
+                        VALUES
+                            (:name, :task, '[]', '{}', NULL, NULL, NULL, '{}',
+                             NULL, false, true, 0, '',
+                             'intervalschedule', :schedule_id)
+                        """
+                    ),
+                    {
+                        "name": "Demo coding cleanup — every 15 minutes",
+                        "task": "app.tasks.sync_tasks.cleanup_expired_demo_coding_task",
+                        "schedule_id": interval_id,
+                    },
+                )
+                conn.execute(
+                    sa.text(
+                        "INSERT INTO public.celery_periodictaskchanged (last_update) "
+                        "VALUES (NOW()) ON CONFLICT DO NOTHING"
+                    )
+                )
+
+        log.info("Demo coding cleanup beat schedule seeded: every 15 minutes.")
+    except Exception as e:
+        log.warning("Could not seed demo coding cleanup schedule: %s", e)
+
+
 def ensure_submission_analytics_mv_refresh_scheduled():
     """Seed the submission analytics MV refresh task (every 1 hour). Idempotent."""
     try:

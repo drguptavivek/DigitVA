@@ -45,6 +45,16 @@ def va_smartva_formatsmartvaresult(va_form, workspace_dir: str):
                 va_smartva_combinedresults = pd.concat(
                     va_smartva_allresults, ignore_index=True
                 )
+                # SmartVA sometimes writes SID values padded with leading null
+                # bytes in fixed-width intermediate files.  Strip them so that
+                # downstream matching against clean submission IDs works.
+                if "sid" in va_smartva_combinedresults.columns:
+                    va_smartva_combinedresults["sid"] = (
+                        va_smartva_combinedresults["sid"]
+                        .astype(str)
+                        .str.lstrip("\x00")
+                        .str.strip()
+                    )
                 va_smartva_combinedresults.to_csv(va_smartva_outputfile, index=False)
                 return va_smartva_outputfile
             return None

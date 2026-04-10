@@ -102,6 +102,9 @@ def _read_raw_likelihood_outputs(
             continue
         df = pd.read_csv(file_path)
         df = df.replace({pd.NA: None, float("nan"): None})
+        # Strip leading null bytes that SmartVA may pad into fixed-width SID fields.
+        if "sid" in df.columns:
+            df["sid"] = df["sid"].astype(str).str.lstrip("\x00").str.strip()
         for record in df.itertuples():
             payload = _smartva_output_payload(record)
             sid = payload.get("sid")
@@ -121,7 +124,9 @@ def _read_formatted_results(output_file: str) -> pd.DataFrame | None:
     df = df.replace({pd.NA: None, float("nan"): None})
     if "sid" not in df.columns:
         return None
-    return df[df["sid"].notna()]
+    # Strip leading null bytes that SmartVA may pad into fixed-width SID fields.
+    df["sid"] = df["sid"].astype(str).str.lstrip("\x00").str.strip()
+    return df[df["sid"].notna() & (df["sid"] != "") & (df["sid"] != "None")]
 
 
 _SMARTVA_REPORT_REJECTION_RE = re.compile(

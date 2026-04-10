@@ -403,6 +403,15 @@ def dm_submissions_page(
         .distinct()
         .subquery()
     )
+    smartva_failed_sids = (
+        sa.select(VaSmartvaResults.va_sid)
+        .where(
+            VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            VaSmartvaResults.va_smartva_outcome == VaSmartvaResults.OUTCOME_FAILED,
+        )
+        .distinct()
+        .subquery()
+    )
     _mv_ref = None
     if _submission_analytics_mv_available():
         _mv_ref = sa.table(
@@ -457,6 +466,8 @@ def dm_submissions_page(
         conditions.append(smartva_sids.c.va_sid.is_not(None))
     elif smartva == "missing":
         conditions.append(smartva_sids.c.va_sid.is_(None))
+    elif smartva == "failed":
+        conditions.append(smartva_failed_sids.c.va_sid.is_not(None))
     if age_group:
         if _mv_ref is None:
             conditions.append(sa.false())
@@ -532,6 +543,7 @@ def dm_submissions_page(
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(VaDataManagerReview, sa.and_(
             VaDataManagerReview.va_sid == VaSubmissions.va_sid,
             VaDataManagerReview.va_dmreview_status == VaStatuses.active,
@@ -557,6 +569,7 @@ def dm_submissions_page(
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
         .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(VaDataManagerReview, sa.and_(
             VaDataManagerReview.va_sid == VaSubmissions.va_sid,
             VaDataManagerReview.va_dmreview_status == VaStatuses.active,
@@ -629,6 +642,15 @@ def _dm_submission_query_parts(
         .distinct()
         .subquery()
     )
+    smartva_failed_sids = (
+        sa.select(VaSmartvaResults.va_sid)
+        .where(
+            VaSmartvaResults.va_smartva_status == VaStatuses.active,
+            VaSmartvaResults.va_smartva_outcome == VaSmartvaResults.OUTCOME_FAILED,
+        )
+        .distinct()
+        .subquery()
+    )
     _mv_ref = None
     if _submission_analytics_mv_available():
         _mv_ref = sa.table(
@@ -665,6 +687,8 @@ def _dm_submission_query_parts(
         conditions.append(smartva_sids.c.va_sid.is_not(None))
     elif smartva == "missing":
         conditions.append(smartva_sids.c.va_sid.is_(None))
+    elif smartva == "failed":
+        conditions.append(smartva_failed_sids.c.va_sid.is_not(None))
     if age_group:
         if _mv_ref is None:
             conditions.append(sa.false())
@@ -990,6 +1014,7 @@ def dm_submissions_export_csv(
         )
         .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(active_dm_review, active_dm_review.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(active_ini, active_ini.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(active_coder_review, active_coder_review.c.va_sid == VaSubmissions.va_sid)
@@ -1223,6 +1248,7 @@ def dm_smartva_input_export_csv(
             VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
         )
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*conditions))
         .order_by(order, VaForms.project_id, VaForms.site_id, VaSubmissions.va_sid)
     )
@@ -1347,6 +1373,7 @@ def dm_smartva_results_export_csv(
             ),
         )
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*conditions))
         .order_by(order, VaForms.project_id, VaForms.site_id, VaSubmissions.va_sid)
     )
@@ -1457,6 +1484,7 @@ def dm_smartva_likelihoods_export_csv(
             ),
         )
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*conditions))
         .order_by(order, VaForms.project_id, VaForms.site_id, VaSubmissions.va_sid, VaSmartvaRunOutput.output_row_index)
     )

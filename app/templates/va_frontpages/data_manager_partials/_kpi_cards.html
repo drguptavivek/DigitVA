@@ -133,4 +133,19 @@
       </div>
     </div>
   </div>
+
+  <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card clickable h-100" style="background:#fff1f2;border-color:#fecdd3;position:relative;" id="kpi-smartva-failed-card">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              data-bs-content="Submissions where SmartVA ran but returned no cause-of-death result (missing_row or execution error). These need investigation or a SmartVA re-run.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon text-white" style="background:#e11d48;"><i class="fa-solid fa-circle-xmark"></i></div>
+      <div>
+        <div class="dm-kpi-value" style="color:#e11d48;" id="kpi-smartva-failed">—</div>
+        <div class="dm-kpi-label">SmartVA Failed</div>
+      </div>
+    </div>
+  </div>
 </div>

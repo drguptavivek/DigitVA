@@ -510,6 +510,24 @@ def get_dm_kpi_from_mv(
         .where(where)
         .where(demo.c.has_smartva.is_(False))
     ) or 0
+
+    # Count submissions whose active SmartVA result has outcome='failed'.
+    # These are distinct from "missing" (no result) — they ran but produced no COD.
+    from app.models import VaSmartvaResults
+    smartva_failed = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(
+            joined.join(
+                VaSmartvaResults,
+                sa.and_(
+                    VaSmartvaResults.va_sid == core.c.va_sid,
+                    VaSmartvaResults.va_smartva_status == "active",
+                    VaSmartvaResults.va_smartva_outcome == VaSmartvaResults.OUTCOME_FAILED,
+                ),
+            )
+        )
+        .where(where)
+    ) or 0
     revoked = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(joined)
@@ -567,6 +585,7 @@ def get_dm_kpi_from_mv(
         "flagged_submissions": flagged,
         "odk_has_issues_submissions": odk_issues,
         "smartva_missing_submissions": smartva_missing,
+        "smartva_failed_submissions": smartva_failed,
         "revoked_submissions": revoked,
         "consent_refused_submissions": consent_refused,
         "workflow_counts": workflow_counts,

@@ -1037,6 +1037,7 @@
         document.getElementById('kpi-flagged').textContent         = fmt(d.flagged_submissions);
         document.getElementById('kpi-odk-issues').textContent      = fmt(d.odk_has_issues_submissions);
         document.getElementById('kpi-smartva-missing').textContent = fmt(d.smartva_missing_submissions);
+        document.getElementById('kpi-smartva-failed').textContent  = fmt(d.smartva_failed_submissions);
         document.getElementById('kpi-revoked').textContent         = fmt(d.revoked_submissions);
         document.getElementById('kpi-consent-refused').textContent = fmt(d.consent_refused_submissions);
         document.getElementById('kpi-smartva-pending').textContent = fmt(d.smartva_pending_submissions);
@@ -1112,6 +1113,7 @@
   document.getElementById('kpi-flagged-card').addEventListener('click',         () => kpiFilterClick('workflow', 'not_codeable_by_data_manager'));
   document.getElementById('kpi-odk-issues-card').addEventListener('click',      () => kpiFilterClick('odk_status', 'hasIssues'));
   document.getElementById('kpi-smartva-missing-card').addEventListener('click', () => kpiFilterClick('smartva', 'missing'));
+  document.getElementById('kpi-smartva-failed-card').addEventListener('click',  () => kpiFilterClick('smartva', 'failed'));
   document.getElementById('kpi-revoked-card').addEventListener('click',         () => kpiFilterClick('workflow', 'finalized_upstream_changed'));
   document.getElementById('kpi-consent-refused-card').addEventListener('click', () => kpiFilterClick('workflow', 'consent_refused'));
 

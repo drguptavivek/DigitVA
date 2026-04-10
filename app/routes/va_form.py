@@ -524,20 +524,7 @@ def renderpartial(va_sid, va_partial):
         va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
         va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
         da_va_final_assess = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.va_finassess_status == VaStatuses.deactive)&(VaFinalAssessments.va_sid == va_sid)&(VaFinalAssessments.va_finassess_by == current_user.user_id)))
-        # Only surface the deactivated initial assessment (recovery aid) when the
-        # user has no active initial assessment in this session.  If they already
-        # have active step-1 data, showing the old record alongside it is noise.
-        da_va_initial_assess = (
-            db.session.scalar(
-                sa.select(VaInitialAssessments).where(
-                    (VaInitialAssessments.va_iniassess_status == VaStatuses.deactive)
-                    & (VaInitialAssessments.va_sid == va_sid)
-                    & (VaInitialAssessments.va_iniassess_by == current_user.user_id)
-                )
-            )
-            if not vainiexists
-            else None
-        )
+        da_va_initial_assess = None
         da_va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.deactive)&(VaCoderReview.va_sid == va_sid)&(VaCoderReview.va_creview_by == current_user.user_id)))
         # return render_template(
         #     f"va_formcategory_partials/{va_partial}.html",

@@ -6,6 +6,7 @@ import os
 import uuid
 from flask import jsonify, render_template, request, session
 from flask_login import current_user
+from flask_limiter.errors import RateLimitExceeded
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from werkzeug.exceptions import HTTPException
@@ -215,6 +216,9 @@ def va_logging(app):
         return response
     @app.errorhandler(Exception)
     def handle_exception(e):
+        if isinstance(e, RateLimitExceeded):
+            error_logger.error(f"Rate limited: {str(e)}")
+            return e
         error_logger.error(f"Error: {str(e)}", exc_info=True)
         if isinstance(e, HTTPException):
             return e

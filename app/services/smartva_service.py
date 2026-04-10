@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 import uuid
 from datetime import datetime, timezone
 
@@ -747,6 +748,7 @@ def _form_run_outcome(success_count: int, failure_count: int) -> str:
 
 
 SMARTVA_BATCH_SIZE = 50  # max submissions per SmartVA binary invocation
+SMARTVA_INTER_BATCH_SLEEP = 2  # seconds between batches to allow memory to settle
 
 
 def _generate_batch(
@@ -1041,6 +1043,8 @@ def generate_for_form(
             )
             total += saved
             db.session.commit()
+            if batch_index < len(batches) and SMARTVA_INTER_BATCH_SLEEP > 0:
+                time.sleep(SMARTVA_INTER_BATCH_SLEEP)
         except Exception as exc:
             db.session.rollback()
             db.session.remove()

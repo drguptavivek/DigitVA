@@ -51,7 +51,7 @@ grant_audit_formatter = logging.Formatter('%(asctime)s %(message)s')
 # Initialize loggers
 request_logger = va_setup_logger('REQUEST_LOG', f'{va_log}/requests.log', logging.INFO, va_detailed_formatter)
 error_logger = va_setup_logger('ERROR_LOG', f'{va_log}/errors.log', logging.ERROR, va_detailed_formatter, stderr=True)
-sql_logger = va_setup_logger('SQL_LOG', f'{va_log}/sql.log', logging.INFO, va_detailed_formatter, stderr=True)
+sql_logger = va_setup_logger('SQL_LOG', f'{va_log}/sql.log', logging.INFO, va_detailed_formatter)
 grant_audit_logger = va_setup_logger('GRANT_AUDIT', f'{va_log}/grants.log', logging.INFO, grant_audit_formatter)
 
 

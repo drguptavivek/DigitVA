@@ -677,6 +677,7 @@ def _resolve_scope_from_payload(payload):
             VaAccessRoles.project_pi,
             VaAccessRoles.collaborator,
             VaAccessRoles.coder,
+            VaAccessRoles.coding_tester,
             VaAccessRoles.reviewer,
             VaAccessRoles.data_manager,
         }:
@@ -689,6 +690,7 @@ def _resolve_scope_from_payload(payload):
         VaAccessRoles.site_pi,
         VaAccessRoles.collaborator,
         VaAccessRoles.coder,
+        VaAccessRoles.coding_tester,
         VaAccessRoles.reviewer,
         VaAccessRoles.data_manager,
     }:

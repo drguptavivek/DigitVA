@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-10
 ---
 
 # Coding Workflow State Machine Policy
@@ -651,7 +651,7 @@ This transition occurs automatically during ODK sync when:
 
 | Artifact | Preservation Method |
 |---|---|
-| Final COD | Current implementation keeps existing final assessment rows active; explicit preserved-link model still needed |
+| Final COD | Current implementation keeps existing final assessment rows active and now stores explicit final-to-initial linkage via `va_final_assessments.source_initial_assessment_id` |
 | VA data snapshot | Gap: current implementation overwrites `va_submissions.va_data` without a dedicated pre-update snapshot |
 | Audit trail | Implemented via canonical `va_submission_workflow_events`; `VaSubmissionsAuditlog` remains for non-workflow operational audit |
 | SmartVA result | Protected from automatic regeneration while in this protected state |

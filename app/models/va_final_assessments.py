@@ -31,6 +31,12 @@ class VaFinalAssessments(db.Model):
         index=True,
         nullable=False,
     )
+    source_initial_assessment_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_initial_assessments.va_iniassess_id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     va_conclusive_cod: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
     va_finassess_remark: so.Mapped[Optional[str]] = so.mapped_column(
         sa.Text, nullable=True

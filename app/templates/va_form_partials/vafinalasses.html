@@ -205,6 +205,34 @@
           </div>  
         </div>  
       </div>  
+
+      {% if previous_final_conclusive_cod %}
+      <div class="card bg-light border-0 mb-4">
+        <div class="card-body p-3">
+          <h6 class="card-title text-secondary mb-3">Previous Final COD (Before This Recode):</h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="p-2 border rounded bg-white">
+                <small class="text-secondary d-block mb-1">Final Underlying / Antecedent COD:</small>
+                <div class="fw-semibold">{{ previous_final_conclusive_cod }}</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 border rounded bg-white">
+                <small class="text-secondary d-block mb-1">Previous Immediate COD:</small>
+                <div class="fw-semibold">{{ previous_final_immediate_cod or '—' }}</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 border rounded bg-white">
+                <small class="text-secondary d-block mb-1">Previous Antecedent COD:</small>
+                <div class="fw-semibold">{{ previous_final_antecedent_cod or '—' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
   
       <!-- Final COD Selection -->  
       <div class="row mb-4">  
@@ -270,8 +298,12 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
 
   // Initialize Select2 with a small delay to ensure DOM is ready
   setTimeout(() => {
-    function initSelect2Field(selector, hiddenInputName) {
-      $(selector).select2({
+    function initSelect2FieldWithPreset(selector, hiddenInputName, presetValue) {
+      const $select = $(selector);
+      const $hidden = document.querySelector(`input[name="${hiddenInputName}"]`);
+      if ($hidden) $hidden.value = "";
+
+      $select.select2({
         ajax: {
           url: icdUrl,
           dataType: 'json',
@@ -293,13 +325,23 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
         width: '100%' // Add this to ensure proper width
       });
 
-      $(selector).on("select2:select", function (e) {
+      if (presetValue) {
+        const option = new Option(presetValue, presetValue, true, true);
+        $select.append(option).trigger('change');
+        if ($hidden) $hidden.value = presetValue;
+      }
+
+      $select.on("select2:select", function (e) {
         const selectedCode = e.params.data.id;
-        document.querySelector(`input[name="${hiddenInputName}"]`).value = selectedCode;
+        if ($hidden) $hidden.value = selectedCode;
       });
     }
 
-    initSelect2Field("#conclusive-cod-select", "va_conclusive_cod");
+    initSelect2FieldWithPreset(
+      "#conclusive-cod-select",
+      "va_conclusive_cod",
+      {{ pre_conclusive_cod | tojson if pre_conclusive_cod else 'null' }}
+    );
   }, 100);
 });
 </script>

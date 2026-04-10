@@ -5,6 +5,7 @@ from app import db
 from app.models import (
     VaFinalAssessments,
     VaForms,
+    VaInitialAssessments,
     VaResearchProjects,
     VaReviewerFinalAssessments,
     VaSites,
@@ -184,6 +185,37 @@ class TestFinalCodAuthorityService(BaseTestCase):
         self.assertEqual(
             episode.replacement_final_assessment_id,
             replacement.va_finassess_id,
+        )
+
+    def test_final_assessment_stores_explicit_source_initial_assessment_link(self):
+        sid = "uuid:final-source-initial-link"
+        submission = self._add_submission(sid)
+
+        initial = VaInitialAssessments(
+            va_sid=sid,
+            va_iniassess_by=self.base_coder_user.user_id,
+            va_immediate_cod="R99",
+            va_antecedent_cod="R99",
+            va_iniassess_status=VaStatuses.active,
+        )
+        db.session.add(initial)
+        db.session.flush()
+
+        final = VaFinalAssessments(
+            va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
+            va_finassess_by=self.base_coder_user.user_id,
+            source_initial_assessment_id=initial.va_iniassess_id,
+            va_conclusive_cod="I21",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final)
+        db.session.commit()
+
+        stored = db.session.get(VaFinalAssessments, final.va_finassess_id)
+        self.assertEqual(
+            stored.source_initial_assessment_id,
+            initial.va_iniassess_id,
         )
 
     def test_authoritative_final_cod_record_prefers_reviewer_final(self):

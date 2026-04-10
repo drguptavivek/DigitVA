@@ -195,3 +195,19 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
         )
 
         self.assertIn("Assign COD", rendered)
+
+    def test_cod_assessment_panel_shows_initial_form_on_resume_recode_with_existing_final(self):
+        rendered = self.env.get_template(
+            "va_formcategory_partials/_va_cod_assessment_panel.html"
+        ).render(
+            va_action="vacode",
+            va_actiontype="varesumecoding",
+            va_sid="SID-1",
+            vafinexists=True,
+            vaerrexists=False,
+            vainiexists=False,
+            url_for=lambda *args, **kwargs: "/vaform/SID-1/vainitialasses",
+        )
+
+        self.assertIn("vainitialasses", rendered)
+        self.assertNotIn("vafinalasses", rendered)

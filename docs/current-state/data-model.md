@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-10
 ---
 
 # Current Data Model
@@ -251,6 +251,7 @@ Key fields:
 - `va_sid`
 - `payload_version_id`
 - `va_finassess_by`
+- `source_initial_assessment_id`
 - `va_conclusive_cod`
 - `va_finassess_remark`
 - `va_finassess_status`
@@ -263,6 +264,9 @@ Current behavior:
   episodes
 - coder final-COD rows are now stamped with the submission's current
   `active_payload_version_id`
+- coder final-COD rows now store explicit linkage to the exact Step 1 draft
+  used during final submit via
+  `source_initial_assessment_id -> va_initial_assessments.va_iniassess_id`
 - the active row alone is no longer the sole authority signal during the
   workflow migration
 - normal coding leaves `demo_expires_at` null

@@ -838,6 +838,24 @@ def renderpartial(va_sid, va_partial):
             )
             .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
         )
+        # Recode resume fallback:
+        # After final COD submission, the active initial draft is intentionally
+        # deactivated. When a fresh recode session starts, prefill Step 1 from
+        # the coder's latest prior initial draft if no active draft exists.
+        if (
+            existing_assess is None
+            and va_action == "vacode"
+            and va_actiontype == "varesumecoding"
+            and get_active_recode_episode(va_sid)
+        ):
+            existing_assess = db.session.scalar(
+                sa.select(VaInitialAssessments)
+                .where(
+                    VaInitialAssessments.va_sid == va_sid,
+                    VaInitialAssessments.va_iniassess_by == current_user.user_id,
+                )
+                .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
+            )
         pre_immediate_cod = None
         pre_antecedent_cod = None
         if existing_assess:
@@ -868,6 +886,16 @@ def renderpartial(va_sid, va_partial):
             )
             .order_by(VaInitialAssessments.va_iniassess_createdat.desc())
         )
+        prior_authoritative_final = get_authoritative_final_assessment(va_sid)
+        prior_final_initial = None
+        if (
+            prior_authoritative_final
+            and prior_authoritative_final.source_initial_assessment_id
+        ):
+            prior_final_initial = db.session.get(
+                VaInitialAssessments,
+                prior_authoritative_final.source_initial_assessment_id,
+            )
 
         def _render_final_assessment_form(error_messages=None):
             return render_template(
@@ -880,6 +908,26 @@ def renderpartial(va_sid, va_partial):
                 va_immediate_cod=va_initial_assess.va_immediate_cod if va_initial_assess else None,
                 va_antecedent_cod=va_initial_assess.va_antecedent_cod if va_initial_assess else None,
                 va_other_conditions=va_initial_assess.va_other_conditions if va_initial_assess else None,
+                pre_conclusive_cod=(
+                    prior_authoritative_final.va_conclusive_cod
+                    if prior_authoritative_final
+                    else None
+                ),
+                previous_final_conclusive_cod=(
+                    prior_authoritative_final.va_conclusive_cod
+                    if prior_authoritative_final
+                    else None
+                ),
+                previous_final_immediate_cod=(
+                    prior_final_initial.va_immediate_cod
+                    if prior_final_initial
+                    else None
+                ),
+                previous_final_antecedent_cod=(
+                    prior_final_initial.va_antecedent_cod
+                    if prior_final_initial
+                    else None
+                ),
                 form_error_messages=error_messages or [],
             )
 
@@ -951,6 +999,9 @@ def renderpartial(va_sid, va_partial):
                 va_sid=va_sid,
                 payload_version_id=active_payload_version.payload_version_id,
                 va_finassess_by=current_user.user_id,
+                source_initial_assessment_id=(
+                    va_initial_assess.va_iniassess_id if va_initial_assess else None
+                ),
                 va_conclusive_cod=form1.va_conclusive_cod.data,
                 va_finassess_remark=form1.va_finassess_remark.data.strip() or None,
                 demo_expires_at=_demo_expiry_for_actiontype(va_sid, va_actiontype),
@@ -1040,12 +1091,12 @@ def renderpartial(va_sid, va_partial):
                 updated_by=current_user.user_id,
             )
             if active_recode_episode:
-                complete_recode_episode(active_recode_episode, new_review1)
                 mark_recode_finalized(
                     va_sid,
                     reason="replacement_final_cod_submitted",
                     actor=coder_actor(current_user.user_id),
                 )
+                complete_recode_episode(active_recode_episode, new_review1)
             else:
                 mark_coder_finalized(
                     va_sid,

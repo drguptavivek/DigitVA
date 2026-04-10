@@ -2,7 +2,7 @@
   {% if va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" %}
     {% include 'va_formcategory_partials/_cod_evidence_panel.html' %}
     <div id="form-container2">
-      {% if not vafinexists and not vaerrexists and not vainiexists %}
+      {% if not vaerrexists and not vainiexists %}
         <div hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vainitialasses', action=va_action, actiontype=va_actiontype) }}" hx-trigger="load" hx-swap="innerHTML" hx-target="this"></div>
       {% elif vainiexists %}
         <div hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vafinalasses', action=va_action, actiontype=va_actiontype) }}" hx-trigger="load" hx-swap="innerHTML" hx-target="this"></div>

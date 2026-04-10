@@ -148,10 +148,10 @@ class AllocationError(Exception):
 # Internal helpers (no current_user — caller passes user explicitly)
 # ---------------------------------------------------------------------------
 
-def _available_submission_filters(form_ids, project_id=None, user=None, pool_states=None):
+def _available_submission_filters(form_ids, project_id=None, user=None):
     filters = [
         VaSubmissions.va_form_id.in_(form_ids),
-        VaSubmissionWorkflow.workflow_state.in_(pool_states or CODER_READY_POOL_STATES),
+        VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
     ]
     if user is not None:
         language_filter = _narration_language_filter(user)
@@ -679,14 +679,10 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
             va_audit_action="va_allocation_released_by_admin_for_demo",
         ))
 
-    from app.services.workflow.definition import DEMO_CODER_POOL_STATES
     va_new_sid = db.session.scalar(
         sa.select(VaSubmissions.va_sid)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-        .where(sa.and_(*_available_submission_filters(
-            coder_form_ids, project_id=project_id, user=user,
-            pool_states=DEMO_CODER_POOL_STATES,
-        )))
+        .where(sa.and_(*_available_submission_filters(coder_form_ids, project_id=project_id, user=user)))
         .order_by(sa.func.random())
     )
     if not va_new_sid:
@@ -707,6 +703,19 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
         va_audit_action="form allocated to admin for demo coding",
         va_audit_entityid=gen_uuid,
     ))
+    # The pool only contains ready_for_coding forms, but guard here in case
+    # the demo cleanup task hasn't run yet and the form is in a stale state.
+    from app.services.workflow.definition import WORKFLOW_READY_FOR_CODING
+    wf_state = db.session.scalar(
+        sa.select(VaSubmissionWorkflow.workflow_state)
+        .where(VaSubmissionWorkflow.va_sid == va_new_sid)
+    )
+    if wf_state and wf_state != WORKFLOW_READY_FOR_CODING:
+        reset_demo_state(
+            va_new_sid,
+            reason="demo_allocation_stale_state_reset",
+            actor=admin_actor(user.user_id),
+        )
     mark_demo_started(
         va_new_sid,
         reason="demo_coder_allocation_created",

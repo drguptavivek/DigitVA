@@ -106,15 +106,7 @@ def _apply_transition(
     workflow_record = get_submission_workflow_record(va_sid, for_update=True)
     previous_state = workflow_record.workflow_state if workflow_record else None
     normalized_actor = actor or system_actor()
-
-    # Demo forms are shared across multiple simultaneous coders — their workflow
-    # state reflects whichever user last acted, so state-machine restrictions
-    # would spuriously block concurrent sessions. Skip allowed_from checks for
-    # demo submissions; the actor-kind check still applies.
-    from app.services.demo_project_service import is_demo_training_submission
-    is_demo = is_demo_training_submission(va_sid)
-
-    if not is_demo and allowed_from is not None and previous_state not in set(allowed_from):
+    if allowed_from is not None and previous_state not in set(allowed_from):
         log.warning(
             "WorkflowTransitionError | transition=%s | sid=%s | from=%r | target=%s"
             " | actor_kind=%s | actor_user=%s | allowed_from=%s",

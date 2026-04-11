@@ -203,18 +203,10 @@ def _apply_release_reset_transition(
     previous_state = workflow_record.workflow_state if workflow_record else None
     normalized_actor = actor or system_actor()
     target_state = infer_workflow_state_after_coding_release(va_sid)
+    disallowed_but_idempotent_noop = False
     if allowed_from is not None and previous_state not in set(allowed_from):
         if previous_state == target_state:
-            log.info(
-                "workflow release-reset transition=%s sid=%s no-op from=%r target=%s"
-                " actor_kind=%s actor_user=%s",
-                transition_id,
-                va_sid,
-                previous_state,
-                target_state,
-                normalized_actor.kind,
-                normalized_actor.user_id,
-            )
+            disallowed_but_idempotent_noop = True
         else:
             log.warning(
                 "WorkflowTransitionError | transition=%s | sid=%s | from=%r"
@@ -247,6 +239,23 @@ def _apply_release_reset_transition(
         raise WorkflowTransitionError(
             f"Transition {transition_id} not allowed for actor kind "
             f"{normalized_actor.kind!r}."
+        )
+    if disallowed_but_idempotent_noop:
+        log.info(
+            "workflow release-reset no-op transition=%s sid=%s from=%r target=%s"
+            " actor_kind=%s actor_user=%s",
+            transition_id,
+            va_sid,
+            previous_state,
+            target_state,
+            normalized_actor.kind,
+            normalized_actor.user_id,
+        )
+        return TransitionResult(
+            va_sid=va_sid,
+            transition_id=transition_id,
+            previous_state=previous_state,
+            current_state=target_state,
         )
 
     set_submission_workflow_state(

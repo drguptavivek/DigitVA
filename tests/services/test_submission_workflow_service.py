@@ -860,3 +860,11 @@ class TestSubmissionWorkflowService(BaseTestCase):
             )
         )
         self.assertEqual(stored_state, WORKFLOW_CODER_FINALIZED)
+        transition_events = db.session.scalars(
+            db.select(VaSubmissionWorkflowEvent).where(
+                VaSubmissionWorkflowEvent.va_sid == sid,
+                VaSubmissionWorkflowEvent.transition_id
+                == "incomplete_first_pass_reset",
+            )
+        ).all()
+        self.assertEqual(len(transition_events), 0)

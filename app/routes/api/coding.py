@@ -1,7 +1,7 @@
 """Coder workflow JSON API — /api/v1/coding/"""
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
 from app import db
@@ -114,15 +114,34 @@ def allocate():
     try:
         if is_demo:
             if not current_user.is_admin():
+                current_app.logger.warning(
+                    "coding_allocation_denied reason=demo_requires_admin user_id=%s project_id=%s",
+                    current_user.user_id,
+                    project_id,
+                )
                 return _error("Only admin users can start a demo coding session.", 403)
             result = start_demo_allocation(current_user, project_id)
         elif sid:
             result = allocate_pick_form(current_user, sid)
         else:
             if not current_user.is_coder():
+                current_app.logger.warning(
+                    "coding_allocation_denied reason=coder_role_required user_id=%s project_id=%s",
+                    current_user.user_id,
+                    project_id,
+                )
                 return _error("Coder access is required.", 403)
             result = allocate_random_form(current_user, project_id=project_id)
     except AllocationError as e:
+        current_app.logger.warning(
+            "coding_allocation_denied reason=allocation_error user_id=%s sid=%s is_demo=%s project_id=%s status_code=%s message=%s",
+            current_user.user_id,
+            sid,
+            is_demo,
+            project_id,
+            e.status_code,
+            e.message,
+        )
         return _error(e.message, e.status_code)
 
     form = db.session.get(VaSubmissions, result.va_sid)

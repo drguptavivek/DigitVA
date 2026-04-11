@@ -590,7 +590,10 @@
         const sel = document.getElementById('project-select-top');
         if (!sel) return DEMO_PROJECTS[0];
         sel.value = DEMO_PROJECTS[0];
+        localStorage.setItem(_PROJECT_SELECT_KEY, sel.value);
         syncDemoTrainingBanner();
+        applyProjectFilterToHistory();
+        applyProjectFilterToEligibility();
         return sel.value;
       }
 
@@ -619,9 +622,29 @@
 
       const demoCodingShortcutBtn = document.getElementById('demo-coding-shortcut-btn');
       if (demoCodingShortcutBtn) {
-        demoCodingShortcutBtn.addEventListener('click', () => {
-          selectFirstDemoProject();
-          document.getElementById('start-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        demoCodingShortcutBtn.addEventListener('click', async () => {
+          const demoProjectId = selectFirstDemoProject();
+          if (!demoProjectId) {
+            showCodingError('No demo project is configured.');
+            return;
+          }
+
+          try {
+            const fresh = await apiFetch('/api/v1/coding/stats?project_id=' + encodeURIComponent(demoProjectId));
+            applyStats(allocData.allocation, fresh);
+          } catch {}
+
+          const startBtn = document.getElementById('start-btn');
+          if (!startBtn || startBtn.disabled) {
+            showCodingError('No forms are currently available for demo coding.');
+            return;
+          }
+
+          startAllocationBtn(
+            startBtn,
+            { project_id: demoProjectId },
+            '<i class="fas fa-edit me-2"></i>Start Random Allocation Coding'
+          );
         });
       }
 

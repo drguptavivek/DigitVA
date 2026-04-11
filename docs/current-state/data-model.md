@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-10
+last_updated: 2026-04-11
 ---
 
 # Current Data Model
@@ -174,6 +174,10 @@ Current behavior:
 - normalized age fields store sync-time WHO age precedence outputs for downstream analytics
 - `va_odk_reviewstate` mirrors ODK Central review state locally for dashboard visibility
 - `va_sync_issue_*` captures local sync-health markers such as `missing_in_odk`
+- coder-ready counting paths are indexed for common filters:
+  - `va_form_id`
+  - `lower(va_narration_language)`
+  - join key `va_sid`
 
 ## Workflow Tables
 
@@ -224,6 +228,27 @@ Current behavior:
 - completion history and recode behavior still rely on legacy workflow tables
   in parallel, so this table is the canonical state store under migration, not
   yet the sole source of truth
+- coder-ready workflows are additionally indexed on `(workflow_state, va_sid)`
+  to reduce join/filter cost in coder and dashboard APIs
+
+### `va_icd_codes`
+
+Purpose:
+
+- stores searchable ICD code catalog entries for coding forms
+
+Key fields:
+
+- `icd_code`
+- `icd_to_display`
+- `category`
+
+Current behavior:
+
+- API search supports both code-prefix and display-text matching
+- performance indexes include:
+  - `lower(icd_code)` (prefix/code search)
+  - `gin(lower(icd_to_display) gin_trgm_ops)` for text matching
 
 ### `va_initial_assessments`
 

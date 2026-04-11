@@ -102,6 +102,9 @@ class Config:
     MAIL_BASE_URL = os.environ.get("MAIL_BASE_URL", "")
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
+    ICD_SEARCH_CACHE_TIMEOUT = int(
+        os.environ.get("ICD_SEARCH_CACHE_TIMEOUT", str(60 * 60 * 24 * 7))
+    )
     
     CELERY = {
         "broker_url": os.environ.get("CELERY_BROKER_URL") or REDIS_URL,

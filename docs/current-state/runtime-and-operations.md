@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-08
+last_updated: 2026-04-11
 ---
 
 # Runtime And Operations
@@ -200,8 +200,13 @@ Logging is wired into the app in:
 Current log outputs:
 
 - `logs/requests.log`
+- `logs/responses.log`
 - `logs/errors.log`
 - `logs/sql.log`
+- `logs/celery_tasks.log`
+- `logs/celery_slow_queries.log`
+
+All high-volume logs use 6-hour rotation with bounded retention (56 files, ~14 days).
 
 ### Request and response logging
 
@@ -210,9 +215,10 @@ The app logs:
 - user identity when available
 - client IP
 - method
-- URL
-- request payload with some sensitive fields masked
-- trimmed response payload for text and JSON responses
+- path and query string
+- request payload key summary with sensitive fields masked
+- response metadata (`status`, `bytes`, `content_type`)
+- shared request correlation id in both request/response logs and response header (`X-Request-ID`)
 
 Masked request fields currently include values such as:
 
@@ -225,20 +231,16 @@ Masked request fields currently include values such as:
 
 ### Error logging
 
-Unhandled exceptions are logged to `errors.log` with stack traces.
+Unhandled exceptions are logged to `errors.log` with stack traces and request context.
 
-### SQL logging
+### SQL and Celery slow-query logging
 
-SQLAlchemy engine logging is enabled and routed to `logs/sql.log`.
+Slow SQL logging is event-based:
 
-Current filter behavior:
+- web process: `logs/sql.log` (threshold `0.5s`, all statement types)
+- Celery process: `logs/celery_slow_queries.log` (threshold `1.0s`, all statement types)
 
-- only statements containing `INSERT`, `UPDATE`, or `DELETE` are logged by the custom [`SQLWriteFilter`](../../app/logging/va_queryfilter.py)
-
-Current implication:
-
-- write activity is easier to audit
-- read/query performance analysis is not comprehensively captured in current SQL logs
+Celery task execution logs are written to `logs/celery_tasks.log` with task metadata and correlation fields.
 
 ## Frontend Runtime Helpers
 

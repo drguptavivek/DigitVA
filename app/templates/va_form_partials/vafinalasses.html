@@ -310,7 +310,6 @@ document.body.addEventListener("htmx:afterSwap", function(event) {
           delay: 250,
           data: params => ({ q: params.term }),
           processResults: data => {
-            console.log("ICD Data:", data);
             return {
               results: data.map(item => ({
                 id: item.icd_to_display,

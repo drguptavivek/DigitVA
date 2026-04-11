@@ -202,20 +202,34 @@ def _apply_release_reset_transition(
     workflow_record = get_submission_workflow_record(va_sid, for_update=True)
     previous_state = workflow_record.workflow_state if workflow_record else None
     normalized_actor = actor or system_actor()
+    target_state = infer_workflow_state_after_coding_release(va_sid)
     if allowed_from is not None and previous_state not in set(allowed_from):
-        log.warning(
-            "WorkflowTransitionError | transition=%s | sid=%s | from=%r"
-            " | actor_kind=%s | actor_user=%s | allowed_from=%s",
-            transition_id,
-            va_sid,
-            previous_state,
-            normalized_actor.kind,
-            normalized_actor.user_id,
-            list(allowed_from),
-        )
-        raise WorkflowTransitionError(
-            f"Transition {transition_id} not allowed from state {previous_state!r}."
-        )
+        if previous_state == target_state:
+            log.info(
+                "workflow release-reset transition=%s sid=%s no-op from=%r target=%s"
+                " actor_kind=%s actor_user=%s",
+                transition_id,
+                va_sid,
+                previous_state,
+                target_state,
+                normalized_actor.kind,
+                normalized_actor.user_id,
+            )
+        else:
+            log.warning(
+                "WorkflowTransitionError | transition=%s | sid=%s | from=%r"
+                " | actor_kind=%s | actor_user=%s | allowed_from=%s | target=%s",
+                transition_id,
+                va_sid,
+                previous_state,
+                normalized_actor.kind,
+                normalized_actor.user_id,
+                list(allowed_from),
+                target_state,
+            )
+            raise WorkflowTransitionError(
+                f"Transition {transition_id} not allowed from state {previous_state!r}."
+            )
     if (
         allowed_actor_kinds is not None
         and normalized_actor.kind not in set(allowed_actor_kinds)
@@ -235,7 +249,6 @@ def _apply_release_reset_transition(
             f"{normalized_actor.kind!r}."
         )
 
-    target_state = infer_workflow_state_after_coding_release(va_sid)
     set_submission_workflow_state(
         va_sid,
         target_state,

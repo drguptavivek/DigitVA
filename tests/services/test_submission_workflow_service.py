@@ -828,3 +828,35 @@ class TestSubmissionWorkflowService(BaseTestCase):
             )
         )
         self.assertEqual(stored_state, WORKFLOW_READY_FOR_CODING)
+
+    def test_reset_incomplete_first_pass_tolerates_coder_finalized_state(self):
+        """Timeout release can race with finalization and should remain idempotent."""
+        sid = "uuid:wf-reset-finalized"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            reason="test_setup_inconsistent_state",
+            by_role="vasystem",
+        )
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=sid,
+                va_finassess_by=self.base_coder_user.user_id,
+                va_conclusive_cod="I21",
+                va_finassess_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        result = reset_incomplete_first_pass(sid, actor=system_actor())
+        db.session.commit()
+
+        self.assertEqual(result.previous_state, WORKFLOW_CODER_FINALIZED)
+        self.assertEqual(result.current_state, WORKFLOW_CODER_FINALIZED)
+        stored_state = db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+        self.assertEqual(stored_state, WORKFLOW_CODER_FINALIZED)

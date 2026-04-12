@@ -58,6 +58,27 @@ def _add_rotating_handler(logger, **kwargs):
     handler.addFilter(LogContextFilter())
     logger.addHandler(handler)
 
+    # Mirror Celery ERROR logs into the shared application errors.log sink.
+    error_log_path = os.path.abspath(os.path.join(log_dir, "errors.log"))
+    has_error_handler = any(
+        isinstance(handler, TimedRotatingFileHandler)
+        and getattr(handler, "baseFilename", "") == error_log_path
+        for handler in logger.handlers
+    )
+    if not has_error_handler:
+        error_handler = TimedRotatingFileHandler(
+            error_log_path,
+            when="h",
+            interval=LOG_ROTATION_HOURS,
+            backupCount=LOG_BACKUP_COUNT,
+            encoding="utf-8",
+            utc=True,
+        )
+        error_handler.setLevel(logging.ERROR)
+        error_handler.setFormatter(va_detailed_formatter)
+        error_handler.addFilter(LogContextFilter())
+        logger.addHandler(error_handler)
+
 
 after_setup_logger.connect(_add_rotating_handler)
 after_setup_task_logger.connect(_add_rotating_handler)

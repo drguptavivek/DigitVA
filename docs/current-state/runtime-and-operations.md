@@ -241,6 +241,9 @@ Slow SQL logging is event-based:
 - Celery process: `logs/celery_slow_queries.log` (threshold `1.0s`, all statement types)
 
 Celery task execution logs are written to `logs/celery_tasks.log` with task metadata and correlation fields.
+Celery `ERROR`-level events are also mirrored into the shared `logs/errors.log`
+sink so operational triage can use one consolidated error log across Flask and
+Celery.
 
 ## Frontend Runtime Helpers
 

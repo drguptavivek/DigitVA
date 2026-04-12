@@ -27,7 +27,7 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from app import create_app, db
-from app.models import VaForms
+from app.models import VaForms, VaProjectSites, VaStatuses
 from app.utils.va_smartva.va_smartva_02_prepdata import va_smartva_prepdata
 from app.utils.va_smartva.va_smartva_03_runsmartva import va_smartva_runsmartva
 from app.utils.va_smartva.va_smartva_04_formatsmartvaresult import va_smartva_formatsmartvaresult
@@ -39,6 +39,18 @@ class RunConfig:
     output_root: Path
     limit_forms: int | None
     form_ids: set[str] | None
+
+
+@dataclass(frozen=True)
+class OfflineFormSpec:
+    form_id: str
+    project_id: str
+    site_id: str
+    form_smartvahiv: str
+    form_smartvamalaria: str
+    form_smartvahce: str
+    form_smartvafreetext: str
+    form_smartvacountry: str
 
 
 def _repo_root() -> Path:
@@ -84,11 +96,42 @@ def _list_key_outputs(form_dir: Path) -> list[str]:
 
 def _load_project_forms(config: RunConfig):
     stmt = (
-        sa.select(VaForms)
+        sa.select(
+            VaForms.form_id,
+            VaForms.project_id,
+            VaForms.site_id,
+            VaForms.form_smartvahiv,
+            VaForms.form_smartvamalaria,
+            VaForms.form_smartvahce,
+            VaForms.form_smartvafreetext,
+            VaForms.form_smartvacountry,
+        )
+        .join(
+            VaProjectSites,
+            sa.and_(
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+            ),
+        )
         .where(VaForms.project_id == config.project_code)
+        .where(VaForms.form_status == VaStatuses.active)
+        .where(VaProjectSites.project_site_status == VaStatuses.active)
         .order_by(VaForms.form_id)
     )
-    forms = db.session.scalars(stmt).all()
+    rows = db.session.execute(stmt).all()
+    forms = [
+        OfflineFormSpec(
+            form_id=row.form_id,
+            project_id=row.project_id,
+            site_id=row.site_id,
+            form_smartvahiv=row.form_smartvahiv,
+            form_smartvamalaria=row.form_smartvamalaria,
+            form_smartvahce=row.form_smartvahce,
+            form_smartvafreetext=row.form_smartvafreetext,
+            form_smartvacountry=row.form_smartvacountry,
+        )
+        for row in rows
+    ]
     if config.form_ids:
         forms = [form for form in forms if form.form_id in config.form_ids]
     if config.limit_forms is not None:
@@ -124,6 +167,8 @@ def _run_for_form(va_form, form_dir: Path) -> dict:
         prep = va_smartva_prepdata(va_form, str(form_dir))
         input_path = Path(prep["input_path"])
         entry["records"] = _count_csv_rows(input_path)
+        # Prevent idle-in-transaction timeouts during long local SmartVA runs.
+        db.session.rollback()
 
         va_smartva_runsmartva(
             va_form,
@@ -137,6 +182,7 @@ def _run_for_form(va_form, form_dir: Path) -> dict:
     except Exception as exc:  # noqa: BLE001 - keep per-form runs resilient
         entry["status"] = "failed"
         entry["error"] = str(exc)
+        db.session.rollback()
 
     return entry
 
@@ -155,6 +201,9 @@ def run(config: RunConfig) -> int:
 
     with app.app_context():
         forms = _load_project_forms(config)
+        # Close the read transaction opened while loading forms before any
+        # long-running offline compute starts.
+        db.session.rollback()
 
         if not forms:
             print(f"No forms found for project '{config.project_code}'.")

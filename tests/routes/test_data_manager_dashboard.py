@@ -744,6 +744,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"SmartVA Results", response.data)
         self.assertIn(b"Acute myocardial infarction", response.data)
+        self.assertIn(b"Secondary Cause", response.data)
 
     def test_data_manager_odk_edit_redirect_uses_scoped_submission_mapping(
         self

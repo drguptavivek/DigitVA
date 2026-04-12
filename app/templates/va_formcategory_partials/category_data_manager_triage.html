@@ -32,10 +32,84 @@
     <div class="card-body p-3">
       <div class="fw-semibold mb-2">SmartVA Results</div>
       {% if smartva %}
-      <div class="row g-2 small">
-        <div class="col-md-4"><span class="text-muted">Outcome:</span> {{ smartva.va_smartva_outcome or "—" }}</div>
-        <div class="col-md-4"><span class="text-muted">Primary Cause:</span> {{ smartva.va_smartva_cause1 or "—" }}</div>
-        <div class="col-md-4"><span class="text-muted">Likelihood:</span> {{ smartva.va_smartva_likelihood1 or "—" }}</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle mb-0">
+          <tbody>
+            <tr>
+              <td class="text-muted" style="width: 28%;">Outcome</td>
+              <td>{{ smartva.va_smartva_outcome or "—" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Result For</td>
+              <td>{{ smartva.va_smartva_resultfor if smartva.va_smartva_resultfor and smartva.va_smartva_resultfor != "NaN" else "—" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Age / Gender</td>
+              <td>
+                {{ smartva.va_smartva_age if smartva.va_smartva_age and smartva.va_smartva_age != "NaN" else "—" }}
+                /
+                {{ smartva.va_smartva_gender if smartva.va_smartva_gender and smartva.va_smartva_gender != "NaN" else "—" }}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">Primary Cause</td>
+              <td>
+                {{ smartva.va_smartva_cause1 if smartva.va_smartva_cause1 and smartva.va_smartva_cause1 != "NaN" else "—" }}
+                {% if smartva.va_smartva_cause1icd and smartva.va_smartva_cause1icd != "NaN" %}
+                <span class="badge bg-secondary ms-1">ICD: {{ smartva.va_smartva_cause1icd }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">Primary Likelihood</td>
+              <td>{{ smartva.va_smartva_likelihood1 if smartva.va_smartva_likelihood1 and smartva.va_smartva_likelihood1 != "NaN" else "—" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Secondary Cause</td>
+              <td>
+                {{ smartva.va_smartva_cause2 if smartva.va_smartva_cause2 and smartva.va_smartva_cause2 != "NaN" else "—" }}
+                {% if smartva.va_smartva_cause2icd and smartva.va_smartva_cause2icd != "NaN" %}
+                <span class="badge bg-secondary ms-1">ICD: {{ smartva.va_smartva_cause2icd }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">Secondary Likelihood</td>
+              <td>{{ smartva.va_smartva_likelihood2 if smartva.va_smartva_likelihood2 and smartva.va_smartva_likelihood2 != "NaN" else "—" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Tertiary Cause</td>
+              <td>
+                {{ smartva.va_smartva_cause3 if smartva.va_smartva_cause3 and smartva.va_smartva_cause3 != "NaN" else "—" }}
+                {% if smartva.va_smartva_cause3icd and smartva.va_smartva_cause3icd != "NaN" %}
+                <span class="badge bg-secondary ms-1">ICD: {{ smartva.va_smartva_cause3icd }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">Tertiary Likelihood</td>
+              <td>{{ smartva.va_smartva_likelihood3 if smartva.va_smartva_likelihood3 and smartva.va_smartva_likelihood3 != "NaN" else "—" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Key Symptoms</td>
+              <td>
+                <div>{{ smartva.va_smartva_keysymptom1 if smartva.va_smartva_keysymptom1 and smartva.va_smartva_keysymptom1 != "NaN" else "—" }}</div>
+                <div>{{ smartva.va_smartva_keysymptom2 if smartva.va_smartva_keysymptom2 and smartva.va_smartva_keysymptom2 != "NaN" else "—" }}</div>
+                <div>{{ smartva.va_smartva_keysymptom3 if smartva.va_smartva_keysymptom3 and smartva.va_smartva_keysymptom3 != "NaN" else "—" }}</div>
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">All Symptoms</td>
+              <td>
+                {% if smartva.va_smartva_allsymptoms and smartva.va_smartva_allsymptoms != "NaN" %}
+                {{ smartva.va_smartva_allsymptoms }}
+                {% else %}
+                —
+                {% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       {% elif submission_workflow_state == "consent_refused" %}
       <div class="text-muted small mb-0">SmartVA is ineligible for consent-refused submissions.</div>

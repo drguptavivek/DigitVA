@@ -4352,6 +4352,16 @@ def admin_sync_backfill_stats():
             ),
             else_=0,
         )
+        smartva_eligible_expr = sa.case(
+            (
+                sa.or_(
+                    VaSubmissions.va_consent.is_(None),
+                    sa.func.lower(sa.func.btrim(VaSubmissions.va_consent)) != "no",
+                ),
+                1,
+            ),
+            else_=0,
+        )
 
         local_counts = {
             row["va_form_id"]: row
@@ -4365,6 +4375,7 @@ def admin_sync_backfill_stats():
                     sa.func.coalesce(sa.func.sum(attachment_present_expr), 0).label("attachments_files_present"),
                     sa.func.coalesce(sa.func.sum(smartva_complete_expr), 0).label("smartva_complete"),
                     sa.func.coalesce(sa.func.sum(smartva_failed_expr), 0).label("smartva_failed"),
+                    sa.func.coalesce(sa.func.sum(smartva_eligible_expr), 0).label("smartva_eligible"),
                 )
                 .select_from(VaSubmissions)
                 .outerjoin(
@@ -4402,7 +4413,8 @@ def admin_sync_backfill_stats():
             att_files_present = int(counts.get("attachments_files_present") or 0)
             smartva_complete = int(counts.get("smartva_complete") or 0)
             smartva_failed = int(counts.get("smartva_failed") or 0)
-            smartva_missing = max(local_total - smartva_complete - smartva_failed, 0)
+            smartva_eligible = int(counts.get("smartva_eligible") or 0)
+            smartva_missing = max(smartva_eligible - smartva_complete - smartva_failed, 0)
 
             total_local += local_total
             total_metadata += metadata_complete

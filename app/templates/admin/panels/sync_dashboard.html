@@ -527,10 +527,12 @@
       var rows = [];
       function smartvaCell(complete, missing, failed, bold) {
         var fw = bold ? ' fw-semibold' : '';
+        var hasMissing = (missing || 0) > 0;
+        var color = hasMissing ? ' text-danger' : '';
         var title = 'Missing: ' + (missing || 0) + ' | Failed/Null: ' + (failed || 0);
-        return '<span class="' + fw.trim() + '" data-bs-toggle="tooltip" data-bs-placement="top" title="' + esc(title) + '">'
+        return '<span class="' + (fw + color).trim() + '" data-bs-toggle="tooltip" data-bs-placement="top" title="' + esc(title) + '">'
           + (complete || 0)
-          + '</span> <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="' + esc(title) + '"></i>';
+          + '</span> <i class="fa-solid fa-circle-info' + color + '" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="' + esc(title) + '"></i>';
       }
       d.projects.forEach(function (proj) {
         rows.push(

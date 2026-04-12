@@ -141,12 +141,18 @@
             <div class="modal-body small">
               <div id="dm-user-detail-body"></div>
               <hr class="my-2">
-              <div class="mb-2 fw-semibold">Update Email</div>
+              <div class="mb-2 fw-semibold">Update User</div>
               <div class="row g-2">
                 <div class="col-12">
+                  <label class="form-label small mb-1">Languages <span class="text-danger">*</span></label>
+                  <select class="form-select form-select-sm" id="dm-user-edit-languages" multiple></select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label small mb-1">Email</label>
                   <input type="email" class="form-control form-control-sm" id="dm-user-edit-email" placeholder="new@example.com">
                 </div>
                 <div class="col-12">
+                  <label class="form-label small mb-1">Confirm Email</label>
                   <input type="email" class="form-control form-control-sm" id="dm-user-edit-email-confirm" placeholder="confirm@example.com">
                 </div>
               </div>
@@ -158,7 +164,7 @@
               </button>
               <div class="d-flex gap-2">
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-sm btn-success" id="dm-user-update-email-btn">Update Email</button>
+                <button type="button" class="btn btn-sm btn-success" id="dm-user-update-email-btn">Save Changes</button>
               </div>
             </div>
           </div>
@@ -370,6 +376,18 @@
       sel.append(new Option(lang.name, lang.code, false, false));
     });
     sel.select2({ placeholder: 'Select VA Languages', width: '100%', theme: 'bootstrap-5' });
+
+    var modalSel = $('#dm-user-edit-languages');
+    modalSel.empty();
+    _langData.forEach(function (lang) {
+      modalSel.append(new Option(lang.name, lang.code, false, false));
+    });
+    modalSel.select2({
+      placeholder: 'Select VA Languages',
+      width: '100%',
+      theme: 'bootstrap-5',
+      dropdownParent: $('#dm-user-detail-modal')
+    });
   }
 
   function loadUsers() {
@@ -477,6 +495,9 @@
       return;
     }
     var rows = _users.map(function (u) {
+      var verifyBadge = u.email_verified
+        ? '<span class="badge text-bg-success">Verified</span>'
+        : '<span class="badge text-bg-warning text-dark">Unverified</span>';
       return '<tr class="dm-user-row" data-user-id="' + esc(u.user_id) + '" style="cursor:pointer;">'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(u.name) + '</div>'
@@ -489,6 +510,7 @@
             ? '<span class="badge text-bg-success">Active</span>'
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
+        + '<td class="align-middle py-2">' + verifyBadge + '</td>'
         + '</tr>';
     }).join('');
 
@@ -498,6 +520,7 @@
       + '<th class="fw-medium small text-muted">Phone</th>'
       + '<th class="fw-medium small text-muted">Languages</th>'
       + '<th class="fw-medium small text-muted">Status</th>'
+      + '<th class="fw-medium small text-muted">Email Verified</th>'
       + '</tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div>';
 
@@ -516,6 +539,7 @@
     errEl.textContent = '';
     document.getElementById('dm-user-edit-email').value = '';
     document.getElementById('dm-user-edit-email-confirm').value = '';
+    $('#dm-user-edit-languages').val([]).trigger('change');
     if (!_userDetailModal) _userDetailModal = new bootstrap.Modal(document.getElementById('dm-user-detail-modal'));
     _userDetailModal.show();
 
@@ -531,11 +555,35 @@
       var verifyBadge = u.email_verified
         ? '<span class="badge text-bg-success">Verified</span>'
         : '<span class="badge text-bg-warning text-dark">Unverified</span>';
+      var projectGrants = res.data.project_grants || [];
+      var projectSiteGrants = res.data.project_site_grants || [];
+      var projectGrantHtml = projectGrants.length
+        ? '<ul class="mb-2 ps-3">'
+          + projectGrants.map(function (g) {
+              return '<li><code>' + esc(g.project_id) + '</code> - ' + esc(ROLE_LABEL[g.role] || g.role) + '</li>';
+            }).join('')
+          + '</ul>'
+        : '<div class="text-muted fst-italic mb-2">No active project-level grants in your scope.</div>';
+      var siteGrantHtml = projectSiteGrants.length
+        ? '<ul class="mb-0 ps-3">'
+          + projectSiteGrants.map(function (g) {
+              return '<li><code>' + esc(g.project_id) + ' / ' + esc(g.site_id || '') + '</code> - '
+                + esc(ROLE_LABEL[g.role] || g.role) + '</li>';
+            }).join('')
+          + '</ul>'
+        : '<div class="text-muted fst-italic mb-0">No active site-level grants in your scope.</div>';
       body.innerHTML =
         '<div><strong>Name:</strong> ' + esc(u.name) + '</div>'
         + '<div><strong>Email:</strong> ' + esc(u.email) + '</div>'
+        + '<div><strong>Languages:</strong> ' + esc((u.languages || []).join(', ')) + '</div>'
         + '<div><strong>Status:</strong> ' + statusBadge + '</div>'
-        + '<div><strong>Email Verification:</strong> ' + verifyBadge + '</div>';
+        + '<div><strong>Email Verification:</strong> ' + verifyBadge + '</div>'
+        + '<hr class="my-2">'
+        + '<div class="fw-semibold mb-1">Project Grants</div>'
+        + projectGrantHtml
+        + '<div class="fw-semibold mb-1">Project-Site Grants</div>'
+        + siteGrantHtml;
+      $('#dm-user-edit-languages').val(u.languages || []).trigger('change');
       document.getElementById('dm-user-resend-verify-btn').disabled = !!u.email_verified;
     }).catch(function () {
       body.innerHTML = '<div class="text-danger">Network error.</div>';
@@ -570,24 +618,37 @@
     errEl.textContent = '';
     var email = document.getElementById('dm-user-edit-email').value.trim().toLowerCase();
     var emailConfirm = document.getElementById('dm-user-edit-email-confirm').value.trim().toLowerCase();
-    if (!email || !emailConfirm) { errEl.textContent = 'Both email fields are required.'; return; }
-    if (email !== emailConfirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+    var languages = $('#dm-user-edit-languages').val() || [];
+    var payload = { languages: languages };
+    var emailEntered = !!email || !!emailConfirm;
+    if (emailEntered) {
+      if (!email || !emailConfirm) { errEl.textContent = 'Both email fields are required when updating email.'; return; }
+      if (email !== emailConfirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
+      payload.email = email;
+      payload.email_confirm = emailConfirm;
+    }
+    if (!languages.length) { errEl.textContent = 'At least one language is required.'; return; }
     var btn = this;
     btn.disabled = true;
-    apiJson('/data-management/api/users/' + encodeURIComponent(_selectedUserId), 'PUT', {
-      email: email,
-      email_confirm: emailConfirm
-    }).then(function (res) {
+    apiJson('/data-management/api/users/' + encodeURIComponent(_selectedUserId), 'PUT', payload).then(function (res) {
       btn.disabled = false;
-      if (!res.ok) { errEl.textContent = res.data.error || 'Failed to update email.'; return; }
+      if (!res.ok) {
+        errEl.textContent = res.data.error || 'Failed to update user.';
+        if (window.showAppToast) window.showAppToast(errEl.textContent, 'danger');
+        return;
+      }
       errEl.classList.remove('text-danger');
       errEl.classList.add('text-success');
-      errEl.textContent = 'Email updated. Verification email sent.';
+      errEl.textContent = emailEntered
+        ? 'User updated. Verification email sent if email changed.'
+        : 'User languages updated.';
+      if (window.showAppToast) window.showAppToast(errEl.textContent, 'success');
       openUserDetail(_selectedUserId);
       loadUsers();
     }).catch(function () {
       btn.disabled = false;
       errEl.textContent = 'Network error.';
+      if (window.showAppToast) window.showAppToast('Network error.', 'danger');
     });
   }
 

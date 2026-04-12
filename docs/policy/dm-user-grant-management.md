@@ -149,8 +149,13 @@ The details panel includes:
 
 - account status (`active` / `deactive`)
 - email verification status
+- user VA language list
+- in-scope active grant breakdown by:
+  - project-level grants
+  - project-site-level grants
 - resend verification action (for unverified users)
 - email update action only for users created by the same data-manager
+- language update action for data-managers/admins
 
 ## CSRF
 

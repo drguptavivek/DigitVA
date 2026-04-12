@@ -541,7 +541,57 @@ def manage_user_detail(target_user_id):
     user = db.session.get(VaUsers, target_user_id)
     if not user:
         return _json_error("User not found.", 404)
-    return jsonify({"user": _serialize_user(user)})
+
+    project_id_expression = _grant_project_id_expression()
+    site_id_expression = _grant_site_id_expression()
+    rows = db.session.execute(
+        sa.select(
+            VaUserAccessGrants.grant_id,
+            VaUserAccessGrants.user_id,
+            VaUserAccessGrants.role,
+            VaUserAccessGrants.scope_type,
+            VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.grant_status,
+            VaUserAccessGrants.notes,
+            VaUsers.email,
+            VaUsers.name,
+            project_id_expression.label("resolved_project_id"),
+            site_id_expression.label("resolved_site_id"),
+        )
+        .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
+        .outerjoin(
+            VaProjectSites,
+            VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
+        )
+        .where(
+            VaUserAccessGrants.user_id == target_user_id,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            VaUserAccessGrants.role.in_(
+                [VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager]
+            ),
+            _dm_grant_filter(project_id_expression),
+        )
+        .order_by(
+            project_id_expression.asc(),
+            site_id_expression.asc().nullsfirst(),
+            VaUserAccessGrants.role.asc(),
+        )
+    ).all()
+
+    serialized_grants = [_serialize_grant(row) for row in rows]
+    project_grants = [g for g in serialized_grants if g["scope_type"] == VaAccessScopeTypes.project.value]
+    project_site_grants = [
+        g for g in serialized_grants if g["scope_type"] == VaAccessScopeTypes.project_site.value
+    ]
+
+    return jsonify(
+        {
+            "user": _serialize_user(user),
+            "grants": serialized_grants,
+            "project_grants": project_grants,
+            "project_site_grants": project_site_grants,
+        }
+    )
 
 
 @data_management.post("/api/users/<uuid:target_user_id>/resend-verification")
@@ -577,33 +627,66 @@ def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
 @data_management.put("/api/users/<uuid:target_user_id>")
 @role_required("data_manager", "admin")
 def manage_update_user(target_user_id):
-    """Update user email (DM restricted to users created by them)."""
+    """Update user email and/or languages (email is creator-scoped for DMs)."""
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user:
         return _json_error("User not found.", 404)
-    if not _dm_can_edit_user_email(target_user):
-        return _json_error("You may update email only for users created by you.", 403)
-
     payload = request.get_json(silent=True) or {}
-    email = (payload.get("email") or "").strip().lower()
-    email_confirm = (payload.get("email_confirm") or "").strip().lower()
-    if not email or not email_confirm:
-        return _json_error("email and email_confirm are required.", 400)
-    if email != email_confirm:
-        return _json_error("Email confirmation does not match.", 400)
+    email_raw = payload.get("email")
+    email_confirm_raw = payload.get("email_confirm")
+    email_requested = email_raw is not None or email_confirm_raw is not None
+    languages_requested = "languages" in payload
 
-    if email != target_user.email:
-        existing = db.session.scalar(
-            sa.select(VaUsers).where(
-                VaUsers.email == email,
-                VaUsers.user_id != target_user.user_id,
+    if not email_requested and not languages_requested:
+        return _json_error("Provide email/email_confirm and/or languages.", 400)
+
+    changed_email = False
+    changed_languages = False
+
+    if email_requested:
+        if not _dm_can_edit_user_email(target_user):
+            return _json_error("You may update email only for users created by you.", 403)
+        email = (email_raw or "").strip().lower()
+        email_confirm = (email_confirm_raw or "").strip().lower()
+        if not email or not email_confirm:
+            return _json_error("email and email_confirm are required.", 400)
+        if email != email_confirm:
+            return _json_error("Email confirmation does not match.", 400)
+        if email != target_user.email:
+            existing = db.session.scalar(
+                sa.select(VaUsers).where(
+                    VaUsers.email == email,
+                    VaUsers.user_id != target_user.user_id,
+                )
             )
+            if existing:
+                return _json_error("Email already in use.", 400)
+            target_user.email = email
+            target_user.email_verified = False
+            changed_email = True
+
+    if languages_requested:
+        from app.models.mas_languages import MasLanguages
+
+        languages = payload.get("languages")
+        if not isinstance(languages, list) or not languages:
+            return _json_error("At least one language must be selected.", 400)
+        valid_codes = set(
+            db.session.scalars(
+                sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)
+            ).all()
         )
-        if existing:
-            return _json_error("Email already in use.", 400)
-        target_user.email = email
-        target_user.email_verified = False
+        invalid = [code for code in languages if code not in valid_codes]
+        if invalid:
+            return _json_error(f"Invalid language codes: {invalid}", 400)
+        if list(target_user.vacode_language or []) != list(languages):
+            target_user.vacode_language = languages
+            changed_languages = True
+
+    if changed_email or changed_languages:
         db.session.commit()
+
+    if changed_email:
         try:
             from app.services.token_service import generate_token
             from app.services.email_service import send_verification_email
@@ -612,6 +695,7 @@ def manage_update_user(target_user_id):
             send_verification_email(target_user, verify_token)
         except Exception:
             pass
+
     return jsonify({"user": _serialize_user(target_user)})
 
 

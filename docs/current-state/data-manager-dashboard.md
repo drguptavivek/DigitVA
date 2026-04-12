@@ -253,9 +253,12 @@ data-managers and admins can:
 
 - **Users tab**: search users, create new users (email + confirm email, name,
   phone, VA language selection, and immediate initial grant selection with
-  project-first scope), and open per-user details with status and
-  email-verification visibility, verification resend, and creator-scoped email
-  update.
+  project-first scope), and open per-user details with:
+  - status and email-verification visibility
+  - user language visibility and update
+  - in-scope active grant breakdown (project and project-site)
+  - verification resend
+  - creator-scoped email update
 - **Grants tab**: view, create, and toggle coder, coding-tester, and
   data-manager grants
   scoped to the data-manager's own grant scope

@@ -57,6 +57,11 @@ class DmManageTests(BaseTestCase):
                     language_name="English",
                     is_active=True,
                 ),
+                MasLanguages(
+                    language_code="hindi",
+                    language_name="Hindi",
+                    is_active=True,
+                ),
                 VaProjectMaster(
                     project_id=cls.project_id,
                     project_code=cls.project_id,
@@ -353,6 +358,46 @@ class DmManageTests(BaseTestCase):
             headers=headers,
         )
         self.assertEqual(resp.status_code, 403)
+
+    def test_user_detail_includes_project_and_site_grants(self):
+        site_grant = self._grant(
+            self.target,
+            VaAccessRoles.coder,
+            VaAccessScopeTypes.project_site,
+            "site grant",
+            project_site_id=self._project_site_id(self.project_id, self.site_a),
+        )
+        project_grant = self._grant(
+            self.target,
+            VaAccessRoles.coding_tester,
+            VaAccessScopeTypes.project,
+            "project grant",
+            project_id=self.project_id,
+        )
+        self.assertIsNotNone(site_grant)
+        self.assertIsNotNone(project_grant)
+
+        self._login(self.project_dm_id)
+        resp = self.client.get(f"/data-management/api/users/{self.target_id}")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertIn("user", data)
+        self.assertIn("project_grants", data)
+        self.assertIn("project_site_grants", data)
+        self.assertTrue(any(g["role"] == "coding_tester" for g in data["project_grants"]))
+        self.assertTrue(any(g["role"] == "coder" for g in data["project_site_grants"]))
+
+    def test_dm_can_update_user_languages(self):
+        self._login(self.project_dm_id)
+        headers = self._csrf_headers()
+        resp = self.client.put(
+            f"/data-management/api/users/{self.target_id}",
+            json={"languages": ["english", "hindi"]},
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.get_json()
+        self.assertEqual(sorted(data["user"]["languages"]), ["english", "hindi"])
 
     # ── Grant creation: project-scoped DM ──────────────────────────────────────
 

@@ -219,6 +219,8 @@ Current locally exposed items include:
 - ODK review comments
 - local sync-issue markers such as `missing_in_odk`
 - locally tracked attachment counts
+- SmartVA summary details inside the Data Triage panel on
+  `/data-management/view/<va_sid>`
 - normalized changed-field details for pending protected upstream updates via:
   - `/api/v1/data-management/submissions/<va_sid>/upstream-change-details`
   - data-manager detail-page modal `View Changes`

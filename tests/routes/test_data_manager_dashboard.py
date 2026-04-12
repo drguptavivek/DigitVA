@@ -29,6 +29,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
     VaFinalAssessments,
+    VaSmartvaResults,
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
@@ -711,6 +712,38 @@ class DataManagerDashboardTests(BaseTestCase):
         )
         self.assertIsNotNone(audit_row)
         self.assertEqual(audit_row.va_audit_byrole, "data_manager")
+
+    @patch("app.routes.va_form.get_category_rendering_service")
+    def test_data_manager_triage_partial_shows_smartva_results_card(
+        self,
+        mocked_category_service,
+    ):
+        self._login(self.dm_user_id)
+        mocked_category_service.return_value = SimpleNamespace(
+            is_category_enabled=lambda *args, **kwargs: True,
+            get_category_neighbours=lambda *args, **kwargs: (None, None),
+            get_category_config=lambda *args, **kwargs: {},
+        )
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            VaSmartvaResults(
+                va_sid=self.SID,
+                va_smartva_status=VaStatuses.active,
+                va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
+                va_smartva_cause1="Acute myocardial infarction",
+                va_smartva_likelihood1="0.78",
+                va_smartva_updatedat=now,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/vaform/{self.SID}/vadmtriage?action=vadata&actiontype=vaview",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"SmartVA Results", response.data)
+        self.assertIn(b"Acute myocardial infarction", response.data)
 
     def test_data_manager_odk_edit_redirect_uses_scoped_submission_mapping(
         self

@@ -235,6 +235,12 @@ def renderpartial(va_sid, va_partial):
                     VaDataManagerReview.va_dmreview_status == VaStatuses.active,
                 )
             )
+            smartva = db.session.scalar(
+                sa.select(VaSmartvaResults).where(
+                    (VaSmartvaResults.va_sid == va_sid)
+                    & (VaSmartvaResults.va_smartva_status == VaStatuses.active)
+                )
+            )
             submission_workflow = db.session.scalar(
                 sa.select(VaSubmissionWorkflow.workflow_state).where(
                     VaSubmissionWorkflow.va_sid == va_sid
@@ -274,6 +280,7 @@ def renderpartial(va_sid, va_partial):
                         )[1],
                         active_dm_review=active_dm_review,
                         submission_workflow_state=submission_workflow,
+                        smartva=smartva,
                         form_error_messages=[
                             "This submission can only be flagged by a data manager before coder workflow begins."
                         ],
@@ -396,6 +403,7 @@ def renderpartial(va_sid, va_partial):
                     else None
                 ),
                 submission_workflow_state=submission_workflow,
+                smartva=smartva,
                 success_message=success_message,
                 form_error_messages=[],
             )

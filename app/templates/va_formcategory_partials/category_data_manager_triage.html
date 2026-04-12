@@ -27,6 +27,25 @@
   </div>
   {% endif %}
 
+  {% if va_action == "vadata" %}
+  <div class="card bg-light border-0 mb-4">
+    <div class="card-body p-3">
+      <div class="fw-semibold mb-2">SmartVA Results</div>
+      {% if smartva %}
+      <div class="row g-2 small">
+        <div class="col-md-4"><span class="text-muted">Outcome:</span> {{ smartva.va_smartva_outcome or "—" }}</div>
+        <div class="col-md-4"><span class="text-muted">Primary Cause:</span> {{ smartva.va_smartva_cause1 or "—" }}</div>
+        <div class="col-md-4"><span class="text-muted">Likelihood:</span> {{ smartva.va_smartva_likelihood1 or "—" }}</div>
+      </div>
+      {% elif submission_workflow_state == "consent_refused" %}
+      <div class="text-muted small mb-0">SmartVA is ineligible for consent-refused submissions.</div>
+      {% else %}
+      <div class="text-muted small mb-0">No SmartVA result is available yet for this submission.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {% if submission_workflow_state in ['screening_pending', 'ready_for_coding', 'not_codeable_by_data_manager'] %}
   <form id="dm-triage-form"
         method="POST"

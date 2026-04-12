@@ -525,6 +525,13 @@
       }
 
       var rows = [];
+      function smartvaCell(complete, missing, failed, bold) {
+        var fw = bold ? ' fw-semibold' : '';
+        var title = 'Missing: ' + (missing || 0) + ' | Failed/Null: ' + (failed || 0);
+        return '<span class="' + fw.trim() + '" data-bs-toggle="tooltip" data-bs-placement="top" title="' + esc(title) + '">'
+          + (complete || 0)
+          + '</span> <i class="fa-solid fa-circle-info text-secondary" style="font-size:0.65rem;cursor:pointer;" data-bs-toggle="tooltip" data-bs-placement="top" title="' + esc(title) + '"></i>';
+      }
       d.projects.forEach(function (proj) {
         rows.push(
           '<tr class="table-light">'
@@ -534,7 +541,7 @@
           + '<td class="small text-center fw-semibold">' + (proj.local_total || 0) + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.metadata_complete || 0) + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.attachments_files_present || 0) + ' <span class="text-muted fw-normal">(' + Math.max((proj.attachments_files_total || 0) - (proj.attachments_files_present || 0), 0) + ' missing files)</span></td>'
-          + '<td class="small text-center fw-semibold">' + (proj.smartva_complete || 0) + '</td>'
+          + '<td class="small text-center fw-semibold">' + smartvaCell(proj.smartva_complete, proj.smartva_missing, proj.smartva_failed, true) + '</td>'
           + '<td class="small text-center text-muted">Project total</td>'
           + '</tr>'
         );
@@ -547,7 +554,7 @@
             + '<td class="small text-center">' + (site.local_total || 0) + '</td>'
             + '<td class="small text-center">' + (site.metadata_complete || 0) + '</td>'
             + '<td class="small text-center">' + (site.attachments_files_present || 0) + ' <span class="text-muted">(' + Math.max((site.attachments_files_total || 0) - (site.attachments_files_present || 0), 0) + ' missing files)</span></td>'
-            + '<td class="small text-center">' + (site.smartva_complete || 0) + '</td>'
+            + '<td class="small text-center">' + smartvaCell(site.smartva_complete, site.smartva_missing, site.smartva_failed, false) + '</td>'
             + '<td class="small text-center text-muted">Site total</td>'
             + '</tr>'
           );
@@ -555,7 +562,6 @@
             var metadataMissing = form.metadata_missing == null ? '—' : form.metadata_missing;
             var attFilesPresent = form.attachments_files_present != null ? form.attachments_files_present : '—';
             var attFilesMissing = form.attachments_files_missing != null ? form.attachments_files_missing : '—';
-            var smartvaMissing = form.smartva_missing == null ? '—' : form.smartva_missing;
             rows.push(
               '<tr>'
               + '<td class="small ps-5">'
@@ -564,7 +570,7 @@
               + '<td class="small text-center">' + form.local_total + '</td>'
               + '<td class="small text-center">' + form.metadata_complete + ' <span class="text-muted">(' + metadataMissing + ' missing)</span></td>'
               + '<td class="small text-center">' + attFilesPresent + ' <span class="text-muted">(' + attFilesMissing + ' missing files)</span></td>'
-              + '<td class="small text-center">' + form.smartva_complete + ' <span class="text-muted">(' + smartvaMissing + ' missing)</span></td>'
+              + '<td class="small text-center">' + smartvaCell(form.smartva_complete, form.smartva_missing, form.smartva_failed, false) + '</td>'
               + '<td class="small text-center">'
               + '<button class="btn btn-sm btn-outline-secondary py-0 px-1 backfill-form-btn" data-form-id="' + esc(form.form_id) + '" title="Repair local gaps for this form.">'
               + '<i class="fa-solid fa-rotate-right"></i> Repair</button>'
@@ -593,7 +599,7 @@
         + '<td class="small text-center fw-semibold">' + (totals.local_total || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.metadata_complete || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.attachments_files_present || 0) + ' <span class="fw-normal text-muted">(' + (totals.attachments_files_missing || 0) + ' missing files)</span></td>'
-        + '<td class="small text-center fw-semibold">' + (totals.smartva_complete || 0) + '</td>'
+        + '<td class="small text-center fw-semibold">' + smartvaCell(totals.smartva_complete, totals.smartva_missing, totals.smartva_failed, true) + '</td>'
         + '<td class="small text-center text-muted">All forms</td>'
         + '</tr></tfoot></table>'
         + '</div>';
@@ -643,6 +649,9 @@
             }
           );
         });
+      });
+      wrap.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+        new bootstrap.Tooltip(el);
       });
     }).catch(function () {
       if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error fetching repair stats.</span>';

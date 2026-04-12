@@ -23,8 +23,8 @@ Policy:
 - the dashboard must not fetch ODK coverage automatically on initial panel load
 - ODK coverage must be loaded only when the operator explicitly requests it
 - the UI must make it clear that coverage is on-demand
-- SmartVA coverage and local sync status may still load automatically because
-  they do not require the same live ODK count fan-out
+- local-only dashboard sections (status, repair coverage) may still load
+  automatically because they do not require the same live ODK count fan-out
 
 ## Connection Health Visibility
 

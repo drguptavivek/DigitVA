@@ -4266,7 +4266,7 @@ def admin_sync_backfill_stats():
         from app.models.va_sites import VaSites
         from app.models.va_submissions import VaSubmissions
         from app.models.va_submission_attachments import VaSubmissionAttachments
-        from app.services.submission_analytics_mv import DEMOGRAPHICS_MV_NAME
+        from app.models.va_smartva_results import VaSmartvaResults
 
         forms = db.session.scalars(
             sa.select(VaForms)
@@ -4311,16 +4311,45 @@ def admin_sync_backfill_stats():
             (attachment_present_expr >= attachment_expected_expr, 1),
             else_=0,
         )
-        # Use the demographics MV for has_smartva — avoids a full scan + group-by
-        # on va_smartva_results. The MV is refreshed after every sync so it is
-        # current enough for this dashboard.
-        demographics_mv = sa.table(
-            DEMOGRAPHICS_MV_NAME,
-            sa.column("va_sid"),
-            sa.column("has_smartva"),
+        latest_smartva_sq = (
+            sa.select(
+                VaSmartvaResults.va_sid.label("va_sid"),
+                VaSmartvaResults.va_smartva_outcome.label("outcome"),
+                VaSmartvaResults.va_smartva_cause1.label("cause1"),
+            )
+            .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
+            .order_by(
+                VaSmartvaResults.va_sid,
+                VaSmartvaResults.va_smartva_updatedat.desc(),
+                VaSmartvaResults.va_smartva_id.desc(),
+            )
+            .distinct(VaSmartvaResults.va_sid)
+            .subquery()
+        )
+        smartva_failed_expr = sa.case(
+            (
+                sa.and_(
+                    latest_smartva_sq.c.va_sid.is_not(None),
+                    sa.or_(
+                        latest_smartva_sq.c.outcome == VaSmartvaResults.OUTCOME_FAILED,
+                        latest_smartva_sq.c.cause1.is_(None),
+                        sa.func.btrim(latest_smartva_sq.c.cause1) == "",
+                    ),
+                ),
+                1,
+            ),
+            else_=0,
         )
         smartva_complete_expr = sa.case(
-            (demographics_mv.c.has_smartva.is_(True), 1),
+            (
+                sa.and_(
+                    latest_smartva_sq.c.va_sid.is_not(None),
+                    latest_smartva_sq.c.outcome != VaSmartvaResults.OUTCOME_FAILED,
+                    latest_smartva_sq.c.cause1.is_not(None),
+                    sa.func.btrim(latest_smartva_sq.c.cause1) != "",
+                ),
+                1,
+            ),
             else_=0,
         )
 
@@ -4335,6 +4364,7 @@ def admin_sync_backfill_stats():
                     sa.func.coalesce(sa.func.sum(attachment_expected_expr), 0).label("attachments_files_total"),
                     sa.func.coalesce(sa.func.sum(attachment_present_expr), 0).label("attachments_files_present"),
                     sa.func.coalesce(sa.func.sum(smartva_complete_expr), 0).label("smartva_complete"),
+                    sa.func.coalesce(sa.func.sum(smartva_failed_expr), 0).label("smartva_failed"),
                 )
                 .select_from(VaSubmissions)
                 .outerjoin(
@@ -4346,8 +4376,8 @@ def admin_sync_backfill_stats():
                     attachment_counts_sq.c.va_sid == VaSubmissions.va_sid,
                 )
                 .outerjoin(
-                    demographics_mv,
-                    demographics_mv.c.va_sid == VaSubmissions.va_sid,
+                    latest_smartva_sq,
+                    latest_smartva_sq.c.va_sid == VaSubmissions.va_sid,
                 )
                 .group_by(VaSubmissions.va_form_id)
             ).mappings().all()
@@ -4360,6 +4390,8 @@ def admin_sync_backfill_stats():
         total_att_files_total = 0
         total_att_files_present = 0
         total_smartva = 0
+        total_smartva_failed = 0
+        total_smartva_missing = 0
 
         for form in forms:
             counts = local_counts.get(form.form_id, {})
@@ -4369,6 +4401,8 @@ def admin_sync_backfill_stats():
             att_files_total = int(counts.get("attachments_files_total") or 0)
             att_files_present = int(counts.get("attachments_files_present") or 0)
             smartva_complete = int(counts.get("smartva_complete") or 0)
+            smartva_failed = int(counts.get("smartva_failed") or 0)
+            smartva_missing = max(local_total - smartva_complete - smartva_failed, 0)
 
             total_local += local_total
             total_metadata += metadata_complete
@@ -4376,6 +4410,8 @@ def admin_sync_backfill_stats():
             total_att_files_total += att_files_total
             total_att_files_present += att_files_present
             total_smartva += smartva_complete
+            total_smartva_failed += smartva_failed
+            total_smartva_missing += smartva_missing
 
             project = projects_map.setdefault(form.project_id, {
                 "project_id": form.project_id,
@@ -4387,6 +4423,8 @@ def admin_sync_backfill_stats():
                 "attachments_files_total": 0,
                 "attachments_files_present": 0,
                 "smartva_complete": 0,
+                "smartva_failed": 0,
+                "smartva_missing": 0,
             })
             project["local_total"] += local_total
             project["metadata_complete"] += metadata_complete
@@ -4394,6 +4432,8 @@ def admin_sync_backfill_stats():
             project["attachments_files_total"] += att_files_total
             project["attachments_files_present"] += att_files_present
             project["smartva_complete"] += smartva_complete
+            project["smartva_failed"] += smartva_failed
+            project["smartva_missing"] += smartva_missing
 
             site = project["sites"].setdefault(form.site_id, {
                 "site_id": form.site_id,
@@ -4405,6 +4445,8 @@ def admin_sync_backfill_stats():
                 "attachments_files_total": 0,
                 "attachments_files_present": 0,
                 "smartva_complete": 0,
+                "smartva_failed": 0,
+                "smartva_missing": 0,
             })
             site["local_total"] += local_total
             site["metadata_complete"] += metadata_complete
@@ -4412,6 +4454,8 @@ def admin_sync_backfill_stats():
             site["attachments_files_total"] += att_files_total
             site["attachments_files_present"] += att_files_present
             site["smartva_complete"] += smartva_complete
+            site["smartva_failed"] += smartva_failed
+            site["smartva_missing"] += smartva_missing
             site["forms"].append({
                 "form_id": form.form_id,
                 "local_total": local_total,
@@ -4423,7 +4467,8 @@ def admin_sync_backfill_stats():
                 "attachments_files_present": att_files_present,
                 "attachments_files_missing": max(att_files_total - att_files_present, 0),
                 "smartva_complete": smartva_complete,
-                "smartva_missing": max(local_total - smartva_complete, 0),
+                "smartva_failed": smartva_failed,
+                "smartva_missing": smartva_missing,
             })
 
         project_names = {
@@ -4451,6 +4496,8 @@ def admin_sync_backfill_stats():
                 "attachments_files_present": total_att_files_present,
                 "attachments_files_missing": max(total_att_files_total - total_att_files_present, 0),
                 "smartva_complete": total_smartva,
+                "smartva_failed": total_smartva_failed,
+                "smartva_missing": total_smartva_missing,
             },
         })
     except Exception as e:

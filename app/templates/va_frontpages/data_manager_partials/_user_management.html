@@ -163,6 +163,7 @@
                 Resend Verification
               </button>
               <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="dm-user-manage-grants-btn">Manage Grants</button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-sm btn-success" id="dm-user-update-email-btn">Save Changes</button>
               </div>
@@ -335,6 +336,8 @@
   var _langData = [];
   var _searchTimeout = null;
   var _selectedUserId = null;
+  var _selectedUserEmail = '';
+  var _selectedUserName = '';
   var _userDetailModal = null;
 
   function initUsersTab() {
@@ -362,6 +365,7 @@
     document.getElementById('dm-user-submit-btn').addEventListener('click', submitUser);
     document.getElementById('dm-user-resend-verify-btn').addEventListener('click', resendVerificationForSelectedUser);
     document.getElementById('dm-user-update-email-btn').addEventListener('click', updateSelectedUserEmail);
+    document.getElementById('dm-user-manage-grants-btn').addEventListener('click', openSelectedUserInGrantsTab);
     document.getElementById('dm-user-search-input').addEventListener('input', function () {
       clearTimeout(_searchTimeout);
       _searchTimeout = setTimeout(loadUsers, 300);
@@ -533,6 +537,8 @@
 
   function openUserDetail(userId) {
     _selectedUserId = userId;
+    _selectedUserEmail = '';
+    _selectedUserName = '';
     var body = document.getElementById('dm-user-detail-body');
     var errEl = document.getElementById('dm-user-detail-error');
     body.innerHTML = '<div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading...</div>';
@@ -549,6 +555,8 @@
         return;
       }
       var u = res.data.user || {};
+      _selectedUserEmail = u.email || '';
+      _selectedUserName = u.name || '';
       var statusBadge = u.status === 'active'
         ? '<span class="badge text-bg-success">Active</span>'
         : '<span class="badge text-bg-secondary">Inactive</span>';
@@ -588,6 +596,32 @@
     }).catch(function () {
       body.innerHTML = '<div class="text-danger">Network error.</div>';
     });
+  }
+
+  function openSelectedUserInGrantsTab() {
+    if (!_selectedUserId || !_selectedUserEmail) return;
+    if (_userDetailModal) _userDetailModal.hide();
+
+    var grantsTabBtn = document.getElementById('dm-grants-tab');
+    if (grantsTabBtn) {
+      bootstrap.Tab.getOrCreateInstance(grantsTabBtn).show();
+    }
+
+    document.getElementById('dm-ag-project-select').value = '';
+    document.getElementById('dm-ag-filter-role').value = '';
+    document.getElementById('dm-ag-filter-text').value = _selectedUserEmail;
+
+    var form = document.getElementById('dm-ag-form-container');
+    form.classList.remove('d-none');
+    selectGrantUser(
+      _selectedUserId,
+      _selectedUserEmail + ' (' + (_selectedUserName || _selectedUserEmail) + ')'
+    );
+
+    loadGrants();
+    if (window.showAppToast) {
+      window.showAppToast('Grants filtered for ' + _selectedUserEmail + '.', 'info', { timeoutMs: 3500 });
+    }
   }
 
   function resendVerificationForSelectedUser() {

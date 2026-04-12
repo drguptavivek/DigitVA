@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-10
+last_updated: 2026-04-12
 ---
 
 # Coding Workflow State Machine Policy
@@ -108,10 +108,39 @@ The project-level intake mode affects only how coding work is entered. It does
 not change the downstream coding state machine once a case enters active coder
 workflow.
 
+## Coding Access Gates
+
+Coder workflow entry must enforce project-site coding gates for non-demo
+projects.
+
+Canonical non-demo coding gates:
+
+- `coding_enabled = true`
+- current date is on/after `coding_start_date` when a start date is set
+- current date is on/before `coding_end_date` when an end date is set
+- per-site `daily_coder_limit` is not exceeded
+
+Gate evaluation timezone:
+
+- use UTC date for all coding gate checks
+
+Role and bypass semantics:
+
+- `coder` must satisfy all non-demo coding gates
+- `coding_tester` may enter non-demo coding even when:
+  - `coding_enabled = false`
+  - current UTC date is before `coding_start_date`
+  - current UTC date is after `coding_end_date`
+  - per-site `daily_coder_limit` has been reached
+- project PI and site PI roles do not implicitly grant coder workflow entry;
+  explicit coder or coding_tester access is still required to code
+
 ## Demo Coding Mode
 
-DigitVA also supports an admin-only demo coding entry path through
-`vademo_start_coding`.
+DigitVA supports demo coding through `vademo_start_coding` in two patterns:
+
+- admin-started ad hoc demo sessions on ordinary projects
+- project-declared demo/training projects
 
 Demo coding uses the same case-viewing and coding forms as normal coding, but
 it is not a permanent production completion path.
@@ -121,6 +150,9 @@ Current intended baseline:
 - demo coding may save NQA, Social Autopsy Analysis, and final COD artifacts
 - those demo artifacts must be visible immediately after save, including on the
   coder dashboard while they remain active
+- project-declared demo/training projects are open to all active authenticated
+  users; no coder grant is required for those projects
+- non-demo projects continue to require normal grant-based coding access
 - demo artifacts are temporary and must expire automatically after the
   configured demo-retention window
 - after demo-retention cleanup, the submission must return to the non-demo

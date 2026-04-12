@@ -173,24 +173,26 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
     """Return site_ids that are ineligible for new coding allocations.
 
     A site is excluded when any of the following are true:
-      - coding_enabled is False  (waived for project_pi / site_pi)
-      - today is before coding_start_date  (waived for project_pi / site_pi)
-      - today is after coding_end_date  (waived for project_pi / site_pi)
+      - coding_enabled is False
+      - today is before coding_start_date
+      - today is after coding_end_date
       - the user has already met the daily_coder_limit for that site today
 
+    coding_tester waiver: users who hold coding_tester access for the project
+    or project/site pair are exempt from all four gates above.
+
     PI waiver: users who hold a project_pi grant for the project OR a site_pi
-    grant for the site are exempt from enabled/date restrictions but still
-    subject to the daily_coder_limit.
+    grant for the site are exempt from enabled/date restrictions and
+    daily_coder_limit restrictions.
 
     Sites with no VaProjectSites row are not restricted.
     """
     from app.models.va_project_sites import VaProjectSites
-    from datetime import date
 
     if not form_ids:
         return set()
 
-    today = date.today()
+    today = datetime.utcnow().date()
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     user_id = user.user_id
 
@@ -241,8 +243,8 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
             continue
         is_pi = p.project_id in pi_project_ids or p.site_id in pi_site_ids
         is_tester = p.project_id in tester_projects or (p.project_id, p.site_id) in tester_pairs
-        # coding_enabled + date-window checks: waived for PI or tester.
-        # coding_end_date is always enforced for testers (not for PIs).
+        # coding_enabled + date-window + daily limit checks are waived for PI
+        # and coding_tester users.
         if not is_pi and not is_tester:
             if not ps.coding_enabled:
                 excluded.add(p.site_id)
@@ -250,11 +252,11 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
             if ps.coding_start_date and ps.coding_start_date > today:
                 excluded.add(p.site_id)
                 continue
-        if not is_pi:
+        if not is_pi and not is_tester:
             if ps.coding_end_date and ps.coding_end_date < today:
                 excluded.add(p.site_id)
                 continue
-        if today_counts.get(p.site_id, 0) >= ps.daily_coder_limit:
+        if not is_pi and not is_tester and today_counts.get(p.site_id, 0) >= ps.daily_coder_limit:
             excluded.add(p.site_id)
     return excluded
 
@@ -262,13 +264,11 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
 def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
     """Return a human-readable reason why a specific site is blocked.
 
-    PI waiver applies to coding_enabled and date restrictions but not the
-    daily_coder_limit.
+    PI and coding_tester waivers apply to all coding gates.
     """
     from app.models.va_project_sites import VaProjectSites
-    from datetime import date
 
-    today = date.today()
+    today = datetime.utcnow().date()
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     user_id = user.user_id
 
@@ -292,7 +292,7 @@ def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
             return "Coding is currently disabled for this site."
         if ps.coding_start_date and ps.coding_start_date > today:
             return f"Coding for this site opens on {ps.coding_start_date.strftime('%B %-d, %Y')}."
-    if not is_pi:
+    if not is_pi and not is_tester:
         if ps.coding_end_date and ps.coding_end_date < today:
             return f"Coding for this site ended on {ps.coding_end_date.strftime('%B %-d, %Y')}."
     count = db.session.scalar(
@@ -307,7 +307,7 @@ def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
             VaForms.site_id == site_id,
         )
     ) or 0
-    if count >= ps.daily_coder_limit:
+    if not is_pi and not is_tester and count >= ps.daily_coder_limit:
         return (
             f"You have reached today's coding limit of {ps.daily_coder_limit} "
             f"form{'s' if ps.daily_coder_limit != 1 else ''} for this site."

@@ -56,7 +56,7 @@ def _filter_forms_by_project(form_ids: list[str], project_id: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 @bp.get("/allocation")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def get_allocation():
     """Return the current active coding allocation, or null."""
     va_sid = get_active_coding_allocation(current_user.user_id)
@@ -103,7 +103,7 @@ def get_allocation():
 # ---------------------------------------------------------------------------
 
 @bp.post("/allocation")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def allocate():
     """Allocate a form for coding and return the allocation details."""
     body = request.get_json(silent=True) or {}
@@ -124,13 +124,13 @@ def allocate():
         elif sid:
             result = allocate_pick_form(current_user, sid)
         else:
-            if not current_user.is_coder():
+            if not (current_user.is_coder() or current_user.is_coding_tester()):
                 current_app.logger.warning(
-                    "coding_allocation_denied reason=coder_role_required user_id=%s project_id=%s",
+                    "coding_allocation_denied reason=coding_role_required user_id=%s project_id=%s",
                     current_user.user_id,
                     project_id,
                 )
-                return _error("Coder access is required.", 403)
+                return _error("Coder or coding tester access is required.", 403)
             result = allocate_random_form(current_user, project_id=project_id)
     except AllocationError as e:
         current_app.logger.warning(
@@ -161,7 +161,7 @@ def allocate():
 # ---------------------------------------------------------------------------
 
 @bp.post("/recode/<va_sid>")
-@role_required("coder")
+@role_required("coder", "coding_tester")
 def recode(va_sid):
     """Start a recode episode for a finalized submission."""
     try:
@@ -197,10 +197,10 @@ def mark_reviewer_eligible_after_recode_window():
 # ---------------------------------------------------------------------------
 
 @bp.get("/available")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def available_forms():
     """Return forms available for pick-mode coding."""
-    va_form_access = current_user.get_coder_va_forms()
+    va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     _, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access or [])
     forms = get_pick_available_forms(current_user, pick_form_ids)
     return jsonify({"forms": forms, "count": len(forms)})
@@ -211,12 +211,13 @@ def available_forms():
 # ---------------------------------------------------------------------------
 
 @bp.get("/stats")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def stats():
     """Return ready-pool counts and mode flags for the coder dashboard."""
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     kpis = get_coder_ready_stats(current_user, project_id=project_id)
-    va_form_access = current_user.get_coder_va_forms() or []
+    va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
+    va_form_access = list(va_form_access)
     if project_id:
         va_form_access = _filter_forms_by_project(va_form_access, project_id)
     kpis["completed"] = get_coder_completed_count(current_user.user_id, va_form_access)
@@ -228,10 +229,10 @@ def stats():
 # ---------------------------------------------------------------------------
 
 @bp.get("/history")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def history():
     """Return the coder's completed coding history with recodeable flags."""
-    va_form_access = current_user.get_coder_va_forms() or []
+    va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
     rows = get_coder_completed_history(current_user.user_id, va_form_access)
     recodeable_sids = set(get_coder_recodeable_sids(current_user.user_id, va_form_access))
     for row in rows:
@@ -244,10 +245,10 @@ def history():
 # ---------------------------------------------------------------------------
 
 @bp.get("/projects")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def projects():
-    """Return distinct project IDs accessible to the current coder (admin: for demo selector)."""
-    va_form_access = current_user.get_coder_va_forms() or []
+    """Return distinct project IDs accessible to the current coding user."""
+    va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
     project_ids = get_coder_project_ids(va_form_access)
     return jsonify({"projects": list(project_ids)})
 

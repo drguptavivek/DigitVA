@@ -38,7 +38,7 @@ def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comor
 
 
 @bp.post("/<va_sid>/narrative-qa")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def save_narrative_qa(va_sid: str):
     """Save or update the Narrative Quality Assessment for a coder on a submission."""
     err = require_coding_access(va_sid)

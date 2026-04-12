@@ -3,7 +3,7 @@ title: Access Control Grants Technical Design
 doc_type: planning
 status: draft
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-04-12
 ---
 
 # Access Control Grants Technical Design
@@ -52,6 +52,7 @@ The target role set is:
 - `site_pi`
 - `collaborator`
 - `coder`
+- `coding_tester`
 - `reviewer`
 
 ## Target Scope Types
@@ -156,6 +157,7 @@ Allowed values:
 - `site_pi`
 - `collaborator`
 - `coder`
+- `coding_tester`
 - `reviewer`
 
 #### `scope_type`
@@ -200,6 +202,7 @@ Allowed roles:
 - `project_pi`
 - `collaborator`
 - `coder`
+- `coding_tester`
 - `reviewer`
 
 ### `project_site`
@@ -215,6 +218,7 @@ Allowed roles:
 - `site_pi`
 - `collaborator`
 - `coder`
+- `coding_tester`
 - `reviewer`
 
 ## Recommended Constraints
@@ -440,6 +444,26 @@ Authorization should evaluate in this order:
 5. load matching active grants for the user and role
 6. evaluate whether one of those grants covers the resource
 7. apply workflow-specific checks
+
+### Coding Gate Design
+
+For non-demo coding workflows, apply project-site coding gates in UTC:
+
+- `coding_enabled`
+- `coding_start_date`
+- `coding_end_date`
+- `daily_coder_limit`
+
+Role-specific behavior:
+
+- `coder`: all non-demo coding gates are enforced
+- `coding_tester`: all four non-demo coding gates are bypassed for testing
+
+Demo/training exception:
+
+- `demo_training_enabled` projects are intentionally open to all active
+  authenticated users through the demo coding path
+- this open access does not broaden non-demo coding authorization
 
 ## API Route Direction
 

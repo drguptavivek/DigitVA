@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.models import (
@@ -158,7 +158,28 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
                 )
             )
 
+        cls.coding_tester_user = cls._make_user(
+            "pick.tester@test.local",
+            "PickTester123",
+        )
+        tester_project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == "RND01",
+                VaProjectSites.site_id == "RN01",
+            )
+        )
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.coding_tester_user.user_id,
+                role=VaAccessRoles.coding_tester,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=tester_project_site_id,
+                notes="coding tester grant RND01",
+                grant_status=VaStatuses.active,
+            )
+        )
         db.session.commit()
+        cls.coding_tester_id = str(cls.coding_tester_user.user_id)
 
     def setUp(self):
         super().setUp()
@@ -233,3 +254,49 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         response = self.client.get("/vacta/vacode/vapickcoding/sid-random-1")
 
         self.assertEqual(response.status_code, 403)
+
+    def test_coding_tester_bypasses_all_project_site_gates(self):
+        project_site = db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == "RND01",
+                VaProjectSites.site_id == "RN01",
+            )
+        )
+        self.assertIsNotNone(project_site)
+        today = datetime.now(timezone.utc).date()
+        project_site.coding_enabled = False
+        project_site.coding_start_date = today + timedelta(days=7)
+        project_site.coding_end_date = today - timedelta(days=7)
+        project_site.daily_coder_limit = 0
+        db.session.commit()
+
+        self._login(self.coding_tester_id)
+        response = self.client.post(
+            "/coding/start?project_id=RND01",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        active_sid = db.session.scalar(
+            db.select(VaAllocations.va_sid).where(
+                VaAllocations.va_allocated_to == self.coding_tester_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        )
+        self.assertEqual(active_sid, "sid-random-1")
+
+    def test_coding_tester_can_allocate_via_coding_api(self):
+        self._login(self.coding_tester_id)
+        response = self.client.post(
+            "/api/v1/coding/allocation",
+            json={"project_id": "RND01"},
+            headers={
+                "Content-Type": "application/json",
+                **self._csrf_headers(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["va_sid"], "sid-random-1")

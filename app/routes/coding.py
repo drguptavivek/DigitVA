@@ -28,7 +28,7 @@ from app.services.coder_workflow_service import (
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
 from app.models.va_project_sites import VaProjectSites
-from datetime import datetime, date as _date
+from datetime import datetime
 
 
 coding = Blueprint("coding", __name__)
@@ -83,7 +83,7 @@ def dashboard():
         has_random_mode = bool(random_form_ids)
         has_pick_mode = bool(pick_form_ids)
         from app.models import VaSites, VaResearchProjects  # noqa: PLC0415
-        today = _date.today()
+        today = datetime.utcnow().date()
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         _tc_rows = db.session.execute(
             sa.select(VaForms.site_id, sa.func.count().label("cnt"))
@@ -244,7 +244,7 @@ def recode(va_sid):
 
 
 @coding.post("/demo")
-@role_required("admin", "coding_tester", "data_manager")
+@role_required("admin")
 def demo():
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
@@ -261,6 +261,9 @@ def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:
         va_permission_abortwithflash("Submission not found.", 404)
-    if not current_user.has_va_form_access(form.va_form_id, "coder"):
+    if not (
+        current_user.has_va_form_access(form.va_form_id, "coder")
+        or current_user.is_coding_tester(form.va_form_id)
+    ):
         va_permission_abortwithflash("You do not have coder access to view this submission.", 403)
     return render_va_coding_page(form, "vacode", "vaview", "coder")

@@ -723,7 +723,7 @@ def _dm_submission_query_parts(
         else:
             conditions.append(VaSubmissionWorkflow.workflow_state == workflow)
 
-    return attachment_counts, smartva_sids, _mv_ref, conditions
+    return attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions
 
 
 def _serialize_csv_cell(value):
@@ -832,7 +832,7 @@ def dm_submissions_export_csv(
     sort_dir: str = "desc",
 ) -> str:
     """Return a CSV export for all filtered DM submissions."""
-    attachment_counts, smartva_sids, _mv_ref, conditions = _dm_submission_query_parts(
+    attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
         search=search,
         project=project,
@@ -1214,7 +1214,7 @@ def dm_smartva_input_export_csv(
     """Return the SmartVA input CSV shape for all filtered submissions."""
     from app.utils.va_smartva.va_smartva_02_prepdata import _clean_payload_for_smartva
 
-    attachment_counts, smartva_sids, _mv_ref, conditions = _dm_submission_query_parts(
+    attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
         search=search,
         project=project,
@@ -1316,7 +1316,7 @@ def dm_smartva_results_export_csv(
     sort_dir: str = "desc",
 ) -> str:
     """Return active SmartVA summary results for all filtered submissions."""
-    attachment_counts, smartva_sids, _mv_ref, conditions = _dm_submission_query_parts(
+    attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
         search=search,
         project=project,
@@ -1436,7 +1436,7 @@ def dm_smartva_likelihoods_export_csv(
     sort_dir: str = "desc",
 ) -> str:
     """Return raw SmartVA likelihood rows for all filtered submissions."""
-    attachment_counts, smartva_sids, _mv_ref, conditions = _dm_submission_query_parts(
+    attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
         search=search,
         project=project,

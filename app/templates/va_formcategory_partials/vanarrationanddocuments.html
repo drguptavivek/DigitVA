@@ -899,7 +899,8 @@
                 }
                 // Reload partial to clear block message and enable Next button
                 if (window.htmx) {
-                  htmx.ajax('GET', reloadUrl, '#form-content');
+                  var sep = reloadUrl.indexOf('?') === -1 ? '?' : '&';
+                  htmx.ajax('GET', reloadUrl + sep + '_=' + Date.now(), '#form-content');
                 }
               } else {
                 alertEl.style.display = '';

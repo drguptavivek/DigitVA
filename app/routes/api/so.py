@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.post("/<va_sid>/social-autopsy")
-@role_required("coder", "admin")
+@role_required("coder", "coding_tester", "admin")
 def save_social_autopsy(va_sid: str):
     """Save or update the Social Autopsy analysis selections for a coder."""
     err = require_coding_access(va_sid)

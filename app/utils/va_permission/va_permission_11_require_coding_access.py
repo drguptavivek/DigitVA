@@ -24,7 +24,7 @@ def require_coding_access(va_sid: str):
     if data.get("va_actiontype") == "vademo_start_coding":
         if current_user.is_admin():
             return None
-        if not current_user.is_coder() or not is_demo_training_submission(va_sid):
+        if not (current_user.is_coder() or current_user.is_coding_tester()) or not is_demo_training_submission(va_sid):
             return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
 
     alloc = db.session.scalar(

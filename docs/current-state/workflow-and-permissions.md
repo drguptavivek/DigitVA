@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-04-12
 ---
 
 # Workflow And Permissions
@@ -42,6 +42,16 @@ Current demo/training access rule:
   shows an inline warning that:
   - completed demo/training codes persist for 10 minutes by default
   - incomplete demo/training allocations are revoked after 15 minutes
+
+Current coding tester gate rule:
+
+- `coding_tester` is a grant role that can enter non-demo coding while
+  bypassing project-site gates:
+  - `coding_enabled`
+  - `coding_start_date`
+  - `coding_end_date`
+  - `daily_coder_limit`
+- coding gate date checks use UTC date boundaries
 
 The current workflow is built around form-based permissions and per-submission
 allocation.

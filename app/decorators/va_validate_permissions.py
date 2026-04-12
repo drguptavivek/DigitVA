@@ -65,7 +65,7 @@ def va_hasrole(role):
     if current_user.is_admin():
         return True
     mapping = {
-        "coder": current_user.is_coder(),
+        "coder": current_user.is_coder() or current_user.is_coding_tester(),
         "reviewer": current_user.is_reviewer(),
         "sitepi": current_user.is_site_pi(),
         "data_manager": current_user.is_data_manager(),
@@ -73,12 +73,25 @@ def va_hasrole(role):
     return mapping.get(role)
 
 
+def _has_coding_role() -> bool:
+    return current_user.is_coder() or current_user.is_coding_tester()
+
+
+def _has_coding_form_access(form_id: str | None) -> bool:
+    if not form_id:
+        return False
+    return (
+        current_user.has_va_form_access(form_id, "coder")
+        or current_user.is_coding_tester(form_id)
+    )
+
+
 def _validate_vacode(actiontype, sid, partial):
     form_id = db.session.scalar(
         sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == sid)
     )
     if actiontype == "vastartcoding":
-        if not current_user.is_coder():
+        if not _has_coding_role():
             va_permission_abortwithflash(
                 "You lack the VA Coder role required to start coding.", 403
             )
@@ -89,7 +102,7 @@ def _validate_vacode(actiontype, sid, partial):
         if partial:
             va_permission_ensureallocation(sid, "coding")
     elif actiontype == "varesumecoding":
-        if not current_user.is_coder():
+        if not _has_coding_role():
             va_permission_abortwithflash(
                 "You lack the VA Coder role required to resume VA coding.", 403
             )
@@ -97,7 +110,7 @@ def _validate_vacode(actiontype, sid, partial):
         if partial:
             va_permission_ensureallocation(sid, "coding")
     elif actiontype == "varecode":
-        if not current_user.has_va_form_access(form_id, "coder"):
+        if not _has_coding_form_access(form_id):
             va_permission_abortwithflash(
                 "You do not have coder access for this VA form.", 403
             )
@@ -107,7 +120,7 @@ def _validate_vacode(actiontype, sid, partial):
         else:
             va_permission_ensureallocation(sid, "coding")
     elif actiontype == "vapickcoding":
-        if not current_user.has_va_form_access(form_id, "coder"):
+        if not _has_coding_form_access(form_id):
             va_permission_abortwithflash(
                 "You do not have coder access for this VA form.", 403
             )
@@ -138,7 +151,7 @@ def _validate_vacode(actiontype, sid, partial):
     elif actiontype == "vademo_start_coding":
         if current_user.is_admin():
             return
-        if not current_user.is_coder():
+        if not _has_coding_role():
             va_permission_abortwithflash(
                 "Coder access is required for demo project coding.", 403
             )
@@ -149,7 +162,7 @@ def _validate_vacode(actiontype, sid, partial):
             )
         va_permission_ensureallocation(sid, "coding")
     elif actiontype == "vaview":
-        if not current_user.has_va_form_access(form_id, "coder"):
+        if not _has_coding_form_access(form_id):
             va_permission_abortwithflash(
                 "You do not have coder access to view this VA form.", 403
             )

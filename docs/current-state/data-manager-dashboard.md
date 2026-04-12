@@ -261,7 +261,13 @@ data-managers and admins can:
   - creator-scoped email update
 - **Grants tab**: view, create, and toggle coder, coding-tester, and
   data-manager grants
-  scoped to the data-manager's own grant scope
+  scoped to the data-manager's own grant scope. When a user is selected in the
+  new-grant section, the grants table is filtered to that selected user's
+  current grants; clearing the selected user restores the broader filtered
+  table.
+  The user-details modal also includes a `Manage Grants` shortcut that switches
+  to the grants tab with that user's email prefilled in the grants search
+  filter and the same user preselected in the new-grant form.
 
 Scope rules:
 

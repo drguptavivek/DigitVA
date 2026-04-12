@@ -142,6 +142,10 @@ Data-managers see only:
 They do not see `admin`, `project_pi`, `site_pi`, `reviewer`, or `collaborator`
 grants, even within their scope.
 
+From the user-details modal, a `Manage Grants` action navigates to the grants
+tab and pre-applies the selected user's email as the grants-table text filter.
+It also preselects that user in the new-grant form.
+
 ### User listing
 
 Data-managers may search users (up to 25 results) and open per-user details.
@@ -156,6 +160,7 @@ The details panel includes:
 - resend verification action (for unverified users)
 - email update action only for users created by the same data-manager
 - language update action for data-managers/admins
+- a `Manage Grants` action that opens the grants tab focused on that user
 
 ## CSRF
 

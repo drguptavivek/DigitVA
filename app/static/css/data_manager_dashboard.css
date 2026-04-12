@@ -76,7 +76,8 @@
   border-color: #e5e7eb;
 }
 
-#dm-filter-pills {
+#dm-filter-pills,
+#dm-filter-pills-top {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
@@ -126,6 +127,10 @@
 
 #dm-table .ag-row {
   font-size: 0.82rem;
+}
+
+#dm-table .ag-row.dm-selected-row .ag-cell {
+  background-color: #fff7cc;
 }
 
 #dm-table .ag-header-cell-label {

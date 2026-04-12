@@ -78,6 +78,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     from app.utils import va_get_form_type_code_for_form
     from app.services.category_rendering_service import get_category_rendering_service, get_visible_category_codes
     from app.services.coder_workflow_service import is_upstream_recode
+    from app.services.demo_project_service import is_demo_training_submission
     from app.services.submission_payload_version_service import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
 
@@ -89,6 +90,14 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     category_nav = category_service.get_category_nav(form_type_code, va_action, visible_codes)
     default_category_code = category_service.get_default_category_code(form_type_code, va_action, visible_codes)
     attachment_counts = _count_attachments_per_category(form_type_code, payload_data, submission.va_sid)
+    form = db.session.get(VaForms, submission.va_form_id) if submission.va_form_id else None
+    project = db.session.get(VaProjectMaster, form.project_id) if form else None
+    project_code = (
+        (project.project_code if project and project.project_code else None)
+        or (form.project_id if form else None)
+    )
+    site_code = form.site_id if form else None
+    is_demo_project = is_demo_training_submission(submission.va_sid)
     has_pending_upstream_change = (
         back_dashboard_role == "data_manager"
         and get_latest_pending_upstream_change(submission.va_sid) is not None
@@ -107,6 +116,9 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         va_uniqueid=submission.va_uniqueid_masked,
         va_age=submission.va_deceased_age,
         va_gender=submission.va_deceased_gender,
+        project_code=project_code,
+        site_code=site_code,
+        is_demo_project=is_demo_project,
         back_dashboard_role=back_dashboard_role,
         is_upstream_recode=is_upstream_recode(submission.va_sid),
         has_pending_upstream_change=has_pending_upstream_change,

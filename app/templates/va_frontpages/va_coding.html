@@ -104,7 +104,7 @@
     {% endif %}
     <hr class="my-3">
     <div class="row g-3">
-      <div class="col-md-4 col-sm-6">
+      <div class="col-lg-4 col-md-4 col-sm-6">
         <div class="p-3 bg-light rounded-3 h-100">
           <div class="d-flex align-items-center mb-2">
             <i class="fas fa-fingerprint text-primary me-2"></i>
@@ -113,22 +113,39 @@
           <div class="fs-5 fw-semibold">{{ va_uniqueid }}</div>
         </div>
       </div>
-      <div class="col-md-4 col-sm-6">
+      <div class="col-lg-4 col-md-4 col-sm-6">
+        <div class="p-3 bg-light rounded-3 h-100">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-code-branch text-primary me-2"></i>
+              <label class="text-secondary small mb-0">Project / Site</label>
+            </div>
+            {% if is_demo_project %}
+            <span class="badge bg-danger">DEMO</span>
+            {% endif %}
+          </div>
+          <div class="fs-6 fw-semibold">
+            {{ (project_code or "-") ~ "/" ~ (site_code or "-") }}
+            {% if is_demo_project %} - TESTING PROJECT{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-2 col-md-2 col-sm-6">
         <div class="p-3 bg-light rounded-3 h-100">
           <div class="d-flex align-items-center mb-2">
             <i class="fas fa-user-clock text-primary me-2"></i>
             <label class="text-secondary small mb-0">Age</label>
           </div>
-          <div class="fs-5 fw-semibold">{{ va_age }}</div>
+          <div class="fs-6 fw-semibold">{{ va_age }}</div>
         </div>
       </div>
-      <div class="col-md-4 col-sm-6">
+      <div class="col-lg-2 col-md-2 col-sm-6">
         <div class="p-3 bg-light rounded-3 h-100">
           <div class="d-flex align-items-center mb-2">
             <i class="fas fa-venus-mars text-primary me-2"></i>
             <label class="text-secondary small mb-0">Gender</label>
           </div>
-          <div class="fs-5 fw-semibold">{{ va_gender.capitalize() }}</div>
+          <div class="fs-6 fw-semibold">{{ va_gender.capitalize() }}</div>
         </div>
       </div>
     </div>

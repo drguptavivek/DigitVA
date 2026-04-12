@@ -1,4 +1,6 @@
 import uuid
+import re
+import tempfile
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -485,7 +487,7 @@ class DataManagerDashboardTests(BaseTestCase):
         payload = response.get_json()
         coded_row = next(row for row in payload["data"] if row["va_sid"] == coded_sid)
         self.assertEqual(coded_row["coded_by"], self.dm_user.name)
-        self.assertTrue(coded_row["coded_on"].startswith(str(now.date())))
+        self.assertRegex(coded_row["coded_on"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
 
     @patch(
         "app.routes.api.data_management.get_dm_kpi_from_mv",
@@ -724,7 +726,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(
             response.headers["Location"],
             "https://minerva.example.org/projects/11/forms/"
-            "DM_DASHBOARD_FORM/submissions/uuid%3Adata-manager-dashboard/edit",
+            "DM_DASHBOARD_FORM/submissions/uuid%3Adata-manager-dashboard",
         )
         audit_row = db.session.scalar(
             sa.select(VaSubmissionsAuditlog)
@@ -863,6 +865,72 @@ class DataManagerDashboardTests(BaseTestCase):
             )
         )
         mocked_export.assert_called_once()
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_input_export_csv",
+        side_effect=[
+            "sid,result\nuuid:data-manager-dashboard,first\n",
+            "sid,result\nuuid:data-manager-dashboard,second\n",
+        ],
+    )
+    def test_export_route_reuses_disk_cache_for_same_filters(self, mocked_export):
+        self._login(self.dm_user_id)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            old_app_data = self.app.config.get("APP_DATA")
+            old_ttl = self.app.config.get("DM_EXPORT_CACHE_TTL_SECONDS")
+            self.app.config["APP_DATA"] = tmpdir
+            self.app.config["DM_EXPORT_CACHE_TTL_SECONDS"] = 300
+            try:
+                response_first = self.client.get(
+                    "/api/v1/data-management/submissions/export-smartva-input.csv"
+                    "?project=ICMR01&site=ICMR01OD0101"
+                )
+                response_second = self.client.get(
+                    "/api/v1/data-management/submissions/export-smartva-input.csv"
+                    "?project=ICMR01&site=ICMR01OD0101"
+                )
+            finally:
+                self.app.config["APP_DATA"] = old_app_data
+                self.app.config["DM_EXPORT_CACHE_TTL_SECONDS"] = old_ttl
+
+        self.assertEqual(response_first.status_code, 200)
+        self.assertEqual(response_first.headers.get("X-Export-Cache"), "MISS")
+        self.assertEqual(response_second.status_code, 200)
+        self.assertEqual(response_second.headers.get("X-Export-Cache"), "HIT")
+        self.assertEqual(mocked_export.call_count, 1)
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_input_export_csv",
+        side_effect=[
+            "sid,result\nuuid:data-manager-dashboard,first\n",
+            "sid,result\nuuid:data-manager-dashboard,second\n",
+        ],
+    )
+    def test_export_cache_ignores_sort_query_params(self, mocked_export):
+        self._login(self.dm_user_id)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            old_app_data = self.app.config.get("APP_DATA")
+            old_ttl = self.app.config.get("DM_EXPORT_CACHE_TTL_SECONDS")
+            self.app.config["APP_DATA"] = tmpdir
+            self.app.config["DM_EXPORT_CACHE_TTL_SECONDS"] = 300
+            try:
+                response_first = self.client.get(
+                    "/api/v1/data-management/submissions/export-smartva-input.csv"
+                    "?project=ICMR01&sort[0][field]=coded_on&sort[0][dir]=asc"
+                )
+                response_second = self.client.get(
+                    "/api/v1/data-management/submissions/export-smartva-input.csv"
+                    "?project=ICMR01&sort[0][field]=va_submission_date&sort[0][dir]=desc"
+                )
+            finally:
+                self.app.config["APP_DATA"] = old_app_data
+                self.app.config["DM_EXPORT_CACHE_TTL_SECONDS"] = old_ttl
+
+        self.assertEqual(response_first.status_code, 200)
+        self.assertEqual(response_first.headers.get("X-Export-Cache"), "MISS")
+        self.assertEqual(response_second.status_code, 200)
+        self.assertEqual(response_second.headers.get("X-Export-Cache"), "HIT")
+        self.assertEqual(mocked_export.call_count, 1)
 
     def test_single_form_task_revalidates_scope_in_worker(self):
         from app.tasks.sync_tasks import run_single_form_sync

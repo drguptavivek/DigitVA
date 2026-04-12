@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-12
 ---
 
 # Data Manager Workflow Policy
@@ -90,6 +90,12 @@ At minimum the dashboard must show:
 - canonical local workflow state
 - ODK review state mirrored locally from ODK Central
 - local sync issue status for the submission
+- SmartVA status as a tri-state indicator:
+  - `Available`
+  - `Failed`
+  - `Missing`
+    - `Missing` applies only to consent-valid submissions and excludes
+      `consent_refused`
 
 The dashboard may also expose filtered CSV exports for operational review, but
 those exports must protect PII.

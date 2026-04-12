@@ -52,6 +52,11 @@ Current cards include:
 - `ODK - Has Issues`
 - `SmartVA Missing`
 
+`SmartVA Missing` semantics:
+
+- counts only consent-valid submissions with no SmartVA output
+- excludes `consent_refused` workflow rows
+
 Some card counts apply filters directly to the table when clicked.
 
 Current `Pending Coding` semantics:
@@ -95,12 +100,12 @@ The table currently shows scoped submissions with:
 - coded-on / coded-by for coded submissions
 - ODK review state
 - ODK sync issue state
-- SmartVA availability
+- SmartVA status (`Available`, `Failed`, `Missing`)
 - attachment count
 - optional columns such as project, collector, and flagged-at timestamp
 
 The table also includes an `Edit` action that resolves a server-side ODK Central
-submission edit redirect and sends the user to the returned Enketo edit URL.
+submission redirect and sends the user to the returned ODK submission page URL.
 
 For `finalized_upstream_changed` rows, the current actions also include:
 
@@ -142,6 +147,14 @@ Current filter behavior includes:
 - workflow state
 - free-text search
 - optional column toggles
+
+SmartVA status semantics in the dashboard table:
+
+- `Available`: an active SmartVA projection row exists and its outcome is not
+  failed
+- `Failed`: an active SmartVA projection row exists with
+  `va_smartva_outcome = 'failed'`
+- `Missing`: no active SmartVA projection row exists for the submission
 
 Filter state persists across page reloads in the browser.
 

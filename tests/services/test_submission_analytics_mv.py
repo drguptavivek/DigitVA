@@ -672,3 +672,56 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(kpi["total_submissions"], 3)
         self.assertEqual(kpi["pending_submissions"], 3)
         self.assertEqual(kpi["smartva_pending_submissions"], 0)
+
+    def test_smartva_missing_excludes_consent_refused_workflow(self):
+        sid_missing = "uuid:mv-kpi-smartva-missing"
+        sid_consent_refused = "uuid:mv-kpi-consent-refused"
+
+        self._add_submission(
+            sid_missing,
+            {
+                "ageInYears": "41",
+                "ageInYears2": "41",
+                "finalAgeInYears": "41",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            gender="female",
+            normalized_days=Decimal("41") * Decimal("365.25"),
+            normalized_years=Decimal("41"),
+            normalized_source="ageInYears",
+            workflow_state="ready_for_coding",
+        )
+        self._add_submission(
+            sid_consent_refused,
+            {
+                "ageInYears": "39",
+                "ageInYears2": "39",
+                "finalAgeInYears": "39",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            gender="male",
+            normalized_days=Decimal("39") * Decimal("365.25"),
+            normalized_years=Decimal("39"),
+            normalized_source="ageInYears",
+            workflow_state="consent_refused",
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        kpi = get_dm_kpi_from_mv([], [(self.PROJECT_ID, self.SITE_ID)])
+        self.assertEqual(kpi["smartva_missing_submissions"], 1)
+        self.assertEqual(kpi["consent_refused_submissions"], 1)
+
+        missing_filter_kpi = get_dm_kpi_from_mv(
+            [],
+            [(self.PROJECT_ID, self.SITE_ID)],
+            smartva="missing",
+        )
+        self.assertEqual(missing_filter_kpi["total_submissions"], 1)

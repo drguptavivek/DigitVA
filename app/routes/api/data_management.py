@@ -10,7 +10,10 @@ Resources:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import os
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -49,6 +52,20 @@ from app.services.submission_analytics_mv import (
 bp = Blueprint("data_management_api", __name__)
 log = logging.getLogger(__name__)
 _CACHE_TTL = 300
+_EXPORT_CACHE_TTL = 900
+_EXPORT_FILTER_KEYS = (
+    "search",
+    "project",
+    "site",
+    "date_from",
+    "date_to",
+    "odk_status",
+    "smartva",
+    "age_group",
+    "gender",
+    "odk_sync",
+    "workflow",
+)
 
 
 def _cache_key(suffix: str) -> str:
@@ -79,6 +96,125 @@ def _refresh_dm_dashboard_analytics() -> None:
         cache.clear()
     except Exception as exc:
         log.warning("Data-manager cache clear failed after analytics refresh: %s", exc, exc_info=True)
+
+
+def _export_filters_from_request() -> dict[str, str | None]:
+    return {
+        "search": request.args.get("search", ""),
+        "project": request.args.get("project", ""),
+        "site": request.args.get("site", ""),
+        "date_from": request.args.get("date_from") or None,
+        "date_to": request.args.get("date_to") or None,
+        "odk_status": request.args.get("odk_status", ""),
+        "smartva": request.args.get("smartva", ""),
+        "age_group": request.args.get("age_group", ""),
+        "gender": request.args.get("gender", ""),
+        "odk_sync": request.args.get("odk_sync", ""),
+        "workflow": request.args.get("workflow", ""),
+    }
+
+
+def _export_cache_ttl_seconds() -> int:
+    value = current_app.config.get("DM_EXPORT_CACHE_TTL_SECONDS", _EXPORT_CACHE_TTL)
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return _EXPORT_CACHE_TTL
+
+
+def _export_cache_dir() -> str:
+    app_data = current_app.config.get("APP_DATA")
+    if not app_data:
+        app_data = os.path.join(current_app.instance_path, "data")
+    directory = os.path.join(app_data, "exports", "cache")
+    os.makedirs(directory, exist_ok=True)
+    return directory
+
+
+def _export_cache_key(export_kind: str, filters: dict[str, str | None]) -> str:
+    payload = {
+        "kind": export_kind,
+        "user_id": str(current_user.user_id),
+        "filters": {key: filters.get(key) for key in _EXPORT_FILTER_KEYS},
+    }
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _read_cached_export(cache_path: str, ttl_seconds: int) -> str | None:
+    if ttl_seconds <= 0:
+        return None
+    try:
+        stat = os.stat(cache_path)
+    except OSError:
+        return None
+    age_seconds = max(0.0, datetime.utcnow().timestamp() - stat.st_mtime)
+    if age_seconds > ttl_seconds:
+        return None
+    try:
+        with open(cache_path, "r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+    except OSError:
+        return None
+
+
+def _write_cached_export(cache_path: str, csv_text: str) -> None:
+    temp_path = f"{cache_path}.tmp.{os.getpid()}"
+    with open(temp_path, "w", encoding="utf-8", newline="") as handle:
+        handle.write(csv_text)
+    os.replace(temp_path, cache_path)
+
+
+def _cleanup_export_cache(directory: str, ttl_seconds: int) -> None:
+    # Keep files around for at most 4x TTL (minimum 1 hour) to bound disk usage.
+    retention_seconds = max(ttl_seconds * 4, 3600)
+    cutoff = datetime.utcnow().timestamp() - retention_seconds
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return
+    for name in names:
+        if not name.endswith(".csv"):
+            continue
+        path = os.path.join(directory, name)
+        try:
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except OSError:
+            continue
+
+
+def _csv_response(csv_text: str, filename_prefix: str, cache_status: str) -> Response:
+    filename = f"{filename_prefix}-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
+    return Response(
+        "\ufeff" + csv_text,
+        content_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Export-Cache": cache_status,
+        },
+    )
+
+
+def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) -> Response:
+    filters = _export_filters_from_request()
+    ttl_seconds = _export_cache_ttl_seconds()
+    cache_dir = _export_cache_dir()
+    cache_key = _export_cache_key(export_kind, filters)
+    cache_path = os.path.join(cache_dir, f"{cache_key}.csv")
+
+    cached_csv = _read_cached_export(cache_path, ttl_seconds)
+    if cached_csv is not None:
+        return _csv_response(cached_csv, filename_prefix, cache_status="HIT")
+
+    csv_text = export_fn(current_user, **filters)
+    try:
+        _write_cached_export(cache_path, csv_text)
+        _cleanup_export_cache(cache_dir, ttl_seconds)
+    except OSError as exc:
+        log.warning("Export cache write failed (%s): %s", cache_path, exc)
+        return _csv_response(csv_text, filename_prefix, cache_status="BYPASS")
+    return _csv_response(csv_text, filename_prefix, cache_status="MISS")
 
 
 # ---------------------------------------------------------------------------
@@ -122,32 +258,10 @@ def submissions():
 @role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_csv():
-
-    sort_field = request.args.get("sort[0][field]", "va_submission_date")
-    sort_dir = request.args.get("sort[0][dir]", "desc")
-    csv_text = dm_submissions_export_csv(
-        current_user,
-        search=request.args.get("search", ""),
-        project=request.args.get("project", ""),
-        site=request.args.get("site", ""),
-        date_from=request.args.get("date_from") or None,
-        date_to=request.args.get("date_to") or None,
-        odk_status=request.args.get("odk_status", ""),
-        smartva=request.args.get("smartva", ""),
-        age_group=request.args.get("age_group", ""),
-        gender=request.args.get("gender", ""),
-        odk_sync=request.args.get("odk_sync", ""),
-        workflow=request.args.get("workflow", ""),
-        sort_field=sort_field,
-        sort_dir=sort_dir,
-    )
-    filename = f"data-management-submissions-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
-    return Response(
-        "\ufeff" + csv_text,
-        content_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
+    return _serve_cached_export_csv(
+        export_kind="submissions",
+        filename_prefix="data-management-submissions",
+        export_fn=dm_submissions_export_csv,
     )
 
 
@@ -155,32 +269,10 @@ def submissions_export_csv():
 @role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_input_csv():
-
-    sort_field = request.args.get("sort[0][field]", "va_submission_date")
-    sort_dir = request.args.get("sort[0][dir]", "desc")
-    csv_text = dm_smartva_input_export_csv(
-        current_user,
-        search=request.args.get("search", ""),
-        project=request.args.get("project", ""),
-        site=request.args.get("site", ""),
-        date_from=request.args.get("date_from") or None,
-        date_to=request.args.get("date_to") or None,
-        odk_status=request.args.get("odk_status", ""),
-        smartva=request.args.get("smartva", ""),
-        age_group=request.args.get("age_group", ""),
-        gender=request.args.get("gender", ""),
-        odk_sync=request.args.get("odk_sync", ""),
-        workflow=request.args.get("workflow", ""),
-        sort_field=sort_field,
-        sort_dir=sort_dir,
-    )
-    filename = f"data-management-smartva-input-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
-    return Response(
-        "\ufeff" + csv_text,
-        content_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
+    return _serve_cached_export_csv(
+        export_kind="smartva_input",
+        filename_prefix="data-management-smartva-input",
+        export_fn=dm_smartva_input_export_csv,
     )
 
 
@@ -188,32 +280,10 @@ def submissions_export_smartva_input_csv():
 @role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_results_csv():
-
-    sort_field = request.args.get("sort[0][field]", "va_submission_date")
-    sort_dir = request.args.get("sort[0][dir]", "desc")
-    csv_text = dm_smartva_results_export_csv(
-        current_user,
-        search=request.args.get("search", ""),
-        project=request.args.get("project", ""),
-        site=request.args.get("site", ""),
-        date_from=request.args.get("date_from") or None,
-        date_to=request.args.get("date_to") or None,
-        odk_status=request.args.get("odk_status", ""),
-        smartva=request.args.get("smartva", ""),
-        age_group=request.args.get("age_group", ""),
-        gender=request.args.get("gender", ""),
-        odk_sync=request.args.get("odk_sync", ""),
-        workflow=request.args.get("workflow", ""),
-        sort_field=sort_field,
-        sort_dir=sort_dir,
-    )
-    filename = f"data-management-smartva-results-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
-    return Response(
-        "\ufeff" + csv_text,
-        content_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
+    return _serve_cached_export_csv(
+        export_kind="smartva_results",
+        filename_prefix="data-management-smartva-results",
+        export_fn=dm_smartva_results_export_csv,
     )
 
 
@@ -221,32 +291,10 @@ def submissions_export_smartva_results_csv():
 @role_required("data_manager")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_likelihoods_csv():
-
-    sort_field = request.args.get("sort[0][field]", "va_submission_date")
-    sort_dir = request.args.get("sort[0][dir]", "desc")
-    csv_text = dm_smartva_likelihoods_export_csv(
-        current_user,
-        search=request.args.get("search", ""),
-        project=request.args.get("project", ""),
-        site=request.args.get("site", ""),
-        date_from=request.args.get("date_from") or None,
-        date_to=request.args.get("date_to") or None,
-        odk_status=request.args.get("odk_status", ""),
-        smartva=request.args.get("smartva", ""),
-        age_group=request.args.get("age_group", ""),
-        gender=request.args.get("gender", ""),
-        odk_sync=request.args.get("odk_sync", ""),
-        workflow=request.args.get("workflow", ""),
-        sort_field=sort_field,
-        sort_dir=sort_dir,
-    )
-    filename = f"data-management-smartva-likelihoods-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
-    return Response(
-        "\ufeff" + csv_text,
-        content_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
+    return _serve_cached_export_csv(
+        export_kind="smartva_likelihoods",
+        filename_prefix="data-management-smartva-likelihoods",
+        export_fn=dm_smartva_likelihoods_export_csv,
     )
 
 

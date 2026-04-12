@@ -5,14 +5,17 @@
   const CONFIG = window.DM_DASHBOARD_CONFIG || {};
   const CSRF = CONFIG.csrfToken || '';
   const LS_KEY = 'digitva.data_manager.table_state.v2';
+  const SELECTED_SID_KEY = 'digitva.data_manager.selected_sid.v1';
   const CHARTJS_SRC = CONFIG.chartJsSrc || '';
   const TOM_SELECT_SRC = CONFIG.tomSelectSrc || '';
 
   /* ── Column definitions (toggleable metadata) ── */
   const TOGGLEABLE_COLS = [
     { field: 'project_id',        label: 'Project' },
+    { field: 'va_submission_date',label: 'Submitted' },
     { field: 'va_data_collector', label: 'Data Collector' },
     { field: 'attachment_count',  label: 'Attachments' },
+    { field: 'has_smartva',       label: 'SmartVA Status' },
     { field: 'analytics_age_band',label: 'Age Group' },
     { field: 'va_deceased_gender',label: 'Gender' },
     { field: 'odk_sync_status',   label: 'ODK Sync' },
@@ -43,6 +46,12 @@
   let currentPage = 1;
   let currentPageSize = 25;
   let pendingInitialPageRestore = null;
+  let currentSort = {
+    field: 'va_submission_date',
+    dir: 'desc',
+  };
+  let selectedSid = '';
+  let pendingSelectedSidRestore = '';
 
   /* ── Column visibility state ── */
   let colVisibility = {};
@@ -60,6 +69,17 @@
       if (saved.colVisibility) Object.assign(colVisibility, saved.colVisibility);
       if (Number.isInteger(saved.page) && saved.page > 0) currentPage = saved.page;
       if (Number.isInteger(saved.pageSize) && saved.pageSize > 0) currentPageSize = saved.pageSize;
+      if (saved.sort && typeof saved.sort.field === 'string' && typeof saved.sort.dir === 'string') {
+        currentSort = {
+          field: saved.sort.field,
+          dir: saved.sort.dir === 'asc' ? 'asc' : 'desc',
+        };
+      }
+      if (typeof saved.selectedSid === 'string') {
+        selectedSid = saved.selectedSid.trim();
+      } else if (typeof saved.selected_sid === 'string') {
+        selectedSid = saved.selected_sid.trim();
+      }
     } catch (_) { /* ignore */ }
   }
 
@@ -71,9 +91,27 @@
       });
     const pageParam = Number.parseInt(params.get('page') || '', 10);
     const sizeParam = Number.parseInt(params.get('size') || '', 10);
+    const sortFieldParam = (params.get('sort_field') || '').trim();
+    const sortDirParam = (params.get('sort_dir') || '').trim().toLowerCase();
+    const selectedSidParam = (params.get('selected_sid') || '').trim();
     if (Number.isInteger(pageParam) && pageParam > 0) currentPage = pageParam;
     if (Number.isInteger(sizeParam) && sizeParam > 0) currentPageSize = sizeParam;
+    if (sortFieldParam) {
+      currentSort = {
+        field: sortFieldParam,
+        dir: sortDirParam === 'asc' ? 'asc' : 'desc',
+      };
+    }
+    if (selectedSidParam) {
+      selectedSid = selectedSidParam;
+    } else {
+      try {
+        const storedSid = (localStorage.getItem(SELECTED_SID_KEY) || '').trim();
+        if (storedSid) selectedSid = storedSid;
+      } catch (_) { /* ignore */ }
+    }
     pendingInitialPageRestore = currentPage > 1 ? currentPage : null;
+    pendingSelectedSidRestore = selectedSid;
   }
 
   function saveState() {
@@ -83,8 +121,51 @@
         colVisibility,
         page: currentPage,
         pageSize: currentPageSize,
+        sort: currentSort,
+        selectedSid,
       }));
     } catch (_) { /* ignore */ }
+  }
+
+  function setSelectedSid(nextSid, options) {
+    const opts = Object.assign(
+      {
+        redraw: true,
+        persist: true,
+        scheduleRestore: false,
+        updateUrl: true,
+      },
+      options || {},
+    );
+    selectedSid = (nextSid || '').trim();
+    if (opts.persist) {
+      try {
+        if (selectedSid) localStorage.setItem(SELECTED_SID_KEY, selectedSid);
+        else localStorage.removeItem(SELECTED_SID_KEY);
+      } catch (_) { /* ignore */ }
+    }
+    if (opts.scheduleRestore) {
+      pendingSelectedSidRestore = selectedSid;
+    }
+    saveState();
+    if (opts.updateUrl) updateBrowserUrl();
+    if (opts.redraw && gridApi) {
+      gridApi.redrawRows();
+    }
+  }
+
+  function tryRestoreSelectedSid(rows) {
+    if (!gridApi || !pendingSelectedSidRestore) return;
+    const targetSid = pendingSelectedSidRestore;
+    const hasTargetRow = (rows || []).some(row => row && row.va_sid === targetSid);
+    if (!hasTargetRow) return;
+    pendingSelectedSidRestore = '';
+    window.setTimeout(() => {
+      const rowNode = gridApi.getRowNode(targetSid);
+      if (!rowNode) return;
+      gridApi.ensureNodeVisible(rowNode, 'middle');
+      gridApi.redrawRows();
+    }, 0);
   }
 
   /* ── Filter-options cache ── */
@@ -321,9 +402,14 @@
   class SmartVARenderer {
     init(params) {
       this.eGui = document.createElement('span');
-      this.eGui.innerHTML = params.value
-        ? '<span class="badge bg-success">Available</span>'
-        : '<span class="badge bg-secondary">Missing</span>';
+      const row = params.data || {};
+      if (row.has_smartva_failed) {
+        this.eGui.innerHTML = '<span class="badge bg-danger">Failed</span>';
+      } else if (params.value) {
+        this.eGui.innerHTML = '<span class="badge bg-success">Available</span>';
+      } else {
+        this.eGui.innerHTML = '<span class="badge bg-secondary">Missing</span>';
+      }
     }
     getGui() { return this.eGui; }
   }
@@ -408,12 +494,12 @@
       if (state === 'finalized_upstream_changed') {
         const formId = params.data ? params.data.va_uniqueid_masked : '';
         this.eGui.innerHTML = `
-          <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
+          <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1 dm-nav-link" data-sid="${sid}">View</a>
           <button class="btn btn-sm btn-outline-secondary py-0 px-1 dm-view-changes-btn" data-sid="${sid}" data-form-id="${formId || ''}">View Changes</button>`;
       } else {
         this.eGui.innerHTML = `
-          <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1">View</a>
-          <a href="/data-management/submissions/${sid}/odk-edit" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1">Edit</a>
+          <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1 dm-nav-link" data-sid="${sid}">View</a>
+          <a href="/data-management/submissions/${sid}/odk-edit" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1 dm-nav-link" data-sid="${sid}">Edit</a>
           <button class="btn btn-sm btn-outline-secondary py-0 px-1 dm-refresh-btn" data-sid="${sid}">Refresh</button>`;
       }
     }
@@ -445,11 +531,11 @@
     return [
       { field: 'project_id', headerName: 'Project', width: 90, hide: colVisibility.project_id === false },
       { field: 'site_id', headerName: 'Site', width: 90 },
-      { field: 'va_submission_date', headerName: 'Submitted', width: 105, cellRenderer: DateRenderer },
+      { field: 'va_submission_date', headerName: 'Submitted', width: 105, cellRenderer: DateRenderer, hide: colVisibility.va_submission_date === false },
       { field: 'va_uniqueid_masked', headerName: 'VA Form ID', width: 130 },
       { field: 'va_data_collector', headerName: 'Data Collector', width: 130, hide: colVisibility.va_data_collector === false },
       { field: 'attachment_count', headerName: 'Attachments', width: 100, cellRenderer: AttachmentsRenderer, hide: colVisibility.attachment_count === false },
-      { field: 'has_smartva', headerName: 'SmartVA', width: 95, cellRenderer: SmartVARenderer },
+      { field: 'has_smartva', headerName: 'SmartVA Status', width: 120, cellRenderer: SmartVARenderer, hide: colVisibility.has_smartva === false },
       { field: 'analytics_age_band', headerName: 'Age Group', width: 100, hide: colVisibility.analytics_age_band === false },
       { field: 'va_deceased_gender', headerName: 'Gender', width: 85, hide: colVisibility.va_deceased_gender === false },
       { field: 'va_odk_reviewstate', headerName: 'ODK Status', width: 120, cellRenderer: OdkStatusRenderer },
@@ -481,7 +567,16 @@
       infiniteInitialRowCount: 1,
       maxBlocksInCache: 10,
       getRowId: params => params.data && params.data.va_sid,
+      rowClassRules: {
+        'dm-selected-row': params => !!selectedSid && !!params.data && params.data.va_sid === selectedSid,
+      },
       onGridReady: (params) => {
+        if (currentSort && currentSort.field) {
+          params.api.applyColumnState({
+            defaultState: { sort: null },
+            state: [{ colId: currentSort.field, sort: currentSort.dir }],
+          });
+        }
         const ds = createDataSource();
         params.api.setGridOption('datasource', ds);
         if (currentPageSize !== params.api.paginationGetPageSize()) {
@@ -489,6 +584,28 @@
           params.api.setGridOption('cacheBlockSize', currentPageSize);
           params.api.setGridOption('datasource', createDataSource());
         }
+      },
+      onSortChanged: (params) => {
+        const sorted = (params.api.getColumnState() || []).find(col => col.sort);
+        if (sorted && sorted.colId) {
+          currentSort = {
+            field: sorted.colId,
+            dir: sorted.sort === 'asc' ? 'asc' : 'desc',
+          };
+        } else {
+          currentSort = {
+            field: 'va_submission_date',
+            dir: 'desc',
+          };
+        }
+        currentPage = 1;
+        saveState();
+        updateBrowserUrl();
+      },
+      onRowClicked: (params) => {
+        const sid = params && params.data ? params.data.va_sid : '';
+        if (!sid) return;
+        setSelectedSid(sid, { redraw: true, persist: true, scheduleRestore: false, updateUrl: true });
       },
       onPaginationChanged: (params) => {
         if (!params.api) return;
@@ -534,6 +651,14 @@
     };
 
     gridApi = agGrid.createGrid(container, gridOptions);
+
+    container.addEventListener('click', e => {
+      const navLink = e.target.closest('.dm-nav-link');
+      if (!navLink) return;
+      const sid = (navLink.dataset.sid || '').trim();
+      if (!sid) return;
+      setSelectedSid(sid, { redraw: false, persist: true, scheduleRestore: true, updateUrl: true });
+    });
 
     /* row-level refresh button delegation */
     container.addEventListener('click', e => {
@@ -675,6 +800,13 @@
           const s = params.sortModel[0];
           url.searchParams.set('sort[0][field]', s.colId);
           url.searchParams.set('sort[0][dir]', s.sort);
+          currentSort = {
+            field: s.colId,
+            dir: s.sort === 'asc' ? 'asc' : 'desc',
+          };
+        } else if (currentSort && currentSort.field) {
+          url.searchParams.set('sort[0][field]', currentSort.field);
+          url.searchParams.set('sort[0][dir]', currentSort.dir);
         }
 
         console.log('[DM] grid.getRows request', {
@@ -714,6 +846,7 @@
               updateBrowserUrl();
             }
             params.successCallback(rows, lastRow);
+            tryRestoreSelectedSid(rows);
             if (suppressBootstrapUrlRewrite && gridApi && pendingInitialPageRestore && pendingInitialPageRestore > 1) {
               const restorePage = pendingInitialPageRestore;
               console.log('[DM] restoring page after bootstrap response', {
@@ -771,7 +904,7 @@
     date_from: 'From',
     date_to: 'To',
     odk_status: 'ODK Status',
-    smartva: 'SmartVA',
+    smartva: 'SmartVA Status',
     age_group: 'Age Group',
     gender: 'Gender',
     odk_sync: 'ODK Sync',
@@ -779,28 +912,49 @@
   };
 
   function renderFilterPills() {
-    const container = document.getElementById('dm-filter-pills-container');
-    const pills = document.getElementById('dm-filter-pills');
-    if (!container || !pills) return;
-    pills.innerHTML = '';
+    const hosts = [
+      {
+        container: document.getElementById('dm-filter-pills-container-top'),
+        pills: document.getElementById('dm-filter-pills-top'),
+      },
+      {
+        container: document.getElementById('dm-filter-pills-container'),
+        pills: document.getElementById('dm-filter-pills'),
+      },
+    ];
+
     let hasAny = false;
+    const renderTemplate = [];
     Object.entries(currentFilters).forEach(([key, val]) => {
       if (!val) return;
       hasAny = true;
-      const pill = document.createElement('span');
-      pill.className = 'dm-filter-pill';
-      pill.innerHTML = `<strong>${FILTER_LABELS[key] || key}:</strong>&nbsp;${val}
-        <button type="button" aria-label="Remove filter" data-filter-key="${key}">&#x2715;</button>`;
-      pills.appendChild(pill);
+      renderTemplate.push({
+        key,
+        value: val,
+        label: FILTER_LABELS[key] || key,
+      });
     });
-    container.style.display = hasAny ? 'block' : 'none';
 
-    pills.querySelectorAll('button[data-filter-key]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.filterKey;
-        currentFilters[key] = '';
-        syncInputsFromState();
-        applyFilters();
+    hosts.forEach(({ container, pills }) => {
+      if (!container || !pills) return;
+      pills.innerHTML = '';
+
+      renderTemplate.forEach(({ key, value, label }) => {
+        const pill = document.createElement('span');
+        pill.className = 'dm-filter-pill';
+        pill.innerHTML = `<strong>${label}:</strong>&nbsp;${value}
+          <button type="button" aria-label="Remove filter" data-filter-key="${key}">&#x2715;</button>`;
+        pills.appendChild(pill);
+      });
+
+      container.style.display = hasAny ? 'block' : 'none';
+      pills.querySelectorAll('button[data-filter-key]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.filterKey;
+          currentFilters[key] = '';
+          syncInputsFromState();
+          applyFilters();
+        });
       });
     });
   }
@@ -890,6 +1044,7 @@
 
   function buildDashboardQuery(options) {
     const includePagination = options && options.includePagination;
+    const includeSelection = options && options.includeSelection;
     const params = new URLSearchParams();
     ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
       .forEach(key => {
@@ -899,6 +1054,13 @@
     if (includePagination) {
       if (currentPage > 1) params.set('page', String(currentPage));
       if (currentPageSize !== 25) params.set('size', String(currentPageSize));
+    }
+    if (currentSort && currentSort.field) {
+      params.set('sort_field', currentSort.field);
+      params.set('sort_dir', currentSort.dir);
+    }
+    if (includeSelection && selectedSid) {
+      params.set('selected_sid', selectedSid);
     }
     const query = params.toString();
     return query ? `?${query}` : '';
@@ -918,18 +1080,14 @@
         const value = currentFilters[key];
         if (value) url.searchParams.set(key, value);
       });
-    const sortModel = gridApi && typeof gridApi.getColumnState === 'function'
-      ? gridApi.getColumnState().filter(col => col.sort)
-      : [];
-    if (sortModel.length) {
-      url.searchParams.set('sort[0][field]', sortModel[0].colId);
-      url.searchParams.set('sort[0][dir]', sortModel[0].sort);
-    }
     return url.toString();
   }
 
   function updateBrowserUrl() {
-    const nextUrl = `${window.location.pathname}${buildDashboardQuery({ includePagination: true })}`;
+    const nextUrl = `${window.location.pathname}${buildDashboardQuery({
+      includePagination: true,
+      includeSelection: true,
+    })}`;
     console.log('[DM] updateBrowserUrl', {
       nextUrl,
       filters: { ...currentFilters },

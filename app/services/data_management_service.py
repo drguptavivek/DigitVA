@@ -12,7 +12,9 @@ import math
 import json
 import re
 import uuid
+from datetime import datetime, timezone
 from urllib.parse import quote
+import pytz
 import sqlalchemy as sa
 from flask_login import current_user
 
@@ -118,6 +120,33 @@ def _coerce_numeric_review_value(value):
             return None
         return numeric
     return None
+
+
+def _format_datetime_for_current_user(
+    value,
+    format_string: str = "%Y-%m-%d %H:%M",
+) -> str:
+    """Render a datetime in the current user's timezone."""
+    if not value:
+        return ""
+
+    dt_value = value
+    if isinstance(dt_value, str):
+        try:
+            dt_value = datetime.fromisoformat(dt_value.replace("Z", "+00:00"))
+        except ValueError:
+            return dt_value
+
+    if getattr(dt_value, "tzinfo", None) is None:
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+
+    tz_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    try:
+        user_tz = pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        user_tz = pytz.timezone("Asia/Kolkata")
+
+    return dt_value.astimezone(user_tz).strftime(format_string)
 
 
 def _is_formatting_only_numeric_difference(previous_value, current_value) -> bool:
@@ -306,7 +335,7 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
     base_url = str(row.base_url).rstrip("/")
     return (
         f"{base_url}/projects/{int(row.odk_project_id)}/forms/"
-        f"{row.odk_form_id}/submissions/{instance_id}/edit"
+        f"{row.odk_form_id}/submissions/{instance_id}"
     )
 
 
@@ -595,8 +624,9 @@ def dm_submissions_page(
     for row in rows:
         r = va_render_serialisedates(
             dict(row),
-            ["va_submission_date", "va_dmreview_createdat", "coded_on"],
+            ["va_submission_date", "va_dmreview_createdat"],
         )
+        r["coded_on"] = _format_datetime_for_current_user(row.get("coded_on"))
         r["workflow_label"] = _WORKFLOW_LABEL.get(r.get("workflow_state", ""), r.get("workflow_state", ""))
         r["odk_sync_status"] = "missing_in_odk" if r.get("va_sync_issue_code") == "missing_in_odk" else "in_sync"
         data.append(r)
@@ -927,8 +957,6 @@ def dm_submissions_export_csv(
         .subquery()
     )
 
-    sort_col = _SORT_FIELDS.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
-    order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
     analytics_age_band_column = (
         _mv_ref.c.analytics_age_band
         if _mv_ref is not None
@@ -962,6 +990,7 @@ def dm_submissions_export_csv(
             VaSubmissionPayloadVersion.payload_data,
             sa.func.coalesce(attachment_counts.c.cnt, 0).label("attachment_count"),
             sa.case((smartva_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva"),
+            sa.case((smartva_failed_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva_failed"),
             analytics_age_band_column,
             VaSubmissionWorkflow.workflow_state,
             VaSubmissionWorkflow.workflow_reason,
@@ -1022,7 +1051,6 @@ def dm_submissions_export_csv(
         .outerjoin(active_final, active_final.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(active_reviewer_final, active_reviewer_final.c.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*conditions))
-        .order_by(order, VaForms.project_id, VaForms.site_id, VaSubmissions.va_sid)
     )
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
@@ -1144,6 +1172,7 @@ def dm_submissions_export_csv(
             "va_deceased_age_source": row.get("va_deceased_age_source"),
             "attachment_count": row.get("attachment_count"),
             "has_smartva": row.get("has_smartva"),
+            "has_smartva_failed": row.get("has_smartva_failed"),
             "analytics_age_band": row.get("analytics_age_band"),
             "workflow_state": row.get("workflow_state"),
             "workflow_reason": row.get("workflow_reason"),
@@ -1228,8 +1257,6 @@ def dm_smartva_input_export_csv(
         odk_sync=odk_sync,
         workflow=workflow,
     )
-    sort_col = _SORT_FIELDS.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
-    order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
     query = (
         sa.select(
             VaSubmissions.va_sid,
@@ -1250,7 +1277,6 @@ def dm_smartva_input_export_csv(
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*conditions))
-        .order_by(order, VaForms.project_id, VaForms.site_id, VaSubmissions.va_sid)
     )
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
@@ -1330,8 +1356,6 @@ def dm_smartva_results_export_csv(
         odk_sync=odk_sync,
         workflow=workflow,
     )
-    sort_col = _SORT_FIELDS.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
-    order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
     query = (
         sa.select(
             VaSubmissions.va_sid,
@@ -1375,7 +1399,6 @@ def dm_smartva_results_export_csv(
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*conditions))
-        .order_by(order, VaForms.project_id, VaForms.site_id, VaSubmissions.va_sid)
     )
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
@@ -1450,8 +1473,6 @@ def dm_smartva_likelihoods_export_csv(
         odk_sync=odk_sync,
         workflow=workflow,
     )
-    sort_col = _SORT_FIELDS.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
-    order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
     query = (
         sa.select(
             VaSubmissions.va_sid,
@@ -1486,7 +1507,6 @@ def dm_smartva_likelihoods_export_csv(
         .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
         .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
         .where(sa.and_(*conditions))
-        .order_by(order, VaForms.project_id, VaForms.site_id, VaSubmissions.va_sid, VaSmartvaRunOutput.output_row_index)
     )
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)

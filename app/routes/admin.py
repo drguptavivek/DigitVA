@@ -4281,6 +4281,9 @@ def admin_sync_backfill_stats():
                     "metadata_complete": 0,
                     "attachments_complete": 0,
                     "smartva_complete": 0,
+                    "smartva_failed": 0,
+                    "smartva_missing": 0,
+                    "smartva_no_consent": 0,
                 },
             })
 
@@ -4362,6 +4365,16 @@ def admin_sync_backfill_stats():
             ),
             else_=0,
         )
+        smartva_no_consent_expr = sa.case(
+            (
+                sa.and_(
+                    VaSubmissions.va_consent.is_not(None),
+                    sa.func.lower(sa.func.btrim(VaSubmissions.va_consent)) == "no",
+                ),
+                1,
+            ),
+            else_=0,
+        )
 
         local_counts = {
             row["va_form_id"]: row
@@ -4376,6 +4389,7 @@ def admin_sync_backfill_stats():
                     sa.func.coalesce(sa.func.sum(smartva_complete_expr), 0).label("smartva_complete"),
                     sa.func.coalesce(sa.func.sum(smartva_failed_expr), 0).label("smartva_failed"),
                     sa.func.coalesce(sa.func.sum(smartva_eligible_expr), 0).label("smartva_eligible"),
+                    sa.func.coalesce(sa.func.sum(smartva_no_consent_expr), 0).label("smartva_no_consent"),
                 )
                 .select_from(VaSubmissions)
                 .outerjoin(
@@ -4403,6 +4417,7 @@ def admin_sync_backfill_stats():
         total_smartva = 0
         total_smartva_failed = 0
         total_smartva_missing = 0
+        total_smartva_no_consent = 0
 
         for form in forms:
             counts = local_counts.get(form.form_id, {})
@@ -4414,6 +4429,7 @@ def admin_sync_backfill_stats():
             smartva_complete = int(counts.get("smartva_complete") or 0)
             smartva_failed = int(counts.get("smartva_failed") or 0)
             smartva_eligible = int(counts.get("smartva_eligible") or 0)
+            smartva_no_consent = int(counts.get("smartva_no_consent") or 0)
             smartva_missing = max(smartva_eligible - smartva_complete - smartva_failed, 0)
 
             total_local += local_total
@@ -4424,6 +4440,7 @@ def admin_sync_backfill_stats():
             total_smartva += smartva_complete
             total_smartva_failed += smartva_failed
             total_smartva_missing += smartva_missing
+            total_smartva_no_consent += smartva_no_consent
 
             project = projects_map.setdefault(form.project_id, {
                 "project_id": form.project_id,
@@ -4437,6 +4454,7 @@ def admin_sync_backfill_stats():
                 "smartva_complete": 0,
                 "smartva_failed": 0,
                 "smartva_missing": 0,
+                "smartva_no_consent": 0,
             })
             project["local_total"] += local_total
             project["metadata_complete"] += metadata_complete
@@ -4446,6 +4464,7 @@ def admin_sync_backfill_stats():
             project["smartva_complete"] += smartva_complete
             project["smartva_failed"] += smartva_failed
             project["smartva_missing"] += smartva_missing
+            project["smartva_no_consent"] += smartva_no_consent
 
             site = project["sites"].setdefault(form.site_id, {
                 "site_id": form.site_id,
@@ -4459,6 +4478,7 @@ def admin_sync_backfill_stats():
                 "smartva_complete": 0,
                 "smartva_failed": 0,
                 "smartva_missing": 0,
+                "smartva_no_consent": 0,
             })
             site["local_total"] += local_total
             site["metadata_complete"] += metadata_complete
@@ -4468,6 +4488,7 @@ def admin_sync_backfill_stats():
             site["smartva_complete"] += smartva_complete
             site["smartva_failed"] += smartva_failed
             site["smartva_missing"] += smartva_missing
+            site["smartva_no_consent"] += smartva_no_consent
             site["forms"].append({
                 "form_id": form.form_id,
                 "local_total": local_total,
@@ -4481,6 +4502,7 @@ def admin_sync_backfill_stats():
                 "smartva_complete": smartva_complete,
                 "smartva_failed": smartva_failed,
                 "smartva_missing": smartva_missing,
+                "smartva_no_consent": smartva_no_consent,
             })
 
         project_names = {
@@ -4510,6 +4532,7 @@ def admin_sync_backfill_stats():
                 "smartva_complete": total_smartva,
                 "smartva_failed": total_smartva_failed,
                 "smartva_missing": total_smartva_missing,
+                "smartva_no_consent": total_smartva_no_consent,
             },
         })
     except Exception as e:

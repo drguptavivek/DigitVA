@@ -900,6 +900,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(payload["totals"]["smartva_complete"], 0)
         self.assertEqual(payload["totals"]["smartva_failed"], 0)
         self.assertEqual(payload["totals"]["smartva_missing"], 1)
+        self.assertEqual(payload["totals"]["smartva_no_consent"], 0)
 
         project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
         site = next(s for s in project["sites"] if s["site_id"] == self.site_a)
@@ -912,6 +913,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(form["metadata_missing"], 0)
         self.assertEqual(form["attachments_missing"], 0)
         self.assertEqual(form["smartva_missing"], 1)
+        self.assertEqual(form["smartva_no_consent"], 0)
 
     def test_sync_backfill_stats_counts_failed_or_null_smartva_separately(self):
         self._login(self.admin_user_id)
@@ -922,6 +924,7 @@ class AdminApiTests(BaseTestCase):
         baseline_smartva_complete = int((baseline.get("totals") or {}).get("smartva_complete") or 0)
         baseline_smartva_failed = int((baseline.get("totals") or {}).get("smartva_failed") or 0)
         baseline_smartva_missing = int((baseline.get("totals") or {}).get("smartva_missing") or 0)
+        baseline_smartva_no_consent = int((baseline.get("totals") or {}).get("smartva_no_consent") or 0)
         baseline_project = next(
             p for p in (baseline.get("projects") or []) if p["project_id"] == self.project_id
         )
@@ -931,6 +934,7 @@ class AdminApiTests(BaseTestCase):
         baseline_form_smartva_complete = int(baseline_form.get("smartva_complete") or 0)
         baseline_form_smartva_failed = int(baseline_form.get("smartva_failed") or 0)
         baseline_form_smartva_missing = int(baseline_form.get("smartva_missing") or 0)
+        baseline_form_smartva_no_consent = int(baseline_form.get("smartva_no_consent") or 0)
 
         now = datetime.now(timezone.utc)
         sid = "uuid:backfill-stats-smartva-failed-adm001"
@@ -973,6 +977,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(payload["totals"]["smartva_complete"], baseline_smartva_complete)
         self.assertEqual(payload["totals"]["smartva_failed"], baseline_smartva_failed + 1)
         self.assertEqual(payload["totals"]["smartva_missing"], baseline_smartva_missing)
+        self.assertEqual(payload["totals"]["smartva_no_consent"], baseline_smartva_no_consent)
 
         project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
         site = next(s for s in project["sites"] if s["site_id"] == self.site_a)
@@ -981,6 +986,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(form["smartva_complete"], baseline_form_smartva_complete)
         self.assertEqual(form["smartva_failed"], baseline_form_smartva_failed + 1)
         self.assertEqual(form["smartva_missing"], baseline_form_smartva_missing)
+        self.assertEqual(form["smartva_no_consent"], baseline_form_smartva_no_consent)
 
     def test_sync_backfill_stats_excludes_consent_no_from_smartva_missing(self):
         self._login(self.admin_user_id)
@@ -991,6 +997,7 @@ class AdminApiTests(BaseTestCase):
         baseline_smartva_complete = int((baseline.get("totals") or {}).get("smartva_complete") or 0)
         baseline_smartva_failed = int((baseline.get("totals") or {}).get("smartva_failed") or 0)
         baseline_smartva_missing = int((baseline.get("totals") or {}).get("smartva_missing") or 0)
+        baseline_smartva_no_consent = int((baseline.get("totals") or {}).get("smartva_no_consent") or 0)
         baseline_project = next(
             p for p in (baseline.get("projects") or []) if p["project_id"] == self.project_id
         )
@@ -1000,6 +1007,7 @@ class AdminApiTests(BaseTestCase):
         baseline_form_smartva_complete = int(baseline_form.get("smartva_complete") or 0)
         baseline_form_smartva_failed = int(baseline_form.get("smartva_failed") or 0)
         baseline_form_smartva_missing = int(baseline_form.get("smartva_missing") or 0)
+        baseline_form_smartva_no_consent = int(baseline_form.get("smartva_no_consent") or 0)
 
         now = datetime.now(timezone.utc)
         db.session.add(
@@ -1032,6 +1040,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(payload["totals"]["smartva_complete"], baseline_smartva_complete)
         self.assertEqual(payload["totals"]["smartva_failed"], baseline_smartva_failed)
         self.assertEqual(payload["totals"]["smartva_missing"], baseline_smartva_missing)
+        self.assertEqual(payload["totals"]["smartva_no_consent"], baseline_smartva_no_consent + 1)
 
         project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
         site = next(s for s in project["sites"] if s["site_id"] == self.site_a)
@@ -1040,6 +1049,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(form["smartva_complete"], baseline_form_smartva_complete)
         self.assertEqual(form["smartva_failed"], baseline_form_smartva_failed)
         self.assertEqual(form["smartva_missing"], baseline_form_smartva_missing)
+        self.assertEqual(form["smartva_no_consent"], baseline_form_smartva_no_consent + 1)
 
     def test_admin_can_trigger_form_backfill(self):
         self._login(self.admin_user_id)

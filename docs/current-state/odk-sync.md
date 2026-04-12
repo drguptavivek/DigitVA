@@ -645,11 +645,11 @@ The sync dashboard also exposes a separate backfill coverage view and trigger:
   - metadata completeness
   - attachment completeness
   - SmartVA completeness (`smartva_complete`)
-  - SmartVA missing and failed/null detail counts (`smartva_missing`, `smartva_failed`)
+  - SmartVA missing, failed/null, and no-consent detail counts (`smartva_missing`, `smartva_failed`, `smartva_no_consent`)
   - SmartVA missing excludes consent-refused rows (`va_consent = "no"`)
 - `POST /admin/api/sync/backfill/form/<form_id>` triggers the ODK-backed repair path for one form
 - The dashboard table groups rows by project, site, and form so operators can see which forms are missing local data, metadata, or attachments before triggering a repair
-- In the Form Repair table, SmartVA displays complete-only counts in-cell; missing and failed/null counts are shown on hover
+- In the Form Repair table, SmartVA displays complete-only counts in-cell; missing, failed/null, and no-consent counts are shown on hover
 
 Important distinction:
 

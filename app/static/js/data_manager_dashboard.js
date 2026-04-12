@@ -403,7 +403,9 @@
     init(params) {
       this.eGui = document.createElement('span');
       const row = params.data || {};
-      if (row.has_smartva_failed) {
+      if (row.workflow_state === 'consent_refused') {
+        this.eGui.innerHTML = '<span class="badge bg-secondary">Ineligible</span>';
+      } else if (row.has_smartva_failed) {
         this.eGui.innerHTML = '<span class="badge bg-danger">Failed</span>';
       } else if (params.value) {
         this.eGui.innerHTML = '<span class="badge bg-success">Available</span>';
@@ -499,8 +501,7 @@
       } else {
         this.eGui.innerHTML = `
           <a href="/data-management/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-1 dm-nav-link" data-sid="${sid}">View</a>
-          <a href="/data-management/submissions/${sid}/odk-edit" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1 dm-nav-link" data-sid="${sid}">Edit</a>
-          <button class="btn btn-sm btn-outline-secondary py-0 px-1 dm-refresh-btn" data-sid="${sid}">Refresh</button>`;
+          <a href="/data-management/submissions/${sid}/odk-edit" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1 dm-nav-link" data-sid="${sid}">Edit</a>`;
       }
     }
     getGui() { return this.eGui; }
@@ -545,7 +546,7 @@
       { field: 'coded_by', headerName: 'Coded By', width: 150 },
       { field: 'va_dmreview_createdat', headerName: 'Flagged At', width: 115, cellRenderer: DateTimeRenderer, hide: colVisibility.va_dmreview_createdat === false },
       { field: 'va_consent', headerName: 'Consent', width: 120, hide: colVisibility.va_consent === false },
-      { field: '_actions', headerName: 'Actions', width: 315, cellRenderer: ActionsRenderer, sortable: false },
+      { field: '_actions', headerName: 'Actions', width: 220, cellRenderer: ActionsRenderer, sortable: false },
     ];
   }
 
@@ -658,26 +659,6 @@
       const sid = (navLink.dataset.sid || '').trim();
       if (!sid) return;
       setSelectedSid(sid, { redraw: false, persist: true, scheduleRestore: true, updateUrl: true });
-    });
-
-    /* row-level refresh button delegation */
-    container.addEventListener('click', e => {
-      const btn = e.target.closest('.dm-refresh-btn');
-      if (!btn) return;
-      const sid = btn.dataset.sid;
-      if (!sid) return;
-      btn.disabled = true;
-      btn.textContent = '…';
-      jsonFetch(`/api/v1/data-management/submissions/${sid}/sync`, { method: 'POST' })
-        .then(() => {
-          toast('Submission refreshed', 'success');
-          gridApi.refreshInfiniteCache();
-        })
-        .catch(err => toast('Refresh failed: ' + err.message, 'danger'))
-        .finally(() => {
-          btn.disabled = false;
-          btn.textContent = 'Refresh';
-        });
     });
 
     /* Accept upstream ODK change */

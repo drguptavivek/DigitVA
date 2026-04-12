@@ -100,7 +100,7 @@ The table currently shows scoped submissions with:
 - coded-on / coded-by for coded submissions
 - ODK review state
 - ODK sync issue state
-- SmartVA status (`Available`, `Failed`, `Missing`)
+- SmartVA status (`Available`, `Failed`, `Missing`, `Ineligible`)
 - attachment count
 - optional columns such as project, collector, and flagged-at timestamp
 
@@ -154,6 +154,7 @@ SmartVA status semantics in the dashboard table:
   failed
 - `Failed`: an active SmartVA projection row exists with
   `va_smartva_outcome = 'failed'`
+- `Ineligible`: workflow state is `consent_refused` (SmartVA not required)
 - `Missing`: no active SmartVA projection row exists for the submission
 
 Filter state persists across page reloads in the browser.
@@ -203,9 +204,9 @@ Current sync behavior:
 Supported actions:
 
 - per-form sync
-- per-submission refresh
 
-Single-submission refresh also refreshes attachments and SmartVA for that submission.
+The submission-refresh endpoint still exists for API/programmatic use, but the
+AG Grid row-level `Refresh` action is no longer shown in `/data-management`.
 
 ## ODK Visibility
 

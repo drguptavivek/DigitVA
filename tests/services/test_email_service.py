@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import patch
+import smtplib
 
 from tests.base import BaseTestCase
 
@@ -68,3 +69,42 @@ class TestEmailService(BaseTestCase):
         self.assertEqual(subject, "Reset Your DigitVA Password")
         self.assertEqual(template_name, "emails/reset_password")
         self.assertFalse(context["invite_mode"])
+
+    def test_dispatch_email_does_not_retry_for_permanent_recipient_failure(self):
+        recipient_error = smtplib.SMTPRecipientsRefused(
+            {"blocked@example.com": (550, b"blacklisted")}
+        )
+        with self.app.app_context(), patch(
+            "app.services.email_service._actually_send_email",
+            side_effect=recipient_error,
+        ), patch("app.services.email_service._dispatch_email.retry") as retry_mock:
+            from app.services.email_service import _dispatch_email
+
+            _dispatch_email(
+                to="blocked@example.com",
+                subject="Verify",
+                template_name="emails/verify_email",
+                context={"name": "Blocked", "verify_url": "https://example.test"},
+            )
+
+        retry_mock.assert_not_called()
+
+    def test_dispatch_email_retries_for_transient_failure(self):
+        with self.app.app_context(), patch(
+            "app.services.email_service._actually_send_email",
+            side_effect=smtplib.SMTPServerDisconnected("disconnected"),
+        ), patch(
+            "app.services.email_service._dispatch_email.retry",
+            side_effect=RuntimeError("retry-called"),
+        ) as retry_mock:
+            from app.services.email_service import _dispatch_email
+
+            with self.assertRaises(RuntimeError):
+                _dispatch_email(
+                    to="user@example.com",
+                    subject="Verify",
+                    template_name="emails/verify_email",
+                    context={"name": "User", "verify_url": "https://example.test"},
+                )
+
+        retry_mock.assert_called_once()

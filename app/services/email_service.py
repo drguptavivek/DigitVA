@@ -8,6 +8,7 @@ never blocks a request.
 from __future__ import annotations
 
 import logging
+import smtplib
 
 from flask import current_app, render_template
 from flask_mail import Mail, Message
@@ -108,6 +109,24 @@ def _actually_send_email(to: str, subject: str, template_name: str, context: dic
     log.info("Email sent to %s: %s", to, subject)
 
 
+def _is_permanent_email_failure(exc: Exception) -> bool:
+    """Return True for SMTP failures that should not be retried."""
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        recipient_errors = getattr(exc, "recipients", None) or {}
+        if recipient_errors:
+            for value in recipient_errors.values():
+                code = value[0] if isinstance(value, tuple) and value else None
+                if not isinstance(code, int) or code < 500 or code >= 600:
+                    return False
+            return True
+        return False
+
+    if isinstance(exc, smtplib.SMTPResponseException):
+        return 500 <= exc.smtp_code < 600
+
+    return False
+
+
 try:
     from celery import shared_task
 
@@ -123,6 +142,13 @@ try:
         try:
             _actually_send_email(to, subject, template_name, context)
         except Exception as exc:
+            if _is_permanent_email_failure(exc):
+                log.error(
+                    "Permanent email failure for %s (no retry): %s",
+                    to,
+                    exc,
+                )
+                return
             log.exception("Email send failed for %s: %s", to, exc)
             raise _dispatch_email.retry(exc=exc)
 

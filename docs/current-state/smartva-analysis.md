@@ -521,6 +521,30 @@ with app.app_context():
     va_smartva_run_pending()
 ```
 
+### Richness assessment tooling
+
+DigitVA now includes a standalone analysis script for vendor-aligned SmartVA
+field coverage and payload richness scoring:
+
+```bash
+docker compose exec minerva_app_service \
+  uv run python scripts/smartva_richness_assessment.py --project-code ICMR01
+```
+
+This script does not write to SmartVA result tables. It reads current active
+payloads and active SmartVA projections, then writes analysis artifacts under
+`private/smartva_richness/<timestamp>/`:
+
+- `smartva_field_value_inventory_by_age_group.json`
+- `smartva_scope_summary_by_age_group.json`
+- `smartva_richness_per_submission.csv`
+- `smartva_richness_comparison.csv`
+- `smartva_richness_summary.json`
+
+Scoring is per submission, but field scope and technical inventory are age-group
+specific (`adult`, `child`, `neonate`). The comparison artifact includes
+determined versus undetermined richness summaries overall and by age group.
+
 ### SmartVA source reference
 
 The full SmartVA-Analyze v3.0.0 source is at `vendor/smartva-analyze`. Key files for troubleshooting:

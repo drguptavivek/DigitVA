@@ -100,6 +100,20 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@digitva.org")
     # Base URL used for building links in emails (e.g. https://digitva.example.com)
     MAIL_BASE_URL = os.environ.get("MAIL_BASE_URL", "")
+    MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    EMAIL_DELIVERY_ENABLED = os.environ.get(
+        "EMAIL_DELIVERY_ENABLED", "true"
+    ).lower() in ("true", "1", "yes")
+    EMAIL_SUPPRESSION_TTL_SECONDS = int(
+        os.environ.get("EMAIL_SUPPRESSION_TTL_SECONDS", str(60 * 60 * 24 * 14))
+    )
+    EMAIL_SUPPRESSION_CACHE_PREFIX = os.environ.get(
+        "EMAIL_SUPPRESSION_CACHE_PREFIX", "digitva_email_suppressed:"
+    )
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     ICD_SEARCH_CACHE_TIMEOUT = int(
@@ -152,6 +166,7 @@ class TestConfig(Config):
     ODK_READ_TIMEOUT_SECONDS = 5.0
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = False
     HIBP_PASSWORD_BREACH_CHECK_TIMEOUT_SECONDS = 1.0
+    MAIL_SUPPRESS_SEND = True
 
     CELERY = Config.CELERY.copy()
     CELERY["beat_dburi"] = SQLALCHEMY_DATABASE_URI

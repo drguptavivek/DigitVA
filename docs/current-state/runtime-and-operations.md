@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-11
+last_updated: 2026-04-12
 ---
 
 # Runtime And Operations
@@ -341,6 +341,10 @@ What exists today:
 - SMTP settings in [`config.py`](../../config.py)
 - email verification and password reset templates under
   [`app/templates/emails`](../../app/templates/emails)
+- Redis/cache-backed recipient suppression after permanent SMTP failures
+  (configured via `EMAIL_SUPPRESSION_*`)
+- explicit delivery kill switch via `EMAIL_DELIVERY_ENABLED`
+- test config enforces `MAIL_SUPPRESS_SEND=True` so tests do not send real SMTP
 
 Current implication:
 
@@ -350,6 +354,8 @@ Current implication:
   have not completed onboarding yet
 - the post-login onboarding gate is a terms-acceptance page only; password
   creation happens in the password-reset step before login
+- repeated permanent SMTP failures for a recipient are suppressed for a bounded
+  TTL to avoid repeated bounce storms and queue churn
 
 ## Infra Assumptions
 

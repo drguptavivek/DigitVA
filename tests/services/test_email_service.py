@@ -1,11 +1,14 @@
+import smtplib
 from types import SimpleNamespace
 from unittest.mock import patch
-import smtplib
 
 from tests.base import BaseTestCase
 
 
 class TestEmailService(BaseTestCase):
+    def test_test_config_suppresses_mail_send(self):
+        self.assertTrue(self.app.config["MAIL_SUPPRESS_SEND"])
+
     def test_actually_send_email_uses_current_app_context(self):
         user = SimpleNamespace(email="vivekguptarpc@gmail.com", name="Vivek")
 
@@ -77,6 +80,11 @@ class TestEmailService(BaseTestCase):
         with self.app.app_context(), patch(
             "app.services.email_service._actually_send_email",
             side_effect=recipient_error,
+        ), patch(
+            "app.services.email_service._mark_suppressed_email"
+        ) as mark_suppressed, patch(
+            "app.services.email_service._is_suppressed_recipient",
+            return_value=False,
         ), patch("app.services.email_service._dispatch_email.retry") as retry_mock:
             from app.services.email_service import _dispatch_email
 
@@ -87,12 +95,16 @@ class TestEmailService(BaseTestCase):
                 context={"name": "Blocked", "verify_url": "https://example.test"},
             )
 
+        mark_suppressed.assert_called_once()
         retry_mock.assert_not_called()
 
     def test_dispatch_email_retries_for_transient_failure(self):
         with self.app.app_context(), patch(
             "app.services.email_service._actually_send_email",
             side_effect=smtplib.SMTPServerDisconnected("disconnected"),
+        ), patch(
+            "app.services.email_service._is_suppressed_recipient",
+            return_value=False,
         ), patch(
             "app.services.email_service._dispatch_email.retry",
             side_effect=RuntimeError("retry-called"),
@@ -108,3 +120,34 @@ class TestEmailService(BaseTestCase):
                 )
 
         retry_mock.assert_called_once()
+
+    def test_send_verification_email_skips_suppressed_recipient(self):
+        user = SimpleNamespace(email="suppressed@example.com", name="Suppressed User")
+        with self.app.app_context(), patch(
+            "app.services.email_service._dispatch_email.delay"
+        ) as dispatch_delay, patch(
+            "app.services.email_service._is_suppressed_recipient",
+            return_value=True,
+        ):
+            from app.services.email_service import send_verification_email
+
+            send_verification_email(user, "token-789")
+
+        dispatch_delay.assert_not_called()
+
+    def test_send_verification_email_skips_when_delivery_disabled(self):
+        user = SimpleNamespace(email="disabled@example.com", name="Disabled User")
+        old_enabled = self.app.config.get("EMAIL_DELIVERY_ENABLED", True)
+        with self.app.app_context(), patch(
+            "app.services.email_service._dispatch_email.delay"
+        ) as dispatch_delay, patch(
+            "app.services.email_service._is_suppressed_recipient",
+            return_value=False,
+        ):
+            self.app.config["EMAIL_DELIVERY_ENABLED"] = False
+            from app.services.email_service import send_verification_email
+
+            send_verification_email(user, "token-999")
+
+        self.app.config["EMAIL_DELIVERY_ENABLED"] = old_enabled
+        dispatch_delay.assert_not_called()

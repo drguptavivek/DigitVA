@@ -752,6 +752,7 @@
   var _allGrants = [];
   var _projects = [];
   var _projectSites = [];
+  var _selectedGrantUserId = null;
   var _pendingRevokeId = null;
   var _revokeModal = null;
 
@@ -799,6 +800,8 @@
       e.preventDefault();
       document.getElementById('dm-ag-user-id').value = '';
       document.getElementById('dm-ag-selected-user').classList.add('d-none');
+      _selectedGrantUserId = null;
+      applyFilters();
     });
     document.addEventListener('click', function (e) {
       var results = document.getElementById('dm-ag-user-results');
@@ -877,6 +880,7 @@
     var text = (document.getElementById('dm-ag-filter-text').value || '').toLowerCase();
     var role = document.getElementById('dm-ag-filter-role').value;
     var filtered = _allGrants.filter(function (g) {
+      if (_selectedGrantUserId && g.user_id !== _selectedGrantUserId) return false;
       if (role && g.role !== role) return false;
       if (text && !g.user_email.toLowerCase().includes(text) && !g.user_name.toLowerCase().includes(text)) return false;
       return true;
@@ -997,11 +1001,13 @@
   }
 
   function selectGrantUser(uid, label) {
+    _selectedGrantUserId = uid;
     document.getElementById('dm-ag-user-id').value = uid;
     document.getElementById('dm-ag-selected-user-label').textContent = label;
     document.getElementById('dm-ag-selected-user').classList.remove('d-none');
     document.getElementById('dm-ag-user-search').value = '';
     hideUserResults();
+    applyFilters();
   }
 
   function hideUserResults() {
@@ -1011,6 +1017,7 @@
   }
 
   function resetGrantForm() {
+    _selectedGrantUserId = null;
     document.getElementById('dm-ag-user-id').value = '';
     document.getElementById('dm-ag-selected-user').classList.add('d-none');
     document.getElementById('dm-ag-user-search').value = '';
@@ -1020,6 +1027,7 @@
     document.getElementById('dm-ag-site-field').style.visibility = 'hidden';
     document.getElementById('dm-ag-form-error').textContent = '';
     hideUserResults();
+    applyFilters();
   }
 
   function submitGrant() {

@@ -93,6 +93,7 @@
               <select class="form-select form-select-sm" id="dm-user-initial-role" disabled>
                 <option value="">-- select --</option>
                 <option value="coder">Coder</option>
+                <option value="coding_tester">Coding Tester</option>
                 <option value="data_manager">Data Manager</option>
               </select>
             </div>
@@ -184,6 +185,7 @@
           <select id="dm-ag-filter-role" class="form-select form-select-sm" style="max-width:150px;">
             <option value="">All roles</option>
             <option value="coder">Coder</option>
+            <option value="coding_tester">Coding Tester</option>
             <option value="data_manager">Data Manager</option>
           </select>
         </div>
@@ -220,6 +222,7 @@
               <select id="dm-ag-role" class="form-select form-select-sm">
                 <option value="">-- select --</option>
                 <option value="coder">Coder</option>
+                <option value="coding_tester">Coding Tester</option>
                 <option value="data_manager">Data Manager</option>
               </select>
             </div>
@@ -786,8 +789,8 @@
     renderGrantsTable(filtered);
   }
 
-  var ROLE_LABEL = { coder: 'Coder', data_manager: 'Data Manager' };
-  var ROLE_COLOR = { coder: 'primary', data_manager: 'secondary' };
+  var ROLE_LABEL = { coder: 'Coder', coding_tester: 'Coding Tester', data_manager: 'Data Manager' };
+  var ROLE_COLOR = { coder: 'primary', coding_tester: 'warning', data_manager: 'secondary' };
 
   function renderGrantsTable(grants) {
     var wrap = document.getElementById('dm-ag-table-wrap');

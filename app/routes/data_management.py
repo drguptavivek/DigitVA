@@ -60,11 +60,11 @@ log = logging.getLogger(__name__)
 def _dm_can_manage_scope(user, role, scope_type, resolved_project_id, project_site_id):
     """Return (ok, error_message) for whether *user* can create/toggle a grant."""
     if user.is_admin():
-        if role not in {VaAccessRoles.coder, VaAccessRoles.data_manager}:
-            return False, "Only coder or data_manager roles may be assigned from this interface."
+        if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
+            return False, "Only coder, coding_tester, or data_manager roles may be assigned from this interface."
         return True, None
-    if role not in {VaAccessRoles.coder, VaAccessRoles.data_manager}:
-        return False, "Data-managers may only assign coder or data_manager roles."
+    if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
+        return False, "Data-managers may only assign coder, coding_tester, or data_manager roles."
 
     dm_projects = user.get_data_manager_projects()
     dm_site_pairs = user.get_data_manager_project_sites()
@@ -301,7 +301,7 @@ def manage_bootstrap():
                 for pid, sid in sorted(dm_site_pairs)
             ],
         },
-        "allowed_roles": ["coder", "data_manager"],
+        "allowed_roles": ["coder", "coding_tester", "data_manager"],
     })
 
 
@@ -618,7 +618,7 @@ def manage_update_user(target_user_id):
 @data_management.get("/api/access-grants")
 @role_required("data_manager", "admin")
 def manage_access_grants():
-    """List coder/data_manager grants within the DM's scope."""
+    """List coder/coding_tester/data_manager grants within the DM's scope."""
     project_id_expression = _grant_project_id_expression()
     site_id_expression = _grant_site_id_expression()
 
@@ -643,7 +643,9 @@ def manage_access_grants():
         )
         .where(
             VaUserAccessGrants.grant_status == VaStatuses.active,
-            VaUserAccessGrants.role.in_([VaAccessRoles.coder, VaAccessRoles.data_manager]),
+            VaUserAccessGrants.role.in_(
+                [VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager]
+            ),
             _dm_grant_filter(project_id_expression),
         )
     )
@@ -667,7 +669,7 @@ def manage_access_grants():
 @role_required("data_manager", "admin")
 @require_dm_scope
 def manage_create_access_grant():
-    """Create a coder or data_manager grant within the DM's scope."""
+    """Create a coder/coding_tester/data_manager grant within the DM's scope."""
     # Scope already validated by @require_dm_scope; retrieve parsed values from g.
     role, scope_type, resolved_project_id, project_site_id = g.dm_scope
 
@@ -772,7 +774,7 @@ def manage_create_access_grant():
 @role_required("data_manager", "admin")
 @require_dm_scope
 def manage_toggle_access_grant(grant_id):
-    """Toggle (activate/deactivate) a coder or data_manager grant."""
+    """Toggle (activate/deactivate) a coder/coding_tester/data_manager grant."""
     # Scope already validated by @require_dm_scope; load grant for the update.
     grant = db.session.get(VaUserAccessGrants, grant_id)
     if not grant:

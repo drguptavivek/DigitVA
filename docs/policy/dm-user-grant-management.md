@@ -3,15 +3,16 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-08
+last_updated: 2026-04-12
 ---
 
 # Data-Manager User and Grant Management Policy
 
 ## Purpose
 
-Data-managers may create users and manage coder and data-manager grants within
-their own scope, without requiring admin or project-PI intervention.
+Data-managers may create users and manage coder, coding-tester, and
+data-manager grants within their own scope, without requiring admin or
+project-PI intervention.
 
 This policy governs the `/data-management/users` page and its supporting API
 endpoints.
@@ -28,7 +29,7 @@ All routes live under the existing `data_management` blueprint:
 | `/data-management/api/project-sites` | GET | Accessible project-sites |
 | `/data-management/api/users` | GET | User search |
 | `/data-management/api/users` | POST | Create user |
-| `/data-management/api/access-grants` | GET | List coder/data_manager grants in scope |
+| `/data-management/api/access-grants` | GET | List coder/coding_tester/data_manager grants in scope |
 | `/data-management/api/access-grants` | POST | Create or reactivate grant |
 | `/data-management/api/access-grants/<id>/toggle` | POST | Activate/deactivate grant |
 
@@ -71,6 +72,7 @@ site level through this interface.
 Data-managers may only assign these roles:
 
 - `coder`
+- `coding_tester`
 - `data_manager`
 
 Data-managers may **not** assign:
@@ -88,7 +90,7 @@ Data-managers may **not** assign:
 When a data-manager creates a grant:
 
 1. The target user must be active.
-2. The role must be `coder` or `data_manager`.
+2. The role must be `coder`, `coding_tester`, or `data_manager`.
 3. The scope must fall within the data-manager's own grant scope.
 4. If an inactive grant with the same user + role + scope already exists, it
    must be reactivated rather than creating a duplicate.
@@ -98,7 +100,7 @@ When a data-manager creates a grant:
 
 A data-manager may toggle grants that:
 
-- have role `coder` or `data_manager`
+- have role `coder`, `coding_tester`, or `data_manager`
 - fall within their scope
 
 A data-manager may **not** toggle grants with other roles or grants outside
@@ -121,7 +123,7 @@ A data-manager may create new users. Created users:
 Creating a user through this interface also requires an initial grant payload:
 
 - project selection first (project must be in DM-manageable scope)
-- role: `coder` or `data_manager`
+- role: `coder`, `coding_tester`, or `data_manager`
 - scope: `project_site` for site-scoped DMs, `project_site` or `project` for
   project-scoped DMs
 - target site/project must be inside the DM's own manageable scope
@@ -132,7 +134,7 @@ Creating a user through this interface also requires an initial grant payload:
 
 Data-managers see only:
 
-- grants with role `coder` or `data_manager`
+- grants with role `coder`, `coding_tester`, or `data_manager`
 - grants within their own scope (project or project-site)
 
 They do not see `admin`, `project_pi`, `site_pi`, `reviewer`, or `collaborator`

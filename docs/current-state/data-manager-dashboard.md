@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-04-12
 ---
 
 # Data Manager Dashboard
@@ -256,7 +256,8 @@ data-managers and admins can:
   project-first scope), and open per-user details with status and
   email-verification visibility, verification resend, and creator-scoped email
   update.
-- **Grants tab**: view, create, and toggle coder and data-manager grants
+- **Grants tab**: view, create, and toggle coder, coding-tester, and
+  data-manager grants
   scoped to the data-manager's own grant scope
 
 Scope rules:
@@ -267,8 +268,9 @@ Scope rules:
   their specific sites
 - admins bypass all scope restrictions through this interface
 
-Assignable roles are limited to `coder` and `data_manager`. The interface does
-not expose admin, project-PI, site-PI, reviewer, or collaborator grants.
+Assignable roles are limited to `coder`, `coding_tester`, and `data_manager`.
+The interface does not expose admin, project-PI, site-PI, reviewer, or
+collaborator grants.
 
 See [dm-user-grant-management.md](../../docs/policy/dm-user-grant-management.md)
 for the full policy baseline.

@@ -610,6 +610,25 @@ class DmManageTests(BaseTestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
+    def test_dm_cannot_toggle_own_data_manager_grant(self):
+        grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == self.project_dm.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.data_manager,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                VaUserAccessGrants.project_id == self.project_id,
+            )
+        )
+        self.assertIsNotNone(grant)
+        self._login(self.project_dm_id)
+        headers = self._csrf_headers()
+        resp = self.client.post(
+            f"/data-management/api/access-grants/{grant.grant_id}/toggle",
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("own data_manager grant", resp.get_json().get("error", ""))
+
     # ── Grant listing ──────────────────────────────────────────────────────────
 
     def test_grant_listing_shows_only_assignable_roles_in_scope(self):

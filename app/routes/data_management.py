@@ -779,6 +779,14 @@ def manage_toggle_access_grant(grant_id):
     grant = db.session.get(VaUserAccessGrants, grant_id)
     if not grant:
         return _json_error("Grant not found.", 404)
+    if (
+        not current_user.is_admin()
+        and grant.role == VaAccessRoles.data_manager
+        and grant.user_id == current_user.user_id
+    ):
+        return _json_error(
+            "You cannot revoke your own data_manager grant from this interface.", 400
+        )
 
     new_status = (
         VaStatuses.deactive if grant.grant_status == VaStatuses.active else VaStatuses.active

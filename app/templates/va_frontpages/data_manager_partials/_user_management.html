@@ -791,6 +791,10 @@
 
   var ROLE_LABEL = { coder: 'Coder', coding_tester: 'Coding Tester', data_manager: 'Data Manager' };
   var ROLE_COLOR = { coder: 'primary', coding_tester: 'warning', data_manager: 'secondary' };
+  function isProtectedSelfDmGrant(g) {
+    if (!_state || !_state.user || _state.user.is_admin) return false;
+    return g.role === 'data_manager' && g.user_id === _state.user.user_id;
+  }
 
   function renderGrantsTable(grants) {
     var wrap = document.getElementById('dm-ag-table-wrap');
@@ -801,6 +805,12 @@
     var rows = grants.map(function (g) {
       var color = ROLE_COLOR[g.role] || 'secondary';
       var scopeLabel = g.site_id ? esc(g.site_id) : 'Project-level';
+      var protectedSelfGrant = isProtectedSelfDmGrant(g);
+      var actionCell = protectedSelfGrant
+        ? '<span class="text-muted small" title="Your own data_manager grant cannot be revoked here.">Protected</span>'
+        : '<button class="btn btn-sm py-0 px-2 btn-outline-danger dm-ag-revoke-btn"'
+          + ' data-grant-id="' + esc(g.grant_id) + '" title="Revoke">'
+          + '<i class="fa-solid fa-ban"></i></button>';
       return '<tr>'
         + '<td class="align-middle py-2">'
         +   '<div class="fw-semibold small">' + esc(g.user_name) + '</div>'
@@ -811,11 +821,7 @@
         + '<td class="align-middle py-2"><span class="badge text-bg-' + color + '">'
         +   esc(ROLE_LABEL[g.role] || g.role)
         + '</span></td>'
-        + '<td class="align-middle py-2 text-end">'
-        +   '<button class="btn btn-sm py-0 px-2 btn-outline-danger dm-ag-revoke-btn"'
-        +   ' data-grant-id="' + esc(g.grant_id) + '" title="Revoke">'
-        +   '<i class="fa-solid fa-ban"></i></button>'
-        + '</td>'
+        + '<td class="align-middle py-2 text-end">' + actionCell + '</td>'
         + '</tr>';
     }).join('');
 

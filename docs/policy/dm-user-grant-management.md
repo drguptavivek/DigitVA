@@ -102,9 +102,11 @@ A data-manager may toggle grants that:
 
 - have role `coder`, `coding_tester`, or `data_manager`
 - fall within their scope
+- are not the current user's own `data_manager` grant
 
 A data-manager may **not** toggle grants with other roles or grants outside
-their scope.
+their scope. They also may not revoke their own `data_manager` grant through
+this interface.
 
 ## User Creation
 

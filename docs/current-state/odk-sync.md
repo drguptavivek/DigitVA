@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-08
+last_updated: 2026-04-12
 ---
 
 # ODK Sync And Attachments
@@ -650,7 +650,6 @@ The sync dashboard also exposes a separate backfill coverage view and trigger:
 
 Important distinction:
 
-- `POST /admin/api/sync/attachment-backfill` is still the local attachment-cache repair path for already stored submissions
 - `POST /admin/api/sync/form/<form_id>` is the force-resync path and bypasses the delta check for the whole form
 - `POST /admin/api/sync/backfill/form/<form_id>` is the targeted repair path:
   - it fetches ODK instance IDs for the form
@@ -667,10 +666,9 @@ Sections:
 - **Status bar** — last run outcome; auto-refreshes every 30s (5s while running)
 - **Sync** — manual routine sync trigger; 409 guard against concurrent runs
 - **Stop** — shown only while a sync run is active; sends a revoke/terminate signal to the active Celery sync task and marks the run `cancelled`
-- **Gen SmartVA** — trigger SmartVA-only run without ODK download
 - **Schedule configurator** — change beat interval (1–168h) without restarting
 - **Coverage table** — ODK total vs local total, last synced time, per-form `Force-resync` button; loaded on demand rather than automatically on panel load
-- **Backfill coverage table** — project/site/form completeness counts for local data, metadata, attachments, and SmartVA, with a per-form `Backfill` trigger
+- **Form Repair coverage table** — project/site/form completeness counts for local data, metadata, attachments, and SmartVA, with a per-form `Repair` trigger
 - **Progress log** — live timestamped entries; clears and resets when a new run starts
 - **Run history** — last 20 runs with duration, trigger source, status, and error detail
 

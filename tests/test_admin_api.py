@@ -839,40 +839,6 @@ class AdminApiTests(BaseTestCase):
             signal="SIGTERM",
         )
 
-    def test_admin_can_trigger_attachment_cache_backfill(self):
-        self._login(self.admin_user_id)
-        headers = self._csrf_headers()
-
-        with patch(
-            "app.tasks.sync_tasks.run_attachment_cache_backfill.delay"
-        ) as mocked_delay:
-            mocked_delay.return_value.id = "task-attachment-backfill"
-
-            response = self.client.post(
-                "/admin/api/sync/attachment-backfill",
-                headers=headers,
-                json={"project_id": self.project_id, "site_id": self.site_a},
-            )
-
-        self.assertEqual(response.status_code, 202)
-        self.assertEqual(
-            response.get_json()["message"],
-            "Attachment cache backfill started.",
-        )
-        mocked_delay.assert_called_once()
-        self.assertEqual(
-            mocked_delay.call_args.kwargs["triggered_by"],
-            "attach_backfill",
-        )
-        self.assertEqual(
-            mocked_delay.call_args.kwargs["project_id"],
-            self.project_id,
-        )
-        self.assertEqual(
-            mocked_delay.call_args.kwargs["site_id"],
-            self.site_a,
-        )
-
     def test_sync_backfill_stats_returns_form_completeness(self):
         self._login(self.admin_user_id)
 
@@ -946,7 +912,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 202)
         self.assertEqual(
             response.get_json()["message"],
-            "Backfill started for form ADM001AA0101.",
+            "Repair started for form ADM001AA0101.",
         )
         mocked_delay.assert_called_once()
         self.assertEqual(

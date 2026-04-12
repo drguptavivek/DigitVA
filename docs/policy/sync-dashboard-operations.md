@@ -3,7 +3,7 @@ title: Sync Dashboard Operations Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-12
 ---
 
 # Sync Dashboard Operations Policy
@@ -65,7 +65,6 @@ already running.
 Policy:
 
 - `Sync` remains disabled while a run is active
-- `Gen SmartVA` remains disabled while a run is active
 - the stop control is the only operator action exposed for an active run
 
 ## Coverage Table Sync Actions

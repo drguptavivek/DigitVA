@@ -3,7 +3,7 @@ title: "Route Audit — admin Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2026-04-05
+last_updated: 2026-04-12
 ---
 
 # admin Blueprint Audit
@@ -89,18 +89,16 @@ This is the largest blueprint (~4900 lines, ~94 routes). Routes are split into:
 | 31 | GET | `/admin/api/sync/status` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
 | 32 | GET | `/admin/api/sync/history` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
 | 33 | POST | `/admin/api/sync/trigger` | `@role_required("admin")` | admin | Global | Yes |
-| 34 | POST | `/admin/api/sync/attachment-backfill` | `@role_required("admin")` | admin | Global | Yes |
-| 35 | POST | `/admin/api/sync/stop` | `@role_required("admin")` | admin | Global | Yes |
-| 36 | POST | `/admin/api/sync/schedule` | `@role_required("admin")` | admin | Global | Yes |
-| 37 | GET | `/admin/api/sync/coverage` | `@role_required("admin")` | admin | Global | No |
-| 38 | GET | `/admin/api/sync/backfill-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
-| 39 | POST | `/admin/api/sync/backfill/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
-| 40 | POST | `/admin/api/sync/trigger-smartva` | `@role_required("admin")` | admin | Global | Yes |
-| 41 | POST | `/admin/api/sync/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
-| 42 | POST | `/admin/api/sync/project-site/<id>/<id>` | `@role_required("admin")` | admin | Global | Yes |
-| 43 | GET | `/admin/api/sync/smartva-stats` | `@role_required("admin")` | admin | Global | No |
-| 44 | GET | `/admin/api/sync/revoked-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
-| 45 | GET | `/admin/api/sync/progress` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 34 | POST | `/admin/api/sync/stop` | `@role_required("admin")` | admin | Global | Yes |
+| 35 | POST | `/admin/api/sync/schedule` | `@role_required("admin")` | admin | Global | Yes |
+| 36 | GET | `/admin/api/sync/coverage` | `@role_required("admin")` | admin | Global | No |
+| 37 | GET | `/admin/api/sync/backfill-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 38 | POST | `/admin/api/sync/backfill/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
+| 39 | POST | `/admin/api/sync/trigger-smartva` | `@role_required("admin")` | admin | Global | Yes |
+| 40 | POST | `/admin/api/sync/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
+| 41 | POST | `/admin/api/sync/project-site/<id>/<id>` | `@role_required("admin")` | admin | Global | Yes |
+| 42 | GET | `/admin/api/sync/revoked-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 43 | GET | `/admin/api/sync/progress` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
 
 ## API Routes — Field Mapping
 

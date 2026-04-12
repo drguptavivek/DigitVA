@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-04-04
+last_updated: 2026-04-12
 ---
 
 # Asynchronous Background Tasks
@@ -199,7 +199,7 @@ run_single_submission_sync.delay(
 
 **Purpose:** Run SmartVA analysis on submissions that have no SmartVA result yet, without triggering an ODK download.
 
-Triggered from the admin dashboard "Gen SmartVA" button via `POST /admin/api/sync/trigger-smartva`.
+Triggered via `POST /admin/api/sync/trigger-smartva`.
 
 ---
 

@@ -1664,67 +1664,6 @@ def finalize_form_attachment_sync(
 
 
 @shared_task(
-    name="app.tasks.sync_tasks.run_attachment_cache_backfill",
-    bind=True,
-    soft_time_limit=1800,
-    time_limit=3600,
-)
-def run_attachment_cache_backfill(
-    self,
-    *,
-    project_id: str | None = None,
-    site_id: str | None = None,
-    form_id: str | None = None,
-    triggered_by: str = "attach_backfill",
-    user_id=None,
-):
-    """Backfill attachment cache rows from existing local media files."""
-    from app import db
-    from app.models.va_sync_runs import VaSyncRun
-    from app.services.attachment_cache_backfill_service import backfill_attachment_cache
-
-    cleanup_stale_runs()
-
-    run = VaSyncRun(
-        triggered_by=triggered_by,
-        triggered_user_id=user_id,
-        started_at=datetime.now(timezone.utc),
-        status="running",
-    )
-    db.session.add(run)
-    db.session.commit()
-    run_id = run.sync_run_id
-
-    def log_progress(msg):
-        _log_progress(db, run_id, msg)
-
-    try:
-        result = backfill_attachment_cache(
-            project_id=project_id,
-            site_id=site_id,
-            form_id=form_id,
-            log_progress=log_progress,
-        )
-        run = db.session.get(VaSyncRun, run_id)
-        run.status = "success"
-        run.finished_at = datetime.now(timezone.utc)
-        run.records_added = result.get("attachments_created", 0)
-        run.records_updated = result.get("attachments_updated", 0)
-        db.session.commit()
-    except Exception as exc:
-        try:
-            run = db.session.get(VaSyncRun, run_id)
-            if run:
-                run.status = "error"
-                run.finished_at = datetime.now(timezone.utc)
-                run.error_message = str(exc)[:2000]
-                db.session.commit()
-        except Exception:
-            db.session.rollback()
-        raise
-
-
-@shared_task(
     name="app.tasks.sync_tasks.run_single_submission_sync",
     bind=True,
     soft_time_limit=300,

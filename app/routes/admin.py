@@ -3759,26 +3759,7 @@ def admin_odk_site_mappings_delete(project_id, site_id):
 @admin.get("/panels/sync")
 @role_required("admin")
 def admin_panel_sync():
-    sync_forms = [
-        {
-            "form_id": row.form_id,
-            "project_id": row.project_id,
-            "site_id": row.site_id,
-            "site_name": row.site_name or row.site_id,
-        }
-        for row in db.session.execute(
-            sa.select(
-                VaForms.form_id,
-                VaForms.project_id,
-                VaForms.site_id,
-                VaSiteMaster.site_name,
-            )
-            .select_from(VaForms)
-            .outerjoin(VaSiteMaster, VaSiteMaster.site_id == VaForms.site_id)
-            .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
-        ).mappings().all()
-    ]
-    return render_template("admin/panels/sync_dashboard.html", sync_forms=sync_forms)
+    return render_template("admin/panels/sync_dashboard.html")
 
 
 @admin.get("/panels/activity")
@@ -3851,7 +3832,6 @@ def _sync_task_names() -> set[str]:
         "app.tasks.sync_tasks.run_single_form_sync",
         "app.tasks.sync_tasks.run_single_form_backfill",
         "app.tasks.sync_tasks.run_single_submission_sync",
-        "app.tasks.sync_tasks.run_attachment_cache_backfill",
     }
 
 
@@ -4039,7 +4019,7 @@ def admin_sync_trigger():
         )
         if running:
             return _json_error(
-                "A Sync, Force-resync, or Backfill run is already in progress.",
+                "A Sync, Force-resync, or Repair run is already in progress.",
                 409,
             )
 
@@ -4052,51 +4032,6 @@ def admin_sync_trigger():
     except Exception as e:
         log.error("admin_sync_trigger failed", exc_info=True)
         return _json_error(f"Failed to trigger sync", 500)
-
-
-@admin.post("/api/sync/attachment-backfill")
-@role_required("admin")
-def admin_attachment_backfill_trigger():
-    try:
-        from app.tasks.sync_tasks import run_attachment_cache_backfill
-
-        _reconcile_orphaned_running_sync_rows()
-        running = db.session.scalar(
-            sa.select(VaSyncRun.sync_run_id)
-            .where(VaSyncRun.status == "running")
-            .limit(1)
-        )
-        if running:
-            return _json_error("A sync or backfill task is already in progress.", 409)
-
-        data = request.get_json(silent=True) or {}
-        project_id = (data.get("project_id") or "").strip().upper() or None
-        site_id = (data.get("site_id") or "").strip().upper() or None
-        form_id = (data.get("form_id") or "").strip().upper() or None
-
-        if form_id:
-            form_row = db.session.get(VaForms, form_id)
-            if form_row is None:
-                return _json_error("Selected form was not found.", 404)
-            project_id = form_row.project_id
-            site_id = form_row.site_id
-
-            task = run_attachment_cache_backfill.delay(
-            project_id=project_id,
-            site_id=site_id,
-            form_id=form_id,
-            triggered_by="attach_backfill",
-            user_id=str(current_user.user_id),
-        )
-        return jsonify(
-            {
-                "message": "Attachment cache backfill started.",
-                "task_id": task.id,
-            }
-        ), 202
-    except Exception as e:
-        log.error("admin_attachment_backfill_trigger failed", exc_info=True)
-        return _json_error(f"Failed to trigger attachment backfill", 500)
 
 
 @admin.post("/api/sync/stop")
@@ -4119,7 +4054,6 @@ def admin_sync_stop():
             "app.tasks.sync_tasks.run_single_form_sync",
             "app.tasks.sync_tasks.run_single_form_backfill",
             "app.tasks.sync_tasks.run_single_submission_sync",
-            "app.tasks.sync_tasks.run_attachment_cache_backfill",
         }
         active_task_ids = []
         for tasks in active_by_worker.values():
@@ -4556,13 +4490,13 @@ def admin_sync_backfill_form(form_id: str):
             user_id=str(current_user.user_id),
         )
         return jsonify({
-            "message": f"Backfill started for form {form_id}.",
+            "message": f"Repair started for form {form_id}.",
             "task_id": task.id,
             "form_id": form_id,
         }), 202
     except Exception as e:
         log.error("admin_sync_backfill_form failed for %s", form_id, exc_info=True)
-        return _json_error(f"Failed to trigger backfill for form {form_id}", 500)
+        return _json_error(f"Failed to trigger repair for form {form_id}", 500)
 
 
 @admin.post("/api/sync/trigger-smartva")
@@ -4668,113 +4602,6 @@ def admin_sync_project_site(project_id: str, site_id: str):
             f"Failed to trigger sync for project/site {project_id}/{site_id}.",
             500,
         )
-
-
-@admin.get("/api/sync/smartva-stats")
-@role_required("admin")
-def admin_sync_smartva_stats():
-    """Return SmartVA result counts grouped by project → site → form."""
-    try:
-        from app.models.va_submissions import VaSubmissions
-        from app.models.va_smartva_results import VaSmartvaResults
-        from app.models.va_forms import VaForms
-        from app.models.va_project_master import VaProjectMaster
-        from app.models.va_sites import VaSites
-
-        forms = db.session.scalars(sa.select(VaForms)).all()
-
-        # Fetch SmartVA counts in one query: count active results per form
-        smartva_by_form = dict(
-            db.session.execute(
-                sa.select(
-                    VaSubmissions.va_form_id,
-                    sa.func.count(VaSmartvaResults.va_smartva_id).label("cnt"),
-                )
-                .join(VaSmartvaResults, VaSmartvaResults.va_sid == VaSubmissions.va_sid)
-                .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
-                .group_by(VaSubmissions.va_form_id)
-            ).all()
-        )
-
-        # Fetch submission counts per form (excluding finalized_upstream_changed — pending SmartVA)
-        from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
-        from app.models.va_submission_workflow import VaSubmissionWorkflow
-
-        sub_by_form = dict(
-            db.session.execute(
-                sa.select(
-                    VaSubmissions.va_form_id,
-                    sa.func.count(VaSubmissions.va_sid).label("cnt"),
-                )
-                .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-                .where(VaSubmissionWorkflow.workflow_state != WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
-                .group_by(VaSubmissions.va_form_id)
-            ).all()
-        )
-
-        # Group by project → site
-        projects_map = {}
-        total_submissions = total_with_smartva = total_pending = 0
-
-        for form in forms:
-            sub_count = sub_by_form.get(form.form_id, 0)
-            sva_count = smartva_by_form.get(form.form_id, 0)
-            pending = max(sub_count - sva_count, 0)
-
-            total_submissions += sub_count
-            total_with_smartva += sva_count
-            total_pending += pending
-
-            proj = projects_map.setdefault(form.project_id, {
-                "project_id": form.project_id,
-                "project_name": None,
-                "sites": {},
-                "submissions": 0,
-                "with_smartva": 0,
-                "pending_smartva": 0,
-            })
-            proj["submissions"] += sub_count
-            proj["with_smartva"] += sva_count
-            proj["pending_smartva"] += pending
-
-            site = proj["sites"].setdefault(form.site_id, {
-                "site_id": form.site_id,
-                "site_name": None,
-                "form_id": form.form_id,
-                "submissions": 0,
-                "with_smartva": 0,
-                "pending_smartva": 0,
-            })
-            site["submissions"] += sub_count
-            site["with_smartva"] += sva_count
-            site["pending_smartva"] += pending
-
-        # Enrich with project/site names
-        project_names = {
-            r.project_id: r.project_name
-            for r in db.session.scalars(sa.select(VaProjectMaster)).all()
-        }
-        site_names = {
-            r.site_id: r.site_name
-            for r in db.session.scalars(sa.select(VaSites)).all()
-        }
-        for pid, proj in projects_map.items():
-            proj["project_name"] = project_names.get(pid, pid)
-            for sid, site in proj["sites"].items():
-                site["site_name"] = site_names.get(sid, sid)
-            proj["sites"] = list(proj["sites"].values())
-
-        return jsonify({
-            "projects": list(projects_map.values()),
-            "totals": {
-                "submissions": total_submissions,
-                "with_smartva": total_with_smartva,
-                "pending_smartva": total_pending,
-            },
-        })
-    except Exception as e:
-        log.error("admin_sync_smartva_stats failed", exc_info=True)
-        return _json_error(f"Failed to load SmartVA stats", 500)
 
 
 @admin.get("/api/sync/revoked-stats")

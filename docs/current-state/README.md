@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-04-06
+last_updated: 2026-04-12
 ---
 
 # Current State Index
@@ -31,6 +31,7 @@ Read these documents in this order:
 8. [Runtime And Operations](runtime-and-operations.md)
 9. [Data Manager Dashboard](data-manager-dashboard.md)
 10. [Submission Analytics Materialized View](submission-analytics.md)
+11. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
 
 Related planning:
 

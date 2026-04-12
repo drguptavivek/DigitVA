@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-04
+last_updated: 2026-04-12
 ---
 
 # SmartVA Analysis
@@ -41,7 +41,7 @@ Current runtime behavior:
 
 Current protected-payload repair rule:
 
-- `Gen SmartVA` may now repair protected finalized submissions whose current
+- SmartVA-only reprocessing may now repair protected finalized submissions whose current
   payload has no matching active SmartVA projection but already has preserved
   historical SmartVA
 - in that case DigitVA rebinds the preserved SmartVA to the current payload
@@ -81,7 +81,7 @@ Current lineage note:
   active run on the current payload version
 - each `va_smartva_run` now links back to a `va_smartva_form_runs` row
 
-SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions have been downloaded and upserted (Phase 1). It can also be triggered independently via the admin dashboard "Gen SmartVA" button.
+SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions have been downloaded and upserted (Phase 1). It can also be triggered independently via `POST /admin/api/sync/trigger-smartva` or worker-side invocation.
 
 ---
 
@@ -451,8 +451,6 @@ The sync dashboard (`/admin/panels/sync`) exposes:
 | Control | Description |
 |---|---|
 | **Sync Now** | Triggers `run_odk_sync` (full sync) |
-| **Gen SmartVA** | Triggers `run_smartva_pending` (SmartVA only, no ODK download) |
-| **SmartVA Results (Local)** card | Per-form coverage: submissions vs. results, pending count, progress bar |
 
 API endpoints:
 
@@ -460,7 +458,6 @@ API endpoints:
 |---|---|---|
 | `/admin/api/sync/trigger` | POST | Trigger full sync |
 | `/admin/api/sync/trigger-smartva` | POST | Trigger SmartVA-only run |
-| `/admin/api/sync/smartva-stats` | GET | Per-form SmartVA coverage counts |
 
 ---
 
@@ -514,7 +511,7 @@ The ICMR01NC0201 form uses a training variant with:
 
 ### Re-running SmartVA without re-downloading
 
-Use the **Gen SmartVA** button, or from the worker container:
+Use the SmartVA-only trigger path, or from the worker container:
 
 ```python
 from app import create_app

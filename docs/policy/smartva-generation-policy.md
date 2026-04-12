@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-04
+last_updated: 2026-04-12
 ---
 
 # SmartVA Generation Policy
@@ -138,7 +138,7 @@ SmartVA can be triggered from:
 | Full sync (Phase 2) | Runs for `pending_sids ∪ amended_sids`, excludes protected |
 | Single form sync | Runs for `pending_sids ∪ amended_sids`, excludes protected |
 | Single submission refresh | Runs only if state is allowed, otherwise skip |
-| "Gen SmartVA" button | Runs `generate_pending()` for all forms |
+| SmartVA-only sync trigger (`POST /admin/api/sync/trigger-smartva`) | Runs `generate_pending()` for all forms |
 | Manual API call | Respects `force` parameter |
 
 ## Result Lifecycle
@@ -341,7 +341,7 @@ Current baseline:
 
 Admin repair refinement:
 
-- `Gen SmartVA` should automatically repair protected finalized submissions
+- SmartVA-only reprocessing should automatically repair protected finalized submissions
   whose current payload has no matching active SmartVA projection but does have
   historical SmartVA
 - in those cases, it must rebind the latest preserved historical SmartVA

@@ -40,6 +40,20 @@
               <td>{{ smartva.va_smartva_outcome or "—" }}</td>
             </tr>
             <tr>
+              <td class="text-muted">Generated At</td>
+              <td>
+                {% if smartva.va_smartva_updatedat %}
+                {{ smartva.va_smartva_updatedat | user_timezone('%Y-%m-%d %H:%M') }}
+                {% else %}
+                —
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted">Run ID</td>
+              <td>{{ smartva.smartva_run_id or "—" }}</td>
+            </tr>
+            <tr>
               <td class="text-muted">Result For</td>
               <td>{{ smartva.va_smartva_resultfor if smartva.va_smartva_resultfor and smartva.va_smartva_resultfor != "NaN" else "—" }}</td>
             </tr>
@@ -108,6 +122,16 @@
                 {% endif %}
               </td>
             </tr>
+            {% if smartva.va_smartva_outcome == "failed" %}
+            <tr>
+              <td class="text-muted">Failure Stage</td>
+              <td>{{ smartva.va_smartva_failure_stage or "—" }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted">Failure Detail</td>
+              <td>{{ smartva.va_smartva_failure_detail or "—" }}</td>
+            </tr>
+            {% endif %}
           </tbody>
         </table>
       </div>

@@ -222,7 +222,8 @@ Current locally exposed items include:
 - SmartVA summary details inside the Data Triage panel on
   `/data-management/view/<va_sid>`
   - includes outcome, result-for, age/gender, causes 1-3 with ICD/likelihood,
-    key symptoms, and all-symptoms text when present
+    key symptoms, all-symptoms text, generated-at timestamp, run-id, and
+    failure stage/detail when outcome is failed
 - normalized changed-field details for pending protected upstream updates via:
   - `/api/v1/data-management/submissions/<va_sid>/upstream-change-details`
   - data-manager detail-page modal `View Changes`

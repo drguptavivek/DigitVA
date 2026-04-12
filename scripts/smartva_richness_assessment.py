@@ -10,6 +10,7 @@ Outputs:
   - smartva_scope_summary_by_age_group.json
   - smartva_richness_per_submission.csv
   - smartva_richness_comparison.csv
+  - smartva_field_differentiators.csv
   - smartva_richness_summary.json
 """
 
@@ -553,6 +554,106 @@ def build_determination_summary(score_rows: list[dict[str, Any]]) -> dict[str, A
     }
 
 
+def build_field_differentiator_rows(
+    submission_rows: list[dict[str, Any]],
+    inventory: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    grouped_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in submission_rows:
+        determination = _classify_determination(row)
+        if determination not in {"determined", "undetermined"}:
+            continue
+
+        payload = row["payload_data"] or {}
+        age_group = _normalize_resultfor(row.get("va_smartva_resultfor")) or _determine_age_group_from_payload(payload)
+        if age_group not in AGE_GROUPS:
+            age_group = "adult"
+
+        grouped_rows[age_group].append(
+            {
+                "payload": payload,
+                "determination": determination,
+            }
+        )
+
+    differentiator_rows: list[dict[str, Any]] = []
+    for age_group in AGE_GROUPS:
+        scoped_rows = grouped_rows.get(age_group, [])
+        determined_rows = [row for row in scoped_rows if row["determination"] == "determined"]
+        undetermined_rows = [row for row in scoped_rows if row["determination"] == "undetermined"]
+
+        for field_scope in inventory[age_group]["fields"]:
+            if not field_scope["included_in_score"]:
+                continue
+
+            determined_positive = sum(
+                1 for row in determined_rows if field_is_positive(row["payload"], field_scope)
+            )
+            undetermined_positive = sum(
+                1 for row in undetermined_rows if field_is_positive(row["payload"], field_scope)
+            )
+
+            determined_rate = (
+                determined_positive / len(determined_rows) if determined_rows else None
+            )
+            undetermined_rate = (
+                undetermined_positive / len(undetermined_rows) if undetermined_rows else None
+            )
+            rate_delta = None
+            abs_rate_delta = None
+            if determined_rate is not None and undetermined_rate is not None:
+                rate_delta = round(determined_rate - undetermined_rate, 4)
+                abs_rate_delta = round(abs(rate_delta), 4)
+
+            differentiator_rows.append(
+                {
+                    "age_group": age_group,
+                    "domain": field_scope["domain"],
+                    "field_id": field_scope["field_id"],
+                    "odk_label": field_scope["odk_label"],
+                    "determined_count": len(determined_rows),
+                    "determined_positive_count": determined_positive,
+                    "determined_positive_rate": (
+                        round(determined_rate, 4) if determined_rate is not None else None
+                    ),
+                    "undetermined_count": len(undetermined_rows),
+                    "undetermined_positive_count": undetermined_positive,
+                    "undetermined_positive_rate": (
+                        round(undetermined_rate, 4) if undetermined_rate is not None else None
+                    ),
+                    "rate_delta": rate_delta,
+                    "abs_rate_delta": abs_rate_delta,
+                }
+            )
+
+    differentiator_rows.sort(
+        key=lambda row: (
+            row["age_group"],
+            -(row["abs_rate_delta"] or -1.0),
+            row["domain"],
+            row["field_id"],
+        )
+    )
+    return differentiator_rows
+
+
+def build_field_differentiator_summary(
+    differentiator_rows: list[dict[str, Any]],
+    *,
+    top_n: int = 10,
+) -> dict[str, Any]:
+    summary = {
+        "overall_top_fields": [],
+        "by_age_group": {},
+    }
+    ranked_rows = [row for row in differentiator_rows if row["abs_rate_delta"] is not None]
+    summary["overall_top_fields"] = ranked_rows[:top_n]
+    for age_group in AGE_GROUPS:
+        scoped = [row for row in ranked_rows if row["age_group"] == age_group]
+        summary["by_age_group"][age_group] = scoped[:top_n]
+    return summary
+
+
 def _latest_active_smartva_subquery():
     ranked = (
         sa.select(
@@ -675,6 +776,8 @@ def run(config: RunConfig) -> dict[str, Any]:
         submission_rows = load_submission_rows(config)
         score_rows = build_submission_scores(submission_rows, inventory)
         comparison = build_determination_summary(score_rows)
+        differentiators = build_field_differentiator_rows(submission_rows, inventory)
+        differentiator_summary = build_field_differentiator_summary(differentiators)
 
     scope_summary = {
         "generated_at_utc": _utcnow_iso(),
@@ -705,18 +808,21 @@ def run(config: RunConfig) -> dict[str, Any]:
         "domain_weights": DOMAIN_WEIGHTS,
         "submission_count": len(score_rows),
         "determination_summary": comparison["summary"],
+        "field_differentiator_summary": differentiator_summary,
     }
 
     inventory_path = output_root / "smartva_field_value_inventory_by_age_group.json"
     scope_summary_path = output_root / "smartva_scope_summary_by_age_group.json"
     score_csv_path = output_root / "smartva_richness_per_submission.csv"
     comparison_csv_path = output_root / "smartva_richness_comparison.csv"
+    differentiator_csv_path = output_root / "smartva_field_differentiators.csv"
     summary_path = output_root / "smartva_richness_summary.json"
 
     _write_json(inventory_path, inventory_payload)
     _write_json(scope_summary_path, scope_summary)
     _write_csv(score_csv_path, score_rows)
     _write_csv(comparison_csv_path, comparison["comparison_rows"])
+    _write_csv(differentiator_csv_path, differentiators)
     _write_json(summary_path, summary_payload)
 
     return {
@@ -724,6 +830,7 @@ def run(config: RunConfig) -> dict[str, Any]:
         "scope_summary_path": str(scope_summary_path),
         "score_csv_path": str(score_csv_path),
         "comparison_csv_path": str(comparison_csv_path),
+        "differentiator_csv_path": str(differentiator_csv_path),
         "summary_path": str(summary_path),
         "submission_count": len(score_rows),
     }
@@ -762,6 +869,7 @@ def main() -> int:
     print(f"Scope summary: {result['scope_summary_path']}")
     print(f"Per-submission scores: {result['score_csv_path']}")
     print(f"Determined vs undetermined comparison: {result['comparison_csv_path']}")
+    print(f"Field differentiators: {result['differentiator_csv_path']}")
     print(f"Summary: {result['summary_path']}")
     return 0
 

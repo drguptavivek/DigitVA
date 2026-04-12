@@ -539,11 +539,14 @@ payloads and active SmartVA projections, then writes analysis artifacts under
 - `smartva_scope_summary_by_age_group.json`
 - `smartva_richness_per_submission.csv`
 - `smartva_richness_comparison.csv`
+- `smartva_field_differentiators.csv`
 - `smartva_richness_summary.json`
 
 Scoring is per submission, but field scope and technical inventory are age-group
 specific (`adult`, `child`, `neonate`). The comparison artifact includes
-determined versus undetermined richness summaries overall and by age group.
+determined versus undetermined richness summaries overall and by age group. The
+field differentiator artifact reports field-level positive-rate deltas for
+determined versus undetermined submissions within each age group.
 
 ### SmartVA source reference
 

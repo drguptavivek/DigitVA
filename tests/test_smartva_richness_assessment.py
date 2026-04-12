@@ -3,6 +3,8 @@ from unittest import TestCase
 from scripts.smartva_richness_assessment import (
     AGE_GROUPS,
     build_determination_summary,
+    build_field_differentiator_rows,
+    build_field_differentiator_summary,
     build_vendor_field_scopes,
     field_is_positive,
     score_submission,
@@ -244,3 +246,79 @@ class SmartvaRichnessAssessmentTests(TestCase):
         self.assertEqual(result["summary"]["by_age_group"]["adult"]["determined"]["mean_total_score"], 70.0)
         self.assertEqual(result["summary"]["by_age_group"]["adult"]["undetermined"]["mean_total_score"], 50.0)
         self.assertEqual(len(result["comparison_rows"]), 8)
+
+    def test_build_field_differentiator_rows_computes_rate_deltas(self):
+        inventory = {
+            "adult": {
+                "fields": [
+                    {
+                        "field_id": "Id10477",
+                        "odk_label": "Narration keywords",
+                        "domain": "keywords",
+                        "included_in_score": True,
+                        "rules": [
+                            {
+                                "signal_type": "multiselect_any_positive",
+                                "positive_values": ["Fever"],
+                            }
+                        ],
+                    }
+                ]
+            },
+            "child": {"fields": []},
+            "neonate": {"fields": []},
+        }
+        submission_rows = [
+            {
+                "payload_data": {"Id10477": "Fever"},
+                "va_smartva_outcome": "success",
+                "va_smartva_resultfor": "adult",
+                "va_smartva_cause1": "TB",
+            },
+            {
+                "payload_data": {"Id10477": ""},
+                "va_smartva_outcome": "success",
+                "va_smartva_resultfor": "adult",
+                "va_smartva_cause1": "Undetermined",
+            },
+        ]
+
+        rows = build_field_differentiator_rows(submission_rows, inventory)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["field_id"], "Id10477")
+        self.assertEqual(rows[0]["determined_positive_rate"], 1.0)
+        self.assertEqual(rows[0]["undetermined_positive_rate"], 0.0)
+        self.assertEqual(rows[0]["rate_delta"], 1.0)
+        self.assertEqual(rows[0]["abs_rate_delta"], 1.0)
+
+    def test_build_field_differentiator_summary_returns_top_rows(self):
+        differentiators = [
+            {
+                "age_group": "adult",
+                "field_id": "Id10477",
+                "odk_label": "Keywords",
+                "domain": "keywords",
+                "abs_rate_delta": 0.8,
+            },
+            {
+                "age_group": "adult",
+                "field_id": "Id10135",
+                "odk_label": "Asthma",
+                "domain": "symptoms",
+                "abs_rate_delta": 0.2,
+            },
+            {
+                "age_group": "child",
+                "field_id": "Id10478",
+                "odk_label": "Child keywords",
+                "domain": "keywords",
+                "abs_rate_delta": 0.6,
+            },
+        ]
+
+        summary = build_field_differentiator_summary(differentiators, top_n=1)
+
+        self.assertEqual(summary["overall_top_fields"][0]["field_id"], "Id10477")
+        self.assertEqual(summary["by_age_group"]["adult"][0]["field_id"], "Id10477")
+        self.assertEqual(summary["by_age_group"]["child"][0]["field_id"], "Id10478")

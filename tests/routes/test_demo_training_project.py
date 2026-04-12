@@ -215,6 +215,16 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
         self.assertIn("These are demo-training forms.", html)
         self.assertIn(self.DEMO_PROJECT_ID, html)
 
+    def test_plain_user_sees_va_coding_nav_link_when_demo_project_exists(self):
+        self._login(self.demo_plain_user_id)
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn('href="/coding/"', html)
+        self.assertIn("VA Coding", html)
+
     def test_plain_user_cannot_start_non_demo_project(self):
         self._login(self.demo_plain_user_id)
 

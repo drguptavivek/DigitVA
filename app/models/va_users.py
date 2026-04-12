@@ -141,6 +141,19 @@ class VaUsers(UserMixin, db.Model):
         ))
         return bool(db.session.scalar(stmt))
 
+    def has_demo_training_access(self) -> bool:
+        from app.services.demo_project_service import get_demo_training_project_ids
+
+        return bool(get_demo_training_project_ids())
+
+    def can_access_coding_dashboard(self) -> bool:
+        return (
+            self.is_admin()
+            or self.is_coder()
+            or self.is_coding_tester()
+            or self.has_demo_training_access()
+        )
+
     def get_project_pi_projects(self):
         from app.models import (
             VaAccessRoles,

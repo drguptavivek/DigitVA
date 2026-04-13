@@ -41,6 +41,7 @@ Related current-state background:
 - [Unconsciousness](unconsciousness.md)
 - [Jaundice](jaundice.md)
 - [Swelling](swelling.md)
+- [Medical History](medical-history.md)
 
 ## Reading Notes
 

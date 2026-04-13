@@ -28,3 +28,6 @@ Expected Scope:
 - Add more symptom documents one-by-one for the remaining WHO symptom groups.
 - Update `docs/kb/smart-va/README.md` as each new document is added.
 - Keep cautious wording where the WHO adapter path is less explicit than the downstream symptom model.
+
+Completed in this batch:
+- `docs/kb/smart-va/medical-history.md` for WHO `Id10125` through `Id10144`

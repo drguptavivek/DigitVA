@@ -11,6 +11,9 @@ Outputs:
   - smartva_richness_per_submission.csv
   - smartva_richness_comparison.csv
   - smartva_field_differentiators.csv
+  - smartva_field_endorsement_rankings.csv
+  - smartva_who_to_tariff_parameters.csv
+  - smartva_who_to_tariff_parameters.md
   - smartva_richness_summary.json
 """
 
@@ -20,6 +23,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import re
 import statistics
 from collections import defaultdict
@@ -40,7 +44,20 @@ from app.models import (
     VaSubmissionPayloadVersion,
     VaSubmissions,
 )
+from smartva import config as smartva_config
+from smartva.data import (
+    adult_pre_symptom_data,
+    adult_symptom_data,
+    adult_tariff_data,
+    child_pre_symptom_data,
+    child_symptom_data,
+    child_tariff_data,
+    neonate_pre_symptom_data,
+    neonate_symptom_data,
+    neonate_tariff_data,
+)
 from smartva.data import who_data
+from smartva.tariff_prep import TARIFF_CAUSE_NUM_KEY, get_tariff_matrix
 
 AGE_GROUPS = ("adult", "child", "neonate")
 DOMAIN_WEIGHTS = {
@@ -59,6 +76,22 @@ INJURY_FALLBACK_FIELDS = {
     "Id10260",
 }
 _BASE_FIELD_ID_RE = re.compile(r"^(Id\d+)", flags=re.IGNORECASE)
+_AGE_GROUP_CODE_RE = re.compile(r"^s(?:299\d|499\d|8888\d)$")
+TARIFF_DATA_MODULES = {
+    "adult": adult_tariff_data,
+    "child": child_tariff_data,
+    "neonate": neonate_tariff_data,
+}
+PRE_SYMPTOM_DATA_MODULES = {
+    "adult": adult_pre_symptom_data,
+    "child": child_pre_symptom_data,
+    "neonate": neonate_pre_symptom_data,
+}
+SYMPTOM_DATA_MODULES = {
+    "adult": adult_symptom_data,
+    "child": child_symptom_data,
+    "neonate": neonate_symptom_data,
+}
 
 
 @dataclass(frozen=True)
@@ -215,6 +248,12 @@ def _determine_domain(field_id: str, category_code: str | None) -> tuple[str, bo
     return "symptoms", True
 
 
+def _is_generic_only_field(mapped_targets: list[str]) -> bool:
+    if not mapped_targets:
+        return False
+    return all(target.startswith("gen_") or target == "interviewdate" for target in mapped_targets)
+
+
 def _new_scope_record(field_id: str, age_group: str) -> dict[str, Any]:
     return {
         "field_id": field_id,
@@ -342,6 +381,8 @@ def _load_field_metadata() -> dict[str, dict[str, Any]]:
         sa.select(
             MasFieldDisplayConfig.field_id,
             MasFieldDisplayConfig.odk_label,
+            MasFieldDisplayConfig.short_label,
+            MasFieldDisplayConfig.full_label,
             MasFieldDisplayConfig.category_code,
         ).where(
             MasFieldDisplayConfig.form_type_id == form_type_id,
@@ -351,10 +392,21 @@ def _load_field_metadata() -> dict[str, dict[str, Any]]:
     return {
         row.field_id: {
             "odk_label": row.odk_label,
+            "short_label": row.short_label,
+            "full_label": row.full_label,
             "category_code": row.category_code,
         }
         for row in rows
     }
+
+
+def _preferred_field_label(field_id: str, metadata: dict[str, Any]) -> str:
+    return (
+        metadata.get("short_label")
+        or metadata.get("odk_label")
+        or metadata.get("full_label")
+        or field_id
+    )
 
 
 def build_age_group_inventory() -> dict[str, dict[str, Any]]:
@@ -370,16 +422,24 @@ def build_age_group_inventory() -> dict[str, dict[str, Any]]:
             metadata = field_metadata.get(field_id, {})
             category_code = metadata.get("category_code")
             odk_label = metadata.get("odk_label")
+            short_label = metadata.get("short_label")
+            full_label = metadata.get("full_label")
             domain, included_in_score = _determine_domain(field_id, category_code)
+            mapped_targets = sorted(record["mapped_targets"])
+            if _is_generic_only_field(mapped_targets):
+                included_in_score = False
 
             field_row = {
                 "field_id": field_id,
                 "age_group": age_group,
-                "odk_label": odk_label or field_id,
+                "field_label": _preferred_field_label(field_id, metadata),
+                "short_label": short_label,
+                "odk_label": odk_label,
+                "full_label": full_label,
                 "category_code": category_code,
                 "domain": domain,
                 "included_in_score": included_in_score and domain in RICHNESS_DOMAINS,
-                "mapped_targets": sorted(record["mapped_targets"]),
+                "mapped_targets": mapped_targets,
                 "signal_types": sorted(record["signal_types"]),
                 "positive_values": sorted(record["positive_values"]),
                 "rules": sorted(
@@ -397,6 +457,164 @@ def build_age_group_inventory() -> dict[str, dict[str, Any]]:
         }
 
     return inventory
+
+
+def _as_bool_string(value: Any, *, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"true", "1", "yes"}:
+        return True
+    if text in {"false", "0", "no"}:
+        return False
+    return default
+
+
+def _tariffs_filename(age_group: str) -> str:
+    return os.path.join(smartva_config.basedir, "data", f"tariffs-{age_group}.csv")
+
+
+def _normalize_feature_target(target: Any) -> str | None:
+    if isinstance(target, tuple):
+        if not target:
+            return None
+        return str(target[0])
+    if target is None:
+        return None
+    return str(target)
+
+
+def _build_feature_derivation_graph(age_group: str) -> dict[str, set[str]]:
+    symptom_module = SYMPTOM_DATA_MODULES[age_group]
+    graph: dict[str, set[str]] = defaultdict(set)
+
+    for read_header, write_header in symptom_module.COPY_VARS.items():
+        graph[str(read_header)].add(str(write_header))
+
+    for read_header, mapping in symptom_module.BINARY_CONVERSION_MAP.items():
+        if isinstance(mapping, dict):
+            for write_header in mapping.values():
+                graph[str(read_header)].add(str(write_header))
+
+    for read_header, items in symptom_module.AGE_QUARTILE_BINARY_VARS.items():
+        for _threshold, write_header in items:
+            normalized = _normalize_feature_target(write_header)
+            if normalized:
+                graph[str(read_header)].add(normalized)
+
+    return graph
+
+
+def _expand_feature_targets(age_group: str, initial_targets: set[str]) -> set[str]:
+    graph = _build_feature_derivation_graph(age_group)
+    seen = set(initial_targets)
+    queue = list(initial_targets)
+    while queue:
+        current = queue.pop()
+        for nxt in graph.get(current, set()):
+            if nxt in seen:
+                continue
+            seen.add(nxt)
+            queue.append(nxt)
+    return seen
+
+
+def _map_dest_to_effective_features(age_group: str, dest: str) -> set[str]:
+    pre_module = PRE_SYMPTOM_DATA_MODULES[age_group]
+    symptom_module = SYMPTOM_DATA_MODULES[age_group]
+
+    pre_var = pre_module.VAR_CONVERSION_MAP.get(dest)
+    if not pre_var:
+        return set()
+
+    initial_targets: set[str] = set()
+
+    duration_base = None
+    if pre_var.endswith("a") or pre_var.endswith("b"):
+        candidate = pre_var[:-1]
+        if candidate in getattr(pre_module, "DURATION_VARS", []):
+            duration_base = candidate
+    if duration_base:
+        pre_var = duration_base
+
+    if pre_var in symptom_module.VAR_CONVERSION_MAP:
+        initial_targets.add(str(symptom_module.VAR_CONVERSION_MAP[pre_var]))
+    elif pre_var.startswith("s") or pre_var in {"age", "sex", "real_age", "real_gender"}:
+        initial_targets.add(pre_var)
+
+    if pre_var in getattr(pre_module, "FREE_TEXT_VARS", []):
+        initial_targets.update(str(value) for value in pre_module.WORDS_TO_VARS.values())
+
+    return _expand_feature_targets(age_group, initial_targets)
+
+
+def build_field_to_effective_feature_rows(
+    inventory: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+
+    for age_group in AGE_GROUPS:
+        tariff_module = TARIFF_DATA_MODULES[age_group]
+        symptom_descriptions = tariff_module.SYMPTOM_DESCRIPTIONS
+        for field_scope in inventory[age_group]["fields"]:
+            feature_rows: dict[str, dict[str, Any]] = {}
+            for dest in field_scope["mapped_targets"]:
+                for feature in _map_dest_to_effective_features(age_group, dest):
+                    feature_label = symptom_descriptions.get(feature)
+                    if not feature_label:
+                        continue
+                    feature_rows.setdefault(
+                        feature,
+                        {
+                            "age_group": age_group,
+                            "field_id": field_scope["field_id"],
+                            "field_label": field_scope["field_label"],
+                            "short_label": field_scope.get("short_label"),
+                            "domain": field_scope["domain"],
+                            "smartva_parameter": feature,
+                            "smartva_parameter_label": feature_label,
+                        },
+                    )
+            rows.extend(feature_rows.values())
+
+    rows.sort(
+        key=lambda row: (
+            row["age_group"],
+            row["field_id"],
+            row["smartva_parameter"],
+        )
+    )
+    return rows
+
+
+def _active_tariff_feature_set(
+    age_group: str,
+    *,
+    hce: bool,
+    free_text: bool,
+    short_form: bool = False,
+) -> set[str]:
+    tariff_module = TARIFF_DATA_MODULES[age_group]
+    drop_headers = {TARIFF_CAUSE_NUM_KEY}
+    if not hce:
+        drop_headers.update(tariff_module.HCE_DROP_LIST)
+    if not free_text:
+        drop_headers.update(tariff_module.FREE_TEXT)
+    if short_form:
+        drop_headers.update(tariff_module.SHORT_FORM_DROP_LIST)
+
+    tariffs = get_tariff_matrix(
+        _tariffs_filename(age_group),
+        drop_headers,
+        tariff_module.SPURIOUS_ASSOCIATIONS,
+    )
+    return {
+        symptom
+        for features in tariffs.values()
+        for symptom, _tariff in features
+    }
 
 
 def _value_matches(value: Any, candidates: list[str] | set[str]) -> bool:
@@ -610,7 +828,8 @@ def build_field_differentiator_rows(
                     "age_group": age_group,
                     "domain": field_scope["domain"],
                     "field_id": field_scope["field_id"],
-                    "odk_label": field_scope["odk_label"],
+                    "field_label": field_scope["field_label"],
+                    "short_label": field_scope.get("short_label"),
                     "determined_count": len(determined_rows),
                     "determined_positive_count": determined_positive,
                     "determined_positive_rate": (
@@ -635,6 +854,242 @@ def build_field_differentiator_rows(
         )
     )
     return differentiator_rows
+
+
+def build_field_endorsement_rows(
+    submission_rows: list[dict[str, Any]],
+    inventory: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    grouped_rows: dict[str, dict[str, list[dict[str, Any]]]] = {
+        age_group: {"all": [], "determined": [], "undetermined": []}
+        for age_group in AGE_GROUPS
+    }
+
+    for row in submission_rows:
+        payload = row["payload_data"] or {}
+        age_group = _normalize_resultfor(row.get("va_smartva_resultfor")) or _determine_age_group_from_payload(payload)
+        if age_group not in AGE_GROUPS:
+            age_group = "adult"
+
+        determination = _classify_determination(row)
+        grouped_rows[age_group]["all"].append(payload)
+        if determination in {"determined", "undetermined"}:
+            grouped_rows[age_group][determination].append(payload)
+
+    endorsement_rows: list[dict[str, Any]] = []
+    for age_group in AGE_GROUPS:
+        for scope_name, payloads in grouped_rows[age_group].items():
+            total_count = len(payloads)
+            for field_scope in inventory[age_group]["fields"]:
+                if not field_scope["included_in_score"]:
+                    continue
+
+                positive_count = sum(
+                    1 for payload in payloads if field_is_positive(payload, field_scope)
+                )
+                positive_rate = (positive_count / total_count) if total_count else None
+                endorsement_rows.append(
+                    {
+                        "age_group": age_group,
+                        "scope": scope_name,
+                        "domain": field_scope["domain"],
+                        "field_id": field_scope["field_id"],
+                        "field_label": field_scope["field_label"],
+                        "short_label": field_scope.get("short_label"),
+                        "positive_count": positive_count,
+                        "total_count": total_count,
+                        "positive_rate": round(positive_rate, 4) if positive_rate is not None else None,
+                    }
+                )
+
+    endorsement_rows.sort(
+        key=lambda row: (
+            row["age_group"],
+            row["scope"],
+            -(row["positive_rate"] or -1.0),
+            row["domain"],
+            row["field_id"],
+        )
+    )
+    return endorsement_rows
+
+
+def build_field_endorsement_summary(
+    endorsement_rows: list[dict[str, Any]],
+    *,
+    top_n: int = 10,
+) -> dict[str, Any]:
+    summary = {
+        "overall_top_fields": [],
+        "by_age_group": {},
+    }
+    ranked_rows = [row for row in endorsement_rows if row["scope"] == "all" and row["positive_rate"] is not None]
+    summary["overall_top_fields"] = ranked_rows[:top_n]
+    for age_group in AGE_GROUPS:
+        scoped = [row for row in ranked_rows if row["age_group"] == age_group]
+        summary["by_age_group"][age_group] = scoped[:top_n]
+    return summary
+
+
+def build_who_to_tariff_parameter_rows(
+    submission_rows: list[dict[str, Any]],
+    inventory: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    field_feature_rows = build_field_to_effective_feature_rows(inventory)
+    field_scope_by_age_group = {
+        age_group: {field["field_id"]: field for field in scope["fields"]}
+        for age_group, scope in inventory.items()
+    }
+    active_feature_cache: dict[tuple[str, bool, bool], set[str]] = {}
+
+    def active_features(age_group: str, hce: bool, free_text: bool) -> set[str]:
+        key = (age_group, hce, free_text)
+        if key not in active_feature_cache:
+            active_feature_cache[key] = _active_tariff_feature_set(
+                age_group,
+                hce=hce,
+                free_text=free_text,
+                short_form=False,
+            )
+        return active_feature_cache[key]
+
+    grouped_rows: dict[tuple[str, str, str], dict[str, Any]] = {}
+
+    for mapping_row in field_feature_rows:
+        key = (
+            mapping_row["age_group"],
+            mapping_row["field_id"],
+            mapping_row["smartva_parameter"],
+        )
+        grouped_rows[key] = {
+            **mapping_row,
+            "positive_count": 0,
+            "total_count": 0,
+            "positive_rate": None,
+        }
+
+    for submission_row in submission_rows:
+        payload = submission_row["payload_data"] or {}
+        age_group = _normalize_resultfor(submission_row.get("va_smartva_resultfor")) or _determine_age_group_from_payload(payload)
+        if age_group not in AGE_GROUPS:
+            age_group = "adult"
+
+        hce = _as_bool_string(submission_row.get("form_smartvahce"), default=True)
+        free_text = _as_bool_string(submission_row.get("form_smartvafreetext"), default=True)
+        active_for_row = active_features(age_group, hce, free_text)
+        scopes_for_age = field_scope_by_age_group[age_group]
+
+        for key, row in grouped_rows.items():
+            row_age_group, field_id, smartva_parameter = key
+            if row_age_group != age_group:
+                continue
+            if smartva_parameter not in active_for_row:
+                continue
+            field_scope = scopes_for_age.get(field_id)
+            if not field_scope:
+                continue
+            row["total_count"] += 1
+            if field_is_positive(payload, field_scope):
+                row["positive_count"] += 1
+
+    output_rows: list[dict[str, Any]] = []
+    for row in grouped_rows.values():
+        if row["total_count"] == 0:
+            continue
+        output_row = dict(row)
+        output_row["positive_rate"] = round(
+            output_row["positive_count"] / output_row["total_count"], 4
+        )
+        output_rows.append(output_row)
+
+    output_rows.sort(
+        key=lambda row: (
+            row["age_group"],
+            row["positive_rate"],
+            row["field_id"],
+            row["smartva_parameter"],
+        )
+    )
+    return output_rows
+
+
+def build_who_to_tariff_markdown(
+    rows: list[dict[str, Any]],
+    *,
+    filters: dict[str, Any],
+) -> str:
+    lines = [
+        "# WHO To SmartVA Tariff Mapping",
+        "",
+        f"- Generated at UTC: {_utcnow_iso()}",
+        f"- Project filter: {filters.get('project_code') or 'ALL'}",
+        f"- Site filter: {filters.get('site_id') or 'ALL'}",
+        f"- Form filter: {filters.get('form_id') or 'ALL'}",
+        f"- Row limit: {filters.get('limit') or 'ALL'}",
+        "",
+        "Only WHO fields that map to at least one tariff-applied SmartVA parameter are listed.",
+        "Endorsement percent is calculated on selected submissions where that SmartVA parameter is active for the form's current SmartVA flags.",
+        "",
+    ]
+
+    for age_group in AGE_GROUPS:
+        age_rows = [row for row in rows if row["age_group"] == age_group]
+        if not age_rows:
+            continue
+        lines.extend(
+            [
+                f"## {age_group.capitalize()}",
+                "",
+                "| WHO Field ID | WHO Short Label | SmartVA Parameter | SmartVA Parameter Label | Endorsement % | Positive / Total |",
+                "| --- | --- | --- | --- | ---: | ---: |",
+            ]
+        )
+        for row in age_rows:
+            field_label = (row.get("short_label") or row.get("field_label") or "").replace("|", "\\|")
+            parameter_label = (row.get("smartva_parameter_label") or "").replace("|", "\\|")
+            lines.append(
+                "| {field_id} | {field_label} | {smartva_parameter} | {parameter_label} | {percent:.1f}% | {positive_count} / {total_count} |".format(
+                    field_id=row["field_id"],
+                    field_label=field_label,
+                    smartva_parameter=row["smartva_parameter"],
+                    parameter_label=parameter_label,
+                    percent=(row["positive_rate"] or 0.0) * 100.0,
+                    positive_count=row["positive_count"],
+                    total_count=row["total_count"],
+                )
+            )
+        lines.append("")
+
+    lines.extend(
+        [
+            "## SmartVA Handling Notes",
+            "",
+            "### Retained",
+            "- A WHO field is retained in this report only if it can reach at least one SmartVA symptom parameter that survives into the cleaned tariff matrix for the selected run settings.",
+            "- In practice, that means the downstream parameter is still present after symptom preparation, module drop lists, HCE/free-text gating, zero-tariff removal, spurious-association removal, and top-40 tariff pruning per cause.",
+            "",
+            "### Collapsed",
+            "- Many WHO fields do not survive one-to-one. Unit/value pairs are collapsed into one duration feature before tariffing.",
+            "- Category questions often collapse into derived binary symptom flags. Examples in vendor code include rash-location splits such as `s23991` to `s23994`, breathing-position splits such as `s56991` to `s56994`, and several child/neonate delivery or severity flags.",
+            "- Some symptom parameters are duplicated or copied forward. Neonate processing explicitly copies some abnormality features, so more than one WHO question can feed the same final tariff feature.",
+            "",
+            "### Transformed",
+            "- Structured WHO responses are transformed by recodes, one-hot conversions from multiselect answers, duration normalization, numeric cutoffs, age-binning, and binary thresholding before tariff scoring.",
+            "- The tariff engine scores the post-symptom `s...` features, not the original WHO field ids.",
+            "",
+            "### HCE Option",
+            "- When HCE is disabled, the module-specific `HCE_DROP_LIST` features are removed from the tariff matrix before scoring.",
+            "- When HCE is enabled, those HCE-listed features remain eligible, unless another setting removes them later.",
+            "",
+            "### Free-Text Option",
+            "- Free text is converted in pre-symptom preparation by stemming words from module free-text fields and mapping them to `s9999...` word indicators.",
+            "- When the CLI `--freetext` option is disabled, those `s9999...` word indicators are removed from tariff scoring.",
+            "- When `--freetext` is enabled, the word indicators remain eligible, but they can still be filtered out later by spurious-association logic or by tariff top-N pruning.",
+            "",
+        ]
+    )
+
+    return "\n".join(lines)
 
 
 def build_field_differentiator_summary(
@@ -681,6 +1136,8 @@ def load_submission_rows(config: RunConfig) -> list[dict[str, Any]]:
             VaSubmissions.va_form_id,
             VaForms.project_id,
             VaForms.site_id,
+            VaForms.form_smartvahce,
+            VaForms.form_smartvafreetext,
             VaSubmissionPayloadVersion.payload_data,
             smartva_sq.c.va_smartva_outcome,
             smartva_sq.c.va_smartva_resultfor,
@@ -711,6 +1168,8 @@ def load_submission_rows(config: RunConfig) -> list[dict[str, Any]]:
             "form_id": row.va_form_id,
             "project_id": row.project_id,
             "site_id": row.site_id,
+            "form_smartvahce": row.form_smartvahce,
+            "form_smartvafreetext": row.form_smartvafreetext,
             "payload_data": row.payload_data or {},
             "va_smartva_outcome": row.va_smartva_outcome,
             "va_smartva_resultfor": row.va_smartva_resultfor,
@@ -774,10 +1233,14 @@ def run(config: RunConfig) -> dict[str, Any]:
     with app.app_context():
         inventory = build_age_group_inventory()
         submission_rows = load_submission_rows(config)
+        db.session.rollback()
         score_rows = build_submission_scores(submission_rows, inventory)
         comparison = build_determination_summary(score_rows)
         differentiators = build_field_differentiator_rows(submission_rows, inventory)
         differentiator_summary = build_field_differentiator_summary(differentiators)
+        endorsements = build_field_endorsement_rows(submission_rows, inventory)
+        endorsement_summary = build_field_endorsement_summary(endorsements)
+        who_to_tariff_rows = build_who_to_tariff_parameter_rows(submission_rows, inventory)
 
     scope_summary = {
         "generated_at_utc": _utcnow_iso(),
@@ -809,6 +1272,7 @@ def run(config: RunConfig) -> dict[str, Any]:
         "submission_count": len(score_rows),
         "determination_summary": comparison["summary"],
         "field_differentiator_summary": differentiator_summary,
+        "field_endorsement_summary": endorsement_summary,
     }
 
     inventory_path = output_root / "smartva_field_value_inventory_by_age_group.json"
@@ -816,6 +1280,9 @@ def run(config: RunConfig) -> dict[str, Any]:
     score_csv_path = output_root / "smartva_richness_per_submission.csv"
     comparison_csv_path = output_root / "smartva_richness_comparison.csv"
     differentiator_csv_path = output_root / "smartva_field_differentiators.csv"
+    endorsement_csv_path = output_root / "smartva_field_endorsement_rankings.csv"
+    who_to_tariff_csv_path = output_root / "smartva_who_to_tariff_parameters.csv"
+    who_to_tariff_md_path = output_root / "smartva_who_to_tariff_parameters.md"
     summary_path = output_root / "smartva_richness_summary.json"
 
     _write_json(inventory_path, inventory_payload)
@@ -823,6 +1290,15 @@ def run(config: RunConfig) -> dict[str, Any]:
     _write_csv(score_csv_path, score_rows)
     _write_csv(comparison_csv_path, comparison["comparison_rows"])
     _write_csv(differentiator_csv_path, differentiators)
+    _write_csv(endorsement_csv_path, endorsements)
+    _write_csv(who_to_tariff_csv_path, who_to_tariff_rows)
+    who_to_tariff_md_path.write_text(
+        build_who_to_tariff_markdown(
+            who_to_tariff_rows,
+            filters=scope_summary["filters"],
+        ),
+        encoding="utf-8",
+    )
     _write_json(summary_path, summary_payload)
 
     return {
@@ -831,6 +1307,9 @@ def run(config: RunConfig) -> dict[str, Any]:
         "score_csv_path": str(score_csv_path),
         "comparison_csv_path": str(comparison_csv_path),
         "differentiator_csv_path": str(differentiator_csv_path),
+        "endorsement_csv_path": str(endorsement_csv_path),
+        "who_to_tariff_csv_path": str(who_to_tariff_csv_path),
+        "who_to_tariff_md_path": str(who_to_tariff_md_path),
         "summary_path": str(summary_path),
         "submission_count": len(score_rows),
     }
@@ -870,6 +1349,9 @@ def main() -> int:
     print(f"Per-submission scores: {result['score_csv_path']}")
     print(f"Determined vs undetermined comparison: {result['comparison_csv_path']}")
     print(f"Field differentiators: {result['differentiator_csv_path']}")
+    print(f"Field endorsement rankings: {result['endorsement_csv_path']}")
+    print(f"WHO to tariff mapping CSV: {result['who_to_tariff_csv_path']}")
+    print(f"WHO to tariff mapping Markdown: {result['who_to_tariff_md_path']}")
     print(f"Summary: {result['summary_path']}")
     return 0
 

@@ -2,9 +2,14 @@ from unittest import TestCase
 
 from scripts.smartva_richness_assessment import (
     AGE_GROUPS,
+    _is_generic_only_field,
+    _map_dest_to_effective_features,
     build_determination_summary,
     build_field_differentiator_rows,
     build_field_differentiator_summary,
+    build_field_endorsement_rows,
+    build_field_endorsement_summary,
+    build_who_to_tariff_markdown,
     build_vendor_field_scopes,
     field_is_positive,
     score_submission,
@@ -13,6 +18,20 @@ from scripts.smartva_richness_assessment import (
 
 
 class SmartvaRichnessAssessmentTests(TestCase):
+    def test_map_dest_to_effective_features_handles_duration_collapse(self):
+        features = _map_dest_to_effective_features("adult", "adult_2_1")
+        self.assertIn("s15", features)
+
+    def test_map_dest_to_effective_features_handles_binary_derivations(self):
+        features = _map_dest_to_effective_features("adult", "adult_2_19")
+        self.assertIn("s36", features)
+        self.assertIn("s36991", features)
+        self.assertIn("s36992", features)
+
+    def test_is_generic_only_field_detects_gen_targets(self):
+        self.assertTrue(_is_generic_only_field(["gen_5_0", "interviewdate"]))
+        self.assertFalse(_is_generic_only_field(["adult_2_1"]))
+
     def test_vendor_scope_includes_keywords_by_age_group(self):
         scopes = build_vendor_field_scopes()
 
@@ -253,7 +272,8 @@ class SmartvaRichnessAssessmentTests(TestCase):
                 "fields": [
                     {
                         "field_id": "Id10477",
-                        "odk_label": "Narration keywords",
+                        "field_label": "Narration keywords",
+                        "short_label": "Narration keywords",
                         "domain": "keywords",
                         "included_in_score": True,
                         "rules": [
@@ -287,6 +307,7 @@ class SmartvaRichnessAssessmentTests(TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["field_id"], "Id10477")
+        self.assertEqual(rows[0]["field_label"], "Narration keywords")
         self.assertEqual(rows[0]["determined_positive_rate"], 1.0)
         self.assertEqual(rows[0]["undetermined_positive_rate"], 0.0)
         self.assertEqual(rows[0]["rate_delta"], 1.0)
@@ -297,21 +318,21 @@ class SmartvaRichnessAssessmentTests(TestCase):
             {
                 "age_group": "adult",
                 "field_id": "Id10477",
-                "odk_label": "Keywords",
+                "field_label": "Keywords",
                 "domain": "keywords",
                 "abs_rate_delta": 0.8,
             },
             {
                 "age_group": "adult",
                 "field_id": "Id10135",
-                "odk_label": "Asthma",
+                "field_label": "Asthma",
                 "domain": "symptoms",
                 "abs_rate_delta": 0.2,
             },
             {
                 "age_group": "child",
                 "field_id": "Id10478",
-                "odk_label": "Child keywords",
+                "field_label": "Child keywords",
                 "domain": "keywords",
                 "abs_rate_delta": 0.6,
             },
@@ -322,3 +343,117 @@ class SmartvaRichnessAssessmentTests(TestCase):
         self.assertEqual(summary["overall_top_fields"][0]["field_id"], "Id10477")
         self.assertEqual(summary["by_age_group"]["adult"][0]["field_id"], "Id10477")
         self.assertEqual(summary["by_age_group"]["child"][0]["field_id"], "Id10478")
+
+    def test_build_field_endorsement_rows_ranks_positive_rate(self):
+        inventory = {
+            "adult": {
+                "fields": [
+                    {
+                        "field_id": "Id10477",
+                        "field_label": "Narration keywords",
+                        "short_label": "Narration keywords",
+                        "domain": "keywords",
+                        "included_in_score": True,
+                        "rules": [
+                            {
+                                "signal_type": "multiselect_any_positive",
+                                "positive_values": ["Fever"],
+                            }
+                        ],
+                    },
+                    {
+                        "field_id": "Id10135",
+                        "field_label": "Asthma",
+                        "short_label": "Asthma",
+                        "domain": "symptoms",
+                        "included_in_score": True,
+                        "rules": [{"signal_type": "yes_only", "positive_values": ["yes"]}],
+                    },
+                ]
+            },
+            "child": {"fields": []},
+            "neonate": {"fields": []},
+        }
+        submission_rows = [
+            {
+                "payload_data": {"Id10477": "Fever", "Id10135": "yes"},
+                "va_smartva_outcome": "success",
+                "va_smartva_resultfor": "adult",
+                "va_smartva_cause1": "TB",
+            },
+            {
+                "payload_data": {"Id10477": "Fever", "Id10135": "no"},
+                "va_smartva_outcome": "success",
+                "va_smartva_resultfor": "adult",
+                "va_smartva_cause1": "Undetermined",
+            },
+        ]
+
+        rows = build_field_endorsement_rows(submission_rows, inventory)
+        adult_all = [row for row in rows if row["age_group"] == "adult" and row["scope"] == "all"]
+
+        self.assertEqual(adult_all[0]["field_id"], "Id10477")
+        self.assertEqual(adult_all[0]["field_label"], "Narration keywords")
+        self.assertEqual(adult_all[0]["positive_rate"], 1.0)
+        self.assertEqual(adult_all[1]["field_id"], "Id10135")
+        self.assertEqual(adult_all[1]["positive_rate"], 0.5)
+
+    def test_build_field_endorsement_summary_returns_top_rows(self):
+        endorsement_rows = [
+            {
+                "age_group": "adult",
+                "scope": "all",
+                "field_id": "Id10477",
+                "field_label": "Keywords",
+                "positive_rate": 0.9,
+            },
+            {
+                "age_group": "adult",
+                "scope": "all",
+                "field_id": "Id10135",
+                "field_label": "Asthma",
+                "positive_rate": 0.5,
+            },
+            {
+                "age_group": "child",
+                "scope": "all",
+                "field_id": "Id10478",
+                "field_label": "Child keywords",
+                "positive_rate": 0.8,
+            },
+            {
+                "age_group": "adult",
+                "scope": "determined",
+                "field_id": "Id99999",
+                "field_label": "Ignored for overall",
+                "positive_rate": 1.0,
+            },
+        ]
+
+        summary = build_field_endorsement_summary(endorsement_rows, top_n=1)
+
+        self.assertEqual(summary["overall_top_fields"][0]["field_id"], "Id10477")
+        self.assertEqual(summary["by_age_group"]["adult"][0]["field_id"], "Id10477")
+        self.assertEqual(summary["by_age_group"]["child"][0]["field_id"], "Id10478")
+
+    def test_build_who_to_tariff_markdown_includes_bottom_writeup(self):
+        markdown = build_who_to_tariff_markdown(
+            [
+                {
+                    "age_group": "adult",
+                    "field_id": "Id10134",
+                    "field_label": "Diabetes",
+                    "short_label": "Diabetes",
+                    "smartva_parameter": "s7",
+                    "smartva_parameter_label": "Previous diagnosis of Diabetes",
+                    "positive_count": 10,
+                    "total_count": 100,
+                    "positive_rate": 0.1,
+                }
+            ],
+            filters={"project_code": "ICMR01", "site_id": None, "form_id": None, "limit": None},
+        )
+
+        self.assertIn("## Adult", markdown)
+        self.assertIn("### HCE Option", markdown)
+        self.assertIn("### Free-Text Option", markdown)

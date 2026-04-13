@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-13
 ---
 
 # SmartVA Analysis
@@ -540,13 +540,22 @@ payloads and active SmartVA projections, then writes analysis artifacts under
 - `smartva_richness_per_submission.csv`
 - `smartva_richness_comparison.csv`
 - `smartva_field_differentiators.csv`
+- `smartva_field_endorsement_rankings.csv`
+- `smartva_who_to_tariff_parameters.csv`
+- `smartva_who_to_tariff_parameters.md`
 - `smartva_richness_summary.json`
 
 Scoring is per submission, but field scope and technical inventory are age-group
 specific (`adult`, `child`, `neonate`). The comparison artifact includes
 determined versus undetermined richness summaries overall and by age group. The
 field differentiator artifact reports field-level positive-rate deltas for
-determined versus undetermined submissions within each age group.
+determined versus undetermined submissions within each age group. Field-facing
+outputs now use `short_label` from field config where available, and the
+endorsement ranking artifact shows the most positively endorsed SmartVA-scored
+fields by age group. The WHO-to-tariff artifacts add a field-level trace from
+original WHO question ids and labels to downstream tariff-applied SmartVA
+parameters, plus field endorsement percentages and a short writeup on retained,
+collapsed, transformed, HCE-gated, and free-text-gated features.
 
 ### SmartVA source reference
 

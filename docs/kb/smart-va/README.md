@@ -1,0 +1,54 @@
+---
+title: SmartVA Symptom KB
+doc_type: kb
+status: active
+owner: engineering
+last_updated: 2026-04-13
+---
+
+# SmartVA Symptom KB
+
+This folder is a symptom-by-symptom knowledge base for the current `smart-va-pipeline` behavior.
+
+Each document starts from one WHO symptom family, then traces it forward through:
+
+1. WHO questionnaire fields
+2. PHMRC-style intermediate variables
+3. symptom-stage variables
+4. tariff-applied SmartVA features
+
+Use this folder when the question is:
+
+- which WHO fields actually survive into SmartVA
+- which fields are retained as separate SmartVA signals
+- which fields collapse together before tariff application
+- which fields are transformed into bucketed or thresholded features
+- which symptom families differ across adult, child, and neonate
+
+Related current-state background:
+
+- [SmartVA Analysis](../../current-state/smartva-analysis.md)
+- [SmartVA Keyword And Free-Text Processing](../../current-state/smartva-keyword-processing.md)
+
+## Symptom Documents
+
+- [Fever](fever.md)
+- [Cough](cough.md)
+- [Diarrhea](diarrhea.md)
+- [Breathing Difficulty](breathing-difficulty.md)
+- [Rash](rash.md)
+- [Convulsions](convulsions.md)
+- [Unconsciousness](unconsciousness.md)
+- [Jaundice](jaundice.md)
+- [Swelling](swelling.md)
+
+## Reading Notes
+
+- `retained` means the WHO concept survives as its own SmartVA feature.
+- `transformed` means the WHO answer is bucketed or thresholded before tariff application.
+- `collapsed` means multiple WHO inputs converge to the same downstream SmartVA feature.
+- `ignored` means the WHO concept does not appear as a first-class SmartVA feature in the current pipeline.
+
+## Scope
+
+These notes describe the current implementation only. They do not describe ideal behavior or propose fixes.

@@ -3,7 +3,7 @@ title: Docs Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-04-13
 ---
 
 # DigitVA Docs
@@ -20,6 +20,10 @@ These documents describe the current implementation as it exists today.
 - [Workflow And Permissions](current-state/workflow-and-permissions.md)
 - [Admin And Setup Model](current-state/admin-and-setup.md)
 - [Runtime And Operations](current-state/runtime-and-operations.md)
+
+## Knowledge Base
+
+- [SmartVA Symptom KB](kb/smart-va/README.md)
 
 ## Planning
 

@@ -35,3 +35,13 @@ Completed in this batch:
 - `docs/kb/smart-va/chest-pain.md` for the adult WHO chest-pain family
 - `docs/kb/smart-va/lumps.md` for WHO `Id10254` through `Id10257`
 - `docs/kb/smart-va/skin-other.md` for WHO `Id10237`, `Id10238`, `Id10239`, `Id10240`, and `Id10242` through `Id10246`
+- `docs/kb/smart-va/neonatal-physical-abnormality.md` for WHO `Id10277` through `Id10279`
+- `docs/kb/smart-va/neonatal-unresponsive.md` for WHO `Id10281` through `Id10283`
+- `docs/kb/smart-va/neonatal-period-general.md` for WHO `Id10354` and `Id10367`
+- `docs/kb/smart-va/neonatal-cry.md` for WHO `Id10104` through `Id10107`
+- `docs/kb/smart-va/neonatal-birth-condition.md` for WHO `Id10109` through `Id10116`
+- `docs/kb/smart-va/neonatal-birth-weight.md` for WHO `Id10363`, `Id10365`, and `Id10366`
+- `docs/kb/smart-va/neonatal-fetal-movement.md` for WHO `Id10376` and `Id10377`
+- `docs/kb/smart-va/neonatal-delivery.md` for WHO `Id10369`, `Id10382` through `Id10385`, `Id10387` through `Id10389`, and `Id10403` through `Id10405`
+- `docs/kb/smart-va/neonatal-danger-signs.md` for WHO `Id10284`, `Id10286` through `Id10289`
+- `docs/kb/smart-va/neonatal-blue-at-birth.md` for WHO `Id10406`

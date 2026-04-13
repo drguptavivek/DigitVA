@@ -23,7 +23,8 @@ Related docs:
 | WHO field | Label |
 |---|---|
 | `Id10247` | Puffiness of face |
-| duration field(s) for puffiness | Duration of puffiness |
+| `Id10248` | Duration of puffiness of the face in days |
+| `Id10248_b` | Duration of puffiness of the face in months |
 | `Id10252` | General swelling of the body |
 | `Id10249` | Swollen legs or feet |
 | duration field(s) for swelling | Duration of swelling |
@@ -35,7 +36,8 @@ Related docs:
 | WHO source | PHMRC-style variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
 | `Id10247` | `adult_2_25 -> a2_25` | `s42` | retained as puffiness of face |
-| puffiness duration field(s) | `adult_2_26 -> a2_26` | `s43` | separate duration feature |
+| `Id10248` + `Id10248_units=days` | `adult_2_26 -> a2_26a -> a2_26` | `s43` | retained as the puffiness-duration feature |
+| `Id10248_b` + `Id10248_units=months` | `adult_2_26 -> a2_26b -> a2_26` | `s43` | retained as the same puffiness-duration feature after unit normalization |
 | `Id10252` | `adult_2_27 -> a2_27` | `s44` | retained as general puffiness of body |
 | general-swelling duration field(s) | `adult_2_28 -> a2_28` | `s45` | separate duration feature |
 | `Id10249` and related leg/feet-swelling fields | adult swelling path in the WHO adapter | downstream adult edema/swelling family | present in the WHO questionnaire, but the adapter path is less explicit than the face/body-puffiness path |
@@ -44,6 +46,21 @@ Related docs:
 ### Adult Summary
 
 Adult swelling is represented as a structured edema/puffiness family with separate face, general-body, and duration signals. Narrative text adds a separate word lane.
+
+For the WHO `247-248` puffiness block specifically:
+
+- `Id10247` -> `s42` for puffiness of face
+- `Id10248` / `Id10248_b` -> `s43` for duration of puffiness
+
+The duration path is explicit in the current adapter:
+
+1. WHO days or months value
+2. `adult_2_26`
+3. split to `a2_26a` or `a2_26b` by units
+4. normalized back to `a2_26`
+5. tariff-applied duration feature `s43`
+
+So puffiness of the face and duration of puffiness remain separate SmartVA features. They do not collapse into one single puffiness variable before tariff application.
 
 ## Child
 
@@ -99,7 +116,7 @@ Neonatal swelling is not modeled as a simple edema family. It is represented thr
 
 ## Current-State Takeaways
 
-- adult swelling: structured edema/puffiness family plus narrative word lane
+- adult swelling: structured face-puffiness, structured puffiness duration, broader edema family, plus narrative word lane
 - child swelling: peripheral swelling plus skin and armpit-related swelling families
 - neonate swelling: broader skin/infection-family representation rather than a direct edema family
 

@@ -31,3 +31,7 @@ Expected Scope:
 
 Completed in this batch:
 - `docs/kb/smart-va/medical-history.md` for WHO `Id10125` through `Id10144`
+- `docs/kb/smart-va/risk-factors.md` for WHO `Id10411` through `Id10414` and `Id10487`
+- `docs/kb/smart-va/chest-pain.md` for the adult WHO chest-pain family
+- `docs/kb/smart-va/lumps.md` for WHO `Id10254` through `Id10257`
+- `docs/kb/smart-va/skin-other.md` for WHO `Id10237`, `Id10238`, `Id10239`, `Id10240`, and `Id10242` through `Id10246`

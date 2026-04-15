@@ -14,6 +14,7 @@ It is not exhaustive. It is a scan-friendly matrix of the highest-value gaps fou
 
 Related docs:
 
+- [Dead Or Disconnected SmartVA Bridges](dead-or-disconnected-smartva-bridges.md)
 - [Adult WHO To SmartVA Gap Audit](adult-who-to-smartva-gap-audit.md)
 - [Child WHO To SmartVA Gap Audit](child-who-to-smartva-gap-audit.md)
 - [Neonate WHO To SmartVA Gap Audit](neonate-who-to-smartva-gap-audit.md)

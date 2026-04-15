@@ -40,6 +40,7 @@ Related current-state background:
 - [Adult WHO To SmartVA Gap Audit](adult-who-to-smartva-gap-audit.md)
 - [Child WHO To SmartVA Gap Audit](child-who-to-smartva-gap-audit.md)
 - [Neonate WHO To SmartVA Gap Audit](neonate-who-to-smartva-gap-audit.md)
+- [Dead Or Disconnected SmartVA Bridges](dead-or-disconnected-smartva-bridges.md)
 - [Cross Age WHO To SmartVA Gap Matrix](cross-age-who-to-smartva-gap-matrix.md)
 - [Interview Details](interview-details-interview.md)
 - [Demographic General](demographic-general.md)

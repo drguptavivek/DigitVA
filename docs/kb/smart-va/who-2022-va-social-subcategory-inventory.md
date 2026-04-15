@@ -73,7 +73,7 @@ Related docs:
 | Neonatal Feeding Symptoms | unresponsive | `Id10281`, `Id10282`, `Id10283` | [Neonatal Unresponsive](neonatal-unresponsive.md) |
 | Maternal Symptoms | general | `Id10296`, `Id10299`, `Id10300`, `Id10301`, `Id10294`, `Id10340` | [Maternal General](maternal-general.md) |
 | Maternal Symptoms | Periods, Delivery, Miscarriage,  Abortion before death | `Id10302`, `Id10303`, `Id10305`, `Id10312`, `Id10314`, `Id10306`, `Id10334`, `Id10333`, `Id10308`, `Id10310` | [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md) |
-| Maternal Symptoms | antenatal | `Id10319`, `Id10317`, `Id10309`, `Id10320`, `Id10321`, `Id10323`, `Id10324`, `Id10304`, `Id10304_a`, `Id10322_a`, `Id10325`, `Id10329_b`, `Id10327` | pending |
+| Maternal Symptoms | antenatal | `Id10319`, `Id10317`, `Id10309`, `Id10320`, `Id10321`, `Id10323`, `Id10324`, `Id10304`, `Id10304_a`, `Id10322_a`, `Id10325`, `Id10329_b`, `Id10327` | [Maternal Antenatal](maternal-antenatal.md) |
 | Maternal Symptoms | delivery | `Id10337`, `Id10332`, `Id10342`, `Id10343`, `Id10344`, `Id10331`, `Id10330`, `Id10328`, `Id10322_b`, `Id10329_a` | pending |
 | Health Service Utilisation | treatment | `Id10418`, `Id10419`, `Id10420`, `Id10421`, `Id10422`, `Id10423`, `Id10424`, `Id10425`, `Id10426` | pending |
 | Health Service Utilisation | hcw_cod | `Id10435`, `Id10436` | pending |

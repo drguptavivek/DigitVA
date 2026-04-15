@@ -68,7 +68,7 @@ Related docs:
 | Skin / Mucosal Symptoms | skin_rash | `Id10233`, `Id10234`, `Id10235`, `Id10236` | [Rash](rash.md) |
 | Skin / Mucosal Symptoms | lumps | `Id10254`, `Id10255`, `Id10256`, `Id10257` | [Lumps](lumps.md) |
 | Skin / Mucosal Symptoms | others | `Id10237`, `Id10238`, `Id10239`, `Id10240`, `Id10242`, `Id10243`, `Id10244`, `Id10245`, `Id10246` | [Skin Other](skin-other.md) |
-| Neonatal Feeding Symptoms | feeding | `Id10271`, `Id10272`, `Id10273`, `Id10274_c`, `Id10274` | pending |
+| Neonatal Feeding Symptoms | feeding | `Id10271`, `Id10272`, `Id10273`, `Id10274_c`, `Id10274` | [Neonatal Feeding](neonatal-feeding.md) |
 | Neonatal Feeding Symptoms | physical_abnormalality | `Id10277`, `Id10278`, `Id10279` | [Neonatal Physical Abnormality](neonatal-physical-abnormality.md) |
 | Neonatal Feeding Symptoms | unresponsive | `Id10281`, `Id10282`, `Id10283` | [Neonatal Unresponsive](neonatal-unresponsive.md) |
 | Maternal Symptoms | general | `Id10296`, `Id10299`, `Id10300`, `Id10301`, `Id10294`, `Id10340` | pending |

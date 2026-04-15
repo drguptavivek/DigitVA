@@ -89,6 +89,7 @@ Related current-state background:
 - [Medical Documents](medical-documents.md)
 - [Death Documents](death-documents.md)
 - [Interviewer Final Comment](iv-final.md)
+- [Social Autopsy](social-autopsy.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 - [Injuries](injuries.md)
 

@@ -86,6 +86,7 @@ Related current-state background:
 - [Health Service Mother Related](health-service-mother-related.md)
 - [Death Registration](death-registration.md)
 - [Medical Certificates](medical-certs.md)
+- [Medical Documents](medical-documents.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 - [Injuries](injuries.md)
 

@@ -79,7 +79,7 @@ Related docs:
 | Health Service Utilisation | hcw_cod | `Id10435`, `Id10436` | [Health Service HCW Cause Of Death](health-service-hcw-cod.md) |
 | Health Service Utilisation | mother_related | `Id10446` | [Health Service Mother Related](health-service-mother-related.md) |
 | Narration / Documents | narration | `narr_language`, `Id10476_audio`, `imagenarr`, `Id10476`, `Id10477`, `Id10478`, `Id10479` | [SmartVA Keyword And Free-Text Processing](../../current-state/smartva-keyword-processing.md) |
-| Narration / Documents | death_registeration | `Id10070`, `Id10071`, `Id10072` | pending |
+| Narration / Documents | death_registeration | `Id10070`, `Id10071`, `Id10072` | [Death Registration](death-registration.md) |
 | Narration / Documents | medical_certs | `Id10462`, `Id10463`, `Id10464`, `Id10465`, `Id10466`, `Id10467`, `Id10468`, `Id10469`, `Id10470`, `Id10471`, `Id10472`, `Id10473` | pending |
 | Narration / Documents | medical_documents | `md_im1`, `md_im2`, `md_im3`, `md_im4`, `md_im5`, `md_im6`, `md_im7`, `md_im8`, `md_im9`, `md_im10`, `md_im11`, `md_im12`, `md_im13`, `md_im14`, `md_im15`, `md_im16`, `md_im17`, `md_im18`, `md_im19`, `md_im20`, `md_im21`, `md_im22`, `md_im23`, `md_im24`, `md_im25`, `md_im26`, `md_im27`, `md_im28`, `md_im29`, `md_im30` | pending |
 | Narration / Documents | death_documents | `ds_im1`, `ds_im2`, `ds_im3`, `ds_im4`, `ds_im5` | pending |

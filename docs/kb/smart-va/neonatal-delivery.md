@@ -3,7 +3,7 @@ title: SmartVA Neonatal Delivery Trace
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-04-15
 ---
 
 # Neonatal Delivery
@@ -36,43 +36,37 @@ Related docs:
 
 | WHO source | PHMRC-style variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| `Id10403` | `child_2_1 -> complications5 -> c2_01_5` | `s37` | retained as `Complications: Child delivered non-headfirst` |
-| `Id10405` | `child_2_1 -> complications6 -> c2_01_6` | `s38` | retained as `Complications: Cord delivered first` |
-| `Id10404` | `child_2_1 -> complications7 -> c2_01_7` | `s39` | retained as `Complications: Cord around child's neck` |
-| `Id10385` | `child_2_8 -> c2_08a` | `s51 -> s51991` | transformed into the non-normal-liquor-color feature |
-| `Id10382` | `child_2_10a -> child_2_10 -> c2_10` | `s53` | transformed into the prolonged labor-and-delivery threshold feature |
-| `Id10384` | likely `child_2_9 -> c2_09` | `s52` | downstream foul-smelling-liquor feature exists, but the exact WHO adapter line is less explicit in this fork |
-| `Id10387` / `Id10388` / `Id10389` | likely `child_2_17 -> c2_17` | `s58991 / s58992 / s58994` | delivery mode survives downstream, but the exact visible WHO adapter lines are less explicit here |
-| `Id10369` | likely expands into the `child_2_1` complications family | `s33` through `s43` | the complication family clearly exists downstream, but this exact WHO field is not shown as a single direct map in the visible adapter tables |
-| `Id10383` | likely `child_2_7 -> c2_07` | `s50991` | downstream water-broke-early feature exists, but the exact visible WHO adapter line is less explicit here |
+| `Id10403` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications5 -> c2_01_5` | `s37` | retained as `child delivered not head first` |
+| `Id10405` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications6 -> c2_01_6` | `s38` | retained as `cord first` |
+| `Id10404` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications7 -> c2_01_7` | `s39` | retained as `cord around child's neck` |
+| `Id10385` | `RECODE_QUESTIONS -> child_2_8 -> c2_08a` | `s51 -> s51991` | explicit visible WHO mapping for non-normal liquor color |
+| `Id10382` | `RENAME_QUESTIONS -> child_2_10a`, then `UNIT_IF_AMOUNT -> child_2_10 -> c2_10` | `s53` | explicit visible WHO mapping for prolonged labor-and-delivery threshold |
+| `Id10384` | downstream `child_2_9 -> c2_09` exists | `s52` | foul-smelling-liquor feature exists downstream, but no visible WHO 2022 source mapping is surfaced in this fork |
+| `Id10383` | downstream `child_2_7 -> c2_07` exists | `s50 -> s50991` | water-broke-early feature exists downstream, but no visible WHO 2022 source mapping is surfaced in this fork |
+| `Id10387`, `Id10388`, `Id10389` | no visible mapping to `child_2_17` from this displayed block | none from these visible fields | not the current source of delivery-mode retention |
+| `Id10342`, `Id10343`, `Id10344` from the maternal delivery block | `who_prep.map_neonate_delivery_type() -> child_2_17 -> c2_17` | `s58991`, `s58992`, `s58994` | current delivery-mode retention comes from these fields instead |
+| `Id10369` | no visible direct mapping | none from this aggregate field | the retained complication family is built from specific yes/no delivery/maternal fields instead of this aggregate prompt |
 
 ## Current-State Summary
 
-This delivery block is partly explicit and partly adapter-shaped.
+The visible neonatal delivery block splits into three categories.
 
-Clearly retained in the visible WHO adapter:
+Explicitly wired from visible WHO 2022 fields:
 
-- non-headfirst delivery: `s37`
-- cord first: `s38`
-- cord around neck: `s39`
-- non-normal liquor color: `s51991`
-- prolonged labor and delivery: `s53`
+- `Id10403 -> s37`
+- `Id10405 -> s38`
+- `Id10404 -> s39`
+- `Id10385 -> s51991`
+- `Id10382 -> s53`
 
-Clearly present downstream, but less explicit in the visible WHO adapter tables:
+Present downstream but not visibly fed by the displayed block in this fork:
 
-- foul-smelling liquor: `s52`
-- delivery mode: `s58991`, `s58992`, `s58994`
-- broader delivery complications family: `s33` through `s43`
-- water-broke-early feature: `s50991`
+- `s52` foul-smelling liquor
+- `s50` / `s50991` baby born one day or more after waters broke
+- delivery mode `s58991`, `s58992`, `s58994`
 
-## Important Caveat
+Not retained from the displayed aggregate field:
 
-This is one of the more compressed WHO-to-SmartVA areas for neonates.
+- `Id10369`
 
-Several WHO delivery questions do not survive as raw questionnaire detail. Instead they are narrowed into:
-
-1. one-hot complication features
-2. thresholded duration or timing features
-3. reduced delivery-mode categories
-
-So the current pipeline keeps the high-value delivery signals, but not the full delivery detail from the WHO form.
+So the delivery block is now fully characterized: some visible WHO fields are explicit, while other neonatal-delivery symptoms are currently fed by older or separate source fields, not by the visible `Id10383` to `Id10389` block.

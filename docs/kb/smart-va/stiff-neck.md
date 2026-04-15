@@ -3,7 +3,7 @@ title: SmartVA Stiff Neck Trace
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-04-15
 ---
 
 # Stiff Neck
@@ -32,32 +32,11 @@ Related docs:
 | WHO source | PHMRC-style variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
 | `Id10208` | `adult_2_72 -> a2_72` | `s92` | retained as stiff neck |
-| duration detail | downstream `adult_2_73 -> a2_73` family | `s93` | separate duration feature exists downstream |
+| adult duration family in the downstream model | `adult_2_73 -> a2_73a/a2_73b -> a2_73` | `s93` | downstream stiff-neck duration feature exists |
+| visible WHO fields `Id10209`, `Id10209_b` | no explicit `who_data.py` or `who_prep.py` mapping to `adult_2_73` in this fork | none from the visible WHO block | not visibly wired from the displayed WHO block |
 | `Id10476` contains neck-related words | `adult_7_c -> a7_01` | `s9999113` and related words | weak narrative word lane |
 
-### Adult Summary
-
-The adult pipeline clearly retains a structured stiff-neck family:
-
-- `s92` for stiff neck
-- `s93` for duration / thresholded duration
-
-Important current-state caveat:
-
-The downstream adult symptom family is explicit, but the WHO-side adapter wiring for `Id10209` and `Id10209_b` is less explicit in this fork than the downstream symptom model. So the safe reading is:
-
-1. `Id10208` definitely survives as `s92`
-2. a separate duration feature `s93` definitely exists downstream
-3. the exact WHO 2022 duration-field adapter path is less explicit than the downstream symptom family
-
 ## Child
-
-### WHO Question Group
-
-| WHO field | Label |
-|---|---|
-| `Id10208` | Stiff or painful neck? |
-| `Id10476` | Narration |
 
 ### Forward Trace
 
@@ -66,17 +45,7 @@ The downstream adult symptom family is explicit, but the WHO-side adapter wiring
 | `Id10208` | `child_4_28 -> c4_28` | `s136` | retained as stiff neck |
 | `Id10476` narrative | `child_6_c -> c6_01` | `s999932` and related words | weak narrative word lane |
 
-### Child Summary
-
-The child pipeline retains one direct structured stiff-neck feature: `s136`.
-
 ## Neonate
-
-### WHO Question Group
-
-| WHO field | Label |
-|---|---|
-| `Id10208` and `Id10209*` | stiff-neck block |
 
 ### Forward Trace
 
@@ -84,13 +53,9 @@ The child pipeline retains one direct structured stiff-neck feature: `s136`.
 |---|---|---|---|
 | `Id10208` and `Id10209*` | no neonate WHO-to-PHMRC mapping in the current adapter | none | ignored for neonate tariff scoring |
 
-### Neonate Summary
-
-The neonate pipeline does not expose a direct stiff-neck family from this WHO block.
-
 ## Current-State Takeaways
 
-- adult stiff neck: structured family plus a weak narrative word lane
-- child stiff neck: one direct structured feature plus a weak narrative word lane
-- neonate stiff neck: this WHO block is not used in the current tariff path
-- adult and child stiff-neck evidence is not collapsed into one shared cross-age variable; each age group has its own symptom namespace
+- adult stiff neck presence is explicitly retained: `Id10208 -> s92`
+- adult stiff-neck duration `s93` exists downstream, but the visible WHO 2022 duration fields are not explicitly wired into it in this fork
+- child stiff neck is explicitly retained: `Id10208 -> s136`
+- neonate does not expose a direct stiff-neck family from this WHO block

@@ -24,6 +24,7 @@ Related docs:
 | `Id10121` | Duration of illness in months before death |
 | `Id10122` | Duration of illness in years before death |
 | `Id10120` | Duration of illness in days before death |
+| `Id10120_1` | WHO-prepared helper day value used by the child/neonate mapper |
 
 ## Forward Trace
 
@@ -31,48 +32,43 @@ Related docs:
 
 | WHO source | PHMRC-style / prep variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| illness-duration inputs from this WHO block | `adult_2_1` with unit/value split through `adult_2_1a` to `adult_2_1d` -> `a2_01a/a2_01b -> a2_01` | `s15` | retained as adult illness duration and thresholded at 30 days |
-| `Id10123` | no explicit adult WHO override for sudden death in this block | none | no separate adult sudden-death feature is visible from this WHO block |
+| adult illness-duration family in the downstream model | `adult_2_1 -> a2_01a/a2_01b -> a2_01` | `s15` | the adult SmartVA model has this duration feature |
+| visible WHO fields `Id10120`, `Id10121`, `Id10122` | no explicit `who_data.py` or `who_prep.py` mapping to `adult_2_1` in this fork | none from the visible WHO 2022 block | not explicitly wired from the displayed WHO block |
+| `Id10123` | no adult WHO 2022 override for sudden death | none | no separate adult sudden-death feature is exposed from this block |
 
 ### Child
 
 | WHO source | PHMRC-style / prep variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| `Id10120` days, using the WHO-calculated day field `Id10120_1` | `who_prep.map_child_illness_duration() -> child_1_21a`, with `child_1_21 = 4` | `c1_21 -> s29` | retained as child illness duration |
-| `Id10121` months | `who_prep.map_child_illness_duration() -> child_1_21b`, with `child_1_21 = 2` | `c1_21 -> s29` | retained as child illness duration |
-| `Id10122` years | `who_prep.map_child_illness_duration() -> child_1_21c`, then normalized into the month branch with `child_1_21 = 2` | `c1_21 -> s29` | retained as child illness duration after year-to-month conversion |
-| `Id10123` | `child_3_49 -> c3_49` exists in WHO 2022 overrides, but no child symptom-stage retention is visible | none | no first-class child sudden-death feature is retained in the child tariff path |
+| `Id10120_1` | `who_prep.map_child_illness_duration() -> child_1_21a`, with `child_1_21 = 4` | `c1_21 -> s29` | retained as child illness duration |
+| `Id10121` | `who_prep.map_child_illness_duration() -> child_1_21b`, with `child_1_21 = 2` | `c1_21 -> s29` | retained as child illness duration |
+| `Id10122` | `who_prep.map_child_illness_duration() -> child_1_21c`, then normalized into the month branch with `child_1_21 = 2` | `c1_21 -> s29` | retained as child illness duration after year-to-month conversion |
+| `Id10123` | `child_3_49 -> c3_49` exists in the downstream child/neonate model | none on the child tariff path | not retained as a first-class child symptom |
 
 ### Neonate
 
 | WHO source | PHMRC-style / prep variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| `Id10120` days, using the WHO-calculated day field `Id10120_1` | `who_prep.map_child_illness_duration() -> child_1_21a`, with `child_1_21 = 4` | `c1_21 -> s29` | retained as neonate illness duration |
-| `Id10121` months | `who_prep.map_child_illness_duration() -> child_1_21b`, with `child_1_21 = 2` | `c1_21 -> s29` | retained as neonate illness duration |
-| `Id10122` years | `who_prep.map_child_illness_duration() -> child_1_21c`, then normalized into the month branch with `child_1_21 = 2` | `c1_21 -> s29` | retained as neonate illness duration after year-to-month conversion |
+| `Id10120_1` | `who_prep.map_child_illness_duration() -> child_1_21a`, with `child_1_21 = 4` | `c1_21 -> s29` | retained as neonate illness duration |
+| `Id10121` | `who_prep.map_child_illness_duration() -> child_1_21b`, with `child_1_21 = 2` | `c1_21 -> s29` | retained as neonate illness duration |
+| `Id10122` | `who_prep.map_child_illness_duration() -> child_1_21c`, then normalized into the month branch with `child_1_21 = 2` | `c1_21 -> s29` | retained as neonate illness duration after year-to-month conversion |
 | `Id10123` | `child_3_49 -> c3_49` | `s109` | retained on the neonate path as `appeared healthy and then just die suddenly` |
 
 ## Current-State Summary
 
-Adult, child, and neonate do not use this block in the same way.
+The visible WHO duration block is explicit for child and neonate, but not for adult.
 
-- adult keeps one illness-duration feature: `s15`
-- child keeps one illness-duration feature: `s29`
-- neonate keeps one illness-duration feature: `s29`, plus a separate sudden-death feature `s109`
+- adult: the downstream SmartVA model has `s15`, but this fork does not expose a visible WHO 2022 mapping from `Id10120` to `Id10122` into `adult_2_1`
+- child: `Id10120_1`, `Id10121`, and `Id10122` are explicitly normalized into `s29`
+- neonate: the same duration helper path feeds `s29`, and `Id10123` additionally feeds `s109`
 
-So `Id10123` is not just another duration input. In the current WHO 2022 override path, it becomes neonate-only sudden-death signal.
+So the current adult WHO 2022 adapter is materially less explicit here than the child and neonate path.
 
 ## Thresholding
 
-- adult: `s15` means illness longer than 30 days
+- adult model: `s15` means illness longer than 30 days
 - child: `s29` means illness lasted at least 8 days
 - neonate: `s29` means illness lasted at least 3 days
-
-## Important Caveat
-
-The child and neonate duration mapper explicitly reads `Id10120_1`, not the visible UI field `Id10120` directly. That means the smart-va-pipeline is relying on the WHO-prepared day value rather than the raw display field alone.
-
-For adult duration, the downstream path is clear, but the WHO-side builder for `adult_2_1` is less explicit in this fork than the child/neonate helper in `who_prep.py`.
 
 ## Code Map
 

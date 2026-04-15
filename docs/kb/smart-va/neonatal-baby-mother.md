@@ -35,30 +35,35 @@ Related docs:
 
 | WHO source | PHMRC-style / prep variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| `Id10399` | `child_2_1 -> complications1 -> c2_01_1` | `s33` | retained as maternal convulsions complication |
-| `Id10396` | `child_2_1 -> complications2 -> c2_01_2` | `s34` | retained as maternal hypertension complication |
-| `Id10401` | `child_2_1 -> complications3 -> c2_01_3` | `s35` | retained as maternal severe-anemia complication |
-| `Id10397` | `child_2_1 -> complications4 -> c2_01_4` | `s36` | retained as maternal diabetes complication |
-| `Id10402` | `child_2_1 -> complications8 -> c2_01_8` | `s40` | retained as vaginal-bleeding complication |
-| `Id10395` | `child_2_1 -> complications9 -> c2_01_9` | `s41` | retained as maternal fever-during-labour complication |
-| `Id10391` | no visible WHO-to-PHMRC mapping from this field | none | not retained from this displayed subcategory |
-| `Id10393` | no visible WHO-to-PHMRC mapping from this field | none | not retained from this displayed subcategory |
-| `Id10398` | no visible WHO-to-PHMRC mapping from this field | none | not retained from this displayed subcategory |
-| `Id10400` | no visible WHO-to-PHMRC mapping from this field | none | not retained from this displayed subcategory |
+| `Id10399` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications1 -> c2_01_1` | `s33` | retained as maternal convulsions complication |
+| `Id10396` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications2 -> c2_01_2` | `s34` | retained as maternal hypertension complication |
+| `Id10401` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications3 -> c2_01_3` | `s35` | retained as maternal severe-anemia complication |
+| `Id10397` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications4 -> c2_01_4` | `s36` | retained as maternal diabetes complication |
+| `Id10402` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications8 -> c2_01_8` | `s40` | retained as vaginal-bleeding complication |
+| `Id10395` | `REVERSE_ONE_HOT_MULTISELECT -> child_2_1 -> complications9 -> c2_01_9` | `s41` | retained as maternal fever-during-labour complication |
+| `Id10391`, `Id10393`, `Id10398`, `Id10400` | no visible WHO-to-PHMRC mapping from this displayed block | none | not retained from this displayed subcategory |
+| downstream neonatal vaccination feature | `child_2_11 -> c2_11` | `s54` | exists in the neonate model, but the visible vaccination fields are not mapped into it in this fork |
 
 ## Cross-Subcategory Complication Merge
 
-The complication family fed by `child_2_1` does not come only from this displayed subcategory.
+The retained `child_2_1` complication family is built from multiple subcategories.
 
-The same downstream complication multiselect also includes delivery-side WHO fields:
+This `baby_mother` block contributes:
+
+- `Id10399`
+- `Id10396`
+- `Id10401`
+- `Id10397`
+- `Id10402`
+- `Id10395`
+
+The separate neonatal delivery block also contributes to the same family through:
 
 - `Id10403`
 - `Id10405`
 - `Id10404`
 
-Those live in the `Neonatal Period Details / delivery` subcategory, but they are merged into the same downstream `c2_01_*` complication family.
-
-So the current pipeline is not a one-to-one trace from the visible `baby_mother` UI block.
+So the current retained complication family is a deliberate cross-subcategory merge, not a one-subcategory-only structure.
 
 ## Current-State Summary
 
@@ -71,22 +76,13 @@ What this subcategory clearly contributes:
 - maternal vaginal bleeding
 - maternal fever during labour
 
-What it does not clearly contribute in this fork:
+What it does not currently contribute as visible retained WHO 2022 inputs:
 
-- adult-life vaccination field `Id10391`
-- tetanus toxoid field `Id10393`
-- foul-smelling vaginal discharge field `Id10398`
-- blurred vision field `Id10400`
+- vaccination fields `Id10391` and `Id10393`
+- foul-smelling vaginal discharge `Id10398`
+- blurred vision `Id10400`
 
-## Important Caveat
-
-There is a downstream neonatal vaccination feature `s54`, but in the current WHO adapter it is not fed from `Id10391` or `Id10393` in a visible one-to-one way here.
-
-So the safe current-state reading is:
-
-1. the displayed WHO subcategory is only partly retained
-2. the retained part is folded into the neonatal complications family
-3. that complications family also pulls fields from the delivery subcategory
+The earlier `cross-subcategory merge` note is now explicit and complete.
 
 ## Code Map
 

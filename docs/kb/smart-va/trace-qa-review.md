@@ -8,52 +8,54 @@ last_updated: 2026-04-15
 
 # SmartVA Trace QA Review
 
-This document is the second-pass QA review after the initial `WHO_2022_VA_SOCIAL` tracing pass.
+This document began as the second-pass QA review after the initial `WHO_2022_VA_SOCIAL` tracing pass.
 
-Its purpose is not to reopen every documented block. It identifies the KB pages where the current trace is explicitly partial, dependent on helper fields outside the visible block, or less explicit in the WHO adapter than in the downstream symptom/tariff layers.
+A third-pass deep trace has now been completed for every doc that was previously marked partial, helper-dependent, cross-subcategory, or free-text-branch-only.
 
 Related docs:
 
 - [WHO_2022_VA_SOCIAL Category / Subcategory Inventory](who-2022-va-social-subcategory-inventory.md)
 - [Uncategorized And System Fields](uncategorized-system-fields.md)
 - [SmartVA Agentic Tracing Instructions](agentic-tracing-instructions.md)
+- [Trace Summary Matrix](trace-summary-matrix.md)
 
-## QA Findings
+## Third-Pass Resolution Summary
 
-| KB doc | QA status | Why it still deserves a deeper pass |
+| KB doc | Previous QA status | Third-pass result |
 |---|---|---|
-| [Duration Of Illness](duration-of-illness.md) | partial | adult downstream duration path is clear, but the WHO-side builder for the adult duration variable is less explicit than the child/neonate helper path |
-| [Chest Pain](chest-pain.md) | partial | `Id10174` is clearly wired, but the visible WHO follow-up subfields are not all explicitly surfaced in the current adapter tables |
-| [Headache](headache.md) | partial | downstream symptom family is clear, but the exact WHO-side adapter wiring is less explicit than for simpler families |
-| [Mental Confusion](mental-confusion.md) | partial | downstream family is explicit, but the visible WHO-side mapping for `Id10212` and `Id10213*` is not fully explicit |
-| [Stiff Neck](stiff-neck.md) | partial | downstream family is explicit, but the exact WHO 2022 duration-field adapter path is less explicit |
-| [Swelling](swelling.md) | partial | face/body puffiness is clear, but the leg/feet swelling block is less explicit in the current adapter |
-| [Neonatal Delivery](neonatal-delivery.md) | partial | several visible WHO delivery fields likely feed downstream features, but the visible adapter lines are not all explicit in this fork |
-| [Neonatal Unresponsive](neonatal-unresponsive.md) | partial | `s94` is clear downstream, but the exact treatment of `Id10282` and `Id10283` timing split is still not fully explicit |
-| [Health History Neonate](health-history-neonate.md) | helper-dependent | the displayed subcategory depends on helper fields outside the visible block for the final duration bucket |
-| [Neonatal Baby Mother](neonatal-baby-mother.md) | cross-subcategory merge | the retained complication family is real, but it merges fields from the separate delivery subcategory |
-| [Maternal Delivery](maternal-delivery.md) | partial | visible WHO 2022 delivery fields are only partly retained; some downstream maternal-delivery symptoms still depend on older hidden fields |
-| [Medical Certificates](medical-certs.md) | free-text branch | certificate cause-text fields are retained through generic free-text handling rather than direct structured symptom mapping |
+| [Duration Of Illness](duration-of-illness.md) | partial | completed; child/neonate helper path is explicit and adult visible WHO 2022 mapping is explicitly absent in this fork |
+| [Chest Pain](chest-pain.md) | partial | completed; presence and duration are explicitly wired, while activity/location remain downstream-only without visible WHO 2022 mappings |
+| [Headache](headache.md) | partial | completed; downstream adult symptom family exists, but no visible WHO 2022 adapter path is surfaced |
+| [Mental Confusion](mental-confusion.md) | partial | completed; downstream adult symptom family exists, but no visible WHO 2022 adapter path is surfaced |
+| [Stiff Neck](stiff-neck.md) | partial | completed; adult/child presence is explicit and adult duration is explicitly not wired from visible WHO 2022 fields |
+| [Swelling](swelling.md) | partial | completed; adult puffiness/body-swelling path is explicit, and visible leg/feet-swelling fields are explicitly not wired in this fork |
+| [Neonatal Delivery](neonatal-delivery.md) | partial | completed; explicit visible retained subset separated from downstream features fed by hidden or other-subcategory fields |
+| [Neonatal Unresponsive](neonatal-unresponsive.md) | partial | completed; `Id10281` retained directly, and `Id10282`/`Id10283` are explicitly not mapped |
+| [Health History Neonate](health-history-neonate.md) | helper-dependent | completed; helper-driven `Id10351` to `s28` path is now explicit |
+| [Neonatal Baby Mother](neonatal-baby-mother.md) | cross-subcategory merge | completed; exact one-hot complication merge is explicit |
+| [Maternal Delivery](maternal-delivery.md) | partial | completed; visible retained subset and hidden older-source dependency are explicit |
+| [Medical Certificates](medical-certs.md) | free-text branch | completed; generic free-text retention path is explicit |
 
-## Sufficiently Closed Docs
+## Remaining QA Position
 
-The following types of docs look sufficiently closed for current-state purposes and do not need immediate deeper tracing unless requirements change:
+There are no remaining explicitly partial docs from the original second-pass list.
 
-- direct retained families with explicit WHO-to-symptom paths such as [Fever](fever.md), [Cough](cough.md), [Diarrhea](diarrhea.md), [Jaundice](jaundice.md), and [Neonatal Feeding](neonatal-feeding.md)
-- intentionally metadata-only or ignored blocks such as [Death Registration](death-registration.md), [Medical Documents](medical-documents.md), [Death Documents](death-documents.md), [Interviewer Final Comment](iv-final.md), and [Social Autopsy](social-autopsy.md)
-- blocks that are documented as mostly ignored in the current adapter and do not show evidence of hidden retained paths, such as [Smell Or Taste](smell-taste.md) and [Health Service Treatment](health-service-treatment.md)
+What still remains true, by design of the current codebase, is that some KB pages document one of these current-state patterns:
+
+1. visible WHO 2022 fields that are not wired into the current adapter
+2. downstream SmartVA symptom families that still depend on older hidden source fields
+3. generic free-text retention instead of named structured symptom mapping
+4. helper-field dependence outside the visible subcategory
+
+Those are no longer documentation gaps. They are part of the current implementation.
 
 ## Current-State Summary
 
-The KB now covers the full configured form, but the QA pass shows three recurring patterns:
+The KB is now closed for the current tracing pass:
 
-1. helper-field dependency outside the visible subcategory
-2. visible WHO 2022 fields feeding older PHMRC-style downstream structures only partly or indirectly
-3. free-text retention paths where a displayed field does not map to a named symptom directly
+- configured category/subcategory coverage is complete
+- uncategorized/system fields are covered
+- summary matrix is generated
+- previously partial docs have been deep-traced and completed
 
-So the KB is operationally complete, but not every doc is equally final.
-
-## Code Map
-
-- [SmartVA Agentic Tracing Instructions](agentic-tracing-instructions.md)
-- [Uncategorized And System Fields](uncategorized-system-fields.md)
+So any further work would be a new pass, not a continuation of the current one.

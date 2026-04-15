@@ -3,7 +3,7 @@ title: SmartVA Chest Pain Trace
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-04-15
 ---
 
 # Chest Pain
@@ -25,6 +25,7 @@ Related docs:
 | `Id10174` | Chest pain |
 | `Id10175` | Chest pain severe |
 | `Id10176` | Days before death the chest pain remained |
+| `Id10178` | Hidden helper used by the SmartVA prep for chest-pain duration in minutes |
 | `Id10179` | Chest pain lasted for in hours |
 | `Id10179_1` | Chest pain lasted for in days |
 | `Id10476` | Narration |
@@ -34,34 +35,27 @@ Related docs:
 | WHO source | PHMRC-style variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
 | `Id10174` | `adult_2_43 -> a2_43` | `s61` | retained as chest pain in the month preceding death |
-| PHMRC chest-pain duration bucket | `adult_2_44 -> a2_44` | `s62` | transformed into `pain greater than 24 hours` |
-| PHMRC pain-during-activity flag | `adult_2_45 -> a2_45` | `s63` | retained as pain during physical activity |
-| PHMRC chest-pain location | `adult_2_46 -> a2_46a -> s64` | `s64991` / `s64992` | transformed into location bins: chest vs left arm |
+| `Id10178`, `Id10179`, `Id10179_1` | `who_prep.map_adult_chest_pain_duration() -> adult_2_44 -> a2_44` | `s62` | explicit WHO prep path for chest-pain duration; only the `>24 hours` bucket is tariff-positive |
+| downstream adult chest-pain activity feature | `adult_2_45 -> a2_45` | `s63` | exists in the adult SmartVA model, but no visible WHO 2022 source mapping is surfaced in this fork |
+| downstream adult chest-pain location feature | `adult_2_46 -> a2_46a -> s64` | `s64991` / `s64992` | exists in the adult SmartVA model, but no visible WHO 2022 source mapping is surfaced in this fork |
+| `Id10175`, `Id10176` | no explicit WHO 2022 mapping to `adult_2_45` or `adult_2_46` | none from the visible WHO block | not visibly retained as first-class inputs in this fork |
 | `Id10476` contains `chest` / `pain` | `adult_7_c -> a7_01` | generic word features such as `s999935` and `s9999119` | weak narrative word lane |
 
 ### Adult Summary
 
-Adult chest pain is represented as a structured symptom family, not a single variable.
+For the current WHO 2022 adapter, the adult chest-pain family is narrower than the downstream adult SmartVA model.
 
-What is clearly retained downstream:
+What is explicitly wired from visible WHO fields:
 
-- `s61` chest pain present
-- `s62` pain greater than 24 hours
+- `Id10174 -> s61`
+- `Id10178` / `Id10179` / `Id10179_1 -> s62`
+
+What exists downstream but is not visibly fed from the WHO 2022 chest-pain block in this fork:
+
 - `s63` pain during physical activity
-- `s64991` / `s64992` pain location bins
+- `s64991` / `s64992` chest-pain location bins
 
-Important current-state caveat:
-
-The adapter clearly wires `Id10174` into `s61`, but the WHO-side mapping for the other chest-pain subfields is less explicit in this fork than the downstream PHMRC symptom model.
-
-So the safe current-state reading is:
-
-1. chest pain presence definitely survives
-2. duration / activity / location features definitely exist downstream
-3. those downstream features are part of the adult chest-pain family used by tariffs
-4. the exact WHO-field-to-PHMRC wiring for every chest-pain follow-up is less explicit than for simpler families like fever or puffiness
-
-There is no dedicated chest-pain keyword checklist path in the current WHO adapter. Narrative text can still emit generic `chest` and `pain` word features, but that is a weaker and less specific lane than the structured adult chest-pain family.
+So the current adult WHO 2022 path keeps chest-pain presence and duration, while the richer downstream activity/location features depend on non-visible or older sources not surfaced here.
 
 ## Child
 
@@ -77,10 +71,6 @@ There is no dedicated chest-pain keyword checklist path in the current WHO adapt
 |---|---|---|---|
 | child chest-related findings | child respiratory families such as breathing difficulty and chest in-drawing | no direct child chest-pain tariff family | represented through other respiratory features rather than chest pain |
 
-### Child Summary
-
-The child pipeline does not currently expose a direct chest-pain symptom family analogous to the adult one.
-
 ## Neonate
 
 ### WHO Question Group
@@ -95,16 +85,12 @@ The child pipeline does not currently expose a direct chest-pain symptom family 
 |---|---|---|---|
 | neonatal chest-related findings | neonatal respiratory / physical-abnormality families | no direct neonatal chest-pain tariff family | represented through other neonatal families rather than chest pain |
 
-### Neonate Summary
-
-The neonate pipeline does not currently expose a direct chest-pain symptom family.
-
 ## Current-State Takeaways
 
-- adult chest pain: structured multi-feature family plus a weak generic narrative word lane
+- adult chest pain: explicit WHO retention for presence and duration only
+- adult activity/location features exist in the SmartVA model but are not visibly fed by the WHO 2022 chest-pain block in this fork
 - child chest pain: no direct chest-pain family in the current tariff path
 - neonate chest pain: no direct chest-pain family in the current tariff path
-- adult chest pain is not collapsed into one single SmartVA variable before tariff application
 
 ## Code Map
 

@@ -23,34 +23,39 @@ Related docs:
 | `Id10351` | Age of baby since fatal illness started |
 | `Id10408` | The baby/the child grew normally before illness started |
 
+## Helper Fields Used By The Pipeline
+
+| WHO helper field | Role |
+|---|---|
+| `Id10352_a` | month-side helper for `child_1_20` |
+| `Id10352_b` | day-side helper for `child_1_20` |
+
 ## Forward Trace
 
 | WHO source | PHMRC-style / prep variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| `Id10351` | `child_1_20a` together with helper duration-unit fields feeding `child_1_20 -> c1_20` | `s28` | retained as age-at-fatal-illness-started, but the actual downstream duration bucket depends on helper fields outside the displayed subcategory |
+| `Id10351` | `RENAME_QUESTIONS -> child_1_20a` | helper only | visible onset-age value retained as one part of the onset-age family |
+| `Id10352_a` | `RENAME_QUESTIONS -> child_1_20b` | helper only | month-side helper retained |
+| `Id10352_b` | `RENAME_QUESTIONS -> child_1_20c` | helper only | day-side helper retained |
+| `Id10352_a` / `Id10352_b` | `UNIT_IF_AMOUNT -> child_1_20`, then `child_pre_symptom_data.RECODE_MAP -> c1_20` | `s28` | explicit helper-driven path to age-at-fatal-illness-started |
 | `Id10408` | none | none | ignored before symptom and tariff stages |
 
 ## Current-State Summary
 
-This subcategory contributes only one SmartVA-relevant concept in the current pipeline:
+This subcategory contributes one retained SmartVA concept:
 
 - age of the baby when the fatal illness started
 
-What does not survive from the displayed block:
+The key current-state detail is that the visible field `Id10351` is not sufficient by itself. The final retained path is built as:
 
-- the growth-normality question `Id10408`
+1. `Id10351 -> child_1_20a`
+2. helper fields `Id10352_a` and `Id10352_b` define the unit path
+3. `child_1_20 -> c1_20`
+4. `c1_20 -> s28`
 
-## Important Caveat
+So the earlier helper-dependency note is now explicit rather than partial.
 
-The displayed subcategory is not self-contained.
-
-`Id10351` alone does not define the full duration bucket used downstream. The prep path also depends on helper WHO fields such as `Id10352_a` and `Id10352_b`, which live outside this displayed subcategory.
-
-So the safe current-state reading is:
-
-1. `Id10351` is part of the retained age-at-onset path
-2. the final downstream bucket is built with helper unit fields
-3. `Id10408` does not participate in SmartVA scoring
+`Id10408` does not participate in SmartVA scoring.
 
 ## Code Map
 

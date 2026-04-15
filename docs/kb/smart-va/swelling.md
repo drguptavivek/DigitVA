@@ -3,12 +3,12 @@ title: SmartVA Swelling Trace
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-04-15
 ---
 
 # Swelling
 
-This document traces the WHO swelling, edema, puffiness, and related body-swelling question family forward through the current `smart-va-pipeline`.
+This document traces the WHO swelling, edema, and puffiness question family forward through the current `smart-va-pipeline`.
 
 Related docs:
 
@@ -23,11 +23,14 @@ Related docs:
 | WHO field | Label |
 |---|---|
 | `Id10247` | Puffiness of face |
-| `Id10248` | Duration of puffiness of the face in days |
+| `Id10248_a` | Duration of puffiness of the face in days |
 | `Id10248_b` | Duration of puffiness of the face in months |
+| `Id10248_units` | Units helper for puffiness duration |
 | `Id10252` | General swelling of the body |
 | `Id10249` | Swollen legs or feet |
-| duration field(s) for swelling | Duration of swelling |
+| `Id10250` | Duration of swelling lasted in days |
+| `Id10250_b` | Duration of swelling lasted in months |
+| `Id10250_units` | Units helper for leg/feet swelling duration |
 | `Id10251` | Both feet swollen |
 | `Id10476` | Narration |
 
@@ -36,31 +39,12 @@ Related docs:
 | WHO source | PHMRC-style variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
 | `Id10247` | `adult_2_25 -> a2_25` | `s42` | retained as puffiness of face |
-| `Id10248` + `Id10248_units=days` | `adult_2_26 -> a2_26a -> a2_26` | `s43` | retained as the puffiness-duration feature |
+| `Id10248_a` + `Id10248_units=days` | `adult_2_26 -> a2_26a -> a2_26` | `s43` | retained as puffiness duration |
 | `Id10248_b` + `Id10248_units=months` | `adult_2_26 -> a2_26b -> a2_26` | `s43` | retained as the same puffiness-duration feature after unit normalization |
-| `Id10252` | `adult_2_27 -> a2_27` | `s44` | retained as general puffiness of body |
-| general-swelling duration field(s) | `adult_2_28 -> a2_28` | `s45` | separate duration feature |
-| `Id10249` and related leg/feet-swelling fields | adult swelling path in the WHO adapter | downstream adult edema/swelling family | present in the WHO questionnaire, but the adapter path is less explicit than the face/body-puffiness path |
+| `Id10252` | `adult_2_27 -> a2_27` | `s44` | retained as general swelling of the body |
+| visible WHO fields `Id10249`, `Id10250`, `Id10250_b`, `Id10251` | no explicit `who_data.py` or `who_prep.py` mapping from this visible WHO 2022 block | none from the visible swelling block | not visibly retained in the current adult WHO adapter |
+| downstream adult variables `adult_2_29`, `adult_2_30`, `adult_2_31` | `a2_29`, `a2_30`, `a2_31` | `s46`, `s47`, `s48` | these belong to a different retained family and are fed by `Id10255`, `Id10256`, `Id10257`, not by the visible leg/feet-swelling block |
 | `Id10476` contains swelling-related words | `adult_7_c -> a7_01` | `s999960` and related words | narrative word lane |
-
-### Adult Summary
-
-Adult swelling is represented as a structured edema/puffiness family with separate face, general-body, and duration signals. Narrative text adds a separate word lane.
-
-For the WHO `247-248` puffiness block specifically:
-
-- `Id10247` -> `s42` for puffiness of face
-- `Id10248` / `Id10248_b` -> `s43` for duration of puffiness
-
-The duration path is explicit in the current adapter:
-
-1. WHO days or months value
-2. `adult_2_26`
-3. split to `a2_26a` or `a2_26b` by units
-4. normalized back to `a2_26`
-5. tariff-applied duration feature `s43`
-
-So puffiness of the face and duration of puffiness remain separate SmartVA features. They do not collapse into one single puffiness variable before tariff application.
 
 ## Child
 
@@ -69,58 +53,37 @@ So puffiness of the face and duration of puffiness remain separate SmartVA featu
 | WHO field | Label |
 |---|---|
 | `Id10249` | Swollen legs or feet |
-| duration field(s) for swelling | Duration of swelling |
-| `Id10240` | Areas of skin with redness / swelling |
-| armpit-swelling path | swelling in the armpits |
+| `Id10250` | Duration of swelling lasted in days |
+| `Id10250_b` | Duration of swelling lasted in months |
+| `Id10251` | Both feet swollen |
 | `Id10476` | Narration |
 
 ### Forward Trace
 
 | WHO source | PHMRC-style variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| swollen legs / feet group | child swelling path in the WHO adapter | `s145` | retained as swollen legs or feet |
-| swelling duration field(s) | child swelling-duration path in the WHO adapter | `s146` | separate duration feature |
-| `Id10240` | `child_4_40 -> c4_40` | skin-redness/swelling family | separate skin-swelling feature |
-| armpit swelling path | `child_4_44+` | `s151`-adjacent family | separate lymph/swelling-related feature |
+| downstream child swelling family in the model | `child_4_36 -> c4_36`, `child_4_37 -> c4_37a/c4_37b -> c4_37` | `s145`, `s146` | the child SmartVA model has a swollen-legs-or-feet family |
+| visible WHO fields `Id10249`, `Id10250`, `Id10250_b`, `Id10251` | no explicit `who_data.py` or `who_prep.py` mapping from this visible WHO 2022 block | none from the visible swelling block | not visibly wired from the displayed WHO block in this fork |
 | `Id10476` narrative | `child_6_c -> c6_01` | `s999947` and related words | narrative word lane |
-
-### Child Summary
-
-Child swelling is split across:
-
-- peripheral swelling (`s145/s146`)
-- skin swelling / redness
-- armpit swelling and related findings
 
 ## Neonate
 
-### WHO Question Group
-
-| WHO field | Label |
-|---|---|
-| neonatal swelling / edema-like skin findings | swelling-related neonatal skin findings |
-| `Id10476` | Narration |
-| `Id10479` | Neonatal narration keywords |
-
 ### Forward Trace
 
 | WHO source | PHMRC-style variable | Symptom-stage / tariff-applied feature | Current behavior |
 |---|---|---|---|
-| swelling-related neonatal skin findings | `c3_37+` family | skin redness / swelling and pus-related neonatal features | represented through neonatal skin-infection-style features |
-| `Id10476` narrative | `child_6_c -> c6_01` | `s999934` and related words | narrative word lane for swelling-related words |
-| `Id10479` keywords | `neonate_6_*` | no direct swelling keyword exists | no dedicated keyword lane |
-
-### Neonate Summary
-
-Neonatal swelling is not modeled as a simple edema family. It is represented through broader neonatal skin and infection findings, with a weak narrative word lane.
+| visible swelling block `Id10249` to `Id10251` | no neonate WHO-to-PHMRC mapping in the current adapter | none | ignored for neonate tariff scoring |
+| neonatal skin/infection findings elsewhere | `c3_37+` family | broader neonatal skin and infection features | represented elsewhere rather than as a direct edema family |
 
 ## Current-State Takeaways
 
-- adult swelling: structured face-puffiness, structured puffiness duration, broader edema family, plus narrative word lane
-- child swelling: peripheral swelling plus skin and armpit-related swelling families
-- neonate swelling: broader skin/infection-family representation rather than a direct edema family
+- adult puffiness of face and general body swelling are explicitly retained as `s42`, `s43`, and `s44`
+- the visible leg/feet-swelling block `Id10249` to `Id10251` is not explicitly wired in the current WHO 2022 adapter for adult or child
+- child and neonate do have broader downstream swelling-related variables in the model, but not through a visible one-to-one WHO 2022 mapping from this displayed block
+
+This corrects the second-pass assumption that the visible leg/feet-swelling block was explicitly retained.
 
 ## Code Map
 
-- [SmartVA Keyword And Free-Text Processing](../../current-state/smartva-keyword-processing.md)
 - [SmartVA Analysis](../../current-state/smartva-analysis.md)
+- [Jaundice](jaundice.md)

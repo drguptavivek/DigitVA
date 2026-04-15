@@ -37,6 +37,7 @@ Related current-state background:
 - [Uncategorized And System Fields](uncategorized-system-fields.md)
 - [SmartVA Trace QA Review](trace-qa-review.md)
 - [SmartVA Trace Summary Matrix](trace-summary-matrix.md)
+- [Adult WHO To SmartVA Gap Audit](adult-who-to-smartva-gap-audit.md)
 - [Interview Details](interview-details-interview.md)
 - [Demographic General](demographic-general.md)
 - [Duration Of Illness](duration-of-illness.md)

@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-15
 ---
 
 # Runtime And Operations
@@ -207,6 +207,22 @@ Current log outputs:
 - `logs/celery_slow_queries.log`
 
 All high-volume logs use 6-hour rotation with bounded retention (56 files, ~14 days).
+
+### Request abuse control
+
+The app now applies a cache-backed temporary IP ban for repeated `405 Method
+Not Allowed` responses on configured mutating methods.
+
+Current behavior:
+
+- tracked methods default to `POST` and `PATCH`
+- qualifying `405` events are counted per IP inside a rolling window
+- once the threshold is reached, the IP is temporarily blocked for a configured
+  TTL
+- blocked API/admin API requests receive JSON `403` responses with
+  `Retry-After`
+- blocked non-API requests receive a plain `403` response with `Retry-After`
+- `/health` and `/static` remain exempt from the early ban check
 
 ### Request and response logging
 

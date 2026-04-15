@@ -362,6 +362,29 @@ def va_logging(app):
             )
             return e
 
+        if isinstance(e, HTTPException):
+            status_code = e.code or 500
+            if status_code == 405:
+                from app.services.request_abuse_service import (
+                    record_method_not_allowed_abuse,
+                )
+
+                record_method_not_allowed_abuse(
+                    request.remote_addr,
+                    method=request.method,
+                    path=request.path,
+                )
+            log_method = error_logger.warning if status_code < 500 else error_logger.error
+            log_method(
+                "http_exception method=%s path=%s ip=%s user=%s status=%s",
+                request.method,
+                request.path,
+                request.remote_addr,
+                _safe_current_user_email(),
+                status_code,
+            )
+            return e
+
         error_logger.error(
             "unhandled_exception method=%s path=%s ip=%s user=%s",
             request.method,
@@ -370,9 +393,6 @@ def va_logging(app):
             _safe_current_user_email(),
             exc_info=True,
         )
-
-        if isinstance(e, HTTPException):
-            return e
 
         from app import db
 

@@ -7,7 +7,7 @@ import warnings
 # Suppress deprecation warnings from libraries until they update to modern datetime APIs
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-from flask import Flask, g, request, redirect, session, url_for
+from flask import Flask, g, request, redirect, session, url_for, jsonify
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -184,6 +184,36 @@ def create_app(config_class=Config):
     def force_password_update():
         if request.path.startswith(timed_prefixes):
             g._request_started_at = perf_counter()
+
+        from app.services.request_abuse_service import (
+            abuse_ban_message,
+            get_temporary_ban,
+        )
+
+        if not request.path.startswith("/static") and request.path != "/health":
+            temporary_ban = get_temporary_ban(request.remote_addr)
+            if temporary_ban is not None:
+                app.logger.warning(
+                    "blocked_temporarily_banned_ip ip=%s method=%s path=%s remaining_seconds=%s",
+                    request.remote_addr,
+                    request.method,
+                    request.path,
+                    temporary_ban["remaining_seconds"],
+                )
+                message = abuse_ban_message()
+                if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
+                    response = jsonify({"error": message})
+                else:
+                    response = app.response_class(
+                        f"{message}\n",
+                        status=403,
+                        mimetype="text/plain",
+                    )
+                response.status_code = 403
+                response.headers["Retry-After"] = str(
+                    temporary_ban["remaining_seconds"]
+                )
+                return response
 
         current_user_id = session.get("_user_id")
         if not current_user_id:

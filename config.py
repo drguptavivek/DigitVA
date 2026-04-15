@@ -114,6 +114,42 @@ class Config:
     EMAIL_SUPPRESSION_CACHE_PREFIX = os.environ.get(
         "EMAIL_SUPPRESSION_CACHE_PREFIX", "digitva_email_suppressed:"
     )
+    METHOD_NOT_ALLOWED_BAN_ENABLED = os.environ.get(
+        "METHOD_NOT_ALLOWED_BAN_ENABLED", "true"
+    ).lower() in ("true", "1", "yes")
+    METHOD_NOT_ALLOWED_BAN_METHODS = tuple(
+        method.strip().upper()
+        for method in os.environ.get(
+            "METHOD_NOT_ALLOWED_BAN_METHODS",
+            "POST,PATCH",
+        ).split(",")
+        if method.strip()
+    )
+    METHOD_NOT_ALLOWED_BAN_THRESHOLD = int(
+        os.environ.get("METHOD_NOT_ALLOWED_BAN_THRESHOLD", "10")
+    )
+    METHOD_NOT_ALLOWED_BAN_WINDOW_SECONDS = int(
+        os.environ.get("METHOD_NOT_ALLOWED_BAN_WINDOW_SECONDS", "600")
+    )
+    METHOD_NOT_ALLOWED_BAN_SECONDS = int(
+        os.environ.get("METHOD_NOT_ALLOWED_BAN_SECONDS", "3600")
+    )
+    METHOD_NOT_ALLOWED_BAN_COUNTER_PREFIX = os.environ.get(
+        "METHOD_NOT_ALLOWED_BAN_COUNTER_PREFIX",
+        "digitva_method_not_allowed:count:",
+    )
+    METHOD_NOT_ALLOWED_BAN_PREFIX = os.environ.get(
+        "METHOD_NOT_ALLOWED_BAN_PREFIX",
+        "digitva_method_not_allowed:ban:",
+    )
+    METHOD_NOT_ALLOWED_BAN_MESSAGE = os.environ.get(
+        "METHOD_NOT_ALLOWED_BAN_MESSAGE",
+        (
+            "Access temporarily blocked because this IP sent repeated invalid "
+            "POST/PATCH requests to routes that do not allow those methods. "
+            "Try again later."
+        ),
+    )
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
     ICD_SEARCH_CACHE_TIMEOUT = int(
@@ -160,6 +196,8 @@ class TestConfig(Config):
     # Use a fixed secret key so CSRF tokens are reproducible within a test session
     SECRET_KEY = "test-secret-key-not-for-production"
     WTF_CSRF_SECRET_KEY = "test-csrf-secret-key-not-for-production"
+    METHOD_NOT_ALLOWED_BAN_COUNTER_PREFIX = "digitva_test_method_not_allowed:count:"
+    METHOD_NOT_ALLOWED_BAN_PREFIX = "digitva_test_method_not_allowed:ban:"
     ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS = 0.0
     ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS = 60
     ODK_CONNECT_TIMEOUT_SECONDS = 1.0

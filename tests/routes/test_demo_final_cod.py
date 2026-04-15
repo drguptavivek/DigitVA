@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import uuid
+from unittest.mock import patch
 
 from app import db
 from app.models import (
@@ -14,6 +15,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.workflow.definition import (
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
@@ -25,12 +27,6 @@ class TestDemoFinalCodRoute(BaseTestCase):
     _RUN_SUFFIX = uuid.uuid4().hex[:4].upper()
     BASE_PROJECT_ID = f"DF{_RUN_SUFFIX}"
     BASE_SITE_ID = f"F{_RUN_SUFFIX[:3]}"
-
-    @classmethod
-    def _make_user(cls, email, password):
-        local_part, domain = email.split("@", 1)
-        scoped_email = f"{local_part}.{cls.BASE_PROJECT_ID.lower()}@{domain}"
-        return super()._make_user(scoped_email, password)
 
     @classmethod
     def setUpClass(cls):
@@ -92,6 +88,13 @@ class TestDemoFinalCodRoute(BaseTestCase):
         )
         db.session.add(submission)
         db.session.commit()
+        ensure_active_payload_version(
+            submission,
+            payload_data={},
+            source_updated_at=submission.va_odk_updatedat,
+            created_by_role="vasystem",
+        )
+        db.session.commit()
         cls.sid = submission.va_sid
 
     def test_demo_final_cod_save_keeps_new_final_active(self):
@@ -123,25 +126,27 @@ class TestDemoFinalCodRoute(BaseTestCase):
         )
         db.session.commit()
 
-        response = self.client.post(
-            (
-                f"/vaform/{self.sid}/vafinalasses"
-                "?action=vacode&actiontype=vademo_start_coding"
-            ),
-            data={
-                "va_conclusive_cod": "I24-Other acute ischaemic heart diseases",
-                "va_finassess_remark": "demo final cod",
-                "va_save_assessment": "1",
-            },
-            headers={
-                **self._csrf_headers(),
-                "HX-Request": "true",
-            },
-        )
+        with patch("app.routes.va_form.bust_coder_dashboard_cache") as mock_bust:
+            response = self.client.post(
+                (
+                    f"/vaform/{self.sid}/vafinalasses"
+                    "?action=vacode&actiontype=vademo_start_coding"
+                ),
+                data={
+                    "va_conclusive_cod": "I24-Other acute ischaemic heart diseases",
+                    "va_finassess_remark": "demo final cod",
+                    "va_save_assessment": "1",
+                },
+                headers={
+                    **self._csrf_headers(),
+                    "HX-Request": "true",
+                },
+            )
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertTrue(payload["success"])
+        mock_bust.assert_called_once_with(self.base_admin_user.user_id)
 
         final_row = db.session.scalar(
             db.select(VaFinalAssessments).where(

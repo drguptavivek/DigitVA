@@ -114,9 +114,10 @@ def dashboard():
             )
             .join(VaSites, VaSites.site_id == VaForms.site_id)
             .join(VaResearchProjects, VaResearchProjects.project_id == VaForms.project_id)
-            .outerjoin(VaProjectSites, sa.and_(
+            .join(VaProjectSites, sa.and_(
                 VaProjectSites.project_id == VaForms.project_id,
                 VaProjectSites.site_id == VaForms.site_id,
+                VaProjectSites.project_site_status == VaStatuses.active,
             ))
             .where(VaForms.form_id.in_(va_form_access))
             .order_by(VaResearchProjects.project_id, VaSites.site_id)

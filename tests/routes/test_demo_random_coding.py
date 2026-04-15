@@ -33,13 +33,13 @@ class DemoRandomCodingRouteTests(BaseTestCase):
     def _seed_demo_projects(cls):
         now = datetime.now(timezone.utc)
         fixtures = [
-            ("DMO01", "D101", "DMO01D10101", "sid-demo-1"),
-            ("DMO02", "D201", "DMO02D20101", "sid-demo-2"),
-            ("BLK01", "B101", "BLK01B10101", "sid-blocked-1"),
+            ("DMO01", "D101", "DMO01D10101", "sid-demo-1", True),
+            ("DMO02", "D201", "DMO02D20101", "sid-demo-2", True),
+            ("BLK01", "B101", "BLK01B10101", "sid-blocked-1", False),
         ]
         workflow_sids = []
 
-        for project_id, site_id, form_id, sid in fixtures:
+        for project_id, site_id, form_id, sid, is_demo in fixtures:
             db.session.add(
                 VaProjectMaster(
                     project_id=project_id,
@@ -47,6 +47,7 @@ class DemoRandomCodingRouteTests(BaseTestCase):
                     project_name=f"Project {project_id}",
                     project_nickname=project_id,
                     project_status=VaStatuses.active,
+                    demo_training_enabled=is_demo,
                     project_registered_at=now,
                     project_updated_at=now,
                 )
@@ -172,8 +173,9 @@ class DemoRandomCodingRouteTests(BaseTestCase):
     def test_demo_random_coding_uses_only_coder_accessible_forms(self):
         self._login(self.base_admin_id)
 
-        response = self.client.get(
-            "/vacta/vacode/vademo_start_coding/vademo_start_coding"
+        response = self.client.post(
+            "/coding/demo",
+            headers=self._csrf_headers(),
         )
 
         self.assertEqual(response.status_code, 200)
@@ -182,8 +184,9 @@ class DemoRandomCodingRouteTests(BaseTestCase):
     def test_demo_random_coding_honours_optional_project_filter(self):
         self._login(self.base_admin_id)
 
-        response = self.client.get(
-            "/vacta/vacode/vademo_start_coding/vademo_start_coding?project_id=DMO02"
+        response = self.client.post(
+            "/coding/demo?project_id=DMO02",
+            headers=self._csrf_headers(),
         )
 
         self.assertEqual(response.status_code, 200)
@@ -200,8 +203,9 @@ class DemoRandomCodingRouteTests(BaseTestCase):
         workflow.workflow_reason = "test_not_ready"
         db.session.commit()
 
-        response = self.client.get(
-            "/vacta/vacode/vademo_start_coding/vademo_start_coding"
+        response = self.client.post(
+            "/coding/demo",
+            headers=self._csrf_headers(),
         )
 
         self.assertEqual(response.status_code, 200)
@@ -221,8 +225,30 @@ class DemoRandomCodingRouteTests(BaseTestCase):
         self.assertIn("Start Random Allocation Coding", dashboard.get_data(as_text=True))
 
         start = self.client.post("/coding/start", headers=self._csrf_headers())
-        self.assertEqual(start.status_code, 200)
+        self.assertEqual(start.status_code, 302)
+        self.assertIn("/coding/resume", start.headers.get("Location", ""))
         self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})
+
+    def test_coder_dashboard_hides_deactivated_project_sites_from_eligibility(self):
+        project_site = db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == "DMO02",
+                VaProjectSites.site_id == "D201",
+            )
+        )
+        self.assertIsNotNone(project_site)
+        project_site.project_site_status = VaStatuses.deactive
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+
+        dashboard = self.client.get("/coding/")
+        self.assertEqual(dashboard.status_code, 200)
+
+        html = dashboard.get_data(as_text=True)
+        self.assertIn("DMO01D10101", html)
+        self.assertNotIn("DMO02D20101", html)
+        self.assertNotIn("Site D201", html)
 
     def test_api_demo_allocation_can_be_started_twice(self):
         self._login(self.base_admin_id)

@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-15
 ---
 
 # Coding Workflow State Machine Policy
@@ -107,6 +107,23 @@ For `pick_and_choose`:
 The project-level intake mode affects only how coding work is entered. It does
 not change the downstream coding state machine once a case enters active coder
 workflow.
+
+## Coder Dashboard Output Metrics
+
+The coder dashboard exposes authored-output metrics separately from the live
+ready-pool metrics.
+
+Current baseline:
+
+- `Cumulative Forms Coded` must count active coder-authored final assessments
+  on non-demo projects
+- that count must continue to include cases after workflow advances from
+  `coder_finalized` to `reviewer_eligible`
+- `Marked Not Codeable` must be surfaced as a separate count based on active
+  coder-authored Not Codeable reviews
+- demo-training projects must not contribute to these authored-output counts
+- these authored-output queries may be cached, but the cache must be busted
+  whenever a coder submits a final COD or marks a case Not Codeable
 
 ## Coding Access Gates
 

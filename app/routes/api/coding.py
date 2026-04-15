@@ -10,6 +10,8 @@ from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
+    get_coder_output_summary,
+    get_coder_project_options,
     get_coder_project_ids,
     get_coder_recodeable_sids,
 )
@@ -216,11 +218,9 @@ def stats():
     """Return ready-pool counts and mode flags for the coder dashboard."""
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     kpis = get_coder_ready_stats(current_user, project_id=project_id)
-    va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
-    va_form_access = list(va_form_access)
-    if project_id:
-        va_form_access = _filter_forms_by_project(va_form_access, project_id)
-    kpis["completed"] = get_coder_completed_count(current_user.user_id, va_form_access)
+    output_summary = get_coder_output_summary(current_user.user_id, project_id=project_id)
+    kpis["completed"] = output_summary["completed"]
+    kpis["not_codeable"] = output_summary["not_codeable"]
     return jsonify(kpis)
 
 
@@ -250,7 +250,11 @@ def projects():
     """Return distinct project IDs accessible to the current coding user."""
     va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
     project_ids = get_coder_project_ids(va_form_access)
-    return jsonify({"projects": list(project_ids)})
+    project_options = get_coder_project_options(va_form_access)
+    return jsonify({
+        "projects": list(project_ids),
+        "project_options": project_options,
+    })
 
 
 # ---------------------------------------------------------------------------

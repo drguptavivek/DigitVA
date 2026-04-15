@@ -100,8 +100,15 @@ Current cutover status:
 - coder random allocation reads `va_submission_workflow`
 - admin demo allocation reads `va_submission_workflow`
 - coder dashboard available-form count reads `va_submission_workflow`
-- coder dashboard completed-history count and status labels now read
-  `va_submission_workflow`
+- coder dashboard authored-output KPIs now read the coder's active authored
+  final assessments and active authored Not Codeable reviews, excluding
+  demo-training projects
+- coder dashboard "Cumulative Forms Coded" includes coder-authored active
+  final assessments even after workflow advances from `coder_finalized` to
+  `reviewer_eligible`
+- coder dashboard shows a separate authored `not_codeable_by_coder` count
+- coder dashboard authored-output stats/history are cached and busted on coder
+  final submission and coder Not Codeable submission
 - project-level `coding_intake_mode` is now stored on `va_project_master`
   with `random_form_allocation` as the default
 - coder dashboard now splits eligible coding intake by project mode:

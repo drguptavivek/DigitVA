@@ -21,11 +21,17 @@
     <h2 class="text-primary mb-0" style="font-size: 28px; font-weight: 600;">
       Welcome, {{ current_user.name }}
     </h2>
-    <div class="d-flex align-items-center gap-2">
-      <label class="form-label mb-0 text-secondary small fw-semibold">Project:</label>
-      <select id="project-select-top" class="form-select form-select-sm" style="min-width:180px;">
-        <option value="">All projects</option>
-      </select>
+    <div class="d-flex align-items-center gap-3 flex-wrap justify-content-end">
+      <div class="d-flex align-items-center gap-2">
+        <label class="form-label mb-0 text-secondary small fw-semibold">Project:</label>
+        <select id="project-select-top" class="form-select form-select-sm" style="min-width:180px;">
+          <option value="">All projects</option>
+        </select>
+      </div>
+      <div class="text-end">
+        <div class="text-secondary small fw-semibold text-uppercase">Selected Project</div>
+        <div id="selected-project-name" class="fw-semibold text-primary">All Projects</div>
+      </div>
       <button class="btn btn-link p-0 text-secondary" data-bs-toggle="modal" data-bs-target="#codingHelpModal"
               title="How does coding work?">
         <i class="fas fa-circle-question"></i>
@@ -62,7 +68,7 @@
 
   <!-- KPI cards -->
   <div class="row mb-4 g-3">
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card shadow-sm border-0 rounded-3 h-100">
         <div class="card-body p-4">
           <div class="d-flex flex-column align-items-center">
@@ -76,7 +82,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card shadow-sm border-0 rounded-3 h-100">
         <div class="card-body p-4">
           <div class="d-flex flex-column align-items-center">
@@ -90,7 +96,7 @@
         </div>
       </div>
     </div>
-    <div class="col-md-4">
+    <div class="col-md-3">
       <div class="card shadow-sm border-0 rounded-3 h-100">
         <div class="card-body p-4">
           <div class="d-flex flex-column align-items-center">
@@ -98,6 +104,20 @@
             <h5 class="text-primary fw-semibold mb-3">Cumulative Forms Coded</h5>
             <div class="d-flex align-items-baseline">
               <h2 class="display-4 fw-bold text-primary mb-0" id="kpi-completed">—</h2>
+              <span class="ms-2 text-secondary small">forms</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0 rounded-3 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex flex-column align-items-center">
+            <div class="mb-3"><i class="fas fa-triangle-exclamation text-danger fa-2x"></i></div>
+            <h5 class="text-primary fw-semibold mb-3">Marked Not Codeable</h5>
+            <div class="d-flex align-items-baseline">
+              <h2 class="display-4 fw-bold text-danger mb-0" id="kpi-not-codeable">—</h2>
               <span class="ms-2 text-secondary small">forms</span>
             </div>
           </div>
@@ -338,8 +358,30 @@
   // ── project selector ──────────────────────────────────────────────────────
   const _PROJECT_SELECT_KEY = 'digitva_coding_project_select';
 
-  function populateProjectSelector(projects) {
+  let PROJECT_OPTIONS = [];
+
+  function selectedProjectLabel(projectId) {
+    if (!projectId) return 'All Projects';
+    const match = PROJECT_OPTIONS.find(project => project.project_id === projectId);
+    if (!match) return projectId;
+    if (!match.project_name || match.project_name === match.project_id) {
+      return match.project_id;
+    }
+    return `${match.project_id} - ${match.project_name}`;
+  }
+
+  function updateSelectedProjectName() {
     const sel = document.getElementById('project-select-top');
+    const target = document.getElementById('selected-project-name');
+    if (!sel || !target) return;
+    target.textContent = selectedProjectLabel(sel.value.trim().toUpperCase());
+  }
+
+  function populateProjectSelector(projects, projectOptions) {
+    const sel = document.getElementById('project-select-top');
+    PROJECT_OPTIONS = Array.isArray(projectOptions) && projectOptions.length
+      ? projectOptions
+      : (projects || []).map(projectId => ({ project_id: projectId, project_name: projectId }));
     projects.forEach(p => {
       const opt = document.createElement('option');
       opt.value = p; opt.textContent = p;
@@ -350,6 +392,7 @@
     if (saved && Array.from(sel.options).some(o => o.value === saved)) {
       sel.value = saved;
     }
+    updateSelectedProjectName();
   }
 
   // ── action buttons ────────────────────────────────────────────────────────
@@ -531,8 +574,9 @@
       document.getElementById('kpi-random-ready').textContent = statsData.random_ready ?? 0;
       document.getElementById('kpi-pick-ready').textContent   = statsData.pick_ready   ?? 0;
       document.getElementById('kpi-completed').textContent    = statsData.completed    ?? 0;
+      document.getElementById('kpi-not-codeable').textContent = statsData.not_codeable ?? 0;
 
-      populateProjectSelector(projData.projects || []);
+      populateProjectSelector(projData.projects || [], projData.project_options || []);
 
       function bindStartBtn() {
         const btn = document.getElementById('start-btn');
@@ -548,6 +592,7 @@
         document.getElementById('kpi-random-ready').textContent = stats.random_ready ?? 0;
         document.getElementById('kpi-pick-ready').textContent   = stats.pick_ready   ?? 0;
         document.getElementById('kpi-completed').textContent    = stats.completed    ?? 0;
+        document.getElementById('kpi-not-codeable').textContent = stats.not_codeable ?? 0;
         renderActionButtons(alloc, stats.random_ready,
                             modeLabel(stats.has_random_mode, stats.has_pick_mode));
         bindStartBtn();
@@ -591,6 +636,7 @@
         if (!sel) return DEMO_PROJECTS[0];
         sel.value = DEMO_PROJECTS[0];
         localStorage.setItem(_PROJECT_SELECT_KEY, sel.value);
+        updateSelectedProjectName();
         syncDemoTrainingBanner();
         applyProjectFilterToHistory();
         applyProjectFilterToEligibility();
@@ -652,6 +698,7 @@
       if (projectSelectTop) {
         projectSelectTop.addEventListener('change', async () => {
           localStorage.setItem(_PROJECT_SELECT_KEY, projectSelectTop.value);
+          updateSelectedProjectName();
           syncDemoTrainingBanner();
           applyProjectFilterToHistory();
           applyProjectFilterToEligibility();

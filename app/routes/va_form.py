@@ -59,6 +59,7 @@ from app.services.workflow.transitions import (
 )
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.odk_review_service import sync_not_codeable_review_state
+from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.demo_project_service import get_demo_expiry_for_submission
 from app.forms import VaReviewerReviewForm, VaInitialAssessmentForm, VaCoderReviewForm, VaDataManagerReviewForm, VaFinalAssessmentForm, VaUsernoteForm
 
@@ -1112,6 +1113,7 @@ def renderpartial(va_sid, va_partial):
                     actor=coder_actor(current_user.user_id),
                 )
             db.session.commit()
+            bust_coder_dashboard_cache(current_user.user_id)
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
                 response.headers["HX-Redirect"] = url_for('coding.dashboard')
@@ -1237,6 +1239,7 @@ def renderpartial(va_sid, va_partial):
             flash(success_message, "success")
             if warning_message:
                 flash(warning_message, "warning")
+            bust_coder_dashboard_cache(current_user.user_id)
             if request.headers.get("HX-Request"):
                 response = jsonify(success=True)
                 response.headers["HX-Redirect"] = url_for('coding.dashboard')

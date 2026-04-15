@@ -78,6 +78,7 @@ Related current-state background:
 - [Medical History](medical-history.md)
 - [Health History Neonate](health-history-neonate.md)
 - [Risk Factors](risk-factors.md)
+- [Maternal General](maternal-general.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 - [Injuries](injuries.md)
 

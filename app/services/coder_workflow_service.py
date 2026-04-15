@@ -24,7 +24,10 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.coding_allocation_service import release_stale_coding_allocations
-from app.services.demo_project_service import should_use_demo_actiontype_for_submission
+from app.services.demo_project_service import (
+    is_demo_training_submission,
+    should_use_demo_actiontype_for_submission,
+)
 from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
     get_active_recode_episode,
@@ -143,6 +146,13 @@ class AllocationError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(message)
+
+
+def _demo_recode_reset_message() -> str:
+    return (
+        "This demo form can no longer be recoded because its demo coding "
+        "session was reset. Start a fresh demo coding session instead."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -518,6 +528,11 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
 
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_CODER_FINALIZED:
+        if (
+            current_state == WORKFLOW_READY_FOR_CODING
+            and is_demo_training_submission(va_sid)
+        ):
+            raise AllocationError(_demo_recode_reset_message(), 409)
         raise AllocationError("Only coder-finalized submissions can be reopened for recode.")
 
     authoritative_final = get_authoritative_final_assessment(va_sid)

@@ -701,6 +701,10 @@ def reset_incomplete_recode(
             None,
             wd.WORKFLOW_CODING_IN_PROGRESS,
             wd.WORKFLOW_CODER_STEP1_SAVED,
+            # Timeout cleanup can observe a stale ready_for_coding state if
+            # another maintenance path already released the allocation while
+            # the active recode episode still needs to be closed out.
+            wd.WORKFLOW_READY_FOR_CODING,
         ),
         allowed_actor_kinds=SYSTEM_ACTOR_KINDS,
         reason=reason,

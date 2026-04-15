@@ -29,6 +29,7 @@ from app.services.coding_allocation_service import (
     release_stale_coding_allocations,
 )
 from app.services.coder_workflow_service import (
+    AllocationError,
     mark_reviewer_eligible_after_recode_window_submissions,
     start_recode_allocation,
 )
@@ -40,6 +41,7 @@ from app.services.final_cod_authority_service import (
 from app.services.workflow.definition import (
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
 from app.services.workflow.state_store import (
@@ -600,6 +602,103 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(len(active_allocations), 1)
         self.assertEqual(workflow.workflow_state, "coding_in_progress")
         self.assertEqual(len(recode_started_events), 1)
+
+    def test_start_recode_allocation_returns_demo_reset_message_for_ready_demo_form(self):
+        recode_user = self._make_user("demo.reset.recode@test.local", "DemoReset123")
+        demo_project = VaProjectMaster(
+            project_id="DMR015",
+            project_code="DMR015",
+            project_name="Demo Recode Reset Project",
+            project_nickname="DemoRecodeReset",
+            project_status=VaStatuses.active,
+            demo_training_enabled=True,
+            demo_retention_minutes=10,
+        )
+        db.session.add(demo_project)
+        db.session.add(
+            VaResearchProjects(
+                project_id="DMR015",
+                project_code="DMR015",
+                project_name="Demo Recode Reset Project",
+                project_nickname="DemoRecodeReset",
+                project_status=VaStatuses.active,
+            )
+        )
+        db.session.add(
+            VaSiteMaster(
+                site_id="DR01",
+                site_name="Demo Recode Reset Site",
+                site_abbr="DR01",
+                site_status=VaStatuses.active,
+            )
+        )
+        db.session.add(
+            VaSites(
+                site_id="DR01",
+                project_id="DMR015",
+                site_name="Demo Recode Reset Site",
+                site_abbr="DR01",
+                site_status=VaStatuses.active,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id="DMR015",
+                site_id="DR01",
+                project_site_status=VaStatuses.active,
+            )
+        )
+        db.session.flush()
+        form = VaForms(
+            form_id="DMR015DR0101",
+            project_id="DMR015",
+            site_id="DR01",
+            odk_form_id="DEMO_RECODE_RESET_FORM",
+            odk_project_id="1",
+            form_type="WHO VA 2022",
+            form_status=VaStatuses.active,
+        )
+        db.session.add(form)
+        db.session.flush()
+
+        sid = "uuid:demo-recode-reset"
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            VaSubmissions(
+                va_sid=sid,
+                va_form_id=form.form_id,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_data_collector="tester",
+                va_instance_name="DEMO-RECODE-RESET-1",
+                va_uniqueid_real="DEMO-RECODE-RESET-1",
+                va_uniqueid_masked="DEMO-RECODE-RESET-1",
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=40,
+                va_deceased_gender="Male",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=["vademographicdetails"],
+            )
+        )
+        db.session.flush()
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_READY_FOR_CODING,
+            reason="demo_retention_cleanup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        with self.assertRaisesRegex(
+            AllocationError,
+            "This demo form can no longer be recoded because its demo coding session was reset.",
+        ) as ctx:
+            start_recode_allocation(recode_user, sid)
+
+        self.assertEqual(ctx.exception.status_code, 409)
 
     def test_release_stale_coding_allocations_uses_shorter_timeout_for_demo_sessions(self):
         demo_project = VaProjectMaster(

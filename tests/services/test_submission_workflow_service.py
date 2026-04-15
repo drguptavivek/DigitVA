@@ -621,6 +621,35 @@ class TestSubmissionWorkflowService(BaseTestCase):
             WORKFLOW_CODER_FINALIZED,
         )
 
+    def test_reset_incomplete_recode_tolerates_ready_for_coding_state(self):
+        sid = "uuid:wf-role-recode-reset-ready"
+        self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_READY_FOR_CODING,
+            reason="test_setup_inconsistent_state",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        result = reset_incomplete_recode(
+            sid,
+            actor=system_actor(),
+            reason="allocation_timeout_release",
+        )
+        db.session.commit()
+
+        self.assertEqual(result.previous_state, WORKFLOW_READY_FOR_CODING)
+        self.assertEqual(result.current_state, WORKFLOW_CODER_FINALIZED)
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            ),
+            WORKFLOW_CODER_FINALIZED,
+        )
+
     def test_admin_override_to_recode_returns_submission_to_ready_for_coding(self):
         sid = "uuid:wf-role-admin-override"
         self._add_submission(sid)

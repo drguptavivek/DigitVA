@@ -285,7 +285,20 @@ def state_velocity():
 
         rows = db.session.execute(
             sa.text("""
-                WITH transition_durations AS (
+                WITH cur_events AS (
+                    SELECT
+                        cur.va_sid,
+                        cur.previous_state,
+                        cur.current_state,
+                        cur.event_created_at
+                    FROM va_submission_workflow_events cur
+                    JOIN va_submissions s ON s.va_sid = cur.va_sid
+                    JOIN va_forms f ON f.form_id = s.va_form_id
+                    WHERE f.site_id = ANY(:site_ids)
+                      AND cur.event_created_at >= :cutoff
+                      AND cur.previous_state IS NOT NULL
+                ),
+                transition_durations AS (
                     SELECT
                         cur.va_sid,
                         cur.previous_state,
@@ -293,16 +306,17 @@ def state_velocity():
                         EXTRACT(EPOCH FROM (
                             cur.event_created_at - prev.event_created_at
                         ))::float AS duration_seconds
-                    FROM va_submission_workflow_events cur
-                    JOIN va_submission_workflow_events prev
-                        ON prev.va_sid = cur.va_sid
-                        AND prev.event_created_at < cur.event_created_at
-                    JOIN va_submissions s ON s.va_sid = cur.va_sid
-                    JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE f.site_id = ANY(:site_ids)
-                      AND cur.event_created_at >= :cutoff
-                      AND cur.previous_state IS NOT NULL
-                      AND prev.current_state = cur.previous_state
+                    FROM cur_events cur
+                    JOIN LATERAL (
+                        SELECT
+                            prev.event_created_at,
+                            prev.current_state
+                        FROM va_submission_workflow_events prev
+                        WHERE prev.va_sid = cur.va_sid
+                          AND prev.event_created_at < cur.event_created_at
+                        ORDER BY prev.event_created_at DESC
+                        LIMIT 1
+                    ) prev ON prev.current_state = cur.previous_state
                 )
                 SELECT
                     previous_state AS state,

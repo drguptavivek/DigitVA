@@ -76,7 +76,7 @@ Related docs:
 | Maternal Symptoms | antenatal | `Id10319`, `Id10317`, `Id10309`, `Id10320`, `Id10321`, `Id10323`, `Id10324`, `Id10304`, `Id10304_a`, `Id10322_a`, `Id10325`, `Id10329_b`, `Id10327` | [Maternal Antenatal](maternal-antenatal.md) |
 | Maternal Symptoms | delivery | `Id10337`, `Id10332`, `Id10342`, `Id10343`, `Id10344`, `Id10331`, `Id10330`, `Id10328`, `Id10322_b`, `Id10329_a` | [Maternal Delivery](maternal-delivery.md) |
 | Health Service Utilisation | treatment | `Id10418`, `Id10419`, `Id10420`, `Id10421`, `Id10422`, `Id10423`, `Id10424`, `Id10425`, `Id10426` | [Health Service Treatment](health-service-treatment.md) |
-| Health Service Utilisation | hcw_cod | `Id10435`, `Id10436` | pending |
+| Health Service Utilisation | hcw_cod | `Id10435`, `Id10436` | [Health Service HCW Cause Of Death](health-service-hcw-cod.md) |
 | Health Service Utilisation | mother_related | `Id10446` | pending |
 | Narration / Documents | narration | `narr_language`, `Id10476_audio`, `imagenarr`, `Id10476`, `Id10477`, `Id10478`, `Id10479` | [SmartVA Keyword And Free-Text Processing](../../current-state/smartva-keyword-processing.md) |
 | Narration / Documents | death_registeration | `Id10070`, `Id10071`, `Id10072` | pending |

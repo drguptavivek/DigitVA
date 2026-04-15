@@ -77,7 +77,7 @@ Related docs:
 | Maternal Symptoms | delivery | `Id10337`, `Id10332`, `Id10342`, `Id10343`, `Id10344`, `Id10331`, `Id10330`, `Id10328`, `Id10322_b`, `Id10329_a` | [Maternal Delivery](maternal-delivery.md) |
 | Health Service Utilisation | treatment | `Id10418`, `Id10419`, `Id10420`, `Id10421`, `Id10422`, `Id10423`, `Id10424`, `Id10425`, `Id10426` | [Health Service Treatment](health-service-treatment.md) |
 | Health Service Utilisation | hcw_cod | `Id10435`, `Id10436` | [Health Service HCW Cause Of Death](health-service-hcw-cod.md) |
-| Health Service Utilisation | mother_related | `Id10446` | pending |
+| Health Service Utilisation | mother_related | `Id10446` | [Health Service Mother Related](health-service-mother-related.md) |
 | Narration / Documents | narration | `narr_language`, `Id10476_audio`, `imagenarr`, `Id10476`, `Id10477`, `Id10478`, `Id10479` | [SmartVA Keyword And Free-Text Processing](../../current-state/smartva-keyword-processing.md) |
 | Narration / Documents | death_registeration | `Id10070`, `Id10071`, `Id10072` | pending |
 | Narration / Documents | medical_certs | `Id10462`, `Id10463`, `Id10464`, `Id10465`, `Id10466`, `Id10467`, `Id10468`, `Id10469`, `Id10470`, `Id10471`, `Id10472`, `Id10473` | pending |

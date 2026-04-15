@@ -24,9 +24,9 @@ Related docs:
 
 | Category | Subcategory | Fields | Current trace |
 |---|---|---|---|
-| Interview Details | va_interviewer | `Id10010`, `Id10010a`, `Id10010b`, `Id10010c` | pending |
+| Interview Details | va_interviewer | `Id10010`, `Id10010a`, `Id10010b`, `Id10010c` | out of scope by user request (interviewer metadata) |
 | Interview Details | interview | `language`, `Id10012`, `Id10013`, `Id10011`, `Id10481` | [Interview Details](interview-details-interview.md) |
-| Interview Details | va_respondent | `Id10007`, `Id10007a`, `Id10007b`, `Id10008`, `Id10009` | pending |
+| Interview Details | va_respondent | `Id10007`, `Id10007a`, `Id10007b`, `Id10008`, `Id10009` | out of scope by user request (respondent metadata) |
 | Demographic Details | general | `Site`, `unique_id`, `site_individual_id`, `Id10017`, `Id10018`, `Id10021`, `Id10023`, `Id10024`, `isNeonatal`, `isChild`, `isAdult`, `ageInDays`, `ageInDays2`, `ageInYears`, `ageInMonths`, `age_group`, `age_neonate_days`, `age_neonate_hours`, `ageInYears2`, `Id10019`, `survey_state`, `survey_district`, `Id10002`, `Id10003`, `Id10004`, `Id10058`, `Id10052`, `Id10053`, `Id10054`, `Id10055`, `Id10057`, `Id10059`, `Id10063`, `Id10064`, `Id10065`, `Id10066`, `Id10061`, `Id10062` | [Demographic General](demographic-general.md) |
 | Demographic Details | risk_factors | `Id10411`, `Id10413`, `Id10413_d`, `Id10413_a`, `Id10413_b`, `Id10414`, `Id10414_d`, `Id10414_a`, `Id10414_b`, `Id10487` | [Risk Factors](risk-factors.md) |
 | Neonatal Period Details | general | `Id10354`, `Id10367` | [Neonatal Period General](neonatal-period-general.md) |
@@ -95,6 +95,6 @@ These fields are present in `mas_field_display_config` for the form but do not c
 ## Current-State Notes
 
 - This inventory is driven from the DB-backed field display config for `WHO_2022_VA_SOCIAL`, not from the raw XLSForm alone.
-- Some subcategories already map cleanly to existing SmartVA KB pages. Others are still pending and need a first trace document.
+- Some subcategories already map cleanly to existing SmartVA KB pages. A small number may be explicitly marked out of scope when they are questionnaire metadata rather than SmartVA-relevant content.
 - A subcategory being present here does not mean every field in it reaches SmartVA. Some groups are mostly routing, metadata, or UI-only fields.
-- The next pass should be done subcategory by subcategory, starting with the pending rows and then checking existing docs for missed fields.
+- The next pass should be done subcategory by subcategory, checking existing docs for missed fields and explicitly marking non-SmartVA metadata blocks out of scope when appropriate.

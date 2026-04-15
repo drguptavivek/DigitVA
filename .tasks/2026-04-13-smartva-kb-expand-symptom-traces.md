@@ -45,3 +45,6 @@ Completed in this batch:
 - `docs/kb/smart-va/neonatal-delivery.md` for WHO `Id10369`, `Id10382` through `Id10385`, `Id10387` through `Id10389`, and `Id10403` through `Id10405`
 - `docs/kb/smart-va/neonatal-danger-signs.md` for WHO `Id10284`, `Id10286` through `Id10289`
 - `docs/kb/smart-va/neonatal-blue-at-birth.md` for WHO `Id10406`
+- `docs/kb/smart-va/maternal-periods-delivery-abortion.md` for WHO `Id10302`, `Id10303`, `Id10305`, `Id10306`, `Id10308`, `Id10310`, `Id10312`, `Id10314`, `Id10333`, and `Id10334`
+- `docs/kb/smart-va/who-2022-va-social-subcategory-inventory.md` for the DB-backed category/subcategory baseline of `WHO_2022_VA_SOCIAL`
+- `docs/kb/smart-va/demographic-general.md` for `vademographicdetails/general`

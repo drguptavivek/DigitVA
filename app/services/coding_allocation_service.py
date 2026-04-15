@@ -32,6 +32,9 @@ from app.services.workflow.transitions import (
     reset_incomplete_reviewer_session,
     system_actor,
 )
+from app.services.workflow.state_store import (
+    sync_submission_workflow_from_legacy_records,
+)
 
 
 def _naive_utc_now() -> datetime:
@@ -347,6 +350,29 @@ def cleanup_expired_demo_coding_artifacts(
         expired_count += 1
 
     for va_sid in affected_sids:
+        has_active_coding_allocation = bool(
+            db.session.scalar(
+                sa.select(sa.literal(True))
+                .select_from(VaAllocations)
+                .where(
+                    VaAllocations.va_sid == va_sid,
+                    VaAllocations.va_allocation_for == VaAllocation.coding,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+                .limit(1)
+            )
+        )
+        if has_active_coding_allocation:
+            # Demo retention can prune stale artifacts from an older session
+            # while a live coding/recode session is still in progress. Do not
+            # emit a demo reset in that case; resync the canonical state from
+            # current live records instead.
+            sync_submission_workflow_from_legacy_records(
+                va_sid,
+                reason="demo_retention_cleanup_active_session",
+                by_role="vasystem",
+            )
+            continue
         reset_demo_state(
             va_sid,
             reason="demo_retention_cleanup",

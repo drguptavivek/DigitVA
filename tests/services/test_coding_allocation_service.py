@@ -30,6 +30,7 @@ from app.services.coding_allocation_service import (
 )
 from app.services.coder_workflow_service import (
     mark_reviewer_eligible_after_recode_window_submissions,
+    start_recode_allocation,
 )
 from app.services.final_cod_authority_service import (
     EPISODE_STATUS_ACTIVE,
@@ -37,6 +38,7 @@ from app.services.final_cod_authority_service import (
     upsert_final_cod_authority,
 )
 from app.services.workflow.definition import (
+    WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
@@ -434,6 +436,171 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertIsNone(authority.authoritative_final_assessment_id)
         self.assertEqual(workflow.workflow_state, "ready_for_coding")
 
+    def test_cleanup_expired_demo_coding_artifacts_keeps_live_recode_session_in_progress(self):
+        stale_sid = "uuid:demo-expired-live-recode"
+        self._add_submission(stale_sid)
+        db.session.flush()
+
+        expired_at = datetime.now(timezone.utc) - timedelta(hours=7)
+        final_assessment = VaFinalAssessments(
+            va_sid=stale_sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_remark="demo final",
+            va_finassess_status=VaStatuses.active,
+            demo_expires_at=expired_at,
+        )
+        narrative = VaNarrativeAssessment(
+            va_sid=stale_sid,
+            va_nqa_by=self.base_coder_user.user_id,
+            va_nqa_length=2,
+            va_nqa_pos_symptoms=2,
+            va_nqa_neg_symptoms=1,
+            va_nqa_chronology=1,
+            va_nqa_doc_review=1,
+            va_nqa_comorbidity=1,
+            va_nqa_score=8,
+            va_nqa_status=VaStatuses.active,
+            demo_expires_at=expired_at,
+        )
+        allocation = VaAllocations(
+            va_allocation_id=uuid.uuid4(),
+            va_sid=stale_sid,
+            va_allocated_to=self.base_coder_user.user_id,
+            va_allocation_for=VaAllocation.coding,
+            va_allocation_status=VaStatuses.active,
+            va_allocation_createdat=datetime.now(timezone.utc) - timedelta(minutes=5),
+        )
+        db.session.add_all([final_assessment, narrative, allocation])
+        db.session.flush()
+
+        db.session.add(
+            VaCodingEpisode(
+                episode_id=uuid.uuid4(),
+                va_sid=stale_sid,
+                episode_type=EPISODE_TYPE_RECODE,
+                episode_status=EPISODE_STATUS_ACTIVE,
+                started_by=self.base_coder_user.user_id,
+                base_final_assessment_id=final_assessment.va_finassess_id,
+            )
+        )
+        upsert_final_cod_authority(
+            stale_sid,
+            final_assessment,
+            reason="final_cod_submitted",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        set_submission_workflow_state(
+            stale_sid,
+            WORKFLOW_CODING_IN_PROGRESS,
+            by_user_id=self.base_coder_user.user_id,
+            by_role="vacoder",
+        )
+        db.session.commit()
+
+        expired = cleanup_expired_demo_coding_artifacts()
+
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == stale_sid
+            )
+        )
+        demo_reset_event = db.session.scalar(
+            db.select(VaSubmissionWorkflowEvent).where(
+                VaSubmissionWorkflowEvent.va_sid == stale_sid,
+                VaSubmissionWorkflowEvent.transition_id == "demo_reset",
+            )
+        )
+        stored_allocation = db.session.get(VaAllocations, allocation.va_allocation_id)
+        stored_final = db.session.get(VaFinalAssessments, final_assessment.va_finassess_id)
+        stored_narrative = db.session.get(VaNarrativeAssessment, narrative.va_nqa_id)
+
+        self.assertEqual(expired, 2)
+        self.assertEqual(workflow.workflow_state, "coding_in_progress")
+        self.assertIsNone(demo_reset_event)
+        self.assertEqual(stored_allocation.va_allocation_status, VaStatuses.active)
+        self.assertEqual(stored_final.va_finassess_status, VaStatuses.deactive)
+        self.assertEqual(stored_narrative.va_nqa_status, VaStatuses.deactive)
+
+    def test_start_recode_allocation_reuses_existing_live_session_for_same_sid(self):
+        sid = "uuid:recode-live-session"
+        recode_user = self._make_user("recode.live@test.local", "RecodeLive123")
+        self._add_submission(sid)
+        db.session.flush()
+
+        final_assessment = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=recode_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_remark="final",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final_assessment)
+        db.session.flush()
+
+        db.session.add(
+            VaCodingEpisode(
+                episode_id=uuid.uuid4(),
+                va_sid=sid,
+                episode_type=EPISODE_TYPE_RECODE,
+                episode_status=EPISODE_STATUS_ACTIVE,
+                started_by=recode_user.user_id,
+                base_final_assessment_id=final_assessment.va_finassess_id,
+            )
+        )
+        db.session.add(
+            VaAllocations(
+                va_allocation_id=uuid.uuid4(),
+                va_sid=sid,
+                va_allocated_to=recode_user.user_id,
+                va_allocation_for=VaAllocation.coding,
+                va_allocation_status=VaStatuses.active,
+                va_allocation_createdat=datetime.now(timezone.utc) - timedelta(minutes=5),
+            )
+        )
+        upsert_final_cod_authority(
+            sid,
+            final_assessment,
+            reason="final_cod_submitted",
+            source_role="vacoder",
+            updated_by=recode_user.user_id,
+        )
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            by_user_id=recode_user.user_id,
+            by_role="vacoder",
+        )
+        db.session.commit()
+
+        result = start_recode_allocation(recode_user, sid)
+
+        active_allocations = db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_sid == sid,
+                VaAllocations.va_allocated_to == recode_user.user_id,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all()
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+        recode_started_events = db.session.scalars(
+            db.select(VaSubmissionWorkflowEvent).where(
+                VaSubmissionWorkflowEvent.va_sid == sid,
+                VaSubmissionWorkflowEvent.transition_id == "recode_started",
+            )
+        ).all()
+
+        self.assertEqual(result.va_sid, sid)
+        self.assertEqual(result.actiontype, "varesumecoding")
+        self.assertEqual(len(active_allocations), 1)
+        self.assertEqual(workflow.workflow_state, "coding_in_progress")
+        self.assertEqual(len(recode_started_events), 1)
+
     def test_release_stale_coding_allocations_uses_shorter_timeout_for_demo_sessions(self):
         demo_project = VaProjectMaster(
             project_id="DMT015",
@@ -525,12 +692,13 @@ class TestCodingAllocationService(BaseTestCase):
         db.session.add(
             VaSubmissionWorkflowEvent(
                 va_sid=sid,
-                from_state="ready_for_coding",
-                to_state="coding_in_progress",
                 transition_id="demo_started",
-                actor_kind="vacoder",
-                actor_id=self.base_coder_user.user_id,
-                reason="test_seed",
+                previous_state="ready_for_coding",
+                current_state="coding_in_progress",
+                actor_kind="coder",
+                actor_role="vacoder",
+                actor_user_id=self.base_coder_user.user_id,
+                transition_reason="test_seed",
                 event_created_at=event_time,
             )
         )

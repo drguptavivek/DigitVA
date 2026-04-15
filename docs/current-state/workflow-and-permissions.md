@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-15
 ---
 
 # Workflow And Permissions
@@ -304,6 +304,9 @@ Timeout cleanup:
 - when demo-retention cleanup deactivates an authoritative demo final COD, it
   also clears or repoints `va_final_cod_authority` and restores canonical
   workflow state based on the remaining active records
+- demo-retention cleanup no longer emits a demo reset for submissions that
+  still have an active coding allocation; in that case it prunes the expired
+  demo artifacts but keeps the live coding or recode session state intact
 
 Canonical state values currently written in the runtime path include:
 

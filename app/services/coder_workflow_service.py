@@ -34,6 +34,7 @@ from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
@@ -496,6 +497,24 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     Raises AllocationError if outside the recode window.
     """
     from datetime import timedelta
+
+    existing_sid = get_active_coding_allocation(user.user_id)
+    active_recode_episode = get_active_recode_episode(va_sid)
+    if existing_sid:
+        if existing_sid == va_sid and active_recode_episode:
+            current_state = get_submission_workflow_state(va_sid)
+            if current_state in (
+                WORKFLOW_CODER_FINALIZED,
+                WORKFLOW_READY_FOR_CODING,
+            ):
+                mark_recode_started(
+                    va_sid,
+                    reason="recode_allocation_resumed",
+                    actor=coder_actor(user.user_id),
+                )
+                db.session.commit()
+            return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
+        raise AllocationError("You already have an active coding allocation.")
 
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_CODER_FINALIZED:

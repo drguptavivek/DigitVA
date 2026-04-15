@@ -32,6 +32,8 @@ Related current-state background:
 
 ## Symptom Documents
 
+- [WHO_2022_VA_SOCIAL Category / Subcategory Inventory](who-2022-va-social-subcategory-inventory.md)
+- [Demographic General](demographic-general.md)
 - [Fever](fever.md)
 - [Cough](cough.md)
 - [Diarrhea](diarrhea.md)
@@ -68,6 +70,7 @@ Related current-state background:
 - [Swelling](swelling.md)
 - [Medical History](medical-history.md)
 - [Risk Factors](risk-factors.md)
+- [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 
 ## Reading Notes
 

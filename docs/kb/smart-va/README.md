@@ -30,22 +30,41 @@ Related current-state background:
 - [SmartVA Analysis](../../current-state/smartva-analysis.md)
 - [SmartVA Keyword And Free-Text Processing](../../current-state/smartva-keyword-processing.md)
 
-## Symptom Documents
+## Start Here
+
+Use these docs first, in this order:
+
+1. [Dead Or Disconnected SmartVA Bridges](dead-or-disconnected-smartva-bridges.md)
+2. [Cross Age WHO To SmartVA Gap Matrix](cross-age-who-to-smartva-gap-matrix.md)
+3. [Adult WHO To SmartVA Gap Audit](adult-who-to-smartva-gap-audit.md)
+4. [Child WHO To SmartVA Gap Audit](child-who-to-smartva-gap-audit.md)
+5. [Neonate WHO To SmartVA Gap Audit](neonate-who-to-smartva-gap-audit.md)
+
+## Audit And Navigation
 
 - [Agentic Tracing Instructions](agentic-tracing-instructions.md)
 - [WHO_2022_VA_SOCIAL Category / Subcategory Inventory](who-2022-va-social-subcategory-inventory.md)
 - [Uncategorized And System Fields](uncategorized-system-fields.md)
 - [SmartVA Trace QA Review](trace-qa-review.md)
 - [SmartVA Trace Summary Matrix](trace-summary-matrix.md)
+- [Dead Or Disconnected SmartVA Bridges](dead-or-disconnected-smartva-bridges.md)
+- [Cross Age WHO To SmartVA Gap Matrix](cross-age-who-to-smartva-gap-matrix.md)
 - [Adult WHO To SmartVA Gap Audit](adult-who-to-smartva-gap-audit.md)
 - [Child WHO To SmartVA Gap Audit](child-who-to-smartva-gap-audit.md)
 - [Neonate WHO To SmartVA Gap Audit](neonate-who-to-smartva-gap-audit.md)
-- [Dead Or Disconnected SmartVA Bridges](dead-or-disconnected-smartva-bridges.md)
-- [Cross Age WHO To SmartVA Gap Matrix](cross-age-who-to-smartva-gap-matrix.md)
+
+## General And Cross-Cutting Symptoms
+
 - [Interview Details](interview-details-interview.md)
 - [Demographic General](demographic-general.md)
 - [Duration Of Illness](duration-of-illness.md)
 - [Nutrition](nutrition.md)
+- [Medical History](medical-history.md)
+- [Risk Factors](risk-factors.md)
+- [Injuries](injuries.md)
+
+## Adult And Shared Symptom Families
+
 - [Fever](fever.md)
 - [Cough](cough.md)
 - [Diarrhea](diarrhea.md)
@@ -61,8 +80,19 @@ Related current-state background:
 - [Smell Or Taste](smell-taste.md)
 - [Mental Confusion](mental-confusion.md)
 - [Stiff Neck](stiff-neck.md)
+- [Rash](rash.md)
+- [Ulcers](ulcers.md)
+- [Convulsions](convulsions.md)
+- [Unconsciousness](unconsciousness.md)
+- [Paralysis](paralysis.md)
+- [Jaundice](jaundice.md)
+- [Swelling](swelling.md)
 - [Lumps](lumps.md)
 - [Skin Other](skin-other.md)
+
+## Neonatal And Child-Facing Families
+
+- [Health History Neonate](health-history-neonate.md)
 - [Neonatal Feeding](neonatal-feeding.md)
 - [Neonatal Physical Abnormality](neonatal-physical-abnormality.md)
 - [Neonatal Unresponsive](neonatal-unresponsive.md)
@@ -76,19 +106,16 @@ Related current-state background:
 - [Neonatal Period Physical Abnormalities](neonatal-period-physical-abnormalities.md)
 - [Neonatal Baby Mother](neonatal-baby-mother.md)
 - [Neonatal Blue At Birth](neonatal-blue-at-birth.md)
-- [Rash](rash.md)
-- [Ulcers](ulcers.md)
-- [Convulsions](convulsions.md)
-- [Unconsciousness](unconsciousness.md)
-- [Paralysis](paralysis.md)
-- [Jaundice](jaundice.md)
-- [Swelling](swelling.md)
-- [Medical History](medical-history.md)
-- [Health History Neonate](health-history-neonate.md)
-- [Risk Factors](risk-factors.md)
+
+## Maternal And Pregnancy-Related
+
 - [Maternal General](maternal-general.md)
 - [Maternal Antenatal](maternal-antenatal.md)
 - [Maternal Delivery](maternal-delivery.md)
+- [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
+
+## Health Service And Documents
+
 - [Health Service Treatment](health-service-treatment.md)
 - [Health Service HCW Cause Of Death](health-service-hcw-cod.md)
 - [Health Service Mother Related](health-service-mother-related.md)
@@ -98,8 +125,6 @@ Related current-state background:
 - [Death Documents](death-documents.md)
 - [Interviewer Final Comment](iv-final.md)
 - [Social Autopsy](social-autopsy.md)
-- [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
-- [Injuries](injuries.md)
 
 ## Reading Notes
 

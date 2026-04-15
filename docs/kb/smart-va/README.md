@@ -85,6 +85,7 @@ Related current-state background:
 - [Health Service HCW Cause Of Death](health-service-hcw-cod.md)
 - [Health Service Mother Related](health-service-mother-related.md)
 - [Death Registration](death-registration.md)
+- [Medical Certificates](medical-certs.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 - [Injuries](injuries.md)
 

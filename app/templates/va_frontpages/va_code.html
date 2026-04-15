@@ -316,7 +316,9 @@
     </div>
   </div>
 
-  <h3 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">VA Coding History</h3>
+  <h3 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">
+    VA Coding History<span id="history-project-suffix"></span>
+  </h3>
   <div class="table-responsive">
     <table id="vaTable" class="table table-hover align-middle table-striped nowrap" style="min-width: 1200px;"></table>
   </div>
@@ -363,8 +365,15 @@
   function updateSelectedProjectName() {
     const sel = document.getElementById('project-select-top');
     const target = document.getElementById('selected-project-name');
-    if (!sel || !target) return;
-    target.textContent = selectedProjectLabel(sel.value.trim().toUpperCase());
+    const historySuffix = document.getElementById('history-project-suffix');
+    if (!sel) return;
+    const projectId = sel.value.trim().toUpperCase();
+    if (target) {
+      target.textContent = selectedProjectLabel(projectId);
+    }
+    if (historySuffix) {
+      historySuffix.textContent = projectId ? `: ${projectId}` : "";
+    }
   }
 
   function populateProjectSelector(projects, projectOptions) {

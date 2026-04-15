@@ -80,6 +80,7 @@ Related current-state background:
 - [Risk Factors](risk-factors.md)
 - [Maternal General](maternal-general.md)
 - [Maternal Antenatal](maternal-antenatal.md)
+- [Maternal Delivery](maternal-delivery.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 - [Injuries](injuries.md)
 

@@ -37,29 +37,29 @@ The runtime notes below were checked against:
 
 ## Neonate Audit Table
 
-| DigitVA WHO Field ID | DigitVA WHO Field Label | SmartVA WHO Field ID | SmartVA Symptom ID And Label | Runtime status | Current-state note |
-|---|---|---|---|---|---|
-| `Id10399` | Mother had convulsions during last 3 months of pregnancy, labour or delivery | `child_2_1` | `s33` Complications: Mother had convulsions | upstream value used | retained through the one-hot neonatal complication family |
-| `Id10396` | Mother had high blood pressure during last 3 months of pregnancy, labour or delivery | `child_2_1` | `s34` Complications: Mother had hypertension | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
-| `Id10401` | Mother had severe anemia | `child_2_1` | `s35` Complications: Mother had anemia | upstream value used | retained through the one-hot neonatal complication family |
-| `Id10397` | Mother had diabetes mellitus | `child_2_1` | `s36` Complications: Mother had diabetes | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
-| `Id10403` | Baby's bottom, feet, arm or hand came out before the head | `child_2_1` | `s37` Complications: Child delivered non-headfirst | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
-| `Id10405` | Umbilical cord delivered first | `child_2_1` | `s38` Complications: Cord delivered first | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
-| `Id10404` | Umbilical cord wrapped more than once around neck | `child_2_1` | `s39` Complications: Cord around child's neck | upstream value used | explicit retained path; sampled run had no positive values |
-| `Id10402` | Mother had vaginal bleeding during last 3 months of pregnancy but before labour started | `child_2_1` | `s40` Complications: Excessive bleeding | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
-| `Id10395` | Mother had fever during labour | `child_2_1` | `s41` Complications: Fever during labor | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
-| `Id10385` | Colour of the liquor when the waters broke | `child_2_8` | `s51` family: `s51991` Water wasn't normal color | upstream value transformed | explicit recode exists; sampled run had values upstream but no positive `s51` output |
-| `Id10382` | Duration for labour and delivery | `child_2_10` | `s53` Labor and delivery took at least duration threshold | upstream value transformed | explicit amount/unit mapping; live in sampled run |
-| `Id10281` | Baby become unresponsive or unconscious | `child_3_33` | `s94` Became unresponsive or unconscious | upstream value used | explicit retained path; live in sampled run |
-| `Id10282` | Baby become unresponsive or unconscious within 24 hours after birth | no visible neonate WHO mapping | none from this visible block | no retained path surfaced | not mapped as a first-class neonatal input in this fork |
-| `Id10283` | Baby become unresponsive or unconscious more than 24 hours after birth | no visible neonate WHO mapping | none from this visible block | no retained path surfaced | not mapped as a first-class neonatal input in this fork |
-| `Id10391` | Mother received any vaccinations since reaching adulthood including during this pregnancy | `child_2_11` | `s54` Mother received any vaccinations during pregnancy | default used / no visible mapping | downstream neonatal vaccination symptom exists, but this visible WHO field does not feed it in the current adapter |
-| `Id10393` | Mother received tetanus toxoid (TT) vaccine | `child_2_11` | `s54` Mother received any vaccinations during pregnancy | default used / no visible mapping | downstream neonatal vaccination symptom exists, but this visible WHO field does not feed it in the current adapter |
-| `Id10351` | Age of baby since fatal illness started | `child_1_20` | `s28` At least duration threshold old when fatal illness started | helper-driven / sample blank | retained path depends on helper unit fields; sampled run had no live `s28` signal |
-| `Id10120_1` | Prepared illness duration in days | `child_1_21` | `s29` Illness lasted at least duration threshold | helper-driven / sample blank | explicit illness-duration path exists, but sampled run had no live `s29` signal |
-| `Id10121` | Duration of illness in months before death | `child_1_21` | `s29` Illness lasted at least duration threshold | helper-driven / sample blank | explicit illness-duration path exists, but sampled run had no live `s29` signal |
-| `Id10122` | Duration of illness in years before death | `child_1_21` | `s29` Illness lasted at least duration threshold | helper-driven / sample blank | explicit illness-duration path exists, but sampled run had no live `s29` signal |
-| `Id10123` | Deceased died suddenly | `child_3_49` | `s109` Appeared to be healthy and then just die suddenly | upstream value present but sample stayed zero | explicit WHO 2022 override exists, but sampled run had no positive `s109` output |
+| DigitVA WHO Field ID And Label | SmartVA WHO Field ID | SmartVA Symptom ID And Label | Runtime status | Current-state note |
+|---|---|---|---|---|
+| `Id10399` Mother had convulsions during last 3 months of pregnancy, labour or delivery | `child_2_1` | `s33` Complications: Mother had convulsions | upstream value used | retained through the one-hot neonatal complication family |
+| `Id10396` Mother had high blood pressure during last 3 months of pregnancy, labour or delivery | `child_2_1` | `s34` Complications: Mother had hypertension | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
+| `Id10401` Mother had severe anemia | `child_2_1` | `s35` Complications: Mother had anemia | upstream value used | retained through the one-hot neonatal complication family |
+| `Id10397` Mother had diabetes mellitus | `child_2_1` | `s36` Complications: Mother had diabetes | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
+| `Id10403` Baby's bottom, feet, arm or hand came out before the head | `child_2_1` | `s37` Complications: Child delivered non-headfirst | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
+| `Id10405` Umbilical cord delivered first | `child_2_1` | `s38` Complications: Cord delivered first | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
+| `Id10404` Umbilical cord wrapped more than once around neck | `child_2_1` | `s39` Complications: Cord around child's neck | upstream value used | explicit retained path; sampled run had no positive values |
+| `Id10402` Mother had vaginal bleeding during last 3 months of pregnancy but before labour started | `child_2_1` | `s40` Complications: Excessive bleeding | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
+| `Id10395` Mother had fever during labour | `child_2_1` | `s41` Complications: Fever during labor | upstream value used | retained through the one-hot neonatal complication family; live in sampled run |
+| `Id10385` Colour of the liquor when the waters broke | `child_2_8` | `s51` family: `s51991` Water wasn't normal color | upstream value transformed | explicit recode exists; sampled run had values upstream but no positive `s51` output |
+| `Id10382` Duration for labour and delivery | `child_2_10` | `s53` Labor and delivery took at least duration threshold | upstream value transformed | explicit amount/unit mapping; live in sampled run |
+| `Id10281` Baby become unresponsive or unconscious | `child_3_33` | `s94` Became unresponsive or unconscious | upstream value used | explicit retained path; live in sampled run |
+| `Id10282` Baby become unresponsive or unconscious within 24 hours after birth | no visible neonate WHO mapping | none from this visible block | no retained path surfaced | not mapped as a first-class neonatal input in this fork |
+| `Id10283` Baby become unresponsive or unconscious more than 24 hours after birth | no visible neonate WHO mapping | none from this visible block | no retained path surfaced | not mapped as a first-class neonatal input in this fork |
+| `Id10391` Mother received any vaccinations since reaching adulthood including during this pregnancy | `child_2_11` | `s54` Mother received any vaccinations during pregnancy | default used / no visible mapping | downstream neonatal vaccination symptom exists, but this visible WHO field does not feed it in the current adapter |
+| `Id10393` Mother received tetanus toxoid (TT) vaccine | `child_2_11` | `s54` Mother received any vaccinations during pregnancy | default used / no visible mapping | downstream neonatal vaccination symptom exists, but this visible WHO field does not feed it in the current adapter |
+| `Id10351` Age of baby since fatal illness started | `child_1_20` | `s28` At least duration threshold old when fatal illness started | helper-driven / sample blank | retained path depends on helper unit fields; sampled run had no live `s28` signal |
+| `Id10120_1` Prepared illness duration in days | `child_1_21` | `s29` Illness lasted at least duration threshold | helper-driven / sample blank | explicit illness-duration path exists, but sampled run had no live `s29` signal |
+| `Id10121` Duration of illness in months before death | `child_1_21` | `s29` Illness lasted at least duration threshold | helper-driven / sample blank | explicit illness-duration path exists, but sampled run had no live `s29` signal |
+| `Id10122` Duration of illness in years before death | `child_1_21` | `s29` Illness lasted at least duration threshold | helper-driven / sample blank | explicit illness-duration path exists, but sampled run had no live `s29` signal |
+| `Id10123` Deceased died suddenly | `child_3_49` | `s109` Appeared to be healthy and then just die suddenly | upstream value present but sample stayed zero | explicit WHO 2022 override exists, but sampled run had no positive `s109` output |
 
 ## Quick Read
 

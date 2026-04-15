@@ -33,18 +33,18 @@ Related docs:
 
 ## Priority Dead-Bridge Shortlist
 
-| Age group | DigitVA WHO Field ID | DigitVA WHO Field Label | SmartVA WHO Field ID | SmartVA Symptom ID And Label | Bridge status | Why this matters |
-|---|---|---|---|---|---|---|
-| adult | `Id10207` | Severe headache | `adult_2_69`, `adult_2_70`, `adult_2_71` | `s89` Headaches, `s90` Headaches at least duration threshold, `s91` Rapid headache onset | disconnected-defaulted | raw WHO field is present in `smartva_input.csv`, downstream adult headache family exists, but SmartVA WHO prep leaves the family at defaults and final symptoms at `0` |
-| adult | `Id10212`, `Id10213_a`, `Id10213` | Mental confusion and duration | `adult_2_78`, `adult_2_79`, `adult_2_80` | `s98` Confusion period, `s99` Confusion at least duration threshold, `s100` Sudden confusion | disconnected-defaulted | raw WHO fields are present in DigitVA input, downstream confusion family exists, but the bridge does not feed it and final symptoms stay `0` |
-| adult | `Id10175`, `Id10176` | Chest pain severe / chest pain remained | `adult_2_45`, `adult_2_46` | `s63` Pain during physical activity, `s64` family pain-location outputs | disconnected-unsurfaced | downstream adult follow-up family exists, but the visible WHO 2022 bridge is not surfaced in this fork |
-| adult | `Id10209`, `Id10209_b` | Stiff-neck duration | `adult_2_73` | `s93` Stiff neck at least duration threshold | disconnected-unsurfaced | downstream adult duration field exists, but no visible WHO 2022 bridge is surfaced |
-| adult | `Id10120`, `Id10121`, `Id10122` | Duration of illness block | `adult_2_1` | `s15` Ill longer than duration threshold | disconnected-unsurfaced | adult duration symptom exists downstream, but the visible WHO 2022 duration bridge is not surfaced |
-| child | `Id10391`, `Id10393` | Maternal vaccination fields | `child_2_11` | none on child path | disconnected-defaulted | downstream prep variable exists, but the visible WHO vaccination fields do not feed a retained child symptom path |
-| child | `Id10249`, `Id10250`, `Id10250_b`, `Id10251` | Swollen legs or feet block | child swelling family exists downstream | `s145` Swollen legs or feet, `s146` Swelling for at least duration threshold | disconnected-unsurfaced | the visible child WHO swelling block is not explicitly wired into the retained child swelling family |
-| child | `Id10123` | Deceased died suddenly | `child_3_49` | none on child path | not-retained | field is present upstream, but does not produce a retained child `s*` output |
-| neonate | `Id10391`, `Id10393` | Maternal vaccination fields | `child_2_11` | `s54` Mother received any vaccinations during pregnancy | disconnected-defaulted | downstream neonatal vaccination symptom exists, but the visible WHO fields do not feed it in the current adapter |
-| neonate | `Id10282`, `Id10283` | Unresponsive timing split | no surfaced visible bridge | none from this visible block | disconnected-unsurfaced | visible neonatal timing split exists, but it is not retained as a first-class neonatal symptom path |
+| Age group | DigitVA WHO Field ID And Label | SmartVA WHO Field ID | SmartVA Symptom ID And Label | Bridge status | Why this matters |
+|---|---|---|---|---|---|
+| adult | `Id10207` Severe headache | `adult_2_69`, `adult_2_70`, `adult_2_71` | `s89` Headaches, `s90` Headaches at least duration threshold, `s91` Rapid headache onset | disconnected-defaulted | raw WHO field is present in `smartva_input.csv`, downstream adult headache family exists, but SmartVA WHO prep leaves the family at defaults and final symptoms at `0` |
+| adult | `Id10212`, `Id10213_a`, `Id10213` Mental confusion and duration | `adult_2_78`, `adult_2_79`, `adult_2_80` | `s98` Confusion period, `s99` Confusion at least duration threshold, `s100` Sudden confusion | disconnected-defaulted | raw WHO fields are present in DigitVA input, downstream confusion family exists, but the bridge does not feed it and final symptoms stay `0` |
+| adult | `Id10175`, `Id10176` Chest pain severe / chest pain remained | `adult_2_45`, `adult_2_46` | `s63` Pain during physical activity, `s64` family pain-location outputs | disconnected-unsurfaced | downstream adult follow-up family exists, but the visible WHO 2022 bridge is not surfaced in this fork |
+| adult | `Id10209`, `Id10209_b` Stiff-neck duration | `adult_2_73` | `s93` Stiff neck at least duration threshold | disconnected-unsurfaced | downstream adult duration field exists, but no visible WHO 2022 bridge is surfaced |
+| adult | `Id10120`, `Id10121`, `Id10122` Duration of illness block | `adult_2_1` | `s15` Ill longer than duration threshold | disconnected-unsurfaced | adult duration symptom exists downstream, but the visible WHO 2022 duration bridge is not surfaced |
+| child | `Id10391`, `Id10393` Maternal vaccination fields | `child_2_11` | none on child path | disconnected-defaulted | downstream prep variable exists, but the visible WHO vaccination fields do not feed a retained child symptom path |
+| child | `Id10249`, `Id10250`, `Id10250_b`, `Id10251` Swollen legs or feet block | child swelling family exists downstream | `s145` Swollen legs or feet, `s146` Swelling for at least duration threshold | disconnected-unsurfaced | the visible child WHO swelling block is not explicitly wired into the retained child swelling family |
+| child | `Id10123` Deceased died suddenly | `child_3_49` | none on child path | not-retained | field is present upstream, but does not produce a retained child `s*` output |
+| neonate | `Id10391`, `Id10393` Maternal vaccination fields | `child_2_11` | `s54` Mother received any vaccinations during pregnancy | disconnected-defaulted | downstream neonatal vaccination symptom exists, but the visible WHO fields do not feed it in the current adapter |
+| neonate | `Id10282`, `Id10283` Unresponsive timing split | no surfaced visible bridge | none from this visible block | disconnected-unsurfaced | visible neonatal timing split exists, but it is not retained as a first-class neonatal symptom path |
 
 ## Confirmed Adult Runtime Evidence
 

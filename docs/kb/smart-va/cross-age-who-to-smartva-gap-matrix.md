@@ -21,21 +21,21 @@ Related docs:
 
 ## Cross-Age Gap Matrix
 
-| Age group | DigitVA WHO Field ID | DigitVA WHO Field Label | SmartVA WHO Field ID | SmartVA Symptom ID | Gap type | Current-state summary |
+| Age group | DigitVA WHO Field ID | DigitVA WHO Field Label | SmartVA WHO Field ID | SmartVA Symptom ID And Label | Gap type | Current-state summary |
 |---|---|---|---|---|---|---|
-| adult | `Id10207` | Severe headache | `adult_2_69`, `adult_2_70`, `adult_2_71` | `s89`, `s90`, `s91` | upstream present, downstream defaulted | visible WHO field exists in raw input, but stock WHO prep leaves downstream adult headache family at defaults and final symptoms at `0` |
-| adult | `Id10212`, `Id10213_a`, `Id10213` | Mental confusion and duration | `adult_2_78`, `adult_2_79`, `adult_2_80` | `s98`, `s99`, `s100` | upstream present, downstream defaulted | visible WHO fields exist in raw input, but stock WHO prep leaves downstream confusion family at defaults and final symptoms at `0` |
-| adult | `Id10175`, `Id10176` | Chest pain severe / chest pain remained | `adult_2_45`, `adult_2_46` | `s63`, `s64` | downstream-only field | downstream adult fields exist, but visible WHO 2022 mapping is not surfaced in this fork |
-| adult | `Id10209`, `Id10209_b` | Stiff-neck duration | `adult_2_73` | `s93` | downstream-only field | downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
+| adult | `Id10207` | Severe headache | `adult_2_69`, `adult_2_70`, `adult_2_71` | `s89` Headaches, `s90` Headaches at least duration threshold, `s91` Rapid headache onset | upstream present, downstream defaulted | visible WHO field exists in raw input, but stock WHO prep leaves downstream adult headache family at defaults and final symptoms at `0` |
+| adult | `Id10212`, `Id10213_a`, `Id10213` | Mental confusion and duration | `adult_2_78`, `adult_2_79`, `adult_2_80` | `s98` Confusion period, `s99` Confusion at least duration threshold, `s100` Sudden confusion | upstream present, downstream defaulted | visible WHO fields exist in raw input, but stock WHO prep leaves downstream confusion family at defaults and final symptoms at `0` |
+| adult | `Id10175`, `Id10176` | Chest pain severe / chest pain remained | `adult_2_45`, `adult_2_46` | `s63` Pain during physical activity, `s64` family pain-location outputs | downstream-only field | downstream adult fields exist, but visible WHO 2022 mapping is not surfaced in this fork |
+| adult | `Id10209`, `Id10209_b` | Stiff-neck duration | `adult_2_73` | `s93` Stiff neck at least duration threshold | downstream-only field | downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
 | adult | `Id10249` to `Id10251` | Swollen legs or feet block | none surfaced | none from this visible block | visible WHO block not wired | visible swelling block is not explicitly wired into the adult path |
-| adult | `Id10120` to `Id10122` | Duration of illness block | `adult_2_1` | `s15` | downstream-only field | adult downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
+| adult | `Id10120` to `Id10122` | Duration of illness block | `adult_2_1` | `s15` Ill longer than duration threshold | downstream-only field | adult downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
 | child | `Id10123` | Deceased died suddenly | `child_3_49` | none on child path | upstream present, not retained | field is present upstream but does not produce a retained child symptom output |
-| child | `Id10249` to `Id10251` | Swollen legs or feet block | no visible child mapping | no surfaced retained child symptom | visible WHO block not wired | downstream child swelling family exists, but this visible WHO block is not explicitly wired |
+| child | `Id10249` to `Id10251` | Swollen legs or feet block | no visible child mapping | `s145` Swollen legs or feet, `s146` Swelling for at least duration threshold | visible WHO block not wired | downstream child swelling family exists, but this visible WHO block is not explicitly wired |
 | child | `Id10391`, `Id10393` | Maternal vaccination fields | `child_2_11` | none on child path | downstream-only / defaulted | downstream variable exists in prep, but no visible retained child path is surfaced |
 | neonate | `Id10282`, `Id10283` | Unresponsive timing split | none surfaced | none from this visible block | visible WHO block not wired | not mapped as first-class neonatal inputs in this fork |
-| neonate | `Id10391`, `Id10393` | Maternal vaccination fields | `child_2_11` | `s54` | downstream symptom exists but visible WHO fields do not feed it | neonatal vaccination symptom exists downstream, but visible vaccination fields do not map into it here |
-| neonate | `Id10351` | Age of baby since fatal illness started | `child_1_20` | `s28` | helper-driven | retained path is real, but depends on helper unit fields outside the visible field itself |
-| neonate | `Id10120_1`, `Id10121`, `Id10122` | Duration of illness block | `child_1_21` | `s29` | helper-driven | retained path is explicit, but depends on helper transformation and may be blank in a given run |
+| neonate | `Id10391`, `Id10393` | Maternal vaccination fields | `child_2_11` | `s54` Mother received any vaccinations during pregnancy | downstream symptom exists but visible WHO fields do not feed it | neonatal vaccination symptom exists downstream, but visible vaccination fields do not map into it here |
+| neonate | `Id10351` | Age of baby since fatal illness started | `child_1_20` | `s28` At least duration threshold old when fatal illness started | helper-driven | retained path is real, but depends on helper unit fields outside the visible field itself |
+| neonate | `Id10120_1`, `Id10121`, `Id10122` | Duration of illness block | `child_1_21` | `s29` Illness lasted at least duration threshold | helper-driven | retained path is explicit, but depends on helper transformation and may be blank in a given run |
 
 ## Cross-Age Takeaways
 

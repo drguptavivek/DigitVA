@@ -38,35 +38,35 @@ The runtime status column below is based on actual generated SmartVA outputs ins
 
 ## Adult Audit Table
 
-| DigitVA WHO Field ID | DigitVA WHO Field Label | SmartVA WHO Field ID | SmartVA Symptom ID | Runtime status | Current-state note |
+| DigitVA WHO Field ID | DigitVA WHO Field Label | SmartVA WHO Field ID | SmartVA Symptom ID And Label | Runtime status | Current-state note |
 |---|---|---|---|---|---|
-| `Id10174` | Chest pain | `adult_2_43` | `s61` | upstream value used | explicit visible WHO mapping; symptom is live |
-| `Id10178` | Chest pain lasted for in minutes | `adult_2_44` | `s62` | upstream value transformed | explicit `who_prep` duration bucketing into `<30m`, `30m-24h`, `>24h` |
-| `Id10179` | Chest pain lasted for in hours | `adult_2_44` | `s62` | upstream value transformed | explicit `who_prep` duration bucketing |
-| `Id10179_1` | Chest pain lasted for in days | `adult_2_44` | `s62` | upstream value transformed | explicit `who_prep` duration bucketing |
-| `Id10175` | Chest pain severe | `adult_2_45` | `s63` | default used / no visible WHO mapping | downstream adult field exists, but visible WHO 2022 mapping is not surfaced in this fork |
-| `Id10176` | Days before death the chest pain remained | `adult_2_46` | `s64` | default used / no visible WHO mapping | downstream adult field exists, but visible WHO 2022 mapping is not surfaced in this fork |
-| `Id10208` | Stiff or painful neck | `adult_2_72` | `s92` | upstream value used | explicit visible WHO mapping; symptom is live |
-| `Id10209` | Duration of stiff or painful neck in days | `adult_2_73` | `s93` | default used / no visible WHO mapping | downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
-| `Id10209_b` | Duration of stiff or painful neck in months | `adult_2_73` | `s93` | default used / no visible WHO mapping | downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
-| `Id10247` | Puffiness of face | `adult_2_25` | `s42` | upstream value used | explicit visible WHO mapping; symptom is live |
-| `Id10248_a` | Duration of puffiness of the face in days | `adult_2_26` | `s43` | upstream value transformed | explicit unit/value normalization into duration feature |
-| `Id10248_b` | Duration of puffiness of the face in months | `adult_2_26` | `s43` | upstream value transformed | explicit unit/value normalization into duration feature |
-| `Id10252` | General swelling of the body | `adult_2_27` | `s44` | upstream value used | explicit visible WHO mapping; symptom is live |
+| `Id10174` | Chest pain | `adult_2_43` | `s61` Pain in the chest in the month preceding death | upstream value used | explicit visible WHO mapping; symptom is live |
+| `Id10178` | Chest pain lasted for in minutes | `adult_2_44` | `s62` Pain greater than 24 hours | upstream value transformed | explicit `who_prep` duration bucketing into `<30m`, `30m-24h`, `>24h` |
+| `Id10179` | Chest pain lasted for in hours | `adult_2_44` | `s62` Pain greater than 24 hours | upstream value transformed | explicit `who_prep` duration bucketing |
+| `Id10179_1` | Chest pain lasted for in days | `adult_2_44` | `s62` Pain greater than 24 hours | upstream value transformed | explicit `who_prep` duration bucketing |
+| `Id10175` | Chest pain severe | `adult_2_45` | `s63` Pain during physical activity | default used / no visible WHO mapping | downstream adult field exists, but visible WHO 2022 mapping is not surfaced in this fork |
+| `Id10176` | Days before death the chest pain remained | `adult_2_46` | `s64` family: `s64991` Pain located in chest, `s64992` Pain located in left arm | default used / no visible WHO mapping | downstream adult field exists, but visible WHO 2022 mapping is not surfaced in this fork |
+| `Id10208` | Stiff or painful neck | `adult_2_72` | `s92` Stiff neck | upstream value used | explicit visible WHO mapping; symptom is live |
+| `Id10209` | Duration of stiff or painful neck in days | `adult_2_73` | `s93` Stiff neck at least duration threshold | default used / no visible WHO mapping | downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
+| `Id10209_b` | Duration of stiff or painful neck in months | `adult_2_73` | `s93` Stiff neck at least duration threshold | default used / no visible WHO mapping | downstream duration field exists, but visible WHO 2022 mapping is not surfaced |
+| `Id10247` | Puffiness of face | `adult_2_25` | `s42` Puffiness of the face | upstream value used | explicit visible WHO mapping; symptom is live |
+| `Id10248_a` | Duration of puffiness of the face in days | `adult_2_26` | `s43` Puffiness of the face for at least duration threshold | upstream value transformed | explicit unit/value normalization into duration feature |
+| `Id10248_b` | Duration of puffiness of the face in months | `adult_2_26` | `s43` Puffiness of the face for at least duration threshold | upstream value transformed | explicit unit/value normalization into duration feature |
+| `Id10252` | General swelling of the body | `adult_2_27` | `s44` General puffiness all over body | upstream value used | explicit visible WHO mapping; symptom is live |
 | `Id10249` | Swollen legs or feet | no visible adult WHO mapping | none from this visible block | no retained path surfaced | this displayed WHO 2022 field is not explicitly wired into the adult path |
 | `Id10250` | Duration of swelling lasted in days | no visible adult WHO mapping | none from this visible block | no retained path surfaced | this displayed WHO 2022 field is not explicitly wired into the adult path |
 | `Id10250_b` | Duration of swelling lasted in months | no visible adult WHO mapping | none from this visible block | no retained path surfaced | this displayed WHO 2022 field is not explicitly wired into the adult path |
 | `Id10251` | Both feet swollen | no visible adult WHO mapping | none from this visible block | no retained path surfaced | this displayed WHO 2022 field is not explicitly wired into the adult path |
-| `Id10207` | Severe headache | `adult_2_69` | `s89` | default used | raw WHO field is present in DigitVA input, but SmartVA WHO prep fills downstream field with default `No`; final symptom stays `0` |
-| `Id10207` | Severe headache | `adult_2_70` | `s90` | default used | downstream duration family exists, but no visible WHO 2022 mapping is surfaced; final symptom stays `0` |
-| `Id10207` | Severe headache | `adult_2_71` | `s91` | default used | downstream onset family exists, but no visible WHO 2022 mapping is surfaced; final symptom stays `0` |
-| `Id10212` | Mental confusion | `adult_2_78` | `s98` | default used | raw WHO field is present in DigitVA input, but SmartVA WHO prep fills downstream field with default `No`; final symptom stays `0` |
-| `Id10213_a` | Duration of mental confusion in days | `adult_2_79` | `s99` | default used | raw WHO field is present in DigitVA input, but downstream duration field is defaulted; final symptom stays `0` |
-| `Id10213` | Duration of mental confusion in months | `adult_2_79` | `s99` | default used | raw WHO field is present in DigitVA input, but downstream duration field is defaulted; final symptom stays `0` |
-| `Id10212` | Mental confusion | `adult_2_80` | `s100` | default used | downstream sudden-confusion field exists, but no visible WHO 2022 mapping is surfaced; final symptom stays `0` |
-| `Id10120` | Duration of illness in days before death | `adult_2_1` | `s15` | no visible adult WHO mapping | adult downstream duration field exists in SmartVA, but visible WHO 2022 mapping is not surfaced in this fork |
-| `Id10121` | Duration of illness in months before death | `adult_2_1` | `s15` | no visible adult WHO mapping | adult downstream duration field exists in SmartVA, but visible WHO 2022 mapping is not surfaced in this fork |
-| `Id10122` | Duration of illness in years before death | `adult_2_1` | `s15` | no visible adult WHO mapping | adult downstream duration field exists in SmartVA, but visible WHO 2022 mapping is not surfaced in this fork |
+| `Id10207` | Severe headache | `adult_2_69` | `s89` Headaches | default used | raw WHO field is present in DigitVA input, but SmartVA WHO prep fills downstream field with default `No`; final symptom stays `0` |
+| `Id10207` | Severe headache | `adult_2_70` | `s90` Headaches at least duration threshold | default used | downstream duration family exists, but no visible WHO 2022 mapping is surfaced; final symptom stays `0` |
+| `Id10207` | Severe headache | `adult_2_71` | `s91` Rapid headache onset | default used | downstream onset family exists, but no visible WHO 2022 mapping is surfaced; final symptom stays `0` |
+| `Id10212` | Mental confusion | `adult_2_78` | `s98` Experienced a period of confusion in the three months prior to death | default used | raw WHO field is present in DigitVA input, but SmartVA WHO prep fills downstream field with default `No`; final symptom stays `0` |
+| `Id10213_a` | Duration of mental confusion in days | `adult_2_79` | `s99` Period of confusion for at least duration threshold | default used | raw WHO field is present in DigitVA input, but downstream duration field is defaulted; final symptom stays `0` |
+| `Id10213` | Duration of mental confusion in months | `adult_2_79` | `s99` Period of confusion for at least duration threshold | default used | raw WHO field is present in DigitVA input, but downstream duration field is defaulted; final symptom stays `0` |
+| `Id10212` | Mental confusion | `adult_2_80` | `s100` Sudden confusion | default used | downstream sudden-confusion field exists, but no visible WHO 2022 mapping is surfaced; final symptom stays `0` |
+| `Id10120` | Duration of illness in days before death | `adult_2_1` | `s15` Ill longer than duration threshold | no visible adult WHO mapping | adult downstream duration field exists in SmartVA, but visible WHO 2022 mapping is not surfaced in this fork |
+| `Id10121` | Duration of illness in months before death | `adult_2_1` | `s15` Ill longer than duration threshold | no visible adult WHO mapping | adult downstream duration field exists in SmartVA, but visible WHO 2022 mapping is not surfaced in this fork |
+| `Id10122` | Duration of illness in years before death | `adult_2_1` | `s15` Ill longer than duration threshold | no visible adult WHO mapping | adult downstream duration field exists in SmartVA, but visible WHO 2022 mapping is not surfaced in this fork |
 
 ## Quick Read
 

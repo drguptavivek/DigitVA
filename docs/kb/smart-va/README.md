@@ -37,6 +37,7 @@ Related current-state background:
 - [Interview Details](interview-details-interview.md)
 - [Demographic General](demographic-general.md)
 - [Duration Of Illness](duration-of-illness.md)
+- [Nutrition](nutrition.md)
 - [Fever](fever.md)
 - [Cough](cough.md)
 - [Diarrhea](diarrhea.md)

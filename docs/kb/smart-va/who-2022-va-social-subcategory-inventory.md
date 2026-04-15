@@ -42,7 +42,7 @@ Related docs:
 | General Symptoms | duration_of_illness | `Id10123`, `Id10121`, `Id10122`, `Id10120` | [Duration Of Illness](duration-of-illness.md) |
 | General Symptoms | fever | `Id10147`, `Id10148_a`, `Id10148_c`, `Id10148`, `Id10149`, `Id10150`, `Id10151` | [Fever](fever.md) |
 | General Symptoms | yellow_discoloration | `Id10265`, `Id10266_b`, `Id10266`, `Id10267` | [Jaundice](jaundice.md) |
-| General Symptoms | nutrition | `Id10268`, `Id10269`, `Id10252`, `Id10485` | pending |
+| General Symptoms | nutrition | `Id10268`, `Id10269`, `Id10252`, `Id10485` | [Nutrition](nutrition.md) |
 | General Symptoms | puffiness | `Id10247`, `Id10248_b`, `Id10248` | [Swelling](swelling.md) |
 | General Symptoms | swelling | `Id10249`, `Id10250_b`, `Id10250`, `Id10251` | [Swelling](swelling.md) |
 | Respiratory / Cardiac Symptoms | cough | `Id10153`, `Id10154_b`, `Id10154`, `Id10155`, `Id10156`, `Id10157`, `Id10158` | [Cough](cough.md) |

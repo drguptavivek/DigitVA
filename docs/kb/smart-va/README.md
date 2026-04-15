@@ -3,7 +3,7 @@ title: SmartVA Symptom KB
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-04-15
 ---
 
 # SmartVA Symptom KB
@@ -32,8 +32,11 @@ Related current-state background:
 
 ## Symptom Documents
 
+- [Agentic Tracing Instructions](agentic-tracing-instructions.md)
 - [WHO_2022_VA_SOCIAL Category / Subcategory Inventory](who-2022-va-social-subcategory-inventory.md)
+- [Interview Details](interview-details-interview.md)
 - [Demographic General](demographic-general.md)
+- [Duration Of Illness](duration-of-illness.md)
 - [Fever](fever.md)
 - [Cough](cough.md)
 - [Diarrhea](diarrhea.md)
@@ -60,6 +63,8 @@ Related current-state background:
 - [Neonatal Fetal Movement](neonatal-fetal-movement.md)
 - [Neonatal Delivery](neonatal-delivery.md)
 - [Neonatal Danger Signs](neonatal-danger-signs.md)
+- [Neonatal Period Physical Abnormalities](neonatal-period-physical-abnormalities.md)
+- [Neonatal Baby Mother](neonatal-baby-mother.md)
 - [Neonatal Blue At Birth](neonatal-blue-at-birth.md)
 - [Rash](rash.md)
 - [Ulcers](ulcers.md)
@@ -71,6 +76,7 @@ Related current-state background:
 - [Medical History](medical-history.md)
 - [Risk Factors](risk-factors.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
+- [Injuries](injuries.md)
 
 ## Reading Notes
 

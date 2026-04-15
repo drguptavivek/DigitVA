@@ -48,3 +48,8 @@ Completed in this batch:
 - `docs/kb/smart-va/maternal-periods-delivery-abortion.md` for WHO `Id10302`, `Id10303`, `Id10305`, `Id10306`, `Id10308`, `Id10310`, `Id10312`, `Id10314`, `Id10333`, and `Id10334`
 - `docs/kb/smart-va/who-2022-va-social-subcategory-inventory.md` for the DB-backed category/subcategory baseline of `WHO_2022_VA_SOCIAL`
 - `docs/kb/smart-va/demographic-general.md` for `vademographicdetails/general`
+- `docs/kb/smart-va/neonatal-period-physical-abnormalities.md` for `vaneonatalperioddetails/physical_abnormalities` with WHO `Id10370` through `Id10373`
+- `docs/kb/smart-va/duration-of-illness.md` for `vageneralsymptoms/duration_of_illness` with WHO `Id10120` through `Id10123`
+- `docs/kb/smart-va/interview-details-interview.md` for `vainterviewdetails/interview`
+- `docs/kb/smart-va/neonatal-baby-mother.md` for `vaneonatalperioddetails/baby_mother` with WHO `Id10391`, `Id10393`, `Id10395`, `Id10396`, `Id10397`, `Id10398`, `Id10399`, `Id10400`, `Id10401`, and `Id10402`
+- `docs/kb/smart-va/injuries.md` for `vainjuriesdetails/default` with WHO `Id10077` through `Id10100`

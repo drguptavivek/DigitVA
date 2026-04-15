@@ -3,7 +3,7 @@ title: WHO_2022_VA_SOCIAL Category Subcategory Inventory
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-04-15
 ---
 
 # WHO_2022_VA_SOCIAL Category / Subcategory Inventory
@@ -25,7 +25,7 @@ Related docs:
 | Category | Subcategory | Fields | Current trace |
 |---|---|---|---|
 | Interview Details | va_interviewer | `Id10010`, `Id10010a`, `Id10010b`, `Id10010c` | pending |
-| Interview Details | interview | `language`, `Id10012`, `Id10013`, `Id10011`, `Id10481` | pending |
+| Interview Details | interview | `language`, `Id10012`, `Id10013`, `Id10011`, `Id10481` | [Interview Details](interview-details-interview.md) |
 | Interview Details | va_respondent | `Id10007`, `Id10007a`, `Id10007b`, `Id10008`, `Id10009` | pending |
 | Demographic Details | general | `Site`, `unique_id`, `site_individual_id`, `Id10017`, `Id10018`, `Id10021`, `Id10023`, `Id10024`, `isNeonatal`, `isChild`, `isAdult`, `ageInDays`, `ageInDays2`, `ageInYears`, `ageInMonths`, `age_group`, `age_neonate_days`, `age_neonate_hours`, `ageInYears2`, `Id10019`, `survey_state`, `survey_district`, `Id10002`, `Id10003`, `Id10004`, `Id10058`, `Id10052`, `Id10053`, `Id10054`, `Id10055`, `Id10057`, `Id10059`, `Id10063`, `Id10064`, `Id10065`, `Id10066`, `Id10061`, `Id10062` | [Demographic General](demographic-general.md) |
 | Demographic Details | risk_factors | `Id10411`, `Id10413`, `Id10413_d`, `Id10413_a`, `Id10413_b`, `Id10414`, `Id10414_d`, `Id10414_a`, `Id10414_b`, `Id10487` | [Risk Factors](risk-factors.md) |
@@ -34,12 +34,12 @@ Related docs:
 | Neonatal Period Details | stillbirth | `Id10104`, `Id10105`, `Id10106`, `Id10107`, `Id10377`, `Id10376`, `Id10109`, `Id10110`, `Id10111`, `Id10112`, `Id10113`, `Id10114`, `Id10115`, `Id10116` | [Neonatal Birth Condition](neonatal-birth-condition.md) |
 | Neonatal Period Details | birth_weight | `Id10366_check`, `Id10366`, `Id10363`, `Id10365` | [Neonatal Birth Weight](neonatal-birth-weight.md) |
 | Neonatal Period Details | symptoms | `Id10406`, `Id10284`, `Id10286`, `Id10287`, `Id10288`, `Id10289` | [Neonatal Danger Signs](neonatal-danger-signs.md) |
-| Neonatal Period Details | physical_abnormalities | `Id10370`, `Id10371`, `Id10372`, `Id10373` | pending |
-| Neonatal Period Details | baby_mother | `Id10391`, `Id10393`, `Id10395`, `Id10396`, `Id10397`, `Id10398`, `Id10399`, `Id10400`, `Id10401`, `Id10402` | pending |
-| Injuries Details | default | `Id10077`, `Id10077_a`, `Id10079`, `Id10082`, `Id10083`, `Id10084`, `Id10085`, `Id10086`, `Id10087`, `Id10088`, `Id10089`, `Id10091`, `Id10092`, `Id10093`, `Id10096`, `Id10094`, `Id10095`, `Id10097`, `Id10098`, `Id10099`, `Id10100` | pending |
+| Neonatal Period Details | physical_abnormalities | `Id10370`, `Id10371`, `Id10372`, `Id10373` | [Neonatal Period Physical Abnormalities](neonatal-period-physical-abnormalities.md) |
+| Neonatal Period Details | baby_mother | `Id10391`, `Id10393`, `Id10395`, `Id10396`, `Id10397`, `Id10398`, `Id10399`, `Id10400`, `Id10401`, `Id10402` | [Neonatal Baby Mother](neonatal-baby-mother.md) |
+| Injuries Details | default | `Id10077`, `Id10077_a`, `Id10079`, `Id10082`, `Id10083`, `Id10084`, `Id10085`, `Id10086`, `Id10087`, `Id10088`, `Id10089`, `Id10091`, `Id10092`, `Id10093`, `Id10096`, `Id10094`, `Id10095`, `Id10097`, `Id10098`, `Id10099`, `Id10100` | [Injuries](injuries.md) |
 | Health History Details | neonate | `Id10351`, `Id10408` | pending |
 | Health History Details | medical_history | `Id10125`, `Id10126`, `Id10127`, `Id10128`, `Id10129`, `Id10482`, `Id10483`, `Id10484`, `Id10130`, `Id10131`, `Id10132`, `Id10133`, `Id10134`, `Id10135`, `Id10136`, `Id10137`, `Id10138`, `Id10139`, `Id10140`, `Id10141`, `Id10142`, `Id10143`, `Id10144` | [Medical History](medical-history.md) |
-| General Symptoms | duration_of_illness | `Id10123`, `Id10121`, `Id10122`, `Id10120` | pending |
+| General Symptoms | duration_of_illness | `Id10123`, `Id10121`, `Id10122`, `Id10120` | [Duration Of Illness](duration-of-illness.md) |
 | General Symptoms | fever | `Id10147`, `Id10148_a`, `Id10148_c`, `Id10148`, `Id10149`, `Id10150`, `Id10151` | [Fever](fever.md) |
 | General Symptoms | yellow_discoloration | `Id10265`, `Id10266_b`, `Id10266`, `Id10267` | [Jaundice](jaundice.md) |
 | General Symptoms | nutrition | `Id10268`, `Id10269`, `Id10252`, `Id10485` | pending |

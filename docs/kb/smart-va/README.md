@@ -34,6 +34,9 @@ Related current-state background:
 
 - [Agentic Tracing Instructions](agentic-tracing-instructions.md)
 - [WHO_2022_VA_SOCIAL Category / Subcategory Inventory](who-2022-va-social-subcategory-inventory.md)
+- [Uncategorized And System Fields](uncategorized-system-fields.md)
+- [SmartVA Trace QA Review](trace-qa-review.md)
+- [SmartVA Trace Summary Matrix](trace-summary-matrix.md)
 - [Interview Details](interview-details-interview.md)
 - [Demographic General](demographic-general.md)
 - [Duration Of Illness](duration-of-illness.md)

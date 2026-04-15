@@ -21,16 +21,12 @@
     <h2 class="text-primary mb-0" style="font-size: 28px; font-weight: 600;">
       Welcome, {{ current_user.name }}
     </h2>
-    <div class="d-flex align-items-center gap-3 flex-wrap justify-content-end">
+    <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
       <div class="d-flex align-items-center gap-2">
         <label class="form-label mb-0 text-secondary small fw-semibold">Project:</label>
         <select id="project-select-top" class="form-select form-select-sm" style="min-width:180px;">
           <option value="">All projects</option>
         </select>
-      </div>
-      <div class="text-end">
-        <div class="text-secondary small fw-semibold text-uppercase">Selected Project</div>
-        <div id="selected-project-name" class="fw-semibold text-primary">All Projects</div>
       </div>
       <button class="btn btn-link p-0 text-secondary" data-bs-toggle="modal" data-bs-target="#codingHelpModal"
               title="How does coding work?">
@@ -141,7 +137,13 @@
           style="cursor:pointer;"
         >
           <i class="fas fa-id-badge text-primary fa-lg"></i>
-          <span class="text-primary fw-semibold fs-5 me-auto">Eligibility</span>
+          <div class="me-auto">
+            <div class="text-primary fw-semibold fs-5">Eligibility</div>
+            <div class="text-secondary small">
+              Selected Project:
+              <span id="selected-project-name" class="fw-semibold text-primary">All Projects</span>
+            </div>
+          </div>
           <i class="fas fa-chevron-down text-secondary small collapse-chevron"></i>
         </button>
         <div id="eligibilityCollapse" class="collapse">

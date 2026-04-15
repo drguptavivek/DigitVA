@@ -81,6 +81,7 @@ Related current-state background:
 - [Maternal General](maternal-general.md)
 - [Maternal Antenatal](maternal-antenatal.md)
 - [Maternal Delivery](maternal-delivery.md)
+- [Health Service Treatment](health-service-treatment.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 - [Injuries](injuries.md)
 

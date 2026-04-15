@@ -37,7 +37,7 @@ Related docs:
 | Neonatal Period Details | physical_abnormalities | `Id10370`, `Id10371`, `Id10372`, `Id10373` | [Neonatal Period Physical Abnormalities](neonatal-period-physical-abnormalities.md) |
 | Neonatal Period Details | baby_mother | `Id10391`, `Id10393`, `Id10395`, `Id10396`, `Id10397`, `Id10398`, `Id10399`, `Id10400`, `Id10401`, `Id10402` | [Neonatal Baby Mother](neonatal-baby-mother.md) |
 | Injuries Details | default | `Id10077`, `Id10077_a`, `Id10079`, `Id10082`, `Id10083`, `Id10084`, `Id10085`, `Id10086`, `Id10087`, `Id10088`, `Id10089`, `Id10091`, `Id10092`, `Id10093`, `Id10096`, `Id10094`, `Id10095`, `Id10097`, `Id10098`, `Id10099`, `Id10100` | [Injuries](injuries.md) |
-| Health History Details | neonate | `Id10351`, `Id10408` | pending |
+| Health History Details | neonate | `Id10351`, `Id10408` | [Health History Neonate](health-history-neonate.md) |
 | Health History Details | medical_history | `Id10125`, `Id10126`, `Id10127`, `Id10128`, `Id10129`, `Id10482`, `Id10483`, `Id10484`, `Id10130`, `Id10131`, `Id10132`, `Id10133`, `Id10134`, `Id10135`, `Id10136`, `Id10137`, `Id10138`, `Id10139`, `Id10140`, `Id10141`, `Id10142`, `Id10143`, `Id10144` | [Medical History](medical-history.md) |
 | General Symptoms | duration_of_illness | `Id10123`, `Id10121`, `Id10122`, `Id10120` | [Duration Of Illness](duration-of-illness.md) |
 | General Symptoms | fever | `Id10147`, `Id10148_a`, `Id10148_c`, `Id10148`, `Id10149`, `Id10150`, `Id10151` | [Fever](fever.md) |

@@ -74,6 +74,7 @@ Related current-state background:
 - [Jaundice](jaundice.md)
 - [Swelling](swelling.md)
 - [Medical History](medical-history.md)
+- [Health History Neonate](health-history-neonate.md)
 - [Risk Factors](risk-factors.md)
 - [Maternal Periods Delivery Abortion](maternal-periods-delivery-abortion.md)
 - [Injuries](injuries.md)

@@ -3,7 +3,7 @@ title: SmartVA Symptom KB
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-17
 ---
 
 # SmartVA Symptom KB
@@ -45,6 +45,7 @@ Use these docs first, in this order:
 - [Agentic Tracing Instructions](agentic-tracing-instructions.md)
 - [WHO_2022_VA_SOCIAL Category / Subcategory Inventory](who-2022-va-social-subcategory-inventory.md)
 - [Comprehensive WHO Field To SmartVA Matrix](comprehensive-who-field-to-smartva-matrix.md)
+- [SmartVA ICD10 And GBD Mapping](smartva-icd10-gbd-mapping.md)
 - [Uncategorized And System Fields](uncategorized-system-fields.md)
 - [SmartVA Trace QA Review](trace-qa-review.md)
 - [SmartVA Trace Summary Matrix](trace-summary-matrix.md)

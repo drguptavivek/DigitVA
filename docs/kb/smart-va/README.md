@@ -34,17 +34,19 @@ Related current-state background:
 
 Use these docs first, in this order:
 
-1. [Dead Or Disconnected SmartVA Bridges](dead-or-disconnected-smartva-bridges.md)
-2. [Cross Age WHO To SmartVA Gap Matrix](cross-age-who-to-smartva-gap-matrix.md)
-3. [Adult WHO To SmartVA Gap Audit](adult-who-to-smartva-gap-audit.md)
-4. [Child WHO To SmartVA Gap Audit](child-who-to-smartva-gap-audit.md)
-5. [Neonate WHO To SmartVA Gap Audit](neonate-who-to-smartva-gap-audit.md)
+1. [Comprehensive WHO Field To SmartVA Matrix](comprehensive-who-field-to-smartva-matrix.md)
+2. [Dead Or Disconnected SmartVA Bridges](dead-or-disconnected-smartva-bridges.md)
+3. [Cross Age WHO To SmartVA Gap Matrix](cross-age-who-to-smartva-gap-matrix.md)
+4. [Adult WHO To SmartVA Gap Audit](adult-who-to-smartva-gap-audit.md)
+5. [Child WHO To SmartVA Gap Audit](child-who-to-smartva-gap-audit.md)
+6. [Neonate WHO To SmartVA Gap Audit](neonate-who-to-smartva-gap-audit.md)
 
 ## Audit And Navigation
 
+- [Comprehensive WHO Field To SmartVA Matrix](comprehensive-who-field-to-smartva-matrix.md)
+  Field-by-field validated artifact. WHO labels are verified from the saved live ODK XML, and SmartVA bridges/statuses are verified from code.
 - [Agentic Tracing Instructions](agentic-tracing-instructions.md)
 - [WHO_2022_VA_SOCIAL Category / Subcategory Inventory](who-2022-va-social-subcategory-inventory.md)
-- [Comprehensive WHO Field To SmartVA Matrix](comprehensive-who-field-to-smartva-matrix.md)
 - [SmartVA ICD10 And GBD Mapping](smartva-icd10-gbd-mapping.md)
 - [Uncategorized And System Fields](uncategorized-system-fields.md)
 - [SmartVA Trace QA Review](trace-qa-review.md)

@@ -50,6 +50,8 @@ docs/Samplemanuscripts/*.*
 .gitignore
 .beads/dolt-pre-restore-*
 .claude/scheduled_tasks.lock
+.codex
+.codex/
 
 # Beads / Dolt files (added by bd init)
 .beads-credential-key

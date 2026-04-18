@@ -1,4 +1,5 @@
 import uuid
+import os
 from datetime import datetime
 from time import perf_counter
 import pytz
@@ -18,7 +19,7 @@ from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from flask_caching import Cache
 from werkzeug.middleware.proxy_fix import ProxyFix
-from config import Config
+from config import Config, DevelopmentConfig, TestConfig
 from celery import Celery, Task
 
 db = SQLAlchemy()
@@ -54,7 +55,18 @@ def celery_init_app(app: Flask) -> Celery:
     app.extensions["celery"] = celery_app
     return celery_app
 
-def create_app(config_class=Config):
+def _default_config_class():
+    flask_env = os.environ.get("FLASK_ENV", "").lower().strip()
+    if flask_env == "development":
+        return DevelopmentConfig
+    if flask_env == "testing":
+        return TestConfig
+    return Config
+
+
+def create_app(config_class=None):
+    if config_class is None:
+        config_class = _default_config_class()
     app = Flask(__name__)
     app.config.from_object(config_class)
 

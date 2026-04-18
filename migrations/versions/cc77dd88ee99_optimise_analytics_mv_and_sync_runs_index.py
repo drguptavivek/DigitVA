@@ -16,6 +16,7 @@ Create Date: 2026-04-02
 """
 import sqlalchemy as sa
 from alembic import op
+from app.services.submission_analytics_mv import build_submission_analytics_mv_sql
 
 revision = "cc77dd88ee99"
 down_revision = "aa12bb34cc56"

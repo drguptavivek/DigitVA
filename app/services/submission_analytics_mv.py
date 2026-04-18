@@ -297,14 +297,33 @@ build_refresh_submission_analytics_mv_sql = _build_refresh_sql
 def build_submission_analytics_mv_sql(view_name: str = "va_submission_analytics_mv") -> str:
     """Legacy builder for the old single analytics MV.
 
-    Kept only so that already-applied migrations (cc77dd88ee99 and earlier)
-    remain importable.  Do NOT use in new code.
+    Kept so the pre-split migration chain can still run on a fresh database.
+    Do NOT use in new code.
     """
-    # The original migration already ran against the database; this function
-    # only needs to return syntactically-valid SQL so that `flask db current`
-    # can import the migration file without crashing.  The actual DDL is not
-    # re-executed unless a downgrade crosses this revision.
-    return f"CREATE MATERIALIZED VIEW {view_name} AS SELECT 1::int AS x WITH DATA"
+    return f"""
+CREATE MATERIALIZED VIEW {view_name} AS
+SELECT
+    s.va_sid,
+    DATE(s.va_submission_date) AS submission_date,
+    f.project_id,
+    f.site_id,
+    w.workflow_state,
+    s.va_odk_reviewstate AS odk_review_state,
+    s.va_deceased_gender AS sex,
+    CASE
+        WHEN s.va_deceased_age IS NULL THEN 'unknown'
+        WHEN s.va_deceased_age < 15 THEN 'child'
+        WHEN s.va_deceased_age < 50 THEN '15_49y'
+        WHEN s.va_deceased_age < 65 THEN '50_64y'
+        ELSE '65_plus'
+    END AS analytics_age_band,
+    NULL::text AS final_icd,
+    (w.workflow_state = 'finalized_upstream_changed') AS cod_pending_upstream_review
+FROM va_submissions s
+JOIN va_forms f ON f.form_id = s.va_form_id
+LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+WITH DATA
+"""
 
 
 # ---------------------------------------------------------------------------

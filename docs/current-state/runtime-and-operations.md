@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-19
 ---
 
 # Runtime And Operations
@@ -85,13 +85,16 @@ Current services:
 Current behavior:
 
 - local override (`docker-compose.override.yml`) runs Flask dev server on `0.0.0.0:5000`, mapped to host port `8051`
+- the dev override now activates a dedicated development config via `FLASK_ENV=development`, which disables `Secure` session/remember cookies and strict HTTPS-only CSRF checks so login works on plain `http://localhost:8051`
 - redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`
 - a named `minerva_venv` volume preserves the image's `/app/.venv` from the host mount and is shared by the app, Celery worker, and Celery beat services
+- the app, Celery worker, and Celery beat services now build for the host's native Docker architecture by default; when changing host architecture or switching between emulated/native builds, recreate the shared `minerva_venv` volume so compiled wheels are rebuilt consistently
 - postgres data is persisted in a named docker volume
 - the dev override uses the image-bundled `uv` binary to run `uv sync --frozen` at container start, rather than installing `uv` with `pip`
 - Celery worker and beat wait for the app container to become healthy before starting so dependency refreshes propagate through the shared virtualenv before task processes launch
 - celery beat startup waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
+- the live migration chain now includes a forward-only additive migration that ensures the required `celery_*` scheduler tables exist on fresh databases
 - celery worker startup uses `--concurrency=1`
 - all services run Python entrypoints directly (`flask`, `celery`, `gunicorn`) — no `uv run` wrapper needed
 

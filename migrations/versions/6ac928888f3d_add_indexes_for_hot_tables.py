@@ -25,13 +25,21 @@ def upgrade():
     )
 
     # celery_periodictask: celery-beat polls for enabled tasks
-    op.create_index(
-        "ix_celery_periodictask_enabled",
-        "celery_periodictask",
-        ["enabled"],
+    op.execute(
+        sa.text(
+            """
+            DO $$
+            BEGIN
+                IF to_regclass('public.celery_periodictask') IS NOT NULL THEN
+                    CREATE INDEX IF NOT EXISTS ix_celery_periodictask_enabled
+                    ON celery_periodictask (enabled);
+                END IF;
+            END $$;
+            """
+        )
     )
 
 
 def downgrade():
-    op.drop_index("ix_celery_periodictask_enabled", table_name="celery_periodictask")
+    op.execute(sa.text("DROP INDEX IF EXISTS ix_celery_periodictask_enabled"))
     op.drop_index("ix_va_sync_runs_triggered_by_started_at", table_name="va_sync_runs")

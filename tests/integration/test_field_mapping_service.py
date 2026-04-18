@@ -10,8 +10,23 @@ Run (inside Docker):
 import pandas as pd
 from pathlib import Path
 from collections import OrderedDict
+from datetime import datetime, timezone
+import uuid
+
+import sqlalchemy as sa
+
 from app import db
-from app.models import MasCategoryDisplayConfig, MasFormTypes, MasSubcategoryOrder
+from app.models import (
+    MasCategoryDisplayConfig,
+    MasFormTypes,
+    MasSubcategoryOrder,
+    VaForms,
+    VaResearchProjects,
+    VaSites,
+    VaStatuses,
+    VaSubmissions,
+)
+from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator, WHO_2022_CATEGORIES
 from app.services.field_mapping_service import FieldMappingService
 from tests.base import BaseTestCase
@@ -316,6 +331,112 @@ class TestFieldMappingServiceStructure(BaseTestCase):
         self.assertLess(
             cat_keys.index("vahealthserviceutilisation"),
             cat_keys.index("vanarrationanddocuments"),
+        )
+
+
+class TestRenderProcessCategoryDataLegacyAttachmentFallback(BaseTestCase):
+    FORM_ID = "LEGACYATT01"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(timezone.utc)
+
+        if not db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID):
+            db.session.add(VaResearchProjects(
+                project_id=cls.BASE_PROJECT_ID,
+                project_code=cls.BASE_PROJECT_ID,
+                project_name="Base Research Project",
+                project_nickname="BaseResearch",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            ))
+            db.session.flush()
+
+        if not db.session.scalar(
+            sa.select(VaSites).where(VaSites.site_id == cls.BASE_SITE_ID)
+        ):
+            db.session.add(VaSites(
+                site_id=cls.BASE_SITE_ID,
+                project_id=cls.BASE_PROJECT_ID,
+                site_name="Base Test Site",
+                site_abbr=cls.BASE_SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            ))
+            db.session.flush()
+
+        if not db.session.get(VaForms, cls.FORM_ID):
+            db.session.add(VaForms(
+                form_id=cls.FORM_ID,
+                project_id=cls.BASE_PROJECT_ID,
+                site_id=cls.BASE_SITE_ID,
+                odk_form_id="LEGACYATT_ODK",
+                odk_project_id="99",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            ))
+            db.session.flush()
+
+        cls.submission = VaSubmissions(
+            va_sid=str(uuid.uuid4()),
+            va_form_id=cls.FORM_ID,
+            va_data_collector="Legacy Collector",
+            va_consent="yes",
+            va_narration_language="English",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_uniqueid_masked="LEGACY001",
+            va_summary=[],
+            va_catcount={},
+            va_category_list=[],
+        )
+        db.session.add(cls.submission)
+        db.session.commit()
+
+    def test_legacy_attachment_without_storage_name_uses_media_fallback(self):
+        from app.utils.va_render.va_render_06_processcategorydata import (
+            va_render_processcategorydata,
+        )
+
+        filename = f"legacy_{uuid.uuid4().hex[:8]}.jpg"
+        db.session.add(VaSubmissionAttachments(
+            va_sid=self.submission.va_sid,
+            filename=filename,
+            local_path=f"/app/data/{self.FORM_ID}/media/{filename}",
+            mime_type="image/jpeg",
+            storage_name=None,
+            exists_on_odk=True,
+            etag=None,
+            last_downloaded_at=datetime.now(timezone.utc),
+        ))
+        db.session.flush()
+
+        datalevel = {
+            "vanarrationanddocuments": {
+                "narration": {
+                    "imagenarr": "(imagenarr) Narration image",
+                }
+            }
+        }
+
+        with self.app.test_request_context():
+            result = va_render_processcategorydata(
+                va_data={"imagenarr": filename},
+                va_form_id=self.FORM_ID,
+                va_datalevel=datalevel,
+                va_mapping_choice={},
+                va_partial="vanarrationanddocuments",
+                va_sid=self.submission.va_sid,
+            )
+
+        self.assertEqual(
+            result["narration"]["(imagenarr) Narration image"],
+            f"/vaform/media/{self.FORM_ID}/{filename}",
         )
 
     def test_16_fieldsitepi_uses_explicit_subcategory_order(self):

@@ -47,11 +47,16 @@ def _prefetch_attachment_urls(va_sid: str) -> None:
         flask_cache.set(key, storage_name, timeout=300)
 
 
-def _resolve_attachment_url(va_sid: str, original_filename: str) -> str | None:
+def _resolve_attachment_url(
+    va_sid: str,
+    va_form_id: str,
+    original_filename: str,
+) -> str | None:
     """Resolve attachment filename to a /attachment/{storage_name} URL.
 
     Lookup order: Redis cache → DB.
-    Returns None if no storage_name exists for the (va_sid, filename) pair.
+    Falls back to the legacy /media/{form_id}/{filename} route for older
+    rows that predate storage_name backfill.
     """
     import sqlalchemy as sa
     from app import db, cache as flask_cache
@@ -62,18 +67,31 @@ def _resolve_attachment_url(va_sid: str, original_filename: str) -> str | None:
 
     storage_name = flask_cache.get(cache_key)
     if storage_name is None:
-        storage_name = db.session.execute(
-            sa.select(VaSubmissionAttachments.storage_name)
+        attachment_row = db.session.execute(
+            sa.select(
+                VaSubmissionAttachments.storage_name,
+                VaSubmissionAttachments.local_path,
+            )
             .where(VaSubmissionAttachments.va_sid == va_sid)
             .where(VaSubmissionAttachments.filename == original_filename)
             .where(VaSubmissionAttachments.exists_on_odk == True)  # noqa: E712
-            .where(VaSubmissionAttachments.storage_name.is_not(None))
-        ).scalar_one_or_none()
-        if storage_name is None:
+        ).one_or_none()
+        if attachment_row is None:
             return None
-        flask_cache.set(cache_key, storage_name, timeout=300)
+        storage_name, local_path = attachment_row
+        if storage_name is not None:
+            flask_cache.set(cache_key, storage_name, timeout=300)
+        elif not local_path:
+            return None
 
-    return url_for("va_form.serve_attachment", storage_name_raw=storage_name)
+    if storage_name is not None:
+        return url_for("va_form.serve_attachment", storage_name_raw=storage_name)
+
+    return url_for(
+        "va_form.serve_media",
+        va_form_id=va_form_id,
+        va_filename=original_filename,
+    )
 
 
 def _choice_lookup_key_candidates(value):
@@ -139,7 +157,7 @@ def va_render_processcategorydata(
                     )
                 if va_fieldid in va_isattachment:
                     if va_sid is not None:
-                        url = _resolve_attachment_url(va_sid, value)
+                        url = _resolve_attachment_url(va_sid, va_form_id, value)
                         if url:
                             value = url
                         else:

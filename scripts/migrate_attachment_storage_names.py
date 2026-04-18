@@ -29,6 +29,103 @@ def _migration_storage_name(va_sid: str, filename: str) -> str:
     return uuid.uuid5(_MIGRATION_NS, f"{va_sid}:{filename}").hex + ext
 
 
+def repair_attachment_storage_names(
+    *,
+    apply: bool,
+    batch_size: int = 500,
+    progress_callback=None,
+    verbose: bool = False,
+) -> dict[str, int]:
+    """Assign deterministic storage_name values to legacy attachment rows.
+
+    Skips `audit.csv` rows and leaves rows with missing local files untouched so
+    they remain retryable later.
+    """
+    from app import db
+    from app.models.va_submission_attachments import VaSubmissionAttachments
+    from app.models.va_submissions import VaSubmissions
+
+    def report(message: str, *, is_verbose: bool = False) -> None:
+        if progress_callback is None:
+            return
+        if is_verbose and not verbose:
+            return
+        progress_callback(message)
+
+    total_done = 0
+    total_missing = 0
+    total_scanned = 0
+
+    while True:
+        rows = db.session.scalars(
+            sa.select(VaSubmissionAttachments)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .where(VaSubmissionAttachments.storage_name.is_(None))
+            .where(VaSubmissionAttachments.filename != "audit.csv")
+            .order_by(VaSubmissionAttachments.va_sid, VaSubmissionAttachments.filename)
+            .limit(batch_size)
+        ).all()
+
+        if not rows:
+            break
+
+        report(
+            f"legacy-attachment repair: processing batch of {len(rows)} row(s)"
+        )
+
+        for row in rows:
+            total_scanned += 1
+            new_storage_name = _migration_storage_name(row.va_sid, row.filename)
+
+            if not row.local_path:
+                report(
+                    f"MISSING  {row.va_sid}/{row.filename} (no local_path, skipping)",
+                    is_verbose=True,
+                )
+                total_missing += 1
+                continue
+
+            media_dir = os.path.dirname(row.local_path)
+            new_local_path = os.path.join(media_dir, new_storage_name)
+
+            if os.path.exists(new_local_path):
+                report(
+                    f"RECOVERY {row.va_sid}/{row.filename} → {new_storage_name}",
+                    is_verbose=True,
+                )
+                if apply:
+                    row.storage_name = new_storage_name
+                    row.local_path = new_local_path
+                    db.session.commit()
+                total_done += 1
+                continue
+
+            if not os.path.exists(row.local_path):
+                report(
+                    f"MISSING  {row.va_sid}/{row.filename} (file not on disk, skipping)",
+                    is_verbose=True,
+                )
+                total_missing += 1
+                continue
+
+            report(
+                f"RENAME   {row.va_sid}/{row.filename} → {new_storage_name}",
+                is_verbose=True,
+            )
+            if apply:
+                os.rename(row.local_path, new_local_path)
+                row.storage_name = new_storage_name
+                row.local_path = new_local_path
+                db.session.commit()
+            total_done += 1
+
+    return {
+        "migrated": total_done,
+        "missing": total_missing,
+        "scanned": total_scanned,
+    }
+
+
 @click.group("migrate-attachments")
 def migrate_attachments_group():
     """One-time attachment storage_name migration commands."""
@@ -43,75 +140,19 @@ def run_migration(apply: bool):
 
     Skips audit.csv rows. Safe to rerun — idempotent.
     """
-    from app import db
-    from app.models.va_submission_attachments import VaSubmissionAttachments
-    from app.models.va_submissions import VaSubmissions
-    from flask import current_app
-
     if not apply:
         click.echo("DRY RUN — pass --apply to make changes\n")
 
-    batch_size = 500
-    offset = 0
-    total_done = 0
-    total_missing = 0
-    total_skipped_audit = 0
-
-    while True:
-        rows = db.session.scalars(
-            sa.select(VaSubmissionAttachments)
-            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
-            .where(VaSubmissionAttachments.storage_name.is_(None))
-            .where(VaSubmissionAttachments.filename != "audit.csv")
-            .order_by(VaSubmissionAttachments.va_sid, VaSubmissionAttachments.filename)
-            .limit(batch_size)
-            .offset(offset)
-        ).all()
-
-        if not rows:
-            break
-
-        for row in rows:
-            new_storage_name = _migration_storage_name(row.va_sid, row.filename)
-
-            if not row.local_path:
-                click.echo(f"MISSING  {row.va_sid}/{row.filename} (no local_path, skipping)")
-                total_missing += 1
-                continue
-
-            media_dir = os.path.dirname(row.local_path)
-            new_local_path = os.path.join(media_dir, new_storage_name)
-
-            if os.path.exists(new_local_path):
-                # Recovery path: file already renamed by a previous interrupted run.
-                click.echo(f"RECOVERY {row.va_sid}/{row.filename} → {new_storage_name}")
-                if apply:
-                    row.storage_name = new_storage_name
-                    row.local_path = new_local_path
-                    db.session.commit()
-                total_done += 1
-                continue
-
-            if not os.path.exists(row.local_path):
-                # File missing on disk — leave storage_name NULL so this row
-                # remains retryable once the file is restored.
-                click.echo(f"MISSING  {row.va_sid}/{row.filename} (file not on disk, skipping)")
-                total_missing += 1
-                continue
-
-            click.echo(f"RENAME   {row.va_sid}/{row.filename} → {new_storage_name}")
-            if apply:
-                os.rename(row.local_path, new_local_path)
-                row.storage_name = new_storage_name
-                row.local_path = new_local_path
-                db.session.commit()
-            total_done += 1
-
-        offset += batch_size
-
+    result = repair_attachment_storage_names(
+        apply=apply,
+        batch_size=500,
+        progress_callback=click.echo,
+        verbose=True,
+    )
     click.echo(
         f"\n{'Applied' if apply else 'Dry run'}: "
-        f"{total_done} migrated, {total_missing} missing (storage_name left NULL)"
+        f"{result['migrated']} migrated, {result['missing']} missing "
+        f"(storage_name left NULL)"
     )
 
 

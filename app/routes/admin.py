@@ -4540,6 +4540,53 @@ def admin_sync_backfill_stats():
         return _json_error(f"Failed to load backfill stats", 500)
 
 
+@admin.get("/api/sync/legacy-attachment-stats")
+@limiter.exempt
+@role_required("admin")
+def admin_sync_legacy_attachment_stats():
+    """Return counts for attachment rows missing opaque storage names."""
+    try:
+        from app.models.va_submission_attachments import VaSubmissionAttachments
+
+        counts = db.session.execute(
+            sa.select(
+                sa.func.count().label("total_null_rows"),
+                sa.func.count()
+                .filter(VaSubmissionAttachments.exists_on_odk.is_(True))
+                .label("exists_on_odk_null_rows"),
+                sa.func.count()
+                .filter(VaSubmissionAttachments.filename == "audit.csv")
+                .label("audit_csv_null_rows"),
+                sa.func.count()
+                .filter(VaSubmissionAttachments.filename != "audit.csv")
+                .label("legacy_media_null_rows"),
+                sa.func.count()
+                .filter(
+                    sa.and_(
+                        VaSubmissionAttachments.filename != "audit.csv",
+                        VaSubmissionAttachments.exists_on_odk.is_(True),
+                    )
+                )
+                .label("legacy_media_exists_on_odk_null_rows"),
+            )
+            .select_from(VaSubmissionAttachments)
+            .where(VaSubmissionAttachments.storage_name.is_(None))
+        ).mappings().one()
+
+        return jsonify({
+            "total_null_rows": int(counts["total_null_rows"] or 0),
+            "exists_on_odk_null_rows": int(counts["exists_on_odk_null_rows"] or 0),
+            "audit_csv_null_rows": int(counts["audit_csv_null_rows"] or 0),
+            "legacy_media_null_rows": int(counts["legacy_media_null_rows"] or 0),
+            "legacy_media_exists_on_odk_null_rows": int(
+                counts["legacy_media_exists_on_odk_null_rows"] or 0
+            ),
+        })
+    except Exception:
+        log.error("admin_sync_legacy_attachment_stats failed", exc_info=True)
+        return _json_error("Failed to load legacy attachment stats", 500)
+
+
 @admin.post("/api/sync/backfill/form/<form_id>")
 @role_required("admin")
 def admin_sync_backfill_form(form_id: str):
@@ -4579,6 +4626,35 @@ def admin_sync_backfill_form(form_id: str):
     except Exception as e:
         log.error("admin_sync_backfill_form failed for %s", form_id, exc_info=True)
         return _json_error(f"Failed to trigger repair for form {form_id}", 500)
+
+
+@admin.post("/api/sync/legacy-attachment-repair")
+@role_required("admin")
+def admin_sync_legacy_attachment_repair():
+    """Populate storage_name for legacy media attachment rows."""
+    try:
+        from app.tasks.sync_tasks import run_legacy_attachment_repair
+
+        _reconcile_orphaned_running_sync_rows()
+        running = db.session.scalar(
+            sa.select(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .limit(1)
+        )
+        if running:
+            return _json_error("A sync is already in progress.", 409)
+
+        task = run_legacy_attachment_repair.delay(
+            triggered_by="legacy-attachment-repair",
+            user_id=str(current_user.user_id),
+        )
+        return jsonify({
+            "message": "Legacy attachment repair started.",
+            "task_id": task.id,
+        }), 202
+    except Exception:
+        log.error("admin_sync_legacy_attachment_repair failed", exc_info=True)
+        return _json_error("Failed to trigger legacy attachment repair", 500)
 
 
 @admin.post("/api/sync/trigger-smartva")

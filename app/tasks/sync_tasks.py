@@ -954,6 +954,81 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
 
 
 @shared_task(
+    name="app.tasks.sync_tasks.run_legacy_attachment_repair",
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=3600,
+)
+def run_legacy_attachment_repair(
+    self,
+    triggered_by: str = "legacy-attachment-repair",
+    user_id=None,
+):
+    """Populate storage_name for legacy media attachment rows."""
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from scripts.migrate_attachment_storage_names import (
+        repair_attachment_storage_names,
+    )
+
+    run = VaSyncRun(
+        triggered_by=triggered_by,
+        triggered_user_id=user_id,
+        started_at=datetime.now(timezone.utc),
+        status="running",
+    )
+    db.session.add(run)
+    db.session.commit()
+    run_id = run.sync_run_id
+
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
+    try:
+        log_progress("legacy-attachment repair: started")
+        result = repair_attachment_storage_names(
+            apply=True,
+            batch_size=500,
+            progress_callback=log_progress,
+            verbose=False,
+        )
+        log_progress(
+            "legacy-attachment repair: complete — "
+            f"{result['migrated']} migrated, {result['missing']} missing"
+        )
+        run = db.session.get(VaSyncRun, run_id)
+        run.records_updated = int(result.get("migrated") or 0)
+        run.status = "success"
+        run.finished_at = datetime.now(timezone.utc)
+        db.session.commit()
+    except SoftTimeLimitExceeded:
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_message = (
+                    "Task exceeded soft time limit (30 min) and was stopped."
+                )
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
+    except Exception as exc:
+        _log_progress_exc(db, run_id, "LegacyAttachmentRepair", exc)
+        try:
+            run = db.session.get(VaSyncRun, run_id)
+            if run:
+                run.status = "error"
+                run.finished_at = datetime.now(timezone.utc)
+                run.error_message = str(exc)[:2000]
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+        raise
+
+
+@shared_task(
     name="app.tasks.sync_tasks.run_enrichment_sync_batch",
     bind=True,
     soft_time_limit=300,

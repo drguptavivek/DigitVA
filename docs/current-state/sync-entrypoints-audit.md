@@ -3,7 +3,7 @@ title: Sync Entrypoints Audit
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-18
 ---
 
 # Sync Entrypoints Audit
@@ -29,6 +29,7 @@ It also separates true ODK sync actions from read-only refresh actions.
 | Coverage row refresh icon (form) | `syncForm(formId)` | `POST /admin/api/sync/form/<form_id>` (`admin_sync_form`) | `run_single_form_sync.delay(triggered_by='manual')` | Single-form force-resync; bypasses delta check and re-downloads all submissions for that form, then repair pipeline. |
 | Coverage row refresh icon (site mapping without runtime form) | `syncProjectSite(projectId, siteId)` | `POST /admin/api/sync/project-site/<project_id>/<site_id>` (`admin_sync_project_site`) | `ensure_runtime_form_for_mapping()` + `run_single_form_sync.delay(...)` | Creates runtime form if needed, then runs same single-form force-resync path. |
 | `Repair` (per-form in Form Repair Coverage table) | `apiJson('/admin/api/sync/backfill/form/<form_id>', 'POST')` | `POST /admin/api/sync/backfill/form/<form_id>` (`admin_sync_backfill_form`) | `run_single_form_backfill.delay(triggered_by='backfill')` | Local repair path for one form (missing thin rows / metadata / attachments / SmartVA). Not a full ODK force-resync of all records. |
+| `Repair` (Legacy Attachment Rows card) | `apiJson('/admin/api/sync/legacy-attachment-repair', 'POST')` | `POST /admin/api/sync/legacy-attachment-repair` (`admin_sync_legacy_attachment_repair`) | `run_legacy_attachment_repair.delay(triggered_by='legacy-attachment-repair')` | Repairs legacy non-`audit.csv` attachment rows missing `storage_name` and renames local files to opaque storage tokens. |
 
 ### Data Manager (`/data-management`)
 
@@ -46,6 +47,7 @@ It also separates true ODK sync actions from read-only refresh actions.
 |---|---|---|
 | Data Manager `Refresh Dashboard` | `POST /api/v1/analytics/mv/refresh` | Refreshes analytics materialized view and reloads dashboard cards/charts/table. Does not pull from ODK. |
 | Admin `Load/Refresh` in Coverage/Form Repair Coverage/Revoked/History cards | Various `GET /admin/api/sync/*` endpoints | Read-only telemetry/status data refresh. No ODK writes/downloads triggered by these alone. |
+| Admin `Refresh` in Legacy Attachment Rows card | `GET /admin/api/sync/legacy-attachment-stats` | Read-only legacy attachment status refresh, including repaired legacy media row totals. No file or DB mutation. |
 | Admin `Save` under Auto-sync interval | `POST /admin/api/sync/schedule` | Updates periodic schedule config only. |
 
 ## Adjacent But Different "Sync" Surface

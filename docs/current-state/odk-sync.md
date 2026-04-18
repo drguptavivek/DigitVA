@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-18
 ---
 
 # ODK Sync And Attachments
@@ -648,8 +648,18 @@ The sync dashboard also exposes a separate backfill coverage view and trigger:
   - SmartVA missing, failed/null, and no-consent detail counts (`smartva_missing`, `smartva_failed`, `smartva_no_consent`)
   - SmartVA missing excludes consent-refused rows (`va_consent = "no"`)
 - `POST /admin/api/sync/backfill/form/<form_id>` triggers the ODK-backed repair path for one form
+- `GET /admin/api/sync/legacy-attachment-stats` returns counts of
+  `va_submission_attachments` rows where `storage_name IS NULL`, split between
+  legacy media rows and intentionally skipped `audit.csv` rows, plus a derived
+  count of already repaired legacy media rows
+- `POST /admin/api/sync/legacy-attachment-repair` triggers a dedicated repair
+  task that assigns deterministic opaque `storage_name` values to legacy
+  non-`audit.csv` attachment rows and renames the local files accordingly
 - The dashboard table groups rows by project, site, and form so operators can see which forms are missing local data, metadata, or attachments before triggering a repair
 - In the Form Repair table, SmartVA displays complete-only counts in-cell; missing, failed/null, and no-consent counts are shown on hover
+- The Legacy Attachment Rows card should normally show zero legacy media rows;
+  nonzero values indicate renderability gaps that the general repair-coverage
+  query will not surface on its own
 
 Important distinction:
 
@@ -672,6 +682,9 @@ Sections:
 - **Schedule configurator** — change beat interval (1–168h) without restarting
 - **Coverage table** — ODK total vs local total, last synced time, per-form `Force-resync` button; loaded on demand rather than automatically on panel load
 - **Form Repair coverage table** — project/site/form completeness counts for local data, metadata, attachments, and SmartVA, with a per-form `Repair` trigger
+- **Legacy Attachment Rows** — status card for `storage_name IS NULL` rows,
+  repaired legacy media row totals, plus a dedicated `Repair` trigger for
+  legacy media rows
 - **Progress log** — live timestamped entries; clears and resets when a new run starts
 - **Run history** — last 20 runs with duration, trigger source, status, and error detail
 

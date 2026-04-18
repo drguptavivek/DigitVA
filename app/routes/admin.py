@@ -4547,6 +4547,7 @@ def admin_sync_legacy_attachment_stats():
     """Return counts for attachment rows missing opaque storage names."""
     try:
         from app.models.va_submission_attachments import VaSubmissionAttachments
+        from scripts.migrate_attachment_storage_names import _migration_storage_name
 
         counts = db.session.execute(
             sa.select(
@@ -4573,6 +4574,22 @@ def admin_sync_legacy_attachment_stats():
             .where(VaSubmissionAttachments.storage_name.is_(None))
         ).mappings().one()
 
+        repaired_legacy_media_rows = 0
+        repaired_rows = db.session.execute(
+            sa.select(
+                VaSubmissionAttachments.va_sid,
+                VaSubmissionAttachments.filename,
+                VaSubmissionAttachments.storage_name,
+            )
+            .where(VaSubmissionAttachments.storage_name.is_not(None))
+            .where(VaSubmissionAttachments.filename != "audit.csv")
+            .execution_options(yield_per=1000)
+        )
+        for row in repaired_rows:
+            expected_storage_name = _migration_storage_name(row.va_sid, row.filename)
+            if row.storage_name == expected_storage_name:
+                repaired_legacy_media_rows += 1
+
         return jsonify({
             "total_null_rows": int(counts["total_null_rows"] or 0),
             "exists_on_odk_null_rows": int(counts["exists_on_odk_null_rows"] or 0),
@@ -4581,6 +4598,7 @@ def admin_sync_legacy_attachment_stats():
             "legacy_media_exists_on_odk_null_rows": int(
                 counts["legacy_media_exists_on_odk_null_rows"] or 0
             ),
+            "repaired_legacy_media_rows": repaired_legacy_media_rows,
         })
     except Exception:
         log.error("admin_sync_legacy_attachment_stats failed", exc_info=True)

@@ -697,6 +697,7 @@
       var d = res.data || {};
       var legacyMedia = Number(d.legacy_media_null_rows || 0);
       var legacyMediaExistsOnOdk = Number(d.legacy_media_exists_on_odk_null_rows || 0);
+      var repairedLegacyMedia = Number(d.repaired_legacy_media_rows || 0);
       var auditCsv = Number(d.audit_csv_null_rows || 0);
       var totalNull = Number(d.total_null_rows || 0);
       var alertClass = legacyMedia > 0 ? 'text-danger' : 'text-success';
@@ -718,6 +719,7 @@
         + '</tr></thead><tbody>'
         + '<tr><td class="small">Legacy media rows (`filename != audit.csv`, `storage_name IS NULL`)</td><td class="small text-center fw-semibold ' + alertClass + '">' + legacyMedia + '</td></tr>'
         + '<tr><td class="small">Legacy media rows with `exists_on_odk = true`</td><td class="small text-center">' + legacyMediaExistsOnOdk + '</td></tr>'
+        + '<tr><td class="small">Repaired legacy media rows</td><td class="small text-center">' + repairedLegacyMedia + '</td></tr>'
         + '<tr><td class="small">`audit.csv` rows with `storage_name IS NULL`</td><td class="small text-center">' + auditCsv + '</td></tr>'
         + '<tr><td class="small">All rows with `storage_name IS NULL`</td><td class="small text-center">' + totalNull + '</td></tr>'
         + '</tbody></table>'

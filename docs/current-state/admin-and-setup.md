@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-18
 ---
 
 # Admin And Setup Model
@@ -38,6 +38,12 @@ The sync dashboard also includes ODK-backed backfill tooling:
 - a per-form `Backfill` trigger that repairs only missing thin rows and local metadata, attachment, or SmartVA gaps for that form
 - a separate per-form `Force-resync` trigger that performs a full redownload for the selected form
 - a separate attachment-cache backfill trigger that only repairs missing local attachment files for already stored submissions
+- a dedicated legacy-attachment panel that reports `va_submission_attachments`
+  rows where `storage_name IS NULL`, split between `audit.csv` rows and actual
+  media rows, plus a derived count of already repaired legacy media rows
+- a legacy-attachment `Repair` trigger that populates deterministic
+  `storage_name` values for legacy non-`audit.csv` media rows and renames the
+  local files to their opaque storage tokens
 
 ### Admin-Only Panels
 

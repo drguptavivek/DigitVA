@@ -12,7 +12,7 @@ import math
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 import pytz
 import sqlalchemy as sa
@@ -37,6 +37,7 @@ from app.models import (
     VaSubmissionPayloadVersion,
     VaStatuses,
     VaSubmissionAttachments,
+    VaSubmissionWorkflowEvent,
     VaSubmissionWorkflow,
     VaSyncRun,
     VaSubmissions,
@@ -186,6 +187,33 @@ UPSTREAM_REVIEW_HIDDEN_FIELDS = frozenset(
         "OdkReviewComments",
     }
 )
+
+
+def _dm_search_condition(search: str):
+    """Return the shared DM dashboard text-search predicate."""
+    like = f"%{search}%"
+    coder_final_sids = (
+        sa.select(VaFinalAssessments.va_sid)
+        .join(VaUsers, VaUsers.user_id == VaFinalAssessments.va_finassess_by)
+        .where(
+            VaFinalAssessments.va_finassess_status == VaStatuses.active,
+            VaUsers.name.ilike(like),
+        )
+    )
+    reviewer_final_sids = (
+        sa.select(VaReviewerFinalAssessments.va_sid)
+        .join(VaUsers, VaUsers.user_id == VaReviewerFinalAssessments.va_rfinassess_by)
+        .where(
+            VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
+            VaUsers.name.ilike(like),
+        )
+    )
+    return sa.or_(
+        VaSubmissions.va_uniqueid_masked.ilike(like),
+        VaSubmissions.va_data_collector.ilike(like),
+        VaSubmissions.va_sid.in_(coder_final_sids),
+        VaSubmissions.va_sid.in_(reviewer_final_sids),
+    )
 
 # ---------------------------------------------------------------------------
 # Scope helpers
@@ -522,11 +550,7 @@ def dm_submissions_page(
     site_values = _csv_values(site)
 
     if search:
-        like = f"%{search}%"
-        conditions.append(sa.or_(
-            VaSubmissions.va_uniqueid_masked.ilike(like),
-            VaSubmissions.va_data_collector.ilike(like),
-        ))
+        conditions.append(_dm_search_condition(search))
     if project_values:
         conditions.append(VaForms.project_id.in_(project_values))
     if site_values:
@@ -658,7 +682,26 @@ def dm_submissions_page(
     if _mv_ref is not None:
         count_q = count_q.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
 
-    sort_col = _SORT_FIELDS.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
+    coded_on_sort_col = sa.case(
+        (
+            active_reviewer_final.c.va_rfinassess_createdat.is_not(None),
+            active_reviewer_final.c.va_rfinassess_createdat,
+        ),
+        else_=active_final.c.va_finassess_createdat,
+    )
+    coded_by_sort_col = sa.case(
+        (
+            active_reviewer_final.c.va_rfinassess_createdat.is_not(None),
+            reviewer_final_user.name,
+        ),
+        else_=coder_final_user.name,
+    )
+    sort_fields = {
+        **_SORT_FIELDS,
+        "coded_on": coded_on_sort_col,
+        "coded_by": coded_by_sort_col,
+    }
+    sort_col = sort_fields.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
     order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
     offset = (page - 1) * per_page
     total = db.session.execute(count_q).scalar_one()
@@ -744,11 +787,7 @@ def _dm_submission_query_parts(
     site_values = _csv_values(site)
 
     if search:
-        like = f"%{search}%"
-        conditions.append(sa.or_(
-            VaSubmissions.va_uniqueid_masked.ilike(like),
-            VaSubmissions.va_data_collector.ilike(like),
-        ))
+        conditions.append(_dm_search_condition(search))
     if project_values:
         conditions.append(VaForms.project_id.in_(project_values))
     if site_values:
@@ -1608,6 +1647,185 @@ def dm_kpi(user, project_ids, project_site_pairs) -> dict:
         project_ids=project_ids,
         project_site_pairs=project_site_pairs,
     )
+
+
+def dm_coder_daily_statistics(
+    user,
+    *,
+    search: str = "",
+    project: str = "",
+    site: str = "",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    odk_status: str = "",
+    smartva: str = "",
+    age_group: str = "",
+    gender: str = "",
+    odk_sync: str = "",
+    workflow: str = "",
+    days: int = 7,
+    timezone_name: str = "Asia/Kolkata",
+) -> dict:
+    """Return coder-by-day first-pass finalization counts for filtered DM scope."""
+    days = max(1, min(int(days or 7), 14))
+    try:
+        user_tz = pytz.timezone(timezone_name or "Asia/Kolkata")
+    except pytz.UnknownTimeZoneError:
+        user_tz = pytz.timezone("Asia/Kolkata")
+
+    today_local = datetime.now(user_tz).date()
+    date_window = [today_local - timedelta(days=offset) for offset in range(days)]
+    date_window.reverse()
+    window_start = date_window[0]
+
+    attachment_counts, smartva_sids, smartva_failed_sids, mv_ref, conditions = (
+        _dm_submission_query_parts(
+            user,
+            search=search,
+            project=project,
+            site=site,
+            date_from=date_from,
+            date_to=date_to,
+            odk_status=odk_status,
+            smartva=smartva,
+            age_group=age_group,
+            gender=gender,
+            odk_sync=odk_sync,
+            workflow=workflow,
+        )
+    )
+
+    filtered_submissions_sq = (
+        sa.select(VaSubmissions.va_sid.label("va_sid"))
+        .select_from(VaSubmissions)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .outerjoin(
+            VaSubmissionWorkflow,
+            VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
+        )
+        .outerjoin(
+            attachment_counts,
+            attachment_counts.c.va_sid == VaSubmissions.va_sid,
+        )
+        .outerjoin(
+            smartva_sids,
+            smartva_sids.c.va_sid == VaSubmissions.va_sid,
+        )
+        .outerjoin(
+            smartva_failed_sids,
+            smartva_failed_sids.c.va_sid == VaSubmissions.va_sid,
+        )
+    )
+    if mv_ref is not None:
+        filtered_submissions_sq = filtered_submissions_sq.outerjoin(
+            mv_ref,
+            mv_ref.c.va_sid == VaSubmissions.va_sid,
+        )
+    filtered_submissions_sq = filtered_submissions_sq.where(
+        sa.and_(*conditions)
+    ).subquery()
+
+    local_event_day = sa.cast(
+        sa.func.timezone(user_tz.zone, VaSubmissionWorkflowEvent.event_created_at),
+        sa.Date,
+    )
+
+    event_base = (
+        sa.select(
+            VaSubmissionWorkflowEvent.actor_user_id.label("coder_id"),
+            VaUsers.name.label("coder_name"),
+            local_event_day.label("event_day"),
+            sa.func.count().label("count"),
+        )
+        .select_from(VaSubmissionWorkflowEvent)
+        .join(
+            filtered_submissions_sq,
+            filtered_submissions_sq.c.va_sid == VaSubmissionWorkflowEvent.va_sid,
+        )
+        .join(VaUsers, VaUsers.user_id == VaSubmissionWorkflowEvent.actor_user_id)
+        .where(
+            VaSubmissionWorkflowEvent.transition_id == "coder_finalized",
+            VaSubmissionWorkflowEvent.actor_user_id.is_not(None),
+        )
+    )
+
+    window_rows = db.session.execute(
+        event_base.where(local_event_day >= window_start).group_by(
+            VaSubmissionWorkflowEvent.actor_user_id,
+            VaUsers.name,
+            local_event_day,
+        )
+    ).mappings().all()
+
+    cumulative_rows = db.session.execute(
+        sa.select(
+            VaSubmissionWorkflowEvent.actor_user_id.label("coder_id"),
+            VaUsers.name.label("coder_name"),
+            sa.func.count().label("count"),
+        )
+        .select_from(VaSubmissionWorkflowEvent)
+        .join(
+            filtered_submissions_sq,
+            filtered_submissions_sq.c.va_sid == VaSubmissionWorkflowEvent.va_sid,
+        )
+        .join(VaUsers, VaUsers.user_id == VaSubmissionWorkflowEvent.actor_user_id)
+        .where(
+            VaSubmissionWorkflowEvent.transition_id == "coder_finalized",
+            VaSubmissionWorkflowEvent.actor_user_id.is_not(None),
+        )
+        .group_by(VaSubmissionWorkflowEvent.actor_user_id, VaUsers.name)
+    ).mappings().all()
+
+    rows_by_coder: dict[str, dict] = {}
+
+    def _get_row(coder_id, coder_name):
+        key = str(coder_id)
+        row = rows_by_coder.get(key)
+        if row is None:
+            row = {
+                "coder_id": key,
+                "coder_name": coder_name or "Unknown",
+                "daily": {day.isoformat(): 0 for day in date_window},
+                "window_total": 0,
+                "cumulative_total": 0,
+            }
+            rows_by_coder[key] = row
+        return row
+
+    for record in cumulative_rows:
+        row = _get_row(record["coder_id"], record["coder_name"])
+        row["cumulative_total"] = int(record["count"] or 0)
+
+    for record in window_rows:
+        row = _get_row(record["coder_id"], record["coder_name"])
+        day_key = record["event_day"].isoformat()
+        count = int(record["count"] or 0)
+        row["daily"][day_key] = count
+        row["window_total"] += count
+
+    rows = sorted(
+        rows_by_coder.values(),
+        key=lambda item: (
+            -int(item["window_total"]),
+            -int(item["daily"].get(today_local.isoformat(), 0)),
+            -int(item["cumulative_total"]),
+            item["coder_name"].lower(),
+        ),
+    )
+
+    return {
+        "dates": [
+            {
+                "iso": day.isoformat(),
+                "label": day.strftime("%d %b"),
+                "is_today": day == today_local,
+            }
+            for day in date_window
+        ],
+        "rows": rows,
+        "timezone": user_tz.zone,
+        "window_days": days,
+    }
 
 
 def dm_filter_options(user) -> dict:

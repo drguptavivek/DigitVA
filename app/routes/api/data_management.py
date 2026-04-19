@@ -27,6 +27,7 @@ from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
     dm_accept_upstream_change,
+    dm_coder_daily_statistics,
     dm_filter_options,
     dm_form_in_scope,
     dm_screening_pass,
@@ -325,6 +326,24 @@ def kpi():
             workflow=request.args.get("workflow", ""),
         )
     ))
+
+
+@bp.get("/coder-daily-stats")
+@role_required("data_manager")
+@limiter.limit("120 per minute")
+def coder_daily_stats():
+    filters = _export_filters_from_request()
+    return jsonify(
+        _cached(
+            "coder_daily_stats",
+            lambda: dm_coder_daily_statistics(
+                current_user,
+                **filters,
+                days=7,
+                timezone_name=getattr(current_user, "timezone", "Asia/Kolkata"),
+            ),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------

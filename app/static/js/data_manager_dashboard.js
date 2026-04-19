@@ -219,6 +219,15 @@
     if (window.showAppToast) window.showAppToast(msg, type || 'info');
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function jsonFetch(url, opts) {
     const defaults = {
       headers: {
@@ -993,6 +1002,7 @@
     Promise.all([
       loadKPIs(),
       loadProjectSiteChart(),
+      loadCoderDailyStats(),
       loadDemographicsCharts(),
     ]).catch(() => {});
     if (gridApi) {
@@ -1015,6 +1025,7 @@
     Promise.all([
       loadKPIs(),
       loadProjectSiteChart(),
+      loadCoderDailyStats(),
       loadDemographicsCharts(),
     ]).catch(() => {});
     if (gridApi) {
@@ -1298,6 +1309,91 @@
       })
       .catch(err => toast('Project/site chart error: ' + err.message, 'warning'))
     );
+  }
+
+  function loadCoderDailyStats() {
+    const loading = document.getElementById('dm-coder-daily-stats-loading');
+    const empty = document.getElementById('dm-coder-daily-stats-empty');
+    const wrap = document.getElementById('dm-coder-daily-stats-wrap');
+    const head = document.getElementById('dm-coder-daily-stats-head');
+    const body = document.getElementById('dm-coder-daily-stats-body');
+    const meta = document.getElementById('dm-coder-daily-stats-meta');
+    if (!loading || !empty || !wrap || !head || !body || !meta) {
+      return Promise.resolve();
+    }
+
+    loading.style.display = 'block';
+    empty.style.display = 'none';
+    wrap.style.display = 'none';
+    head.innerHTML = '';
+    body.innerHTML = '';
+
+    return jsonFetch(`/api/v1/data-management/coder-daily-stats${buildDashboardQuery()}`)
+      .then(data => {
+        const dates = data.dates || [];
+        const rows = data.rows || [];
+        meta.textContent = `Last ${data.window_days || dates.length || 7} days · ${data.timezone || 'Asia/Kolkata'}`;
+
+        if (!rows.length) {
+          loading.style.display = 'none';
+          empty.textContent = 'No coder finalizations match the current filters.';
+          empty.style.display = 'block';
+          return;
+        }
+
+        head.innerHTML = [
+          '<th>Coder</th>',
+          ...dates.map(d => `<th class="text-end${d.is_today ? ' text-primary' : ''}">${d.label}</th>`),
+          '<th class="text-end">Total</th>',
+          '<th class="text-end">Cumulative</th>',
+        ].join('');
+
+        body.innerHTML = rows.map(row => {
+          const dailyCells = dates.map(d => {
+            const value = (row.daily && row.daily[d.iso]) || 0;
+            return `<td class="text-end${d.is_today ? ' fw-semibold' : ''}">${value}</td>`;
+          }).join('');
+          const coderName = row.coder_name || 'Unknown';
+          return `<tr>
+            <td>
+              <button type="button" class="btn btn-link btn-sm p-0 dm-coder-daily-name" data-coder-name="${escapeHtml(coderName)}">
+                ${escapeHtml(coderName)}
+              </button>
+            </td>
+            ${dailyCells}
+            <td class="text-end fw-semibold">${row.window_total || 0}</td>
+            <td class="text-end fw-semibold">${row.cumulative_total || 0}</td>
+          </tr>`;
+        }).join('');
+
+        loading.style.display = 'none';
+        wrap.style.display = 'block';
+      })
+      .catch(err => {
+        loading.style.display = 'none';
+        empty.textContent = `Failed to load coder statistics: ${err.message}`;
+        empty.style.display = 'block';
+      });
+  }
+
+  function applyCoderNameSearch(coderName) {
+    if (!coderName) return;
+    currentFilters.search = coderName;
+    currentPage = 1;
+    syncInputsFromState();
+    saveState();
+    updateBrowserUrl();
+    renderFilterPills();
+    Promise.all([
+      loadKPIs(),
+      loadProjectSiteChart(),
+      loadCoderDailyStats(),
+      loadDemographicsCharts(),
+    ]).catch(() => {});
+    if (gridApi) {
+      gridApi.paginationGoToFirstPage();
+      gridApi.purgeInfiniteCache();
+    }
   }
 
   function loadDemographicsCharts() {
@@ -1599,7 +1695,7 @@
       jsonFetch('/api/v1/analytics/mv/refresh', { method: 'POST' })
         .then(() => {
           toast('Dashboard refreshed', 'success');
-          return Promise.all([loadKPIs(), loadProjectSiteChart(), loadDemographicsCharts()]);
+          return Promise.all([loadKPIs(), loadProjectSiteChart(), loadCoderDailyStats(), loadDemographicsCharts()]);
         })
         .catch(err => toast('Refresh error: ' + err.message, 'danger'))
         .finally(() => {
@@ -1645,6 +1741,16 @@
         if (runs.some(r => r.status === 'running')) startSyncRunsPolling();
       });
     });
+
+    const coderDailyBody = document.getElementById('dm-coder-daily-stats-body');
+    if (coderDailyBody) {
+      coderDailyBody.addEventListener('click', (event) => {
+        const trigger = event.target.closest('.dm-coder-daily-name');
+        if (!trigger) return;
+        event.preventDefault();
+        applyCoderNameSearch((trigger.dataset.coderName || '').trim());
+      });
+    }
   }
 
   /* ════════════════════════════════════════════════════
@@ -1687,6 +1793,7 @@
         filterOptionsTask,
         kpiTask,
         loadProjectSiteChart(),
+        loadCoderDailyStats(),
         loadDemographicsCharts(),
       ]);
     });

@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-20
 ---
 
 # Data Manager Dashboard
@@ -34,6 +34,7 @@ Current dashboard sections include:
 
 - summary KPI cards
 - project-site submission chart
+- coder daily statistics table
 - sync action modal and preview
 - recent sync results
 - browse/search filters
@@ -159,6 +160,28 @@ SmartVA status semantics in the dashboard table:
 - `Missing`: no active SmartVA projection row exists for the submission
 
 Filter state persists across page reloads in the browser.
+
+## Coder Daily Statistics
+
+The main `/data-management` dashboard now includes a coder-by-day output table.
+
+Current semantics:
+
+- rows are coder names derived from workflow events
+- columns cover the last 7 local calendar days, inclusive of today
+- `Total` is the sum of those 7 daily columns
+- `Cumulative` is the all-time first-pass coding total for the currently
+  filtered submission scope
+- only `coder_finalized` events are counted
+- `recode_finalized` events are explicitly excluded
+
+Current filter behavior:
+
+- the same dashboard filters apply to this table as to the main grid and KPI
+  cards
+- this includes project, site, submitted from/to, ODK status, SmartVA status,
+  age group, gender, ODK sync, workflow state, and text search
+- date grouping uses the current user's timezone
 
 ## Exports
 

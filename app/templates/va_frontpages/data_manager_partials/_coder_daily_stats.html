@@ -1,0 +1,27 @@
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="dm-chart-card">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <div class="dm-chart-title mb-0">
+          <i class="fa-solid fa-table me-1 text-primary"></i>Coder Daily Statistics
+          <small class="text-muted fw-normal ms-2">First-pass coder finalizations only; recodes excluded</small>
+        </div>
+        <div class="small text-muted" id="dm-coder-daily-stats-meta">Last 7 days</div>
+      </div>
+      <div id="dm-coder-daily-stats-loading" class="text-center text-muted py-3">
+        Loading coder statistics…
+      </div>
+      <div id="dm-coder-daily-stats-empty" class="text-center text-muted py-3" style="display:none;">
+        No coder finalizations match the current filters.
+      </div>
+      <div class="table-responsive" id="dm-coder-daily-stats-wrap" style="display:none;">
+        <table class="table table-sm table-striped align-middle mb-0" id="dm-coder-daily-stats-table">
+          <thead>
+            <tr id="dm-coder-daily-stats-head"></tr>
+          </thead>
+          <tbody id="dm-coder-daily-stats-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

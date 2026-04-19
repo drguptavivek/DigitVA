@@ -1,7 +1,7 @@
 import uuid
 import re
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -22,6 +22,7 @@ from app.models import (
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissionAttachments,
+    VaSubmissionWorkflowEvent,
     VaSubmissionUpstreamChange,
     VaSubmissionsAuditlog,
     VaSubmissions,
@@ -332,6 +333,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn(b"Not Codeable (DM)", response.data)
         self.assertIn(b"Refresh Dashboard", response.data)
         self.assertIn(b"Submissions by Project / Site", response.data)
+        self.assertIn(b"Coder Daily Statistics", response.data)
         self.assertIn(b"Age Groups", response.data)
         self.assertIn(b"Sex Distribution", response.data)
         self.assertIn(b"dm-project-site-submissions-chart", response.data)
@@ -463,6 +465,92 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn("this_week_submissions", payload["stats"][0])
         self.assertIn("today_submissions", payload["stats"][0])
 
+    def test_data_manager_coder_daily_stats_excludes_recodes_and_out_of_scope(self):
+        self._login(self.dm_user_id)
+
+        coder = VaUsers(
+            user_id=uuid.uuid4(),
+            name="Coder Daily",
+            email=f"coder.daily.{uuid.uuid4().hex[:6]}@example.com",
+            vacode_language=["English"],
+            permission={},
+            landing_page="coder",
+            pw_reset_t_and_c=True,
+            email_verified=True,
+            user_status=VaStatuses.active,
+        )
+        coder.set_password("Coder123")
+        db.session.add(coder)
+        db.session.flush()
+
+        now = datetime.now(timezone.utc)
+        db.session.add_all(
+            [
+                VaSubmissionWorkflowEvent(
+                    va_sid=self.SID,
+                    transition_id="coder_finalized",
+                    previous_state="coding_in_progress",
+                    current_state=WORKFLOW_CODER_FINALIZED,
+                    actor_kind="user",
+                    actor_role="vacoder",
+                    actor_user_id=coder.user_id,
+                    transition_reason="test_first_pass_today",
+                    event_created_at=now,
+                ),
+                VaSubmissionWorkflowEvent(
+                    va_sid=self.SID,
+                    transition_id="coder_finalized",
+                    previous_state="coding_in_progress",
+                    current_state=WORKFLOW_CODER_FINALIZED,
+                    actor_kind="user",
+                    actor_role="vacoder",
+                    actor_user_id=coder.user_id,
+                    transition_reason="test_first_pass_yesterday",
+                    event_created_at=now - timedelta(days=1),
+                ),
+                VaSubmissionWorkflowEvent(
+                    va_sid=self.SID,
+                    transition_id="recode_finalized",
+                    previous_state="coding_in_progress",
+                    current_state=WORKFLOW_CODER_FINALIZED,
+                    actor_kind="user",
+                    actor_role="vacoder",
+                    actor_user_id=coder.user_id,
+                    transition_reason="test_recode_excluded",
+                    event_created_at=now,
+                ),
+                VaSubmissionWorkflowEvent(
+                    va_sid=self.OUT_SID,
+                    transition_id="coder_finalized",
+                    previous_state="coding_in_progress",
+                    current_state=WORKFLOW_CODER_FINALIZED,
+                    actor_kind="user",
+                    actor_role="vacoder",
+                    actor_user_id=coder.user_id,
+                    transition_reason="test_out_of_scope_excluded",
+                    event_created_at=now,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/api/v1/data-management/coder-daily-stats?project={self.BASE_PROJECT_ID}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["window_days"], 7)
+        self.assertEqual(len(payload["rows"]), 1)
+        row = payload["rows"][0]
+        self.assertEqual(row["coder_name"], "Coder Daily")
+        self.assertEqual(row["window_total"], 2)
+        self.assertEqual(row["cumulative_total"], 2)
+        today_key = payload["dates"][-1]["iso"]
+        yesterday_key = payload["dates"][-2]["iso"]
+        self.assertEqual(row["daily"][today_key], 1)
+        self.assertEqual(row["daily"][yesterday_key], 1)
+
     def test_coded_submissions_api_includes_coded_on_and_coded_by(self):
         self._login(self.dm_user_id)
         now = datetime.now(timezone.utc)
@@ -515,6 +603,84 @@ class DataManagerDashboardTests(BaseTestCase):
         coded_row = next(row for row in payload["data"] if row["va_sid"] == coded_sid)
         self.assertEqual(coded_row["coded_by"], self.dm_user.name)
         self.assertRegex(coded_row["coded_on"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$")
+
+    def test_coded_submissions_api_sorts_by_coded_on(self):
+        self._login(self.dm_user_id)
+        now = datetime.now(timezone.utc)
+        later_submission_earlier_code_sid = f"uuid:coded-sort-{uuid.uuid4().hex[:8]}"
+        earlier_submission_later_code_sid = f"uuid:coded-sort-{uuid.uuid4().hex[:8]}"
+
+        rows = [
+            (
+                later_submission_earlier_code_sid,
+                now,
+                now - timedelta(days=2),
+                "coded-sort-early",
+            ),
+            (
+                earlier_submission_later_code_sid,
+                now - timedelta(days=10),
+                now - timedelta(days=1),
+                "coded-sort-late",
+            ),
+        ]
+
+        for sid, submitted_at, coded_at, masked_id in rows:
+            db.session.add(
+                VaSubmissions(
+                    va_sid=sid,
+                    va_form_id=self.FORM_ID,
+                    va_submission_date=submitted_at,
+                    va_odk_updatedat=submitted_at,
+                    va_odk_reviewstate="approved",
+                    va_data_collector="Collector",
+                    va_instance_name=sid,
+                    va_uniqueid_real=sid,
+                    va_uniqueid_masked=masked_id,
+                    va_consent="yes",
+                    va_narration_language="English",
+                    va_deceased_age=50,
+                    va_deceased_gender="male",
+                    va_summary=[],
+                    va_catcount={},
+                    va_category_list=[],
+                )
+            )
+            db.session.flush()
+            db.session.add(
+                VaSubmissionWorkflow(
+                    va_sid=sid,
+                    workflow_state=WORKFLOW_CODER_FINALIZED,
+                    workflow_reason="test_seed",
+                    workflow_updated_by_role="vasystem",
+                )
+            )
+            db.session.add(
+                VaFinalAssessments(
+                    va_sid=sid,
+                    va_finassess_by=uuid.UUID(self.dm_user_id),
+                    va_conclusive_cod="A41",
+                    va_finassess_status=VaStatuses.active,
+                    va_finassess_createdat=coded_at,
+                    va_finassess_updatedat=coded_at,
+                )
+            )
+        db.session.commit()
+
+        response = self.client.get(
+            "/api/v1/data-management/submissions?workflow=coded&sort[0][field]=coded_on&sort[0][dir]=asc"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        coded_rows = [
+            row for row in payload["data"]
+            if row["va_sid"] in {later_submission_earlier_code_sid, earlier_submission_later_code_sid}
+        ]
+        self.assertEqual(
+            [row["va_sid"] for row in coded_rows],
+            [later_submission_earlier_code_sid, earlier_submission_later_code_sid],
+        )
 
     @patch(
         "app.routes.api.data_management.get_dm_kpi_from_mv",

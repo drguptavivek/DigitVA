@@ -6,6 +6,22 @@
   let mermaidReady = false;
   let mermaidLoader = null;
   let workflowCounts = {};
+  const WORKFLOW_NODE_STATE_MAP = {
+    CR: 'consent_refused',
+    SP: 'screening_pending',
+    ASP: 'attachment_sync_pending',
+    RFC: 'ready_for_coding',
+    NCDM: 'not_codeable_by_data_manager',
+    SVP: 'smartva_pending',
+    CIP: 'coding_in_progress',
+    CSS: 'coder_step1_saved',
+    NCC: 'not_codeable_by_coder',
+    CF: 'coder_finalized',
+    RE: 'reviewer_eligible',
+    RCI: 'reviewer_coding_in_progress',
+    RF: 'reviewer_finalized',
+    RVK: 'finalized_upstream_changed',
+  };
 
   function loadMermaid() {
     if (window.mermaid) {
@@ -88,20 +104,20 @@
     RVK -.->|"accept — recode"| RFC
     RVK -.->|"reject — restore"| CF
 
-    click CR   call __dm_workflow_click("consent_refused")
-    click SP   call __dm_workflow_click("screening_pending")
-    click ASP  call __dm_workflow_click("attachment_sync_pending")
-    click RFC  call __dm_workflow_click("ready_for_coding")
-    click NCDM call __dm_workflow_click("not_codeable_by_data_manager")
-    click SVP  call __dm_workflow_click("smartva_pending")
-    click CIP  call __dm_workflow_click("coding_in_progress")
-    click CSS  call __dm_workflow_click("coder_step1_saved")
-    click NCC  call __dm_workflow_click("not_codeable_by_coder")
-    click CF   call __dm_workflow_click("coder_finalized")
-    click RE   call __dm_workflow_click("reviewer_eligible")
-    click RCI  call __dm_workflow_click("reviewer_coding_in_progress")
-    click RF   call __dm_workflow_click("reviewer_finalized")
-    click RVK  call __dm_workflow_click("finalized_upstream_changed")
+    click CR __dm_workflow_click
+    click SP __dm_workflow_click
+    click ASP __dm_workflow_click
+    click RFC __dm_workflow_click
+    click NCDM __dm_workflow_click
+    click SVP __dm_workflow_click
+    click CIP __dm_workflow_click
+    click CSS __dm_workflow_click
+    click NCC __dm_workflow_click
+    click CF __dm_workflow_click
+    click RE __dm_workflow_click
+    click RCI __dm_workflow_click
+    click RF __dm_workflow_click
+    click RVK __dm_workflow_click
 
     style CR   fill:#fff7ed,stroke:#ea580c,color:#9a3412
     style SP   fill:#f1f5f9,stroke:#64748b,color:#334155
@@ -169,7 +185,8 @@
     }
   };
 
-  window.__dm_workflow_click = function (state) {
+  window.__dm_workflow_click = function (nodeId) {
+    const state = WORKFLOW_NODE_STATE_MAP[nodeId];
     if (!state) return;
     if (window.DM_DASHBOARD_API && typeof window.DM_DASHBOARD_API.applyWorkflowFilter === 'function') {
       window.DM_DASHBOARD_API.applyWorkflowFilter(state);

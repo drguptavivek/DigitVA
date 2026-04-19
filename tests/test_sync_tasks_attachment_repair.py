@@ -20,9 +20,11 @@ from app.models import (
     VaSites,
 )
 from app.tasks.sync_tasks import (
+    _finalize_repair_run_if_ready,
     _build_repair_map_for_form,
     _run_canonical_repair_batches,
     _refresh_batch_plan_after_enrichment,
+    finalize_canonical_repair_run_task,
     run_legacy_attachment_repair,
     run_single_form_backfill,
 )
@@ -516,3 +518,50 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             mock_repair.call_args.kwargs["trigger_source"],
             "legacy_attachment_repair",
         )
+
+    def test_finalize_repair_run_if_ready_stops_for_finished_error_run(self):
+        run = VaSyncRun(
+            triggered_by="backfill",
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            status="error",
+            attachment_forms_total=10,
+            attachment_forms_completed=3,
+        )
+        db.session.add(run)
+        db.session.commit()
+
+        finalized = _finalize_repair_run_if_ready(
+            run_id=run.sync_run_id,
+            log_progress=lambda _msg: None,
+        )
+
+        self.assertTrue(finalized)
+        refreshed = db.session.get(VaSyncRun, run.sync_run_id)
+        self.assertEqual(refreshed.status, "error")
+        self.assertIsNotNone(refreshed.finished_at)
+
+    def test_finalize_task_marks_run_interrupted_when_no_repair_tasks_exist(self):
+        run = VaSyncRun(
+            triggered_by="backfill",
+            started_at=datetime.now(timezone.utc),
+            status="running",
+            attachment_forms_total=10,
+            attachment_forms_completed=3,
+        )
+        db.session.add(run)
+        db.session.commit()
+
+        with patch(
+            "app.tasks.sync_tasks._canonical_repair_tasks_exist_for_run",
+            return_value=False,
+        ):
+            result = finalize_canonical_repair_run_task.run(
+                run_id=str(run.sync_run_id),
+                label=self.form_id,
+            )
+
+        self.assertEqual(result, {"finalized": False, "interrupted": True})
+        refreshed = db.session.get(VaSyncRun, run.sync_run_id)
+        self.assertEqual(refreshed.status, "error")
+        self.assertEqual(refreshed.error_message, "Interrupted run — the worker stopped before completion. Re-initiate Sync or Repair to continue remaining gaps.")

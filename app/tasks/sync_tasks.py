@@ -612,16 +612,15 @@ def _finalize_repair_run_if_ready(*, run_id, log_progress) -> bool:
     if run.status == "cancelled":
         db.session.commit()
         return True
+    if run.finished_at is not None and run.status in {"success", "partial", "error"}:
+        db.session.commit()
+        return True
 
     total = int(run.attachment_forms_total or 0)
     completed = int(run.attachment_forms_completed or 0)
     if completed < total:
         db.session.commit()
         return False
-
-    if run.finished_at is not None and run.status in {"success", "partial", "error"}:
-        db.session.commit()
-        return True
 
     records_added = int((run.records_added or 0))
     records_updated = int((run.records_updated or 0))
@@ -637,6 +636,51 @@ def _finalize_repair_run_if_ready(*, run_id, log_progress) -> bool:
         f"{smartva_generated} SmartVA result(s) generated."
     )
     return True
+
+
+def _canonical_repair_tasks_exist_for_run(celery_app, *, run_id: str) -> bool | None:
+    """Return whether active/reserved canonical repair tasks still exist for a run.
+
+    Returns None when Celery inspect data is unavailable so callers can retry
+    conservatively instead of incorrectly marking a run interrupted.
+    """
+    inspect = celery_app.control.inspect(timeout=1.0)
+    active = inspect.active()
+    reserved = inspect.reserved()
+    if active is None or reserved is None:
+        return None
+
+    def _matches(task: dict) -> bool:
+        return (
+            task.get("name") == "app.tasks.sync_tasks.run_canonical_repair_batches_task"
+            and str((task.get("kwargs") or {}).get("run_id")) == str(run_id)
+        )
+
+    for task_list in list(active.values()) + list(reserved.values()):
+        for task in task_list or []:
+            if _matches(task):
+                return True
+    return False
+
+
+def _mark_run_interrupted(*, run_id: str, message: str) -> None:
+    """Mark a sync run interrupted/error if it is still open."""
+    from uuid import UUID
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+
+    run = db.session.execute(
+        sa.select(VaSyncRun).where(VaSyncRun.sync_run_id == UUID(str(run_id))).with_for_update()
+    ).scalar_one_or_none()
+    if run is None:
+        return
+    if run.finished_at is not None and run.status in {"success", "partial", "error", "cancelled"}:
+        db.session.commit()
+        return
+    run.status = "error"
+    run.finished_at = datetime.now(timezone.utc)
+    run.error_message = message
+    db.session.commit()
 
 
 @shared_task(
@@ -693,6 +737,14 @@ def finalize_canonical_repair_run_task(
 
     if _finalize_repair_run_if_ready(run_id=run_id, log_progress=log_progress):
         return {"finalized": True}
+    pending_repair_tasks = _canonical_repair_tasks_exist_for_run(self.app, run_id=run_id)
+    if pending_repair_tasks is False:
+        _mark_run_interrupted(
+            run_id=run_id,
+            message=INTERRUPTED_RUN_MESSAGE,
+        )
+        log_progress(INTERRUPTED_RUN_MESSAGE)
+        return {"finalized": False, "interrupted": True}
     raise self.retry(countdown=10)
 
 

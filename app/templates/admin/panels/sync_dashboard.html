@@ -177,11 +177,38 @@
     </div>
   </div>
 
+  <div class="modal fade" id="sync-info-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="sync-info-modal-title">Sync Update</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0 small" id="sync-info-modal-body"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">OK</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
 (function () {
   'use strict';
+
+  var root = document.getElementById('panel-sync');
+  if (!root) return;
+  if (root.dataset.syncDashboardInitialized === '1') {
+    console.log('[sync_dashboard] Duplicate init skipped');
+    return;
+  }
+  root.dataset.syncDashboardInitialized = '1';
+  var dashboardToken = (window._syncDashboardToken || 0) + 1;
+  window._syncDashboardToken = dashboardToken;
 
   // Always clear prior dashboard intervals before wiring the current panel.
   if (window._syncDashboardIntervals) {
@@ -191,7 +218,13 @@
   window._syncDashboardIntervals = [];
 
   function trackedInterval(fn, ms) {
-    var id = setInterval(fn, ms);
+    var id = setInterval(function () {
+      if (dashboardToken !== window._syncDashboardToken) {
+        clearInterval(id);
+        return;
+      }
+      fn();
+    }, ms);
     window._syncDashboardIntervals.push(id);
     console.log('[sync_dashboard] Created interval #' + id + ' (' + ms + 'ms), total: ' + window._syncDashboardIntervals.length);
     return id;
@@ -242,6 +275,19 @@
     modal.show();
   }
 
+  function showInfoModal(title, message) {
+    var modalEl = document.getElementById('sync-info-modal');
+    var titleEl = document.getElementById('sync-info-modal-title');
+    var bodyEl = document.getElementById('sync-info-modal-body');
+    if (!modalEl || !titleEl || !bodyEl || !window.bootstrap || !window.bootstrap.Modal) {
+      alert(message);
+      return;
+    }
+    titleEl.textContent = title;
+    bodyEl.textContent = message;
+    window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
   function fmtRelTime(isoStr) {
     if (!isoStr) return '—';
     var diff = Math.floor((Date.now() - new Date(isoStr)) / 1000);
@@ -268,6 +314,25 @@
     }
   }
 
+  function fmtLocalDateTimeWithZone(isoStr) {
+    if (!isoStr) return '—';
+    try {
+      var dt = new Date(isoStr);
+      return dt.toLocaleString(undefined, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+        timeZoneName: 'short',
+      });
+    } catch (e) {
+      return fmtLocalDateTime(isoStr);
+    }
+  }
+
   // Convert UTC ISO timestamp to local time string (HH:MM:SS)
   function fmtLocalTime(isoStr) {
     if (!isoStr) return '';
@@ -277,6 +342,15 @@
     } catch (e) {
       return isoStr.replace('T', ' ').slice(11, 19);
     }
+  }
+
+  function friendlyProgressStatus(d) {
+    if (d.is_running) return 'running…';
+    if (d.status === 'error') return 'interrupted';
+    if (d.status === 'cancelled') return 'cancelled';
+    if (d.status === 'partial') return 'partial';
+    if (d.status === 'success') return 'completed';
+    return d.status || 'ended';
   }
 
   function statusBadge(status) {
@@ -327,9 +401,36 @@
   var _wasRunning = false;
   var _coverageLoaded = false;
   var _triggerGraceUntil = 0;  // timestamp — don't stop progress polling before this
+  var _awaitCompletionModal = false;
+  var _trackedCompletionRunId = null;
+  var _trackedCompletionLabel = null;
+  var _completionModalArmedAt = 0;
+  var _backfillStatsRequestSeq = 0;
+  var _backfillStatsRenderedSeq = 0;
+  var _statusRequestInFlight = false;
+
+  function armCompletionModal(label) {
+    _awaitCompletionModal = true;
+    _trackedCompletionRunId = null;
+    _trackedCompletionLabel = label || 'sync';
+    _completionModalArmedAt = Date.now();
+  }
+
+  function startStatusPolling(isRunning) {
+    var intervalMs = isRunning ? 30000 : 120000;
+    if (_statusInterval) {
+      clearInterval(_statusInterval);
+      _statusInterval = null;
+    }
+    _statusInterval = trackedInterval(loadStatus, intervalMs);
+  }
 
   function loadStatus() {
+    if (dashboardToken !== window._syncDashboardToken) return;
+    if (_statusRequestInFlight) return;
+    _statusRequestInFlight = true;
     apiJson('/admin/api/sync/status').then(function (res) {
+      if (dashboardToken !== window._syncDashboardToken) return;
       var wrap = document.getElementById('sync-status-wrap');
       if (!wrap) return;
       if (!res.ok) {
@@ -337,7 +438,12 @@
         return;
       }
       var d = res.data;
+      var transitionedToIdle = _wasRunning && !d.is_running;
       var parts = [];
+
+      if (_awaitCompletionModal && !_trackedCompletionRunId && d.is_running && d.current_run) {
+        _trackedCompletionRunId = d.current_run.sync_run_id || null;
+      }
 
       if (d.is_running && d.current_run) {
         parts.push(
@@ -376,12 +482,8 @@
       wrap.innerHTML = '<div class="d-flex align-items-center gap-2 flex-wrap">' + parts.join('') + '</div>'
         + renderConnectionAlerts(d.odk_connection_alerts || []);
 
-      // Poll faster while running; otherwise back off to reduce dashboard noise
-      clearInterval(_statusInterval);
-      _statusInterval = trackedInterval(function () {
-        loadStatus();
-        if (d.is_running) loadHistory();
-      }, d.is_running ? 15000 : 60000);
+      // Poll status conservatively; history is refreshed only on transitions/actions.
+      startStatusPolling(d.is_running);
 
       // Progress polling and SmartVA stats refresh on run state changes
       if (d.is_running && !_progressInterval) {
@@ -391,6 +493,48 @@
         loadSmartvaStats();
       }
       _wasRunning = d.is_running;
+
+      if (transitionedToIdle) {
+        loadHistory();
+        loadCoverage();
+        loadBackfillStats();
+        loadLegacyAttachmentStats();
+        loadRevokedStats();
+        var completedMatchesTrackedRun = (
+          _awaitCompletionModal
+          && _trackedCompletionRunId
+          && d.last_completed
+          && d.last_completed.sync_run_id === _trackedCompletionRunId
+        );
+        var completedAfterArm = (
+          _awaitCompletionModal
+          && !_trackedCompletionRunId
+          && d.last_completed
+          && d.last_completed.started_at
+          && (new Date(d.last_completed.started_at)).getTime() >= (_completionModalArmedAt - 1000)
+        );
+        if (
+          completedMatchesTrackedRun
+          || completedAfterArm
+        ) {
+          var lc = d.last_completed;
+          var summary = [];
+          if (lc.records_added != null) summary.push((lc.records_added || 0) + ' added');
+          if (lc.records_updated != null) summary.push((lc.records_updated || 0) + ' updated');
+          if (lc.duration_seconds != null) summary.push(fmtClock(lc.duration_seconds) + ' duration');
+          showInfoModal(
+            'Run Finished',
+            'The latest ' + (_trackedCompletionLabel || lc.triggered_by || 'sync') + ' run finished with status '
+              + (lc.status || 'unknown')
+              + '. The repair coverage card has been refreshed.'
+              + (summary.length ? ' Summary: ' + summary.join(', ') + '.' : '')
+          );
+          _awaitCompletionModal = false;
+          _trackedCompletionRunId = null;
+          _trackedCompletionLabel = null;
+          _completionModalArmedAt = 0;
+        }
+      }
 
       // Update trigger button state
       var btn = document.getElementById('sync-trigger-btn');
@@ -408,6 +552,8 @@
     }).catch(function () {
       var wrap = document.getElementById('sync-status-wrap');
       if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error.</span>';
+    }).finally(function () {
+      _statusRequestInFlight = false;
     });
   }
 
@@ -532,12 +678,18 @@
 
   // ── Backfill coverage ─────────────────────────────────────────────────────
 
-  function loadBackfillStats() {
+  function loadBackfillStats(silent) {
+    if (dashboardToken !== window._syncDashboardToken) return;
     var wrap = document.getElementById('sync-backfill-wrap');
-    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching local repair counts…</span>';
+    var requestSeq = ++_backfillStatsRequestSeq;
+    if (wrap && !silent) {
+      wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching local repair counts…</span>';
+    }
 
     apiJson('/admin/api/sync/backfill-stats').then(function (res) {
+      if (dashboardToken !== window._syncDashboardToken) return;
       if (!wrap) return;
+      if (requestSeq < _backfillStatsRenderedSeq) return;
       if (!res.ok) {
         wrap.innerHTML = '<span class="text-danger small">Failed to load repair stats: ' + esc(res.data.error || '') + '</span>';
         return;
@@ -549,6 +701,22 @@
       }
 
       var rows = [];
+      var renderedAt = new Date();
+      var renderedStamp = renderedAt.toLocaleTimeString('en-GB', { hour12: false });
+      function attachmentCell(item, bold) {
+        var fw = bold ? ' fw-semibold' : '';
+        var nonAuditPresent = item.non_audit_attachments_present || 0;
+        var nonAuditExpected = item.non_audit_attachments_expected || 0;
+        var auditPresent = item.audit_attachments_present || 0;
+        var auditExpected = item.audit_attachments_expected || 0;
+        var legacyTotal = item.legacy_attachment_rows_total || 0;
+        return '<div class="' + ('small text-center sync-backfill-attachments' + fw) + '">'
+          + '<div>Attachments: ' + nonAuditPresent + '/' + nonAuditExpected + '</div>'
+          + '<div class="text-muted sync-backfill-audit-line">Audit: '
+          + auditPresent + '/' + auditExpected
+          + ' · Legacy: ' + legacyTotal
+          + '</div></div>';
+      }
       function smartvaCell(complete, missing, failed, noConsent, bold) {
         var fw = bold ? ' fw-semibold' : '';
         var hasMissing = (missing || 0) > 0;
@@ -566,28 +734,14 @@
           + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.local_total || 0) + '</td>'
           + '<td class="small text-center fw-semibold">' + (proj.metadata_complete || 0) + '</td>'
-          + '<td class="small text-center fw-semibold">' + (proj.attachments_files_present || 0) + ' <span class="text-muted fw-normal">(' + Math.max((proj.attachments_files_total || 0) - (proj.attachments_files_present || 0), 0) + ' missing files)</span></td>'
+          + '<td>' + attachmentCell(proj, true) + '</td>'
           + '<td class="small text-center fw-semibold">' + smartvaCell(proj.smartva_complete, proj.smartva_missing, proj.smartva_failed, proj.smartva_no_consent, true) + '</td>'
           + '<td class="small text-center text-muted">Project total</td>'
           + '</tr>'
         );
         proj.sites.forEach(function (site) {
-          rows.push(
-            '<tr>'
-            + '<td class="small ps-4">'
-            +   '<i class="fa-solid fa-location-dot me-1 text-secondary"></i>' + esc(site.site_name || site.site_id)
-            + '</td>'
-            + '<td class="small text-center">' + (site.local_total || 0) + '</td>'
-            + '<td class="small text-center">' + (site.metadata_complete || 0) + '</td>'
-            + '<td class="small text-center">' + (site.attachments_files_present || 0) + ' <span class="text-muted">(' + Math.max((site.attachments_files_total || 0) - (site.attachments_files_present || 0), 0) + ' missing files)</span></td>'
-            + '<td class="small text-center">' + smartvaCell(site.smartva_complete, site.smartva_missing, site.smartva_failed, site.smartva_no_consent, false) + '</td>'
-            + '<td class="small text-center text-muted">Site total</td>'
-            + '</tr>'
-          );
           site.forms.forEach(function (form) {
             var metadataMissing = form.metadata_missing == null ? '—' : form.metadata_missing;
-            var attFilesPresent = form.attachments_files_present != null ? form.attachments_files_present : '—';
-            var attFilesMissing = form.attachments_files_missing != null ? form.attachments_files_missing : '—';
             rows.push(
               '<tr>'
               + '<td class="small ps-5">'
@@ -595,7 +749,7 @@
               + '</td>'
               + '<td class="small text-center">' + form.local_total + '</td>'
               + '<td class="small text-center">' + form.metadata_complete + ' <span class="text-muted">(' + metadataMissing + ' missing)</span></td>'
-              + '<td class="small text-center">' + attFilesPresent + ' <span class="text-muted">(' + attFilesMissing + ' missing files)</span></td>'
+              + '<td>' + attachmentCell(form, false) + '</td>'
               + '<td class="small text-center">' + smartvaCell(form.smartva_complete, form.smartva_missing, form.smartva_failed, form.smartva_no_consent, false) + '</td>'
               + '<td class="small text-center">'
               + '<button class="btn btn-sm btn-outline-secondary py-0 px-1 backfill-form-btn" data-form-id="' + esc(form.form_id) + '" title="Repair local gaps for this form.">'
@@ -609,10 +763,14 @@
 
       var totals = d.totals || {};
       wrap.innerHTML =
+        '<div class="d-flex justify-content-end mb-2">'
+        + '<span class="small text-muted">Updated ' + esc(renderedStamp) + '</span>'
+        + '</div>'
+        +
         '<div class="table-responsive">'
-        + '<table class="table table-sm table-bordered mb-0">'
+        + '<table class="table table-sm table-bordered mb-0 sync-backfill-table">'
         + '<thead class="table-light"><tr>'
-        + '<th class="small">Project / Site / Form</th>'
+        + '<th class="small sync-backfill-col-name">Project / Site / Form</th>'
         + '<th class="small text-center">Local Data</th>'
         + '<th class="small text-center">Metadata</th>'
         + '<th class="small text-center">Attachments</th>'
@@ -624,11 +782,12 @@
         + '<td class="small fw-semibold">Total</td>'
         + '<td class="small text-center fw-semibold">' + (totals.local_total || 0) + '</td>'
         + '<td class="small text-center fw-semibold">' + (totals.metadata_complete || 0) + '</td>'
-        + '<td class="small text-center fw-semibold">' + (totals.attachments_files_present || 0) + ' <span class="fw-normal text-muted">(' + (totals.attachments_files_missing || 0) + ' missing files)</span></td>'
+        + '<td>' + attachmentCell(totals, true) + '</td>'
         + '<td class="small text-center fw-semibold">' + smartvaCell(totals.smartva_complete, totals.smartva_missing, totals.smartva_failed, totals.smartva_no_consent, true) + '</td>'
         + '<td class="small text-center text-muted">All forms</td>'
         + '</tr></tfoot></table>'
         + '</div>';
+      _backfillStatsRenderedSeq = requestSeq;
 
       wrap.querySelectorAll('.backfill-form-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -651,6 +810,7 @@
                   return;
                 }
                 showToast(resp.data.message || ('Repair started for ' + formId + '.'), 'success');
+                armCompletionModal(formId + ' repair');
                 _lastProgressRunId = null;
                 _triggerGraceUntil = Date.now() + 15000;
                 var card = document.getElementById('sync-progress-card');
@@ -685,10 +845,12 @@
   }
 
   function loadLegacyAttachmentStats() {
+    if (dashboardToken !== window._syncDashboardToken) return;
     var wrap = document.getElementById('sync-legacy-attachment-wrap');
     if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching legacy attachment counts…</span>';
 
     apiJson('/admin/api/sync/legacy-attachment-stats').then(function (res) {
+      if (dashboardToken !== window._syncDashboardToken) return;
       if (!wrap) return;
       if (!res.ok) {
         wrap.innerHTML = '<span class="text-danger small">Failed to load legacy attachment stats: ' + esc(res.data.error || '') + '</span>';
@@ -780,7 +942,9 @@
   // ── History ────────────────────────────────────────────────────────────────
 
   function loadHistory() {
+    if (dashboardToken !== window._syncDashboardToken) return;
     apiJson('/admin/api/sync/history?limit=20').then(function (res) {
+      if (dashboardToken !== window._syncDashboardToken) return;
       var wrap = document.getElementById('sync-history-wrap');
       if (!wrap) return;
       if (!res.ok) {
@@ -830,11 +994,13 @@
   // ── Revoked submissions (pending DM review) ─────────────────────────────────
 
   function loadRevokedStats() {
+    if (dashboardToken !== window._syncDashboardToken) return;
     var card = document.getElementById('sync-revoked-card');
     var wrap = document.getElementById('sync-revoked-wrap');
     if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>';
 
     apiJson('/admin/api/sync/revoked-stats').then(function (res) {
+      if (dashboardToken !== window._syncDashboardToken) return;
       if (!wrap) return;
       if (!res.ok) {
         wrap.innerHTML = '<span class="text-danger small">Failed to load revoked stats.</span>';
@@ -890,10 +1056,19 @@
 
   var _lastProgressRunId = null;
   var _progressInterval = null;
+  var _progressRequestSeq = 0;
+  var _progressRenderedSeq = 0;
+  var _progressRequestInFlight = false;
 
   function loadProgress() {
+    if (dashboardToken !== window._syncDashboardToken) return;
+    if (_progressRequestInFlight) return;
+    _progressRequestInFlight = true;
+    var requestSeq = ++_progressRequestSeq;
     apiJson('/admin/api/sync/progress').then(function (res) {
+      if (dashboardToken !== window._syncDashboardToken) return;
       if (!res.ok) return;
+      if (requestSeq < _progressRenderedSeq) return;
       var d = res.data;
       var card = document.getElementById('sync-progress-card');
       var wrap = document.getElementById('sync-progress-wrap');
@@ -913,8 +1088,14 @@
 
       if (!hasEntries) return;
 
+      var lastEntry = d.entries[d.entries.length - 1] || null;
+      var lastProgressAt = lastEntry && lastEntry.ts ? fmtLocalDateTimeWithZone(lastEntry.ts) : null;
+
       if (label) {
-        label.textContent = esc(d.triggered_by) + (d.is_running ? ' · running…' : ' · ' + esc(d.status));
+        label.textContent = (d.triggered_by || 'sync')
+          + ' · '
+          + friendlyProgressStatus(d)
+          + (lastProgressAt ? ' · last progress ' + lastProgressAt : '');
       }
 
       var lines = d.entries.map(function (e) {
@@ -926,15 +1107,18 @@
           + '</div>';
       }).join('');
       wrap.innerHTML = lines;
+      _progressRenderedSeq = requestSeq;
 
       // Auto-scroll to bottom when running
       if (d.is_running) wrap.scrollTop = wrap.scrollHeight;
+    }).finally(function () {
+      _progressRequestInFlight = false;
     });
   }
 
   function startProgressPolling() {
     if (_progressInterval) clearInterval(_progressInterval);
-    _progressInterval = trackedInterval(loadProgress, 5000);
+    _progressInterval = trackedInterval(loadProgress, 15000);
     loadProgress();
   }
 
@@ -970,6 +1154,7 @@
         return;
       }
       showToast('Force-resync started for ' + formId + '.', 'success');
+      armCompletionModal(formId + ' force-resync');
       loadStatus();
       loadHistory();
       // Re-enable after a short delay so the user can see it fired
@@ -993,6 +1178,7 @@
         alert(res.data.error || 'Failed to trigger sync.');
         return;
       }
+      armCompletionModal(projectId + '/' + siteId + ' sync');
       loadStatus();
       loadHistory();
       loadCoverage();
@@ -1019,6 +1205,7 @@
         return;
       }
       // Reset progress card immediately so the user sees it's a fresh run
+      armCompletionModal('manual sync');
       _lastProgressRunId = null;
       _triggerGraceUntil = Date.now() + 15000; // 15s grace — Celery may not have the row yet
       var card = document.getElementById('sync-progress-card');
@@ -1100,7 +1287,7 @@
     var el = document.createElement('div');
     el.className = 'alert alert-' + (type || 'info') + ' small py-2 mb-2';
     el.textContent = msg;
-    document.getElementById('panel-sync').prepend(el);
+    root.prepend(el);
     setTimeout(function () { el.remove(); }, 5000);
   }
 
@@ -1111,7 +1298,30 @@
   loadRevokedStats();
   loadBackfillStats();
   loadLegacyAttachmentStats();
-  loadProgress();
 
 }());
 </script>
+<style>
+  #panel-sync .sync-backfill-table th,
+  #panel-sync .sync-backfill-table td {
+    padding-top: 0.2rem;
+    padding-bottom: 0.2rem;
+    line-height: 1.15;
+    vertical-align: top;
+  }
+
+  #panel-sync .sync-backfill-col-name {
+    width: 24%;
+  }
+
+  #panel-sync .sync-backfill-attachments {
+    line-height: 1.05;
+  }
+
+  #panel-sync .sync-backfill-audit-line {
+    font-size: 0.66rem;
+    line-height: 1.0;
+    margin-top: 0.05rem;
+    white-space: nowrap;
+  }
+</style>

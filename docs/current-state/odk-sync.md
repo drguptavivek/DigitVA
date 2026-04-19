@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-18
+last_updated: 2026-04-19
 ---
 
 # ODK Sync And Attachments
@@ -591,7 +591,23 @@ Tasks:
 
 - [`run_odk_sync()`](../../app/tasks/sync_tasks.py) — full sync across all active forms; records outcome in `va_sync_runs`
 - [`run_single_form_sync(form_id)`](../../app/tasks/sync_tasks.py) — force-resync one form, bypasses delta check
-- [`run_single_submission_sync(va_sid)`](../../app/tasks/sync_tasks.py) — refreshes one local submission from ODK, queues bounded enrichment and attachment batches for that submission's form, and reruns SmartVA only after attachment completion
+- [`run_single_submission_sync(va_sid)`](../../app/tasks/sync_tasks.py) — refreshes one local submission from ODK, then queues canonical current-payload repair for that submission
+
+During gap rebuilds for forms with many missing local rows, both regular sync
+and form backfill now queue canonical repair per fetched/upserted
+missing-data batch rather than waiting for the entire form gap fill to finish
+first.
+
+Because canonical repair now owns the current-payload workflow handoff, these
+incremental batches can also advance workflow earlier:
+
+- `attachment_sync_pending -> smartva_pending` once attachments are complete
+- `smartva_pending -> ready_for_coding` once current-payload SmartVA is present
+
+Within each canonical repair batch, SmartVA now runs through the production
+form-batch service path for the batch target SIDs instead of one
+`generate_for_submission(...)` call per submission. That keeps the current
+payload semantics the same while using SmartVA much more efficiently.
 
 Default schedule: every 6 hours (configurable via admin sync dashboard without restart).
 
@@ -644,6 +660,7 @@ The sync dashboard also exposes a separate backfill coverage view and trigger:
   - local stored submission totals
   - metadata completeness
   - attachment completeness
+  - attachment row coverage split between current rows (`storage_name IS NOT NULL`) and legacy rows (`storage_name IS NULL`)
   - SmartVA completeness (`smartva_complete`)
   - SmartVA missing, failed/null, and no-consent detail counts (`smartva_missing`, `smartva_failed`, `smartva_no_consent`)
   - SmartVA missing excludes consent-refused rows (`va_consent = "no"`)
@@ -667,8 +684,18 @@ Important distinction:
 - `POST /admin/api/sync/backfill/form/<form_id>` is the targeted repair path:
   - it fetches ODK instance IDs for the form
   - backfills only missing thin local submissions
-  - then queues metadata, attachment, and SmartVA repair only for submissions with local gaps
-- the form backfill trigger can therefore repair thin data, metadata enrichment, attachment sync, and SmartVA follow-through together without redownloading all form rows
+  - then revalidates the current ODK payload for each repair candidate before
+    ordinary metadata, attachment, or SmartVA repair continues
+  - those ODK payload/comment fetches now use the configured connect/read
+    request timeouts and the bounded repair stages currently run in batches of
+    `5` submissions
+  - ordinary repair still runs only for submissions with local gaps
+  - protected submissions whose current ODK payload changed during that
+    revalidation follow the existing `finalized_upstream_changed` /
+    pending-upstream path and are held out of ordinary attachment and SmartVA
+    repair against the stale active payload
+  - attachment repair now also treats legacy attachment rows with `storage_name IS NULL` as incomplete and migrates them onto opaque storage names during the same run, even when the local file already exists
+- the form backfill trigger can therefore repair thin data, metadata enrichment, attachment sync, legacy attachment-row migration, and SmartVA follow-through together without redownloading all form rows
 
 ## Admin Sync Dashboard
 
@@ -681,7 +708,7 @@ Sections:
 - **Stop** — shown only while a sync run is active; sends a revoke/terminate signal to the active Celery sync task and marks the run `cancelled`
 - **Schedule configurator** — change beat interval (1–168h) without restarting
 - **Coverage table** — ODK total vs local total, last synced time, per-form `Force-resync` button; loaded on demand rather than automatically on panel load
-- **Form Repair coverage table** — project/site/form completeness counts for local data, metadata, attachments, and SmartVA, with a per-form `Repair` trigger
+- **Form Repair coverage table** — project/site/form completeness counts for local data, metadata, attachments, and SmartVA, with a per-form `Repair` trigger; the attachments cell also shows current-vs-legacy attachment row coverage
 - **Legacy Attachment Rows** — status card for `storage_name IS NULL` rows,
   repaired legacy media row totals, plus a dedicated `Repair` trigger for
   legacy media rows

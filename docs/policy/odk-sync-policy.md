@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-08
+last_updated: 2026-04-19
 ---
 
 # ODK Sync Policy
@@ -59,10 +59,19 @@ Policy baseline:
 - the backfill should fetch ODK instance IDs for the selected form, fetch only
   missing thin submissions, and then queue repair only for submissions that are
   metadata-incomplete, attachment-incomplete, or missing current-payload SmartVA
+- before ordinary metadata, attachment, or SmartVA repair continues for an
+  already-local submission, the backfill must revalidate the current ODK
+  payload for that submission
+- if that revalidation detects a protected upstream payload change, the
+  submission must follow the existing `finalized_upstream_changed` path and
+  must not continue through ordinary attachment or SmartVA repair against the
+  stale active payload
 - a `Force-resync` may still bypass delta checks and redownload all form rows,
   but that behavior belongs to the explicit form `Force-resync` action, not the `Backfill` action
-- attachment-cache-only repair remains a distinct action and only restores
-  missing local attachment files for already stored submissions
+- legacy attachment repair may remain a distinct admin trigger, but it should
+  feed candidate submissions through the same canonical per-submission repair
+  engine rather than maintaining a second attachment-only repair
+  implementation
 - backfill actions should be logged with clear form-scoped progress so an
   operator can tell whether the repair is fetching data, enriching metadata,
   syncing attachments, or advancing workflow
@@ -71,6 +80,10 @@ CLI repair baseline:
 
 - `flask payload-backfill enrich` is a metadata-enrichment-first repair path
   for active payload versions
+- after the CLI selects candidate submissions, it should reuse the same
+  per-submission current-payload repair engine used by other repair entrypoints
+- the shared per-submission current-payload repair engine is the canonical
+  repair baseline for new entrypoints
 - after metadata writes, it may run attachment sync for the same candidate
   submissions, reusing ETag conditional downloads and existing local file cache
 - AMR attachments should continue to convert to MP3 during attachment sync with
@@ -101,6 +114,28 @@ Policy baseline:
 - cleanup tools must not overwrite existing quarantined files when a name
   collision occurs; they should keep both copies and preserve the original
   source path in the report
+
+## On-Open Current-Payload Repair
+
+Coding-route page opens may trigger a synchronous single-submission repair, but
+only when the current active payload still has local completeness gaps.
+
+Policy baseline:
+
+- on-open repair is a scoped reuse of the existing repair pipeline, not a
+  separate repair model
+- it must first revalidate the current ODK payload for that submission before
+  ordinary attachment or SmartVA repair continues
+- it may repair metadata, attachments, legacy attachment-row migration, and
+  current-payload SmartVA for that one submission
+- it must not run for every coding-page request indiscriminately; it is gap
+  triggered only
+- if revalidation detects a protected upstream payload change, the submission
+  must follow the existing `finalized_upstream_changed` handling and ordinary
+  on-open attachment or SmartVA repair must stop
+- on-open repair is allowed to increase page-open latency for genuinely
+  incomplete submissions, but it should avoid unnecessary remote work when the
+  local current payload is already complete
 
 ## Payload Versioning Baseline
 

@@ -3,7 +3,7 @@ title: "Route Audit — admin Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-19
 ---
 
 # admin Blueprint Audit
@@ -94,11 +94,10 @@ This is the largest blueprint (~4900 lines, ~94 routes). Routes are split into:
 | 36 | GET | `/admin/api/sync/coverage` | `@role_required("admin")` | admin | Global | No |
 | 37 | GET | `/admin/api/sync/backfill-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
 | 38 | POST | `/admin/api/sync/backfill/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
-| 39 | POST | `/admin/api/sync/trigger-smartva` | `@role_required("admin")` | admin | Global | Yes |
-| 40 | POST | `/admin/api/sync/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
-| 41 | POST | `/admin/api/sync/project-site/<id>/<id>` | `@role_required("admin")` | admin | Global | Yes |
-| 42 | GET | `/admin/api/sync/revoked-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
-| 43 | GET | `/admin/api/sync/progress` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 39 | POST | `/admin/api/sync/form/<form_id>` | `@role_required("admin")` | admin | Global | Yes |
+| 40 | POST | `/admin/api/sync/project-site/<id>/<id>` | `@role_required("admin")` | admin | Global | Yes |
+| 41 | GET | `/admin/api/sync/revoked-stats` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
+| 42 | GET | `/admin/api/sync/progress` | `@role_required("admin")`, `@limiter.exempt` | admin | Global | No |
 
 ## API Routes — Field Mapping
 

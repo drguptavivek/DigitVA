@@ -100,6 +100,8 @@ class AttachmentChange:
 class SubmissionAttachmentSyncResult:
     va_sid: str
     downloaded: int
+    non_audit_downloaded: int
+    audit_downloaded: int
     skipped: int
     errors: int
     etag_not_modified: int
@@ -119,6 +121,7 @@ def _sync_submission_attachments_no_db(
     media_dir: str,
     existing_etags: dict[str, str | None],
     existing_local_paths: dict[str, str | None],
+    existing_storage_names: dict[str, str | None],
     client,
     force_redownload: bool = False,
 ) -> SubmissionAttachmentSyncResult:
@@ -149,6 +152,8 @@ def _sync_submission_attachments_no_db(
     attachments: list[dict] = list_resp.json()
 
     downloaded = 0
+    non_audit_downloaded = 0
+    audit_downloaded = 0
     skipped = 0
     errors = 0
     etag_not_modified = 0
@@ -193,14 +198,17 @@ def _sync_submission_attachments_no_db(
                 etag_not_modified += 1
                 local_path = existing_local_paths.get(filename)
                 local_exists = bool(local_path and os.path.exists(local_path))
-                if local_exists:
+                storage_name = existing_storage_names.get(filename)
+                if local_exists and storage_name:
                     skipped += 1
                     local_present_on_etag += 1
                     continue
                 else:
-                    local_missing_on_etag += 1
-                    # Self-heal: ETag says unchanged but local blob is missing.
-                    # Re-fetch without If-None-Match to restore the file.
+                    if not local_exists:
+                        local_missing_on_etag += 1
+                    # Self-heal: ETag says unchanged but the local blob is
+                    # missing or the row is still on the legacy storage model.
+                    # Re-fetch without If-None-Match to restore or migrate it.
                     if dl_resp is not None and hasattr(dl_resp, "close"):
                         dl_resp.close()
                     dl_resp = guarded_odk_call(
@@ -257,6 +265,10 @@ def _sync_submission_attachments_no_db(
                 )
             )
             downloaded += 1
+            if filename.lower() == "audit.csv":
+                audit_downloaded += 1
+            else:
+                non_audit_downloaded += 1
         except Exception as exc:
             errors += 1
             log.warning(
@@ -275,6 +287,8 @@ def _sync_submission_attachments_no_db(
     return SubmissionAttachmentSyncResult(
         va_sid=va_sid,
         downloaded=downloaded,
+        non_audit_downloaded=non_audit_downloaded,
+        audit_downloaded=audit_downloaded,
         skipped=skipped,
         errors=errors,
         etag_not_modified=etag_not_modified,
@@ -288,15 +302,20 @@ def _sync_submission_attachments_no_db(
 # DB apply
 # ---------------------------------------------------------------------------
 
-def _apply_submission_attachment_result(existing_records, result):
-    """Apply a network-only attachment sync result using PK-safe upserts."""
+def _cleanup_replaced_attachment_files(stale_paths):
+    """Remove superseded attachment files after DB row updates are flushed."""
     from app import db
     from app.models.va_submission_attachments import VaSubmissionAttachments
 
-    def _maybe_remove_old_file(old_local_path: str | None, new_local_path: str | None) -> None:
-        if not old_local_path or old_local_path == new_local_path:
-            return
-        # Remove the stale blob only if no active row still points to it.
+    seen_paths = set()
+    for old_local_path, new_local_path in stale_paths:
+        if (
+            not old_local_path
+            or old_local_path == new_local_path
+            or old_local_path in seen_paths
+        ):
+            continue
+        seen_paths.add(old_local_path)
         in_use = db.session.scalar(
             sa.select(sa.func.count())
             .select_from(VaSubmissionAttachments)
@@ -306,12 +325,20 @@ def _apply_submission_attachment_result(existing_records, result):
             )
         )
         if in_use and int(in_use) > 0:
-            return
+            continue
         if os.path.exists(old_local_path):
             try:
                 os.remove(old_local_path)
             except OSError:
                 log.warning("Could not remove stale attachment file: %s", old_local_path, exc_info=True)
+
+
+def _apply_submission_attachment_result(existing_records, result):
+    """Apply a network-only attachment sync result using PK-safe upserts."""
+    from app import db
+    from app.models.va_submission_attachments import VaSubmissionAttachments
+
+    stale_paths = []
 
     existing = existing_records.setdefault(result.va_sid, {})
     for change in result.changes:
@@ -334,7 +361,7 @@ def _apply_submission_attachment_result(existing_records, result):
                         change.filename,
                         extra_storage_name=change.storage_name,
                     )
-                _maybe_remove_old_file(old_local_path, change.local_path)
+                stale_paths.append((old_local_path, change.local_path))
             else:
                 # File removed on ODK — update flag and invalidate cache
                 old_storage_name = rec.storage_name
@@ -388,6 +415,7 @@ def _apply_submission_attachment_result(existing_records, result):
                     raise
 
         existing.pop(change.filename, None)
+    return stale_paths
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +440,34 @@ def _load_existing_attachment_records(va_sids):
     return existing
 
 
+def _load_existing_attachment_state(va_sids):
+    """Load existing attachment state without keeping ORM rows live."""
+    from app import db
+    from app.models.va_submission_attachments import VaSubmissionAttachments
+
+    if not va_sids:
+        return {}, {}, {}
+
+    rows = db.session.execute(
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+            VaSubmissionAttachments.etag,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.storage_name,
+        ).where(VaSubmissionAttachments.va_sid.in_(va_sids))
+    ).all()
+
+    per_sid_etags = {}
+    per_sid_local_paths = {}
+    per_sid_storage_names = {}
+    for va_sid, filename, etag, local_path, storage_name in rows:
+        per_sid_etags.setdefault(va_sid, {})[filename] = etag
+        per_sid_local_paths.setdefault(va_sid, {})[filename] = local_path
+        per_sid_storage_names.setdefault(va_sid, {})[filename] = storage_name
+    return per_sid_etags, per_sid_local_paths, per_sid_storage_names
+
+
 def va_odk_sync_form_attachments(
     va_form,
     upserted_map: dict[str, str],
@@ -428,15 +484,12 @@ def va_odk_sync_form_attachments(
     if not upserted_map:
         return {"downloaded": 0, "skipped": 0, "errors": 0}
 
-    existing_records = _load_existing_attachment_records(list(upserted_map.keys()))
-    per_sid_etags = {
-        va_sid: {name: rec.etag for name, rec in rows.items()}
-        for va_sid, rows in existing_records.items()
-    }
-    per_sid_local_paths = {
-        va_sid: {name: rec.local_path for name, rec in rows.items()}
-        for va_sid, rows in existing_records.items()
-    }
+    (
+        per_sid_etags,
+        per_sid_local_paths,
+        per_sid_storage_names,
+    ) = _load_existing_attachment_state(list(upserted_map.keys()))
+    db.session.rollback()
     app = current_app._get_current_object() if has_app_context() else None
 
     thread_local = threading.local()
@@ -458,6 +511,7 @@ def va_odk_sync_form_attachments(
                     media_dir,
                     per_sid_etags.get(va_sid, {}),
                     per_sid_local_paths.get(va_sid, {}),
+                    per_sid_storage_names.get(va_sid, {}),
                     _get_client(),
                     force_redownload=force_redownload,
                 )
@@ -468,6 +522,7 @@ def va_odk_sync_form_attachments(
             media_dir,
             per_sid_etags.get(va_sid, {}),
             per_sid_local_paths.get(va_sid, {}),
+            per_sid_storage_names.get(va_sid, {}),
             _get_client(),
             force_redownload=force_redownload,
         )
@@ -500,6 +555,8 @@ def va_odk_sync_form_attachments(
                     SubmissionAttachmentSyncResult(
                         va_sid=va_sid,
                         downloaded=0,
+                        non_audit_downloaded=0,
+                        audit_downloaded=0,
                         skipped=0,
                         errors=1,
                         etag_not_modified=0,
@@ -514,22 +571,30 @@ def va_odk_sync_form_attachments(
 
     totals = {
         "downloaded": 0,
+        "non_audit_downloaded": 0,
+        "audit_downloaded": 0,
         "skipped": 0,
         "errors": 0,
         "etag_not_modified": 0,
         "local_present_on_etag": 0,
         "local_missing_on_etag": 0,
     }
+    stale_paths = []
     for result in results:
         totals["downloaded"] += result.downloaded
+        totals["non_audit_downloaded"] += result.non_audit_downloaded
+        totals["audit_downloaded"] += result.audit_downloaded
         totals["skipped"] += result.skipped
         totals["errors"] += result.errors
         totals["etag_not_modified"] += result.etag_not_modified
         totals["local_present_on_etag"] += result.local_present_on_etag
         totals["local_missing_on_etag"] += result.local_missing_on_etag
-        _apply_submission_attachment_result(existing_records, result)
+        if "existing_records" not in locals():
+            existing_records = _load_existing_attachment_records(list(upserted_map.keys()))
+        stale_paths.extend(_apply_submission_attachment_result(existing_records, result))
 
     db.session.flush()
+    _cleanup_replaced_attachment_files(stale_paths)
     return totals
 
 
@@ -548,6 +613,19 @@ def va_odk_sync_submission_attachments(
 
     os.makedirs(media_dir, exist_ok=True)
     client = client or va_odk_clientsetup(project_id=va_form.project_id)
+    per_sid_etags, per_sid_local_paths, per_sid_storage_names = _load_existing_attachment_state([va_sid])
+    db.session.rollback()
+    result = _sync_submission_attachments_no_db(
+        va_form,
+        instance_id,
+        va_sid,
+        media_dir,
+        per_sid_etags.get(va_sid, {}),
+        per_sid_local_paths.get(va_sid, {}),
+        per_sid_storage_names.get(va_sid, {}),
+        client,
+        force_redownload=force_redownload,
+    )
     existing: dict[str, VaSubmissionAttachments] = {
         r.filename: r
         for r in db.session.scalars(
@@ -556,18 +634,9 @@ def va_odk_sync_submission_attachments(
             )
         ).all()
     }
-    result = _sync_submission_attachments_no_db(
-        va_form,
-        instance_id,
-        va_sid,
-        media_dir,
-        {name: rec.etag for name, rec in existing.items()},
-        {name: rec.local_path for name, rec in existing.items()},
-        client,
-        force_redownload=force_redownload,
-    )
-    _apply_submission_attachment_result({va_sid: existing}, result)
+    stale_paths = _apply_submission_attachment_result({va_sid: existing}, result)
     db.session.flush()
+    _cleanup_replaced_attachment_files(stale_paths)
     return {
         "downloaded": result.downloaded,
         "skipped": result.skipped,

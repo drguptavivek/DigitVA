@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-04-12
+last_updated: 2026-04-19
 ---
 
 # Asynchronous Background Tasks
@@ -65,7 +65,7 @@ run_odk_sync(triggered_by="scheduled", user_id=None)
 **Behavior:**
 1. Writes a `VaSyncRun` row with `status="running"` and commits immediately (dashboard sees it)
 2. Calls `cleanup_stale_runs()` — expires orphaned "running" rows before starting
-3. Calls `va_data_sync_odkcentral()` — incremental per-form pipeline (delta check → gap sync → OData fetch → upsert → language normalization → batched enrichment → batched attachment sync → per-form commit)
+3. Calls `va_data_sync_odkcentral()` — incremental per-form pipeline (delta check → gap sync → OData fetch → upsert → language normalization → canonical repair-task enqueue → per-form commit)
 4. On success: updates with `status="success"` and metric counts
 5. On partial success (some forms failed): updates with `status="partial"` and lists failed form IDs in `error_message`
 6. On error: updates with `status="error"` and `error_message`, then re-raises so Celery marks the task failed
@@ -116,7 +116,7 @@ run_single_form_sync(form_id: str, triggered_by: str = "manual")
 1. Looks up the `va_forms` row for `form_id`
 2. Revalidates request-time access in the worker for non-admin user-triggered runs
 3. Fetches all submissions via OData JSON (no `since` filter — downloads everything)
-4. Upserts submissions, then enqueues per-submission enrichment and attachment batches (ETag-based), and rebuilds CSV once the pipeline finishes
+4. Upserts submissions, then enqueues the canonical repair task for the changed submission set
 5. Updates `mapping.last_synced_at`
 
 **When to use:** A form failed during a full sync run (status `partial`), or attachments are suspected to be out of sync. Triggered from the per-form sync button in the admin coverage table via `POST /admin/api/sync/form/<form_id>`.
@@ -141,6 +141,8 @@ Defined in [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py).
 **Purpose:** Backfill a single form by repairing local gaps without doing a full
 Force-resync.
 
+**Limits:** `soft_time_limit=1800s`, `time_limit=3600s`
+
 **Signature:**
 ```python
 run_single_form_backfill(form_id: str, triggered_by: str = "backfill")
@@ -150,8 +152,10 @@ run_single_form_backfill(form_id: str, triggered_by: str = "backfill")
 1. Looks up the `va_forms` row for `form_id`
 2. Revalidates request-time access in the worker for non-admin user-triggered runs
 3. Fetches ODK instance IDs for the form and thin-fetches only missing local submissions
-4. Queues per-submission batches only for local rows missing metadata, attachments, or current-payload SmartVA
-5. Leaves already complete rows alone
+4. Queues each fetched missing-data batch into the canonical repair task immediately
+5. Queues any already-local repair candidates through the same canonical repair task
+6. Hands run completion to a finalizer task once all queued repair batches finish
+7. Leaves already complete rows alone
 
 **When to use:** The admin sync dashboard shows local completeness gaps for a
 form and the operator wants targeted repair rather than a full Force-resync.
@@ -164,7 +168,7 @@ Triggered from `POST /admin/api/sync/backfill/form/<form_id>`.
 Defined in [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py).
 
 **Purpose:** Refresh one existing local submission from ODK, sync its
-attachments, and rerun SmartVA for that submission.
+attachments, and rerun SmartVA for that submission through the canonical repair engine.
 
 **Signature:**
 ```python
@@ -177,9 +181,38 @@ run_single_submission_sync(va_sid: str, triggered_by: str = "manual")
 3. Fetches the latest ODK payload for that instance
 4. Marks `missing_in_odk` if the submission is no longer present in active ODK
 5. Upserts the local submission when found
-6. Syncs attachments for that submission via bounded batches when needed
+6. Enqueues the canonical repair task for that submission when local gaps remain
 7. Rebuilds the form CSV
-8. Reruns SmartVA for the target submission only after attachment follow-through
+
+---
+
+### `app.tasks.sync_tasks.run_canonical_repair_batches_task`
+
+Defined in [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py).
+
+**Purpose:** Run the canonical per-submission current-payload repair engine across
+a bounded set of submission IDs for one form.
+
+**Signature:**
+```python
+run_canonical_repair_batches_task(
+    run_id: str,
+    form_id: str,
+    candidate_sids: list[str],
+    trigger_source: str,
+    force_attachment_redownload: bool = False,
+)
+```
+
+**Behavior:**
+1. Chunks `candidate_sids` into bounded batches of 5
+2. Runs `repair_submission_current_payload(...)` for each submission
+3. Aggregates attachment/audit download counts, SmartVA generation, and errors into `va_sync_runs`
+4. Finalizes the run status when the last queued repair batch for that sync run finishes
+
+**When to use:** This is the async wrapper used by global sync, per-form force-resync,
+project/site sync, and single-submission refresh whenever they need current-payload-aware
+repair follow-through after ODK upsert.
 
 **When to use:** A data manager wants to refresh one submission without waiting
 for a full-form or full-system sync.
@@ -192,14 +225,6 @@ run_single_submission_sync.delay(
     triggered_by="manual",
 )
 ```
-
----
-
-### `app.tasks.sync_tasks.run_smartva_pending`
-
-**Purpose:** Run SmartVA analysis on submissions that have no SmartVA result yet, without triggering an ODK download.
-
-Triggered via `POST /admin/api/sync/trigger-smartva`.
 
 ---
 
@@ -217,9 +242,9 @@ run_single_form_sync(form_id: str, triggered_by: str = "manual")
 1. Looks up the local `va_forms` row
 2. Revalidates request-time data-manager access in the worker for non-admin user-triggered runs
 3. Fetches all submissions for that mapped ODK form
-4. Upserts local submissions, then enqueues per-submission enrichment and attachment batches
+4. Upserts local submissions, then enqueues the canonical repair task for the changed submission set
 5. Updates `map_project_site_odk.last_synced_at`
-6. Regenerates SmartVA after the batched attachment follow-through completes
+6. Regenerates SmartVA only through the canonical repair follow-through when needed
 
 **When to use:** A form needs a targeted resync without running a full-system sync.
 

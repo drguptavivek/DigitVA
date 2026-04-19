@@ -3,7 +3,7 @@ title: Sync Entrypoints Audit
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-18
+last_updated: 2026-04-19
 ---
 
 # Sync Entrypoints Audit
@@ -24,12 +24,12 @@ It also separates true ODK sync actions from read-only refresh actions.
 
 | UI button | Frontend call | Flask endpoint | Backend task/service path | Actual behavior |
 |---|---|---|---|---|
-| `Sync` | `apiJson('/admin/api/sync/trigger', 'POST')` | `POST /admin/api/sync/trigger` (`admin_sync_trigger`) | `run_odk_sync.delay(triggered_by='manual')` → `va_data_sync_odkcentral()` | Global sync run across active site mappings. Uses delta check + gap detection + thin upsert + enrichment + attachments + SmartVA pipeline. |
+| `Sync` | `apiJson('/admin/api/sync/trigger', 'POST')` | `POST /admin/api/sync/trigger` (`admin_sync_trigger`) | `run_odk_sync.delay(triggered_by='manual')` → `va_data_sync_odkcentral()` → `run_canonical_repair_batches_task.delay(...)` | Global sync run across active site mappings. Uses delta check + gap detection + thin upsert, then queues canonical current-payload repair for changed submissions. |
 | `Stop` | `apiJson('/admin/api/sync/stop', 'POST')` | `POST /admin/api/sync/stop` (`admin_sync_stop`) | Celery revoke for known sync/backfill tasks | Attempts to terminate active sync/backfill tasks and marks running rows cancelled. |
 | Coverage row refresh icon (form) | `syncForm(formId)` | `POST /admin/api/sync/form/<form_id>` (`admin_sync_form`) | `run_single_form_sync.delay(triggered_by='manual')` | Single-form force-resync; bypasses delta check and re-downloads all submissions for that form, then repair pipeline. |
 | Coverage row refresh icon (site mapping without runtime form) | `syncProjectSite(projectId, siteId)` | `POST /admin/api/sync/project-site/<project_id>/<site_id>` (`admin_sync_project_site`) | `ensure_runtime_form_for_mapping()` + `run_single_form_sync.delay(...)` | Creates runtime form if needed, then runs same single-form force-resync path. |
-| `Repair` (per-form in Form Repair Coverage table) | `apiJson('/admin/api/sync/backfill/form/<form_id>', 'POST')` | `POST /admin/api/sync/backfill/form/<form_id>` (`admin_sync_backfill_form`) | `run_single_form_backfill.delay(triggered_by='backfill')` | Local repair path for one form (missing thin rows / metadata / attachments / SmartVA). Not a full ODK force-resync of all records. |
-| `Repair` (Legacy Attachment Rows card) | `apiJson('/admin/api/sync/legacy-attachment-repair', 'POST')` | `POST /admin/api/sync/legacy-attachment-repair` (`admin_sync_legacy_attachment_repair`) | `run_legacy_attachment_repair.delay(triggered_by='legacy-attachment-repair')` | Repairs legacy non-`audit.csv` attachment rows missing `storage_name` and renames local files to opaque storage tokens. |
+| `Repair` (per-form in Form Repair Coverage table) | `apiJson('/admin/api/sync/backfill/form/<form_id>', 'POST')` | `POST /admin/api/sync/backfill/form/<form_id>` (`admin_sync_backfill_form`) | `run_single_form_backfill.delay(triggered_by='backfill')` | Local repair path for one form (missing thin rows / metadata / attachments / SmartVA). Now batches candidate submission IDs and runs the canonical per-submission repair engine for each. Not a full ODK force-resync of all records. |
+| `Repair` (Legacy Attachment Rows card) | `apiJson('/admin/api/sync/legacy-attachment-repair', 'POST')` | `POST /admin/api/sync/legacy-attachment-repair` (`admin_sync_legacy_attachment_repair`) | `run_legacy_attachment_repair.delay(triggered_by='legacy-repair')` | Selects submissions still carrying legacy ODK-backed attachment rows, then routes them through the same canonical per-submission repair engine used by other repair paths. |
 
 ### Data Manager (`/data-management`)
 
@@ -38,7 +38,7 @@ It also separates true ODK sync actions from read-only refresh actions.
 | `Sync Latest Data` (opens modal only) | Opens modal + preview fetch | N/A for button open | N/A | No sync yet; only opens scoped sync modal. |
 | Modal preview (projects/sites selection) | `jsonFetch('/api/v1/data-management/sync/preview', POST)` | `POST /api/v1/data-management/sync/preview` (`sync_preview`) | `dm_scoped_forms()` + ODK count/id probes | Read-only preview: local counts, ODK counts, missing candidates, delta candidates. No writes. |
 | `Sync All` in modal | Loop: `POST /api/v1/data-management/forms/<form_id>/sync` | `POST /api/v1/data-management/forms/<form_id>/sync` (`sync_form`) | `run_single_form_sync.delay(triggered_by='data-manager')` | Per-form task dispatch. Uses same single-form force-resync task as admin per-form force-resync. |
-| Submission refresh API (no table button) | `POST /api/v1/data-management/submissions/<sid>/sync` (manual/programmatic only) | `POST /api/v1/data-management/submissions/<va_sid>/sync` (`sync_submission`) | `run_single_submission_sync.delay(triggered_by='data-manager')` | Refreshes one submission from ODK, then queues enrichment/attachments/SmartVA for that SID path. Endpoint still exists even after AG Grid row button removal. |
+| Submission refresh API (no table button) | `POST /api/v1/data-management/submissions/<sid>/sync` (manual/programmatic only) | `POST /api/v1/data-management/submissions/<va_sid>/sync` (`sync_submission`) | `run_single_submission_sync.delay(triggered_by='data-manager')` | Refreshes one submission from ODK, then queues canonical current-payload repair for that SID. Endpoint still exists even after AG Grid row button removal. |
 | `Recent Sync Results` refresh icon | `jsonFetch('/api/v1/data-management/sync/runs')` | `GET /api/v1/data-management/sync/runs` (`sync_runs`) | Read from `va_sync_runs` | Read-only status/history refresh. |
 
 ## Non-Sync Buttons Commonly Confused With Sync

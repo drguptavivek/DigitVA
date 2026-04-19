@@ -301,6 +301,10 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
         return submissions
 
     client = client or va_odk_clientsetup(project_id=va_form.project_id)
+    request_timeout = (
+        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+    )
     comments_url_base = (
         f"projects/{va_form.odk_project_id}"
         f"/forms/{va_form.odk_form_id}/submissions"
@@ -318,7 +322,7 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
         url = f"{comments_url_base}/{instance_id}/comments"
         try:
             response = guarded_odk_call(
-                lambda: client.session.get(url),
+                lambda: client.session.get(url, timeout=request_timeout),
                 client=client,
             )
             if response.status_code != 200:
@@ -353,9 +357,14 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
 
 def _fetch_submission_xml_enrichment(va_form, instance_id: str, *, client) -> dict:
     """Fetch XML-only metadata fields needed for the canonical stored payload."""
+    request_timeout = (
+        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+    )
     response = guarded_odk_call(
         lambda: client.session.get(
-            f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}.xml"
+            f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}.xml",
+            timeout=request_timeout,
         ),
         client=client,
     )
@@ -379,10 +388,15 @@ def _fetch_submission_xml_enrichment(va_form, instance_id: str, *, client) -> di
 
 def _fetch_submission_metadata_enrichment(va_form, instance_id: str, *, client) -> dict:
     """Fetch extended Central submission metadata not present in OData rows."""
+    request_timeout = (
+        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+    )
     response = guarded_odk_call(
         lambda: client.session.get(
             f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}",
             headers={"X-Extended-Metadata": "true"},
+            timeout=request_timeout,
         ),
         client=client,
     )
@@ -405,9 +419,14 @@ def _fetch_submission_metadata_enrichment(va_form, instance_id: str, *, client) 
 
 def _fetch_submission_attachment_enrichment(va_form, instance_id: str, *, client) -> dict:
     """Fetch attachment-derived metadata fields needed in the canonical payload."""
+    request_timeout = (
+        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+    )
     response = guarded_odk_call(
         lambda: client.session.get(
-            f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}/attachments"
+            f"projects/{va_form.odk_project_id}/forms/{va_form.odk_form_id}/submissions/{instance_id}/attachments",
+            timeout=request_timeout,
         ),
         client=client,
     )
@@ -1199,7 +1218,6 @@ def va_data_sync_odkcentral(
                             va_form, batch_ids, client=odk_client,
                         )
                         if batch_records:
-                            gap_records_for_finalize.extend(batch_records)
                             upserted_map_batch: dict[str, str] = {}
                             b_added, b_updated, b_discarded, b_skipped = _upsert_form_submissions(
                                 va_form,
@@ -1215,6 +1233,21 @@ def va_data_sync_odkcentral(
                             gap_skipped_total += b_skipped
                             gap_discarded_total += b_discarded
                             gap_upserted_map.update(upserted_map_batch)
+                            if upserted_map_batch:
+                                if enrichment_sync_dispatcher is not None:
+                                    _progress(
+                                        f"[{va_form.form_id}] repair: queueing "
+                                        f"{len(upserted_map_batch)} changed submission(s) "
+                                        f"through the canonical repair engine…"
+                                    )
+                                    enrichment_sync_dispatcher(
+                                        va_form,
+                                        upserted_map_batch,
+                                        _progress,
+                                    )
+                                    enrichment_sync_forms_enqueued += 1
+                                else:
+                                    gap_records_for_finalize.extend(batch_records)
 
                         done = min(batch_start + _GAP_BATCH, len(missing_ids))
                         skip_msg = f", {gap_skipped_total} skipped" if gap_skipped_total else ""
@@ -1238,18 +1271,7 @@ def va_data_sync_odkcentral(
                         f"+{gap_added_total} added, {gap_updated_total} updated{skip_msg}"
                     )
                     if gap_upserted_map:
-                        if enrichment_sync_dispatcher is not None:
-                            _progress(
-                                f"[{va_form.form_id}] enrich: queueing {len(gap_upserted_map)} "
-                                f"changed submission(s) for batched metadata enrichment…"
-                            )
-                            enrichment_sync_dispatcher(
-                                va_form,
-                                gap_upserted_map,
-                                _progress,
-                            )
-                            enrichment_sync_forms_enqueued += 1
-                        else:
+                        if enrichment_sync_dispatcher is None:
                             _progress(
                                 f"[{va_form.form_id}] enrich: adding ODK review comments to "
                                 f"{len(gap_records_for_finalize)} submission(s)…"

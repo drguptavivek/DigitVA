@@ -28,6 +28,7 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
+    VaProjectSites,
     VaReviewerFinalAssessments,
     VaReviewerReview,
     VaSiteMaster,
@@ -83,6 +84,7 @@ from app.services.workflow.upstream_changes import (
     get_latest_pending_upstream_change,
     resolve_pending_upstream_change,
 )
+from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 
 
 NON_SUBSTANTIVE_REVIEW_FIELDS = frozenset(
@@ -196,6 +198,16 @@ def dm_scope_filter(user):
     (project_id, site_id) pairs so that sites removed from a project are
     not included.
     """
+    all_pairs = _dm_scope_pairs(user)
+
+    if not all_pairs:
+        return sa.false()
+
+    return sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(all_pairs))
+
+
+def _dm_scope_pairs(user) -> set[tuple[str, str]]:
+    """Return active project/site pairs visible to this data manager."""
     from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
 
     project_ids = sorted(user.get_data_manager_projects())
@@ -203,11 +215,7 @@ def dm_scope_filter(user):
 
     all_pairs: set[tuple[str, str]] = set(project_site_pairs)
     all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
-
-    if not all_pairs:
-        return sa.false()
-
-    return sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(all_pairs))
+    return all_pairs
 
 
 def dm_form_in_scope(user, form_id: str) -> bool:
@@ -220,7 +228,11 @@ def dm_form_in_scope(user, form_id: str) -> bool:
 
 
 def dm_scoped_forms(user) -> list[dict]:
-    scope_filter = dm_scope_filter(user)
+    scoped_pairs = _dm_scope_pairs(user)
+    if not scoped_pairs:
+        return []
+
+    sync_runtime_forms_from_site_mappings()
     return [
         {
             "form_id": row.form_id,
@@ -241,16 +253,29 @@ def dm_scoped_forms(user) -> list[dict]:
                 MapProjectSiteOdk.odk_form_id,
                 MapProjectSiteOdk.last_synced_at,
             )
-            .select_from(VaForms)
-            .outerjoin(VaSiteMaster, VaSiteMaster.site_id == VaForms.site_id)
-            .outerjoin(
-                MapProjectSiteOdk,
+            .select_from(MapProjectSiteOdk)
+            .join(
+                VaProjectSites,
                 sa.and_(
-                    MapProjectSiteOdk.project_id == VaForms.project_id,
-                    MapProjectSiteOdk.site_id == VaForms.site_id,
+                    VaProjectSites.project_id == MapProjectSiteOdk.project_id,
+                    VaProjectSites.site_id == MapProjectSiteOdk.site_id,
+                    VaProjectSites.project_site_status == VaStatuses.active,
                 ),
             )
-            .where(scope_filter)
+            .join(
+                VaForms,
+                sa.and_(
+                    VaForms.project_id == MapProjectSiteOdk.project_id,
+                    VaForms.site_id == MapProjectSiteOdk.site_id,
+                    VaForms.form_status == VaStatuses.active,
+                ),
+            )
+            .outerjoin(VaSiteMaster, VaSiteMaster.site_id == VaForms.site_id)
+            .where(
+                sa.tuple_(MapProjectSiteOdk.project_id, MapProjectSiteOdk.site_id).in_(
+                    list(scoped_pairs)
+                )
+            )
             .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
         ).mappings().all()
     ]
@@ -306,18 +331,18 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
         )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .outerjoin(
+        .join(
             MapProjectSiteOdk,
             sa.and_(
                 MapProjectSiteOdk.project_id == VaForms.project_id,
                 MapProjectSiteOdk.site_id == VaForms.site_id,
             ),
         )
-        .outerjoin(
+        .join(
             MapProjectOdk,
             MapProjectOdk.project_id == VaForms.project_id,
         )
-        .outerjoin(
+        .join(
             MasOdkConnections,
             MasOdkConnections.connection_id == MapProjectOdk.connection_id,
         )

@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-04-19
 ---
 
 # CLI Reference
@@ -78,8 +78,7 @@ Additional `users create` options: `--landing-page` (default: `coder`), `--timez
 | Command | Description |
 |---------|-------------|
 | `payload-backfill status` | Show unenriched vs enriched payload version counts per form. |
-| `payload-backfill enrich` | Fetch missing ODK metadata, run attachment sync (including AMR→MP3 conversion), transition eligible workflow states, then check/generate SmartVA for missing current-payload rows. |
-| `payload-backfill transition-stuck` | Advance `attachment_sync_pending` submissions that have complete metadata + attachments through the workflow. |
+| `payload-backfill enrich` | Target active payloads missing enrichment metadata, then run the shared current-payload repair engine per submission: payload revalidation, attachment repair/migration, and current-payload SmartVA follow-through. |
 
 ### `enrich` options
 
@@ -96,23 +95,6 @@ Additional `users create` options: `--landing-page` (default: `coder`), `--timez
 - `logs/payload_backfill_enrich_<UTC_TIMESTAMP>_<RUN_ID>.log`
 - this file contains full per-stage logs for that specific CLI invocation
 
-### `transition-stuck` options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--batch-size=N` | 100 | Transitions per commit. |
-| `--dry-run` | off | Report counts only. |
-
-**Workflow transitions applied:**
-
-- `attachment_sync_pending` → `smartva_pending` (when metadata + attachments are complete)
-- `smartva_pending` → `ready_for_coding` (when SmartVA result already exists)
-
----
-
-## `migrate-attachments` — Storage name migration (one-time)
-
-| Command | Description |
-|---------|-------------|
-| `migrate-attachments run` | Assign deterministic `storage_name` to attachment rows missing one (dry-run by default). |
-| `migrate-attachments run --apply` | Actually write the updates. Idempotent — safe to re-run after a crash. |
+`payload-backfill enrich` now shares the same per-submission repair engine used
+by coding-route on-demand repair, but it still chooses candidates using the CLI
+backfill scope rather than the admin form backfill scheduler.

@@ -23,12 +23,24 @@ Computed fields added to each record:
 import logging
 from datetime import datetime, timezone
 
+from flask import current_app, has_app_context
+
 from app.services.odk_connection_guard_service import guarded_odk_call
 from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
 log = logging.getLogger(__name__)
 
 _PAGE_SIZE = 250
+
+
+def _request_timeout() -> tuple[float, float]:
+    """Return bounded connect/read timeouts for ODK fetch calls."""
+    if has_app_context():
+        return (
+            float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+            float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+        )
+    return (10.0, 60.0)
 
 
 def va_odk_fetch_instance_ids(va_form, client=None) -> list[str]:
@@ -43,9 +55,10 @@ def va_odk_fetch_instance_ids(va_form, client=None) -> list[str]:
         f"projects/{va_form.odk_project_id}"
         f"/forms/{va_form.odk_form_id}/submissions"
     )
+    request_timeout = _request_timeout()
 
     response = guarded_odk_call(
-        lambda: client.session.get(url),
+        lambda: client.session.get(url, timeout=request_timeout),
         client=client,
     )
     if response.status_code != 200:
@@ -86,6 +99,7 @@ def va_odk_fetch_submissions_by_ids(
         f"projects/{va_form.odk_project_id}"
         f"/forms/{va_form.odk_form_id}.svc/Submissions"
     )
+    request_timeout = _request_timeout()
 
     all_records: list[dict] = []
     errors = 0
@@ -95,7 +109,7 @@ def va_odk_fetch_submissions_by_ids(
         url = f"{base_url}('{iid}')"
         try:
             response = guarded_odk_call(
-                lambda: client.session.get(url),
+                lambda: client.session.get(url, timeout=request_timeout),
                 client=client,
             )
             if response.status_code != 200:
@@ -154,6 +168,7 @@ def va_odk_fetch_submissions(
         f"projects/{va_form.odk_project_id}"
         f"/forms/{va_form.odk_form_id}.svc/Submissions"
     )
+    request_timeout = _request_timeout()
 
     params: dict = {"$top": _PAGE_SIZE}
     if since is not None:
@@ -174,7 +189,7 @@ def va_odk_fetch_submissions(
     while True:
         params["$skip"] = skip
         response = guarded_odk_call(
-            lambda: client.session.get(base_url, params=params),
+            lambda: client.session.get(base_url, params=params, timeout=request_timeout),
             client=client,
         )
         if response.status_code != 200:

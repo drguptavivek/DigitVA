@@ -14,6 +14,9 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasOdkConnections,
+    MapProjectOdk,
+    MapProjectSiteOdk,
     VaAllocations,
     VaCoderReview,
     VaDataManagerReview,
@@ -57,7 +60,9 @@ from app.services.workflow.state_store import (
 )
 from app.services.data_management_service import (
     dm_accept_upstream_change,
+    dm_odk_edit_url,
     dm_reject_upstream_change,
+    dm_scoped_forms,
 )
 from app.services.submission_payload_version_service import (
     create_or_update_pending_upstream_payload_version,
@@ -353,6 +358,237 @@ class DataManagementAcceptRejectTests(BaseTestCase):
         ))
         db.session.commit()
         return user
+
+
+class DataManagementScopedFormsTests(BaseTestCase):
+    PROJECT_ID = "DMF01"
+    SITE_ID = "DFA1"
+    OTHER_SITE_ID = "DFB1"
+    FORM_ID = "DMF01DFA101"
+    LEGACY_FORM_ID = "DMF01DFB101"
+    MAPPED_SID = "uuid:dm-mapped-sid"
+    LEGACY_SID = "uuid:dm-legacy-sid"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(timezone.utc)
+        db.session.add_all(
+            [
+                VaProjectMaster(
+                    project_id=cls.PROJECT_ID,
+                    project_code=cls.PROJECT_ID,
+                    project_name="DM Scoped Forms Project",
+                    project_nickname="DMScoped",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                ),
+                VaResearchProjects(
+                    project_id=cls.PROJECT_ID,
+                    project_code=cls.PROJECT_ID,
+                    project_name="DM Scoped Forms Project",
+                    project_nickname="DMScoped",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                ),
+                VaSiteMaster(
+                    site_id=cls.SITE_ID,
+                    site_name="Mapped DM Site",
+                    site_abbr=cls.SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                ),
+                VaSiteMaster(
+                    site_id=cls.OTHER_SITE_ID,
+                    site_name="Legacy DM Site",
+                    site_abbr=cls.OTHER_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                ),
+            ]
+        )
+        db.session.flush()
+        db.session.add_all(
+            [
+                VaSites(
+                    site_id=cls.SITE_ID,
+                    project_id=cls.PROJECT_ID,
+                    site_name="Mapped DM Site",
+                    site_abbr=cls.SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                ),
+                VaSites(
+                    site_id=cls.OTHER_SITE_ID,
+                    project_id=cls.PROJECT_ID,
+                    site_name="Legacy DM Site",
+                    site_abbr=cls.OTHER_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                ),
+                VaProjectSites(
+                    project_id=cls.PROJECT_ID,
+                    site_id=cls.SITE_ID,
+                    project_site_status=VaStatuses.active,
+                    project_site_registered_at=now,
+                    project_site_updated_at=now,
+                ),
+                VaProjectSites(
+                    project_id=cls.PROJECT_ID,
+                    site_id=cls.OTHER_SITE_ID,
+                    project_site_status=VaStatuses.active,
+                    project_site_registered_at=now,
+                    project_site_updated_at=now,
+                ),
+            ]
+        )
+        db.session.flush()
+        db.session.add_all(
+            [
+                VaForms(
+                    form_id=cls.FORM_ID,
+                    project_id=cls.PROJECT_ID,
+                    site_id=cls.SITE_ID,
+                    odk_form_id="DM_MAPPED_FORM",
+                    odk_project_id="51",
+                    form_type="WHO VA 2022",
+                    form_status=VaStatuses.active,
+                    form_registered_at=now,
+                    form_updated_at=now,
+                ),
+                VaForms(
+                    form_id=cls.LEGACY_FORM_ID,
+                    project_id=cls.PROJECT_ID,
+                    site_id=cls.OTHER_SITE_ID,
+                    odk_form_id="DM_LEGACY_FORM",
+                    odk_project_id="52",
+                    form_type="WHO VA 2022",
+                    form_status=VaStatuses.active,
+                    form_registered_at=now,
+                    form_updated_at=now,
+                ),
+                MapProjectSiteOdk(
+                    project_id=cls.PROJECT_ID,
+                    site_id=cls.SITE_ID,
+                    odk_project_id=51,
+                    odk_form_id="DM_MAPPED_FORM",
+                    form_type_id=None,
+                    last_synced_at=now,
+                ),
+            ]
+        )
+        db.session.flush()
+        connection = MasOdkConnections(
+            connection_name="DM Scoped ODK",
+            base_url="https://odk.example.com",
+            username_enc="enc-user",
+            username_salt="1234567890abcdef1234567890abcdef",
+            password_enc="enc-pass",
+            password_salt="abcdef1234567890abcdef1234567890",
+            status=VaStatuses.active,
+        )
+        db.session.add(connection)
+        db.session.flush()
+        db.session.add(
+            MapProjectOdk(
+                project_id=cls.PROJECT_ID,
+                connection_id=connection.connection_id,
+            )
+        )
+        db.session.add_all(
+            [
+                VaSubmissions(
+                    va_sid=cls.MAPPED_SID,
+                    va_form_id=cls.FORM_ID,
+                    va_submission_date=now,
+                    va_odk_updatedat=now,
+                    va_data_collector="tester",
+                    va_odk_reviewstate=None,
+                    va_instance_name="mapped-instance",
+                    va_uniqueid_real=None,
+                    va_uniqueid_masked="mapped-instance",
+                    va_consent="yes",
+                    va_narration_language="english",
+                    va_deceased_age=42,
+                    va_deceased_gender="male",
+                    va_summary=["ok"],
+                    va_catcount={},
+                    va_category_list=["ok"],
+                ),
+                VaSubmissions(
+                    va_sid=cls.LEGACY_SID,
+                    va_form_id=cls.LEGACY_FORM_ID,
+                    va_submission_date=now,
+                    va_odk_updatedat=now,
+                    va_data_collector="tester",
+                    va_odk_reviewstate=None,
+                    va_instance_name="legacy-instance",
+                    va_uniqueid_real=None,
+                    va_uniqueid_masked="legacy-instance",
+                    va_consent="yes",
+                    va_narration_language="english",
+                    va_deceased_age=42,
+                    va_deceased_gender="male",
+                    va_summary=["ok"],
+                    va_catcount={},
+                    va_category_list=["ok"],
+                ),
+            ]
+        )
+        db.session.commit()
+
+    def _create_dm_user(self) -> VaUsers:
+        unique_suffix = uuid.uuid4().hex[:8]
+        user = VaUsers(
+            name=f"DM Scoped User {unique_suffix}",
+            email=f"dm_scoped_{unique_suffix}@example.com",
+            vacode_language=["English"],
+            permission={},
+            landing_page="data_manager",
+            pw_reset_t_and_c=True,
+            email_verified=True,
+            user_status=VaStatuses.active,
+        )
+        user.set_password("password")
+        db.session.add(user)
+        db.session.flush()
+        from app.models import VaAccessRoles, VaUserAccessGrants, VaAccessScopeTypes
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=user.user_id,
+                role=VaAccessRoles.data_manager,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=self.PROJECT_ID,
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        return user
+
+    def test_dm_scoped_forms_excludes_unmapped_legacy_form(self):
+        dm_user = self._create_dm_user()
+
+        forms = dm_scoped_forms(dm_user)
+
+        form_ids = {form["form_id"] for form in forms}
+        self.assertIn(self.FORM_ID, form_ids)
+        self.assertNotIn(self.LEGACY_FORM_ID, form_ids)
+
+    def test_dm_odk_edit_url_returns_none_for_unmapped_legacy_form(self):
+        dm_user = self._create_dm_user()
+
+        mapped_url = dm_odk_edit_url(dm_user, self.MAPPED_SID)
+        legacy_url = dm_odk_edit_url(dm_user, self.LEGACY_SID)
+
+        self.assertIsNotNone(mapped_url)
+        self.assertIn("/projects/51/forms/DM_MAPPED_FORM/submissions/", mapped_url)
+        self.assertIsNone(legacy_url)
 
 
 class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):

@@ -192,10 +192,14 @@ def ensure_active_payload_version(
     """Ensure a submission has an active payload version matching payload_data."""
     active = get_active_payload_version(submission.va_sid)
     fingerprint = canonical_payload_fingerprint(payload_data)
+    has_meta, att_expected = _derive_payload_metadata(payload_data)
 
     if active and canonical_payload_fingerprint(active.payload_data or {}) == fingerprint:
         if submission.active_payload_version_id != active.payload_version_id:
             submission.active_payload_version_id = active.payload_version_id
+        active.payload_data = payload_data
+        active.has_required_metadata = has_meta
+        active.attachments_expected = att_expected
         if source_updated_at is not None:
             active.source_updated_at = source_updated_at
         return active
@@ -205,6 +209,9 @@ def ensure_active_payload_version(
             VaSubmissionPayloadVersion, submission.active_payload_version_id
         )
         if active and canonical_payload_fingerprint(active.payload_data or {}) == fingerprint:
+            active.payload_data = payload_data
+            active.has_required_metadata = has_meta
+            active.attachments_expected = att_expected
             if source_updated_at is not None:
                 active.source_updated_at = source_updated_at
             return active
@@ -214,7 +221,6 @@ def ensure_active_payload_version(
         active.version_status = PAYLOAD_VERSION_STATUS_SUPERSEDED
         active.superseded_at = now
 
-    has_meta, att_expected = _derive_payload_metadata(payload_data)
     version = VaSubmissionPayloadVersion(
         va_sid=submission.va_sid,
         source_updated_at=source_updated_at,

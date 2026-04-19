@@ -191,6 +191,50 @@ class AdminApiTests(BaseTestCase):
         )
         db.session.commit()
 
+    def test_sync_task_names_include_canonical_repair_tasks(self):
+        from app.routes.admin import _sync_task_names
+
+        names = _sync_task_names()
+
+        self.assertIn("app.tasks.sync_tasks.run_canonical_repair_batches_task", names)
+        self.assertIn("app.tasks.sync_tasks.finalize_canonical_repair_run_task", names)
+        self.assertIn("app.tasks.sync_tasks.run_legacy_attachment_repair", names)
+
+    def test_sync_stop_recognizes_canonical_repair_tasks(self):
+        self._login(self.admin_user_id)
+
+        fake_inspect = MagicMock()
+        fake_inspect.active.return_value = {
+            "worker-a": [
+                {
+                    "id": "task-1",
+                    "name": "app.tasks.sync_tasks.run_canonical_repair_batches_task",
+                }
+            ]
+        }
+        fake_inspect.reserved.return_value = {}
+        fake_celery = MagicMock()
+        fake_celery.control.inspect.return_value = fake_inspect
+
+        now = datetime.now(timezone.utc)
+        run = VaSyncRun(
+            triggered_by="backfill",
+            started_at=now,
+            status="running",
+        )
+        db.session.add(run)
+        db.session.commit()
+
+        with patch.dict(self.app.extensions, {"celery": fake_celery}, clear=False):
+            response = self.client.post("/admin/api/sync/stop", headers=self._csrf_headers())
+
+        self.assertEqual(response.status_code, 200)
+        fake_celery.control.revoke.assert_called_once_with(
+            "task-1",
+            terminate=True,
+            signal="SIGTERM",
+        )
+
     def setUp(self):
         super().setUp()
         sfx = uuid.uuid4().hex[:8]
@@ -806,6 +850,13 @@ class AdminApiTests(BaseTestCase):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()
 
+        db.session.execute(
+            sa.update(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .values(status="error", finished_at=datetime.now(timezone.utc))
+        )
+        db.session.commit()
+
         run = VaSyncRun(
             triggered_by="manual",
             triggered_user_id=uuid.UUID(self.admin_user_id),
@@ -974,6 +1025,167 @@ class AdminApiTests(BaseTestCase):
         site_ids = {site["site_id"] for site in project["sites"]}
         self.assertIn(self.site_a, site_ids)
         self.assertNotIn(self.site_b, site_ids)
+
+    def test_sync_coverage_excludes_inactive_or_unmapped_legacy_forms(self):
+        self._login(self.admin_user_id)
+
+        now = datetime.now(timezone.utc)
+        legacy_form_id = f"ADM001AB{uuid.uuid4().hex[:4].upper()}"[:12]
+        db.session.add_all(
+            [
+                VaProjectSites(
+                    project_id=self.project_id,
+                    site_id=self.site_b,
+                    project_site_status=VaStatuses.deactive,
+                    project_site_registered_at=now,
+                    project_site_updated_at=now,
+                ),
+                MapProjectSiteOdk(
+                    project_id=self.project_id,
+                    site_id=self.site_b,
+                    odk_project_id=22,
+                    odk_form_id="ADMIN_API_FORM_B",
+                    form_type_id=None,
+                ),
+                VaForms(
+                    form_id=legacy_form_id,
+                    project_id=self.project_id,
+                    site_id=self.site_b,
+                    odk_form_id="ADMIN_API_FORM_B",
+                    odk_project_id="22",
+                    form_type="WHO VA 2022",
+                    form_status=VaStatuses.active,
+                    form_registered_at=now,
+                    form_updated_at=now,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        with patch(
+            "app.utils.va_odk.va_odk_04_submissioncount.va_odk_submissioncount",
+            return_value=0,
+        ):
+            response = self.client.get("/admin/api/sync/coverage")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        rows = payload["mappings"]
+        project_site_pairs = {(row["project_id"], row["site_id"]) for row in rows}
+        self.assertIn((self.project_id, self.site_a), project_site_pairs)
+        self.assertNotIn((self.project_id, self.site_b), project_site_pairs)
+
+    def test_sync_backfill_stats_reports_non_audit_audit_and_legacy_attachment_counts(self):
+        self._login(self.admin_user_id)
+        now = datetime.now(timezone.utc)
+        current_submission = VaSubmissions(
+            va_sid="uuid:backfill-stats-attachment-current-adm001",
+            va_form_id="ADM001AA0101",
+            va_submission_date=now,
+            va_odk_updatedat=now,
+            va_data_collector="tester",
+            va_odk_reviewstate=None,
+            va_instance_name="ADM001AA0101_attachment_current",
+            va_uniqueid_real=None,
+            va_uniqueid_masked="ADM001AA0101_attachment_current",
+            va_consent="yes",
+            va_narration_language="english",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_summary=["fever"],
+            va_catcount={},
+            va_category_list=["fever"],
+        )
+        legacy_submission = VaSubmissions(
+            va_sid="uuid:backfill-stats-attachment-legacy-adm001",
+            va_form_id="ADM001AA0101",
+            va_submission_date=now,
+            va_odk_updatedat=now,
+            va_data_collector="tester",
+            va_odk_reviewstate=None,
+            va_instance_name="ADM001AA0101_attachment_legacy",
+            va_uniqueid_real=None,
+            va_uniqueid_masked="ADM001AA0101_attachment_legacy",
+            va_consent="yes",
+            va_narration_language="english",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_summary=["fever"],
+            va_catcount={},
+            va_category_list=["fever"],
+        )
+        db.session.add_all([current_submission, legacy_submission])
+        db.session.flush()
+        payload_versions = [
+            VaSubmissionPayloadVersion(
+                va_sid=current_submission.va_sid,
+                source_updated_at=now,
+                payload_fingerprint="test-fingerprint-backfill-stats-attachment-current-adm001",
+                payload_data={"AttachmentsExpected": 1},
+                version_status="active",
+                has_required_metadata=True,
+                attachments_expected=1,
+            ),
+            VaSubmissionPayloadVersion(
+                va_sid=legacy_submission.va_sid,
+                source_updated_at=now,
+                payload_fingerprint="test-fingerprint-backfill-stats-attachment-legacy-adm001",
+                payload_data={"AttachmentsExpected": 1},
+                version_status="active",
+                has_required_metadata=True,
+                attachments_expected=1,
+            ),
+        ]
+        db.session.add_all(payload_versions)
+        db.session.flush()
+        current_submission.active_payload_version_id = payload_versions[0].payload_version_id
+        legacy_submission.active_payload_version_id = payload_versions[1].payload_version_id
+        db.session.add_all(
+            [
+                VaSubmissionAttachments(
+                    va_sid=current_submission.va_sid,
+                    filename="photo-current.jpg",
+                    local_path="/tmp/current-photo.jpg",
+                    storage_name="opaque-current-photo.jpg",
+                    mime_type="image/jpeg",
+                    etag=None,
+                    exists_on_odk=True,
+                    last_downloaded_at=now,
+                ),
+                VaSubmissionAttachments(
+                    va_sid=legacy_submission.va_sid,
+                    filename="audit.csv",
+                    local_path="/tmp/legacy-audit.csv",
+                    storage_name=None,
+                    mime_type="text/csv",
+                    etag=None,
+                    exists_on_odk=True,
+                    last_downloaded_at=now,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        def fake_exists(path):
+            return path in {
+                "/tmp/current-photo.jpg",
+                "/tmp/legacy-audit.csv",
+                "/app/data/ADM001AA0101/media/opaque-current-photo.jpg",
+            }
+
+        with patch("app.routes.admin.os.path.exists", side_effect=fake_exists):
+            response = self.client.get("/admin/api/sync/backfill-stats")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
+        site = next(s for s in project["sites"] if s["site_id"] == self.site_a)
+        form = next(f for f in site["forms"] if f["form_id"] == "ADM001AA0101")
+        self.assertGreaterEqual(form["non_audit_attachments_expected"], 1)
+        self.assertGreaterEqual(form["non_audit_attachments_present"], 1)
+        self.assertEqual(form["audit_attachments_expected"], 0)
+        self.assertEqual(form["audit_attachments_present"], 0)
+        self.assertGreaterEqual(form["legacy_attachment_rows_total"], 1)
 
     def test_sync_backfill_stats_counts_failed_or_null_smartva_separately(self):
         self._login(self.admin_user_id)
@@ -1234,3 +1446,67 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0]["connection_name"], "Alert ODK")
         self.assertTrue(alerts[0]["guard"]["cooldown_active"])
+
+    def test_sync_status_reports_running_when_canonical_child_task_active(self):
+        self._login(self.admin_user_id)
+
+        now = datetime.now(timezone.utc)
+        run = VaSyncRun(
+            triggered_by="backfill",
+            started_at=now - timedelta(minutes=5),
+            finished_at=now - timedelta(minutes=1),
+            status="cancelled",
+            error_message="Cancelled by admin.",
+        )
+        db.session.add(run)
+        db.session.commit()
+
+        fake_inspect = MagicMock()
+        fake_inspect.active.return_value = {
+            "worker-a": [
+                {
+                    "id": "task-1",
+                    "name": "app.tasks.sync_tasks.run_canonical_repair_batches_task",
+                    "kwargs": {
+                        "run_id": str(run.sync_run_id),
+                        "form_id": "ADM001AA0101",
+                    },
+                }
+            ]
+        }
+        fake_inspect.reserved.return_value = {}
+        fake_celery = MagicMock()
+        fake_celery.control.inspect.return_value = fake_inspect
+
+        with patch.dict(self.app.extensions, {"celery": fake_celery}, clear=False):
+            response = self.client.get("/admin/api/sync/status")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["is_running"])
+        self.assertIsNotNone(payload["current_run"])
+        self.assertEqual(payload["current_run"]["sync_run_id"], str(run.sync_run_id))
+        self.assertEqual(len(payload["active_tasks"]), 1)
+        self.assertEqual(payload["active_tasks"][0]["run_id"], str(run.sync_run_id))
+        self.assertEqual(payload["active_task_summary"]["repair_batch_count"], 1)
+        self.assertEqual(payload["reserved_tasks"], [])
+
+    def test_interrupted_sync_error_helper_matches_new_and_legacy_messages(self):
+        from app.routes.admin import _is_interrupted_sync_error
+
+        self.assertTrue(
+            _is_interrupted_sync_error(
+                "Interrupted run — no active sync/repair worker task is running and no recent progress was recorded."
+            )
+        )
+        self.assertTrue(
+            _is_interrupted_sync_error(
+                "Stale run — no active Celery sync/backfill task was found and no recent progress was recorded."
+            )
+        )
+        self.assertTrue(
+            _is_interrupted_sync_error(
+                "Stale run — worker likely restarted before completion"
+            )
+        )
+        self.assertFalse(_is_interrupted_sync_error("Cancelled by admin."))

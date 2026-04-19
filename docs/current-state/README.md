@@ -24,14 +24,15 @@ Read these documents in this order:
 1. [Architecture Overview](architecture-overview.md)
 2. [Current Data Model](data-model.md)
 3. [ODK Sync And Attachments](odk-sync.md)
-4. [Field Mapping System](field-mapping-system.md)
-5. [Category Rendering And Visibility](category-rendering-and-visibility.md)
-6. [Workflow And Permissions](workflow-and-permissions.md)
-7. [Admin And Setup Model](admin-and-setup.md)
-8. [Runtime And Operations](runtime-and-operations.md)
-9. [Data Manager Dashboard](data-manager-dashboard.md)
-10. [Submission Analytics Materialized View](submission-analytics.md)
-11. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
+4. [ODK Repair Workflow](odk-repair-workflow.md)
+5. [Field Mapping System](field-mapping-system.md)
+6. [Category Rendering And Visibility](category-rendering-and-visibility.md)
+7. [Workflow And Permissions](workflow-and-permissions.md)
+8. [Admin And Setup Model](admin-and-setup.md)
+9. [Runtime And Operations](runtime-and-operations.md)
+10. [Data Manager Dashboard](data-manager-dashboard.md)
+11. [Submission Analytics Materialized View](submission-analytics.md)
+12. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
 
 Related planning:
 

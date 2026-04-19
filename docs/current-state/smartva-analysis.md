@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-04-19
 ---
 
 # SmartVA Analysis
@@ -81,7 +81,7 @@ Current lineage note:
   active run on the current payload version
 - each `va_smartva_run` now links back to a `va_smartva_form_runs` row
 
-SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions have been downloaded and upserted (Phase 1). It can also be triggered independently via `POST /admin/api/sync/trigger-smartva` or worker-side invocation.
+SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions have been downloaded and upserted (Phase 1). It may also run through current-payload repair entrypoints or worker-side invocation.
 
 ---
 
@@ -432,15 +432,7 @@ When integrating a new ODK server or form, the following fields must be present 
 
 Full sync: Phase 1 (download + upsert) followed by Phase 2 (SmartVA for all forms).
 
-### `run_smartva_pending`
-
-SmartVA-only: skips ODK download, runs Phase 2 only. Saves results for any submission without an active SmartVA result. Useful when:
-
-- Data is already on disk and SmartVA failed mid-run
-- New submissions were imported but SmartVA was skipped
-- Manual re-run needed after fixing a SmartVA prep issue
-
-Both tasks record to `va_sync_runs` with `triggered_by` set to `"manual"`, `"scheduled"`, or `"smartva-only"`.
+These tasks record to `va_sync_runs` with `triggered_by` values such as `"manual"` or `"scheduled"`, depending on the initiating sync path.
 
 ---
 
@@ -457,7 +449,6 @@ API endpoints:
 | Endpoint | Method | Description |
 |---|---|---|
 | `/admin/api/sync/trigger` | POST | Trigger full sync |
-| `/admin/api/sync/trigger-smartva` | POST | Trigger SmartVA-only run |
 
 ---
 

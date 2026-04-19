@@ -3830,10 +3830,97 @@ def admin_panel_activity():
 def _sync_task_names() -> set[str]:
     return {
         "app.tasks.sync_tasks.run_odk_sync",
-        "app.tasks.sync_tasks.run_smartva_pending",
         "app.tasks.sync_tasks.run_single_form_sync",
         "app.tasks.sync_tasks.run_single_form_backfill",
         "app.tasks.sync_tasks.run_single_submission_sync",
+        "app.tasks.sync_tasks.run_canonical_repair_batches_task",
+        "app.tasks.sync_tasks.finalize_canonical_repair_run_task",
+        "app.tasks.sync_tasks.run_legacy_attachment_repair",
+    }
+
+
+def _sync_dashboard_triggered_by_values() -> tuple[str, ...]:
+    return ("scheduled", "manual", "backfill", "legacy-repair")
+
+
+def _sync_dashboard_runs_query():
+    from app.models.va_sync_runs import VaSyncRun
+
+    return sa.select(VaSyncRun).where(
+        VaSyncRun.triggered_by.in_(_sync_dashboard_triggered_by_values())
+    )
+
+
+def _extract_sync_task_info(*, worker: str, task: dict, state: str) -> dict:
+    kwargs = task.get("kwargs")
+    if not isinstance(kwargs, dict):
+        kwargs = {}
+    return {
+        "worker": worker,
+        "id": task.get("id"),
+        "name": task.get("name"),
+        "state": state,
+        "run_id": kwargs.get("run_id"),
+        "form_id": kwargs.get("form_id"),
+        "label": kwargs.get("label"),
+    }
+
+
+def _sync_task_snapshot(*, timeout: float = 0.5) -> dict[str, list[dict]]:
+    from flask import current_app
+
+    celery_app = current_app.extensions.get("celery")
+    if celery_app is None:
+        return {"active": [], "reserved": []}
+
+    inspect = celery_app.control.inspect(timeout=timeout)
+    sync_task_names = _sync_task_names()
+    snapshot: dict[str, list[dict]] = {"active": [], "reserved": []}
+
+    for state in ("active", "reserved"):
+        state_fetcher = getattr(inspect, state, None)
+        if state_fetcher is None:
+            continue
+        tasks_by_worker = state_fetcher() or {}
+        tasks = []
+        for worker, worker_tasks in tasks_by_worker.items():
+            for task in (worker_tasks or []):
+                if task.get("name") in sync_task_names:
+                    tasks.append(_extract_sync_task_info(worker=worker, task=task, state=state))
+        snapshot[state] = tasks
+    return snapshot
+
+
+def _active_sync_tasks() -> list[dict]:
+    return _sync_task_snapshot().get("active", [])
+
+
+def _reserved_sync_tasks() -> list[dict]:
+    return _sync_task_snapshot().get("reserved", [])
+
+
+def _summarize_active_sync_tasks(tasks: list[dict]) -> dict:
+    coordinator_names = {
+        "app.tasks.sync_tasks.run_odk_sync",
+        "app.tasks.sync_tasks.run_single_form_sync",
+        "app.tasks.sync_tasks.run_single_form_backfill",
+        "app.tasks.sync_tasks.run_single_submission_sync",
+        "app.tasks.sync_tasks.run_legacy_attachment_repair",
+    }
+    finalizer_name = "app.tasks.sync_tasks.finalize_canonical_repair_run_task"
+    repair_name = "app.tasks.sync_tasks.run_canonical_repair_batches_task"
+
+    coordinators = [task for task in tasks if task.get("name") in coordinator_names]
+    repair_batches = [task for task in tasks if task.get("name") == repair_name]
+    finalizers = [task for task in tasks if task.get("name") == finalizer_name]
+
+    return {
+        "coordinator_count": len(coordinators),
+        "repair_batch_count": len(repair_batches),
+        "finalizer_count": len(finalizers),
+        "coordinator_tasks": coordinators,
+        "repair_batch_tasks": repair_batches,
+        "finalizer_tasks": finalizers,
     }
 
 
@@ -3860,10 +3947,23 @@ def _sync_run_last_progress_at(run) -> datetime | None:
     return None
 
 
-def _reconcile_orphaned_running_sync_rows() -> None:
+def _is_interrupted_sync_error(message: str | None) -> bool:
+    if not message:
+        return False
+    lowered = message.lower()
+    return (
+        "no active celery sync/backfill task was found" in lowered
+        or "worker stopped before completion" in lowered
+        or "worker likely restarted before completion" in lowered
+        or "interrupted run" in lowered
+    )
+
+
+def _reconcile_orphaned_running_sync_rows(
+    task_snapshot: dict[str, list[dict]] | None = None,
+) -> None:
     """Mark running sync rows stale when Celery has no active sync tasks."""
     from datetime import datetime, timezone, timedelta
-    from flask import current_app
     from app.models.va_sync_runs import VaSyncRun
 
     running_rows = db.session.scalars(
@@ -3874,17 +3974,8 @@ def _reconcile_orphaned_running_sync_rows() -> None:
     if not running_rows:
         return
 
-    celery_app = current_app.extensions.get("celery")
-    if celery_app is None:
-        return
-
-    inspect = celery_app.control.inspect(timeout=2)
-    active_by_worker = inspect.active() or {}
-    active_sync_task_found = any(
-        task.get("name") in _sync_task_names()
-        for tasks in active_by_worker.values()
-        for task in (tasks or [])
-    )
+    task_snapshot = task_snapshot or _sync_task_snapshot()
+    active_sync_task_found = bool(task_snapshot.get("active") or task_snapshot.get("reserved"))
     if active_sync_task_found and not running_rows:
         recent_row = db.session.scalar(
             sa.select(VaSyncRun)
@@ -3901,7 +3992,7 @@ def _reconcile_orphaned_running_sync_rows() -> None:
                 and last_progress_at
                 and last_progress_at > now - timedelta(minutes=3)
                 and recent_row.error_message
-                and "no active Celery sync/backfill task was found" in recent_row.error_message
+                and _is_interrupted_sync_error(recent_row.error_message)
             ):
                 recent_row.status = "running"
                 recent_row.finished_at = None
@@ -3924,7 +4015,8 @@ def _reconcile_orphaned_running_sync_rows() -> None:
         row.status = "error"
         row.finished_at = now
         row.error_message = (
-            "Stale run — no active Celery sync/backfill task was found and no recent progress was recorded."
+            "Interrupted run — no active sync/repair worker task is running and no recent progress was recorded. "
+            "Re-initiate Sync or Repair to continue remaining gaps."
         )
         reconciled += 1
     if reconciled:
@@ -3944,13 +4036,38 @@ def admin_sync_status():
     try:
         from app.models.va_sync_runs import VaSyncRun
 
-        _reconcile_orphaned_running_sync_rows()
+        task_snapshot = _sync_task_snapshot()
+        _reconcile_orphaned_running_sync_rows(task_snapshot)
         running = db.session.scalar(
-            sa.select(VaSyncRun)
+            _sync_dashboard_runs_query()
             .where(VaSyncRun.status == "running")
             .order_by(VaSyncRun.started_at.desc())
             .limit(1)
         )
+        active_sync_tasks = task_snapshot.get("active", [])
+        reserved_sync_tasks = task_snapshot.get("reserved", [])
+        active_sync_task_summary = _summarize_active_sync_tasks(active_sync_tasks)
+        reserved_sync_task_summary = _summarize_active_sync_tasks(reserved_sync_tasks)
+        sync_tasks_present = bool(active_sync_tasks or reserved_sync_tasks)
+        if running is None and sync_tasks_present:
+            task_run_ids = [
+                task.get("run_id")
+                for task in active_sync_tasks + reserved_sync_tasks
+                if task.get("run_id")
+            ]
+            if task_run_ids:
+                running = db.session.scalar(
+                    _sync_dashboard_runs_query()
+                    .where(VaSyncRun.sync_run_id.in_(task_run_ids))
+                    .order_by(VaSyncRun.started_at.desc())
+                    .limit(1)
+                )
+            if running is None:
+                running = db.session.scalar(
+                    _sync_dashboard_runs_query()
+                    .order_by(VaSyncRun.started_at.desc())
+                    .limit(1)
+                )
 
         # Flag runs that have been "running" for over 10 minutes with no
         # progress entries — likely orphaned by a worker crash.
@@ -3963,7 +4080,7 @@ def admin_sync_status():
                 possibly_stale = True
 
         last_completed = db.session.scalar(
-            sa.select(VaSyncRun)
+            _sync_dashboard_runs_query()
             .where(VaSyncRun.status.in_(["success", "partial", "error", "cancelled"]))
             .order_by(VaSyncRun.started_at.desc())
             .limit(1)
@@ -3971,12 +4088,16 @@ def admin_sync_status():
         schedule_hours = _get_sync_schedule_hours()
 
         return jsonify({
-            "is_running": running is not None,
+            "is_running": sync_tasks_present or running is not None,
             "possibly_stale": possibly_stale,
             "current_run": _sync_run_dict(running) if running else None,
             "last_completed": _sync_run_dict(last_completed) if last_completed else None,
             "schedule_hours": schedule_hours,
             "odk_connection_alerts": _odk_connection_alerts(),
+            "active_tasks": active_sync_tasks,
+            "reserved_tasks": reserved_sync_tasks,
+            "active_task_summary": active_sync_task_summary,
+            "reserved_task_summary": reserved_sync_task_summary,
         })
     except Exception as e:
         log.error("admin_sync_status failed", exc_info=True)
@@ -3988,15 +4109,13 @@ def admin_sync_status():
 @role_required("admin")
 def admin_sync_history():
     try:
-        from app.models.va_sync_runs import VaSyncRun
-
         try:
             limit = min(int(request.args.get("limit", 20)), 100)
         except (TypeError, ValueError):
             limit = 20
 
         runs = db.session.scalars(
-            sa.select(VaSyncRun)
+            _sync_dashboard_runs_query()
             .order_by(VaSyncRun.started_at.desc())
             .limit(limit)
         ).all()
@@ -4048,20 +4167,12 @@ def admin_sync_stop():
         if celery_app is None:
             return _json_error("Celery is not configured.", 503)
 
-        inspect = celery_app.control.inspect(timeout=2)
-        active_by_worker = inspect.active() or {}
-        sync_task_names = {
-            "app.tasks.sync_tasks.run_odk_sync",
-            "app.tasks.sync_tasks.run_smartva_pending",
-            "app.tasks.sync_tasks.run_single_form_sync",
-            "app.tasks.sync_tasks.run_single_form_backfill",
-            "app.tasks.sync_tasks.run_single_submission_sync",
-        }
-        active_task_ids = []
-        for tasks in active_by_worker.values():
-            for task in tasks or []:
-                if task.get("name") in sync_task_names and task.get("id"):
-                    active_task_ids.append(task["id"])
+        sync_task_names = _sync_task_names()
+        task_ids = []
+        for task in _active_sync_tasks() + _reserved_sync_tasks():
+            if task.get("name") in sync_task_names and task.get("id"):
+                task_ids.append(task["id"])
+        task_ids = list(dict.fromkeys(task_ids))
 
         running_rows = db.session.scalars(
             sa.select(VaSyncRun)
@@ -4069,10 +4180,10 @@ def admin_sync_stop():
             .order_by(VaSyncRun.started_at.desc())
         ).all()
 
-        if not active_task_ids and not running_rows:
+        if not task_ids and not running_rows:
             return _json_error("No sync task is currently running.", 409)
 
-        for task_id in active_task_ids:
+        for task_id in task_ids:
             celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
 
         now = datetime.now(timezone.utc)
@@ -4085,7 +4196,7 @@ def admin_sync_stop():
         return jsonify(
             {
                 "message": "Stop signal sent to running sync task(s).",
-                "task_ids": active_task_ids,
+                "task_ids": task_ids,
                 "runs_cancelled": len(running_rows),
             }
         )
@@ -4156,29 +4267,27 @@ def admin_sync_coverage():
     try:
         from concurrent.futures import ThreadPoolExecutor, as_completed
         from app.models.va_submissions import VaSubmissions
-        from app.models.va_forms import VaForms
         from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
+        from app.services.runtime_form_sync_service import (
+            sync_runtime_forms_from_site_mappings,
+        )
 
-        mappings = db.session.scalars(sa.select(MapProjectSiteOdk)).all()
-        log.info("admin_sync_coverage: checking %d mappings", len(mappings))
+        forms = sync_runtime_forms_from_site_mappings()
+        mappings = {
+            (mapping.project_id, mapping.site_id): mapping
+            for mapping in db.session.scalars(sa.select(MapProjectSiteOdk)).all()
+        }
+        log.info("admin_sync_coverage: checking %d active runtime forms", len(forms))
 
         # Resolve local counts (fast, DB-only) first
         local_data = {}
-        for mapping in mappings:
-            form = db.session.scalar(
-                sa.select(VaForms).where(
-                    VaForms.project_id == mapping.project_id,
-                    VaForms.site_id == mapping.site_id,
+        for form in forms:
+            local_count = db.session.scalar(
+                sa.select(sa.func.count()).where(
+                    VaSubmissions.va_form_id == form.form_id
                 )
-            )
-            local_count = 0
-            if form:
-                local_count = db.session.scalar(
-                    sa.select(sa.func.count()).where(
-                        VaSubmissions.va_form_id == form.form_id
-                    )
-                ) or 0
-            local_data[(mapping.project_id, mapping.site_id)] = {
+            ) or 0
+            local_data[(form.project_id, form.site_id)] = {
                 "form": form,
                 "local_count": local_count,
             }
@@ -4189,50 +4298,55 @@ def admin_sync_coverage():
         from flask import current_app as _current_app
         flask_app = _current_app._get_current_object()
 
-        def fetch_odk_count(mapping):
+        def fetch_odk_count(form):
             with flask_app.app_context():
+                mapping = mappings.get((form.project_id, form.site_id))
+                if mapping is None:
+                    return form, None, "Active runtime form is missing a site mapping."
                 try:
                     count = va_odk_submissioncount(
                         mapping.odk_project_id,
                         mapping.odk_form_id,
-                        app_project_id=mapping.project_id,
+                        app_project_id=form.project_id,
                     )
                     log.info(
                         "coverage %s/%s: odk=%d",
-                        mapping.project_id, mapping.site_id, count,
+                        form.project_id, form.site_id, count,
                     )
-                    return mapping, count, None
+                    return form, count, None
                 except Exception as e:
                     log.warning(
                         "coverage ODK count failed for %s/%s: %s",
-                        mapping.project_id, mapping.site_id, e,
+                        form.project_id, form.site_id, e,
                     )
-                    return mapping, None, "ODK count failed."
+                    return form, None, "ODK count failed."
 
         odk_results = {}
-        with ThreadPoolExecutor(max_workers=len(mappings) or 1) as ex:
-            futures = {ex.submit(fetch_odk_count, m): m for m in mappings}
+        with ThreadPoolExecutor(max_workers=len(forms) or 1) as ex:
+            futures = {ex.submit(fetch_odk_count, form): form for form in forms}
             for future in as_completed(futures):
-                mapping, odk_count, odk_error = future.result()
-                odk_results[(mapping.project_id, mapping.site_id)] = (odk_count, odk_error)
+                form, odk_count, odk_error = future.result()
+                odk_results[(form.project_id, form.site_id)] = (odk_count, odk_error)
 
         # Assemble response
         rows = []
         odk_total = 0
         local_total = 0
-        for mapping in mappings:
-            key = (mapping.project_id, mapping.site_id)
+        for form in forms:
+            key = (form.project_id, form.site_id)
             ld = local_data[key]
             odk_count, odk_error = odk_results.get(key, (None, "No result"))
             local_count = ld["local_count"]
-            form = ld["form"]
+            mapping = mappings.get(key)
+            if mapping is None:
+                continue
 
             rows.append({
-                "project_id": mapping.project_id,
-                "site_id": mapping.site_id,
+                "project_id": form.project_id,
+                "site_id": form.site_id,
                 "odk_project_id": mapping.odk_project_id,
                 "odk_form_id": mapping.odk_form_id,
-                "form_id": form.form_id if form else None,
+                "form_id": form.form_id,
                 "can_site_sync": True,
                 "odk_total": odk_count,
                 "local_total": local_count,
@@ -4291,13 +4405,18 @@ def admin_sync_backfill_stats():
             form_id: str,
             local_path: str | None,
             storage_name: str | None,
+            *,
+            include_audit: bool = False,
         ) -> str | None:
             if storage_name and app_data_root:
                 disk_path = os.path.join(app_data_root, form_id, "media", storage_name)
                 if os.path.exists(disk_path):
                     return os.path.abspath(disk_path)
             if local_path and os.path.exists(local_path):
-                if os.path.basename(local_path).lower() == "audit.csv":
+                if (
+                    not include_audit
+                    and os.path.basename(local_path).lower() == "audit.csv"
+                ):
                     return None
                 return os.path.abspath(local_path)
             return None
@@ -4315,6 +4434,7 @@ def admin_sync_backfill_stats():
         attachment_file_rows = db.session.execute(
             sa.select(
                 VaSubmissions.va_form_id.label("va_form_id"),
+                VaSubmissionAttachments.filename,
                 VaSubmissionAttachments.local_path,
                 VaSubmissionAttachments.storage_name,
             )
@@ -4323,22 +4443,44 @@ def admin_sync_backfill_stats():
             .where(VaSubmissionAttachments.exists_on_odk.is_(True))
         ).mappings().all()
 
-        attachment_files_present_by_form: dict[str, int] = {}
-        seen_attachment_files_by_form: dict[str, set[str]] = {}
+        non_audit_attachments_expected_by_form: dict[str, int] = {}
+        non_audit_attachments_present_by_form: dict[str, int] = {}
+        audit_attachments_expected_by_form: dict[str, int] = {}
+        audit_attachments_present_by_form: dict[str, int] = {}
+        legacy_attachment_rows_total_by_form: dict[str, int] = {}
         for row in attachment_file_rows:
             form_id = row["va_form_id"]
-            file_path = resolve_attachment_file_path(
+            attachment_filename = (row["filename"] or "").lower()
+            local_path = row["local_path"]
+            storage_name = row["storage_name"]
+            row_path = resolve_attachment_file_path(
                 form_id,
-                row["local_path"],
-                row["storage_name"],
+                local_path,
+                storage_name,
+                include_audit=True,
             )
-            if not file_path:
-                continue
-            seen = seen_attachment_files_by_form.setdefault(form_id, set())
-            if file_path in seen:
-                continue
-            seen.add(file_path)
-            attachment_files_present_by_form[form_id] = len(seen)
+            if attachment_filename == "audit.csv":
+                if storage_name:
+                    audit_attachments_expected_by_form[form_id] = (
+                        audit_attachments_expected_by_form.get(form_id, 0) + 1
+                    )
+                    if row_path:
+                        audit_attachments_present_by_form[form_id] = (
+                            audit_attachments_present_by_form.get(form_id, 0) + 1
+                        )
+            else:
+                non_audit_attachments_expected_by_form[form_id] = (
+                    non_audit_attachments_expected_by_form.get(form_id, 0) + 1
+                )
+                if row_path:
+                    non_audit_attachments_present_by_form[form_id] = (
+                        non_audit_attachments_present_by_form.get(form_id, 0) + 1
+                    )
+
+            if not storage_name:
+                legacy_attachment_rows_total_by_form[form_id] = (
+                    legacy_attachment_rows_total_by_form.get(form_id, 0) + 1
+                )
 
         metadata_complete_expr = sa.case(
             (
@@ -4454,8 +4596,11 @@ def admin_sync_backfill_stats():
         total_local = 0
         total_metadata = 0
         total_attachments = 0
-        total_att_files_total = 0
-        total_att_files_present = 0
+        total_non_audit_attachments_expected = 0
+        total_non_audit_attachments_present = 0
+        total_audit_attachments_expected = 0
+        total_audit_attachments_present = 0
+        total_legacy_attachment_rows_total = 0
         total_smartva = 0
         total_smartva_failed = 0
         total_smartva_missing = 0
@@ -4466,8 +4611,21 @@ def admin_sync_backfill_stats():
             local_total = int(counts.get("local_total") or 0)
             metadata_complete = int(counts.get("metadata_complete") or 0)
             attachments_complete = int(counts.get("attachments_complete") or 0)
-            att_files_total = int(counts.get("attachments_files_total") or 0)
-            att_files_present = int(attachment_files_present_by_form.get(form.form_id) or 0)
+            non_audit_attachments_expected = int(
+                non_audit_attachments_expected_by_form.get(form.form_id) or 0
+            )
+            non_audit_attachments_present = int(
+                non_audit_attachments_present_by_form.get(form.form_id) or 0
+            )
+            audit_attachments_expected = int(
+                audit_attachments_expected_by_form.get(form.form_id) or 0
+            )
+            audit_attachments_present = int(
+                audit_attachments_present_by_form.get(form.form_id) or 0
+            )
+            legacy_attachment_rows_total = int(
+                legacy_attachment_rows_total_by_form.get(form.form_id) or 0
+            )
             smartva_complete = int(counts.get("smartva_complete") or 0)
             smartva_failed = int(counts.get("smartva_failed") or 0)
             smartva_eligible = int(counts.get("smartva_eligible") or 0)
@@ -4477,8 +4635,11 @@ def admin_sync_backfill_stats():
             total_local += local_total
             total_metadata += metadata_complete
             total_attachments += attachments_complete
-            total_att_files_total += att_files_total
-            total_att_files_present += att_files_present
+            total_non_audit_attachments_expected += non_audit_attachments_expected
+            total_non_audit_attachments_present += non_audit_attachments_present
+            total_audit_attachments_expected += audit_attachments_expected
+            total_audit_attachments_present += audit_attachments_present
+            total_legacy_attachment_rows_total += legacy_attachment_rows_total
             total_smartva += smartva_complete
             total_smartva_failed += smartva_failed
             total_smartva_missing += smartva_missing
@@ -4491,8 +4652,11 @@ def admin_sync_backfill_stats():
                 "local_total": 0,
                 "metadata_complete": 0,
                 "attachments_complete": 0,
-                "attachments_files_total": 0,
-                "attachments_files_present": 0,
+                "non_audit_attachments_expected": 0,
+                "non_audit_attachments_present": 0,
+                "audit_attachments_expected": 0,
+                "audit_attachments_present": 0,
+                "legacy_attachment_rows_total": 0,
                 "smartva_complete": 0,
                 "smartva_failed": 0,
                 "smartva_missing": 0,
@@ -4501,8 +4665,11 @@ def admin_sync_backfill_stats():
             project["local_total"] += local_total
             project["metadata_complete"] += metadata_complete
             project["attachments_complete"] += attachments_complete
-            project["attachments_files_total"] += att_files_total
-            project["attachments_files_present"] += att_files_present
+            project["non_audit_attachments_expected"] += non_audit_attachments_expected
+            project["non_audit_attachments_present"] += non_audit_attachments_present
+            project["audit_attachments_expected"] += audit_attachments_expected
+            project["audit_attachments_present"] += audit_attachments_present
+            project["legacy_attachment_rows_total"] += legacy_attachment_rows_total
             project["smartva_complete"] += smartva_complete
             project["smartva_failed"] += smartva_failed
             project["smartva_missing"] += smartva_missing
@@ -4515,8 +4682,11 @@ def admin_sync_backfill_stats():
                 "local_total": 0,
                 "metadata_complete": 0,
                 "attachments_complete": 0,
-                "attachments_files_total": 0,
-                "attachments_files_present": 0,
+                "non_audit_attachments_expected": 0,
+                "non_audit_attachments_present": 0,
+                "audit_attachments_expected": 0,
+                "audit_attachments_present": 0,
+                "legacy_attachment_rows_total": 0,
                 "smartva_complete": 0,
                 "smartva_failed": 0,
                 "smartva_missing": 0,
@@ -4525,8 +4695,11 @@ def admin_sync_backfill_stats():
             site["local_total"] += local_total
             site["metadata_complete"] += metadata_complete
             site["attachments_complete"] += attachments_complete
-            site["attachments_files_total"] += att_files_total
-            site["attachments_files_present"] += att_files_present
+            site["non_audit_attachments_expected"] += non_audit_attachments_expected
+            site["non_audit_attachments_present"] += non_audit_attachments_present
+            site["audit_attachments_expected"] += audit_attachments_expected
+            site["audit_attachments_present"] += audit_attachments_present
+            site["legacy_attachment_rows_total"] += legacy_attachment_rows_total
             site["smartva_complete"] += smartva_complete
             site["smartva_failed"] += smartva_failed
             site["smartva_missing"] += smartva_missing
@@ -4538,9 +4711,17 @@ def admin_sync_backfill_stats():
                 "metadata_missing": max(local_total - metadata_complete, 0),
                 "attachments_complete": attachments_complete,
                 "attachments_missing": max(local_total - attachments_complete, 0),
-                "attachments_files_total": att_files_total,
-                "attachments_files_present": att_files_present,
-                "attachments_files_missing": max(att_files_total - att_files_present, 0),
+                "non_audit_attachments_expected": non_audit_attachments_expected,
+                "non_audit_attachments_present": non_audit_attachments_present,
+                "non_audit_attachments_missing": max(
+                    non_audit_attachments_expected - non_audit_attachments_present, 0
+                ),
+                "audit_attachments_expected": audit_attachments_expected,
+                "audit_attachments_present": audit_attachments_present,
+                "audit_attachments_missing": max(
+                    audit_attachments_expected - audit_attachments_present, 0
+                ),
+                "legacy_attachment_rows_total": legacy_attachment_rows_total,
                 "smartva_complete": smartva_complete,
                 "smartva_failed": smartva_failed,
                 "smartva_missing": smartva_missing,
@@ -4568,9 +4749,20 @@ def admin_sync_backfill_stats():
                 "local_total": total_local,
                 "metadata_complete": total_metadata,
                 "attachments_complete": total_attachments,
-                "attachments_files_total": total_att_files_total,
-                "attachments_files_present": total_att_files_present,
-                "attachments_files_missing": max(total_att_files_total - total_att_files_present, 0),
+                "non_audit_attachments_expected": total_non_audit_attachments_expected,
+                "non_audit_attachments_present": total_non_audit_attachments_present,
+                "non_audit_attachments_missing": max(
+                    total_non_audit_attachments_expected
+                    - total_non_audit_attachments_present,
+                    0,
+                ),
+                "audit_attachments_expected": total_audit_attachments_expected,
+                "audit_attachments_present": total_audit_attachments_present,
+                "audit_attachments_missing": max(
+                    total_audit_attachments_expected - total_audit_attachments_present,
+                    0,
+                ),
+                "legacy_attachment_rows_total": total_legacy_attachment_rows_total,
                 "smartva_complete": total_smartva,
                 "smartva_failed": total_smartva_failed,
                 "smartva_missing": total_smartva_missing,
@@ -4589,7 +4781,9 @@ def admin_sync_legacy_attachment_stats():
     """Return counts for attachment rows missing opaque storage names."""
     try:
         from app.models.va_submission_attachments import VaSubmissionAttachments
-        from scripts.migrate_attachment_storage_names import _migration_storage_name
+        from app.services.attachment_storage_name_service import (
+            legacy_attachment_storage_name,
+        )
 
         counts = db.session.execute(
             sa.select(
@@ -4628,7 +4822,7 @@ def admin_sync_legacy_attachment_stats():
             .execution_options(yield_per=1000)
         )
         for row in repaired_rows:
-            expected_storage_name = _migration_storage_name(row.va_sid, row.filename)
+            expected_storage_name = legacy_attachment_storage_name(row.va_sid, row.filename)
             if row.storage_name == expected_storage_name:
                 repaired_legacy_media_rows += 1
 
@@ -4705,7 +4899,7 @@ def admin_sync_legacy_attachment_repair():
             return _json_error("A sync is already in progress.", 409)
 
         task = run_legacy_attachment_repair.delay(
-            triggered_by="legacy-attachment-repair",
+            triggered_by="legacy-repair",
             user_id=str(current_user.user_id),
         )
         return jsonify({
@@ -4715,34 +4909,6 @@ def admin_sync_legacy_attachment_repair():
     except Exception:
         log.error("admin_sync_legacy_attachment_repair failed", exc_info=True)
         return _json_error("Failed to trigger legacy attachment repair", 500)
-
-
-@admin.post("/api/sync/trigger-smartva")
-@role_required("admin")
-def admin_sync_trigger_smartva():
-    try:
-        from app.models.va_sync_runs import VaSyncRun
-        from app.tasks.sync_tasks import run_smartva_pending
-
-        _reconcile_orphaned_running_sync_rows()
-        running = db.session.scalar(
-            sa.select(VaSyncRun)
-            .where(VaSyncRun.status == "running")
-            .limit(1)
-        )
-        if running:
-            return _json_error("A sync is already in progress.", 409)
-
-            log.info("SmartVA-only run triggered by user %s", current_user.user_id)
-        task = run_smartva_pending.delay(
-            triggered_by="smartva-only",
-            user_id=str(current_user.user_id),
-        )
-        return jsonify({"message": "SmartVA run started.", "task_id": task.id}), 202
-    except Exception as e:
-        log.error("admin_sync_trigger_smartva failed", exc_info=True)
-        return _json_error(f"Failed to trigger SmartVA run", 500)
-
 
 @admin.post("/api/sync/form/<form_id>")
 @role_required("admin")
@@ -4928,17 +5094,28 @@ def admin_sync_progress():
     """Return live progress log for the currently running sync, or the last run."""
     import json as _json
     try:
-        from app.models.va_sync_runs import VaSyncRun
-
         run = db.session.scalar(
-            sa.select(VaSyncRun)
+            _sync_dashboard_runs_query()
             .where(VaSyncRun.status == "running")
             .order_by(VaSyncRun.started_at.desc())
             .limit(1)
         )
+        if run is None:
+            task_run_ids = [
+                task.get("run_id")
+                for task in _active_sync_tasks() + _reserved_sync_tasks()
+                if task.get("run_id")
+            ]
+            if task_run_ids:
+                run = db.session.scalar(
+                    _sync_dashboard_runs_query()
+                    .where(VaSyncRun.sync_run_id.in_(task_run_ids))
+                    .order_by(VaSyncRun.started_at.desc())
+                    .limit(1)
+                )
         if not run:
             run = db.session.scalar(
-                sa.select(VaSyncRun)
+                _sync_dashboard_runs_query()
                 .order_by(VaSyncRun.started_at.desc())
                 .limit(1)
             )

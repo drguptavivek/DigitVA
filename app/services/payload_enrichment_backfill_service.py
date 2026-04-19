@@ -33,6 +33,7 @@ from app.models import VaForms, VaSubmissions
 from app.models.va_selectives import VaStatuses
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
+from app.services.open_submission_repair_service import repair_submission_current_payload
 from app.services.submission_payload_version_service import _derive_payload_metadata
 
 log = logging.getLogger(__name__)
@@ -440,21 +441,60 @@ def enrich_unenriched_payloads(
                         )
                         stats["enriched"] += 1
                         _set_stage(audit_by_sid, row["va_sid"], "enrich", "done")
-                        _run_single_submission_attachment(
-                            va_form=va_form,
-                            media_dir=media_dir,
-                            va_sid=row["va_sid"],
-                            instance_id=key_val,
-                            client=client,
-                            stats=stats,
-                            audit_by_sid=audit_by_sid,
-                            force_redownload=force_attachments_redownload,
+                        repair_result = repair_submission_current_payload(
+                            row["va_sid"],
+                            trigger_source="payload_backfill_enrich",
+                            force_attachment_redownload=force_attachments_redownload,
                         )
-                        _run_single_submission_smartva(
-                            va_sid=row["va_sid"],
-                            stats=stats,
-                            audit_by_sid=audit_by_sid,
+                        initial_summary = repair_result.get("initial_summary") or {}
+                        attachments_missing = int(initial_summary.get("attachments_missing", 0) or 0)
+                        smartva_missing = int(initial_summary.get("smartva_missing", 0) or 0)
+                        downloaded = int(repair_result.get("attachments_downloaded", 0) or 0)
+                        non_audit_downloaded = int(repair_result.get("non_audit_downloaded", 0) or 0)
+                        audit_downloaded = int(repair_result.get("audit_downloaded", 0) or 0)
+                        stats["attachments_checked"] += 1
+                        if attachments_missing > 0:
+                            stats["attachments_downloaded"] += downloaded
+                            if downloaded == 0:
+                                stats["attachments_skipped"] += 1
+                        _set_stage(
+                            audit_by_sid,
+                            row["va_sid"],
+                            "attachments",
+                            "done",
+                            (
+                                f"downloaded={downloaded} "
+                                f"non_audit={non_audit_downloaded} "
+                                f"audit={audit_downloaded}"
+                            ),
                         )
+                        _log_submission_step(
+                            "attachments: downloaded=%d non_audit=%d audit=%d",
+                            downloaded,
+                            non_audit_downloaded,
+                            audit_downloaded,
+                        )
+                        stats["smartva_checked"] += 1
+                        if smartva_missing > 0:
+                            stats["smartva_missing"] += 1
+                        smartva_generated = int(repair_result.get("smartva_generated", 0) or 0)
+                        if smartva_generated > 0:
+                            stats["smartva_generated"] += smartva_generated
+                            _set_stage(
+                                audit_by_sid,
+                                row["va_sid"],
+                                "smartva",
+                                "done",
+                                f"saved={smartva_generated}",
+                            )
+                            _log_submission_step(
+                                "smartva: done saved=%d",
+                                smartva_generated,
+                            )
+                        else:
+                            stats["smartva_noop"] += 1
+                            _set_stage(audit_by_sid, row["va_sid"], "smartva", "noop")
+                            _log_submission_step("smartva: done saved=0 (already current/protected/no output)")
                         _run_single_submission_workflow_transition(
                             va_sid=row["va_sid"],
                             stats=stats,

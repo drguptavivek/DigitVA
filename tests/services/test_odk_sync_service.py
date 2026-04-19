@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 from app import db
 from app.models import (
+    MapProjectSiteOdk,
     VaAllocation,
     VaAllocations,
     VaForms,
@@ -31,6 +32,7 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     _release_active_allocations_after_sync,
     _mark_form_sync_issues,
     _upsert_form_submissions,
+    va_data_sync_odkcentral,
 )
 from app.services.workflow.definition import (
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
@@ -221,6 +223,90 @@ class OdkSyncServiceTests(BaseTestCase):
             submission.active_payload_version_id,
         )
 
+    def test_gap_sync_dispatches_canonical_repair_per_missing_batch(self):
+        now = datetime.now(timezone.utc)
+        mapping = db.session.scalar(
+            db.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.PROJECT_ID,
+                MapProjectSiteOdk.site_id == self.SITE_ID,
+            )
+        )
+        if mapping is None:
+            mapping = MapProjectSiteOdk(
+                project_id=self.PROJECT_ID,
+                site_id=self.SITE_ID,
+                odk_project_id=11,
+                odk_form_id="SYNC_TEST_FORM",
+                last_synced_at=now - timedelta(days=1),
+            )
+            db.session.add(mapping)
+        else:
+            mapping.last_synced_at = now - timedelta(days=1)
+        db.session.commit()
+
+        fake_form = db.session.get(VaForms, self.FORM_ID)
+        missing_ids = [f"uuid:gap-{index}" for index in range(120)]
+        dispatch_calls: list[list[str]] = []
+
+        def fake_fetch_by_ids(_va_form, batch_ids, **_kwargs):
+            return [
+                {
+                    "KEY": instance_id,
+                    "sid": f"{instance_id}-{self.FORM_ID.lower()}",
+                    "SubmissionDate": now.isoformat(),
+                    "updatedAt": now.isoformat(),
+                }
+                for instance_id in batch_ids
+            ]
+
+        def fake_upsert(_va_form, batch_records, _amended_sids, upserted_map_batch, **_kwargs):
+            for record in batch_records:
+                upserted_map_batch[record["sid"]] = record["KEY"]
+            return (len(batch_records), 0, 0, 0)
+
+        def fake_dispatch(_va_form, upserted_map, _progress_callback):
+            dispatch_calls.append(list(upserted_map.keys()))
+
+        with patch(
+            "app.services.va_data_sync.va_data_sync_01_odkcentral.sync_runtime_forms_from_site_mappings",
+            return_value=[fake_form],
+        ):
+            with patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral._resolve_project_connections",
+                return_value={},
+            ):
+                with patch(
+                    "app.services.va_data_sync.va_data_sync_01_odkcentral._get_or_create_sync_odk_client",
+                    return_value=object(),
+                ):
+                    with patch(
+                        "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_fetch_instance_ids",
+                        return_value=missing_ids,
+                    ):
+                        with patch(
+                            "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_delta_count",
+                            return_value=0,
+                        ):
+                            with patch(
+                                "app.services.va_data_sync.va_data_sync_01_odkcentral._mark_form_sync_issues"
+                            ):
+                                with patch(
+                                    "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_fetch_submissions_by_ids",
+                                    side_effect=fake_fetch_by_ids,
+                                ):
+                                    with patch(
+                                        "app.services.va_data_sync.va_data_sync_01_odkcentral._upsert_form_submissions",
+                                        side_effect=fake_upsert,
+                                    ):
+                                        result = va_data_sync_odkcentral(
+                                            log_progress=lambda _msg: None,
+                                            enrichment_sync_dispatcher=fake_dispatch,
+                                        )
+
+        self.assertEqual([len(call) for call in dispatch_calls], [50, 50, 20])
+        self.assertEqual(result["added"], 120)
+        self.assertEqual(result["enrichment_sync_forms_enqueued"], 3)
+
     def test_enrich_submission_payload_for_storage_merges_xml_metadata_and_attachments(self):
         payload = self._record("uuid:sync-enrich", "yes")
         va_form = db.session.get(VaForms, self.FORM_ID)
@@ -234,7 +320,7 @@ class OdkSyncServiceTests(BaseTestCase):
             def json(self):
                 return self._json_data
 
-        def fake_get(url, headers=None):
+        def fake_get(url, headers=None, timeout=None):
             if url.endswith(".xml"):
                 return FakeResponse(
                     200,
@@ -758,6 +844,23 @@ class OdkSyncServiceTests(BaseTestCase):
         client.session.get.assert_not_called()
         self.assertEqual(record["OdkReviewComments"], [])
 
+    def test_attach_all_odk_comments_applies_request_timeout(self):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = []
+        client = Mock()
+        client.session.get.return_value = mock_response
+        del client._digitva_connection_id
+
+        _attach_all_odk_comments(
+            db.session.get(VaForms, self.FORM_ID),
+            [self._record("uuid:sync-comment-timeout", "yes")],
+            client=client,
+        )
+
+        _, kwargs = client.session.get.call_args
+        self.assertEqual(kwargs["timeout"], (1.0, 5.0))
+
 
 class OdkSyncLoopCooldownTests(BaseTestCase):
     """Tests for connection-level cooldown short-circuit in va_data_sync_odkcentral.
@@ -823,6 +926,14 @@ class OdkSyncLoopCooldownTests(BaseTestCase):
                 "app.services.va_data_sync.va_data_sync_01_odkcentral"
                 "._get_or_create_sync_odk_client",
                 return_value=Mock(),
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                ".db.session.get",
+                side_effect=lambda model, key: next(
+                    (form for form in fake_forms if getattr(form, "form_id", None) == key),
+                    None,
+                ),
             ),
             patch(
                 "app.services.va_data_sync.va_data_sync_01_odkcentral"

@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-19
 ---
 
 # SmartVA Generation Policy
@@ -138,7 +138,7 @@ SmartVA can be triggered from:
 | Full sync (Phase 2) | Runs for `pending_sids ∪ amended_sids`, excludes protected |
 | Single form sync | Runs for `pending_sids ∪ amended_sids`, excludes protected |
 | Single submission refresh | Runs only if state is allowed, otherwise skip |
-| SmartVA-only sync trigger (`POST /admin/api/sync/trigger-smartva`) | Runs `generate_pending()` for all forms |
+| Repair / sync pathways | Normal current-payload repair and sync flows should cover SmartVA follow-through; no separate admin SmartVA-only trigger is required. |
 | Manual API call | Respects `force` parameter |
 
 ## Result Lifecycle

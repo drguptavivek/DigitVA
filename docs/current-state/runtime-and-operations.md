@@ -92,6 +92,7 @@ Current behavior:
 - the app, Celery worker, and Celery beat services now build for the host's native Docker architecture by default; when changing host architecture or switching between emulated/native builds, recreate the shared `minerva_venv` volume so compiled wheels are rebuilt consistently
 - postgres data is persisted in a named docker volume
 - the dev override uses the image-bundled `uv` binary to run `uv sync --frozen` at container start, rather than installing `uv` with `pip`
+- both image build and dev startup run [`scripts/sync_smartva_package_data.py`](../../scripts/sync_smartva_package_data.py) immediately after `uv sync` so SmartVA CSV/JSON/resource assets from the vendored source are copied into the installed package inside `/app/.venv`
 - Celery worker and beat wait for the app container to become healthy before starting so dependency refreshes propagate through the shared virtualenv before task processes launch
 - celery beat startup waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
 - the live migration chain now includes a forward-only additive migration that ensures the required `celery_*` scheduler tables exist on fresh databases

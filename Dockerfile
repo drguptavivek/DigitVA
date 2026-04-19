@@ -6,8 +6,10 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
+COPY scripts/sync_smartva_package_data.py scripts/
 COPY vendor/smartva-analyze vendor/smartva-analyze
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev && \
+    uv run python scripts/sync_smartva_package_data.py
 
 # ---- Runtime: minimal image ----
 FROM python:3.13-slim

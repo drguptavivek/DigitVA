@@ -10,6 +10,8 @@ services:
       bash -c "
         echo '[dev] Syncing dependencies...' &&
         uv sync --frozen &&
+        echo '[dev] Syncing SmartVA package data...' &&
+        uv run python scripts/sync_smartva_package_data.py &&
         echo '[dev] Waiting for database...' &&
         until flask db upgrade; do
           echo 'DB not ready, retrying in 5s...'

@@ -20,7 +20,6 @@ from app.utils.va_smartva.va_smartva_02_prepdata import va_smartva_prepdata
 from app.utils.va_smartva.va_smartva_03_runsmartva import va_smartva_runsmartva
 from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries
 from app.utils.va_smartva.va_smartva_04_formatsmartvaresult import va_smartva_formatsmartvaresult
-from app.utils.va_smartva.va_smartva_05_appendsmartvaresults import va_smartva_appendsmartvaresults
 
 from app.utils.va_user.va_user_01_rolesenum import VaRoles
 from app.utils.va_user.va_user_02_variablevalidators import (
@@ -87,7 +86,6 @@ __all__ = [
     "va_smartva_prepdata",
     "va_smartva_runsmartva",
     "va_smartva_formatsmartvaresult",
-    "va_smartva_appendsmartvaresults",
     "VaRoles",
     "va_user_permissionvalidator",
     "fail",

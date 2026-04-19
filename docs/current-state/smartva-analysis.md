@@ -344,6 +344,10 @@ Current storage behavior:
 - the full raw SmartVA workspace may be copied once per form run to the
   persisted `disk_path` recorded in `va_smartva_form_runs` for operational
   debugging
+- the current service does **not** write SmartVA workspaces under
+  `APP_DATA/SMARTVA_OUTPUT` or `APP_DATA/<form_id>/smartva_input|smartva_output`;
+  those older directories are legacy leftovers from a pre-form-run append
+  workflow and are not part of the active runtime path
 
 ---
 

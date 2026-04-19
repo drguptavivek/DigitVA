@@ -221,6 +221,7 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
 
     ps_rows = db.session.scalars(
         sa.select(VaProjectSites).where(
+            VaProjectSites.project_site_status == VaStatuses.active,
             sa.or_(*[
                 sa.and_(VaProjectSites.project_id == p.project_id, VaProjectSites.site_id == p.site_id)
                 for p in pairs
@@ -294,6 +295,7 @@ def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
         sa.select(VaProjectSites).where(
             VaProjectSites.project_id == project_id,
             VaProjectSites.site_id == site_id,
+            VaProjectSites.project_site_status == VaStatuses.active,
         )
     )
     if not ps:

@@ -1043,6 +1043,10 @@ def admin_project_sites():
         .join(VaProjectMaster, VaProjectMaster.project_id == VaProjectSites.project_id)
         .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
     )
+    stmt = stmt.where(
+        VaProjectMaster.project_status == VaStatuses.active,
+        VaSiteMaster.site_status == VaStatuses.active,
+    )
     if project_id:
         if not _current_user_can_manage_project(project_id):
             return _json_error("You do not have access to that project.", 403)
@@ -4940,8 +4944,24 @@ def admin_sync_form(form_id: str):
 def admin_sync_project_site(project_id: str, site_id: str):
     """Materialize the runtime form for one mapping and trigger a form sync."""
     try:
-        from app.services.runtime_form_sync_service import ensure_runtime_form_for_mapping
+        from app.services.runtime_form_sync_service import (
+            ensure_runtime_form_for_mapping,
+            sync_runtime_forms_from_site_mappings,
+        )
         from app.tasks.sync_tasks import run_single_form_sync
+
+        active_form = next(
+            (
+                form for form in sync_runtime_forms_from_site_mappings()
+                if form.project_id == project_id and form.site_id == site_id
+            ),
+            None,
+        )
+        if active_form is None:
+            return _json_error(
+                f"Active runtime mapping not found for project/site '{project_id}/{site_id}'.",
+                404,
+            )
 
         mapping = db.session.scalar(
             sa.select(MapProjectSiteOdk).where(

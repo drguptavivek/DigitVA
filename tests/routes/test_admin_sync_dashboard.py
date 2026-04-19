@@ -107,6 +107,13 @@ class AdminSyncDashboardTests(BaseTestCase):
 
     def test_admin_sync_coverage_includes_site_without_local_form(self):
         self._login(self.base_admin_id)
+        db.session.execute(
+            sa.delete(VaForms).where(
+                VaForms.project_id == self.PROJECT_ID,
+                VaForms.site_id == self.SITE_ID,
+            )
+        )
+        db.session.commit()
 
         with patch(
             "app.utils.va_odk.va_odk_04_submissioncount.va_odk_submissioncount",
@@ -121,7 +128,7 @@ class AdminSyncDashboardTests(BaseTestCase):
             for item in payload["mappings"]
             if item["project_id"] == self.PROJECT_ID and item["site_id"] == self.SITE_ID
         )
-        self.assertIsNone(row["form_id"])
+        self.assertEqual(row["form_id"], f"{self.PROJECT_ID}{self.SITE_ID}01")
         self.assertTrue(row["can_site_sync"])
         self.assertEqual(row["odk_total"], 12)
         self.assertEqual(row["local_total"], 0)
@@ -157,3 +164,30 @@ class AdminSyncDashboardTests(BaseTestCase):
             )
         )
         self.assertEqual(form_id, f"{self.PROJECT_ID}{self.SITE_ID}01")
+
+    def test_admin_sync_project_site_rejects_inactive_project_site(self):
+        self._login(self.base_admin_id)
+        project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.PROJECT_ID,
+                VaProjectSites.site_id == self.SITE_ID,
+            )
+        )
+        self.assertIsNotNone(project_site)
+        original_status = project_site.project_site_status
+        project_site.project_site_status = VaStatuses.deactive
+        db.session.commit()
+        try:
+            response = self.client.post(
+                f"/admin/api/sync/project-site/{self.PROJECT_ID}/{self.SITE_ID}",
+                headers=self._csrf_headers(),
+            )
+        finally:
+            project_site.project_site_status = original_status
+            db.session.commit()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn(
+            "Active runtime mapping not found",
+            response.get_json()["error"],
+        )

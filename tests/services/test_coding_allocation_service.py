@@ -30,6 +30,7 @@ from app.services.coding_allocation_service import (
 )
 from app.services.coder_workflow_service import (
     AllocationError,
+    _get_site_coding_error,
     mark_reviewer_eligible_after_recode_window_submissions,
     start_recode_allocation,
 )
@@ -524,6 +525,65 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(stored_allocation.va_allocation_status, VaStatuses.active)
         self.assertEqual(stored_final.va_finassess_status, VaStatuses.deactive)
         self.assertEqual(stored_narrative.va_nqa_status, VaStatuses.deactive)
+
+    def test_get_site_coding_error_ignores_inactive_project_site(self):
+        now = datetime.now(timezone.utc)
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        if project is None:
+            db.session.add(
+                VaProjectMaster(
+                    project_id=self.BASE_PROJECT_ID,
+                    project_code=self.BASE_PROJECT_ID,
+                    project_name="Legacy Test Project",
+                    project_nickname="LegacyBase",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
+            )
+        site = db.session.get(VaSiteMaster, self.BASE_SITE_ID)
+        if site is None:
+            db.session.add(
+                VaSiteMaster(
+                    site_id=self.BASE_SITE_ID,
+                    site_name="Legacy Test Site",
+                    site_abbr=self.BASE_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                )
+            )
+        db.session.flush()
+
+        project_site = db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.BASE_PROJECT_ID,
+                VaProjectSites.site_id == self.BASE_SITE_ID,
+            )
+        )
+        if project_site is None:
+            db.session.add(
+                VaProjectSites(
+                    project_id=self.BASE_PROJECT_ID,
+                    site_id=self.BASE_SITE_ID,
+                    project_site_status=VaStatuses.deactive,
+                    coding_enabled=False,
+                    project_site_registered_at=now,
+                    project_site_updated_at=now,
+                )
+            )
+        else:
+            project_site.project_site_status = VaStatuses.deactive
+            project_site.coding_enabled = False
+        db.session.commit()
+
+        message = _get_site_coding_error(
+            self.BASE_PROJECT_ID,
+            self.BASE_SITE_ID,
+            self.base_coder_user,
+        )
+
+        self.assertEqual(message, "Coding is not configured for this site.")
 
     def test_start_recode_allocation_reuses_existing_live_session_for_same_sid(self):
         sid = "uuid:recode-live-session"

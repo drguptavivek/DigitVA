@@ -518,6 +518,31 @@ class AdminApiTests(BaseTestCase):
         self.assertNotIn(ps_id, active_ids)
         self.assertIn(ps_id, all_ids)
 
+    def test_project_sites_excludes_rows_with_inactive_site_master(self):
+        self._login(self.manager_id)
+
+        site = db.session.get(VaSiteMaster, self.site_a)
+        self.assertIsNotNone(site)
+        original_status = site.site_status
+        site.site_status = VaStatuses.deactive
+        db.session.commit()
+        try:
+            response = self.client.get(
+                f"/admin/api/project-sites?project_id={self.project_id}&include_inactive=1"
+            )
+        finally:
+            site.site_status = original_status
+            db.session.commit()
+
+        self.assertEqual(response.status_code, 200)
+        rows = response.get_json()["project_sites"]
+        self.assertFalse(
+            any(
+                row["project_id"] == self.project_id and row["site_id"] == self.site_a
+                for row in rows
+            )
+        )
+
     def test_admin_sees_all_projects(self):
         self._login(self.admin_user_id)
 

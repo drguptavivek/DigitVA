@@ -40,8 +40,8 @@ Current repair entrypoints are:
 2. admin legacy-attachment repair for submissions still carrying legacy
    `storage_name IS NULL` rows
 3. CLI payload backfill / enrich flows
-4. synchronous single-submission repair when a coder opens a submission in the
-   coding UI and the current payload still has local gaps
+4. Celery-queued single-submission repair when a coder or data manager opens a
+   submission and the current payload still has local gaps
 
 All four follow the same current-payload repair semantics.
 
@@ -99,19 +99,24 @@ CLI repair commands:
 
 Only `payload-backfill enrich` remains as the CLI repair entrypoint.
 
-Coding-route on-demand entrypoints:
+Page-open on-demand entrypoints:
 
 - `POST /coding/start`
 - `GET /coding/resume`
 - `POST /coding/pick/<va_sid>`
 - `POST /coding/demo`
 - `GET /coding/view/<va_sid>`
+- `GET /data-management/view/<va_sid>`
 
-All coding-route entrypoints eventually render through:
+These entrypoints eventually render through:
 
 - [`render_va_coding_page(...)`](../../app/services/coding_service.py)
 
-The synchronous on-open repair hook is invoked only for `va_action="vacode"`.
+That shared shell now queues:
+
+- [`run_open_submission_repair(...)`](../../app/tasks/sync_tasks.py)
+
+for `va_action="vacode"` and `va_action="vadata"`.
 
 ## Core rule
 
@@ -189,8 +194,8 @@ repair.
 
 ## Single-submission on-open repair
 
-When a coder opens a submission in the coding UI, DigitVA may run a synchronous
-single-submission repair before rendering the page.
+When a coder or data manager opens a submission shell page, DigitVA may queue a
+single-submission repair task before or during page rendering.
 
 This is triggered only when the local current payload has a repair gap for that
 submission.
@@ -202,10 +207,10 @@ Current gap checks are:
 - legacy attachment rows still need migration to opaque `storage_name`
 - current-payload SmartVA missing
 
-If there is no gap, the request does nothing extra.
+If there is no gap, the queued task no-ops.
 
-If there is a gap, the request runs the same stage order as batch repair, but
-scoped to one submission:
+If there is a gap, the Celery task runs the same stage order as batch repair,
+but scoped to one submission:
 
 1. load local current-payload state for the submission
 2. fetch current ODK payload for that submission
@@ -216,8 +221,8 @@ scoped to one submission:
 7. if current-payload SmartVA is still missing, generate SmartVA for that
    submission
 
-This keeps coder-open repair aligned with the admin/CLI repair behavior instead
-of introducing a second custom repair implementation.
+This keeps coder-open and data-manager-open repair aligned with the admin/CLI
+repair behavior instead of introducing a second custom repair implementation.
 
 ## Attachment repair semantics
 

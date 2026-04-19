@@ -1614,6 +1614,47 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
 
 
 @shared_task(
+    name="app.tasks.sync_tasks.run_open_submission_repair",
+    bind=True,
+    soft_time_limit=600,
+    time_limit=900,
+)
+def run_open_submission_repair(
+    self,
+    *,
+    va_sid: str,
+    trigger_source: str = "open_view_repair",
+):
+    """Run the canonical current-payload repair engine asynchronously for one submission."""
+    from app import db
+    from app.services.open_submission_repair_service import repair_submission_current_payload
+
+    try:
+        result = repair_submission_current_payload(
+            va_sid,
+            trigger_source=trigger_source,
+        )
+        log.info(
+            "OpenSubmissionRepairTask [%s]: attempted=%s attachments=%s smartva=%s source=%s",
+            va_sid,
+            result.get("attempted"),
+            result.get("attachments_downloaded", 0),
+            result.get("smartva_generated", 0),
+            trigger_source,
+        )
+        return result
+    except Exception as exc:
+        db.session.rollback()
+        log.error(
+            "OpenSubmissionRepairTask [%s]: failed — %s",
+            va_sid,
+            exc,
+            exc_info=True,
+        )
+        raise
+
+
+@shared_task(
     name="app.tasks.sync_tasks.run_smartva_for_submission",
     bind=True,
     soft_time_limit=300,

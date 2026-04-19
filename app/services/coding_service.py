@@ -7,12 +7,14 @@ Used by:
 
 import logging
 import sqlalchemy as sa
-from app import db
+from app import db, cache as flask_cache
 from app.models import VaSubmissions
 from app.models.va_forms import VaForms
 from app.models.va_project_master import VaProjectMaster
 
 log = logging.getLogger(__name__)
+
+OPEN_REPAIR_QUEUE_TTL_SECONDS = 120
 
 
 def get_project_for_submission(va_sid: str):
@@ -82,18 +84,26 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     from app.services.category_rendering_service import get_category_rendering_service, get_visible_category_codes
     from app.services.coder_workflow_service import is_upstream_recode
     from app.services.demo_project_service import is_demo_training_submission
-    from app.services.open_submission_repair_service import repair_submission_for_coding_open
     from app.services.submission_payload_version_service import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
+    from app.tasks.sync_tasks import run_open_submission_repair
 
-    if va_action == "vacode":
+    if va_action in {"vacode", "vadata"}:
         try:
-            repair_result = repair_submission_for_coding_open(submission.va_sid)
-            if repair_result.get("attempted"):
-                submission = db.session.get(VaSubmissions, submission.va_sid) or submission
+            cache_key = f"open-repair-queued:{submission.va_sid}:{va_action}"
+            if not flask_cache.get(cache_key):
+                run_open_submission_repair.delay(
+                    va_sid=submission.va_sid,
+                    trigger_source=f"{va_action}_open_repair",
+                )
+                flask_cache.set(
+                    cache_key,
+                    True,
+                    timeout=OPEN_REPAIR_QUEUE_TTL_SECONDS,
+                )
         except Exception:
             log.warning(
-                "render_va_coding_page: current-payload repair failed for %s",
+                "render_va_coding_page: failed to queue current-payload repair for %s",
                 submission.va_sid,
                 exc_info=True,
             )

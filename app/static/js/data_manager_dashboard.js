@@ -1453,7 +1453,11 @@
     const siteIds    = tsSyncSite    ? tsSyncSite.getValue()    : [];
 
     const confirmBtn = document.getElementById('dm-sync-confirm-btn');
-    if (confirmBtn) confirmBtn.disabled = true;
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn._formIds = [];
+      confirmBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down me-1"></i>Queue Syncs';
+    }
 
     /* reset stats */
     ['sync-stat-total','sync-stat-new','sync-stat-updated','sync-stat-missing']
@@ -1498,10 +1502,12 @@
             <td class="small">${f.preview_status || ''}</td>
           </tr>`).join('');
         }
-        if (confirmBtn) confirmBtn.disabled = false;
-
-        /* stash form ids for confirm */
-        confirmBtn._formIds = forms.map(f => f.form_id).filter(Boolean);
+        if (confirmBtn) {
+          const formIds = forms.map(f => f.form_id).filter(Boolean);
+          confirmBtn.disabled = false;
+          confirmBtn._formIds = formIds;
+          confirmBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down me-1"></i>Queue ${formIds.length} Sync${formIds.length === 1 ? '' : 's'}`;
+        }
       })
       .catch(err => {
         if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="text-danger small">${err.message}</td></tr>`;
@@ -1515,7 +1521,7 @@
     const confirmBtn = document.getElementById('dm-sync-confirm-btn');
     if (confirmBtn) {
       confirmBtn.disabled = true;
-      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Syncing…';
+      confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Queueing…';
     }
 
     let succeeded = 0;
@@ -1532,13 +1538,13 @@
 
     if (confirmBtn) {
       confirmBtn.disabled = false;
-      confirmBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down me-1"></i>Sync All';
+      confirmBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down me-1"></i>Queue ${formIds.length} Sync${formIds.length === 1 ? '' : 's'}`;
     }
 
     if (failed === 0) {
-      toast(`Sync complete: ${succeeded} form(s) synced`, 'success');
+      toast(`Queued ${succeeded} form sync task${succeeded === 1 ? '' : 's'}`, 'success');
     } else {
-      toast(`Sync finished: ${succeeded} succeeded, ${failed} failed`, 'warning');
+      toast(`Queueing finished: ${succeeded} queued, ${failed} failed`, 'warning');
     }
 
     /* close modal, reload runs, start polling */
@@ -1620,7 +1626,7 @@
       const btn = document.getElementById('dm-sync-confirm-btn');
       const formIds = btn._formIds || [];
       if (!formIds.length) {
-        toast('No forms to sync', 'warning');
+        toast('No forms available to queue', 'warning');
         return;
       }
       runSyncForForms(formIds);

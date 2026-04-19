@@ -199,7 +199,12 @@ Current sync behavior:
 - explicit matched-form confirmation
 - live preview of local versus ODK counts
 - warning that missing ODK records are flagged locally, not deleted
-- background task dispatch through Celery
+- browser-side queueing of one per-form sync task per matched form through Celery
+
+Current sync modal wording reflects queueing rather than completion:
+
+- the primary action queues the matched form sync tasks
+- success feedback reports queued form sync tasks, not finished sync completion
 
 Supported actions:
 

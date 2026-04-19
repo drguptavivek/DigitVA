@@ -380,15 +380,19 @@
     }
     apiJson('/admin/api/odk-connections/' + cid + '/test', 'POST').then(function (res) {
       if (!resultEl) return;
-      if (res.data.ok) {
+      var message = (res.data && (res.data.message || res.data.error)) || 'Connection test failed.';
+      if (res.ok && res.data.ok) {
         resultEl.className = 'odc-test-result mt-2 small text-success';
-        resultEl.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>' + esc(res.data.message);
+        resultEl.innerHTML = '<i class="fa-solid fa-circle-check me-1"></i>' + esc(message);
       } else {
         resultEl.className = 'odc-test-result mt-2 small text-danger';
-        resultEl.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i>' + esc(res.data.message);
+        resultEl.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i>' + esc(message);
       }
     }).catch(function () {
-      if (resultEl) resultEl.innerHTML = '<span class="text-danger">Network error.</span>';
+      if (resultEl) {
+        resultEl.className = 'odc-test-result mt-2 small text-danger';
+        resultEl.innerHTML = '<i class="fa-solid fa-circle-xmark me-1"></i>Network error.';
+      }
     });
   }
 

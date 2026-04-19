@@ -5,6 +5,7 @@ in va_sync_runs so the admin dashboard can show history and current status.
 """
 import json
 import logging
+import os
 import traceback
 import sqlalchemy as sa
 from celery import shared_task
@@ -46,6 +47,73 @@ def _batch_stage_counts(batch_plan: dict[str, dict]) -> dict[str, int]:
         "attachments": sum(1 for item in batch_plan.values() if item.get("needs_attachments")),
         "smartva": sum(1 for item in batch_plan.values() if item.get("needs_smartva")),
     }
+
+
+def _resolve_present_attachment_file_path(
+    *,
+    app_data_root: str | None,
+    form_id: str,
+    local_path: str | None,
+    storage_name: str | None,
+) -> str | None:
+    """Return a real attachment file path if the local blob exists.
+
+    Preference order:
+      1. storage_name under APP_DATA/<form_id>/media/
+      2. legacy local_path fallback
+
+    Shared artifacts like audit.csv are not treated as attachment blobs.
+    """
+    if storage_name and app_data_root:
+        disk_path = os.path.join(app_data_root, form_id, "media", storage_name)
+        if os.path.exists(disk_path):
+            return os.path.abspath(disk_path)
+    if local_path and os.path.exists(local_path):
+        if os.path.basename(local_path).lower() == "audit.csv":
+            return None
+        return os.path.abspath(local_path)
+    return None
+
+
+def _present_attachment_files_by_submission(
+    form_id: str,
+    *,
+    target_sids: list[str] | None = None,
+) -> dict[str, set[str]]:
+    """Return deduplicated local attachment file paths per submission."""
+    from flask import current_app
+    from app import db
+    from app.models import VaSubmissions, VaSubmissionAttachments
+
+    app_data_root = current_app.config.get("APP_DATA")
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.storage_name,
+        )
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissions.va_form_id == form_id,
+            VaSubmissionAttachments.exists_on_odk.is_(True),
+        )
+    )
+    if target_sids:
+        stmt = stmt.where(VaSubmissionAttachments.va_sid.in_(target_sids))
+
+    present_files_by_sid: dict[str, set[str]] = {}
+    for row in db.session.execute(stmt).mappings().all():
+        resolved_path = _resolve_present_attachment_file_path(
+            app_data_root=app_data_root,
+            form_id=form_id,
+            local_path=row["local_path"],
+            storage_name=row["storage_name"],
+        )
+        if not resolved_path:
+            continue
+        present_files_by_sid.setdefault(row["va_sid"], set()).add(resolved_path)
+    return present_files_by_sid
 
 
 def _dispatch_repair_batch(
@@ -353,7 +421,7 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
     metadata-incomplete or whose local attachment cache is incomplete.
     """
     from app import db
-    from app.models import VaSubmissions, VaSubmissionAttachments, VaSmartvaResults
+    from app.models import VaSubmissions, VaSmartvaResults
     from app.models.va_selectives import VaStatuses
     from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 
@@ -363,15 +431,6 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
         if submission.get("sid") and submission.get("KEY")
     }
 
-    attachment_counts_sq = (
-        sa.select(
-            VaSubmissionAttachments.va_sid.label("va_sid"),
-            sa.func.count().label("attachment_count"),
-        )
-        .where(VaSubmissionAttachments.exists_on_odk.is_(True))
-        .group_by(VaSubmissionAttachments.va_sid)
-        .subquery()
-    )
     smartva_current_sq = (
         sa.select(VaSmartvaResults.va_sid.label("va_sid"))
         .join(
@@ -387,22 +446,23 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
         .subquery()
     )
 
+    target_sids = list(raw_by_sid.keys()) if raw_by_sid else None
+    present_attachment_files = _present_attachment_files_by_submission(
+        form_id,
+        target_sids=target_sids,
+    )
+
     rows = db.session.execute(
         sa.select(
             VaSubmissions.va_sid,
             VaSubmissionPayloadVersion.payload_data,
             VaSubmissions.va_summary,
             VaSubmissions.va_category_list,
-            attachment_counts_sq.c.attachment_count,
             smartva_current_sq.c.va_sid.label("smartva_present_sid"),
         )
         .outerjoin(
             VaSubmissionPayloadVersion,
             VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
-        )
-        .outerjoin(
-            attachment_counts_sq,
-            attachment_counts_sq.c.va_sid == VaSubmissions.va_sid,
         )
         .outerjoin(
             smartva_current_sq,
@@ -428,7 +488,7 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
         "attachments_missing": 0,
         "smartva_missing": 0,
     }
-    for va_sid, payload_data, va_summary, va_category_list, attachment_count, smartva_present_sid in rows:
+    for va_sid, payload_data, va_summary, va_category_list, smartva_present_sid in rows:
         payload = payload_data or {}
         instance_id = (
             raw_by_sid.get(va_sid, {}).get("KEY")
@@ -453,7 +513,8 @@ def _build_repair_map_for_form(form_id: str, raw_submissions: list[dict], upsert
             attachments_expected = int(payload.get("AttachmentsExpected") or 0)
         except (TypeError, ValueError):
             attachments_expected = 0
-        attachments_complete = int(attachment_count or 0) >= attachments_expected
+        present_attachment_count = len(present_attachment_files.get(va_sid, set()))
+        attachments_complete = present_attachment_count >= attachments_expected
         smartva_complete = smartva_present_sid is not None
         if not metadata_complete:
             summary["metadata_missing"] += 1
@@ -724,7 +785,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             log_progress(
                 f"[{form_id}] Backfill: queueing {len(repair_map)} submission(s) for repair "
                 f"(metadata gaps: {repair_summary['metadata_missing']}, "
-                f"attachment gaps: {repair_summary['attachments_missing']}, "
+                f"missing local attachment files: {repair_summary['attachments_missing']}, "
                 f"SmartVA gaps: {repair_summary['smartva_missing']})…"
             )
             _schedule_enrichment_sync_for_form(
@@ -907,7 +968,7 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
         log_progress(
             f"[{form_id}] Backfill: queueing {len(repair_map)} submission(s) for repair "
             f"(metadata gaps: {repair_summary['metadata_missing']}, "
-            f"attachment gaps: {repair_summary['attachments_missing']}, "
+            f"missing local attachment files: {repair_summary['attachments_missing']}, "
             f"SmartVA gaps: {repair_summary['smartva_missing']})"
         )
 
@@ -928,7 +989,7 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
             run.status = "success"
             run.finished_at = datetime.now(timezone.utc)
             log_progress(
-                f"[{form_id}] Backfill: no local metadata, attachment, or SmartVA gaps found"
+                f"[{form_id}] Backfill: no local metadata, attachment file, or SmartVA gaps found"
             )
         db.session.commit()
         log.info(

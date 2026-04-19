@@ -9,6 +9,7 @@ from app import db
 from app.models import (
     MasLanguages,
     MasOdkConnections,
+    MapProjectSiteOdk,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
@@ -162,6 +163,13 @@ class AdminApiTests(BaseTestCase):
                     project_site_status=VaStatuses.active,
                     project_site_registered_at=now,
                     project_site_updated_at=now,
+                ),
+                MapProjectSiteOdk(
+                    project_id=cls.project_id,
+                    site_id=cls.site_a,
+                    odk_project_id=11,
+                    odk_form_id="ADMIN_API_FORM_A",
+                    form_type_id=None,
                 ),
             ]
         )
@@ -843,6 +851,30 @@ class AdminApiTests(BaseTestCase):
 
     def test_sync_backfill_stats_returns_form_completeness(self):
         self._login(self.admin_user_id)
+        baseline_response = self.client.get("/admin/api/sync/backfill-stats")
+        self.assertEqual(baseline_response.status_code, 200)
+        baseline = baseline_response.get_json()
+        baseline_local_total = int((baseline.get("totals") or {}).get("local_total") or 0)
+        baseline_metadata_complete = int((baseline.get("totals") or {}).get("metadata_complete") or 0)
+        baseline_attachments_complete = int((baseline.get("totals") or {}).get("attachments_complete") or 0)
+        baseline_smartva_complete = int((baseline.get("totals") or {}).get("smartva_complete") or 0)
+        baseline_smartva_failed = int((baseline.get("totals") or {}).get("smartva_failed") or 0)
+        baseline_smartva_missing = int((baseline.get("totals") or {}).get("smartva_missing") or 0)
+        baseline_smartva_no_consent = int((baseline.get("totals") or {}).get("smartva_no_consent") or 0)
+        baseline_project = next(
+            p for p in (baseline.get("projects") or []) if p["project_id"] == self.project_id
+        )
+        baseline_site = next(s for s in baseline_project["sites"] if s["site_id"] == self.site_a)
+        baseline_form = next(f for f in baseline_site["forms"] if f["form_id"] == "ADM001AA0101")
+        baseline_form_local_total = int(baseline_form.get("local_total") or 0)
+        baseline_form_metadata_complete = int(baseline_form.get("metadata_complete") or 0)
+        baseline_form_attachments_complete = int(baseline_form.get("attachments_complete") or 0)
+        baseline_form_smartva_complete = int(baseline_form.get("smartva_complete") or 0)
+        baseline_form_smartva_failed = int(baseline_form.get("smartva_failed") or 0)
+        baseline_form_metadata_missing = int(baseline_form.get("metadata_missing") or 0)
+        baseline_form_attachments_missing = int(baseline_form.get("attachments_missing") or 0)
+        baseline_form_smartva_missing = int(baseline_form.get("smartva_missing") or 0)
+        baseline_form_smartva_no_consent = int(baseline_form.get("smartva_no_consent") or 0)
 
         now = datetime.now(timezone.utc)
         submission = VaSubmissions(
@@ -894,26 +926,54 @@ class AdminApiTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["totals"]["local_total"], 1)
-        self.assertEqual(payload["totals"]["metadata_complete"], 1)
-        self.assertEqual(payload["totals"]["attachments_complete"], 1)
-        self.assertEqual(payload["totals"]["smartva_complete"], 0)
-        self.assertEqual(payload["totals"]["smartva_failed"], 0)
-        self.assertEqual(payload["totals"]["smartva_missing"], 1)
-        self.assertEqual(payload["totals"]["smartva_no_consent"], 0)
+        self.assertEqual(payload["totals"]["local_total"], baseline_local_total + 1)
+        self.assertEqual(payload["totals"]["metadata_complete"], baseline_metadata_complete + 1)
+        self.assertEqual(payload["totals"]["attachments_complete"], baseline_attachments_complete + 1)
+        self.assertEqual(payload["totals"]["smartva_complete"], baseline_smartva_complete)
+        self.assertEqual(payload["totals"]["smartva_failed"], baseline_smartva_failed)
+        self.assertEqual(payload["totals"]["smartva_missing"], baseline_smartva_missing + 1)
+        self.assertEqual(payload["totals"]["smartva_no_consent"], baseline_smartva_no_consent)
 
         project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
         site = next(s for s in project["sites"] if s["site_id"] == self.site_a)
         form = next(f for f in site["forms"] if f["form_id"] == "ADM001AA0101")
-        self.assertEqual(form["local_total"], 1)
-        self.assertEqual(form["metadata_complete"], 1)
-        self.assertEqual(form["attachments_complete"], 1)
-        self.assertEqual(form["smartva_complete"], 0)
-        self.assertEqual(form["smartva_failed"], 0)
-        self.assertEqual(form["metadata_missing"], 0)
-        self.assertEqual(form["attachments_missing"], 0)
-        self.assertEqual(form["smartva_missing"], 1)
-        self.assertEqual(form["smartva_no_consent"], 0)
+        self.assertEqual(form["local_total"], baseline_form_local_total + 1)
+        self.assertEqual(form["metadata_complete"], baseline_form_metadata_complete + 1)
+        self.assertEqual(form["attachments_complete"], baseline_form_attachments_complete + 1)
+        self.assertEqual(form["smartva_complete"], baseline_form_smartva_complete)
+        self.assertEqual(form["smartva_failed"], baseline_form_smartva_failed)
+        self.assertEqual(form["metadata_missing"], baseline_form_metadata_missing)
+        self.assertEqual(form["attachments_missing"], baseline_form_attachments_missing)
+        self.assertEqual(form["smartva_missing"], baseline_form_smartva_missing + 1)
+        self.assertEqual(form["smartva_no_consent"], baseline_form_smartva_no_consent)
+
+    def test_sync_backfill_stats_excludes_unmapped_active_legacy_forms(self):
+        self._login(self.admin_user_id)
+
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            VaForms(
+                form_id="ADM001AB0101",
+                project_id=self.project_id,
+                site_id=self.site_b,
+                odk_form_id="ADMIN_API_FORM_B",
+                odk_project_id="11",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get("/admin/api/sync/backfill-stats")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        project = next(p for p in payload["projects"] if p["project_id"] == self.project_id)
+        site_ids = {site["site_id"] for site in project["sites"]}
+        self.assertIn(self.site_a, site_ids)
+        self.assertNotIn(self.site_b, site_ids)
 
     def test_sync_backfill_stats_counts_failed_or_null_smartva_separately(self):
         self._login(self.admin_user_id)

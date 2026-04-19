@@ -1,6 +1,7 @@
 import ipaddress
 import logging
 import json
+import os
 import re
 import uuid
 import secrets
@@ -25,6 +26,7 @@ from app.services.odk_connection_guard_service import (
     guarded_odk_call,
     serialize_connection_guard_state,
 )
+from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -4268,11 +4270,7 @@ def admin_sync_backfill_stats():
         from app.models.va_submission_attachments import VaSubmissionAttachments
         from app.models.va_smartva_results import VaSmartvaResults
 
-        forms = db.session.scalars(
-            sa.select(VaForms)
-            .where(VaForms.form_status == VaStatuses.active)
-            .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
-        ).all()
+        forms = sync_runtime_forms_from_site_mappings()
         if not forms:
             return jsonify({
                 "projects": [],
@@ -4287,6 +4285,23 @@ def admin_sync_backfill_stats():
                 },
             })
 
+        app_data_root = current_app.config.get("APP_DATA")
+
+        def resolve_attachment_file_path(
+            form_id: str,
+            local_path: str | None,
+            storage_name: str | None,
+        ) -> str | None:
+            if storage_name and app_data_root:
+                disk_path = os.path.join(app_data_root, form_id, "media", storage_name)
+                if os.path.exists(disk_path):
+                    return os.path.abspath(disk_path)
+            if local_path and os.path.exists(local_path):
+                if os.path.basename(local_path).lower() == "audit.csv":
+                    return None
+                return os.path.abspath(local_path)
+            return None
+
         attachment_counts_sq = (
             sa.select(
                 VaSubmissionAttachments.va_sid.label("va_sid"),
@@ -4296,6 +4311,34 @@ def admin_sync_backfill_stats():
             .group_by(VaSubmissionAttachments.va_sid)
             .subquery()
         )
+
+        attachment_file_rows = db.session.execute(
+            sa.select(
+                VaSubmissions.va_form_id.label("va_form_id"),
+                VaSubmissionAttachments.local_path,
+                VaSubmissionAttachments.storage_name,
+            )
+            .select_from(VaSubmissionAttachments)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .where(VaSubmissionAttachments.exists_on_odk.is_(True))
+        ).mappings().all()
+
+        attachment_files_present_by_form: dict[str, int] = {}
+        seen_attachment_files_by_form: dict[str, set[str]] = {}
+        for row in attachment_file_rows:
+            form_id = row["va_form_id"]
+            file_path = resolve_attachment_file_path(
+                form_id,
+                row["local_path"],
+                row["storage_name"],
+            )
+            if not file_path:
+                continue
+            seen = seen_attachment_files_by_form.setdefault(form_id, set())
+            if file_path in seen:
+                continue
+            seen.add(file_path)
+            attachment_files_present_by_form[form_id] = len(seen)
 
         metadata_complete_expr = sa.case(
             (
@@ -4385,7 +4428,6 @@ def admin_sync_backfill_stats():
                     sa.func.coalesce(sa.func.sum(metadata_complete_expr), 0).label("metadata_complete"),
                     sa.func.coalesce(sa.func.sum(attachments_complete_expr), 0).label("attachments_complete"),
                     sa.func.coalesce(sa.func.sum(attachment_expected_expr), 0).label("attachments_files_total"),
-                    sa.func.coalesce(sa.func.sum(attachment_present_expr), 0).label("attachments_files_present"),
                     sa.func.coalesce(sa.func.sum(smartva_complete_expr), 0).label("smartva_complete"),
                     sa.func.coalesce(sa.func.sum(smartva_failed_expr), 0).label("smartva_failed"),
                     sa.func.coalesce(sa.func.sum(smartva_eligible_expr), 0).label("smartva_eligible"),
@@ -4425,7 +4467,7 @@ def admin_sync_backfill_stats():
             metadata_complete = int(counts.get("metadata_complete") or 0)
             attachments_complete = int(counts.get("attachments_complete") or 0)
             att_files_total = int(counts.get("attachments_files_total") or 0)
-            att_files_present = int(counts.get("attachments_files_present") or 0)
+            att_files_present = int(attachment_files_present_by_form.get(form.form_id) or 0)
             smartva_complete = int(counts.get("smartva_complete") or 0)
             smartva_failed = int(counts.get("smartva_failed") or 0)
             smartva_eligible = int(counts.get("smartva_eligible") or 0)

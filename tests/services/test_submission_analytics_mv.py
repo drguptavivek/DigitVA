@@ -673,7 +673,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(kpi["pending_submissions"], 3)
         self.assertEqual(kpi["smartva_pending_submissions"], 0)
 
-    def test_smartva_missing_excludes_consent_refused_workflow(self):
+    def test_smartva_missing_includes_consent_refused_workflow(self):
         sid_missing = "uuid:mv-kpi-smartva-missing"
         sid_consent_refused = "uuid:mv-kpi-consent-refused"
 
@@ -716,7 +716,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         refresh_submission_analytics_mv(concurrently=False)
 
         kpi = get_dm_kpi_from_mv([], [(self.PROJECT_ID, self.SITE_ID)])
-        self.assertEqual(kpi["smartva_missing_submissions"], 1)
+        self.assertEqual(kpi["smartva_missing_submissions"], 2)
         self.assertEqual(kpi["consent_refused_submissions"], 1)
 
         missing_filter_kpi = get_dm_kpi_from_mv(
@@ -724,4 +724,6 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             [(self.PROJECT_ID, self.SITE_ID)],
             smartva="missing",
         )
-        self.assertEqual(missing_filter_kpi["total_submissions"], 1)
+        self.assertEqual(missing_filter_kpi["total_submissions"], 2)
+        self.assertEqual(missing_filter_kpi["smartva_missing_submissions"], 2)
+        self.assertEqual(missing_filter_kpi["consent_refused_submissions"], 1)

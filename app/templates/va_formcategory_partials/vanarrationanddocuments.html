@@ -184,9 +184,28 @@
                       <span class="badge bg-primary px-3 py-2 rounded-pill fs-6">{{ label }}</span>
                     </div>
 
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                      <button type="button"
+                              class="btn btn-outline-secondary btn-sm image-rotate-btn"
+                              data-rotate-direction="-90"
+                              data-rotation-key="{{ va_sid }}:medical:{{ loop.index0 }}:{{ value }}">
+                        <i class="fa-solid fa-rotate-left me-1"></i>Rotate Left
+                      </button>
+                      <button type="button"
+                              class="btn btn-outline-secondary btn-sm image-rotate-btn"
+                              data-rotate-direction="90"
+                              data-rotation-key="{{ va_sid }}:medical:{{ loop.index0 }}:{{ value }}">
+                        <i class="fa-solid fa-rotate-right me-1"></i>Rotate Right
+                      </button>
+                    </div>
+
                     <div class="text-center" style="max-height: 500px; display: flex; align-items: center; justify-content: center;">
-                      <a href="{{ value }}" data-lightbox="meddocs">
-                        <img src="{{ value }}" class="d-block img-fluid rounded" alt="{{ label }}" style="max-height: 500px; object-fit: contain; cursor: zoom-in;">
+                      <a href="{{ value }}" data-lightbox="meddocs" data-rotation-key="{{ va_sid }}:medical:{{ loop.index0 }}:{{ value }}">
+                        <img src="{{ value }}"
+                             class="d-block img-fluid rounded rotatable-document-image"
+                             alt="{{ label }}"
+                             data-rotation-key="{{ va_sid }}:medical:{{ loop.index0 }}:{{ value }}"
+                             style="max-height: 500px; object-fit: contain; cursor: zoom-in; transform: rotate(0deg); transform-origin: center center; transition: transform 0.15s ease-in-out;">
                       </a>
                     </div>
 
@@ -266,9 +285,28 @@
                       <span class="badge bg-primary px-3 py-2 rounded-pill fs-6">{{ label }}</span>
                     </div>
 
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                      <button type="button"
+                              class="btn btn-outline-secondary btn-sm image-rotate-btn"
+                              data-rotate-direction="-90"
+                              data-rotation-key="{{ va_sid }}:death:{{ loop.index0 }}:{{ value }}">
+                        <i class="fa-solid fa-rotate-left me-1"></i>Rotate Left
+                      </button>
+                      <button type="button"
+                              class="btn btn-outline-secondary btn-sm image-rotate-btn"
+                              data-rotate-direction="90"
+                              data-rotation-key="{{ va_sid }}:death:{{ loop.index0 }}:{{ value }}">
+                        <i class="fa-solid fa-rotate-right me-1"></i>Rotate Right
+                      </button>
+                    </div>
+
                     <div class="text-center" style="max-height: 500px; display: flex; align-items: center; justify-content: center;">
-                      <a href="{{ value }}" data-lightbox="deathdocs">
-                        <img src="{{ value }}" class="d-block img-fluid rounded" alt="{{ label }}" style="max-height: 500px; object-fit: contain; cursor: zoom-in;">
+                      <a href="{{ value }}" data-lightbox="deathdocs" data-rotation-key="{{ va_sid }}:death:{{ loop.index0 }}:{{ value }}">
+                        <img src="{{ value }}"
+                             class="d-block img-fluid rounded rotatable-document-image"
+                             alt="{{ label }}"
+                             data-rotation-key="{{ va_sid }}:death:{{ loop.index0 }}:{{ value }}"
+                             style="max-height: 500px; object-fit: contain; cursor: zoom-in; transform: rotate(0deg); transform-origin: center center; transition: transform 0.15s ease-in-out;">
                       </a>
                     </div>
 
@@ -1218,10 +1256,88 @@
   cursor: zoom-out;
   z-index: 1050;
 ">
+  <div style="position: absolute; top: 1rem; right: 1rem; z-index: 1051; cursor: default;">
+    <div class="d-flex gap-2">
+      <button type="button"
+              id="lightboxRotateLeft"
+              class="btn btn-light btn-sm"
+              aria-label="Rotate image left">
+        <i class="fa-solid fa-rotate-left me-1"></i>Rotate Left
+      </button>
+      <button type="button"
+              id="lightboxRotateRight"
+              class="btn btn-light btn-sm"
+              aria-label="Rotate image right">
+        <i class="fa-solid fa-rotate-right me-1"></i>Rotate Right
+      </button>
+    </div>
+  </div>
   <img id="simpleLightboxImg" src="" alt="Lightbox image" style="max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 0 20px black;">
 </div>
 
 <script>
+  const documentRotationStoragePrefix = 'document-image-rotation:';
+  const documentRotationTtlMs = 5 * 60 * 1000;
+
+  function normalizeDocumentRotation(rotation) {
+    return ((rotation % 360) + 360) % 360;
+  }
+
+  function getStoredDocumentRotation(rotationKey) {
+    const storedValue = window.localStorage.getItem(documentRotationStoragePrefix + rotationKey);
+    if (!storedValue) {
+      return 0;
+    }
+
+    try {
+      const parsedPayload = JSON.parse(storedValue);
+      const expiresAt = Number.parseInt(parsedPayload.expires_at || '0', 10);
+      const rotation = Number.parseInt(parsedPayload.rotation || '0', 10);
+
+      if (!expiresAt || expiresAt < Date.now()) {
+        window.localStorage.removeItem(documentRotationStoragePrefix + rotationKey);
+        return 0;
+      }
+
+      return Number.isNaN(rotation) ? 0 : normalizeDocumentRotation(rotation);
+    } catch (error) {
+      window.localStorage.removeItem(documentRotationStoragePrefix + rotationKey);
+      return 0;
+    }
+  }
+
+  function setStoredDocumentRotation(rotationKey, rotation) {
+    window.localStorage.setItem(
+      documentRotationStoragePrefix + rotationKey,
+      JSON.stringify({
+        rotation: normalizeDocumentRotation(rotation),
+        expires_at: Date.now() + documentRotationTtlMs
+      })
+    );
+  }
+
+  function applyDocumentRotation(rotationKey) {
+    const rotation = getStoredDocumentRotation(rotationKey);
+
+    document
+      .querySelectorAll('[data-rotation-key="' + CSS.escape(rotationKey) + '"].rotatable-document-image')
+      .forEach(imageEl => {
+        imageEl.style.transform = 'rotate(' + rotation + 'deg)';
+      });
+
+    const lightbox = document.getElementById('simpleLightbox');
+    const lightboxImg = document.getElementById('simpleLightboxImg');
+    if (lightbox && lightbox.style.display === 'flex' && lightbox.dataset.rotationKey === rotationKey) {
+      lightboxImg.style.transform = 'rotate(' + rotation + 'deg)';
+    }
+  }
+
+  function updateDocumentRotation(rotationKey, delta) {
+    const nextRotation = getStoredDocumentRotation(rotationKey) + delta;
+    setStoredDocumentRotation(rotationKey, nextRotation);
+    applyDocumentRotation(rotationKey);
+  }
+
   function tryInitImageViewer() {
     const hasZoomableImage = document.getElementById('zoomableImage');
     if (hasZoomableImage) {
@@ -1239,16 +1355,62 @@
         const lightbox = document.getElementById('simpleLightbox');
         const lightboxImg = document.getElementById('simpleLightboxImg');
         lightboxImg.src = this.href;
+        lightboxImg.style.transform = 'rotate(0deg)';
+        lightbox.dataset.rotationKey = this.dataset.rotationKey || '';
         lightbox.style.display = 'flex';
+        if (lightbox.dataset.rotationKey) {
+          applyDocumentRotation(lightbox.dataset.rotationKey);
+        }
       });
+    });
+
+  document
+    .querySelectorAll('.rotatable-document-image')
+    .forEach(imageEl => {
+      applyDocumentRotation(imageEl.dataset.rotationKey);
+    });
+
+  document
+    .querySelectorAll('.image-rotate-btn')
+    .forEach(button => {
+      button.addEventListener('click', function () {
+        updateDocumentRotation(
+          this.dataset.rotationKey,
+          Number.parseInt(this.dataset.rotateDirection || '0', 10)
+        );
+      });
+    });
+
+  document
+    .getElementById('lightboxRotateLeft')
+    .addEventListener('click', function (event) {
+      event.stopPropagation();
+      const lightbox = document.getElementById('simpleLightbox');
+      if (lightbox.dataset.rotationKey) {
+        updateDocumentRotation(lightbox.dataset.rotationKey, -90);
+      }
+    });
+
+  document
+    .getElementById('lightboxRotateRight')
+    .addEventListener('click', function (event) {
+      event.stopPropagation();
+      const lightbox = document.getElementById('simpleLightbox');
+      if (lightbox.dataset.rotationKey) {
+        updateDocumentRotation(lightbox.dataset.rotationKey, 90);
+      }
     });
 
   document
     .getElementById('simpleLightbox')
     .addEventListener('click', function () {
       this.style.display = 'none';
+      this.dataset.rotationKey = '';
       document
         .getElementById('simpleLightboxImg')
         .src = '';
+      document
+        .getElementById('simpleLightboxImg')
+        .style.transform = 'rotate(0deg)';
     });
 </script>

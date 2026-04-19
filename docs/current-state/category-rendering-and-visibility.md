@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-04-19
 ---
 
 # Category Rendering And Visibility
@@ -96,6 +96,15 @@ Additional render-time transforms:
   `MasSubcategoryOrder.render_mode`, currently seeded as `media_gallery` for
   `medical_documents` and `death_documents`
 - attachment images now open in an in-page lightbox with close, zoom, and pan support
+- document gallery images in `vanarrationanddocuments` now expose per-image
+  rotate-left and rotate-right controls that apply 90-degree steps and persist
+  client-side in `localStorage`, keyed by submission SID plus attachment identity,
+  with a 5-minute expiry
+- the attachments lightbox now supports fullscreen gallery navigation and keyboard
+  shortcuts:
+  - left/right arrows move between images in the current gallery
+  - `;` / `'` rotate the current image
+  - `<` / `>` zoom out / zoom in
 - `social_autopsy` in `table_sections` mode appends an app-owned Social
   Autopsy analysis form for coder coding flows only when the submission's
   project has `social_autopsy_enabled = true`

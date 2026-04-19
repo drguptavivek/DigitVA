@@ -21,9 +21,29 @@
                 <div class="text-center mb-2">
                   <span class="badge bg-primary px-3 py-2 rounded-pill fs-6">{{ label }}</span>
                 </div>
+                <div class="d-flex align-items-center gap-2 mb-3">
+                  <button type="button"
+                          class="btn btn-outline-secondary btn-sm attachment-rotate-btn"
+                          data-rotate-direction="-90"
+                          data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}">
+                    <i class="fa-solid fa-rotate-left me-1"></i>Rotate Left
+                  </button>
+                  <button type="button"
+                          class="btn btn-outline-secondary btn-sm attachment-rotate-btn"
+                          data-rotate-direction="90"
+                          data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}">
+                    <i class="fa-solid fa-rotate-right me-1"></i>Rotate Right
+                  </button>
+                </div>
                 <div class="text-center" style="max-height: 500px; display: flex; align-items: center; justify-content: center;">
-                  <a href="{{ value }}" data-lightbox="{{ section_code }}">
-                    <img src="{{ value }}" class="d-block img-fluid rounded" alt="{{ label }}" style="max-height: 500px; object-fit: contain; cursor: zoom-in;">
+                  <a href="{{ value }}"
+                     data-lightbox="{{ section_code }}"
+                     data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}">
+                    <img src="{{ value }}"
+                         class="d-block img-fluid rounded rotatable-attachment-image"
+                         alt="{{ label }}"
+                         data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}"
+                         style="max-height: 500px; object-fit: contain; cursor: zoom-in; transform: rotate(0deg); transform-origin: center center; transition: transform 0.15s ease-in-out;">
                   </a>
                 </div>
               </div>
@@ -81,8 +101,28 @@
                 </div>
               {% elif section_code == 'narration' and is_image %}
                 <div class="card shadow-sm p-2 mb-0">
-                  <a href="{{ value }}" data-lightbox="narration">
-                    <img src="{{ value }}" class="img-fluid rounded" alt="{{ label }}" style="max-height: 500px; object-fit: contain; cursor: zoom-in;">
+                  <div class="d-flex align-items-center gap-2 mb-3">
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm attachment-rotate-btn"
+                            data-rotate-direction="-90"
+                            data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}">
+                      <i class="fa-solid fa-rotate-left me-1"></i>Rotate Left
+                    </button>
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm attachment-rotate-btn"
+                            data-rotate-direction="90"
+                            data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}">
+                      <i class="fa-solid fa-rotate-right me-1"></i>Rotate Right
+                    </button>
+                  </div>
+                  <a href="{{ value }}"
+                     data-lightbox="narration"
+                     data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}">
+                    <img src="{{ value }}"
+                         class="img-fluid rounded rotatable-attachment-image"
+                         alt="{{ label }}"
+                         data-rotation-key="{{ va_sid }}:{{ section_code }}:{{ loop.index0 }}:{{ value }}"
+                         style="max-height: 500px; object-fit: contain; cursor: zoom-in; transform: rotate(0deg); transform-origin: center center; transition: transform 0.15s ease-in-out;">
                   </a>
                 </div>
               {% elif section_code == 'iv_final' %}

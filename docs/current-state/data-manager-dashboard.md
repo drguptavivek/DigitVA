@@ -54,8 +54,9 @@ Current cards include:
 
 `SmartVA Missing` semantics:
 
-- counts only consent-valid submissions with no SmartVA output
-- excludes `consent_refused` workflow rows
+- counts submissions with no active SmartVA output
+- includes `consent_refused` workflow rows when the dashboard is filtered to
+  `smartva=missing`, so KPI cards stay aligned with the table filter results
 
 Some card counts apply filters directly to the table when clicked.
 

@@ -62,6 +62,42 @@
 <div id="attachmentsLightbox"
      class="position-fixed top-0 start-0 w-100 h-100 d-none align-items-center justify-content-center"
      style="background: rgba(8, 13, 20, 0.92); z-index: 1080;">
+  <div class="position-absolute top-50 start-0 translate-middle-y ms-3" style="z-index: 1081;">
+    <button type="button"
+            id="attachmentsLightboxPrev"
+            class="btn btn-light btn-sm">
+      <i class="fa-solid fa-chevron-left me-1"></i>Previous
+    </button>
+  </div>
+  <div class="position-absolute top-50 end-0 translate-middle-y me-3" style="z-index: 1081;">
+    <button type="button"
+            id="attachmentsLightboxNext"
+            class="btn btn-light btn-sm">
+      Next<i class="fa-solid fa-chevron-right ms-1"></i>
+    </button>
+  </div>
+  <div class="position-absolute top-0 start-50 translate-middle-x mt-3 d-flex gap-2" style="z-index: 1081;">
+    <button type="button"
+            id="attachmentsLightboxRotateLeft"
+            class="btn btn-light btn-sm">
+      <i class="fa-solid fa-rotate-left me-1"></i>Rotate Left (;)
+    </button>
+    <button type="button"
+            id="attachmentsLightboxRotateRight"
+            class="btn btn-light btn-sm">
+      <i class="fa-solid fa-rotate-right me-1"></i>Rotate Right (')
+    </button>
+    <button type="button"
+            id="attachmentsLightboxZoomOut"
+            class="btn btn-light btn-sm">
+      <i class="fa-solid fa-magnifying-glass-minus me-1"></i>Zoom Out (&lt;)
+    </button>
+    <button type="button"
+            id="attachmentsLightboxZoomIn"
+            class="btn btn-light btn-sm">
+      <i class="fa-solid fa-magnifying-glass-plus me-1"></i>Zoom In (&gt;)
+    </button>
+  </div>
   <button type="button"
           id="attachmentsLightboxClose"
           class="btn btn-light btn-sm position-absolute top-0 end-0 m-3">
@@ -79,6 +115,60 @@
 
 <script>
   (function () {
+    var rotationStoragePrefix = 'document-image-rotation:';
+    var rotationTtlMs = 5 * 60 * 1000;
+
+    function normalizeRotation(rotation) {
+      return ((rotation % 360) + 360) % 360;
+    }
+
+    function getStoredRotation(rotationKey) {
+      var storedValue = window.localStorage.getItem(rotationStoragePrefix + rotationKey);
+      if (!storedValue) return 0;
+      try {
+        var payload = JSON.parse(storedValue);
+        var expiresAt = Number.parseInt(payload.expires_at || '0', 10);
+        var rotation = Number.parseInt(payload.rotation || '0', 10);
+        if (!expiresAt || expiresAt < Date.now()) {
+          window.localStorage.removeItem(rotationStoragePrefix + rotationKey);
+          return 0;
+        }
+        return Number.isNaN(rotation) ? 0 : normalizeRotation(rotation);
+      } catch (error) {
+        window.localStorage.removeItem(rotationStoragePrefix + rotationKey);
+        return 0;
+      }
+    }
+
+    function setStoredRotation(rotationKey, rotation) {
+      window.localStorage.setItem(
+        rotationStoragePrefix + rotationKey,
+        JSON.stringify({
+          rotation: normalizeRotation(rotation),
+          expires_at: Date.now() + rotationTtlMs
+        })
+      );
+    }
+
+    function applyRotation(rotationKey) {
+      var rotation = getStoredRotation(rotationKey);
+
+      document
+        .querySelectorAll('[data-rotation-key="' + CSS.escape(rotationKey) + '"].rotatable-attachment-image')
+        .forEach(function (imageEl) {
+          imageEl.style.transform = 'rotate(' + rotation + 'deg)';
+        });
+
+      if (lightbox.dataset.rotationKey === rotationKey) {
+        renderTransform();
+      }
+    }
+
+    function updateRotation(rotationKey, delta) {
+      setStoredRotation(rotationKey, getStoredRotation(rotationKey) + delta);
+      applyRotation(rotationKey);
+    }
+
     document.querySelectorAll('.carousel-selector').forEach(function (item) {
       item.addEventListener('click', function () {
         var slideIndex = item.getAttribute('data-bs-slide-to');
@@ -92,7 +182,13 @@
     var viewport = document.getElementById('attachmentsLightboxViewport');
     var image = document.getElementById('attachmentsLightboxImg');
     var closeBtn = document.getElementById('attachmentsLightboxClose');
-    if (!lightbox || !viewport || !image || !closeBtn) return;
+    var prevBtn = document.getElementById('attachmentsLightboxPrev');
+    var nextBtn = document.getElementById('attachmentsLightboxNext');
+    var rotateLeftBtn = document.getElementById('attachmentsLightboxRotateLeft');
+    var rotateRightBtn = document.getElementById('attachmentsLightboxRotateRight');
+    var zoomOutBtn = document.getElementById('attachmentsLightboxZoomOut');
+    var zoomInBtn = document.getElementById('attachmentsLightboxZoomIn');
+    if (!lightbox || !viewport || !image || !closeBtn || !prevBtn || !nextBtn || !rotateLeftBtn || !rotateRightBtn || !zoomOutBtn || !zoomInBtn) return;
 
     var scale = 1;
     var translateX = 0;
@@ -101,9 +197,30 @@
     var startY = 0;
     var isDragging = false;
     var lastTouchDistance = null;
+    var currentGroup = '';
+    var currentIndex = -1;
+
+    function getGroupLinks(groupName) {
+      return Array.from(
+        document.querySelectorAll('a[data-lightbox="' + CSS.escape(groupName) + '"]')
+      );
+    }
+
+    function syncNavigationButtons() {
+      var groupLinks = currentGroup ? getGroupLinks(currentGroup) : [];
+      var multiple = groupLinks.length > 1;
+      prevBtn.disabled = !multiple;
+      nextBtn.disabled = !multiple;
+      prevBtn.classList.toggle('d-none', !multiple);
+      nextBtn.classList.toggle('d-none', !multiple);
+    }
 
     function renderTransform() {
-      image.style.transform = 'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
+      var rotation = lightbox.dataset.rotationKey
+        ? getStoredRotation(lightbox.dataset.rotationKey)
+        : 0;
+      image.style.transform =
+        'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ') rotate(' + rotation + 'deg)';
       viewport.style.cursor = scale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default';
     }
 
@@ -116,19 +233,27 @@
       renderTransform();
     }
 
-    function openLightbox(src, alt) {
-      image.src = src;
-      image.alt = alt || 'Expanded attachment';
+    function openLightbox(linkEl) {
+      var img = linkEl.querySelector('img');
+      currentGroup = linkEl.dataset.lightbox || '';
+      currentIndex = getGroupLinks(currentGroup).indexOf(linkEl);
+      image.src = linkEl.href;
+      image.alt = img ? img.alt : 'Expanded attachment';
+      lightbox.dataset.rotationKey = linkEl.dataset.rotationKey || '';
       resetTransform();
       lightbox.classList.remove('d-none');
       lightbox.classList.add('d-flex');
       document.body.style.overflow = 'hidden';
+      syncNavigationButtons();
     }
 
     function closeLightbox() {
       lightbox.classList.add('d-none');
       lightbox.classList.remove('d-flex');
       image.src = '';
+      lightbox.dataset.rotationKey = '';
+      currentGroup = '';
+      currentIndex = -1;
       document.body.style.overflow = '';
       resetTransform();
     }
@@ -142,6 +267,13 @@
       renderTransform();
     }
 
+    function openAdjacentImage(direction) {
+      var groupLinks = currentGroup ? getGroupLinks(currentGroup) : [];
+      if (groupLinks.length <= 1 || currentIndex < 0) return;
+      var nextIndex = (currentIndex + direction + groupLinks.length) % groupLinks.length;
+      openLightbox(groupLinks[nextIndex]);
+    }
+
     function touchDistance(touches) {
       var dx = touches[0].clientX - touches[1].clientX;
       var dy = touches[0].clientY - touches[1].clientY;
@@ -151,18 +283,82 @@
     document.querySelectorAll('a[data-lightbox]').forEach(function (link) {
       link.addEventListener('click', function (event) {
         event.preventDefault();
-        var img = link.querySelector('img');
-        openLightbox(link.href, img ? img.alt : '');
+        openLightbox(link);
+      });
+    });
+
+    document.querySelectorAll('.rotatable-attachment-image').forEach(function (imageEl) {
+      applyRotation(imageEl.dataset.rotationKey);
+    });
+
+    document.querySelectorAll('.attachment-rotate-btn').forEach(function (button) {
+      button.addEventListener('click', function () {
+        updateRotation(
+          this.dataset.rotationKey,
+          Number.parseInt(this.dataset.rotateDirection || '0', 10)
+        );
       });
     });
 
     closeBtn.addEventListener('click', closeLightbox);
+    prevBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      openAdjacentImage(-1);
+    });
+    nextBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      openAdjacentImage(1);
+    });
+    rotateLeftBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (lightbox.dataset.rotationKey) {
+        updateRotation(lightbox.dataset.rotationKey, -90);
+      }
+    });
+    rotateRightBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      if (lightbox.dataset.rotationKey) {
+        updateRotation(lightbox.dataset.rotationKey, 90);
+      }
+    });
+    zoomOutBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      zoomAt(0.9);
+    });
+    zoomInBtn.addEventListener('click', function (event) {
+      event.stopPropagation();
+      zoomAt(1.12);
+    });
     lightbox.addEventListener('click', function (event) {
       if (event.target === lightbox) closeLightbox();
     });
     document.addEventListener('keydown', function (event) {
       if (!lightbox.classList.contains('d-flex')) return;
       if (event.key === 'Escape') closeLightbox();
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        openAdjacentImage(-1);
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        openAdjacentImage(1);
+      }
+      if (event.key === ';') {
+        event.preventDefault();
+        if (lightbox.dataset.rotationKey) updateRotation(lightbox.dataset.rotationKey, -90);
+      }
+      if (event.key === "'" || event.key === '"') {
+        event.preventDefault();
+        if (lightbox.dataset.rotationKey) updateRotation(lightbox.dataset.rotationKey, 90);
+      }
+      if (event.key === '<' || event.key === ',') {
+        event.preventDefault();
+        zoomAt(0.9);
+      }
+      if (event.key === '>' || event.key === '.') {
+        event.preventDefault();
+        zoomAt(1.12);
+      }
     });
 
     viewport.addEventListener('wheel', function (event) {

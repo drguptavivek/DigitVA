@@ -420,7 +420,6 @@ def build_dm_mv_filter_conditions(
         conditions.append(demo.c.has_smartva.is_(True))
     elif smartva == "missing":
         conditions.append(demo.c.has_smartva.is_(False))
-        conditions.append(core.c.workflow_state != WORKFLOW_CONSENT_REFUSED)
     if age_group:
         conditions.append(demo.c.analytics_age_band == age_group)
     if gender:
@@ -529,7 +528,6 @@ def get_dm_kpi_from_mv(
         .select_from(joined)
         .where(where)
         .where(demo.c.has_smartva.is_(False))
-        .where(core.c.workflow_state != WORKFLOW_CONSENT_REFUSED)
     ) or 0
 
     # Count submissions whose active SmartVA result has outcome='failed'.

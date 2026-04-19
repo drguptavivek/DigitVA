@@ -18,6 +18,41 @@ from app.models import (
 _FORM_ID_SUFFIX_RE = re.compile(r"^(\d{2})$")
 
 
+def get_active_mapping_for_project_site(
+    project_id: str,
+    site_id: str,
+) -> MapProjectSiteOdk | None:
+    return db.session.scalar(
+        sa.select(MapProjectSiteOdk)
+        .join(
+            VaProjectSites,
+            sa.and_(
+                VaProjectSites.project_id == MapProjectSiteOdk.project_id,
+                VaProjectSites.site_id == MapProjectSiteOdk.site_id,
+            ),
+        )
+        .join(
+            VaProjectMaster,
+            VaProjectMaster.project_id == MapProjectSiteOdk.project_id,
+        )
+        .join(
+            VaSiteMaster,
+            VaSiteMaster.site_id == MapProjectSiteOdk.site_id,
+        )
+        .where(
+            MapProjectSiteOdk.project_id == project_id,
+            MapProjectSiteOdk.site_id == site_id,
+            VaProjectSites.project_site_status == VaStatuses.active,
+            VaProjectMaster.project_status == VaStatuses.active,
+            VaSiteMaster.site_status == VaStatuses.active,
+        )
+    )
+
+
+def get_active_mapping_for_form(va_form: VaForms) -> MapProjectSiteOdk | None:
+    return get_active_mapping_for_project_site(va_form.project_id, va_form.site_id)
+
+
 def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
     """Materialize legacy ``va_forms`` rows from active site mappings.
 

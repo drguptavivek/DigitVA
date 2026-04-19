@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-import uuid
 
 import sqlalchemy as sa
 
@@ -192,4 +191,33 @@ class AdminProjectSiteRuntimeFilterTests(BaseTestCase):
         self.assertEqual(
             response.get_json()["error"],
             "Active project-site mapping not found.",
+        )
+
+    def test_single_form_sync_rejects_inactive_project_site(self):
+        self._login(self.base_admin_id)
+        headers = self._csrf_headers()
+
+        project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.PROJECT_ID,
+                VaProjectSites.site_id == self.SITE_ID,
+            )
+        )
+        self.assertIsNotNone(project_site)
+        original_status = project_site.project_site_status
+        project_site.project_site_status = VaStatuses.deactive
+        db.session.commit()
+        try:
+            response = self.client.post(
+                f"/admin/api/sync/form/{self.PROJECT_ID}{self.SITE_ID}01",
+                headers=headers,
+            )
+        finally:
+            project_site.project_site_status = original_status
+            db.session.commit()
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.get_json()["error"],
+            f"Active runtime mapping not found for form '{self.PROJECT_ID}{self.SITE_ID}01'.",
         )

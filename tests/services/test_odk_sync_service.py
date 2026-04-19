@@ -307,6 +307,27 @@ class OdkSyncServiceTests(BaseTestCase):
         self.assertEqual(result["added"], 120)
         self.assertEqual(result["enrichment_sync_forms_enqueued"], 3)
 
+    def test_sync_skips_form_when_active_mapping_missing(self):
+        fake_form = db.session.get(VaForms, self.FORM_ID)
+
+        with patch(
+            "app.services.va_data_sync.va_data_sync_01_odkcentral.sync_runtime_forms_from_site_mappings",
+            return_value=[fake_form],
+        ), patch(
+            "app.services.va_data_sync.va_data_sync_01_odkcentral._resolve_project_connections",
+            return_value={},
+        ), patch(
+            "app.services.va_data_sync.va_data_sync_01_odkcentral.get_active_mapping_for_form",
+            return_value=None,
+        ), patch(
+            "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_fetch_instance_ids",
+        ) as fetch_ids_mock:
+            result = va_data_sync_odkcentral(log_progress=lambda _msg: None)
+
+        self.assertEqual(result["added"], 0)
+        self.assertEqual(result["updated"], 0)
+        fetch_ids_mock.assert_not_called()
+
     def test_enrich_submission_payload_for_storage_merges_xml_metadata_and_attachments(self):
         payload = self._record("uuid:sync-enrich", "yes")
         va_form = db.session.get(VaForms, self.FORM_ID)

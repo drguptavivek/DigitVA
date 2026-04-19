@@ -12,7 +12,10 @@ from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
 from app.models.va_forms import VaForms
-from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.runtime_form_sync_service import (
+    get_active_mapping_for_form,
+    sync_runtime_forms_from_site_mappings,
+)
 from app.services.odk_connection_guard_service import (
     OdkConnectionCooldownError,
     guarded_odk_call,
@@ -1105,12 +1108,13 @@ def va_data_sync_odkcentral(
             if va_form is None:
                 _progress(f"[{form_id}] form not found — skipping")
                 continue
-            mapping = db.session.scalar(
-                sa.select(MapProjectSiteOdk).where(
-                    MapProjectSiteOdk.project_id == va_form.project_id,
-                    MapProjectSiteOdk.site_id == va_form.site_id,
+            mapping = get_active_mapping_for_form(va_form)
+            if mapping is None:
+                _progress(
+                    f"[{form_id}] active runtime mapping missing — skipping"
                 )
-            )
+                failed_form_ids.append(form_id)
+                continue
             # Preemptive cooldown skip — if this connection already tripped
             # cooldown for an earlier form this run, skip immediately.
             _form_connection_id = connection_by_project.get(va_form.project_id)
@@ -1513,12 +1517,13 @@ def va_data_sync_odkcentral(
                                 )
                                 failed_form_ids.append(form_id)
                                 continue
-                            mapping = db.session.scalar(
-                                sa.select(MapProjectSiteOdk).where(
-                                    MapProjectSiteOdk.project_id == va_form.project_id,
-                                    MapProjectSiteOdk.site_id == va_form.site_id,
+                            mapping = get_active_mapping_for_form(va_form)
+                            if mapping is None:
+                                _progress(
+                                    f"[{form_id}] active runtime mapping missing after DB session reset — skipping"
                                 )
-                            )
+                                failed_form_ids.append(form_id)
+                                continue
                         _progress(
                             f"[{va_form.form_id}] attachments: complete — "
                             f"{attachment_totals['downloaded']} downloaded, "

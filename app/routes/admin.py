@@ -4955,11 +4955,17 @@ def admin_sync_form(form_id: str):
     """Force-resync a single form, bypassing the delta check."""
     try:
         from app.models.va_forms import VaForms
+        from app.services.runtime_form_sync_service import get_active_mapping_for_form
         from app.tasks.sync_tasks import run_single_form_sync
 
         va_form = db.session.get(VaForms, form_id)
         if va_form is None:
             return _json_error(f"Form '{form_id}' not found.", 404)
+        if get_active_mapping_for_form(va_form) is None:
+            return _json_error(
+                f"Active runtime mapping not found for form '{form_id}'.",
+                404,
+            )
 
         _reconcile_orphaned_running_sync_rows()
         log.info("Single-form force-resync of %s triggered by user %s", form_id, current_user.user_id)

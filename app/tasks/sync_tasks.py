@@ -194,6 +194,13 @@ def _refresh_batch_plan_after_enrichment(
 def _get_single_form_odk_client(va_form):
     """Return one pyODK client for the single-form sync run."""
     from app.utils import va_odk_clientsetup
+    from app.services.runtime_form_sync_service import get_active_mapping_for_form
+
+    mapping = get_active_mapping_for_form(va_form)
+    if mapping is None:
+        raise ValueError(
+            f"Active runtime mapping not found for form '{va_form.form_id}'."
+        )
 
     return va_odk_clientsetup(project_id=va_form.project_id)
 
@@ -1058,12 +1065,9 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             )
 
         # Update last_synced_at
-        mapping = db.session.scalar(
-            sa.select(MapProjectSiteOdk).where(
-                MapProjectSiteOdk.project_id == va_form.project_id,
-                MapProjectSiteOdk.site_id == va_form.site_id,
-            )
-        )
+        from app.services.runtime_form_sync_service import get_active_mapping_for_form
+
+        mapping = get_active_mapping_for_form(va_form)
         if mapping:
             mapping.last_synced_at = snapshot_time
             db.session.commit()

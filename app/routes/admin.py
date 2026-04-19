@@ -636,6 +636,21 @@ def _serialize_project_site(row):
     }
 
 
+def _get_active_project_site(project_id: str, site_id: str):
+    return db.session.scalar(
+        sa.select(VaProjectSites)
+        .join(VaProjectMaster, VaProjectMaster.project_id == VaProjectSites.project_id)
+        .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
+        .where(
+            VaProjectSites.project_id == project_id,
+            VaProjectSites.site_id == site_id,
+            VaProjectSites.project_site_status == VaStatuses.active,
+            VaProjectMaster.project_status == VaStatuses.active,
+            VaSiteMaster.site_status == VaStatuses.active,
+        )
+    )
+
+
 def _serialize_grant(row):
     return {
         "grant_id": str(row.grant_id),
@@ -1187,14 +1202,9 @@ def admin_update_project_site_coding_settings(project_id, site_id):
         if daily_coder_limit < 1:
             return _json_error("daily_coder_limit must be at least 1.", 400)
 
-    ps = db.session.scalar(
-        sa.select(VaProjectSites).where(
-            VaProjectSites.project_id == project_id,
-            VaProjectSites.site_id == site_id,
-        )
-    )
+    ps = _get_active_project_site(project_id, site_id)
     if not ps:
-        return _json_error("Project-site mapping not found.", 404)
+        return _json_error("Active project-site mapping not found.", 404)
 
     ps.coding_enabled = coding_enabled
     ps.coding_start_date = coding_start
@@ -3563,8 +3573,21 @@ def admin_odk_site_mappings_list(project_id):
 
     project_id = project_id.upper()
     rows = db.session.scalars(
-        sa.select(MapProjectSiteOdk).where(
-            MapProjectSiteOdk.project_id == project_id
+        sa.select(MapProjectSiteOdk)
+        .join(
+            VaProjectSites,
+            sa.and_(
+                VaProjectSites.project_id == MapProjectSiteOdk.project_id,
+                VaProjectSites.site_id == MapProjectSiteOdk.site_id,
+            ),
+        )
+        .join(VaProjectMaster, VaProjectMaster.project_id == MapProjectSiteOdk.project_id)
+        .join(VaSiteMaster, VaSiteMaster.site_id == MapProjectSiteOdk.site_id)
+        .where(
+            MapProjectSiteOdk.project_id == project_id,
+            VaProjectSites.project_site_status == VaStatuses.active,
+            VaProjectMaster.project_status == VaStatuses.active,
+            VaSiteMaster.site_status == VaStatuses.active,
         )
     ).all()
     forms_by_site = {
@@ -3674,12 +3697,16 @@ def admin_odk_site_mappings_save(project_id):
         return _json_error("form_smartvacountry is invalid.", 400)
 
     project = db.session.get(VaProjectMaster, project_id)
-    if not project:
-        return _json_error("Project not found.", 404)
+    if not project or project.project_status != VaStatuses.active:
+        return _json_error("Active project not found.", 404)
 
     site = db.session.get(VaSiteMaster, site_id)
-    if not site:
-        return _json_error("Site not found.", 404)
+    if not site or site.site_status != VaStatuses.active:
+        return _json_error("Active site not found.", 404)
+
+    project_site = _get_active_project_site(project_id, site_id)
+    if project_site is None:
+        return _json_error("Active project-site mapping not found.", 404)
 
     existing = db.session.scalar(
         sa.select(MapProjectSiteOdk).where(
@@ -3741,8 +3768,16 @@ def admin_odk_site_mappings_delete(project_id, site_id):
     site_id = site_id.upper()
     
     project = db.session.get(VaProjectMaster, project_id)
-    if not project:
-        return _json_error("Project not found.", 404)
+    if not project or project.project_status != VaStatuses.active:
+        return _json_error("Active project not found.", 404)
+
+    site = db.session.get(VaSiteMaster, site_id)
+    if not site or site.site_status != VaStatuses.active:
+        return _json_error("Active site not found.", 404)
+
+    project_site = _get_active_project_site(project_id, site_id)
+    if project_site is None:
+        return _json_error("Active project-site mapping not found.", 404)
 
     mapping = db.session.scalar(
         sa.select(MapProjectSiteOdk).where(

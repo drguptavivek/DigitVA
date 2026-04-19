@@ -871,6 +871,7 @@ class AdminApiTests(BaseTestCase):
         del_resp = self.client.delete(f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}", headers=headers)
         self.assertEqual(del_resp.status_code, 200)
 
+
     def test_admin_can_stop_running_sync_task(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()

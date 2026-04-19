@@ -87,30 +87,6 @@
     </div>
   </div>
 
-  <div class="card mb-3">
-    <div class="card-body py-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <span class="small fw-semibold text-secondary">
-          <i class="fa-solid fa-file-shield me-1"></i>Legacy Attachment Rows
-        </span>
-        <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-outline-secondary" id="sync-legacy-attachment-refresh-btn">
-            <i class="fa-solid fa-rotate-right me-1"></i>Refresh
-          </button>
-          <button class="btn btn-sm btn-outline-primary" id="sync-legacy-attachment-repair-btn">
-            <i class="fa-solid fa-screwdriver-wrench me-1"></i>Repair
-          </button>
-        </div>
-      </div>
-      <div class="small text-muted mb-2">
-        Tracks `va_submission_attachments` rows where `storage_name IS NULL`. Non-`audit.csv` rows indicate legacy media rows that should remain at zero.
-      </div>
-      <div id="sync-legacy-attachment-wrap">
-        <span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</span>
-      </div>
-    </div>
-  </div>
-
   {# Revoked submissions (pending DM review) #}
   <div class="card mb-3" id="sync-revoked-card" style="display:none;">
     <div class="card-body py-3">
@@ -498,7 +474,6 @@
         loadHistory();
         loadCoverage();
         loadBackfillStats();
-        loadLegacyAttachmentStats();
         loadRevokedStats();
         var completedMatchesTrackedRun = (
           _awaitCompletionModal
@@ -844,101 +819,6 @@
     });
   }
 
-  function loadLegacyAttachmentStats() {
-    if (dashboardToken !== window._syncDashboardToken) return;
-    var wrap = document.getElementById('sync-legacy-attachment-wrap');
-    if (wrap) wrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Fetching legacy attachment counts…</span>';
-
-    apiJson('/admin/api/sync/legacy-attachment-stats').then(function (res) {
-      if (dashboardToken !== window._syncDashboardToken) return;
-      if (!wrap) return;
-      if (!res.ok) {
-        wrap.innerHTML = '<span class="text-danger small">Failed to load legacy attachment stats: ' + esc(res.data.error || '') + '</span>';
-        return;
-      }
-      var d = res.data || {};
-      var legacyMedia = Number(d.legacy_media_null_rows || 0);
-      var legacyMediaExistsOnOdk = Number(d.legacy_media_exists_on_odk_null_rows || 0);
-      var repairedLegacyMedia = Number(d.repaired_legacy_media_rows || 0);
-      var auditCsv = Number(d.audit_csv_null_rows || 0);
-      var totalNull = Number(d.total_null_rows || 0);
-      var alertClass = legacyMedia > 0 ? 'text-danger' : 'text-success';
-      var alertIcon = legacyMedia > 0 ? 'fa-triangle-exclamation' : 'fa-circle-check';
-      var statusText = legacyMedia > 0
-        ? legacyMedia + ' legacy media row(s) still need repair.'
-        : 'No legacy media rows remain.';
-
-      wrap.innerHTML =
-        '<div class="d-flex align-items-center gap-2 mb-2 ' + alertClass + '">'
-        + '<i class="fa-solid ' + alertIcon + '"></i>'
-        + '<span class="small fw-semibold">' + esc(statusText) + '</span>'
-        + '</div>'
-        + '<div class="table-responsive">'
-        + '<table class="table table-sm table-bordered mb-0">'
-        + '<thead class="table-light"><tr>'
-        + '<th class="small">Metric</th>'
-        + '<th class="small text-center">Rows</th>'
-        + '</tr></thead><tbody>'
-        + '<tr><td class="small">Legacy media rows (`filename != audit.csv`, `storage_name IS NULL`)</td><td class="small text-center fw-semibold ' + alertClass + '">' + legacyMedia + '</td></tr>'
-        + '<tr><td class="small">Legacy media rows with `exists_on_odk = true`</td><td class="small text-center">' + legacyMediaExistsOnOdk + '</td></tr>'
-        + '<tr><td class="small">Repaired legacy media rows</td><td class="small text-center">' + repairedLegacyMedia + '</td></tr>'
-        + '<tr><td class="small">`audit.csv` rows with `storage_name IS NULL`</td><td class="small text-center">' + auditCsv + '</td></tr>'
-        + '<tr><td class="small">All rows with `storage_name IS NULL`</td><td class="small text-center">' + totalNull + '</td></tr>'
-        + '</tbody></table>'
-        + '</div>';
-    }).catch(function () {
-      if (wrap) wrap.innerHTML = '<span class="text-danger small">Network error fetching legacy attachment stats.</span>';
-    });
-  }
-
-  function triggerLegacyAttachmentRepair() {
-    showConfirmModal(
-      'Confirm Legacy Attachment Repair',
-      'Populate storage_name for legacy non-audit attachment rows? This will rename local media files to their opaque storage tokens where needed.',
-      function () {
-        var btn = document.getElementById('sync-legacy-attachment-repair-btn');
-        var original = btn ? btn.innerHTML : '';
-        if (btn) {
-          btn.disabled = true;
-          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Starting…';
-        }
-        apiJson('/admin/api/sync/legacy-attachment-repair', 'POST').then(function (res) {
-          if (!res.ok) {
-            if (res.status === 409) {
-              showToast(res.data.error || 'Another sync or repair run is already in progress.', 'warning');
-            } else {
-              showToast(res.data.error || 'Failed to start legacy attachment repair.', 'danger');
-            }
-            return;
-          }
-          showToast(res.data.message || 'Legacy attachment repair started.', 'success');
-          _lastProgressRunId = null;
-          _triggerGraceUntil = Date.now() + 15000;
-          var card = document.getElementById('sync-progress-card');
-          var progressWrap = document.getElementById('sync-progress-wrap');
-          var label = document.getElementById('sync-progress-run-label');
-          if (card) card.style.display = '';
-          if (progressWrap) {
-            progressWrap.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Starting legacy attachment repair…</span>';
-          }
-          if (label) label.textContent = 'legacy-attachment-repair · starting…';
-          startProgressPolling();
-          _wasRunning = true;
-          loadStatus();
-          loadHistory();
-          loadLegacyAttachmentStats();
-        }).catch(function () {
-          showToast('Network error.', 'danger');
-        }).finally(function () {
-          if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = original;
-          }
-        });
-      }
-    );
-  }
-
   // ── History ────────────────────────────────────────────────────────────────
 
   function loadHistory() {
@@ -1278,8 +1158,6 @@
 
   document.getElementById('sync-coverage-refresh-btn').addEventListener('click', loadCoverage);
   document.getElementById('sync-backfill-refresh-btn').addEventListener('click', loadBackfillStats);
-  document.getElementById('sync-legacy-attachment-refresh-btn').addEventListener('click', loadLegacyAttachmentStats);
-  document.getElementById('sync-legacy-attachment-repair-btn').addEventListener('click', triggerLegacyAttachmentRepair);
   document.getElementById('sync-revoked-refresh-btn').addEventListener('click', loadRevokedStats);
   // ── Toast helper ───────────────────────────────────────────────────────────
 
@@ -1297,7 +1175,6 @@
   loadHistory();
   loadRevokedStats();
   loadBackfillStats();
-  loadLegacyAttachmentStats();
 
 }());
 </script>

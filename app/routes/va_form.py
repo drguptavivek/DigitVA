@@ -58,6 +58,7 @@ from app.services.workflow.transitions import (
     mark_recode_finalized,
 )
 from app.services.workflow.state_store import get_submission_workflow_state
+from app.services.workflow.state_store import sync_submission_workflow_from_legacy_records
 from app.services.odk_review_service import sync_not_codeable_review_state
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.demo_project_service import get_demo_expiry_for_submission
@@ -247,6 +248,14 @@ def renderpartial(va_sid, va_partial):
                     VaSubmissionWorkflow.va_sid == va_sid
                 )
             )
+            if smartva and submission_workflow == "smartva_pending":
+                sync_submission_workflow_from_legacy_records(
+                    va_sid,
+                    reason="reconciled_from_active_smartva_result",
+                    by_role="vasystem",
+                )
+                db.session.commit()
+                submission_workflow = get_submission_workflow_state(va_sid)
             success_message = None
 
             if request.method == "POST":

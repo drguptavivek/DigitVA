@@ -30,6 +30,7 @@ from app.models import (
     VaUsers,
     VaFinalAssessments,
     VaSmartvaResults,
+    VaSubmissionWorkflow,
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
@@ -770,6 +771,50 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn(b"SmartVA Results", response.data)
         self.assertIn(b"Acute myocardial infarction", response.data)
         self.assertIn(b"Secondary Cause", response.data)
+
+    @patch("app.routes.va_form.get_category_rendering_service")
+    def test_data_manager_triage_reconciles_stale_smartva_pending_to_ready_for_coding(
+        self,
+        mocked_category_service,
+    ):
+        self._login(self.dm_user_id)
+        mocked_category_service.return_value = SimpleNamespace(
+            is_category_enabled=lambda *args, **kwargs: True,
+            get_category_neighbours=lambda *args, **kwargs: (None, None),
+            get_category_config=lambda *args, **kwargs: {},
+        )
+        now = datetime.now(timezone.utc)
+        workflow = db.session.scalar(
+            sa.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == self.SID)
+        )
+        self.assertIsNotNone(workflow)
+        workflow.workflow_state = "smartva_pending"
+        db.session.add(
+            VaSmartvaResults(
+                va_sid=self.SID,
+                va_smartva_status=VaStatuses.active,
+                va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
+                va_smartva_cause1="Acute myocardial infarction",
+                va_smartva_likelihood1="0.78",
+                va_smartva_updatedat=now,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/vaform/{self.SID}/vadmtriage?action=vadata&actiontype=vaview",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(
+            b"can no longer be triaged by a data manager",
+            response.data,
+        )
+        workflow = db.session.scalar(
+            sa.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == self.SID)
+        )
+        self.assertIsNotNone(workflow)
+        self.assertEqual(workflow.workflow_state, "ready_for_coding")
 
     def test_data_manager_odk_edit_redirect_uses_scoped_submission_mapping(
         self

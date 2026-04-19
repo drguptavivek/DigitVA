@@ -223,6 +223,12 @@ Current locally exposed items include:
 - ODK review state
 - ODK review comments
 - local sync-issue markers such as `missing_in_odk`
+
+Current triage rendering also heals one stale workflow edge case:
+
+- if a submission is still recorded as `smartva_pending` but an active SmartVA
+  result already exists, the route reconciles the canonical workflow row before
+  rendering and treats the submission as ready for coding
 - locally tracked attachment counts
 - SmartVA summary details inside the Data Triage panel on
   `/data-management/view/<va_sid>`

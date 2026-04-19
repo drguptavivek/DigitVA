@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-19
 ---
 
 # Data Manager Dashboard
@@ -257,6 +257,8 @@ The dashboard includes a collapsed-by-default recent sync results panel.
 
 It shows recent data-manager initiated sync runs with:
 
+- a resolved form target label even when the underlying run was a
+  single-submission refresh
 - start time in the user timezone
 - run status
 - records added/updated

@@ -377,8 +377,33 @@ def sync_run_target_label(run: VaSyncRun) -> str | None:
         return None
     if not entries:
         return None
-    match = re.match(r"^\[([^\]]+)\]", entries[0].get("msg", ""))
-    return match.group(1) if match else None
+    bracket_tokens: list[str] = []
+    for entry in entries:
+        msg = entry.get("msg", "")
+        match = re.match(r"^\[([^\]]+)\]", msg)
+        if match:
+            bracket_tokens.append(match.group(1))
+
+    if not bracket_tokens:
+        return None
+
+    # Prefer explicit form IDs first.
+    form_id = db.session.scalar(
+        sa.select(VaForms.form_id).where(VaForms.form_id.in_(bracket_tokens)).limit(1)
+    )
+    if form_id:
+        return str(form_id)
+
+    # Older/single-submission runs may log the submission SID instead.
+    submission_form_id = db.session.scalar(
+        sa.select(VaSubmissions.va_form_id)
+        .where(VaSubmissions.va_sid.in_(bracket_tokens))
+        .limit(1)
+    )
+    if submission_form_id:
+        return str(submission_form_id)
+
+    return bracket_tokens[0]
 
 
 def sync_run_entries(run: VaSyncRun) -> list[dict]:

@@ -415,13 +415,38 @@ class DataManagerDashboardTests(BaseTestCase):
         db.session.add(run)
         db.session.commit()
 
-        response = self.client.get("/data-management/api/sync/runs")
+        response = self.client.get("/api/v1/data-management/sync/runs")
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(len(payload["runs"]), 1)
         self.assertEqual(payload["runs"][0]["target"], self.FORM_ID)
         self.assertEqual(payload["runs"][0]["records_added"], 2)
+
+    def test_data_manager_recent_sync_runs_resolve_submission_sid_to_form_target(self):
+        self._login(self.dm_user_id)
+        run = VaSyncRun(
+            triggered_by="data-manager",
+            triggered_user_id=uuid.UUID(self.dm_user_id),
+            started_at=datetime.now(timezone.utc),
+            finished_at=datetime.now(timezone.utc),
+            status="error",
+            records_added=0,
+            records_updated=0,
+            progress_log=(
+                f'[{{"ts":"2026-03-18T00:00:00+00:00","msg":"[{self.SID}] '
+                'refreshed from ODK: +0 added, 0 updated"}}]'
+            ),
+        )
+        db.session.add(run)
+        db.session.commit()
+
+        response = self.client.get("/api/v1/data-management/sync/runs")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["runs"]), 1)
+        self.assertEqual(payload["runs"][0]["target"], self.FORM_ID)
 
     def test_data_manager_can_load_project_site_submission_stats(self):
         self._login(self.dm_user_id)

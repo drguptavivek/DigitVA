@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-18
+last_updated: 2026-04-20
 ---
 
 # Admin And Setup Model
@@ -30,6 +30,7 @@ The `/admin` interface provides the following management panels:
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
 - **Languages** — canonical language list management with ODK alias mapping. Shows unmapped language values found in submissions.
 - **COD Buckets** — admin editor for imported COD reporting schemes, including hierarchy labels/order and single-target ICD-to-disease remapping by age scope.
+- **ICD-10 Browser** — admin browser for `mas_icd10_2019_2`, including lazy hierarchy traversal, local policy-field curation, and JSON export of curated code-policy rows.
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
@@ -56,6 +57,7 @@ The following panels are restricted to application-level admins:
 - Projects
 - Languages
 - COD Buckets
+- ICD-10 Browser
 
 ### Project-PI-Accessible Panels
 

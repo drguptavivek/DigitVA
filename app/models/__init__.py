@@ -42,6 +42,7 @@ from app.models.mas_cod_bucket import (
     MasCodBucketNode,
     MapIcdCodBucket,
 )
+from app.models.mas_icd10_2019_2 import MasIcd1020192
 from app.models.mas_languages import MasLanguages, MapLanguageAliases
 from app.models.map_project_odk import MapProjectOdk
 from app.models.map_project_site_odk import MapProjectSiteOdk
@@ -108,6 +109,7 @@ __all__ = [
     "MasCodBucketSchemeAgeBand",
     "MasCodBucketNode",
     "MapIcdCodBucket",
+    "MasIcd1020192",
     "MapProjectOdk",
     "MapProjectSiteOdk",
     "MasFormTypes",

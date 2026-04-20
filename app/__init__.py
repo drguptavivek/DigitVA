@@ -171,6 +171,9 @@ def create_app(config_class=None):
     from app.commands.cod_buckets import init_app as init_cod_bucket_commands
     init_cod_bucket_commands(app)
 
+    from app.commands.icd10 import init_app as init_icd10_commands
+    init_icd10_commands(app)
+
     @app.context_processor
     def inject_template_globals():
         return {

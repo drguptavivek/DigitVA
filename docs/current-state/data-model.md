@@ -193,6 +193,45 @@ Current behavior:
 
 - one ICD code can map to only one leaf per `scheme_id + age_scope`
 
+## ICD Reference Master Table
+
+### `mas_icd10_2019_2`
+
+Purpose:
+
+- stores the ICD-10 2019 hierarchy as denormalized master reference data for
+  coding and future policy curation
+
+Key fields:
+
+- `code`
+- `title`
+- `node_type`
+- `semantic_level`
+- `parent_code`
+- `chapter_code`
+- `block_code`
+- `three_character_code`
+- `sort_order`
+- `is_coding_selectable`
+- `sex_selectable`
+- `age_group_selectable`
+- `is_active`
+
+Current behavior:
+
+- one row per ICD hierarchy node
+- includes chapters, blocks, three-character categories, and detailed dotted
+  codes
+- fresh migration creation seeds the table from the checked-in ICD hierarchy CSV
+- coder ICD search now reads from this table for selectable three-character and
+  detailed-code lookup
+- preserves local policy flags in the same table
+- import is idempotent:
+  - existing rows are updated by `code`
+  - newly introduced rows are inserted
+  - source-missing rows are marked inactive rather than deleted
+
 ## Submission Table
 
 ### `va_submissions`

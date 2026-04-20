@@ -1,0 +1,1042 @@
+<div id="panel-icd10-browser">
+  <div class="mb-1">
+    <h5 class="mb-1">
+      <i class="fa-solid fa-book-medical me-2 text-secondary"></i>ICD-10 2019 Browser
+    </h5>
+    <div class="small text-muted">
+      Browse the ICD hierarchy and curate local coding policy fields without changing source structure.
+    </div>
+  </div>
+  <hr class="my-2">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap align-items-end gap-2">
+      <div>
+        <div class="small text-muted mb-1">Coding</div>
+        <select class="form-select form-select-sm" id="icd10-browser-filter-active">
+          <option value="any">All</option>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+        </select>
+      </div>
+      <div>
+        <div class="small text-muted mb-1">Sex</div>
+        <select class="form-select form-select-sm" id="icd10-browser-filter-sex">
+          <option value="any">All</option>
+          <option value="both">Both</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+        </select>
+      </div>
+      <div>
+        <div class="small text-muted mb-1">Age</div>
+        <select class="form-select form-select-sm" id="icd10-browser-filter-age">
+          <option value="any">All</option>
+          <option value="all">All ages</option>
+          <option value="adult">Adult</option>
+          <option value="child">Child</option>
+          <option value="neonate">Neonate</option>
+        </select>
+      </div>
+      <div class="small text-muted pb-1">
+        Chapters, blocks, three-character categories, and detailed codes are loaded on demand.
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <input
+        type="file"
+        id="icd10-policy-import-file"
+        accept="application/json,.json"
+        class="d-none"
+      >
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="icd10-policy-import-btn">
+        Import JSON
+      </button>
+      <a
+        class="btn btn-sm btn-outline-secondary"
+        href="/admin/api/icd10/2019-2/policy-export"
+      >
+        Export JSON
+      </a>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="icd10-browser-clear-filters-btn">
+        Clear Filters
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="icd10-browser-clear-btn">
+        Clear
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="icd10-browser-reset-btn">
+        Reset Browser
+      </button>
+    </div>
+  </div>
+
+  <div id="icd10-browser-status" class="alert alert-info py-2 px-3 d-none" role="status"></div>
+
+  <div class="row g-3">
+    <div class="col-xl-9">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="fw-semibold">Hierarchy</div>
+          <div id="icd10-browser-path" class="small text-muted">Select a chapter to start.</div>
+        </div>
+        <div class="card-body p-0">
+          <div class="row g-0" id="icd10-browser-columns">
+            <div class="col-md-3 border-end icd10-browser-column" data-depth="0">
+              <div class="icd10-browser-column-header" data-depth="0">Chapters</div>
+              <div class="list-group list-group-flush icd10-browser-list" data-depth="0"></div>
+            </div>
+            <div class="col-md-3 border-end icd10-browser-column" data-depth="1">
+              <div class="icd10-browser-column-header" data-depth="1">Blocks</div>
+              <div class="list-group list-group-flush icd10-browser-list" data-depth="1"></div>
+            </div>
+            <div class="col-md-3 border-end icd10-browser-column" data-depth="2">
+              <div class="icd10-browser-column-header" data-depth="2">3-Character Codes</div>
+              <div class="list-group list-group-flush icd10-browser-list" data-depth="2"></div>
+            </div>
+            <div class="col-md-3 icd10-browser-column" data-depth="3">
+              <div class="icd10-browser-column-header" data-depth="3">Detailed Codes</div>
+              <div class="list-group list-group-flush icd10-browser-list" data-depth="3"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-3">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="fw-semibold">Node Details</div>
+        </div>
+        <div class="card-body">
+          <div id="icd10-browser-empty-state" class="text-muted small">
+            No ICD node selected yet.
+          </div>
+
+          <div id="icd10-browser-details" class="d-none">
+            <div class="mb-3">
+              <div id="icd10-browser-node-path" class="small"></div>
+            </div>
+
+            <div id="icd10-browser-policy-readonly" class="alert alert-light border d-none small mb-0">
+              Chapters and blocks are structural hierarchy rows. Local coding policy fields are only available on three-character and detailed ICD codes.
+            </div>
+
+            <form id="icd10-browser-policy-form">
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="icd10-policy-is-coding-selectable">
+                <label class="form-check-label" for="icd10-policy-is-coding-selectable">
+                  Coding Selectable
+                </label>
+              </div>
+
+              <div class="mb-3">
+                <label for="icd10-policy-sex-selectable" class="form-label small text-muted text-uppercase">
+                  Sex Selectable
+                </label>
+                <select class="form-select" id="icd10-policy-sex-selectable"></select>
+              </div>
+
+              <div class="mb-3">
+                <label for="icd10-policy-age-group-selectable" class="form-label small text-muted text-uppercase">
+                  Age Group Selectable
+                </label>
+                <select class="form-select" id="icd10-policy-age-group-selectable"></select>
+              </div>
+
+              <div class="mb-3">
+                <label for="icd10-policy-note" class="form-label small text-muted text-uppercase">
+                  Restriction Note
+                </label>
+                <textarea class="form-control" id="icd10-policy-note" rows="4"></textarea>
+              </div>
+
+              <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="icd10-policy-reset-btn">
+                  Reset
+                </button>
+                <button type="submit" class="btn btn-sm btn-primary" id="icd10-policy-save-btn">
+                  Save Policy
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #panel-icd10-browser .icd10-browser-column-header {
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  #panel-icd10-browser .icd10-browser-list {
+    min-height: 420px;
+    max-height: 560px;
+    overflow-y: auto;
+  }
+
+  #panel-icd10-browser .icd10-browser-item {
+    border: 0;
+    border-bottom: 1px solid #f1f3f5;
+    border-radius: 0;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+  }
+
+  #panel-icd10-browser .icd10-browser-item.active {
+    background: #eef5ff;
+    color: #0d6efd;
+  }
+
+  #panel-icd10-browser .icd10-browser-item-code-row {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  #panel-icd10-browser .icd10-browser-item-toggle {
+    display: inline-flex;
+    width: 0.9rem;
+    color: #6c757d;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  #panel-icd10-browser .icd10-browser-item-code {
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+
+  #panel-icd10-browser .icd10-browser-item-title {
+    font-size: 0.82rem;
+    color: #6c757d;
+    line-height: 1.35;
+  }
+
+  #panel-icd10-browser .icd10-browser-status-dot {
+    display: inline-block;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 999px;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+  }
+
+  #panel-icd10-browser .icd10-browser-status-dot.is-active {
+    background: #198754;
+  }
+
+  #panel-icd10-browser .icd10-browser-status-dot.is-disabled {
+    background: #dc3545;
+  }
+
+  #panel-icd10-browser .icd10-browser-status-dot.is-mixed {
+    background: #f0ad4e;
+  }
+
+  #panel-icd10-browser .icd10-browser-item.active .icd10-browser-item-title {
+    color: #0a58ca;
+  }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  var panel = document.getElementById('panel-icd10-browser');
+  if (!panel) return;
+
+  var apiBase = '/admin/api/icd10/2019-2';
+  var state = {
+    options: null,
+    chapterCode: null,
+    blockPath: [],
+    code: null,
+    detailedCode: null,
+    childrenByParent: {},
+    currentNode: null,
+    filters: {
+      active: 'any',
+      sex: 'any',
+      age: 'any',
+    },
+  };
+  var defaultColumnLabels = {
+    0: 'Chapters',
+    1: 'Blocks',
+    2: '3-Character Codes',
+    3: 'Detailed Codes',
+  };
+  var selectionParamKeys = [
+    'chapter',
+    'block',
+    'sub_block',
+    'code',
+    'detailed_code',
+    'detail_code',
+    'coding_filter',
+    'sex_filter',
+    'age_filter'
+  ];
+
+  function csrf() {
+    return window._adminCsrf || '';
+  }
+
+  function statusEl() {
+    return panel.querySelector('#icd10-browser-status');
+  }
+
+  function showStatus(message, tone) {
+    var el = statusEl();
+    el.className = 'alert py-2 px-3';
+    el.classList.add(
+      tone === 'danger' ? 'alert-danger' : tone === 'success' ? 'alert-success' : 'alert-info'
+    );
+    el.textContent = message;
+    el.classList.remove('d-none');
+  }
+
+  function clearStatus() {
+    statusEl().classList.add('d-none');
+    statusEl().textContent = '';
+  }
+
+  function setUrlParams(updates) {
+    var params = new URLSearchParams(window.location.search);
+    Object.keys(updates).forEach(function (key) {
+      var value = updates[key];
+      if (value) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
+    });
+    var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    history.replaceState(null, '', newUrl);
+  }
+
+  function selectedBlockCode() {
+    return state.blockPath.length ? state.blockPath[state.blockPath.length - 1] : null;
+  }
+
+  function currentSelectedCode() {
+    return state.detailedCode || state.code || selectedBlockCode() || state.chapterCode || null;
+  }
+
+  function getChildRows(parentCode) {
+    return parentCode ? (state.childrenByParent[parentCode] || []) : (state.childrenByParent.root || []);
+  }
+
+  function clearSelectionParamsFromUrl() {
+    var clearMap = {};
+    selectionParamKeys.forEach(function (key) {
+      clearMap[key] = null;
+    });
+    setUrlParams(clearMap);
+  }
+
+  function readSelectionFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    return {
+      chapter: params.get('chapter') || null,
+      block: params.get('block') || null,
+      sub_block: params.get('sub_block') || null,
+      code: params.get('code') || null,
+      detailed_code: params.get('detailed_code') || params.get('detail_code') || null,
+    };
+  }
+
+  function syncSelectionToUrl() {
+    setUrlParams({
+      chapter: state.chapterCode,
+      block: state.blockPath[0] || null,
+      sub_block: state.blockPath[1] || null,
+      code: state.code,
+      detailed_code: state.detailedCode,
+      detail_code: null,
+    });
+  }
+
+  function syncFiltersToUrl() {
+    setUrlParams({
+      coding_filter: state.filters.active !== 'any' ? state.filters.active : null,
+      sex_filter: state.filters.sex !== 'any' ? state.filters.sex : null,
+      age_filter: state.filters.age !== 'any' ? state.filters.age : null,
+    });
+  }
+
+  function readFiltersFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    return {
+      active: params.get('coding_filter') || 'any',
+      sex: params.get('sex_filter') || 'any',
+      age: params.get('age_filter') || 'any',
+    };
+  }
+
+  function codingSelectableInput() {
+    return panel.querySelector('#icd10-policy-is-coding-selectable');
+  }
+
+  function sexSelectableInput() {
+    return panel.querySelector('#icd10-policy-sex-selectable');
+  }
+
+  function ageGroupSelectableInput() {
+    return panel.querySelector('#icd10-policy-age-group-selectable');
+  }
+
+  function applyCodingSelectableDefaults() {
+    if (!codingSelectableInput().checked) return;
+    sexSelectableInput().value = 'both';
+    ageGroupSelectableInput().value = 'all';
+  }
+
+  function policyFormEl() {
+    return panel.querySelector('#icd10-browser-policy-form');
+  }
+
+  function policyReadonlyEl() {
+    return panel.querySelector('#icd10-browser-policy-readonly');
+  }
+
+  async function requestJson(url, options) {
+    var response = await fetch(url, options || {});
+    var payload = await response.json().catch(function () { return {}; });
+    if (!response.ok) {
+      throw new Error(payload.error || 'Request failed.');
+    }
+    return payload;
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function setColumnHeader(depth, label) {
+    var header = panel.querySelector('.icd10-browser-column-header[data-depth="' + depth + '"]');
+    if (header) {
+      header.textContent = label;
+    }
+  }
+
+  function renderEmptyList(depth, message) {
+    var list = panel.querySelector('.icd10-browser-list[data-depth="' + depth + '"]');
+    list.innerHTML = '<div class="p-3 text-muted small">' + message + '</div>';
+  }
+
+  function setSelectOptions(selectEl, options, allowNull) {
+    var html = allowNull ? '<option value="">Not Set</option>' : '';
+    html += options.map(function (value) {
+      return '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + '</option>';
+    }).join('');
+    selectEl.innerHTML = html;
+  }
+
+  function statusDotHtml(row) {
+    if (!(row.semantic_level === 'three_character' || row.semantic_level === 'detailed_code')) {
+      return '';
+    }
+    if (row.status_indicator === 'green') {
+      return '<span class="icd10-browser-status-dot is-active" title="Active/selectable"></span>';
+    }
+    if (row.status_indicator === 'yellow') {
+      return '<span class="icd10-browser-status-dot is-mixed" title="Mixed active and disabled 3-character codes"></span>';
+    }
+    if (row.status_indicator === 'red') {
+      return '<span class="icd10-browser-status-dot is-disabled" title="Disabled"></span>';
+    }
+    return '';
+  }
+
+  function childMatchesFilters(child) {
+    if (!(child.semantic_level === 'three_character' || child.semantic_level === 'detailed_code')) {
+      return true;
+    }
+    if (state.filters.active === 'active' && !child.is_coding_selectable) {
+      return false;
+    }
+    if (state.filters.active === 'disabled' && child.is_coding_selectable) {
+      return false;
+    }
+    if (state.filters.sex !== 'any' && (child.sex_selectable || '') !== state.filters.sex) {
+      return false;
+    }
+    if (state.filters.age !== 'any' && (child.age_group_selectable || '') !== state.filters.age) {
+      return false;
+    }
+    return true;
+  }
+
+  function renderList(depth, rows, selectedCode, emptyMessage) {
+    var list = panel.querySelector('.icd10-browser-list[data-depth="' + depth + '"]');
+    setColumnHeader(depth, defaultColumnLabels[depth]);
+    var filteredRows = rows.filter(function (row) {
+      return childMatchesFilters(row);
+    });
+    if (!filteredRows.length) {
+      renderEmptyList(depth, emptyMessage);
+      return;
+    }
+    list.innerHTML = filteredRows.map(function (row) {
+      var isActive = selectedCode === row.code;
+      var badge = row.child_count ? '<span class="badge text-bg-light">' + row.child_count + '</span>' : '';
+      var contentHtml = (row.semantic_level === 'chapter' || row.semantic_level === 'block')
+        ? '<div class="icd10-browser-item-code">' + escapeHtml(row.code + ' ' + row.title) + '</div>'
+        : '<div class="icd10-browser-item-code-row"><div class="icd10-browser-item-code">' + escapeHtml(row.code) + statusDotHtml(row) + '</div></div>' +
+          '<div class="icd10-browser-item-title">' + escapeHtml(row.title) + '</div>';
+      return (
+        '<button type="button" class="list-group-item list-group-item-action icd10-browser-item' + (isActive ? ' active' : '') + '" ' +
+          'data-depth="' + depth + '" data-code="' + row.code + '">' +
+          '<div class="d-flex justify-content-between gap-2 align-items-start">' +
+            '<div>' +
+              contentHtml +
+            '</div>' +
+            badge +
+          '</div>' +
+        '</button>'
+      );
+    }).join('');
+  }
+
+  function renderBlockTree() {
+    var list = panel.querySelector('.icd10-browser-list[data-depth="1"]');
+    setColumnHeader(1, defaultColumnLabels[1]);
+    if (!state.chapterCode) {
+      renderEmptyList(1, 'Select a chapter first.');
+      return;
+    }
+
+    var topBlocks = getChildRows(state.chapterCode).filter(function (row) {
+      return row.semantic_level === 'block';
+    });
+    if (!topBlocks.length) {
+      renderEmptyList(1, 'No blocks for this chapter.');
+      return;
+    }
+
+    var html = [];
+
+    function appendRows(rows, indentLevel) {
+      rows.forEach(function (row) {
+        var isSelected = state.blockPath.indexOf(row.code) !== -1;
+        var childRows = getChildRows(row.code);
+        var nestedBlocks = childRows.filter(function (child) { return child.semantic_level === 'block'; });
+        var isExpanded = state.blockPath.indexOf(row.code) !== -1;
+        var toggleHtml = nestedBlocks.length
+          ? '<span class="icd10-browser-item-toggle"><i class="fa-solid ' + (isExpanded ? 'fa-caret-down' : 'fa-caret-right') + '"></i></span>'
+          : '<span class="icd10-browser-item-toggle"></span>';
+        var badge = row.child_count ? '<span class="badge text-bg-light">' + row.child_count + '</span>' : '';
+        html.push(
+          '<button type="button" class="list-group-item list-group-item-action icd10-browser-item' + (isSelected ? ' active' : '') + '" ' +
+            'data-depth="1" data-code="' + row.code + '" style="padding-left:' + (1 + (indentLevel * 1.1)) + 'rem;">' +
+            '<div class="d-flex justify-content-between gap-2 align-items-start">' +
+              '<div>' +
+                '<div class="icd10-browser-item-code-row">' + toggleHtml + '<div class="icd10-browser-item-code">' + escapeHtml(row.code + ' ' + row.title) + '</div></div>' +
+              '</div>' +
+              badge +
+            '</div>' +
+          '</button>'
+        );
+        if (isExpanded && nestedBlocks.length) {
+          appendRows(nestedBlocks, indentLevel + 1);
+        }
+      });
+    }
+
+    appendRows(topBlocks, 0);
+    list.innerHTML = html.join('');
+  }
+
+  function updatePath() {
+    var parts = [];
+    if (state.chapterCode) parts.push(state.chapterCode);
+    state.blockPath.forEach(function (code) { parts.push(code); });
+    if (state.code) parts.push(state.code);
+    if (state.detailedCode) parts.push(state.detailedCode);
+    panel.querySelector('#icd10-browser-path').textContent = parts.length
+      ? parts.join(' / ')
+      : 'Select a chapter to start.';
+  }
+
+  function renderNodeDetails(node) {
+    state.currentNode = node;
+    panel.querySelector('#icd10-browser-empty-state').classList.add('d-none');
+    panel.querySelector('#icd10-browser-details').classList.remove('d-none');
+    var ancestors = (node.ancestors || []).map(function (item) {
+      return '<div>' + escapeHtml(item.code + ' ' + item.title) + '</div>';
+    });
+    ancestors.push('<div><strong>' + escapeHtml(node.code + ' ' + node.title) + '</strong></div>');
+    panel.querySelector('#icd10-browser-node-path').innerHTML = ancestors.join('');
+
+    codingSelectableInput().checked = !!node.is_coding_selectable;
+    sexSelectableInput().value = node.sex_selectable || '';
+    ageGroupSelectableInput().value = node.age_group_selectable || '';
+    panel.querySelector('#icd10-policy-note').value = node.restriction_note || '';
+
+    if (node.is_policy_editable) {
+      policyReadonlyEl().classList.add('d-none');
+      policyFormEl().classList.remove('d-none');
+    } else {
+      policyFormEl().classList.add('d-none');
+      policyReadonlyEl().classList.remove('d-none');
+    }
+  }
+
+  async function loadNode(code) {
+    var node = await requestJson(apiBase + '/node/' + encodeURIComponent(code));
+    renderNodeDetails(node);
+  }
+
+  async function loadChildren(parentCode) {
+    var url = apiBase + '/children';
+    var params = new URLSearchParams();
+    if (parentCode) {
+      params.set('parent_code', parentCode);
+    }
+    if (state.filters.active !== 'any') params.set('coding_filter', state.filters.active);
+    if (state.filters.sex !== 'any') params.set('sex_filter', state.filters.sex);
+    if (state.filters.age !== 'any') params.set('age_filter', state.filters.age);
+    if (params.toString()) {
+      url += '?' + params.toString();
+    }
+    var payload = await requestJson(url);
+    if (parentCode) {
+      state.childrenByParent[parentCode] = payload.children || [];
+    } else {
+      state.childrenByParent.root = payload.children || [];
+    }
+    return payload.children || [];
+  }
+
+  async function ensureBlockPathLoaded(blockCodes) {
+    if (!state.chapterCode) return;
+    var parentCode = state.chapterCode;
+    for (var index = 0; index < blockCodes.length; index += 1) {
+      var blockCode = blockCodes[index];
+      var rows = getChildRows(parentCode);
+      if (!rows.some(function (row) { return row.code === blockCode; })) {
+        break;
+      }
+      await loadChildren(blockCode);
+      parentCode = blockCode;
+    }
+  }
+
+  function resetCodeColumns() {
+    state.code = null;
+    state.detailedCode = null;
+    renderEmptyList(2, state.chapterCode ? 'Select a terminal block first.' : 'Select a chapter first.');
+    renderEmptyList(3, 'Select a three-character code first.');
+  }
+
+  async function selectChapter(code) {
+    state.chapterCode = code;
+    state.blockPath = [];
+    resetCodeColumns();
+    renderList(0, getChildRows(null), state.chapterCode, 'No chapters available.');
+    await loadNode(code);
+    await loadChildren(code);
+    renderBlockTree();
+  }
+
+  async function selectBlock(code) {
+    var clickedRow = null;
+    var parentCode = state.chapterCode;
+
+    function findParentRow(targetCode, currentParentCode) {
+      var rows = getChildRows(currentParentCode);
+      for (var i = 0; i < rows.length; i += 1) {
+        var row = rows[i];
+        if (row.code === targetCode) {
+          return { row: row, parentCode: currentParentCode };
+        }
+        if (row.semantic_level === 'block' && state.blockPath.indexOf(row.code) !== -1) {
+          var nested = findParentRow(targetCode, row.code);
+          if (nested) return nested;
+        }
+      }
+      return null;
+    }
+
+    clickedRow = findParentRow(code, state.chapterCode);
+    if (!clickedRow) {
+      return;
+    }
+
+    if (clickedRow.parentCode === state.chapterCode) {
+      state.blockPath = [code];
+    } else {
+      var parentIndex = state.blockPath.indexOf(clickedRow.parentCode);
+      state.blockPath = state.blockPath.slice(0, parentIndex + 1);
+      state.blockPath.push(code);
+    }
+
+    resetCodeColumns();
+    await loadNode(code);
+    await loadChildren(code);
+    renderBlockTree();
+
+    var childRows = getChildRows(code);
+    var nestedBlocks = childRows.filter(function (row) { return row.semantic_level === 'block'; });
+    var threeCharacters = childRows.filter(function (row) { return row.semantic_level === 'three_character'; });
+    if (nestedBlocks.length) {
+      renderEmptyList(2, 'Select a lower-level block first.');
+    } else if (threeCharacters.length) {
+      renderList(2, threeCharacters, state.code, 'No three-character codes under this block.');
+    } else {
+      renderEmptyList(2, 'No three-character codes under this block.');
+    }
+  }
+
+  async function selectThreeCharacter(code) {
+    state.code = code;
+    state.detailedCode = null;
+    renderList(
+      2,
+      getChildRows(selectedBlockCode()).filter(function (row) { return row.semantic_level === 'three_character'; }),
+      state.code,
+      'No three-character codes under this block.'
+    );
+    await loadNode(code);
+    var children = await loadChildren(code);
+    var detailedRows = children.filter(function (row) { return row.semantic_level === 'detailed_code'; });
+    if (detailedRows.length) {
+      renderList(3, detailedRows, state.detailedCode, 'No detailed codes under this code.');
+    } else {
+      renderEmptyList(3, 'No detailed codes under this code.');
+    }
+  }
+
+  async function selectDetailedCode(code) {
+    state.detailedCode = code;
+    renderList(
+      3,
+      getChildRows(state.code).filter(function (row) { return row.semantic_level === 'detailed_code'; }),
+      state.detailedCode,
+      'No detailed codes under this code.'
+    );
+    await loadNode(code);
+  }
+
+  async function handleSelection(depth, code) {
+    if (depth === 0) {
+      await selectChapter(code);
+    } else if (depth === 1) {
+      await selectBlock(code);
+    } else if (depth === 2) {
+      await selectThreeCharacter(code);
+    } else if (depth === 3) {
+      await selectDetailedCode(code);
+    }
+    syncSelectionToUrl();
+    updatePath();
+  }
+
+  async function savePolicy(event) {
+    event.preventDefault();
+    if (!state.currentNode) return;
+    if (!state.currentNode.is_policy_editable) {
+      showStatus('Policy fields are not editable for structural hierarchy rows.', 'danger');
+      return;
+    }
+
+    var payload = {
+      is_coding_selectable: codingSelectableInput().checked,
+      sex_selectable: sexSelectableInput().value || null,
+      age_group_selectable: ageGroupSelectableInput().value || null,
+      restriction_note: panel.querySelector('#icd10-policy-note').value || null,
+    };
+
+    if (payload.is_coding_selectable) {
+      if (!payload.sex_selectable) {
+        payload.sex_selectable = 'both';
+        sexSelectableInput().value = 'both';
+      }
+      if (!payload.age_group_selectable) {
+        payload.age_group_selectable = 'all';
+        ageGroupSelectableInput().value = 'all';
+      }
+    }
+
+    try {
+      clearStatus();
+      var updated = await requestJson(apiBase + '/node/' + encodeURIComponent(state.currentNode.code) + '/policy', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrf(),
+        },
+        body: JSON.stringify(payload),
+      });
+      renderNodeDetails(updated);
+      showStatus('Policy saved for ' + updated.code + '.', 'success');
+    } catch (error) {
+      showStatus(error.message, 'danger');
+    }
+  }
+
+  function resetPolicyForm() {
+    if (state.currentNode) {
+      renderNodeDetails(state.currentNode);
+    }
+  }
+
+  async function importPolicyFile(file) {
+    var formData = new FormData();
+    formData.append('file', file);
+    var response = await fetch(apiBase + '/policy-import', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf(),
+      },
+      body: formData,
+    });
+    var payload = await response.json().catch(function () { return {}; });
+    if (!response.ok) {
+      throw new Error(payload.error || 'Policy import failed.');
+    }
+    return payload;
+  }
+
+  function resetBrowser() {
+    clearStatus();
+    state.chapterCode = null;
+    state.blockPath = [];
+    state.code = null;
+    state.detailedCode = null;
+    state.currentNode = null;
+    panel.querySelector('#icd10-browser-empty-state').classList.remove('d-none');
+    panel.querySelector('#icd10-browser-details').classList.add('d-none');
+    policyReadonlyEl().classList.add('d-none');
+    policyFormEl().classList.remove('d-none');
+    panel.querySelector('#icd10-browser-path').textContent = 'Select a chapter to start.';
+    setColumnHeader(0, defaultColumnLabels[0]);
+    setColumnHeader(1, defaultColumnLabels[1]);
+    setColumnHeader(2, defaultColumnLabels[2]);
+    setColumnHeader(3, defaultColumnLabels[3]);
+    renderEmptyList(1, 'Select a chapter first.');
+    renderEmptyList(2, 'Select a terminal block first.');
+    renderEmptyList(3, 'Select a three-character code first.');
+    clearSelectionParamsFromUrl();
+    if (state.childrenByParent.root) {
+      renderList(0, state.childrenByParent.root, null, 'No chapters available.');
+    }
+  }
+
+  async function refreshVisibleLevelsForFilters() {
+    var selection = {
+      chapter: state.chapterCode,
+      blockPath: state.blockPath.slice(),
+      code: state.code,
+      detailedCode: state.detailedCode,
+    };
+
+    await loadChildren(null);
+    renderList(0, getChildRows(null), selection.chapter, 'No chapters available.');
+    renderEmptyList(1, 'Select a chapter first.');
+    renderEmptyList(2, 'Select a terminal block first.');
+    renderEmptyList(3, 'Select a three-character code first.');
+
+    state.chapterCode = selection.chapter;
+    state.blockPath = [];
+    state.code = null;
+    state.detailedCode = null;
+
+    if (selection.chapter) {
+      await loadChildren(selection.chapter);
+      renderBlockTree();
+      await ensureBlockPathLoaded(selection.blockPath);
+
+      var rebuiltPath = [];
+      var currentParentCode = selection.chapter;
+      for (var index = 0; index < selection.blockPath.length; index += 1) {
+        var blockCode = selection.blockPath[index];
+        var rows = getChildRows(currentParentCode);
+        if (!rows.some(function (row) { return row.code === blockCode; })) {
+          break;
+        }
+        rebuiltPath.push(blockCode);
+        currentParentCode = blockCode;
+      }
+      state.blockPath = rebuiltPath;
+      renderBlockTree();
+    }
+
+    var deepestBlockCode = selectedBlockCode();
+    if (deepestBlockCode) {
+      var blockChildren = getChildRows(deepestBlockCode);
+      var nestedBlocks = blockChildren.filter(function (row) { return row.semantic_level === 'block'; });
+      var threeCharacters = blockChildren.filter(function (row) { return row.semantic_level === 'three_character'; });
+      if (nestedBlocks.length) {
+        renderEmptyList(2, 'Select a lower-level block first.');
+      } else if (threeCharacters.length) {
+        if (selection.code && threeCharacters.some(function (row) { return row.code === selection.code; })) {
+          state.code = selection.code;
+        }
+        renderList(2, threeCharacters, state.code, 'No three-character codes under this block.');
+      } else {
+        renderEmptyList(2, 'No three-character codes under this block.');
+      }
+    }
+
+    if (state.code) {
+      await loadChildren(state.code);
+      var detailedRows = getChildRows(state.code).filter(function (row) {
+        return row.semantic_level === 'detailed_code';
+      });
+      if (selection.detailedCode && detailedRows.some(function (row) { return row.code === selection.detailedCode; })) {
+        state.detailedCode = selection.detailedCode;
+      }
+      if (detailedRows.length) {
+        renderList(3, detailedRows, state.detailedCode, 'No detailed codes under this code.');
+      } else {
+        renderEmptyList(3, 'No detailed codes under this code.');
+      }
+    }
+
+    var deepestSelectedCode = currentSelectedCode();
+    if (deepestSelectedCode) {
+      await loadNode(deepestSelectedCode);
+    } else {
+      state.currentNode = null;
+      panel.querySelector('#icd10-browser-empty-state').classList.remove('d-none');
+      panel.querySelector('#icd10-browser-details').classList.add('d-none');
+    }
+    syncSelectionToUrl();
+    updatePath();
+  }
+
+  async function updateFiltersFromInputs() {
+    state.filters.active = panel.querySelector('#icd10-browser-filter-active').value;
+    state.filters.sex = panel.querySelector('#icd10-browser-filter-sex').value;
+    state.filters.age = panel.querySelector('#icd10-browser-filter-age').value;
+    syncFiltersToUrl();
+    try {
+      await refreshVisibleLevelsForFilters();
+    } catch (error) {
+      showStatus(error.message, 'danger');
+    }
+  }
+
+  async function clearFilters() {
+    panel.querySelector('#icd10-browser-filter-active').value = 'any';
+    panel.querySelector('#icd10-browser-filter-sex').value = 'any';
+    panel.querySelector('#icd10-browser-filter-age').value = 'any';
+    await updateFiltersFromInputs();
+  }
+
+  function applyFiltersFromUrl() {
+    var filters = readFiltersFromUrl();
+    panel.querySelector('#icd10-browser-filter-active').value = filters.active;
+    panel.querySelector('#icd10-browser-filter-sex').value = filters.sex;
+    panel.querySelector('#icd10-browser-filter-age').value = filters.age;
+    state.filters.active = filters.active;
+    state.filters.sex = filters.sex;
+    state.filters.age = filters.age;
+  }
+
+  async function restoreSelectionFromUrl() {
+    var selection = readSelectionFromUrl();
+    if (!selection.chapter) return;
+
+    await handleSelection(0, selection.chapter);
+    if (selection.block) {
+      await handleSelection(1, selection.block);
+    }
+    if (selection.sub_block) {
+      await handleSelection(1, selection.sub_block);
+    }
+    if (selection.code) {
+      await handleSelection(2, selection.code);
+    }
+    if (selection.detailed_code) {
+      await handleSelection(3, selection.detailed_code);
+    }
+  }
+
+  panel.addEventListener('click', function (event) {
+    var button = event.target.closest('.icd10-browser-item');
+    if (!button) return;
+    handleSelection(Number(button.dataset.depth), button.dataset.code).catch(function (error) {
+      showStatus(error.message, 'danger');
+    });
+  });
+
+  panel.querySelector('#icd10-policy-import-btn').addEventListener('click', function () {
+    panel.querySelector('#icd10-policy-import-file').click();
+  });
+  panel.querySelector('#icd10-policy-import-file').addEventListener('change', function (event) {
+    var file = event.target.files && event.target.files[0];
+    if (!file) return;
+    clearStatus();
+    importPolicyFile(file)
+      .then(function (payload) {
+        var statusMessage =
+          'Imported ' + payload.total_items +
+          ' rows; updated ' + payload.updated_items +
+          '; reset ' + payload.reset_items + '.';
+        if ((payload.failed_codes || []).length) {
+          statusMessage += ' Failed codes: ' + payload.failed_codes.map(function (item) {
+            return item.code + ' (' + item.reason + ')';
+          }).join(', ') + '.';
+        }
+        showStatus(statusMessage, 'success');
+        event.target.value = '';
+        return refreshVisibleLevelsForFilters();
+      })
+      .catch(function (error) {
+        showStatus(error.message, 'danger');
+        event.target.value = '';
+      });
+  });
+
+  panel.querySelector('#icd10-browser-policy-form').addEventListener('submit', savePolicy);
+  codingSelectableInput().addEventListener('change', function () {
+    if (codingSelectableInput().checked) {
+      applyCodingSelectableDefaults();
+    }
+  });
+  panel.querySelector('#icd10-browser-filter-active').addEventListener('change', updateFiltersFromInputs);
+  panel.querySelector('#icd10-browser-filter-sex').addEventListener('change', updateFiltersFromInputs);
+  panel.querySelector('#icd10-browser-filter-age').addEventListener('change', updateFiltersFromInputs);
+  panel.querySelector('#icd10-browser-clear-filters-btn').addEventListener('click', clearFilters);
+  panel.querySelector('#icd10-policy-reset-btn').addEventListener('click', resetPolicyForm);
+  panel.querySelector('#icd10-browser-clear-btn').addEventListener('click', resetBrowser);
+  panel.querySelector('#icd10-browser-reset-btn').addEventListener('click', resetBrowser);
+
+  Promise.all([
+    requestJson(apiBase + '/policy-options'),
+    requestJson(apiBase + '/children'),
+  ]).then(function (results) {
+    applyFiltersFromUrl();
+    state.options = results[0];
+    setSelectOptions(sexSelectableInput(), state.options.sex_selectable || [], true);
+    setSelectOptions(ageGroupSelectableInput(), state.options.age_group_selectable || [], true);
+    state.childrenByParent.root = results[1].children || [];
+    renderList(0, state.childrenByParent.root, null, 'No chapters available.');
+    renderEmptyList(1, 'Select a chapter first.');
+    renderEmptyList(2, 'Select a terminal block first.');
+    renderEmptyList(3, 'Select a three-character code first.');
+    return restoreSelectionFromUrl();
+  }).catch(function (error) {
+    showStatus(error.message, 'danger');
+  });
+})();
+</script>

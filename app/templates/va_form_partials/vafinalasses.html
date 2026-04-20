@@ -290,7 +290,7 @@
   }
 </script>
 {% endif %}
-<div id="select2-root" data-icd-url="{{ url_for('api_v1.icd10_api.icd10_search') }}"></div>
+<div id="select2-root" data-icd-url="{{ url_for('api_v1.icd10_api.icd10_2019_2_coding_search', va_sid=va_sid) }}"></div>
 <script>
 document.body.addEventListener("htmx:afterSwap", function(event) {
   const icdUrl = document.getElementById("select2-root")?.dataset.icdUrl;

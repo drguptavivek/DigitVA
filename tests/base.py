@@ -47,6 +47,7 @@ from datetime import datetime, timezone
 # Suppress deprecation warnings from libraries in tests
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+from flask_login.utils import _create_identifier
 from itsdangerous import URLSafeTimedSerializer
 import sqlalchemy as sa
 
@@ -254,6 +255,13 @@ class BaseTestCase(unittest.TestCase):
         # written to the DB until that outer transaction commits (which it
         # never does in tests).  tearDown rolls back the outer transaction.
         db.session.begin_nested()
+        # Flask 3.1 keeps g attached to the session-scoped app context used in
+        # tests. Flask-Login caches the loaded user in g._login_user, so clear
+        # it here to prevent auth leakage between requests in different tests.
+        from flask import g
+
+        if hasattr(g, "_login_user"):
+            del g._login_user
         self.client = self.app.test_client()
 
     def tearDown(self):
@@ -270,10 +278,18 @@ class BaseTestCase(unittest.TestCase):
 
     def _login(self, user_id):
         """Inject a user session without going through the login route."""
+        user_agent = self.client.environ_base.get("HTTP_USER_AGENT", "Werkzeug/Test")
+        with self.app.test_request_context(
+            "/",
+            headers={"User-Agent": user_agent},
+            environ_base={"REMOTE_ADDR": "127.0.0.1"},
+        ):
+            session_identifier = _create_identifier()
         with self.client.session_transaction() as sess:
             sess.clear()
             sess["_user_id"] = user_id
             sess["_fresh"] = True
+            sess["_id"] = session_identifier
 
     def _csrf_headers(self):
         """Return headers containing a valid CSRF token for the current session."""

@@ -5,11 +5,24 @@ Resources:
 """
 
 import sqlalchemy as sa
+import json
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import login_required
 
 from app import cache, db, limiter
 from app.models import VaIcdCodes
+from app.decorators.role_required import role_required
+from app.services.icd10_2019_2_service import (
+    export_icd10_2019_2_policy_json,
+    get_icd10_2019_2_node_details,
+    get_icd10_2019_2_policy_options,
+    list_icd10_2019_2_coding_detailed_children,
+    search_icd10_2019_2_coding_choices,
+    import_icd10_2019_2_policy_json,
+    list_icd10_2019_2_children,
+    update_icd10_2019_2_policy,
+)
+from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
 
 bp = Blueprint("icd10_api", __name__)
 
@@ -72,6 +85,18 @@ def _search_icd_cached(normalized_query: str) -> list[dict[str, str]]:
     return [{"icd_code": row[0], "icd_to_display": row[1]} for row in results]
 
 
+def _error(message: str, status_code: int = 400):
+    return jsonify({"error": message}), status_code
+
+
+def _browser_filters_from_request() -> dict[str, str]:
+    return {
+        "coding_filter": (request.args.get("coding_filter") or "any").strip() or "any",
+        "sex_filter": (request.args.get("sex_filter") or "any").strip() or "any",
+        "age_filter": (request.args.get("age_filter") or "any").strip() or "any",
+    }
+
+
 @bp.get("/search")
 @limiter.limit("20000 per day;5000 per hour")
 @login_required
@@ -91,4 +116,126 @@ def icd10_search():
         payload,
         timeout=current_app.config.get("ICD_SEARCH_CACHE_TIMEOUT", 60 * 60 * 24 * 7),
     )
+    return jsonify(payload)
+
+
+@bp.get("/2019-2/coding-search/<va_sid>")
+@role_required("coder", "coding_tester", "admin")
+def icd10_2019_2_coding_search(va_sid: str):
+    err = require_coding_access(va_sid)
+    if err:
+        return err
+
+    try:
+        payload = search_icd10_2019_2_coding_choices(
+            va_sid=va_sid,
+            query=request.args.get("q", ""),
+        )
+    except LookupError:
+        return _error("Submission not found.", 404)
+    return jsonify(payload)
+
+
+@bp.get("/2019-2/coding-children/<va_sid>")
+@role_required("coder", "coding_tester", "admin")
+def icd10_2019_2_coding_children(va_sid: str):
+    err = require_coding_access(va_sid)
+    if err:
+        return err
+
+    parent_code = (request.args.get("parent_code") or "").strip()
+    if not parent_code:
+        return _error("parent_code is required.", 400)
+    try:
+        payload = list_icd10_2019_2_coding_detailed_children(va_sid, parent_code)
+    except LookupError:
+        return _error("Submission not found.", 404)
+    return jsonify({"parent_code": parent_code, "children": payload})
+
+
+@bp.get("/2019-2/children")
+@role_required("data_manager", "admin")
+def icd10_2019_2_children():
+    parent_code = (request.args.get("parent_code") or "").strip() or None
+    filters = _browser_filters_from_request()
+    return jsonify(
+        {
+            "parent_code": parent_code,
+            "children": list_icd10_2019_2_children(parent_code, **filters),
+        }
+    )
+
+
+@bp.get("/2019-2/node/<code>")
+@role_required("data_manager", "admin")
+def icd10_2019_2_node(code: str):
+    payload = get_icd10_2019_2_node_details(code.strip())
+    if payload is None:
+        return _error("ICD code not found.", 404)
+    return jsonify(payload)
+
+
+@bp.get("/2019-2/policy-options")
+@role_required("data_manager", "admin")
+def icd10_2019_2_policy_options():
+    return jsonify(get_icd10_2019_2_policy_options())
+
+
+@bp.get("/2019-2/policy-export")
+@role_required("data_manager", "admin")
+def icd10_2019_2_policy_export():
+    payload = export_icd10_2019_2_policy_json()
+    return current_app.response_class(
+        json.dumps(payload, indent=2),
+        mimetype="application/json",
+        headers={
+            "Content-Disposition": 'attachment; filename="icd10_2019_2_policy_export.json"'
+        },
+    )
+
+
+@bp.post("/2019-2/policy-import")
+@role_required("admin")
+def icd10_2019_2_policy_import():
+    uploaded = request.files.get("file")
+    if uploaded is None:
+        return _error("file is required.", 400)
+    try:
+        payload = uploaded.read().decode("utf-8")
+    except UnicodeDecodeError:
+        return _error("Policy import file must be UTF-8 JSON.", 400)
+
+    try:
+        result = import_icd10_2019_2_policy_json(payload)
+    except ValueError as exc:
+        return _error(str(exc), 400)
+
+    return jsonify(
+        {
+            "message": "ICD policy import completed.",
+            "total_items": result.total_items,
+            "updated_items": result.updated_items,
+            "reset_items": result.reset_items,
+            "skipped_items": result.skipped_items,
+            "failed_codes": result.skipped_items,
+        }
+    )
+
+
+@bp.patch("/2019-2/node/<code>/policy")
+@role_required("admin")
+def icd10_2019_2_update_policy(code: str):
+    body = request.get_json(silent=True) or {}
+    try:
+        payload = update_icd10_2019_2_policy(
+            code=code.strip(),
+            is_coding_selectable=body.get("is_coding_selectable"),
+            sex_selectable=body.get("sex_selectable"),
+            age_group_selectable=body.get("age_group_selectable"),
+            restriction_note=body.get("restriction_note"),
+        )
+    except LookupError:
+        return _error("ICD code not found.", 404)
+    except ValueError as exc:
+        return _error(str(exc), 400)
     return jsonify(payload)

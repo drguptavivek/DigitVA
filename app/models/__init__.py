@@ -17,6 +17,7 @@ from app.models.va_initial_assessments import VaInitialAssessments
 from app.models.va_final_assessments import VaFinalAssessments
 from app.models.va_reviewer_final_assessments import VaReviewerFinalAssessments
 from app.models.va_final_cod_authority import VaFinalCodAuthority
+# Deprecated as of 2026-04-20: legacy ICD catalog model export.
 from app.models.va_icd_codes import VaIcdCodes
 from app.models.va_allocations import VaAllocations
 from app.models.va_coder_review import VaCoderReview

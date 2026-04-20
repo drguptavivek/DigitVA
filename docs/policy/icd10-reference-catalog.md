@@ -42,6 +42,11 @@ catalog.
     - `va_deceased_gender` to enforce `male` / `female` restrictions
 13. Coding-time detailed child lookup must return only selectable detailed
     descendants for the chosen three-character code.
+14. The generic authenticated ICD search endpoint at `/api/v1/icd10/search`
+    must read from `mas_icd10_2019_2`, restricted to active
+    `three_character` and `detailed_code` rows.
+15. The legacy `va_icd_codes` catalog is deprecated as of 2026-04-20 and must
+    not be used for new runtime ICD lookup features.
 
 ## Stored Hierarchy Scope
 

@@ -1,5 +1,7 @@
 from app import db
-from app.models import VaIcdCodes
+import sqlalchemy as sa
+
+from app.models import MasIcd1020192
 from tests.base import BaseTestCase
 
 
@@ -7,31 +9,69 @@ class TestIcd10Api(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        db.session.execute(
+            sa.delete(MasIcd1020192).where(MasIcd1020192.code.in_(("ZZ10", "ZX20", "ZA11", "ZM30")))
+        )
         db.session.add_all(
             [
-                VaIcdCodes(
-                    disease_id=900001,
-                    icd_code="ZZ10",
-                    icd_to_display="ZZ10-Alpha toxic syndrome",
-                    category="test",
+                MasIcd1020192(
+                    code="ZZ10",
+                    title="Alpha toxic syndrome",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=1,
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
                 ),
-                VaIcdCodes(
-                    disease_id=900002,
-                    icd_code="ZX20",
-                    icd_to_display="ZX20-Contact with venomous reptiles",
-                    category="test",
+                MasIcd1020192(
+                    code="ZX20",
+                    title="Contact with venomous reptiles",
+                    node_type="category",
+                    semantic_level="detailed_code",
+                    sort_order=2,
+                    parent_code="ZX2",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=False,
+                    is_detailed_code=True,
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
                 ),
-                VaIcdCodes(
-                    disease_id=900003,
-                    icd_code="ZA11",
-                    icd_to_display="ZA11-Chronic kidney failure",
-                    category="test",
+                MasIcd1020192(
+                    code="ZA11",
+                    title="Chronic kidney failure",
+                    node_type="category",
+                    semantic_level="detailed_code",
+                    sort_order=3,
+                    parent_code="ZA1",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=False,
+                    is_detailed_code=True,
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
                 ),
-                VaIcdCodes(
-                    disease_id=900004,
-                    icd_code="ZM30",
-                    icd_to_display="ZM30-Motorised vehicle crash involving wild animals",
-                    category="test",
+                MasIcd1020192(
+                    code="ZM30",
+                    title="Motorised vehicle crash involving wild animals",
+                    node_type="category",
+                    semantic_level="detailed_code",
+                    sort_order=4,
+                    parent_code="ZM3",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=False,
+                    is_detailed_code=True,
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
                 ),
             ]
         )

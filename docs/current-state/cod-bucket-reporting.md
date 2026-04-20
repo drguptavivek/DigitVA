@@ -85,6 +85,7 @@ Imported schemes can then be maintained in the admin COD Buckets panel. The
 current editor supports:
 
 - selecting a scheme and age scope from top-level scheme cards
+- exporting any scheme as JSON from its scheme card
 - creating a new scheme with age bands, min/max age bounds, units, and level count
 - editing an existing scheme's name and age-band metadata from the scheme card
 - resetting a built-in source-backed age band from the editor heading bar with
@@ -97,12 +98,21 @@ current editor supports:
 - searching within the selected leaf's mapped ICD list in the right-side card
 - adding ICD codes through a modal ICD search that shows the current mapped
   path for each result and can be filtered to unmapped codes only
+- showing a scheme-wide grid of active ICD master rows not yet mapped anywhere
+  in the selected scheme, across all age groups, as a single ICD code list
+- bulk-allocating selected rows from that unmapped ICD list to a chosen age
+  band and disease leaf in the current scheme
 - unmapping an ICD code directly from the selected disease leaf
 - deleting a bucket level from the edit modal with a choice to either:
   - unmap affected ICD codes
   - move affected ICD codes to an `Unmapped` replacement branch
 - remapping an ICD code to exactly one disease leaf within the selected
   scheme + age scope
+
+The admin ICD picker used in the COD bucket editor now searches the ICD-10
+2019 master table (`mas_icd10_2019_2`) and returns only active,
+coding-selectable 3-character or detailed ICD rows. It does not apply age or
+sex policy filtering inside the COD bucket editor.
 
 Age band bound semantics are:
 

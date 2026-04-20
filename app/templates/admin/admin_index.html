@@ -339,7 +339,6 @@
       this.classList.add('active');
       var panelUrl = this.getAttribute('data-panel');
       setUrlParam('panel', panelUrl);
-      htmx.ajax('GET', panelUrl, { target: '#admin-panel', swap: 'innerHTML' });
     });
   });
 

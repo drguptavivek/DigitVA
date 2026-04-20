@@ -333,6 +333,8 @@ Current behavior:
 
 ### `va_icd_codes`
 
+Deprecated as of 2026-04-20.
+
 Purpose:
 
 - stores searchable ICD code catalog entries for coding forms
@@ -349,6 +351,9 @@ Current behavior:
 - performance indexes include:
   - `lower(icd_code)` (prefix/code search)
   - `gin(lower(icd_to_display) gin_trgm_ops)` for text matching
+- primary ICD lookup behavior has moved to `mas_icd10_2019_2`
+- remaining `va_icd_codes` usage is legacy compatibility and source-workbook
+  support, not the primary runtime ICD catalog
 
 ### `mas_cod_bucket_schemes`
 

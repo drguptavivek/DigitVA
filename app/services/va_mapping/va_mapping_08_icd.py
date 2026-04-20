@@ -1,30 +1,18 @@
-import os
-import traceback
-import pandas as pd
-import sqlalchemy as sa
-from app import db
-from flask import current_app
-from app.models import VaIcdCodes
+from pathlib import Path
+
+from app.services.icd10_2019_2_service import (
+    DEFAULT_ICD10_2019_2_CSV_PATH,
+    import_icd10_2019_2_from_csv,
+)
 
 
-def va_mapping_icd():
-    try:
-        df = pd.read_excel(
-            os.path.join(current_app.config["APP_RESOURCE"], "mapping", "icdcodes.xlsx")
-        )
-        db.session.execute(sa.delete(VaIcdCodes))
-        for _, row in df.iterrows():
-            icd_code = VaIcdCodes(
-                disease_id=row["Disease_ID"],
-                icd_code=str(row["Disease_Code"]),
-                icd_to_display=str(row["Disease_Name"]),
-                category=str(row["Chapter_Name"])
-                if pd.notna(row["Chapter_Name"])
-                else None,
-            )
-            db.session.add(icd_code)
-        db.session.commit()
-        print(f"Success [Mapped {len(df)} ICD Codes to DB].")
-    except Exception as e:
-        print(f"Failed [Could not map ICD Codes to DB: {str(e)}]")
-        print(traceback.format_exc())
+def va_mapping_icd(csv_path: str | Path = DEFAULT_ICD10_2019_2_CSV_PATH):
+    """Backward-compatible wrapper for ICD reference loading.
+
+    Older setup code called this helper to refresh the ICD catalog. The
+    authoritative runtime catalog is now `mas_icd10_2019_2`, so this function
+    delegates to the ICD-10 2019 master import instead of rebuilding
+    `va_icd_codes`.
+    """
+
+    return import_icd10_2019_2_from_csv(csv_path)

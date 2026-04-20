@@ -29,6 +29,20 @@ cause-of-death buckets such as `SRS India` and `CMEA10`.
 9. If the operator chooses `move_to_unmapped` for a non-leaf delete, DigitVA
    must create an `Unmapped` replacement chain in place of the deleted branch
    and move all affected ICD mappings to the replacement leaf.
+10. The admin COD bucket panel must support JSON export per scheme.
+11. Scheme export must include the scheme metadata, all age bands, all hierarchy
+    nodes, and all ICD mappings for that scheme.
+12. The ICD picker used while maintaining COD bucket mappings must read from
+    `mas_icd10_2019_2`, not legacy `va_icd_codes`.
+13. The COD bucket ICD picker must return only active, coding-selectable ICD
+    rows from the master table, without applying age- or sex-based filtering.
+14. The admin COD bucket editor must expose a scheme-level grid of active,
+    coding-selectable ICD rows that are not mapped anywhere in the current
+    scheme, across all age groups, shown as a single ICD code list rather than
+    split three-character vs detailed columns.
+15. The scheme-level unmapped ICD grid must support bulk allocation by letting
+    the operator choose a target age band and a target disease-level leaf
+    within that scheme, then map multiple selected ICD codes in one action.
 
 ## Scheme model
 

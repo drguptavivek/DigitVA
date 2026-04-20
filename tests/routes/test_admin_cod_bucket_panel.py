@@ -9,6 +9,8 @@ from app.models import (
     MasCodBucketNode,
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
+    MasIcd1020192,
+    # Deprecated as of 2026-04-20: retained here only for legacy fixture coverage.
     VaIcdCodes,
 )
 from tests.base import BaseTestCase
@@ -95,6 +97,51 @@ class AdminCodBucketPanelTests(BaseTestCase):
         cls.field_a_id = field_a.node_id
         cls.field_b_id = field_b.node_id
 
+        for code, title, is_selectable in (
+            ("A00", "Cholera", True),
+            ("V01", "Pedestrian injured in collision with pedal cycle", True),
+            ("V02", "Pedestrian injured in collision with two- or three-wheeled motor vehicle", True),
+            ("V03", "Pedestrian injured in collision with car, pick-up truck or van", True),
+            ("Z91", "Personal history of risk-factors, not elsewhere classified", False),
+        ):
+            row = db.session.get(MasIcd1020192, code)
+            if row is None:
+                row = MasIcd1020192(
+                    code=code,
+                    title=title,
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=1,
+                    parent_code=None,
+                    chapter_code="XXI",
+                    chapter_title="Factors influencing health status and contact with health services",
+                    block_code=f"{code}-{code}",
+                    block_title=title,
+                    three_character_code=code,
+                    three_character_title=title,
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=is_selectable,
+                    sex_selectable="both" if is_selectable else None,
+                    age_group_selectable="all" if is_selectable else None,
+                    policy_status="allowed" if is_selectable else "unreviewed",
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
+                )
+                db.session.add(row)
+            else:
+                row.title = title
+                row.semantic_level = "three_character"
+                row.is_three_character_code = True
+                row.is_detailed_code = False
+                row.is_coding_selectable = is_selectable
+                row.sex_selectable = "both" if is_selectable else None
+                row.age_group_selectable = "all" if is_selectable else None
+                row.is_active = True
+
         db.session.add_all(
             [
                 VaIcdCodes(
@@ -160,6 +207,28 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertNotIn("mappings", payload)
         self.assertNotIn("field_options", payload)
         self.assertEqual(payload["selected_age_band"]["level_count"], 3)
+
+    def test_cod_bucket_scheme_export_returns_json_attachment(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/export"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "application/json")
+        self.assertIn(
+            f'attachment; filename="cod_bucket_scheme_{self.scheme_code.lower()}.json"',
+            response.headers.get("Content-Disposition", ""),
+        )
+
+        payload = response.get_json()
+        self.assertEqual(payload["scheme"]["scheme_code"], self.scheme_code)
+        self.assertEqual(payload["scheme"]["scheme_name"], "Admin COD Scheme")
+        self.assertEqual(len(payload["age_bands"]), 1)
+        self.assertGreaterEqual(len(payload["nodes"]), 4)
+        self.assertTrue(any(item["icd_code"] == "V01" for item in payload["mappings"]))
+        v01_mapping = next(item for item in payload["mappings"] if item["icd_code"] == "V01")
+        self.assertIn("Road Injuries", v01_mapping["node_path_label"])
 
     def test_cod_bucket_scheme_create_returns_feedback_but_still_persists(self):
         self._login(self.base_admin_id)
@@ -274,7 +343,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
         isolated_mapping = MapIcdCodBucket(
             scheme_id=self.scheme_id,
             age_scope="adult_over5y",
-            icd_code="ZZ91",
+            icd_code="A00",
             node_id=self.field_a_id,
             is_active=True,
         )
@@ -288,10 +357,10 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["node"]["node_id"], str(self.field_a_id))
-        self.assertIn("ZZ91", [mapping["icd_code"] for mapping in payload["mappings"]])
+        self.assertIn("A00", [mapping["icd_code"] for mapping in payload["mappings"]])
         self.assertTrue(any(
-            mapping["icd_code"] == "ZZ91"
-            and mapping["icd_to_display"] == "ZZ91-Admin unique unmapped syndrome"
+            mapping["icd_code"] == "A00"
+            and mapping["icd_to_display"] == "A00-Cholera"
             for mapping in payload["mappings"]
         ))
 
@@ -299,7 +368,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self._login(self.base_admin_id)
         response = self.client.get(
             f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
-            f"?age_scope=adult_over5y&q=pedestrian&selected_node_id={self.field_a_id}"
+            f"?age_scope=adult_over5y&q=V01&selected_node_id={self.field_a_id}"
         )
 
         self.assertEqual(response.status_code, 200)
@@ -313,13 +382,66 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self._login(self.base_admin_id)
         response = self.client.get(
             f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
-            "?age_scope=adult_over5y&q=admin&unmapped_only=1"
+            "?age_scope=adult_over5y&q=V0&unmapped_only=1"
         )
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertTrue(any(item["icd_code"] == "ZZ91" for item in payload["results"]))
+        self.assertTrue(any(item["icd_code"] == "V02" for item in payload["results"]))
         self.assertFalse(any(item["icd_code"] == "V01" for item in payload["results"]))
+
+    def test_cod_bucket_icd_search_excludes_disabled_master_codes(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
+            "?age_scope=adult_over5y&q=Z91"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertFalse(any(item["icd_code"] == "Z91" for item in payload["results"]))
+
+    def test_cod_bucket_unmapped_icd_grid_payload_lists_active_scheme_unmapped_codes(self):
+        self._login(self.base_admin_id)
+        db.session.merge(
+            MasIcd1020192(
+                code="XY01",
+                title="Admin unmapped scheme test code",
+                node_type="category",
+                semantic_level="detailed_code",
+                sort_order=99,
+                parent_code="XY0",
+                chapter_code="X",
+                chapter_title="Test chapter",
+                block_code="XY0-XY9",
+                block_title="Test block",
+                three_character_code="XY0",
+                three_character_title="Test three character",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=False,
+                is_detailed_code=True,
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                policy_status="allowed",
+                source_version="2019-test",
+                source_path="tests",
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/unmapped-icd"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["scheme"]["scheme_code"], self.scheme_code)
+        self.assertTrue(any(item["code"] == "XY01" for item in payload["rows"]))
+        self.assertFalse(any(item["code"] == "V01" for item in payload["rows"]))
+        self.assertFalse(any(item["code"] == "Z91" for item in payload["rows"]))
 
     def test_cod_bucket_node_patch_updates_label_and_sort_order(self):
         self._login(self.base_admin_id)
@@ -505,19 +627,11 @@ class AdminCodBucketPanelTests(BaseTestCase):
         mapping = MapIcdCodBucket(
             scheme_id=self.scheme_id,
             age_scope="adult_over5y",
-            icd_code="ZZ92",
+            icd_code="V03",
             node_id=self.field_a_id,
             is_active=True,
         )
         db.session.add(mapping)
-        db.session.add(
-            VaIcdCodes(
-                disease_id=910005,
-                icd_code="ZZ92",
-                icd_to_display="ZZ92-Admin delete mapping syndrome",
-                category="test",
-            )
-        )
         db.session.commit()
 
         response = self.client.delete(
@@ -530,11 +644,11 @@ class AdminCodBucketPanelTests(BaseTestCase):
 
         search_response = self.client.get(
             f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
-            "?age_scope=adult_over5y&q=ZZ92&unmapped_only=1"
+            "?age_scope=adult_over5y&q=V03&unmapped_only=1"
         )
         self.assertEqual(search_response.status_code, 200)
         payload = search_response.get_json()
-        self.assertTrue(any(item["icd_code"] == "ZZ92" for item in payload["results"]))
+        self.assertTrue(any(item["icd_code"] == "V03" for item in payload["results"]))
 
     def test_cod_bucket_mapping_post_adds_codes_to_selected_leaf(self):
         self._login(self.base_admin_id)

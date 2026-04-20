@@ -5,6 +5,8 @@ from typing import Optional
 
 
 class VaIcdCodes(db.Model):
+    """Deprecated as of 2026-04-20. Legacy ICD catalog retained for compatibility."""
+
     __tablename__ = "va_icd_codes"
 
     id: so.Mapped[int] = so.mapped_column(primary_key=True)

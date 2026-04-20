@@ -10,7 +10,7 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_login import login_required
 
 from app import cache, db, limiter
-from app.models import VaIcdCodes
+from app.models import MasIcd1020192
 from app.decorators.role_required import role_required
 from app.services.icd10_2019_2_service import (
     export_icd10_2019_2_policy_json,
@@ -52,8 +52,9 @@ def _search_icd_cached(normalized_query: str) -> list[dict[str, str]]:
     text_prefix = f"{escaped_query}%"
     text_contains = f"%{escaped_query}%"
 
-    lower_code = sa.func.lower(VaIcdCodes.icd_code)
-    lower_display = sa.func.lower(VaIcdCodes.icd_to_display)
+    display_expr = sa.func.concat(MasIcd1020192.code, sa.literal("-"), MasIcd1020192.title)
+    lower_code = sa.func.lower(MasIcd1020192.code)
+    lower_display = sa.func.lower(display_expr)
     token_contains_clauses = [
         lower_display.like(f"%{token}%", escape=_LIKE_ESCAPE) for token in escaped_tokens
     ]
@@ -69,8 +70,10 @@ def _search_icd_cached(normalized_query: str) -> list[dict[str, str]]:
     )
 
     results = db.session.execute(
-        sa.select(VaIcdCodes.icd_code, VaIcdCodes.icd_to_display)
+        sa.select(MasIcd1020192.code, display_expr.label("icd_to_display"))
         .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
             sa.or_(
                 lower_code.like(code_prefix, escape=_LIKE_ESCAPE),
                 lower_display.like(text_prefix, escape=_LIKE_ESCAPE),
@@ -78,7 +81,7 @@ def _search_icd_cached(normalized_query: str) -> list[dict[str, str]]:
                 token_all_match,
             )
         )
-        .order_by(rank_expr, VaIcdCodes.icd_code)
+        .order_by(rank_expr, MasIcd1020192.code)
         .limit(_ICD_MAX_RESULTS)
     ).all()
 

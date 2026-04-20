@@ -1435,6 +1435,9 @@ def serve_media(va_form_id, va_filename):
 #     )
 
 
+# # Deprecated as of 2026-04-20:
+# # legacy `VaIcdCodes` search path retained only as commented reference.
+# # Runtime ICD search now uses `mas_icd10_2019_2`.
 # # * api call to search for allotable ICD codes
 # @coding.route('/search_icd_codes')
 # def search_icd_codes():

@@ -33,9 +33,11 @@ from app.services.cod_bucket_mapping_service import (
     NODE_TYPE_FIELD,
     create_cod_bucket_scheme,
     delete_cod_bucket_node,
+    export_cod_bucket_scheme_json,
     get_cod_bucket_scheme,
     get_cod_bucket_scheme_editor_payload,
     get_cod_bucket_node_mappings_payload,
+    list_cod_bucket_unmapped_icd_rows,
     list_cod_bucket_scheme_cards,
     list_cod_bucket_schemes,
     reset_cod_bucket_scheme_age_band_to_source,
@@ -4068,6 +4070,25 @@ def admin_cod_bucket_scheme_detail(scheme_code):
     return jsonify(payload)
 
 
+@admin.get("/api/cod-bucket-schemes/<scheme_code>/export")
+@role_required("admin")
+def admin_cod_bucket_scheme_export(scheme_code):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    try:
+        payload = export_cod_bucket_scheme_json(scheme_code=scheme_code)
+    except LookupError:
+        return _json_error("COD bucket scheme not found.", 404)
+
+    filename = f"cod_bucket_scheme_{scheme_code.lower()}.json"
+    return current_app.response_class(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @admin.get("/api/cod-bucket-schemes/<scheme_code>/nodes/<uuid:node_id>/mappings")
 @role_required("admin")
 def admin_cod_bucket_scheme_node_mappings(scheme_code, node_id):
@@ -4083,6 +4104,19 @@ def admin_cod_bucket_scheme_node_mappings(scheme_code, node_id):
         return _json_error("COD bucket scheme or node not found.", 404)
     except ValueError as exc:
         return _json_error(str(exc), 400)
+    return jsonify(payload)
+
+
+@admin.get("/api/cod-bucket-schemes/<scheme_code>/unmapped-icd")
+@role_required("admin")
+def admin_cod_bucket_scheme_unmapped_icd(scheme_code):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    try:
+        payload = list_cod_bucket_unmapped_icd_rows(scheme_code=scheme_code)
+    except LookupError:
+        return _json_error("COD bucket scheme not found.", 404)
     return jsonify(payload)
 
 

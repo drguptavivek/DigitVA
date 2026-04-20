@@ -103,6 +103,43 @@
         </div>
       </div>
     </div>
+
+    <div class="card mt-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <div class="fw-semibold">Active ICD Codes Not Mapped To This Scheme</div>
+          <div class="small text-muted">Across all age groups for the selected CoD scheme.</div>
+        </div>
+        <span class="badge text-bg-secondary" id="cb-unmapped-icd-count">0</span>
+      </div>
+      <div class="card-body border-bottom">
+        <div class="row g-2 align-items-end">
+          <div class="col-lg-3">
+            <label for="cb-bulk-age-scope" class="form-label small text-muted text-uppercase">Age Band</label>
+            <select id="cb-bulk-age-scope" class="form-select form-select-sm">
+              <option value="">Select age band</option>
+            </select>
+          </div>
+          <div class="col-lg-6">
+            <label for="cb-bulk-node-id" class="form-label small text-muted text-uppercase">Disease Level</label>
+            <select id="cb-bulk-node-id" class="form-select form-select-sm" disabled>
+              <option value="">Select disease level</option>
+            </select>
+          </div>
+          <div class="col-lg-3 d-flex justify-content-end">
+            <button type="button" class="btn btn-sm btn-outline-success" id="cb-bulk-map-btn" disabled>
+              <i class="fa-solid fa-layer-group me-1"></i>Bulk Map Selected
+            </button>
+          </div>
+        </div>
+        <div id="cb-bulk-map-status" class="small text-muted mt-2"></div>
+      </div>
+      <div class="card-body p-0">
+        <div id="cb-unmapped-icd-body" class="table-responsive" style="max-height: 360px; overflow: auto;">
+          <div class="p-3 text-muted small">Select a scheme to load active unmapped ICD codes.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal fade" id="cb-node-edit-modal" tabindex="-1" aria-hidden="true">
@@ -357,6 +394,23 @@
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
   }
+  #panel-cod-buckets .form-check-input {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 2px solid #7b8794;
+    box-shadow: none;
+  }
+  #panel-cod-buckets .form-check-input:hover {
+    border-color: #4f5d6b;
+  }
+  #panel-cod-buckets .form-check-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.18);
+  }
+  #panel-cod-buckets .form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+  }
 </style>
 
 <script>
@@ -415,6 +469,13 @@
     icdSearchResults: [],
     icdSearchLoading: false,
     icdSearchRequestToken: 0,
+    unmappedIcdRows: [],
+    unmappedIcdLoading: false,
+    selectedUnmappedCodes: [],
+    bulkTargetAgeScope: '',
+    bulkTargetNodeId: '',
+    bulkTargetNodes: [],
+    bulkTargetNodesLoading: false,
     pendingDeleteNodeId: null,
     pendingUnmapMappingId: null,
     pendingUnmapIcdCode: '',
@@ -445,6 +506,12 @@
     mappingHeader: document.getElementById('cb-mapping-header'),
     mappingBody: document.getElementById('cb-mapping-body'),
     openIcdModalBtn: document.getElementById('cb-open-icd-modal-btn'),
+    unmappedIcdCount: document.getElementById('cb-unmapped-icd-count'),
+    unmappedIcdBody: document.getElementById('cb-unmapped-icd-body'),
+    bulkAgeScope: document.getElementById('cb-bulk-age-scope'),
+    bulkNodeId: document.getElementById('cb-bulk-node-id'),
+    bulkMapBtn: document.getElementById('cb-bulk-map-btn'),
+    bulkMapStatus: document.getElementById('cb-bulk-map-status'),
     nodeEditModalEl: document.getElementById('cb-node-edit-modal'),
     nodeEditModalTitle: document.getElementById('cb-node-edit-modal-title'),
     nodeEditId: document.getElementById('cb-node-edit-id'),
@@ -556,6 +623,13 @@
                       <i class="fa-solid fa-circle-exclamation"></i>
                     </span>
                   ` : ''}
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary cb-scheme-export-btn"
+                    data-scheme-code="${esc(scheme.scheme_code)}"
+                  >
+                    <i class="fa-solid fa-download me-1"></i>Export JSON
+                  </button>
                   <button
                     type="button"
                     class="btn btn-sm btn-outline-secondary cb-scheme-edit-btn"
@@ -802,10 +876,97 @@
     `;
   }
 
+  function renderUnmappedIcdSection() {
+    els.unmappedIcdCount.textContent = String((state.unmappedIcdRows || []).length);
+    if (!state.schemeCode) {
+      els.unmappedIcdBody.innerHTML = '<div class="p-3 text-muted small">Select a scheme to load active unmapped ICD codes.</div>';
+      return;
+    }
+    if (state.unmappedIcdLoading) {
+      els.unmappedIcdBody.innerHTML = '<div class="p-3 text-muted small">Loading active unmapped ICD codes...</div>';
+      return;
+    }
+    const rows = state.unmappedIcdRows || [];
+    if (!rows.length) {
+      els.unmappedIcdBody.innerHTML = '<div class="p-3 text-muted small">All active ICD codes are already mapped for this scheme.</div>';
+      return;
+    }
+    els.unmappedIcdBody.innerHTML = `
+      <table class="table table-sm table-striped mb-0 align-middle">
+        <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
+          <tr>
+            <th style="width: 44px;">
+              <input type="checkbox" class="form-check-input" id="cb-unmapped-select-all">
+            </th>
+            <th>Chapter</th>
+            <th>ICD Code</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(row => `
+            <tr>
+              <td class="small">
+                <input
+                  type="checkbox"
+                  class="form-check-input cb-unmapped-row-check"
+                  data-icd-code="${esc(row.code || '')}"
+                  ${state.selectedUnmappedCodes.includes(row.code) ? 'checked' : ''}
+                >
+              </td>
+              <td class="small">${esc(row.chapter || '')}</td>
+              <td class="small">
+                <span class="fw-semibold">${esc(row.code || '')}</span>
+                <span class="text-muted ms-1">${esc(row.title || '')}</span>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    const visibleCodes = rows.map(row => row.code);
+    const allSelected = visibleCodes.length > 0 && visibleCodes.every(code => state.selectedUnmappedCodes.includes(code));
+    const selectAll = document.getElementById('cb-unmapped-select-all');
+    if (selectAll) {
+      selectAll.checked = allSelected;
+    }
+  }
+
+  function renderBulkMappingControls() {
+    const scheme = selectedSchemeMeta();
+    const ageBands = scheme?.age_bands || [];
+    const currentAgeValue = state.bulkTargetAgeScope || '';
+    const hasEffectiveAgeSelection = currentAgeValue !== ''
+      || (ageBands.length === 1 && (ageBands[0].value || '') === '');
+    els.bulkAgeScope.innerHTML = [
+      '<option value="">Select age band</option>',
+      ...ageBands.map(ageBand => (
+        `<option value="${esc(ageBand.value || '')}" ${currentAgeValue === (ageBand.value || '') ? 'selected' : ''}>${esc(ageBand.label || 'All Ages')}</option>`
+      )),
+    ].join('');
+
+    const targetOptions = state.bulkTargetNodes || [];
+    els.bulkNodeId.disabled = !hasEffectiveAgeSelection || state.bulkTargetNodesLoading || !targetOptions.length;
+    els.bulkNodeId.innerHTML = [
+      `<option value="">${state.bulkTargetNodesLoading ? 'Loading disease levels...' : 'Select disease level'}</option>`,
+      ...targetOptions.map(node => (
+        `<option value="${esc(node.node_id)}" ${state.bulkTargetNodeId === node.node_id ? 'selected' : ''}>${esc(node.path_label || node.node_label)}</option>`
+      )),
+    ].join('');
+
+    const ready = !!(state.selectedUnmappedCodes.length && state.bulkTargetNodeId);
+    els.bulkMapBtn.disabled = !ready;
+    const selectedLabel = state.selectedUnmappedCodes.length
+      ? `${state.selectedUnmappedCodes.length} ICD code(s) selected`
+      : 'Select ICD codes below, then choose an age band and disease level.';
+    els.bulkMapStatus.textContent = selectedLabel;
+  }
+
   function renderAll() {
     renderEditorVisibility();
     renderPanes();
     renderMappingSection();
+    renderUnmappedIcdSection();
+    renderBulkMappingControls();
     syncTopResetButton();
   }
 
@@ -1256,6 +1417,13 @@
       state.mappingEntries = [];
       state.mappingFilterQuery = '';
       state.mappingLoading = false;
+      state.unmappedIcdRows = [];
+      state.unmappedIcdLoading = false;
+      state.selectedUnmappedCodes = [];
+      state.bulkTargetAgeScope = '';
+      state.bulkTargetNodeId = '';
+      state.bulkTargetNodes = [];
+      state.bulkTargetNodesLoading = false;
       state.selectedNodeIds = [null, null, null];
       setEditingHeading('');
       setStatus('', false);
@@ -1280,6 +1448,13 @@
       state.mappingLoading = false;
       state.icdSearchResults = [];
       state.icdSearchLoading = false;
+      state.unmappedIcdRows = [];
+      state.unmappedIcdLoading = true;
+      state.selectedUnmappedCodes = [];
+      state.bulkTargetAgeScope = payload.selected_age_scope || '';
+      state.bulkTargetNodeId = '';
+      state.bulkTargetNodes = [];
+      state.bulkTargetNodesLoading = false;
       ensureSelections();
       renderSchemeCards();
       renderAll();
@@ -1289,6 +1464,8 @@
       );
       setStatus('', false);
       loadCurrentLeafMappings();
+      loadUnmappedIcdRows();
+      loadBulkTargetNodes();
     } catch (error) {
       setEditingHeading('Editing');
       setStatus(error.message || 'Failed to load scheme.', true);
@@ -1296,6 +1473,90 @@
         pane.querySelector('.cb-pane-list').innerHTML = '<div class="text-danger small text-center py-4">Failed to load.</div>';
       });
       els.mappingBody.innerHTML = '<div class="text-danger small">Failed to load mappings.</div>';
+      els.unmappedIcdBody.innerHTML = '<div class="p-3 text-danger small">Failed to load active unmapped ICD codes.</div>';
+      els.unmappedIcdCount.textContent = '0';
+    }
+  }
+
+  async function loadUnmappedIcdRows() {
+    if (!state.schemeCode) {
+      state.unmappedIcdRows = [];
+      state.unmappedIcdLoading = false;
+      renderUnmappedIcdSection();
+      return;
+    }
+    state.unmappedIcdLoading = true;
+    renderUnmappedIcdSection();
+    try {
+      const payload = await apiJson(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/unmapped-icd`
+      );
+      state.unmappedIcdRows = payload.rows || [];
+      state.selectedUnmappedCodes = state.selectedUnmappedCodes.filter(code => (
+        state.unmappedIcdRows.some(row => row.code === code)
+      ));
+      state.unmappedIcdLoading = false;
+      renderUnmappedIcdSection();
+      renderBulkMappingControls();
+    } catch (error) {
+      state.unmappedIcdRows = [];
+      state.unmappedIcdLoading = false;
+      els.unmappedIcdBody.innerHTML = `<div class="p-3 text-danger small">${esc(error.message || 'Failed to load active unmapped ICD codes.')}</div>`;
+      els.unmappedIcdCount.textContent = '0';
+    }
+  }
+
+  async function loadBulkTargetNodes() {
+    const scheme = selectedSchemeMeta();
+    const ageBands = scheme?.age_bands || [];
+    const hasEffectiveAgeSelection = (state.bulkTargetAgeScope || '') !== ''
+      || (ageBands.length === 1 && (ageBands[0].value || '') === '');
+    if (!state.schemeCode || !hasEffectiveAgeSelection) {
+      state.bulkTargetNodes = [];
+      state.bulkTargetNodeId = '';
+      state.bulkTargetNodesLoading = false;
+      renderBulkMappingControls();
+      return;
+    }
+    state.bulkTargetNodesLoading = true;
+    renderBulkMappingControls();
+    try {
+      const payload = await apiJson(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}?age_scope=${encodeURIComponent(state.bulkTargetAgeScope)}`
+      );
+      state.bulkTargetNodes = (payload.nodes || []).filter(node => node.node_type === 'field');
+      if (!state.bulkTargetNodes.some(node => node.node_id === state.bulkTargetNodeId)) {
+        state.bulkTargetNodeId = '';
+      }
+      state.bulkTargetNodesLoading = false;
+      renderBulkMappingControls();
+    } catch (error) {
+      state.bulkTargetNodes = [];
+      state.bulkTargetNodeId = '';
+      state.bulkTargetNodesLoading = false;
+      els.bulkMapStatus.textContent = error.message || 'Failed to load disease levels.';
+      renderBulkMappingControls();
+    }
+  }
+
+  async function bulkMapSelectedCodes() {
+    if (!state.bulkTargetNodeId || !state.selectedUnmappedCodes.length) return;
+    await apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/mappings`,
+      'POST',
+      {
+        node_id: state.bulkTargetNodeId,
+        icd_codes: state.selectedUnmappedCodes,
+      }
+    );
+    state.selectedUnmappedCodes = [];
+    setStatus('Selected ICD codes mapped to the chosen disease level.', false);
+    await loadUnmappedIcdRows();
+    if (currentLeaf() && currentLeaf().node_id === state.bulkTargetNodeId) {
+      loadCurrentLeafMappings();
+    }
+    if (state.icdSearchQuery) {
+      searchIcdCandidates();
     }
   }
 
@@ -1476,6 +1737,15 @@
   });
 
   els.schemeCards.addEventListener('click', function (event) {
+    const exportBtn = event.target.closest('.cb-scheme-export-btn');
+    if (exportBtn) {
+      const schemeCode = exportBtn.dataset.schemeCode || '';
+      if (!schemeCode) return;
+      window.location.assign(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/export`
+      );
+      return;
+    }
     const editBtn = event.target.closest('.cb-scheme-edit-btn');
     if (editBtn) {
       openSchemeEditModal(editBtn.dataset.schemeCode || '');
@@ -1598,6 +1868,57 @@
     getUnmapModal().show();
   });
 
+  els.unmappedIcdBody.addEventListener('change', function (event) {
+    if (event.target.id === 'cb-unmapped-select-all') {
+      const checked = !!event.target.checked;
+      const visibleCodes = (state.unmappedIcdRows || []).map(row => row.code);
+      if (checked) {
+        visibleCodes.forEach(code => {
+          if (!state.selectedUnmappedCodes.includes(code)) {
+            state.selectedUnmappedCodes.push(code);
+          }
+        });
+      } else {
+        state.selectedUnmappedCodes = state.selectedUnmappedCodes.filter(
+          code => !visibleCodes.includes(code)
+        );
+      }
+      renderUnmappedIcdSection();
+      renderBulkMappingControls();
+      return;
+    }
+
+    const rowCheck = event.target.closest('.cb-unmapped-row-check');
+    if (!rowCheck) return;
+    const icdCode = rowCheck.dataset.icdCode || '';
+    if (!icdCode) return;
+    if (rowCheck.checked) {
+      if (!state.selectedUnmappedCodes.includes(icdCode)) {
+        state.selectedUnmappedCodes.push(icdCode);
+      }
+    } else {
+      state.selectedUnmappedCodes = state.selectedUnmappedCodes.filter(code => code !== icdCode);
+    }
+    renderUnmappedIcdSection();
+    renderBulkMappingControls();
+  });
+
+  els.bulkAgeScope.addEventListener('change', function () {
+    state.bulkTargetAgeScope = this.value || '';
+    state.bulkTargetNodeId = '';
+    loadBulkTargetNodes();
+  });
+
+  els.bulkNodeId.addEventListener('change', function () {
+    state.bulkTargetNodeId = this.value || '';
+    renderBulkMappingControls();
+  });
+
+  els.bulkMapBtn.addEventListener('click', function () {
+    bulkMapSelectedCodes()
+      .catch(error => setStatus(error.message || 'Failed to bulk map ICD codes.', true));
+  });
+
   els.unmapConfirmBtn.addEventListener('click', function () {
     if (!state.pendingUnmapMappingId) return;
     const mappingId = state.pendingUnmapMappingId;
@@ -1611,6 +1932,7 @@
       state.pendingUnmapIcdCode = '';
       setStatus(`ICD code ${icdCode} unmapped.`, false);
       loadCurrentLeafMappings();
+      loadUnmappedIcdRows();
       if (state.icdSearchQuery) {
         searchIcdCandidates();
       }
@@ -1662,6 +1984,7 @@
     ).then(() => {
       setStatus('ICD code mapped to selected disease.', false);
       loadCurrentLeafMappings();
+      loadUnmappedIcdRows();
       searchIcdCandidates();
     }).catch(error => setStatus(error.message || 'Failed to map ICD code.', true));
   });

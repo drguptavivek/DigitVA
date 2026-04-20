@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -13,7 +14,7 @@ from app.models import (
     MasCodBucketNode,
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
-    VaIcdCodes,
+    MasIcd1020192,
     VaSubmissions,
 )
 from app.services.submission_analytics_mv import (
@@ -117,10 +118,13 @@ def _escape_like(value: str) -> str:
 def _icd_master_display_subquery():
     return (
         sa.select(
-            VaIcdCodes.icd_code.label("icd_code"),
-            sa.func.min(VaIcdCodes.icd_to_display).label("icd_to_display"),
+            MasIcd1020192.code.label("icd_code"),
+            sa.func.min(
+                sa.func.concat(MasIcd1020192.code, sa.literal("-"), MasIcd1020192.title)
+            ).label("icd_to_display"),
         )
-        .group_by(VaIcdCodes.icd_code)
+        .where(MasIcd1020192.is_active.is_(True))
+        .group_by(MasIcd1020192.code)
         .subquery()
     )
 
@@ -1189,6 +1193,122 @@ def get_cod_bucket_scheme_editor_payload(
     }
 
 
+def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
+    scheme = get_cod_bucket_scheme(scheme_code)
+    if scheme is None:
+        raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
+
+    age_bands = list(
+        db.session.scalars(
+            sa.select(MasCodBucketSchemeAgeBand)
+            .where(MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id)
+            .order_by(
+                MasCodBucketSchemeAgeBand.sort_order.asc(),
+                MasCodBucketSchemeAgeBand.age_label.asc(),
+            )
+        )
+    )
+    warnings_by_scope = _age_scope_warning_messages(age_bands)
+
+    nodes = list(
+        db.session.scalars(
+            sa.select(MasCodBucketNode).where(MasCodBucketNode.scheme_id == scheme.scheme_id)
+        )
+    )
+    nodes.sort(key=_node_hierarchy_sort_key)
+    nodes_by_id = {node.node_id: node for node in nodes}
+
+    def _path_label_for_node(node: MasCodBucketNode) -> str:
+        labels = [node.node_label]
+        parent = nodes_by_id.get(node.parent_node_id)
+        while parent is not None:
+            labels.append(parent.node_label)
+            parent = nodes_by_id.get(parent.parent_node_id)
+        return " > ".join(reversed(labels))
+
+    icd_master_sq = _icd_master_display_subquery()
+    mapping_rows = db.session.execute(
+        sa.select(
+            MapIcdCodBucket.mapping_id,
+            MapIcdCodBucket.age_scope,
+            MapIcdCodBucket.icd_code,
+            MapIcdCodBucket.node_id,
+            MapIcdCodBucket.source_sheet,
+            MapIcdCodBucket.source_row_number,
+            MapIcdCodBucket.source_category,
+            MapIcdCodBucket.match_type,
+            MapIcdCodBucket.mapping_note,
+            MapIcdCodBucket.is_active,
+            icd_master_sq.c.icd_to_display,
+        )
+        .select_from(MapIcdCodBucket)
+        .outerjoin(
+            icd_master_sq,
+            icd_master_sq.c.icd_code == MapIcdCodBucket.icd_code,
+        )
+        .where(MapIcdCodBucket.scheme_id == scheme.scheme_id)
+        .order_by(
+            sa.func.coalesce(MapIcdCodBucket.age_scope, "").asc(),
+            MapIcdCodBucket.icd_code.asc(),
+        )
+    ).mappings().all()
+
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "scheme": {
+            "scheme_id": str(scheme.scheme_id),
+            "scheme_code": scheme.scheme_code,
+            "scheme_name": scheme.scheme_name,
+            "scheme_description": scheme.scheme_description,
+            "mapping_version": scheme.mapping_version,
+            "is_active": scheme.is_active,
+            "can_reset_from_source": scheme_can_reset_from_source(scheme),
+        },
+        "age_bands": [
+            {
+                **_serialize_age_band(age_band),
+                "is_active": age_band.is_active,
+                "can_reset_from_source": _age_band_can_reset_from_source(
+                    scheme, age_band
+                ),
+                "warnings": warnings_by_scope.get(age_band.age_scope or "", []),
+            }
+            for age_band in age_bands
+        ],
+        "nodes": [
+            {
+                "node_id": str(node.node_id),
+                "age_scope": node.age_scope,
+                "node_type": node.node_type,
+                "node_code": node.node_code,
+                "node_label": node.node_label,
+                "sort_order": node.sort_order,
+                "is_active": node.is_active,
+                "parent_node_id": str(node.parent_node_id) if node.parent_node_id else None,
+                "path_label": _path_label_for_node(node),
+            }
+            for node in nodes
+        ],
+        "mappings": [
+            {
+                "mapping_id": str(row["mapping_id"]),
+                "age_scope": row["age_scope"],
+                "icd_code": row["icd_code"],
+                "icd_to_display": row["icd_to_display"] or row["icd_code"],
+                "node_id": str(row["node_id"]),
+                "node_path_label": _path_label_for_node(nodes_by_id[row["node_id"]]),
+                "source_sheet": row["source_sheet"],
+                "source_row_number": row["source_row_number"],
+                "source_category": row["source_category"],
+                "match_type": row["match_type"],
+                "mapping_note": row["mapping_note"],
+                "is_active": row["is_active"],
+            }
+            for row in mapping_rows
+        ],
+    }
+
+
 def get_cod_bucket_node_mappings_payload(
     *,
     scheme_code: str,
@@ -1481,46 +1601,48 @@ def search_cod_bucket_icd_candidates(
     if len(normalized_query) < 2:
         return []
 
-    icd_master_sq = _icd_master_display_subquery()
     escaped_query = _escape_like(normalized_query)
     code_prefix = f"{escaped_query}%"
-    display_prefix = f"{escaped_query}%"
-    display_contains = f"%{escaped_query}%"
-    lower_code = sa.func.lower(icd_master_sq.c.icd_code)
-    lower_display = sa.func.lower(icd_master_sq.c.icd_to_display)
+    title_prefix = f"{escaped_query}%"
+    title_contains = f"%{escaped_query}%"
+    lower_code = sa.func.lower(MasIcd1020192.code)
+    lower_title = sa.func.lower(MasIcd1020192.title)
 
     rank_expr = sa.case(
         (lower_code == normalized_query, 0),
         (lower_code.like(code_prefix, escape=_LIKE_ESCAPE), 1),
-        (lower_display.like(display_prefix, escape=_LIKE_ESCAPE), 2),
-        (lower_display.like(display_contains, escape=_LIKE_ESCAPE), 3),
+        (lower_title.like(title_prefix, escape=_LIKE_ESCAPE), 2),
+        (lower_title.like(title_contains, escape=_LIKE_ESCAPE), 3),
         else_=4,
     )
 
     stmt = (
         sa.select(
-            icd_master_sq.c.icd_code,
-            icd_master_sq.c.icd_to_display,
+            MasIcd1020192.code.label("icd_code"),
+            MasIcd1020192.title.label("icd_to_display"),
             MapIcdCodBucket.mapping_id,
             MapIcdCodBucket.node_id,
         )
-        .select_from(icd_master_sq)
+        .select_from(MasIcd1020192)
         .outerjoin(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.age_scope == age_scope,
-                MapIcdCodBucket.icd_code == icd_master_sq.c.icd_code,
+                MapIcdCodBucket.icd_code == MasIcd1020192.code,
             ),
         )
         .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.is_coding_selectable.is_(True),
+            MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
             sa.or_(
                 lower_code.like(code_prefix, escape=_LIKE_ESCAPE),
-                lower_display.like(display_prefix, escape=_LIKE_ESCAPE),
-                lower_display.like(display_contains, escape=_LIKE_ESCAPE),
+                lower_title.like(title_prefix, escape=_LIKE_ESCAPE),
+                lower_title.like(title_contains, escape=_LIKE_ESCAPE),
             )
         )
-        .order_by(rank_expr, icd_master_sq.c.icd_code.asc())
+        .order_by(rank_expr, MasIcd1020192.code.asc())
         .limit(limit)
     )
     if unmapped_only:
@@ -1554,6 +1676,75 @@ def search_cod_bucket_icd_candidates(
         }
         for row in rows
     ]
+
+
+def list_cod_bucket_unmapped_icd_rows(
+    *,
+    scheme_code: str,
+) -> dict:
+    scheme = get_cod_bucket_scheme(scheme_code)
+    if scheme is None:
+        raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
+
+    mapped_codes_sq = (
+        sa.select(MapIcdCodBucket.icd_code.label("icd_code"))
+        .where(
+            MapIcdCodBucket.scheme_id == scheme.scheme_id,
+            MapIcdCodBucket.is_active.is_(True),
+        )
+        .group_by(MapIcdCodBucket.icd_code)
+        .subquery()
+    )
+
+    rows = db.session.execute(
+        sa.select(
+            MasIcd1020192.code,
+            MasIcd1020192.title,
+            MasIcd1020192.semantic_level,
+            MasIcd1020192.chapter_code,
+            MasIcd1020192.chapter_title,
+            MasIcd1020192.three_character_code,
+            MasIcd1020192.three_character_title,
+        )
+        .select_from(MasIcd1020192)
+        .outerjoin(mapped_codes_sq, mapped_codes_sq.c.icd_code == MasIcd1020192.code)
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.is_coding_selectable.is_(True),
+            MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
+            mapped_codes_sq.c.icd_code.is_(None),
+        )
+        .order_by(
+            MasIcd1020192.chapter_code.asc(),
+            MasIcd1020192.three_character_code.asc(),
+            MasIcd1020192.code.asc(),
+        )
+    ).mappings().all()
+
+    return {
+        "scheme": {
+            "scheme_code": scheme.scheme_code,
+            "scheme_name": scheme.scheme_name,
+        },
+        "rows": [
+            {
+                "chapter": (
+                    f'{row["chapter_code"]} {row["chapter_title"]}'
+                    if row["chapter_code"] and row["chapter_title"]
+                    else (row["chapter_code"] or "")
+                ),
+                "three_character_code": row["three_character_code"] or "",
+                "three_character_title": row["three_character_title"] or "",
+                "detailed_code": row["code"] if row["semantic_level"] == "detailed_code" else "",
+                "detailed_title": row["title"] if row["semantic_level"] == "detailed_code" else "",
+                "semantic_level": row["semantic_level"],
+                "code": row["code"],
+                "title": row["title"],
+            }
+            for row in rows
+        ],
+        "total_rows": len(rows),
+    }
 
 
 def _age_bound_days_sql(value_column, unit_column):

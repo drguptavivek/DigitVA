@@ -93,6 +93,7 @@ SELECT
     s.va_sid,
     s.va_narration_language,
     s.va_deceased_gender AS sex,
+    s.va_deceased_age_normalized_days AS analytics_age_normalized_days,
     CASE
         WHEN s.va_deceased_age_normalized_days IS NOT NULL
              AND s.va_deceased_age_normalized_days <= 28 THEN 'neonate'
@@ -310,6 +311,7 @@ SELECT
     w.workflow_state,
     s.va_odk_reviewstate AS odk_review_state,
     s.va_deceased_gender AS sex,
+    s.va_deceased_age_normalized_days AS analytics_age_normalized_days,
     CASE
         WHEN s.va_deceased_age IS NULL THEN 'unknown'
         WHEN s.va_deceased_age < 15 THEN 'child'

@@ -271,6 +271,7 @@ class BaseTestCase(unittest.TestCase):
     def _login(self, user_id):
         """Inject a user session without going through the login route."""
         with self.client.session_transaction() as sess:
+            sess.clear()
             sess["_user_id"] = user_id
             sess["_fresh"] = True
 

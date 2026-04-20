@@ -1,0 +1,1727 @@
+<div id="panel-cod-buckets">
+  <div class="mb-1">
+    <h5 class="mb-1">
+      <i class="fa-solid fa-sitemap me-2 text-secondary"></i>COD Bucket Mapping
+    </h5>
+    <div class="small text-muted">
+      Maintain hierarchy headings first, then map ICD-10 codes to the selected last-level disease node.
+    </div>
+  </div>
+  <hr class="my-2">
+
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="small text-muted">Select a scheme and age band to edit, or create a new scheme.</div>
+    <button type="button" class="btn btn-sm btn-primary" id="cb-open-scheme-create-btn">
+      <i class="fa-solid fa-plus me-1"></i>New Scheme
+    </button>
+  </div>
+  <div id="cb-scheme-cards" class="row g-3 mb-2"></div>
+
+  <div id="cb-editor-section" class="d-none">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div id="cb-editing-heading" class="fw-semibold">Loading...</div>
+      <div class="d-flex align-items-center gap-2">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary"
+          id="cb-reset-selections-btn"
+        >
+          Reset Selections
+        </button>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-danger d-none"
+          id="cb-reset-default-top-btn"
+        >
+          <i class="fa-solid fa-rotate-left me-1"></i>Reset Default
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="cb-done-btn">Done</button>
+      </div>
+    </div>
+
+    <div id="cb-status" class="small text-muted mb-2 d-none"></div>
+
+    <div class="row g-3 mt-2">
+      <div class="col-lg-8">
+        <div class="card h-100">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="fw-semibold">Headings</div>
+            <div class="small text-muted">Drag-drop to reorder siblings. Use <code>+</code> to add at the current level.</div>
+          </div>
+          <div class="card-body p-0">
+            <div id="cb-heading-panes" class="row g-0" style="min-height: 360px;">
+              <div class="col-md-4 border-end cb-pane" data-depth="0">
+                <div class="cb-pane-toolbar border-bottom bg-light d-flex justify-content-between align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 cb-pane-add">
+                    <i class="fa-solid fa-plus me-1"></i>Add
+                  </button>
+                </div>
+                <div class="cb-pane-list" style="overflow-y:auto; max-height:460px;"></div>
+              </div>
+              <div class="col-md-4 border-end cb-pane" data-depth="1">
+                <div class="cb-pane-toolbar border-bottom bg-light d-flex justify-content-between align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 cb-pane-add">
+                    <i class="fa-solid fa-plus me-1"></i>Add
+                  </button>
+                </div>
+                <div class="cb-pane-list" style="overflow-y:auto; max-height:460px;"></div>
+              </div>
+              <div class="col-md-4 cb-pane" data-depth="2">
+                <div class="cb-pane-toolbar border-bottom bg-light d-flex justify-content-between align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 cb-pane-add">
+                    <i class="fa-solid fa-plus me-1"></i>Add
+                  </button>
+                </div>
+                <div class="cb-pane-list" style="overflow-y:auto; max-height:460px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card h-100">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold">ICD-10 Mapping</div>
+              <div id="cb-mapping-header" class="small text-muted">Select a last-level disease node above.</div>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-success"
+              id="cb-open-icd-modal-btn"
+              title="Add ICD-10 code"
+              disabled
+            >
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="cb-mapping-body">
+              <div class="text-muted small">Select a last-level disease node above.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="cb-node-edit-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title" id="cb-node-edit-modal-title">Edit Heading</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="cb-node-edit-id">
+          <div class="mb-3">
+            <label for="cb-node-edit-label" class="form-label small text-muted text-uppercase">Label</label>
+            <input type="text" class="form-control" id="cb-node-edit-label" maxlength="255">
+          </div>
+          <div>
+            <label for="cb-node-edit-order" class="form-label small text-muted text-uppercase">Display Order</label>
+            <input type="number" class="form-control" id="cb-node-edit-order" min="1" step="1">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-danger me-auto" id="cb-node-delete-open">Delete</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" id="cb-node-edit-save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="cb-node-delete-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title">Delete Bucket Level</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="cb-node-delete-modal-body" class="small text-muted mb-3">
+            Delete the selected bucket level and choose how to handle associated ICD-10 codes.
+          </div>
+          <div class="form-check mb-2">
+            <input
+              class="form-check-input"
+              type="radio"
+              name="cb-node-delete-disposition"
+              id="cb-node-delete-disposition-unmap"
+              value="unmap"
+              checked
+            >
+            <label class="form-check-label" for="cb-node-delete-disposition-unmap">
+              Unmap associated ICD-10 codes
+            </label>
+          </div>
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="radio"
+              name="cb-node-delete-disposition"
+              id="cb-node-delete-disposition-move"
+              value="move_to_unmapped"
+            >
+            <label class="form-check-label" for="cb-node-delete-disposition-move">
+              Move associated ICD-10 codes to an <code>Unmapped</code> replacement bucket
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="cb-node-delete-confirm">Delete Level</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="cb-icd-search-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h6 class="modal-title mb-1">Add ICD-10 Code</h6>
+            <div id="cb-icd-search-modal-path" class="small text-muted">Select a disease leaf first.</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3 align-items-end mb-3">
+            <div class="col-lg-8">
+              <label for="cb-icd-search-input" class="form-label small text-muted text-uppercase">Search ICD-10 Codes</label>
+              <input
+                type="text"
+                class="form-control"
+                id="cb-icd-search-input"
+                placeholder="Search by ICD-10 code or description"
+              >
+            </div>
+            <div class="col-lg-4">
+              <div class="form-check mt-4 pt-2">
+                <input class="form-check-input" type="checkbox" id="cb-icd-search-unmapped-only">
+                <label class="form-check-label" for="cb-icd-search-unmapped-only">
+                  Show unmapped ICD-10 codes only
+                </label>
+              </div>
+            </div>
+          </div>
+          <div id="cb-icd-search-results" class="border rounded"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="cb-unmap-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title">Unmap ICD-10 Code</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="cb-unmap-modal-body" class="small text-muted">
+            Confirm unmapping this ICD-10 code from the selected disease leaf.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="cb-unmap-confirm-btn">Unmap</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="cb-reset-default-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title">Reset Default Mapping</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="cb-reset-default-modal-body" class="small text-muted">
+            Reset this built-in COD scheme age band from its source workbook?
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-danger" id="cb-reset-default-confirm-btn">Reset Default</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="cb-scheme-create-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div>
+            <h6 class="modal-title mb-1" id="cb-scheme-modal-title">New COD Scheme</h6>
+            <div class="small text-muted" id="cb-scheme-modal-subtitle">Set the scheme name and code, then define age bands with units and supported level count.</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3 mb-3">
+            <div class="col-lg-6">
+              <label for="cb-scheme-create-name" class="form-label small text-muted text-uppercase">Scheme Name</label>
+              <input type="text" class="form-control" id="cb-scheme-create-name" maxlength="128">
+            </div>
+            <div class="col-lg-6">
+              <label for="cb-scheme-create-code" class="form-label small text-muted text-uppercase">Scheme Code</label>
+              <input type="text" class="form-control" id="cb-scheme-create-code" maxlength="32" placeholder="E.g. SRS_INDIA_V2">
+            </div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold">Age Bands</div>
+            <button type="button" class="btn btn-sm btn-outline-success" id="cb-scheme-create-add-band">
+              <i class="fa-solid fa-plus me-1"></i>Add Age Band
+            </button>
+          </div>
+          <div id="cb-scheme-create-feedback" class="mb-3"></div>
+          <div class="table-responsive border rounded">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 22%;">Age Band</th>
+                  <th style="width: 16%;">Min Age (&gt;= #)</th>
+                  <th style="width: 16%;">Max Age (&lt; #)</th>
+                  <th style="width: 12%;">Levels</th>
+                  <th style="width: 10%;"></th>
+                </tr>
+              </thead>
+              <tbody id="cb-scheme-create-bands-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-danger me-auto d-none"
+            id="cb-scheme-reset-default-btn"
+          >
+            <i class="fa-solid fa-rotate-left me-1"></i>Reset Default Scheme
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-sm btn-primary" id="cb-scheme-create-save">Create Scheme</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #panel-cod-buckets .card-header {
+    padding: 0.65rem 0.9rem;
+  }
+  #panel-cod-buckets .card-body {
+    padding: 0.85rem;
+  }
+  #panel-cod-buckets .card-body.p-0 {
+    padding: 0 !important;
+  }
+  #panel-cod-buckets .cb-pane-toolbar {
+    padding: 0.45rem 0.65rem;
+  }
+  #panel-cod-buckets .form-label {
+    margin-bottom: 0.2rem;
+  }
+  .cb-item-selected { background-color: #0d6efd !important; color: #fff !important; }
+  .cb-item-selected .small, .cb-item-selected .text-muted { color: rgba(255,255,255,0.85) !important; }
+  .cb-heading-row:hover:not(.cb-item-selected) { background-color: #f0f4ff; }
+  .cb-drop-target { background-color: #e6ffed !important; outline: 2px dashed #198754; }
+  .cb-scheme-warning {
+    cursor: help;
+  }
+  .cb-heading-row {
+    padding-top: 0.55rem !important;
+    padding-bottom: 0.55rem !important;
+  }
+  .cb-icd-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #3730a3;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid rgba(55, 48, 163, 0.12);
+  }
+  .cb-icd-row + .cb-icd-row {
+    border-top: 1px solid var(--bs-border-color-translucent);
+  }
+  .cb-compact-empty {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  const INITIAL_SCHEMES = {{ cod_bucket_schemes | tojson }};
+
+  function csrf() { return window._adminCsrf || ''; }
+  function esc(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+  async function apiJson(url, method, body) {
+    const response = await fetch(url, {
+      method: method || 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrf(),
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Request failed.');
+    return payload;
+  }
+
+  const TYPE_LABELS = {
+    category: 'Groups',
+    subcategory: 'Subgroups',
+    field: 'Diseases',
+  };
+
+  const TYPE_SINGULAR_LABELS = {
+    category: 'Group',
+    subcategory: 'Subgroup',
+    field: 'Disease',
+  };
+
+  const state = {
+    schemes: INITIAL_SCHEMES || [],
+    schemeCode: '',
+    ageScope: '',
+    nodes: [],
+    mappingNodeId: null,
+    mappingEntries: [],
+    mappingFilterQuery: '',
+    mappingLoading: false,
+    mappingRequestToken: 0,
+    icdSearchQuery: '',
+    icdSearchUnmappedOnly: false,
+    icdSearchResults: [],
+    icdSearchLoading: false,
+    icdSearchRequestToken: 0,
+    pendingDeleteNodeId: null,
+    pendingUnmapMappingId: null,
+    pendingUnmapIcdCode: '',
+    pendingResetSchemeCode: '',
+    pendingResetSchemeName: '',
+    pendingResetAgeScope: '',
+    pendingResetAgeLabel: '',
+    pendingResetScopeMode: 'age_band',
+    suppressAutoSelection: false,
+    selectedNodeIds: [null, null, null],
+    draggedNodeId: null,
+    draggedDepth: null,
+    createAgeBands: [],
+    schemeModalMode: 'create',
+    editingSchemeCode: '',
+  };
+
+  const els = {
+    schemeCards: document.getElementById('cb-scheme-cards'),
+    openSchemeCreateBtn: document.getElementById('cb-open-scheme-create-btn'),
+    editorSection: document.getElementById('cb-editor-section'),
+    editingHeading: document.getElementById('cb-editing-heading'),
+    resetSelectionsBtn: document.getElementById('cb-reset-selections-btn'),
+    resetDefaultTopBtn: document.getElementById('cb-reset-default-top-btn'),
+    doneBtn: document.getElementById('cb-done-btn'),
+    status: document.getElementById('cb-status'),
+    panes: Array.from(document.querySelectorAll('.cb-pane')),
+    mappingHeader: document.getElementById('cb-mapping-header'),
+    mappingBody: document.getElementById('cb-mapping-body'),
+    openIcdModalBtn: document.getElementById('cb-open-icd-modal-btn'),
+    nodeEditModalEl: document.getElementById('cb-node-edit-modal'),
+    nodeEditModalTitle: document.getElementById('cb-node-edit-modal-title'),
+    nodeEditId: document.getElementById('cb-node-edit-id'),
+    nodeEditLabel: document.getElementById('cb-node-edit-label'),
+    nodeEditOrder: document.getElementById('cb-node-edit-order'),
+    nodeDeleteOpen: document.getElementById('cb-node-delete-open'),
+    nodeEditSave: document.getElementById('cb-node-edit-save'),
+    nodeDeleteModalEl: document.getElementById('cb-node-delete-modal'),
+    nodeDeleteModalBody: document.getElementById('cb-node-delete-modal-body'),
+    nodeDeleteConfirm: document.getElementById('cb-node-delete-confirm'),
+    icdSearchModalEl: document.getElementById('cb-icd-search-modal'),
+    icdSearchModalPath: document.getElementById('cb-icd-search-modal-path'),
+    icdSearchInput: document.getElementById('cb-icd-search-input'),
+    icdSearchUnmappedOnly: document.getElementById('cb-icd-search-unmapped-only'),
+    icdSearchResults: document.getElementById('cb-icd-search-results'),
+    schemeCreateModalEl: document.getElementById('cb-scheme-create-modal'),
+    schemeModalTitle: document.getElementById('cb-scheme-modal-title'),
+    schemeModalSubtitle: document.getElementById('cb-scheme-modal-subtitle'),
+    schemeCreateName: document.getElementById('cb-scheme-create-name'),
+    schemeCreateCode: document.getElementById('cb-scheme-create-code'),
+    schemeCreateFeedback: document.getElementById('cb-scheme-create-feedback'),
+    schemeCreateBandsBody: document.getElementById('cb-scheme-create-bands-body'),
+    schemeCreateAddBand: document.getElementById('cb-scheme-create-add-band'),
+    schemeResetDefaultBtn: document.getElementById('cb-scheme-reset-default-btn'),
+    schemeCreateSave: document.getElementById('cb-scheme-create-save'),
+    unmapModalEl: document.getElementById('cb-unmap-modal'),
+    unmapModalBody: document.getElementById('cb-unmap-modal-body'),
+    unmapConfirmBtn: document.getElementById('cb-unmap-confirm-btn'),
+    resetDefaultModalEl: document.getElementById('cb-reset-default-modal'),
+    resetDefaultModalBody: document.getElementById('cb-reset-default-modal-body'),
+    resetDefaultConfirmBtn: document.getElementById('cb-reset-default-confirm-btn'),
+  };
+
+  let nodeEditModal = null;
+  let nodeDeleteModal = null;
+  let icdSearchModal = null;
+  let schemeCreateModal = null;
+  let unmapModal = null;
+  let resetDefaultModal = null;
+  let icdSearchDebounceTimer = null;
+
+  function setStatus(message, isError) {
+    if (!message) {
+      els.status.textContent = '';
+      els.status.className = 'small text-muted mb-2 d-none';
+      return;
+    }
+    els.status.className = isError ? 'small text-danger mb-2' : 'small text-muted mb-2';
+    els.status.textContent = message;
+  }
+
+  function setEditingHeading(message) {
+    els.editingHeading.textContent = message || '';
+  }
+
+  function renderEditorVisibility() {
+    els.editorSection.classList.toggle('d-none', !state.schemeCode);
+  }
+
+  function selectedSchemeMeta() {
+    return (state.schemes || []).find(scheme => scheme.scheme_code === state.schemeCode) || null;
+  }
+
+  function currentAgeBandMeta() {
+    const scheme = selectedSchemeMeta();
+    if (!scheme) return null;
+    return (scheme.age_bands || []).find(ageBand => (ageBand.value || '') === (state.ageScope || '')) || null;
+  }
+
+  function syncTopResetButton() {
+    const scheme = selectedSchemeMeta();
+    const ageBand = currentAgeBandMeta();
+    const visible = !!(scheme && ageBand && ageBand.can_reset_from_source);
+    els.resetDefaultTopBtn.classList.toggle('d-none', !visible);
+    if (!visible) {
+      els.resetDefaultTopBtn.disabled = true;
+      return;
+    }
+    els.resetDefaultTopBtn.disabled = false;
+    els.resetDefaultTopBtn.dataset.schemeCode = scheme.scheme_code || '';
+    els.resetDefaultTopBtn.dataset.ageScope = ageBand.value || '';
+    els.resetDefaultTopBtn.dataset.ageLabel = ageBand.label || '';
+  }
+
+  function defaultAgeScopeForScheme(schemeCode) {
+    const scheme = (state.schemes || []).find(item => item.scheme_code === schemeCode);
+    if (!scheme || !scheme.age_bands || !scheme.age_bands.length) return '';
+    return scheme.age_bands[0].value || '';
+  }
+
+  function renderSchemeCards() {
+    els.schemeCards.innerHTML = (state.schemes || []).map(scheme => {
+      const isActiveScheme = scheme.scheme_code === state.schemeCode;
+      const selectedAgeScope = isActiveScheme ? (state.ageScope || '') : '';
+      const warningLines = (scheme.age_bands || [])
+        .flatMap(ageBand => (ageBand.warnings || []).map(message => `${ageBand.label}: ${message}`));
+      return `
+        <div class="col-xl-4 col-lg-6">
+          <div class="card h-100 cb-scheme-card${isActiveScheme ? ' border-primary shadow-sm' : ''}">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                  <div class="h5 mb-1">${esc(scheme.scheme_name)}</div>
+                  <div class="text-muted small">${esc(scheme.scheme_code)}${scheme.mapping_version ? ` · v${esc(scheme.mapping_version)}` : ''}</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  ${warningLines.length ? `
+                    <span class="text-warning cb-scheme-warning" title="${esc(warningLines.join('\n'))}">
+                      <i class="fa-solid fa-circle-exclamation"></i>
+                    </span>
+                  ` : ''}
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary cb-scheme-edit-btn"
+                    data-scheme-code="${esc(scheme.scheme_code)}"
+                  >
+                    <i class="fa-solid fa-pen me-1"></i>Edit
+                  </button>
+                  <span class="badge text-bg-secondary">${(scheme.age_bands || []).length} age group(s)</span>
+                </div>
+              </div>
+              <div class="d-grid gap-2 cb-scheme-actions">
+                ${(scheme.age_bands || []).map(ageBand => `
+                  <div class="d-flex gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-sm flex-grow-1 ${isActiveScheme && (ageBand.value || '') === selectedAgeScope ? 'btn-primary' : 'btn-outline-secondary'} cb-scheme-age-btn"
+                      data-scheme-code="${esc(scheme.scheme_code)}"
+                      data-age-scope="${esc(ageBand.value || '')}"
+                      title="${esc((ageBand.warnings || []).join(' '))}"
+                    >
+                      ${esc(ageBand.label)}
+                      ${(ageBand.warnings || []).length ? '<i class="fa-solid fa-circle-exclamation ms-1"></i>' : ''}
+                    </button>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function nodes() { return state.nodes || []; }
+  function roots() { return nodes().filter(node => !node.parent_node_id); }
+  function childrenOf(parentNodeId) {
+    return nodes().filter(node => node.parent_node_id === parentNodeId);
+  }
+  function nodeById(nodeId) {
+    return nodes().find(node => node.node_id === nodeId) || null;
+  }
+
+  function paneNodes(depth) {
+    if (depth === 0) return roots();
+    const parentId = state.selectedNodeIds[depth - 1];
+    if (!parentId) return [];
+    return childrenOf(parentId);
+  }
+
+  function currentTypeSequence() {
+    const levelCount = currentAgeBandMeta()?.level_count || 0;
+    if (levelCount <= 1) return ['field'];
+    if (levelCount === 2) return ['category', 'field'];
+    return ['category', 'subcategory', 'field'];
+  }
+
+  function inferDepthCount() {
+    const allNodes = nodes();
+    const configuredDepth = currentTypeSequence().length;
+    if (!allNodes.length) return configuredDepth;
+    let maxDepth = 0;
+    allNodes.forEach(node => {
+      let depth = 1;
+      let parent = nodeById(node.parent_node_id);
+      while (parent) {
+        depth += 1;
+        parent = nodeById(parent.parent_node_id);
+      }
+      maxDepth = Math.max(maxDepth, depth);
+    });
+    return Math.max(maxDepth, configuredDepth);
+  }
+
+  function currentLeaf() {
+    const depthCount = inferDepthCount();
+    for (let depth = depthCount - 1; depth >= 0; depth -= 1) {
+      const node = nodeById(state.selectedNodeIds[depth]);
+      if (node && node.node_type === 'field') return node;
+    }
+    return null;
+  }
+
+  function defaultNodeTypeForDepth(depth) {
+    const sequence = currentTypeSequence();
+    const existing = paneNodes(depth);
+    if (existing.length) return existing[0].node_type;
+    if (depth >= sequence.length) return null;
+    if (depth === 0) return sequence[0];
+    const parent = nodeById(state.selectedNodeIds[depth - 1]);
+    if (!parent) return null;
+    return sequence[depth] || null;
+  }
+
+  function ensureSelections() {
+    if (state.suppressAutoSelection) {
+      for (let depth = 0; depth < state.selectedNodeIds.length; depth += 1) {
+        state.selectedNodeIds[depth] = null;
+      }
+      return;
+    }
+    const depthCount = inferDepthCount();
+    let currentParentId = null;
+    for (let depth = 0; depth < depthCount; depth += 1) {
+      const candidates = depth === 0 ? roots() : childrenOf(currentParentId);
+      if (!candidates.length) {
+        state.selectedNodeIds[depth] = null;
+        break;
+      }
+      if (!candidates.some(node => node.node_id === state.selectedNodeIds[depth])) {
+        state.selectedNodeIds[depth] = candidates[0].node_id;
+      }
+      currentParentId = state.selectedNodeIds[depth];
+    }
+    for (let depth = depthCount; depth < state.selectedNodeIds.length; depth += 1) {
+      state.selectedNodeIds[depth] = null;
+    }
+  }
+
+  function syncUrlState() {
+    const params = new URLSearchParams(window.location.search);
+    if (state.schemeCode) params.set('cb_scheme', state.schemeCode); else params.delete('cb_scheme');
+    if (state.ageScope) params.set('cb_age_scope', state.ageScope); else params.delete('cb_age_scope');
+    const pathIds = state.selectedNodeIds.filter(Boolean);
+    if (pathIds.length) params.set('cb_path', pathIds.join(',')); else params.delete('cb_path');
+    const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+    history.replaceState(null, '', newUrl);
+  }
+
+  function initializeStateFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const schemeFromUrl = params.get('cb_scheme');
+    const ageScopeFromUrl = params.get('cb_age_scope');
+    const pathFromUrl = (params.get('cb_path') || '').split(',').filter(Boolean);
+
+    state.schemeCode = schemeFromUrl || '';
+    state.ageScope = state.schemeCode
+      ? (ageScopeFromUrl || defaultAgeScopeForScheme(state.schemeCode))
+      : '';
+    state.selectedNodeIds = state.schemeCode
+      ? [pathFromUrl[0] || null, pathFromUrl[1] || null, pathFromUrl[2] || null]
+      : [null, null, null];
+  }
+
+  function renderPanes() {
+    const depthCount = inferDepthCount();
+    els.panes.forEach((pane, depth) => {
+      const visible = depth < depthCount;
+      pane.classList.toggle('d-none', !visible);
+      if (!visible) return;
+
+      const paneRows = paneNodes(depth);
+      const addBtn = pane.querySelector('.cb-pane-add');
+      const listEl = pane.querySelector('.cb-pane-list');
+      const type = paneRows[0]?.node_type || defaultNodeTypeForDepth(depth);
+      addBtn.disabled = !defaultNodeTypeForDepth(depth);
+
+      if (!paneRows.length) {
+        listEl.innerHTML = '<div class="text-muted small text-center cb-compact-empty">No items at this level.</div>';
+        return;
+      }
+
+      listEl.innerHTML = paneRows.map(node => `
+        <div class="d-flex align-items-center px-3 py-2 border-bottom cb-heading-row${node.node_id === state.selectedNodeIds[depth] ? ' cb-item-selected' : ''}"
+             draggable="true"
+             data-depth="${depth}"
+             data-node-id="${esc(node.node_id)}">
+          <span class="badge bg-secondary me-2" style="min-width:32px;">${esc(node.sort_order)}</span>
+          <div class="flex-fill" style="cursor:pointer;">
+            <div class="small fw-semibold">${esc(node.node_label)}</div>
+          </div>
+          <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 cb-node-edit" title="Edit">
+            <i class="fa-solid fa-pen fa-xs"></i>
+          </button>
+        </div>
+      `).join('');
+    });
+  }
+
+  function renderMappingSection() {
+    const leaf = currentLeaf();
+    els.openIcdModalBtn.disabled = !leaf;
+    if (!leaf) {
+      state.mappingNodeId = null;
+      state.mappingEntries = [];
+      state.mappingFilterQuery = '';
+      state.mappingLoading = false;
+      els.mappingHeader.textContent = 'Select a last-level disease node above.';
+      els.mappingBody.innerHTML = '<div class="text-muted small">Select a last-level disease node above.</div>';
+      return;
+    }
+    els.mappingHeader.textContent = leaf.node_label;
+    els.mappingHeader.title = leaf.path_label || leaf.node_label;
+    if (state.mappingLoading && state.mappingNodeId === leaf.node_id) {
+      els.mappingBody.innerHTML = '<div class="text-muted small">Loading ICD-10 mappings...</div>';
+      return;
+    }
+    const icdMappings = state.mappingNodeId === leaf.node_id ? (state.mappingEntries || []) : [];
+    const filterQuery = (state.mappingFilterQuery || '').trim().toLowerCase();
+    const filteredMappings = filterQuery
+      ? icdMappings.filter(mapping => (
+        (mapping.icd_code || '').toLowerCase().includes(filterQuery) ||
+        (mapping.icd_to_display || '').toLowerCase().includes(filterQuery)
+      ))
+      : icdMappings;
+    els.mappingBody.innerHTML = `
+      <div class="mb-3">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+          <input
+            id="cb-mapped-filter"
+            class="form-control form-control-sm"
+            placeholder="Search ICD-10 codes in this disease"
+            value="${esc(state.mappingFilterQuery)}"
+          >
+        </div>
+      </div>
+      <div>
+        ${
+          !icdMappings.length
+            ? '<div class="text-muted small">No ICD codes mapped to this disease yet.</div>'
+            : !filteredMappings.length
+              ? '<div class="text-muted small">No mapped ICD-10 codes match this filter.</div>'
+              : `<div class="border rounded overflow-auto" style="max-height: 420px;">${filteredMappings.map(mapping => `
+                  <div class="p-2 cb-icd-row">
+                    <div class="d-flex align-items-start gap-2">
+                      <span class="cb-icd-chip mt-1">${esc(mapping.icd_code)}</span>
+                      <div class="flex-fill">
+                        <div class="small fw-semibold">${esc(mapping.icd_to_display || mapping.icd_code)}</div>
+                      </div>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-danger cb-unmap-btn"
+                        data-mapping-id="${esc(mapping.mapping_id)}"
+                        data-icd-code="${esc(mapping.icd_code)}"
+                        title="Unmap ICD-10 code"
+                      >
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </div>
+                `).join('')}</div>`
+        }
+      </div>
+    `;
+  }
+
+  function renderAll() {
+    renderEditorVisibility();
+    renderPanes();
+    renderMappingSection();
+    syncTopResetButton();
+  }
+
+  function renderIcdSearchResults() {
+    if (state.icdSearchLoading) {
+      els.icdSearchResults.innerHTML = '<div class="p-3 text-muted small">Searching ICD-10 codes...</div>';
+      return;
+    }
+    if ((state.icdSearchQuery || '').trim().length < 2) {
+      els.icdSearchResults.innerHTML = '<div class="p-3 text-muted small">Type at least 2 characters to search ICD-10 codes.</div>';
+      return;
+    }
+    const results = state.icdSearchResults || [];
+    if (!results.length) {
+      els.icdSearchResults.innerHTML = '<div class="p-3 text-muted small">No ICD-10 codes matched this search.</div>';
+      return;
+    }
+    els.icdSearchResults.innerHTML = `
+      <div class="list-group list-group-flush">
+        ${results.map(result => `
+          <div class="list-group-item">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div class="flex-fill">
+                <div class="d-flex align-items-start gap-2 mb-1">
+                  <span class="cb-icd-chip mt-1">${esc(result.icd_code)}</span>
+                  <div>
+                    <div class="small fw-semibold">${esc(result.icd_to_display || result.icd_code)}</div>
+                    <div class="small text-muted">
+                      ${result.current_path_label ? esc(result.current_path_label) : 'Not mapped'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="text-end">
+                ${result.is_selected_leaf
+                  ? '<button type="button" class="btn btn-sm btn-outline-secondary" disabled>Already Here</button>'
+                  : `<button type="button" class="btn btn-sm btn-outline-success cb-icd-search-add-btn" data-icd-code="${esc(result.icd_code)}">Map Here</button>`}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  async function searchIcdCandidates() {
+    const leaf = currentLeaf();
+    if (!leaf) return;
+    const query = (state.icdSearchQuery || '').trim();
+    if (query.length < 2) {
+      state.icdSearchLoading = false;
+      state.icdSearchResults = [];
+      renderIcdSearchResults();
+      return;
+    }
+    const requestToken = state.icdSearchRequestToken + 1;
+    state.icdSearchRequestToken = requestToken;
+    state.icdSearchLoading = true;
+    renderIcdSearchResults();
+    try {
+      const params = new URLSearchParams({
+        age_scope: state.ageScope || '',
+        q: query,
+        selected_node_id: leaf.node_id,
+      });
+      if (state.icdSearchUnmappedOnly) {
+        params.set('unmapped_only', '1');
+      }
+      const payload = await apiJson(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/icd-search?${params.toString()}`
+      );
+      if (state.icdSearchRequestToken !== requestToken) return;
+      state.icdSearchResults = payload.results || [];
+      state.icdSearchLoading = false;
+      renderIcdSearchResults();
+    } catch (error) {
+      if (state.icdSearchRequestToken !== requestToken) return;
+      state.icdSearchLoading = false;
+      els.icdSearchResults.innerHTML = `<div class="p-3 text-danger small">${esc(error.message || 'Failed to search ICD-10 codes.')}</div>`;
+    }
+  }
+
+  function queueIcdSearch() {
+    if (icdSearchDebounceTimer) {
+      window.clearTimeout(icdSearchDebounceTimer);
+    }
+    icdSearchDebounceTimer = window.setTimeout(searchIcdCandidates, 200);
+  }
+
+  async function loadCurrentLeafMappings() {
+    const leaf = currentLeaf();
+    if (!leaf) {
+      state.mappingNodeId = null;
+      state.mappingEntries = [];
+      state.mappingLoading = false;
+      renderMappingSection();
+      return;
+    }
+
+    const requestToken = state.mappingRequestToken + 1;
+    state.mappingRequestToken = requestToken;
+    state.mappingNodeId = leaf.node_id;
+    state.mappingEntries = [];
+    state.mappingLoading = true;
+    renderMappingSection();
+
+    try {
+      const payload = await apiJson(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/nodes/${encodeURIComponent(leaf.node_id)}/mappings`
+      );
+      if (state.mappingRequestToken !== requestToken) return;
+      if (currentLeaf()?.node_id !== leaf.node_id) return;
+      state.mappingNodeId = leaf.node_id;
+      state.mappingEntries = payload.mappings || [];
+      if (state.icdSearchQuery) {
+        queueIcdSearch();
+      }
+      state.mappingLoading = false;
+      renderMappingSection();
+    } catch (error) {
+      if (state.mappingRequestToken !== requestToken) return;
+      state.mappingLoading = false;
+      els.mappingHeader.textContent = leaf.node_label;
+      els.mappingHeader.title = leaf.path_label || leaf.node_label;
+      els.mappingBody.innerHTML = `<div class="text-danger small">${esc(error.message || 'Failed to load ICD mappings.')}</div>`;
+    }
+  }
+
+  function getNodeEditModal() {
+    if (!nodeEditModal) {
+      nodeEditModal = new bootstrap.Modal(els.nodeEditModalEl);
+    }
+    return nodeEditModal;
+  }
+
+  function getNodeDeleteModal() {
+    if (!nodeDeleteModal) {
+      nodeDeleteModal = new bootstrap.Modal(els.nodeDeleteModalEl);
+    }
+    return nodeDeleteModal;
+  }
+
+  function getIcdSearchModal() {
+    if (!icdSearchModal) {
+      icdSearchModal = new bootstrap.Modal(els.icdSearchModalEl);
+    }
+    return icdSearchModal;
+  }
+
+  function getSchemeCreateModal() {
+    if (!schemeCreateModal) {
+      schemeCreateModal = new bootstrap.Modal(els.schemeCreateModalEl);
+    }
+    return schemeCreateModal;
+  }
+
+  function getUnmapModal() {
+    if (!unmapModal) {
+      unmapModal = new bootstrap.Modal(els.unmapModalEl);
+    }
+    return unmapModal;
+  }
+
+  function getResetDefaultModal() {
+    if (!resetDefaultModal) {
+      resetDefaultModal = new bootstrap.Modal(els.resetDefaultModalEl);
+    }
+    return resetDefaultModal;
+  }
+
+  function defaultCreateBand() {
+    return {
+      age_band_id: '',
+      age_label: '',
+      min_age_value: '0',
+      min_age_unit: 'days',
+      max_age_value: '120',
+      max_age_unit: 'years',
+      level_count: 3,
+    };
+  }
+
+  function approxCreateBandDays(value, unit) {
+    if (value === '' || value === null || value === undefined) return null;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return null;
+    if (unit === 'days') return num;
+    if (unit === 'months') return num * (365 / 12);
+    if (unit === 'years') return num * 365;
+    return null;
+  }
+
+  function renderCreateSchemeFeedback() {
+    const warnings = [];
+    const normalized = state.createAgeBands
+      .map(band => ({
+        label: (band.age_label || '').trim(),
+        minDays: approxCreateBandDays(band.min_age_value, band.min_age_unit),
+        maxDays: approxCreateBandDays(band.max_age_value, band.max_age_unit),
+      }))
+      .filter(band => band.label);
+    normalized.sort((left, right) => {
+      const leftVal = left.minDays === null ? Number.NEGATIVE_INFINITY : left.minDays;
+      const rightVal = right.minDays === null ? Number.NEGATIVE_INFINITY : right.minDays;
+      return leftVal - rightVal;
+    });
+    let previous = null;
+    let previousMax = null;
+    normalized.forEach(band => {
+      if (band.minDays !== null && band.maxDays !== null && band.minDays >= band.maxDays) {
+        warnings.push(`${band.label}: upper bound must be greater than lower bound because bands use >= lower and < upper.`);
+      }
+      if (previous && previousMax !== null && band.minDays !== null) {
+        if (band.minDays < previousMax) {
+          warnings.push(`${band.label}: overlaps with ${previous} using approximate unit conversion.`);
+        } else if (band.minDays > previousMax) {
+          warnings.push(`${band.label}: gap after ${previous} using approximate unit conversion.`);
+        }
+      }
+      previous = band.label;
+      previousMax = band.maxDays;
+    });
+    if (!warnings.length) {
+      els.schemeCreateFeedback.innerHTML = '';
+      return;
+    }
+    els.schemeCreateFeedback.innerHTML = `
+      <div class="alert alert-warning py-2 px-3 mb-0 small">
+        <div class="fw-semibold mb-1">Age-band feedback</div>
+        <ul class="mb-0 ps-3">${warnings.map(message => `<li>${esc(message)}</li>`).join('')}</ul>
+      </div>
+    `;
+  }
+
+  function renderCreateSchemeBands() {
+    els.schemeCreateBandsBody.innerHTML = state.createAgeBands.map((band, index) => `
+      <tr data-index="${index}">
+        <td>
+          <input type="text" class="form-control form-control-sm cb-create-age-label" value="${esc(band.age_label)}" maxlength="128" placeholder="Adult / Over 5 Years">
+        </td>
+        <td>
+          <div class="input-group input-group-sm">
+            <input type="number" min="0" step="1" class="form-control cb-create-age-min-value" value="${esc(band.min_age_value)}">
+            <select class="form-select cb-create-age-min-unit">
+              <option value="days"${band.min_age_unit === 'days' ? ' selected' : ''}>Days</option>
+              <option value="months"${band.min_age_unit === 'months' ? ' selected' : ''}>Months</option>
+              <option value="years"${band.min_age_unit === 'years' ? ' selected' : ''}>Years</option>
+            </select>
+          </div>
+        </td>
+        <td>
+          <div class="input-group input-group-sm">
+            <input type="number" min="0" step="1" class="form-control cb-create-age-max-value" value="${esc(band.max_age_value)}">
+            <select class="form-select cb-create-age-max-unit">
+              <option value="days"${band.max_age_unit === 'days' ? ' selected' : ''}>Days</option>
+              <option value="months"${band.max_age_unit === 'months' ? ' selected' : ''}>Months</option>
+              <option value="years"${band.max_age_unit === 'years' ? ' selected' : ''}>Years</option>
+            </select>
+          </div>
+        </td>
+        <td>
+          <select class="form-select form-select-sm cb-create-age-level-count">
+            <option value="1"${String(band.level_count) === '1' ? ' selected' : ''}>1</option>
+            <option value="2"${String(band.level_count) === '2' ? ' selected' : ''}>2</option>
+            <option value="3"${String(band.level_count) === '3' ? ' selected' : ''}>3</option>
+          </select>
+        </td>
+        <td class="text-end">
+          <button type="button" class="btn btn-sm btn-outline-danger cb-create-age-remove"${state.createAgeBands.length <= 1 ? ' disabled' : ''}>
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+    renderCreateSchemeFeedback();
+  }
+
+  function resetCreateSchemeModal() {
+    state.schemeModalMode = 'create';
+    state.editingSchemeCode = '';
+    els.schemeModalTitle.textContent = 'New COD Scheme';
+    els.schemeModalSubtitle.textContent = 'Set the scheme name and code, then define age bands with units and supported level count.';
+    els.schemeCreateSave.textContent = 'Create Scheme';
+    els.schemeCreateName.value = '';
+    els.schemeCreateCode.value = '';
+    els.schemeCreateCode.readOnly = false;
+    els.schemeCreateCode.classList.remove('bg-light');
+    state.createAgeBands = [defaultCreateBand()];
+    renderCreateSchemeBands();
+  }
+
+  function openSchemeEditModal(schemeCode) {
+    const scheme = (state.schemes || []).find(item => item.scheme_code === schemeCode);
+    if (!scheme) return;
+    state.schemeModalMode = 'edit';
+    state.editingSchemeCode = scheme.scheme_code;
+    els.schemeModalTitle.textContent = 'Edit COD Scheme';
+    els.schemeModalSubtitle.textContent = 'Update the scheme name and age bands. Scheme code remains fixed.';
+    els.schemeCreateSave.textContent = 'Save Scheme';
+    els.schemeCreateName.value = scheme.scheme_name || '';
+    els.schemeCreateCode.value = scheme.scheme_code || '';
+    els.schemeCreateCode.readOnly = true;
+    els.schemeCreateCode.classList.add('bg-light');
+    state.createAgeBands = (scheme.age_bands || []).map(ageBand => ({
+      age_band_id: ageBand.age_band_id || '',
+      age_label: ageBand.label || '',
+      min_age_value: ageBand.min_age_value ?? '',
+      min_age_unit: ageBand.min_age_unit || 'days',
+      max_age_value: ageBand.max_age_value ?? '',
+      max_age_unit: ageBand.max_age_unit || 'days',
+      level_count: ageBand.level_count || 3,
+    }));
+    if (!state.createAgeBands.length) {
+      state.createAgeBands = [defaultCreateBand()];
+    }
+    const activeAgeBand = (scheme.age_bands || []).find(item => (item.value || '') === (state.ageScope || ''));
+    const canResetScheme = !!scheme.can_reset_from_source;
+    els.schemeResetDefaultBtn.classList.toggle('d-none', !canResetScheme);
+    els.schemeResetDefaultBtn.disabled = !canResetScheme;
+    els.schemeResetDefaultBtn.dataset.schemeCode = canResetScheme ? (scheme.scheme_code || '') : '';
+    els.schemeResetDefaultBtn.dataset.schemeName = canResetScheme ? (scheme.scheme_name || '') : '';
+    renderCreateSchemeBands();
+    getSchemeCreateModal().show();
+  }
+
+  function openResetDefaultModal({
+    schemeCode,
+    schemeName,
+    ageScope,
+    ageLabel,
+    resetScope,
+  }) {
+    state.pendingResetSchemeCode = schemeCode || '';
+    state.pendingResetSchemeName = schemeName || '';
+    state.pendingResetAgeScope = ageScope || '';
+    state.pendingResetAgeLabel = ageLabel || '';
+    state.pendingResetScopeMode = resetScope || 'age_band';
+    if (state.pendingResetScopeMode === 'scheme') {
+      els.resetDefaultModalBody.innerHTML = `
+        Reset <strong>${esc(schemeName || schemeCode)}</strong> from its source workbook?
+        <div class="mt-2 text-muted">
+          This will replace the age bands, headings, and ICD-10 mappings for the entire built-in scheme across all age groups.
+        </div>
+      `;
+    } else {
+      els.resetDefaultModalBody.innerHTML = `
+        Reset <strong>${esc(schemeCode)}</strong> / <strong>${esc(ageLabel || 'All Ages')}</strong>
+        from its source workbook?
+        <div class="mt-2 text-muted">
+          This will replace the current headings and ICD-10 mappings for this built-in age band slice.
+        </div>
+      `;
+    }
+    getResetDefaultModal().show();
+  }
+
+  function openNodeEditModal(nodeId) {
+    const node = nodeById(nodeId);
+    if (!node) return;
+    state.pendingDeleteNodeId = node.node_id;
+    els.nodeEditModalTitle.textContent = `Edit ${TYPE_SINGULAR_LABELS[node.node_type] || 'Heading'}`;
+    els.nodeEditId.value = node.node_id;
+    els.nodeEditLabel.value = node.node_label || '';
+    els.nodeEditOrder.value = node.sort_order || 1;
+    getNodeEditModal().show();
+    window.setTimeout(() => els.nodeEditLabel.focus(), 150);
+  }
+
+  async function deleteSelectedNode() {
+    if (!state.pendingDeleteNodeId) return;
+    const selectedDisposition = document.querySelector('input[name="cb-node-delete-disposition"]:checked');
+    const mappingDisposition = selectedDisposition ? selectedDisposition.value : 'unmap';
+    const node = nodeById(state.pendingDeleteNodeId);
+    await apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/nodes/${encodeURIComponent(state.pendingDeleteNodeId)}`,
+      'DELETE',
+      { mapping_disposition: mappingDisposition }
+    );
+    getNodeDeleteModal().hide();
+    getNodeEditModal().hide();
+    state.pendingDeleteNodeId = null;
+    setStatus(
+      mappingDisposition === 'move_to_unmapped'
+        ? `Deleted ${node ? node.node_label : 'bucket'} and moved affected ICD-10 codes to Unmapped.`
+        : `Deleted ${node ? node.node_label : 'bucket'} and unmapped affected ICD-10 codes.`,
+      false
+    );
+    await loadScheme();
+  }
+
+  async function resetSelectedAgeBandToDefault() {
+    if (!state.pendingResetSchemeCode) return;
+    const resetScopeMode = state.pendingResetScopeMode || 'age_band';
+    await apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.pendingResetSchemeCode)}/reset-default`,
+      'POST',
+      {
+        age_scope: resetScopeMode === 'scheme'
+          ? null
+          : (state.pendingResetAgeScope || null),
+        reset_scope: resetScopeMode,
+      }
+    );
+    getResetDefaultModal().hide();
+    state.pendingResetSchemeCode = '';
+    state.pendingResetSchemeName = '';
+    state.pendingResetAgeScope = '';
+    state.pendingResetAgeLabel = '';
+    state.pendingResetScopeMode = 'age_band';
+    state.schemes = (await apiJson('/admin/api/cod-bucket-schemes')).schemes || [];
+    renderSchemeCards();
+    setStatus(
+      resetScopeMode === 'scheme'
+        ? 'Built-in scheme reset from source.'
+        : 'Built-in scheme age band reset from source.',
+      false
+    );
+    if (state.schemeCode) {
+      await loadScheme();
+    }
+  }
+
+  function saveNodeEdit() {
+    const nodeId = els.nodeEditId.value;
+    const node = nodeById(nodeId);
+    if (!node) return;
+    const nodeLabel = (els.nodeEditLabel.value || '').trim();
+    const sortOrder = Number.parseInt(els.nodeEditOrder.value, 10);
+    if (!nodeLabel) {
+      setStatus('Label is required.', true);
+      els.nodeEditLabel.focus();
+      return;
+    }
+    if (!Number.isInteger(sortOrder) || sortOrder < 1) {
+      setStatus('Display order must be a positive integer.', true);
+      els.nodeEditOrder.focus();
+      return;
+    }
+    updateNode(nodeId, { node_label: nodeLabel, sort_order: sortOrder }, 'Heading updated.')
+      .then(() => getNodeEditModal().hide())
+      .catch(error => setStatus(error.message || 'Failed to update heading.', true));
+  }
+
+  async function loadScheme() {
+    if (!state.schemeCode) {
+      state.nodes = [];
+      state.mappingNodeId = null;
+      state.mappingEntries = [];
+      state.mappingFilterQuery = '';
+      state.mappingLoading = false;
+      state.selectedNodeIds = [null, null, null];
+      setEditingHeading('');
+      setStatus('', false);
+      renderAll();
+      syncUrlState();
+      return;
+    }
+    setEditingHeading('Loading...');
+    setStatus('', false);
+    try {
+      const query = state.ageScope ? `?age_scope=${encodeURIComponent(state.ageScope)}` : '';
+      const payload = await apiJson(`/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}${query}`);
+      state.ageScope = payload.selected_age_scope || '';
+      state.nodes = payload.nodes || [];
+      const currentScheme = selectedSchemeMeta();
+      if (currentScheme) {
+        currentScheme.age_bands = payload.age_bands || currentScheme.age_bands || [];
+      }
+      state.mappingNodeId = null;
+      state.mappingEntries = [];
+      state.mappingFilterQuery = '';
+      state.mappingLoading = false;
+      state.icdSearchResults = [];
+      state.icdSearchLoading = false;
+      ensureSelections();
+      renderSchemeCards();
+      renderAll();
+      syncUrlState();
+      setEditingHeading(
+        `Editing: ${payload.scheme.scheme_name}${payload.selected_age_band ? ' - ' + payload.selected_age_band.label : ''}`
+      );
+      setStatus('', false);
+      loadCurrentLeafMappings();
+    } catch (error) {
+      setEditingHeading('Editing');
+      setStatus(error.message || 'Failed to load scheme.', true);
+      els.panes.forEach(pane => {
+        pane.querySelector('.cb-pane-list').innerHTML = '<div class="text-danger small text-center py-4">Failed to load.</div>';
+      });
+      els.mappingBody.innerHTML = '<div class="text-danger small">Failed to load mappings.</div>';
+    }
+  }
+
+  async function updateNode(nodeId, payload, successMessage) {
+    await apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/nodes/${encodeURIComponent(nodeId)}`,
+      'PATCH',
+      payload
+    );
+    setStatus(successMessage, false);
+    await loadScheme();
+  }
+
+  async function addNode(depth) {
+    const nodeType = defaultNodeTypeForDepth(depth);
+    if (!nodeType) return;
+    const nodeLabel = window.prompt(`New ${TYPE_LABELS[nodeType] || nodeType} label`);
+    if (!nodeLabel) return;
+    const parentNodeId = depth === 0 ? null : state.selectedNodeIds[depth - 1];
+    await apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/nodes`,
+      'POST',
+      {
+        age_scope: state.ageScope,
+        node_type: nodeType,
+        parent_node_id: parentNodeId,
+        node_label: nodeLabel,
+      }
+    );
+    setStatus(`${TYPE_LABELS[nodeType] || nodeType} added.`, false);
+    await loadScheme();
+  }
+
+  async function reorderPane(depth, draggedNodeId, targetNodeId) {
+    const paneList = paneNodes(depth);
+    const ids = paneList.map(node => node.node_id);
+    const from = ids.indexOf(draggedNodeId);
+    const to = ids.indexOf(targetNodeId);
+    if (from === -1 || to === -1 || from === to) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, draggedNodeId);
+    await apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/nodes/reorder`,
+      'POST',
+      { node_ids: ids }
+    );
+    setStatus('Heading order updated.', false);
+    await loadScheme();
+  }
+
+  els.doneBtn.addEventListener('click', function () {
+    state.schemeCode = '';
+    state.ageScope = '';
+    state.nodes = [];
+    state.mappingNodeId = null;
+    state.mappingEntries = [];
+    state.mappingFilterQuery = '';
+    state.mappingLoading = false;
+    state.selectedNodeIds = [null, null, null];
+    state.suppressAutoSelection = false;
+    setEditingHeading('');
+    setStatus('', false);
+    renderSchemeCards();
+    renderAll();
+    syncUrlState();
+  });
+
+  els.openSchemeCreateBtn.addEventListener('click', function () {
+    resetCreateSchemeModal();
+    getSchemeCreateModal().show();
+  });
+
+  els.schemeCreateAddBand.addEventListener('click', function () {
+    state.createAgeBands.push(defaultCreateBand());
+    renderCreateSchemeBands();
+  });
+
+  els.schemeCreateBandsBody.addEventListener('input', function (event) {
+    const row = event.target.closest('tr[data-index]');
+    if (!row) return;
+    const index = Number(row.dataset.index);
+    const band = state.createAgeBands[index];
+    if (!band) return;
+    if (event.target.classList.contains('cb-create-age-label')) {
+      band.age_label = event.target.value || '';
+    }
+    if (event.target.classList.contains('cb-create-age-min-value')) {
+      band.min_age_value = event.target.value || '';
+    }
+    if (event.target.classList.contains('cb-create-age-max-value')) {
+      band.max_age_value = event.target.value || '';
+    }
+    renderCreateSchemeFeedback();
+  });
+
+  els.schemeCreateBandsBody.addEventListener('change', function (event) {
+    const row = event.target.closest('tr[data-index]');
+    if (!row) return;
+    const index = Number(row.dataset.index);
+    const band = state.createAgeBands[index];
+    if (!band) return;
+    if (event.target.classList.contains('cb-create-age-min-unit')) {
+      band.min_age_unit = event.target.value || 'days';
+    }
+    if (event.target.classList.contains('cb-create-age-max-unit')) {
+      band.max_age_unit = event.target.value || 'days';
+    }
+    if (event.target.classList.contains('cb-create-age-level-count')) {
+      band.level_count = event.target.value || '3';
+    }
+    renderCreateSchemeFeedback();
+  });
+
+  els.schemeCreateBandsBody.addEventListener('click', function (event) {
+    const removeBtn = event.target.closest('.cb-create-age-remove');
+    if (!removeBtn) return;
+    const row = removeBtn.closest('tr[data-index]');
+    if (!row) return;
+    const index = Number(row.dataset.index);
+    if (state.createAgeBands.length <= 1) return;
+    state.createAgeBands.splice(index, 1);
+    renderCreateSchemeBands();
+  });
+
+  els.schemeCreateSave.addEventListener('click', function () {
+    const payload = {
+      scheme_name: (els.schemeCreateName.value || '').trim(),
+      scheme_code: (els.schemeCreateCode.value || '').trim(),
+      age_bands: state.createAgeBands.map(band => ({
+        age_band_id: band.age_band_id || null,
+        age_label: (band.age_label || '').trim(),
+        min_age_value: band.min_age_value,
+        min_age_unit: band.min_age_unit,
+        max_age_value: band.max_age_value,
+        max_age_unit: band.max_age_unit,
+        level_count: band.level_count,
+      })),
+    };
+    const isEdit = state.schemeModalMode === 'edit' && state.editingSchemeCode;
+    const requestUrl = isEdit
+      ? `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.editingSchemeCode)}`
+      : '/admin/api/cod-bucket-schemes';
+    const requestMethod = isEdit ? 'PATCH' : 'POST';
+    apiJson(requestUrl, requestMethod, payload)
+      .then(payload => {
+        getSchemeCreateModal().hide();
+        state.schemes = [
+          ...state.schemes.filter(item => item.scheme_code !== payload.scheme.scheme_code),
+          payload.scheme,
+        ].sort((left, right) => (
+          (left.scheme_code || '').localeCompare(right.scheme_code || '')
+        ));
+        state.schemeCode = payload.scheme.scheme_code;
+        if (!(payload.scheme.age_bands || []).some(item => (item.value || '') === state.ageScope)) {
+          state.ageScope = (payload.scheme.age_bands?.[0]?.value) || '';
+          state.selectedNodeIds = [null, null, null];
+        }
+        state.selectedNodeIds = [null, null, null];
+        renderSchemeCards();
+        const feedbackPrefix = isEdit ? 'Scheme updated.' : 'Scheme created.';
+        const feedback = (payload.warnings || []).length
+          ? `${feedbackPrefix} Feedback: ${(payload.warnings || []).join(' ')}`
+          : feedbackPrefix;
+        setStatus(feedback, false);
+        loadScheme();
+      })
+      .catch(error => setStatus(error.message || `Failed to ${isEdit ? 'update' : 'create'} scheme.`, true));
+  });
+
+  els.schemeResetDefaultBtn.addEventListener('click', function () {
+    openResetDefaultModal({
+      schemeCode: els.schemeResetDefaultBtn.dataset.schemeCode || '',
+      schemeName: els.schemeResetDefaultBtn.dataset.schemeName || '',
+      ageScope: '',
+      ageLabel: '',
+      resetScope: 'scheme',
+    });
+  });
+
+  els.schemeCards.addEventListener('click', function (event) {
+    const editBtn = event.target.closest('.cb-scheme-edit-btn');
+    if (editBtn) {
+      openSchemeEditModal(editBtn.dataset.schemeCode || '');
+      return;
+    }
+    const btn = event.target.closest('.cb-scheme-age-btn');
+    if (!btn) return;
+    const nextSchemeCode = btn.dataset.schemeCode || '';
+    const nextAgeScope = btn.dataset.ageScope || '';
+    if (!nextSchemeCode) return;
+    const schemeChanged = state.schemeCode !== nextSchemeCode;
+    state.suppressAutoSelection = false;
+    state.schemeCode = nextSchemeCode;
+    state.ageScope = nextAgeScope;
+    if (schemeChanged) {
+      state.selectedNodeIds = [null, null, null];
+    }
+    renderSchemeCards();
+    loadScheme();
+  });
+
+  els.resetDefaultTopBtn.addEventListener('click', function () {
+    openResetDefaultModal({
+      schemeCode: els.resetDefaultTopBtn.dataset.schemeCode || '',
+      schemeName: selectedSchemeMeta()?.scheme_name || '',
+      ageScope: els.resetDefaultTopBtn.dataset.ageScope || '',
+      ageLabel: els.resetDefaultTopBtn.dataset.ageLabel || '',
+      resetScope: 'age_band',
+    });
+  });
+
+  els.resetSelectionsBtn.addEventListener('click', function () {
+    state.suppressAutoSelection = true;
+    state.selectedNodeIds = [null, null, null];
+    state.mappingNodeId = null;
+    state.mappingEntries = [];
+    state.mappingFilterQuery = '';
+    state.mappingLoading = false;
+    renderAll();
+    syncUrlState();
+    setStatus('Selections cleared.', false);
+  });
+
+  els.panes.forEach(pane => {
+    const depth = Number(pane.dataset.depth);
+
+    pane.querySelector('.cb-pane-add').addEventListener('click', function () {
+      addNode(depth).catch(error => setStatus(error.message || 'Failed to add heading.', true));
+    });
+
+    pane.addEventListener('click', function (event) {
+      const row = event.target.closest('[data-node-id]');
+      if (!row) return;
+      const nodeId = row.dataset.nodeId;
+      if (event.target.closest('.cb-node-edit')) {
+        openNodeEditModal(nodeId);
+        return;
+      }
+      state.suppressAutoSelection = false;
+      state.selectedNodeIds[depth] = nodeId;
+      for (let deeper = depth + 1; deeper < state.selectedNodeIds.length; deeper += 1) {
+        state.selectedNodeIds[deeper] = null;
+      }
+      ensureSelections();
+      renderAll();
+      syncUrlState();
+      loadCurrentLeafMappings();
+    });
+
+    pane.addEventListener('dragstart', function (event) {
+      const row = event.target.closest('[data-node-id]');
+      if (!row) return;
+      state.draggedNodeId = row.dataset.nodeId;
+      state.draggedDepth = depth;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', state.draggedNodeId);
+    });
+
+    pane.addEventListener('dragend', function () {
+      state.draggedNodeId = null;
+      state.draggedDepth = null;
+      pane.querySelectorAll('.cb-drop-target').forEach(el => el.classList.remove('cb-drop-target'));
+    });
+
+    pane.addEventListener('dragover', function (event) {
+      const row = event.target.closest('[data-node-id]');
+      if (!row || state.draggedDepth !== depth) return;
+      event.preventDefault();
+      row.classList.add('cb-drop-target');
+    });
+
+    pane.addEventListener('dragleave', function (event) {
+      const row = event.target.closest('[data-node-id]');
+      if (row) row.classList.remove('cb-drop-target');
+    });
+
+    pane.addEventListener('drop', function (event) {
+      const row = event.target.closest('[data-node-id]');
+      if (!row || state.draggedDepth !== depth) return;
+      event.preventDefault();
+      row.classList.remove('cb-drop-target');
+      reorderPane(depth, state.draggedNodeId, row.dataset.nodeId)
+        .catch(error => setStatus(error.message || 'Failed to reorder headings.', true));
+    });
+  });
+
+  els.mappingBody.addEventListener('input', function (event) {
+    if (event.target.id !== 'cb-mapped-filter') return;
+    state.mappingFilterQuery = event.target.value || '';
+    renderMappingSection();
+  });
+
+  els.mappingBody.addEventListener('click', function (event) {
+    const removeBtn = event.target.closest('.cb-unmap-btn');
+    if (!removeBtn) return;
+    state.pendingUnmapMappingId = removeBtn.dataset.mappingId || null;
+    state.pendingUnmapIcdCode = removeBtn.dataset.icdCode || '';
+    if (!state.pendingUnmapMappingId) return;
+    els.unmapModalBody.textContent = `Unmap ${state.pendingUnmapIcdCode} from the selected disease leaf?`;
+    getUnmapModal().show();
+  });
+
+  els.unmapConfirmBtn.addEventListener('click', function () {
+    if (!state.pendingUnmapMappingId) return;
+    const mappingId = state.pendingUnmapMappingId;
+    const icdCode = state.pendingUnmapIcdCode;
+    apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/mappings/${encodeURIComponent(mappingId)}`,
+      'DELETE'
+    ).then(() => {
+      getUnmapModal().hide();
+      state.pendingUnmapMappingId = null;
+      state.pendingUnmapIcdCode = '';
+      setStatus(`ICD code ${icdCode} unmapped.`, false);
+      loadCurrentLeafMappings();
+      if (state.icdSearchQuery) {
+        searchIcdCandidates();
+      }
+    }).catch(error => setStatus(error.message || 'Failed to unmap ICD code.', true));
+  });
+
+  els.resetDefaultConfirmBtn.addEventListener('click', function () {
+    resetSelectedAgeBandToDefault()
+      .catch(error => setStatus(error.message || 'Failed to reset built-in age band from source.', true));
+  });
+
+  els.openIcdModalBtn.addEventListener('click', function () {
+    const leaf = currentLeaf();
+    if (!leaf) return;
+    state.icdSearchQuery = '';
+    state.icdSearchUnmappedOnly = false;
+    state.icdSearchResults = [];
+    state.icdSearchLoading = false;
+    els.icdSearchModalPath.textContent = leaf.path_label || leaf.node_label;
+    els.icdSearchInput.value = '';
+    els.icdSearchUnmappedOnly.checked = false;
+    renderIcdSearchResults();
+    getIcdSearchModal().show();
+  });
+
+  els.icdSearchInput.addEventListener('input', function () {
+    state.icdSearchQuery = this.value || '';
+    queueIcdSearch();
+  });
+
+  els.icdSearchUnmappedOnly.addEventListener('change', function () {
+    state.icdSearchUnmappedOnly = this.checked;
+    queueIcdSearch();
+  });
+
+  els.icdSearchResults.addEventListener('click', function (event) {
+    const addBtn = event.target.closest('.cb-icd-search-add-btn');
+    if (!addBtn) return;
+    const leaf = currentLeaf();
+    if (!leaf) return;
+    const icdCode = addBtn.dataset.icdCode;
+    apiJson(
+      `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/mappings`,
+      'POST',
+      {
+        node_id: leaf.node_id,
+        icd_codes: [icdCode],
+      }
+    ).then(() => {
+      setStatus('ICD code mapped to selected disease.', false);
+      loadCurrentLeafMappings();
+      searchIcdCandidates();
+    }).catch(error => setStatus(error.message || 'Failed to map ICD code.', true));
+  });
+
+  els.nodeEditSave.addEventListener('click', function () {
+    saveNodeEdit();
+  });
+
+  els.nodeDeleteOpen.addEventListener('click', function () {
+    const nodeId = els.nodeEditId.value;
+    const node = nodeById(nodeId);
+    if (!node) return;
+    state.pendingDeleteNodeId = nodeId;
+    els.nodeDeleteModalBody.textContent = `Delete ${node.path_label || node.node_label}. This cascades to lower levels under it. Choose what to do with associated ICD-10 codes.`;
+    document.getElementById('cb-node-delete-disposition-unmap').checked = true;
+    getNodeEditModal().hide();
+    getNodeDeleteModal().show();
+  });
+
+  els.nodeDeleteConfirm.addEventListener('click', function () {
+    deleteSelectedNode().catch(error => setStatus(error.message || 'Failed to delete bucket level.', true));
+  });
+
+  els.nodeEditModalEl.addEventListener('shown.bs.modal', function () {
+    els.nodeEditLabel.focus();
+    els.nodeEditLabel.select();
+  });
+
+  els.nodeEditModalEl.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      saveNodeEdit();
+    }
+  });
+
+  els.nodeDeleteModalEl.addEventListener('hidden.bs.modal', function () {
+    if (!els.nodeEditModalEl.classList.contains('show')) {
+      state.pendingDeleteNodeId = null;
+    }
+  });
+
+  els.icdSearchModalEl.addEventListener('shown.bs.modal', function () {
+    els.icdSearchInput.focus();
+  });
+
+  els.schemeCreateModalEl.addEventListener('shown.bs.modal', function () {
+    els.schemeCreateName.focus();
+  });
+
+  els.unmapModalEl.addEventListener('hidden.bs.modal', function () {
+    state.pendingUnmapMappingId = null;
+    state.pendingUnmapIcdCode = '';
+  });
+
+  initializeStateFromUrl();
+  renderSchemeCards();
+  if (state.schemeCode) {
+    loadScheme();
+  } else {
+    renderAll();
+  }
+})();
+</script>

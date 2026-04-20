@@ -1,0 +1,556 @@
+from datetime import datetime, timezone
+import uuid
+
+import sqlalchemy as sa
+
+from app import db
+from app.models import (
+    MapIcdCodBucket,
+    MasCodBucketNode,
+    MasCodBucketScheme,
+    MasCodBucketSchemeAgeBand,
+    VaIcdCodes,
+)
+from tests.base import BaseTestCase
+
+
+class AdminCodBucketPanelTests(BaseTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        scheme = MasCodBucketScheme(
+            scheme_code=f"TEST_ADMIN_{uuid.uuid4().hex[:8].upper()}",
+            scheme_name="Admin COD Scheme",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        cls.scheme_code = scheme.scheme_code
+        cls.scheme_id = scheme.scheme_id
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope="adult_over5y",
+                age_label="Adult / Over 5 Years",
+                min_age_value=5,
+                min_age_unit="years",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=3,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        db.session.flush()
+        cls.adult_age_band_id = db.session.scalar(
+            sa.select(MasCodBucketSchemeAgeBand.age_band_id).where(
+                MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id,
+                MasCodBucketSchemeAgeBand.age_scope == "adult_over5y",
+            )
+        )
+
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="category",
+            node_code="injuries",
+            node_label="Injuries",
+            sort_order=1,
+            is_active=True,
+        )
+        subcategory = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="subcategory",
+            parent=category,
+            node_code="road_injuries",
+            node_label="Road Injuries",
+            sort_order=1,
+            is_active=True,
+        )
+        field_a = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="field",
+            parent=subcategory,
+            node_code="pedestrian",
+            node_label="Pedestrian Road Injury",
+            sort_order=1,
+            is_active=True,
+        )
+        field_b = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="field",
+            parent=subcategory,
+            node_code="vehicle",
+            node_label="Vehicle Occupant Injury",
+            sort_order=2,
+            is_active=True,
+        )
+        db.session.add_all([category, subcategory, field_a, field_b])
+        db.session.flush()
+        cls.field_a_id = field_a.node_id
+        cls.field_b_id = field_b.node_id
+
+        db.session.add_all(
+            [
+                VaIcdCodes(
+                    disease_id=910001,
+                    icd_code="V01",
+                    icd_to_display="V01-Admin test pedestrian injury",
+                    category="test",
+                ),
+                VaIcdCodes(
+                    disease_id=910002,
+                    icd_code="V02",
+                    icd_to_display="V02-Admin test cyclist injury",
+                    category="test",
+                ),
+                VaIcdCodes(
+                    disease_id=910003,
+                    icd_code="V03",
+                    icd_to_display="V03-Admin test pedestrian collision",
+                    category="test",
+                ),
+                VaIcdCodes(
+                    disease_id=910004,
+                    icd_code="ZZ91",
+                    icd_to_display="ZZ91-Admin unique unmapped syndrome",
+                    category="test",
+                ),
+            ]
+        )
+
+        mapping = MapIcdCodBucket(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            icd_code="V01",
+            node_id=field_a.node_id,
+            is_active=True,
+        )
+        db.session.add(mapping)
+        db.session.commit()
+        cls.mapping_id = mapping.mapping_id
+        cls.category_id = category.node_id
+
+    def test_cod_bucket_panel_renders_for_admin(self):
+        self._login(self.base_admin_id)
+        response = self.client.get("/admin/panels/cod-buckets")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"COD Bucket Mapping", response.data)
+        self.assertIn(b"New Scheme", response.data)
+
+    def test_cod_bucket_scheme_detail_returns_editor_payload(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}?age_scope=adult_over5y"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["scheme"]["scheme_code"], self.scheme_code)
+        self.assertEqual(payload["selected_age_scope"], "adult_over5y")
+        self.assertGreaterEqual(len(payload["nodes"]), 4)
+        self.assertTrue(any(node["node_id"] == str(self.category_id) for node in payload["nodes"]))
+        self.assertTrue(any(node["node_id"] == str(self.field_a_id) for node in payload["nodes"]))
+        self.assertNotIn("mappings", payload)
+        self.assertNotIn("field_options", payload)
+        self.assertEqual(payload["selected_age_band"]["level_count"], 3)
+
+    def test_cod_bucket_scheme_create_returns_feedback_but_still_persists(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            "/admin/api/cod-bucket-schemes",
+            json={
+                "scheme_name": "Custom Feedback Scheme",
+                "scheme_code": f"CUSTOM_{uuid.uuid4().hex[:6].upper()}",
+                "age_bands": [
+                    {
+                        "age_label": "Neonate",
+                        "min_age_value": 0,
+                        "min_age_unit": "days",
+                        "max_age_value": 28,
+                        "max_age_unit": "days",
+                        "level_count": 3,
+                    },
+                    {
+                        "age_label": "Adult",
+                        "min_age_value": 5,
+                        "min_age_unit": "years",
+                        "max_age_value": 120,
+                        "max_age_unit": "years",
+                        "level_count": 2,
+                    },
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertTrue(payload["warnings"])
+        self.assertEqual(payload["scheme"]["scheme_name"], "Custom Feedback Scheme")
+        self.assertEqual(len(payload["scheme"]["age_bands"]), 2)
+
+    def test_cod_bucket_scheme_update_can_edit_name_and_add_age_band(self):
+        self._login(self.base_admin_id)
+        response = self.client.patch(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}",
+            json={
+                "scheme_name": "Admin COD Scheme Updated",
+                "age_bands": [
+                    {
+                        "age_band_id": str(self.adult_age_band_id),
+                        "age_label": "Adult / 5+ Years",
+                        "min_age_value": 5,
+                        "min_age_unit": "years",
+                        "max_age_value": 120,
+                        "max_age_unit": "years",
+                        "level_count": 3,
+                    },
+                    {
+                        "age_label": "Child / 1-59 Months",
+                        "min_age_value": 1,
+                        "min_age_unit": "months",
+                        "max_age_value": 60,
+                        "max_age_unit": "months",
+                        "level_count": 2,
+                    },
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["scheme"]["scheme_name"], "Admin COD Scheme Updated")
+        self.assertEqual(len(payload["scheme"]["age_bands"]), 2)
+        self.assertTrue(
+            any(item["label"] == "Child / 1-59 Months" for item in payload["scheme"]["age_bands"])
+        )
+
+    def test_cod_bucket_scheme_update_blocks_removing_non_empty_age_band(self):
+        self._login(self.base_admin_id)
+        response = self.client.patch(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}",
+            json={
+                "scheme_name": "Admin COD Scheme",
+                "age_bands": [
+                    {
+                        "age_label": "Child / 1-59 Months",
+                        "min_age_value": 1,
+                        "min_age_unit": "months",
+                        "max_age_value": 60,
+                        "max_age_unit": "months",
+                        "level_count": 2,
+                    }
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertIn("Cannot remove age band", payload["error"])
+
+    def test_cod_bucket_scheme_reset_default_rejects_non_source_backed_scheme(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/reset-default",
+            json={"age_scope": "adult_over5y"},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertIn("cannot be reset from source", payload["error"].lower())
+
+    def test_cod_bucket_node_mappings_returns_selected_leaf_only(self):
+        self._login(self.base_admin_id)
+        isolated_mapping = MapIcdCodBucket(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            icd_code="ZZ91",
+            node_id=self.field_a_id,
+            is_active=True,
+        )
+        db.session.add(isolated_mapping)
+        db.session.commit()
+
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/nodes/{self.field_a_id}/mappings"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["node"]["node_id"], str(self.field_a_id))
+        self.assertIn("ZZ91", [mapping["icd_code"] for mapping in payload["mappings"]])
+        self.assertTrue(any(
+            mapping["icd_code"] == "ZZ91"
+            and mapping["icd_to_display"] == "ZZ91-Admin unique unmapped syndrome"
+            for mapping in payload["mappings"]
+        ))
+
+    def test_cod_bucket_icd_search_includes_current_path_context(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
+            f"?age_scope=adult_over5y&q=pedestrian&selected_node_id={self.field_a_id}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        v01 = next(item for item in payload["results"] if item["icd_code"] == "V01")
+        self.assertTrue(v01["is_mapped"])
+        self.assertTrue(v01["is_selected_leaf"])
+        self.assertIn("Pedestrian Road Injury", v01["current_path_label"])
+
+    def test_cod_bucket_icd_search_can_filter_to_unmapped(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
+            "?age_scope=adult_over5y&q=admin&unmapped_only=1"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(any(item["icd_code"] == "ZZ91" for item in payload["results"]))
+        self.assertFalse(any(item["icd_code"] == "V01" for item in payload["results"]))
+
+    def test_cod_bucket_node_patch_updates_label_and_sort_order(self):
+        self._login(self.base_admin_id)
+        response = self.client.patch(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/nodes/{self.category_id}",
+            json={"node_label": "External Injuries", "sort_order": 5},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        node = db.session.get(MasCodBucketNode, self.category_id)
+        self.assertEqual(node.node_label, "External Injuries")
+        self.assertEqual(node.sort_order, 5)
+
+    def test_cod_bucket_node_delete_leaf_can_unmap_associated_icds(self):
+        self._login(self.base_admin_id)
+        field = MasCodBucketNode(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            node_type="field",
+            parent_node_id=db.session.get(MasCodBucketNode, self.field_b_id).parent_node_id,
+            node_code=f"delete_leaf_{uuid.uuid4().hex[:8]}",
+            node_label="Delete Leaf Field",
+            sort_order=99,
+            is_active=True,
+        )
+        db.session.add(field)
+        db.session.flush()
+        db.session.add(
+            VaIcdCodes(
+                disease_id=910006,
+                icd_code="ZZ93",
+                icd_to_display="ZZ93-Admin delete leaf syndrome",
+                category="test",
+            )
+        )
+        mapping = MapIcdCodBucket(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            icd_code="ZZ93",
+            node_id=field.node_id,
+            is_active=True,
+        )
+        db.session.add(mapping)
+        db.session.commit()
+
+        response = self.client.delete(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/nodes/{field.node_id}",
+            json={"mapping_disposition": "unmap"},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(db.session.get(MasCodBucketNode, field.node_id))
+        remaining = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(MapIcdCodBucket)
+            .where(
+                MapIcdCodBucket.scheme_id == self.scheme_id,
+                MapIcdCodBucket.age_scope == "adult_over5y",
+                MapIcdCodBucket.icd_code == "ZZ93",
+            )
+        )
+        self.assertEqual(remaining, 0)
+
+    def test_cod_bucket_node_delete_higher_level_can_move_icds_to_unmapped(self):
+        self._login(self.base_admin_id)
+        category = MasCodBucketNode(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            node_type="category",
+            node_code=f"delete_category_{uuid.uuid4().hex[:8]}",
+            node_label="Delete Category",
+            sort_order=120,
+            is_active=True,
+        )
+        db.session.add(category)
+        db.session.flush()
+        subcategory = MasCodBucketNode(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            node_type="subcategory",
+            parent=category,
+            node_code=f"delete_subcategory_{uuid.uuid4().hex[:8]}",
+            node_label="Delete Subcategory",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add(subcategory)
+        db.session.flush()
+        field = MasCodBucketNode(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            node_type="field",
+            parent=subcategory,
+            node_code=f"delete_field_{uuid.uuid4().hex[:8]}",
+            node_label="Delete Field",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add(field)
+        db.session.add_all(
+            [
+                VaIcdCodes(
+                    disease_id=910007,
+                    icd_code="ZZ94",
+                    icd_to_display="ZZ94-Admin cascade delete syndrome",
+                    category="test",
+                ),
+                VaIcdCodes(
+                    disease_id=910008,
+                    icd_code="ZZ95",
+                    icd_to_display="ZZ95-Admin cascade delete syndrome two",
+                    category="test",
+                ),
+            ]
+        )
+        db.session.flush()
+        db.session.add_all(
+            [
+                MapIcdCodBucket(
+                    scheme_id=self.scheme_id,
+                    age_scope="adult_over5y",
+                    icd_code="ZZ94",
+                    node_id=field.node_id,
+                    is_active=True,
+                ),
+                MapIcdCodBucket(
+                    scheme_id=self.scheme_id,
+                    age_scope="adult_over5y",
+                    icd_code="ZZ95",
+                    node_id=field.node_id,
+                    is_active=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        response = self.client.delete(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/nodes/{category.node_id}",
+            json={"mapping_disposition": "move_to_unmapped"},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIn("Unmapped", payload["replacement_leaf_path_label"])
+        self.assertIsNone(db.session.get(MasCodBucketNode, category.node_id))
+        reassigned = db.session.scalars(
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == self.scheme_id,
+                MapIcdCodBucket.age_scope == "adult_over5y",
+                MapIcdCodBucket.icd_code.in_(["ZZ94", "ZZ95"]),
+            )
+        ).all()
+        self.assertEqual(len(reassigned), 2)
+        self.assertEqual({str(row.node_id) for row in reassigned}, {payload["replacement_leaf_node_id"]})
+
+    def test_cod_bucket_mapping_patch_repoints_single_leaf_target(self):
+        self._login(self.base_admin_id)
+        response = self.client.patch(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/mappings/{self.mapping_id}",
+            json={"node_id": str(self.field_b_id)},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mapping = db.session.get(MapIcdCodBucket, self.mapping_id)
+        self.assertEqual(mapping.node_id, self.field_b_id)
+        count = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(MapIcdCodBucket)
+            .where(
+                MapIcdCodBucket.scheme_id == self.scheme_id,
+                MapIcdCodBucket.age_scope == "adult_over5y",
+                MapIcdCodBucket.icd_code == "V01",
+            )
+        )
+        self.assertEqual(count, 1)
+
+    def test_cod_bucket_mapping_delete_unmaps_icd_code(self):
+        self._login(self.base_admin_id)
+        mapping = MapIcdCodBucket(
+            scheme_id=self.scheme_id,
+            age_scope="adult_over5y",
+            icd_code="ZZ92",
+            node_id=self.field_a_id,
+            is_active=True,
+        )
+        db.session.add(mapping)
+        db.session.add(
+            VaIcdCodes(
+                disease_id=910005,
+                icd_code="ZZ92",
+                icd_to_display="ZZ92-Admin delete mapping syndrome",
+                category="test",
+            )
+        )
+        db.session.commit()
+
+        response = self.client.delete(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/mappings/{mapping.mapping_id}",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(db.session.get(MapIcdCodBucket, mapping.mapping_id))
+
+        search_response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
+            "?age_scope=adult_over5y&q=ZZ92&unmapped_only=1"
+        )
+        self.assertEqual(search_response.status_code, 200)
+        payload = search_response.get_json()
+        self.assertTrue(any(item["icd_code"] == "ZZ92" for item in payload["results"]))
+
+    def test_cod_bucket_mapping_post_adds_codes_to_selected_leaf(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/mappings",
+            json={"node_id": str(self.field_a_id), "icd_codes": "V02, V03"},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 201)
+        rows = db.session.scalars(
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == self.scheme_id,
+                MapIcdCodBucket.age_scope == "adult_over5y",
+                MapIcdCodBucket.node_id == self.field_a_id,
+                MapIcdCodBucket.icd_code.in_(["V02", "V03"]),
+            )
+        ).all()
+        self.assertEqual(sorted(row.icd_code for row in rows), ["V02", "V03"])

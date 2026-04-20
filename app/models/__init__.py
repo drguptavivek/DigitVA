@@ -36,6 +36,12 @@ from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.models.va_submissions_auditlog import VaSubmissionsAuditlog
 from app.models.va_user_access_grants import VaUserAccessGrants
 from app.models.mas_odk_connections import MasOdkConnections
+from app.models.mas_cod_bucket import (
+    MasCodBucketScheme,
+    MasCodBucketSchemeAgeBand,
+    MasCodBucketNode,
+    MapIcdCodBucket,
+)
 from app.models.mas_languages import MasLanguages, MapLanguageAliases
 from app.models.map_project_odk import MapProjectOdk
 from app.models.map_project_site_odk import MapProjectSiteOdk
@@ -98,6 +104,10 @@ __all__ = [
     "VaAccessRoles",
     "VaAccessScopeTypes",
     "MasOdkConnections",
+    "MasCodBucketScheme",
+    "MasCodBucketSchemeAgeBand",
+    "MasCodBucketNode",
+    "MapIcdCodBucket",
     "MapProjectOdk",
     "MapProjectSiteOdk",
     "MasFormTypes",

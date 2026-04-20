@@ -1,0 +1,457 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | COD Bucket Reporting{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cod_bucket_reporting.css') }}"/>
+
+<div class="content-section cod-bucket-hero mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
+    <div>
+      <h4 class="content-section-title mb-0">
+        <i class="fas fa-layer-group"></i>
+        COD Bucket Reporting
+      </h4>
+      <div class="cod-bucket-muted small mt-2">
+        Aggregate coded submissions by active reporting scheme without mutating coder or reviewer ICD outcomes.
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <span class="cod-bucket-chip">
+        <i class="fas fa-shield-halved"></i>
+        Authoritative final ICD only
+      </span>
+      <a href="{{ url_for('data_management.dashboard') }}" class="btn btn-outline-primary">
+        <i class="fas fa-arrow-left me-1"></i> Back to Data Management
+      </a>
+    </div>
+  </div>
+  <p class="mb-0 cod-bucket-muted">
+    Use this page to compare coded output under different cause-grouping schemes such as
+    <strong>SRS India</strong> and <strong>CMEA10</strong>. Scheme changes affect reporting only.
+  </p>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3 mb-4 cod-bucket-filters-card">
+  <div class="card-body">
+    <div class="row g-3 align-items-end cod-bucket-filter-grid">
+      <div class="col-md-3">
+        <label class="form-label">Scheme</label>
+        <select id="cod-bucket-scheme" class="form-select">
+          {% for scheme in cod_bucket_schemes %}
+          <option
+            value="{{ scheme.scheme_code }}"
+            {% if scheme.scheme_code == cod_bucket_default_scheme_code %}selected{% endif %}
+          >
+            {{ scheme.scheme_name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Project</label>
+        <select id="cod-bucket-project" class="form-select">
+          <option value="">All projects</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Site</label>
+        <select id="cod-bucket-site" class="form-select">
+          <option value="">All sites</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Form</label>
+        <select id="cod-bucket-form" class="form-select">
+          <option value="">All forms</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button id="cod-bucket-apply" class="btn btn-primary w-100">
+          <i class="fas fa-filter me-1"></i> Apply
+        </button>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Date from</label>
+        <input id="cod-bucket-date-from" class="form-control" type="date">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Date to</label>
+        <input id="cod-bucket-date-to" class="form-control" type="date">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
+      <div class="card-body">
+        <div class="text-muted small">Rows</div>
+        <div id="cod-bucket-kpi-rows" class="fs-3 fw-semibold">0</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
+      <div class="card-body">
+        <div class="text-muted small">Coded Count</div>
+        <div id="cod-bucket-kpi-coded" class="fs-3 fw-semibold">0</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
+      <div class="card-body">
+        <div class="text-muted small">Current Scope</div>
+        <div id="cod-bucket-kpi-scope" class="fw-semibold">All in-scope coded submissions</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <h5 class="mb-1">Causes of Death</h5>
+        <div class="small cod-bucket-muted">
+          Each age group is summarized separately and sorted by the scheme display order for
+          main group, subgroup, and disease.
+        </div>
+        <div class="small mt-2">
+          <strong>Scheme:</strong> <span id="cod-bucket-selected-scheme">—</span>
+        </div>
+      </div>
+    </div>
+    <div id="cod-bucket-age-tables" class="d-flex flex-column gap-4">
+      <div class="text-center text-muted py-4">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.COD_BUCKET_REPORTING_BOOTSTRAP = {
+  forms: {{ cod_bucket_forms|tojson }},
+  schemes: {{ cod_bucket_schemes|tojson }},
+};
+
+(function () {
+  const bootstrapData = window.COD_BUCKET_REPORTING_BOOTSTRAP || { forms: [], schemes: [] };
+  const forms = bootstrapData.forms || [];
+  const els = {
+    scheme: document.getElementById('cod-bucket-scheme'),
+    project: document.getElementById('cod-bucket-project'),
+    site: document.getElementById('cod-bucket-site'),
+    form: document.getElementById('cod-bucket-form'),
+    dateFrom: document.getElementById('cod-bucket-date-from'),
+    dateTo: document.getElementById('cod-bucket-date-to'),
+    apply: document.getElementById('cod-bucket-apply'),
+    ageTables: document.getElementById('cod-bucket-age-tables'),
+    rows: document.getElementById('cod-bucket-kpi-rows'),
+    coded: document.getElementById('cod-bucket-kpi-coded'),
+    scope: document.getElementById('cod-bucket-kpi-scope'),
+    selectedScheme: document.getElementById('cod-bucket-selected-scheme'),
+  };
+  const ageScopeLabels = {
+    adult_over5y: 'Adult / Over 5 Years',
+    child_1_59m: 'Child / 1–59 Months',
+    neonate: 'Neonate',
+  };
+  const ageScopeOrder = ['adult_over5y', 'child_1_59m', 'neonate'];
+
+  function uniq(values) {
+    return Array.from(new Set(values.filter(Boolean)));
+  }
+
+  function optionHtml(value, label, selected) {
+    const isSelected = String(selected || '') === String(value || '') ? ' selected' : '';
+    return `<option value="${String(value || '').replace(/"/g, '&quot;')}"${isSelected}>${label}</option>`;
+  }
+
+  function refreshProjectOptions() {
+    const projects = uniq(forms.map(row => row.project_id)).sort();
+    els.project.innerHTML = optionHtml('', 'All projects', '') + projects.map(
+      projectId => optionHtml(projectId, projectId, els.project.value)
+    ).join('');
+  }
+
+  function refreshSiteOptions() {
+    const sites = uniq(
+      forms
+        .filter(row => !els.project.value || row.project_id === els.project.value)
+        .map(row => row.site_id)
+    ).sort();
+    const current = sites.includes(els.site.value) ? els.site.value : '';
+    els.site.innerHTML = optionHtml('', 'All sites', current) + sites.map(
+      siteId => optionHtml(siteId, siteId, current)
+    ).join('');
+  }
+
+  function refreshFormOptions() {
+    const rows = forms.filter(row => {
+      if (els.project.value && row.project_id !== els.project.value) return false;
+      if (els.site.value && row.site_id !== els.site.value) return false;
+      return true;
+    });
+    const current = rows.some(row => row.form_id === els.form.value) ? els.form.value : '';
+    els.form.innerHTML = optionHtml('', 'All forms', current) + rows.map(
+      row => optionHtml(row.form_id, `${row.form_id} — ${row.project_id}/${row.site_id}`, current)
+    ).join('');
+  }
+
+  function syncSelectors() {
+    refreshProjectOptions();
+    refreshSiteOptions();
+    refreshFormOptions();
+  }
+
+  function formatPercent(value) {
+    return `${value.toFixed(1)}%`;
+  }
+
+  function displayLabel(value) {
+    if (value === null || value === undefined) return '—';
+    const text = String(value).trim();
+    return text || '—';
+  }
+
+  function formatCountPercent(count, total) {
+    const pct = total ? (count / total) * 100 : 0;
+    return `${count} (${formatPercent(pct)})`;
+  }
+
+  function buildHierarchyRows(scopeRows, scopeTotal) {
+    const groups = new Map();
+
+    scopeRows.forEach(row => {
+      const category = displayLabel(row.bucket_category);
+      const subcategory = displayLabel(row.bucket_subcategory);
+      const disease = displayLabel(row.bucket_field);
+
+      if (!groups.has(category)) {
+        groups.set(category, {
+          label: category,
+          count: 0,
+          subgroups: new Map(),
+          diseases: [],
+        });
+      }
+      const group = groups.get(category);
+      group.count += row.coded_count || 0;
+
+      if (subcategory !== '—') {
+        if (!group.subgroups.has(subcategory)) {
+          group.subgroups.set(subcategory, {
+            label: subcategory,
+            count: 0,
+            diseases: [],
+          });
+        }
+        const subgroup = group.subgroups.get(subcategory);
+        subgroup.count += row.coded_count || 0;
+        subgroup.diseases.push({
+          label: disease,
+          count: row.coded_count || 0,
+        });
+      } else if (category !== '—') {
+        group.diseases.push({
+          label: disease,
+          count: row.coded_count || 0,
+        });
+      } else {
+        group.diseases.push({
+          label: disease,
+          count: row.coded_count || 0,
+        });
+      }
+    });
+
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const hierarchyRows = [];
+
+    Array.from(groups.values()).forEach((group, groupIndex) => {
+      const groupCode = alphabet[groupIndex] || String(groupIndex + 1);
+      hierarchyRows.push({
+        code: groupCode,
+        label: group.label,
+        level: 0,
+        countText: formatCountPercent(group.count, scopeTotal),
+      });
+
+      const subgroupEntries = Array.from(group.subgroups.values());
+      const collapseGroupIntoSingleSubgroup = (
+        group.diseases.length === 0 &&
+        subgroupEntries.length === 1 &&
+        subgroupEntries[0].label === group.label
+      );
+
+      subgroupEntries.forEach((subgroup, subgroupIndex) => {
+        const subgroupCode = `${groupCode}.${subgroupIndex + 1}`;
+        const collapseSubgroupIntoDisease = (
+          subgroup.diseases.length === 1 &&
+          subgroup.diseases[0].label === subgroup.label
+        );
+
+        if (!collapseGroupIntoSingleSubgroup) {
+          hierarchyRows.push({
+            code: subgroupCode,
+            label: subgroup.label,
+            level: 1,
+            countText: formatCountPercent(subgroup.count, scopeTotal),
+          });
+        }
+
+        if (!collapseSubgroupIntoDisease) {
+          subgroup.diseases.forEach((disease, diseaseIndex) => {
+            const baseCode = collapseGroupIntoSingleSubgroup ? groupCode : subgroupCode;
+            const baseLevel = collapseGroupIntoSingleSubgroup ? 1 : 2;
+            hierarchyRows.push({
+              code: `${baseCode}.${diseaseIndex + 1}`,
+              label: disease.label,
+              level: baseLevel,
+              countText: formatCountPercent(disease.count, scopeTotal),
+            });
+          });
+        }
+      });
+
+      const collapseGroupIntoDisease = (
+        subgroupEntries.length === 0 &&
+        group.diseases.length === 1 &&
+        group.diseases[0].label === group.label
+      );
+      if (!collapseGroupIntoDisease) {
+        group.diseases.forEach((disease, diseaseIndex) => {
+          hierarchyRows.push({
+            code: `${groupCode}.${diseaseIndex + 1}`,
+            label: disease.label,
+            level: 2,
+            countText: formatCountPercent(disease.count, scopeTotal),
+          });
+        });
+      }
+    });
+
+    return hierarchyRows;
+  }
+
+  function renderRows(rows) {
+    if (!rows.length) {
+      els.ageTables.innerHTML = '<div class="text-center text-muted py-4">No aggregate rows found.</div>';
+      return;
+    }
+    const rowsByAge = rows.reduce((acc, row) => {
+      const scope = row.age_scope || 'unknown';
+      if (!acc[scope]) {
+        acc[scope] = [];
+      }
+      acc[scope].push(row);
+      return acc;
+    }, {});
+    const sectionOrder = [
+      ...ageScopeOrder.filter(scope => rowsByAge[scope]),
+      ...Object.keys(rowsByAge).filter(scope => !ageScopeOrder.includes(scope)).sort(),
+    ];
+    els.ageTables.innerHTML = sectionOrder.map(scope => {
+      const scopeRows = rowsByAge[scope];
+      const scopeTotal = scopeRows.reduce((sum, row) => sum + (row.coded_count || 0), 0);
+      return `
+        <section class="cod-bucket-age-section">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+            <div>
+              <h6 class="mb-0">${ageScopeLabels[scope] || scope}</h6>
+              <div class="small cod-bucket-muted">Total coded deaths: ${scopeTotal}</div>
+            </div>
+          </div>
+          <div class="table-responsive cod-bucket-table-wrap">
+            <table class="table table-sm align-middle cod-bucket-table">
+              <thead>
+                <tr>
+                  <th class="cod-bucket-code-col">No.</th>
+                  <th>Cause Grouping</th>
+                  <th class="text-end">N (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${buildHierarchyRows(scopeRows, scopeTotal).map(row => `
+                    <tr>
+                      <td class="cod-bucket-code-col">${row.code}</td>
+                      <td class="cod-bucket-label-cell">
+                        <span class="cod-bucket-tree-label cod-bucket-level-${row.level}">${row.label}</span>
+                      </td>
+                      <td class="text-end">
+                        <span class="cod-bucket-tree-label cod-bucket-level-${row.level}">${row.countText}</span>
+                      </td>
+                    </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      `;
+    }).join('');
+  }
+
+  function updateScopeText() {
+    const parts = [];
+    const schemeText = els.scheme.options[els.scheme.selectedIndex]?.text || els.scheme.value || 'Scheme';
+    els.selectedScheme.textContent = schemeText;
+    parts.push(schemeText);
+    if (els.project.value) parts.push(els.project.value);
+    if (els.site.value) parts.push(els.site.value);
+    if (els.form.value) parts.push(els.form.value);
+    if (els.dateFrom.value || els.dateTo.value) {
+      parts.push(`${els.dateFrom.value || '...'} to ${els.dateTo.value || '...'}`);
+    }
+    els.scope.textContent = parts.join(' / ') || 'All in-scope coded submissions';
+  }
+
+  async function loadAggregates() {
+    els.ageTables.innerHTML = '<div class="text-center text-muted py-4">Loading...</div>';
+    updateScopeText();
+    const params = new URLSearchParams();
+    if (els.scheme.value) params.set('scheme_code', els.scheme.value);
+    if (els.project.value) params.set('project_id', els.project.value);
+    if (els.site.value) params.set('site_id', els.site.value);
+    if (els.form.value) params.set('form_id', els.form.value);
+    if (els.dateFrom.value) params.set('date_from', els.dateFrom.value);
+    if (els.dateTo.value) params.set('date_to', els.dateTo.value);
+
+    const response = await fetch(`/api/v1/cod-buckets/aggregates?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      els.ageTables.innerHTML = `<div class="text-center text-danger py-4">${payload.error || 'Failed to load aggregates.'}</div>`;
+      els.rows.textContent = '0';
+      els.coded.textContent = '0';
+      return;
+    }
+    const rows = payload.data || [];
+    renderRows(rows);
+    els.rows.textContent = String(rows.length);
+    els.coded.textContent = String(rows.reduce((sum, row) => sum + (row.coded_count || 0), 0));
+  }
+
+  els.project.addEventListener('change', () => {
+    refreshSiteOptions();
+    refreshFormOptions();
+    updateScopeText();
+  });
+  els.site.addEventListener('change', () => {
+    refreshFormOptions();
+    updateScopeText();
+  });
+  els.form.addEventListener('change', updateScopeText);
+  els.scheme.addEventListener('change', updateScopeText);
+  els.dateFrom.addEventListener('change', updateScopeText);
+  els.dateTo.addEventListener('change', updateScopeText);
+  els.apply.addEventListener('click', loadAggregates);
+
+  syncSelectors();
+  updateScopeText();
+  loadAggregates();
+})();
+</script>
+{% endblock %}

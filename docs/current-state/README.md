@@ -32,7 +32,8 @@ Read these documents in this order:
 9. [Runtime And Operations](runtime-and-operations.md)
 10. [Data Manager Dashboard](data-manager-dashboard.md)
 11. [Submission Analytics Materialized View](submission-analytics.md)
-12. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
+12. [COD Bucket Reporting](cod-bucket-reporting.md)
+13. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
 
 Related planning:
 

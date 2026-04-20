@@ -64,6 +64,14 @@ def _default_config_class():
     return Config
 
 
+def _current_user_timezone():
+    tz_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    try:
+        return pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        return pytz.timezone("Asia/Kolkata")
+
+
 def create_app(config_class=None):
     if config_class is None:
         config_class = _default_config_class()
@@ -160,6 +168,17 @@ def create_app(config_class=None):
     from app.commands.kpi import init_app as init_kpi_commands
     init_kpi_commands(app)
 
+    from app.commands.cod_buckets import init_app as init_cod_bucket_commands
+    init_cod_bucket_commands(app)
+
+    @app.context_processor
+    def inject_template_globals():
+        return {
+            "current_year": datetime.now(pytz.UTC).astimezone(
+                _current_user_timezone()
+            ).year
+        }
+
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):
         if not dt:
@@ -173,14 +192,8 @@ def create_app(config_class=None):
         # If naive, assume UTC
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=pytz.UTC)
-            
-        tz_name = getattr(current_user, 'timezone', 'Asia/Kolkata')
-        try:
-            tz = pytz.timezone(tz_name)
-        except pytz.UnknownTimeZoneError:
-            tz = pytz.timezone('Asia/Kolkata')
-            
-        local_dt = dt.astimezone(tz)
+
+        local_dt = dt.astimezone(_current_user_timezone())
         return local_dt.strftime(format)
     
     timed_prefixes = (

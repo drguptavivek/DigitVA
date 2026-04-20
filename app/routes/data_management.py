@@ -43,6 +43,11 @@ from app.services.submission_analytics_mv import get_dm_kpi_from_mv
 from app.services.data_management_service import (
     dm_odk_edit_url,
     audit_dm_submission_action,
+    dm_scoped_forms,
+)
+from app.services.cod_bucket_mapping_service import (
+    SCHEME_CODE_SRS_INDIA,
+    list_cod_bucket_schemes,
 )
 from app.utils.va_permission.va_permission_01_abortwithflash import (
     va_permission_abortwithflash,
@@ -210,6 +215,37 @@ def kpi_dashboard():
             va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     return render_template("va_frontpages/va_dm_kpi_dashboard.html")
+
+
+@data_management.get("/cod-buckets")
+@role_required("data_manager", "admin")
+def cod_bucket_reporting():
+    if not current_user.is_admin():
+        project_ids = current_user.get_data_manager_projects()
+        project_site_pairs = current_user.get_data_manager_project_sites()
+        if not project_ids and not project_site_pairs:
+            va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
+
+    forms = dm_scoped_forms(current_user)
+    schemes = [
+        {
+            "scheme_code": scheme.scheme_code,
+            "scheme_name": scheme.scheme_name,
+        }
+        for scheme in list_cod_bucket_schemes()
+        if scheme.is_active
+    ]
+    default_scheme_code = (
+        SCHEME_CODE_SRS_INDIA
+        if any(scheme["scheme_code"] == SCHEME_CODE_SRS_INDIA for scheme in schemes)
+        else (schemes[0]["scheme_code"] if schemes else None)
+    )
+    return render_template(
+        "va_frontpages/va_cod_bucket_reporting.html",
+        cod_bucket_forms=forms,
+        cod_bucket_schemes=schemes,
+        cod_bucket_default_scheme_code=default_scheme_code,
+    )
 
 
 @data_management.get("/view/<va_sid>")

@@ -29,6 +29,7 @@ The `/admin` interface provides the following management panels:
 - **Users** — user account management (create, reset password, toggle active status, assign coder languages)
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
 - **Languages** — canonical language list management with ODK alias mapping. Shows unmapped language values found in submissions.
+- **COD Buckets** — admin editor for imported COD reporting schemes, including hierarchy labels/order and single-target ICD-to-disease remapping by age scope.
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
@@ -54,6 +55,7 @@ The following panels are restricted to application-level admins:
 - Sites
 - Projects
 - Languages
+- COD Buckets
 
 ### Project-PI-Accessible Panels
 

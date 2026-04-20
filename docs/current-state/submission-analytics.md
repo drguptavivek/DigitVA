@@ -3,19 +3,23 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-04-20
 ---
 
-# Submission Analytics Materialized View
+# Submission Analytics Materialized Views
 
 ## Purpose
 
-DigitVA now provides a PostgreSQL materialized view named `va_submission_analytics_mv`.
+DigitVA now provides three focused PostgreSQL materialized views:
 
-It exists to support analytics, trend charts, and reporting queries without
+- `va_submission_analytics_core_mv`
+- `va_submission_analytics_demographics_mv`
+- `va_submission_cod_detail_mv`
+
+Together they support analytics, trend charts, and reporting queries without
 running repeated live joins across operational workflow and coding tables.
 
-The view is:
+The materialized-view layer is:
 
 - one row per `va_sid`
 - additive to the current operational schema
@@ -37,7 +41,7 @@ The materialized view reads from:
 
 ## Included Dimensions
 
-The view includes:
+Across the three views, DigitVA stores:
 
 - project, site, and form identifiers
 - submission timestamps and day/week/month buckets
@@ -48,31 +52,39 @@ The view includes:
 - human coding outputs
 - SmartVA outputs
 
-## Age Normalization
+## Demographics MV
 
-The view prefers sync-time normalized age fields from `va_submissions` and
-falls back to raw WHO 2022 age fields only when those normalized columns are
-missing.
+`va_submission_analytics_demographics_mv` includes:
 
-It stores analytics-ready age outputs:
-
-- `normalized_age_hours`
-- `normalized_age_days`
-- `normalized_age_months`
-- `normalized_age_years`
-- `normalized_age_source`
-- `age_precision`
+- `va_sid`
+- `va_narration_language`
+- `sex`
+- `analytics_age_normalized_days`
 - `analytics_age_band`
+- `has_smartva`
+- `has_human_initial_cod`
+- `has_human_final_cod`
+
+It derives analytics age from sync-time normalized fields already stored on
+`va_submissions`:
+
+- `va_deceased_age_normalized_days`
+- `va_deceased_age_normalized_years`
+- `va_deceased_age_source`
 
 The derivation rules follow the policy in
 [WHO 2022 Age Derivation Policy](../policy/who-2022-age-derivation.md).
 
 Important current behavior:
 
-- same-day neonatal deaths preserve hour-level age resolution
-- the winning WHO age source is stored on `va_submissions.va_deceased_age_source`
-- child and adult ages are normalized using source precedence, not additive combination
-- raw `age_group` from the XLSForm is retained only indirectly through derived analytics logic and is not treated as the final reporting age band
+- `analytics_age_normalized_days` is sourced directly from
+  `va_submissions.va_deceased_age_normalized_days`
+- the winning WHO age source is stored on
+  `va_submissions.va_deceased_age_source`
+- child and adult ages are normalized using source precedence, not additive
+  combination
+- raw `age_group` from the XLSForm is not treated as the final analytics age
+  band
 
 ## Human COD And SmartVA
 
@@ -100,12 +112,12 @@ Current refresh behavior:
 - task name: `app.tasks.sync_tasks.refresh_submission_analytics_mv_task`
 - tracked in `va_sync_runs` with `triggered_by = "analytics_mv"`
 
-The refresh helper is implemented in
+The refresh helpers are implemented in
 [submission_analytics_mv.py](../../app/services/submission_analytics_mv.py).
 
 ## Indexes
 
-The materialized view has indexes for common analytics filters, including:
+The materialized views have indexes for common analytics filters, including:
 
 - `va_sid`
 - `submission_date`
@@ -133,7 +145,7 @@ reporting cleanup is outside the view.
 
 ## Verification
 
-The materialized view behavior is covered by focused tests in:
+The materialized-view behavior is covered by focused tests in:
 
 - [test_submission_analytics_mv.py](../../tests/services/test_submission_analytics_mv.py)
 

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-11
+last_updated: 2026-04-20
 ---
 
 # Current Data Model
@@ -132,6 +132,67 @@ Current runtime role:
 - active sync scope now comes from `map_project_site_odk`, and sync materializes or
   updates matching `va_forms` rows as needed
 
+## COD Reporting Master Tables
+
+### `mas_cod_bucket_schemes`
+
+Purpose:
+
+- stores versioned COD reporting schemes such as `SRS India` and `CMEA10`
+
+### `mas_cod_bucket_scheme_age_bands`
+
+Purpose:
+
+- stores age-band metadata for a COD reporting scheme
+
+Key fields:
+
+- `scheme_id`
+- `age_scope`
+- `age_label`
+- `min_age_value`
+- `min_age_unit`
+- `max_age_value`
+- `max_age_unit`
+- `level_count`
+- `sort_order`
+
+Current behavior:
+
+- lower bound is inclusive
+- upper bound is exclusive
+- all age bands persist explicit min/max bounds; no `NULL` open-ended ranges
+- built-in open-ended scopes currently use `120 years` as the explicit upper cap
+- unit normalization for reporting uses:
+  - `days = 1`
+  - `months = 365 / 12`
+  - `years = 365`
+
+### `mas_cod_bucket_nodes`
+
+Purpose:
+
+- stores hierarchy nodes inside a COD reporting scheme
+
+Current behavior:
+
+- supports variable depth by `scheme_id + age_scope`
+- node types currently used are:
+  - `category`
+  - `subcategory`
+  - `field`
+
+### `map_icd_cod_buckets`
+
+Purpose:
+
+- maps an ICD code to one reporting leaf within a scheme and age scope
+
+Current behavior:
+
+- one ICD code can map to only one leaf per `scheme_id + age_scope`
+
 ## Submission Table
 
 ### `va_submissions`
@@ -249,6 +310,66 @@ Current behavior:
 - performance indexes include:
   - `lower(icd_code)` (prefix/code search)
   - `gin(lower(icd_to_display) gin_trgm_ops)` for text matching
+
+### `mas_cod_bucket_schemes`
+
+Purpose:
+
+- stores versioned reporting taxonomies for ICD bucket aggregation
+
+Key fields:
+
+- `scheme_code`
+- `scheme_name`
+- `mapping_version`
+- `source_path`
+- `is_active`
+
+Current behavior:
+
+- separate from submission COD data
+- examples include `SRS India` and `CMEA10`
+
+### `mas_cod_bucket_nodes`
+
+Purpose:
+
+- stores the hierarchy nodes inside a reporting scheme
+
+Key fields:
+
+- `scheme_id`
+- `age_scope`
+- `node_type`
+- `parent_node_id`
+- `node_code`
+- `node_label`
+
+Current behavior:
+
+- supports variable hierarchy depth
+- supports age-scoped trees, used by `SRS India`
+- supports flat schemes, used by `CMEA10`
+
+### `map_icd_cod_buckets`
+
+Purpose:
+
+- maps an ICD code and optional age scope to a reporting leaf node
+
+Key fields:
+
+- `scheme_id`
+- `age_scope`
+- `icd_code`
+- `node_id`
+- `source_sheet`
+- `source_row_number`
+
+Current behavior:
+
+- leaves coded submissions unchanged
+- drives reporting-only COD bucket aggregation
 
 ### `va_initial_assessments`
 

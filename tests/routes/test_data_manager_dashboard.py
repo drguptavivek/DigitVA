@@ -2,6 +2,7 @@ import uuid
 import re
 import tempfile
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -10,9 +11,13 @@ from app import cache, db
 from app.models import (
     MapProjectSiteOdk,
     MapProjectOdk,
+    MapIcdCodBucket,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
+    MasCodBucketNode,
+    MasCodBucketScheme,
+    MasCodBucketSchemeAgeBand,
     MasOdkConnections,
     VaProjectMaster,
     VaProjectSites,
@@ -37,6 +42,15 @@ from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
+)
+from app.services.submission_analytics_mv import refresh_submission_analytics_mv
+from app.services.submission_analytics_mv import (
+    CORE_MV_NAME,
+    COD_MV_NAME,
+    DEMOGRAPHICS_MV_NAME,
+    build_submission_analytics_core_mv_sql,
+    build_submission_analytics_demographics_mv_sql,
+    build_submission_cod_detail_mv_sql,
 )
 from tests.base import BaseTestCase
 
@@ -681,6 +695,139 @@ class DataManagerDashboardTests(BaseTestCase):
             [row["va_sid"] for row in coded_rows],
             [later_submission_earlier_code_sid, earlier_submission_later_code_sid],
         )
+
+    def test_cod_bucket_reporting_page_renders(self):
+        self._login(self.dm_user_id)
+
+        response = self.client.get("/data-management/cod-buckets")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"COD Bucket Reporting", response.data)
+
+    def test_cod_bucket_aggregates_api_respects_dm_scope(self):
+        self._login(self.dm_user_id)
+        now = datetime.now(timezone.utc)
+
+        for mv in (COD_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
+            db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_core_va_sid ON {CORE_MV_NAME} (va_sid)")
+        )
+        db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
+        )
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_detail_va_sid ON {COD_MV_NAME} (va_sid)")
+        )
+        db.session.commit()
+
+        scheme = MasCodBucketScheme(
+            scheme_code=f"TEST_SCOPE_{uuid.uuid4().hex[:8].upper()}",
+            scheme_name="Scope Test Scheme",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope="adult_over5y",
+                age_label="Adult / Over 5 Years",
+                min_age_value=5,
+                min_age_unit="years",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=1,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+
+        in_scope_field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="field",
+            node_code="scope_field",
+            node_label="Scope Field",
+            sort_order=1,
+        )
+        db.session.add(in_scope_field)
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope="adult_over5y",
+                icd_code="I21",
+                node_id=in_scope_field.node_id,
+                is_active=True,
+            )
+        )
+
+        in_scope_sid = f"uuid:bucket-scope-{uuid.uuid4().hex[:8]}"
+        out_scope_sid = f"uuid:bucket-scope-{uuid.uuid4().hex[:8]}"
+        for sid, form_id in (
+            (in_scope_sid, self.FORM_ID),
+            (out_scope_sid, self.OUT_FORM_ID),
+        ):
+            db.session.add(
+                VaSubmissions(
+                    va_sid=sid,
+                    va_form_id=form_id,
+                    va_submission_date=now,
+                    va_odk_updatedat=now,
+                    va_odk_reviewstate="approved",
+                    va_data_collector="Collector",
+                    va_instance_name=sid,
+                    va_uniqueid_real=sid,
+                    va_uniqueid_masked=sid,
+                    va_consent="yes",
+                    va_narration_language="English",
+                    va_deceased_age=50,
+                    va_deceased_age_normalized_days=Decimal("18262.5"),
+                    va_deceased_age_normalized_years=Decimal("50"),
+                    va_deceased_age_source="test",
+                    va_deceased_gender="male",
+                    va_summary=[],
+                    va_catcount={},
+                    va_category_list=[],
+                )
+            )
+            db.session.flush()
+            db.session.add(
+                VaSubmissionWorkflow(
+                    va_sid=sid,
+                    workflow_state=WORKFLOW_CODER_FINALIZED,
+                    workflow_reason="test_seed",
+                    workflow_updated_by_role="vasystem",
+                )
+            )
+            db.session.add(
+                VaFinalAssessments(
+                    va_sid=sid,
+                    va_finassess_by=uuid.UUID(self.dm_user_id),
+                    va_conclusive_cod="I21",
+                    va_finassess_status=VaStatuses.active,
+                    va_finassess_createdat=now,
+                    va_finassess_updatedat=now,
+                )
+            )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        response = self.client.get(
+            f"/api/v1/cod-buckets/aggregates?scheme_code={scheme.scheme_code}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["data"]), 1)
+        self.assertEqual(payload["data"][0]["age_scope"], "adult_over5y")
+        self.assertEqual(payload["data"][0]["bucket_field"], "Scope Field")
+        self.assertEqual(payload["data"][0]["coded_count"], 1)
 
     @patch(
         "app.routes.api.data_management.get_dm_kpi_from_mv",

@@ -65,7 +65,7 @@
         <div class="table-responsive"><table class="table table-hover border"><thead class="table-light"><tr><th width="30%" class="border-bottom">Query</th><th class="border-bottom">Response</th></tr></thead><tbody>
           {% if va_initial_assess.va_immediate_cod %}<tr><td class="align-middle">Immediate Cause of Death</td><td class="align-middle">{{ va_initial_assess.va_immediate_cod }}</td></tr>{% endif %}
           {% if va_initial_assess.va_antecedent_cod %}<tr><td class="align-middle">Antecedent Cause of Death</td><td class="align-middle">{{ va_initial_assess.va_antecedent_cod }}</td></tr>{% endif %}
-          {% if va_initial_assess.va_other_conditions %}<tr><td class="align-middle">Other Contributing Conditions</td><td class="align-middle">{{ va_initial_assess.va_other_conditions }}</td></tr>{% endif %}
+          {% if va_initial_assess.va_other_conditions %}<tr><td class="align-middle">Other significant conditions (if any)</td><td class="align-middle">{{ va_initial_assess.va_other_conditions }}</td></tr>{% endif %}
         </tbody></table></div>
       {% endif %}
 

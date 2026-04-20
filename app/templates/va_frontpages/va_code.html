@@ -434,13 +434,23 @@
 
   // ── pick table ────────────────────────────────────────────────────────────
   let pickTableInstance = null;
+  let ALL_PICK_FORMS = [];
 
   function renderPickTable(forms, hasAllocation) {
     const section = document.getElementById('pick-section');
     const badge   = document.getElementById('pick-badge');
     const tbody   = document.getElementById('pick-tbody');
 
-    if (!forms.length) { section.style.display = 'none'; return; }
+    if (!forms.length) {
+      section.style.display = 'none';
+      badge.textContent = '0 ready';
+      if (pickTableInstance) {
+        pickTableInstance.destroy();
+        pickTableInstance = null;
+        $('#pickCodingTable').find('tbody').empty();
+      }
+      return;
+    }
 
     section.style.display = '';
     badge.textContent = `${forms.length} ready`;
@@ -468,8 +478,38 @@
     });
   }
 
+  function applyProjectFilterToPick(hasAllocation) {
+    const pid = selectedProjectId();
+    const filteredForms = pid
+      ? ALL_PICK_FORMS.filter(row => (row.project_id || '').toUpperCase() === pid)
+      : ALL_PICK_FORMS;
+    renderPickTable(filteredForms, hasAllocation);
+  }
+
   // ── history table ─────────────────────────────────────────────────────────
   let historyTableInstance = null;
+  const configuredTimezone = {{ (current_user.timezone or '') | tojson }};
+  const historyLocale = navigator.language || undefined;
+  const historyTimezone = configuredTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  function formatHistoryDateTime(isoValue) {
+    if (!isoValue) return '-';
+    const parsed = new Date(isoValue);
+    if (Number.isNaN(parsed.getTime())) return isoValue;
+    try {
+      return new Intl.DateTimeFormat(historyLocale, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: historyTimezone,
+      }).format(parsed);
+    } catch (error) {
+      return isoValue;
+    }
+  }
 
   function initHistoryTable(history) {
     if (historyTableInstance) {
@@ -500,7 +540,7 @@
           }
         },
         { data: 'va_coding_date', title: 'VA Coding Date',
-          render: d => d || '-' },
+          render: d => formatHistoryDateTime(d) },
         { data: null, title: 'Action', orderable: false,
           render: (_, __, row) => {
             if (row.va_code_status === '__pending__') {
@@ -639,6 +679,7 @@
         syncDemoTrainingBanner();
         applyProjectFilterToHistory();
         applyProjectFilterToEligibility();
+        applyProjectFilterToPick(!!allocData.allocation);
         return sel.value;
       }
 
@@ -701,6 +742,7 @@
           syncDemoTrainingBanner();
           applyProjectFilterToHistory();
           applyProjectFilterToEligibility();
+          applyProjectFilterToPick(!!allocData.allocation);
           const pid = selectedProjectId();
           const qs = pid ? '?project_id=' + encodeURIComponent(pid) : '';
           try {
@@ -712,7 +754,8 @@
 
       syncDemoTrainingBanner();
 
-      renderPickTable(availData.forms || [], !!allocData.allocation);
+      ALL_PICK_FORMS = availData.forms || [];
+      applyProjectFilterToPick(!!allocData.allocation);
 
       const history = (histData.history || []).map(r => ({ ...r, _priority: 1 }));
       if (allocData.allocation) {

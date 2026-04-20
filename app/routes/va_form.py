@@ -111,6 +111,35 @@ def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     return get_demo_expiry_for_submission(va_sid, va_actiontype)
 
 
+def _get_display_initial_assessment(va_sid: str):
+    """Return the initial COD to display for view/history contexts.
+
+    Prefer the current active initial assessment. If the active draft was
+    superseded during final COD submission, fall back to the source initial
+    assessment linked from the authoritative coder final assessment.
+    """
+    initial_assessment = db.session.scalar(
+        sa.select(VaInitialAssessments).where(
+            (VaInitialAssessments.va_iniassess_status == VaStatuses.active)
+            & (VaInitialAssessments.va_sid == va_sid)
+        )
+    )
+    if initial_assessment is not None:
+        return initial_assessment
+
+    authoritative_coder_final = get_authoritative_final_assessment(va_sid)
+    if (
+        authoritative_coder_final is None
+        or authoritative_coder_final.source_initial_assessment_id is None
+    ):
+        return None
+
+    return db.session.get(
+        VaInitialAssessments,
+        authoritative_coder_final.source_initial_assessment_id,
+    )
+
+
 def _is_social_autopsy_enabled_for_submission(va_sid: str) -> bool:
     """Return whether the app-owned Social Autopsy analysis form is enabled."""
     project = _get_project_for_submission(va_sid)
@@ -557,7 +586,7 @@ def renderpartial(va_sid, va_partial):
             _ini_filter.append(VaInitialAssessments.va_iniassess_by == current_user.user_id)
         vainiexists = db.session.scalar(sa.select(VaInitialAssessments.va_sid).where(*_ini_filter))
         va_final_assess = authoritative_final_assess
-        va_initial_assess = db.session.scalar(sa.select(VaInitialAssessments).where((VaInitialAssessments.va_iniassess_status == VaStatuses.active)&(VaInitialAssessments.va_sid == va_sid)))
+        va_initial_assess = _get_display_initial_assessment(va_sid)
         va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
         da_va_final_assess = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.va_finassess_status == VaStatuses.deactive)&(VaFinalAssessments.va_sid == va_sid)&(VaFinalAssessments.va_finassess_by == current_user.user_id)))
         da_va_initial_assess = None

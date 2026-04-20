@@ -41,6 +41,10 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
+from app.services.workflow.intake_modes import (
+    CODING_INTAKE_PICK,
+    get_project_coding_intake_mode,
+)
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
     admin_actor,
@@ -477,8 +481,16 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
 
     Raises AllocationError if the form is ineligible.
     """
+    release_stale_coding_allocations(timeout_hours=1)
+
     if user.vacode_formcount >= 200:
         raise AllocationError("You have reached your yearly limit of 200 coded VA forms.")
+
+    existing_sid = get_active_coding_allocation(user.user_id)
+    if existing_sid:
+        if existing_sid == va_sid:
+            return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
+        raise AllocationError("You already have an active coding allocation.")
 
     form = db.session.get(VaSubmissions, va_sid)
     if not form:
@@ -487,6 +499,13 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
         raise AllocationError("You do not have coder access for this VA form.")
 
     sub_row = _require_submission_exists(va_sid)
+    if get_project_coding_intake_mode(sub_row.project_id) != CODING_INTAKE_PICK:
+        raise AllocationError("This project does not use pick-and-choose coding.")
+
+    workflow_state = get_submission_workflow_state(va_sid)
+    if workflow_state not in CODER_READY_POOL_STATES:
+        raise AllocationError("This submission is no longer available for coding.", 409)
+
     excluded = _get_excluded_sites_for_coding([form.va_form_id], user)
     if sub_row.site_id in excluded:
         raise AllocationError(_get_site_coding_error(sub_row.project_id, sub_row.site_id, user))

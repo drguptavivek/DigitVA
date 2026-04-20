@@ -227,13 +227,17 @@ def get_coder_completed_history(user_id, accessible_form_ids: Sequence[str]) -> 
             )
         ).mappings().all()
 
-        rows = [
-            va_render_serialisedates(
+        rows = []
+        for row in [*final_rows, *review_rows]:
+            serialized = va_render_serialisedates(
                 dict(row),
-                ["va_submission_date", "va_coding_date"],
+                ["va_submission_date"],
             )
-            for row in [*final_rows, *review_rows]
-        ]
+            coding_date = serialized.get("va_coding_date")
+            serialized["va_coding_date"] = (
+                coding_date.isoformat() if coding_date else ""
+            )
+            rows.append(serialized)
         rows.sort(
             key=lambda row: (
                 row.get("va_coding_date") or "",

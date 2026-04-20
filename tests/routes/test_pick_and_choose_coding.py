@@ -248,10 +248,198 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         )
         self.assertEqual(workflow_state, "coding_in_progress")
 
+    def test_pickcoding_post_resumes_same_active_submission(self):
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == "sid-pick-1"
+            )
+        )
+        workflow.workflow_state = "ready_for_coding"
+        workflow.workflow_reason = "test_reset"
+        db.session.commit()
+
+        self._login(self.base_coder_id)
+
+        first_response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
+        second_response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        active_allocations = db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_allocated_to == self.base_coder_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all()
+        self.assertEqual(len(active_allocations), 1)
+        self.assertEqual(active_allocations[0].va_sid, "sid-pick-1")
+        workflow_state = db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == "sid-pick-1"
+            )
+        )
+        self.assertEqual(workflow_state, "coding_in_progress")
+
+    def test_pickcoding_post_rejects_different_submission_when_active_allocation_exists(self):
+        now = datetime.now(timezone.utc)
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == "sid-pick-1"
+            )
+        )
+        workflow.workflow_state = "ready_for_coding"
+        workflow.workflow_reason = "test_reset"
+        db.session.add(
+            VaSubmissions(
+                va_sid="sid-pick-2",
+                va_form_id="PCK01PC0101",
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_data_collector="Collector",
+                va_odk_reviewstate=None,
+                va_instance_name="sid-pick-2",
+                va_uniqueid_real="sid-pick-2",
+                va_uniqueid_masked="sid-pick-2",
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=42,
+                va_deceased_gender="male",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid="sid-pick-2",
+                workflow_state="ready_for_coding",
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.commit()
+
+        self._login(self.base_coder_id)
+
+        first_response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
+        second_response = self.client.post(
+            "/coding/pick/sid-pick-2",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 403)
+        self.assertIn(b"You already have an active coding allocation.", second_response.data)
+        active_allocations = db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_allocated_to == self.base_coder_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all()
+        self.assertEqual(len(active_allocations), 1)
+        self.assertEqual(active_allocations[0].va_sid, "sid-pick-1")
+
+    def test_pickcoding_post_rejects_random_mode_submission(self):
+        self._login(self.base_coder_id)
+
+        response = self.client.post(
+            "/coding/pick/sid-random-1",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(
+            b"This project does not use pick-and-choose coding.",
+            response.data,
+        )
+
+    def test_pickcoding_post_rejects_non_ready_submission_without_server_error(self):
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == "sid-pick-1"
+            )
+        )
+        workflow.workflow_state = "coding_in_progress"
+        workflow.workflow_reason = "test_non_ready"
+        db.session.commit()
+
+        self._login(self.base_coder_id)
+
+        response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIsNone(self._active_coding_sid())
+
+    def test_pickcoding_post_releases_stale_active_allocation_before_new_pick(self):
+        stale_alloc = VaAllocations(
+            va_sid="sid-random-1",
+            va_allocated_to=self.base_coder_user.user_id,
+            va_allocation_for=VaAllocation.coding,
+            va_allocation_status=VaStatuses.active,
+            va_allocation_createdat=datetime.now(timezone.utc) - timedelta(hours=2),
+        )
+        db.session.add(stale_alloc)
+        random_workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == "sid-random-1"
+            )
+        )
+        random_workflow.workflow_state = "coding_in_progress"
+        random_workflow.workflow_reason = "test_stale_active"
+        pick_workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == "sid-pick-1"
+            )
+        )
+        pick_workflow.workflow_state = "ready_for_coding"
+        pick_workflow.workflow_reason = "test_reset"
+        db.session.commit()
+
+        self._login(self.base_coder_id)
+
+        response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        stale_status = db.session.scalar(
+            db.select(VaAllocations.va_allocation_status).where(
+                VaAllocations.va_sid == "sid-random-1",
+                VaAllocations.va_allocated_to == self.base_coder_user.user_id,
+            )
+        )
+        self.assertEqual(stale_status, VaStatuses.deactive)
+        self.assertEqual(self._active_coding_sid(), "sid-pick-1")
+        random_state = db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == "sid-random-1"
+            )
+        )
+        self.assertEqual(random_state, "ready_for_coding")
+
     def test_pickcoding_rejects_random_mode_submission(self):
         self._login(self.base_coder_id)
 
-        response = self.client.get("/vacta/vacode/vapickcoding/sid-random-1")
+        response = self.client.post(
+            "/coding/pick/sid-random-1",
+            headers=self._csrf_headers(),
+        )
 
         self.assertEqual(response.status_code, 403)
 

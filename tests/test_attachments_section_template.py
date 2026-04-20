@@ -119,7 +119,12 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
             vaerrexists=False,
             vainiexists=False,
             summary_items=["Fever", "Cough"],
-            cod_attachments_data={"narration": {"Narrative Text": "Free text narrative"}},
+            cod_attachments_data={
+                "narration": {
+                    "Narrative Image": "/media/image.jpg",
+                    "Narrative Text": "Free text narrative",
+                }
+            },
             cod_attachments_labels={"narration": "Narration"},
             cod_attachments_render_modes={"narration": "default"},
             cod_health_history_data={
@@ -148,6 +153,8 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
         self.assertIn("Notes", rendered)
         self.assertIn("Important coder note", rendered)
         self.assertIn('id="form-container2"', rendered)
+        self.assertIn('data-lightbox="narration"', rendered)
+        self.assertIn('id="attachmentsLightbox"', rendered)
         self.assertIn("Previous Category", rendered)
         self.assertNotIn("Assign COD", rendered)
 
@@ -211,3 +218,46 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
 
         self.assertIn("vainitialasses", rendered)
         self.assertNotIn("vafinalasses", rendered)
+
+    def test_cod_assessment_panel_view_uses_step1_other_conditions_label(self):
+        rendered = self.env.get_template(
+            "va_formcategory_partials/_va_cod_assessment_panel.html"
+        ).render(
+            va_action="vacode",
+            va_actiontype="vaview",
+            va_initial_assess=type(
+                "InitialAssess",
+                (),
+                {
+                    "va_immediate_cod": "Immediate Test COD",
+                    "va_antecedent_cod": "Antecedent Test COD",
+                    "va_other_conditions": "Condition A | Condition B",
+                },
+            )(),
+            va_final_assess=type(
+                "FinalAssess",
+                (),
+                {
+                    "va_conclusive_cod": "Final Test COD",
+                    "va_finassess_remark": "Technical note for review",
+                },
+            )(),
+            smartva=None,
+        )
+
+        self.assertIn("Other significant conditions (if any)", rendered)
+        self.assertIn("Condition A | Condition B", rendered)
+
+    def test_coding_dashboard_template_filters_pick_table_by_selected_project(self):
+        rendered = self.env.get_template("va_frontpages/va_code.html").render(
+            current_user=type("User", (), {"name": "Tester", "timezone": "Asia/Kolkata"})(),
+            demo_projects=["SADEMO"],
+            get_flashed_messages=lambda with_categories=False: [],
+            csrf_token=lambda: "token",
+            url_for=lambda *args, **kwargs: "/stub",
+        )
+
+        self.assertIn("let ALL_PICK_FORMS = [];", rendered)
+        self.assertIn("function applyProjectFilterToPick(hasAllocation)", rendered)
+        self.assertIn("ALL_PICK_FORMS.filter", rendered)
+        self.assertIn("applyProjectFilterToPick(!!allocData.allocation);", rendered)

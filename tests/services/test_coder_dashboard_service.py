@@ -287,6 +287,7 @@ class TestCoderDashboardService(BaseTestCase):
         self.assertEqual(labels[review_sid], "Not Codeable")
         self.assertEqual(row_by_sid[final_sid]["project_id"], self.BASE_PROJECT_ID)
         self.assertEqual(row_by_sid[final_sid]["site_id"], self.BASE_SITE_ID)
+        self.assertIn("T", row_by_sid[final_sid]["va_coding_date"])
 
     def test_output_summary_cache_requires_bust_after_new_submission(self):
         sid_one = "uuid:coderdash-cache-one"

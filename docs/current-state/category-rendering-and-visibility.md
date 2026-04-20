@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-20
 ---
 
 # Category Rendering And Visibility
@@ -110,6 +110,8 @@ Additional render-time transforms:
   project has `social_autopsy_enabled = true`
 - coder views now also append a synthetic final nav item `vacodassessment`, which
   renders the dedicated COD workflow panel outside `vanarrationanddocuments`
+- the `vacodassessment` workflow panel also reuses the shared attachments
+  lightbox for COD evidence images and galleries
 - coder/reviewer rendering uses a bridge path so DB-only categories such as
   `social_autopsy` do not render empty while the field-level coder config remains
   partially static

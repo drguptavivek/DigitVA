@@ -75,6 +75,24 @@ def _section_data_cache_key(va_sid: str, va_partial: str) -> str:
     return f"form_data:{va_sid}:{va_partial}"
 
 
+def _response_contains_user_specific_artifacts(va_partial: str, va_action: str) -> bool:
+    """Return whether a rendered partial includes user-specific coding artifacts."""
+    if va_action != "vacode":
+        return False
+    return va_partial in {"vanarrationanddocuments", "social_autopsy"}
+
+
+def _apply_partial_cache_policy(response, va_partial: str, va_action: str):
+    """Apply HTTP cache headers for rendered form partials."""
+    response.cache_control.private = True
+    if _response_contains_user_specific_artifacts(va_partial, va_action):
+        response.cache_control.no_store = True
+        response.cache_control.max_age = 0
+    else:
+        response.cache_control.max_age = 300  # 5 minutes — PHI data
+    return response
+
+
 def _invalidate_section_data_cache(va_sid: str) -> None:
     """Drop all cached form-data entries for a submission."""
     sub = db.session.get(VaSubmissions, va_sid)
@@ -639,9 +657,7 @@ def renderpartial(va_sid, va_partial):
             cod_health_history_labels = cod_health_history_labels,
             va_usernote = va_usernote,
         ))
-        response.cache_control.private = True
-        response.cache_control.max_age = 300  # 5 minutes — PHI data
-        return response
+        return _apply_partial_cache_policy(response, va_partial, va_action)
     if va_partial == "vareviewform":
         # Narrative Quality Assessment (NQA) — supporting artifact only.
         #

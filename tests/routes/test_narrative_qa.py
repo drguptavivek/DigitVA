@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 import uuid
 
+from flask import Response
+
 from app import db
 from app.models import (
     VaForms,
@@ -12,6 +14,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.routes.va_form import _apply_partial_cache_policy
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
@@ -20,7 +23,6 @@ class TestNarrativeQaRoute(BaseTestCase):
     _RUN_SUFFIX = uuid.uuid4().hex[:4].upper()
     BASE_PROJECT_ID = f"NQ{_RUN_SUFFIX}"
     BASE_SITE_ID = f"Q{_RUN_SUFFIX[:3]}"
-
     @classmethod
     def _make_user(cls, email, password):
         local_part, domain = email.split("@", 1)
@@ -184,3 +186,15 @@ class TestNarrativeQaRoute(BaseTestCase):
         self.assertEqual(rows[0].va_nqa_status, VaStatuses.deactive)
         self.assertEqual(rows[1].payload_version_id, new_payload_version.payload_version_id)
         self.assertEqual(rows[1].va_nqa_status, VaStatuses.active)
+
+    def test_narration_partial_is_not_http_cached_in_coding_mode(self):
+        response = _apply_partial_cache_policy(
+            Response("ok", status=200),
+            "vanarrationanddocuments",
+            "vacode",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        cache_control = response.headers.get("Cache-Control", "")
+        self.assertIn("private", cache_control)
+        self.assertIn("no-store", cache_control)

@@ -146,6 +146,9 @@ def create_app(config_class=None):
     from app import services #noqa
     from app import utils #noqa
     from app.tasks import kpi_tasks #noqa
+    from app.authz import init_app as init_authz
+
+    init_authz(app)
 
     from app.commands.odk_sync import init_app as init_odk_sync_commands
     init_odk_sync_commands(app)

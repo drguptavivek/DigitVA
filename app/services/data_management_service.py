@@ -246,6 +246,31 @@ def _dm_scope_pairs(user) -> set[tuple[str, str]]:
     return all_pairs
 
 
+def reporting_scope_pairs(user) -> set[tuple[str, str]]:
+    """Return active project/site pairs visible for reporting-style access."""
+    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+
+    if user.is_admin():
+        rows = db.session.execute(
+            sa.select(VaProjectSites.project_id, VaProjectSites.site_id).where(
+                VaProjectSites.project_site_status == VaStatuses.active,
+            )
+        ).all()
+        return {(row.project_id, row.site_id) for row in rows}
+
+    pairs: set[tuple[str, str]] = set()
+    pairs |= _dm_scope_pairs(user)
+    pairs |= _expand_project_ids_to_active_pairs(
+        sorted(user.get_project_pi_projects())
+    )
+    pairs |= user.get_site_pi_project_sites()
+    pairs |= _expand_project_ids_to_active_pairs(
+        sorted(user.get_collaborator_projects())
+    )
+    pairs |= user.get_collaborator_project_sites()
+    return pairs
+
+
 def dm_form_in_scope(user, form_id: str) -> bool:
     row = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form_id)
@@ -256,7 +281,7 @@ def dm_form_in_scope(user, form_id: str) -> bool:
 
 
 def dm_scoped_forms(user) -> list[dict]:
-    scoped_pairs = _dm_scope_pairs(user)
+    scoped_pairs = reporting_scope_pairs(user)
     if not scoped_pairs:
         return []
 
@@ -307,6 +332,14 @@ def dm_scoped_forms(user) -> list[dict]:
             .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
         ).mappings().all()
     ]
+
+
+def reporting_scope_filter(user):
+    """SQLAlchemy WHERE clause scoped for reporting/dashboard access."""
+    all_pairs = reporting_scope_pairs(user)
+    if not all_pairs:
+        return sa.false()
+    return sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(all_pairs))
 
 
 def filter_scoped_forms(
@@ -378,7 +411,9 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
     ).first()
     if not row:
         return None
-    if not user.has_data_manager_submission_access(row.project_id, row.site_id):
+    if not user.is_admin() and not user.has_data_manager_submission_access(
+        row.project_id, row.site_id
+    ):
         return None
     if not row.odk_project_id or not row.odk_form_id:
         return None
@@ -399,18 +434,31 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
 def sync_run_target_label(run: VaSyncRun) -> str | None:
     if not run.progress_log:
         return None
+    raw_progress_log = (
+        run.progress_log
+        if isinstance(run.progress_log, str)
+        else json.dumps(run.progress_log)
+    )
     try:
         entries = json.loads(run.progress_log)
     except Exception:
-        return None
+        entries = None
     if not entries:
-        return None
+        entries = []
     bracket_tokens: list[str] = []
-    for entry in entries:
-        msg = entry.get("msg", "")
-        match = re.match(r"^\[([^\]]+)\]", msg)
-        if match:
-            bracket_tokens.append(match.group(1))
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            msg = str(entry.get("msg", "")).strip()
+            match = re.search(r"\[([^\]]+)\]", msg)
+            if match:
+                bracket_tokens.append(match.group(1))
+
+    if not bracket_tokens and raw_progress_log:
+        bracket_tokens.extend(
+            re.findall(r'"msg"\s*:\s*"\[([^\]]+)\]', raw_progress_log)
+        )
 
     if not bracket_tokens:
         return None
@@ -544,7 +592,7 @@ def dm_submissions_page(
         .where(VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
         .subquery()
     )
-    scope = dm_scope_filter(user)
+    scope = reporting_scope_filter(user)
     conditions = [scope]
     project_values = _csv_values(project)
     site_values = _csv_values(site)
@@ -781,7 +829,7 @@ def _dm_submission_query_parts(
             sa.column("va_sid"),
             sa.column("analytics_age_band"),
         )
-    scope = dm_scope_filter(user)
+    scope = reporting_scope_filter(user)
     conditions = [scope]
     project_values = _csv_values(project)
     site_values = _csv_values(site)
@@ -1830,7 +1878,7 @@ def dm_coder_daily_statistics(
 
 def dm_filter_options(user) -> dict:
     """Return distinct filter values available to the data manager."""
-    scope = dm_scope_filter(user)
+    scope = reporting_scope_filter(user)
     projects = db.session.scalars(
         sa.select(VaForms.project_id)
         .where(scope)

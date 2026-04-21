@@ -3,7 +3,7 @@ title: Access Control Grants Technical Design
 doc_type: planning
 status: draft
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-21
 ---
 
 # Access Control Grants Technical Design
@@ -20,7 +20,10 @@ It defines:
 - how runtime authorization should evaluate grants
 - how admin APIs should write explicit grants and project-site mappings
 
-This design follows [../policy/access-control-model.md](../policy/access-control-model.md).
+This design follows:
+
+- [../policy/access-control-model.md](../policy/access-control-model.md)
+- [../policy/authorization-policy.md](../policy/authorization-policy.md)
 
 ## Design Summary
 
@@ -48,6 +51,7 @@ The auth foundation should be introduced in this order:
 The target role set is:
 
 - `admin`
+- `data_manager`
 - `project_pi`
 - `site_pi`
 - `collaborator`
@@ -200,6 +204,7 @@ Required:
 Allowed roles:
 
 - `project_pi`
+- `data_manager`
 - `collaborator`
 - `coder`
 - `coding_tester`
@@ -216,10 +221,47 @@ Required:
 Allowed roles:
 
 - `site_pi`
+- `data_manager`
 - `collaborator`
 - `coder`
 - `coding_tester`
 - `reviewer`
+
+## Action Policy Source Of Truth
+
+Runtime authorization should use one central action policy model:
+
+- docs define the normative policy
+- TOML encodes the action policy in a machine-readable form
+- DB stores grants and scope relationships
+- Python enforces the policy, resolves resources, and evaluates predicates
+
+This means route handlers should stop acting as the primary place where role combinations are declared.
+
+Routes should map to stable action names, and the action policy should then define:
+
+- allowed roles
+- resource family
+- scope mode
+- optional predicate
+- mandatory human-readable reason
+
+## Resource And Constraint Model
+
+Primary grant scopes remain:
+
+- `global`
+- `project`
+- `project_site`
+
+The following are derived resource constraints, not grant scopes:
+
+- form
+- allocation
+- workflow state
+- sync state
+
+These derived constraints are evaluated after role and grant scope checks.
 
 ## Recommended Constraints
 

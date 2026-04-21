@@ -22,8 +22,9 @@ from flask import Blueprint, Response, jsonify, request, current_app
 from flask_login import current_user
 
 from app import cache, db, limiter
-from app.decorators import role_required
-from app.models import VaForms, VaSyncRun, VaSubmissions
+from app.authz.access import action_authorized
+from app.authz.resources import form_from_kwarg, submission_from_kwarg
+from app.models import VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
     dm_accept_upstream_change,
@@ -40,6 +41,7 @@ from app.services.data_management_service import (
     dm_submissions_export_csv,
     dm_submissions_page,
     dm_upstream_change_details,
+    reporting_scope_pairs,
     filter_scoped_forms,
     sync_run_entries,
     sync_run_target_label,
@@ -223,7 +225,7 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) 
 # ---------------------------------------------------------------------------
 
 @bp.get("/submissions")
-@role_required("data_manager")
+@action_authorized("dm_submissions_view")
 @limiter.limit("120 per minute")
 def submissions():
 
@@ -256,7 +258,7 @@ def submissions():
 
 
 @bp.get("/submissions/export.csv")
-@role_required("data_manager")
+@action_authorized("dm_export_view")
 @limiter.limit("30 per minute")
 def submissions_export_csv():
     return _serve_cached_export_csv(
@@ -267,7 +269,7 @@ def submissions_export_csv():
 
 
 @bp.get("/submissions/export-smartva-input.csv")
-@role_required("data_manager")
+@action_authorized("dm_export_view")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_input_csv():
     return _serve_cached_export_csv(
@@ -278,7 +280,7 @@ def submissions_export_smartva_input_csv():
 
 
 @bp.get("/submissions/export-smartva-results.csv")
-@role_required("data_manager")
+@action_authorized("dm_export_view")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_results_csv():
     return _serve_cached_export_csv(
@@ -289,7 +291,7 @@ def submissions_export_smartva_results_csv():
 
 
 @bp.get("/submissions/export-smartva-likelihoods.csv")
-@role_required("data_manager")
+@action_authorized("dm_export_view")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_likelihoods_csv():
     return _serve_cached_export_csv(
@@ -304,16 +306,15 @@ def submissions_export_smartva_likelihoods_csv():
 # ---------------------------------------------------------------------------
 
 @bp.get("/kpi")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 @limiter.limit("120 per minute")
 def kpi():
+    scope_pairs = reporting_scope_pairs(current_user)
 
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
     return jsonify(_cached("kpi", lambda:
         get_dm_kpi_from_mv(
-            project_ids,
-            project_site_pairs,
+            [],
+            scope_pairs,
             project=request.args.get("project", ""),
             site=request.args.get("site", ""),
             date_from=request.args.get("date_from") or None,
@@ -329,7 +330,7 @@ def kpi():
 
 
 @bp.get("/coder-daily-stats")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 @limiter.limit("120 per minute")
 def coder_daily_stats():
     filters = _export_filters_from_request()
@@ -351,14 +352,14 @@ def coder_daily_stats():
 # ---------------------------------------------------------------------------
 
 @bp.get("/filter-options")
-@role_required("data_manager")
+@action_authorized("dm_filter_options_view")
 @limiter.limit("120 per minute")
 def filter_options():
     return jsonify(dm_filter_options(current_user))
 
 
 @bp.get("/submissions/<path:va_sid>/upstream-change-details")
-@role_required("data_manager", "admin")
+@action_authorized("dm_upstream_change_details_view", resource_resolver=submission_from_kwarg("va_sid"))
 @limiter.limit("120 per minute")
 def upstream_change_details(va_sid: str):
     try:
@@ -374,7 +375,7 @@ def upstream_change_details(va_sid: str):
 # ---------------------------------------------------------------------------
 
 @bp.post("/forms/<form_id>/sync")
-@role_required("data_manager")
+@action_authorized("dm_form_sync", resource_resolver=form_from_kwarg("form_id"))
 def sync_form(form_id: str):
     if not dm_form_in_scope(current_user, form_id):
         return jsonify({"error": "You do not have access to sync this form."}), 403
@@ -397,7 +398,7 @@ def sync_form(form_id: str):
 
 
 @bp.post("/sync/preview")
-@role_required("data_manager")
+@action_authorized("dm_sync_preview")
 def sync_preview():
 
     payload = request.get_json(silent=True) or {}
@@ -426,12 +427,15 @@ def sync_preview():
         }
 
         for form in matched:
-            local_sids = set(
-                db.session.scalars(
-                    sa.select(VaSubmissions.va_sid).where(
-                        VaSubmissions.va_form_id == form["form_id"]
-                    )
-                ).all()
+            local_rows = db.session.execute(
+                sa.select(
+                    VaSubmissions.va_sid,
+                    VaSubmissions.va_sync_issue_code,
+                ).where(VaSubmissions.va_form_id == form["form_id"])
+            ).all()
+            local_sids = {row.va_sid for row in local_rows}
+            missing_in_odk = sum(
+                1 for row in local_rows if row.va_sync_issue_code == "missing_in_odk"
             )
             if not form["odk_project_id"] or not form["odk_form_id"]:
                 forms_preview.append({
@@ -439,10 +443,11 @@ def sync_preview():
                     "site_id": form["site_id"], "site_name": form["site_name"],
                     "last_synced_at": form["last_synced_at"],
                     "local_submissions": len(local_sids), "odk_submissions": 0,
-                    "new_fetch_candidates": 0, "missing_in_odk_flags": 0,
+                    "new_fetch_candidates": 0, "missing_in_odk_flags": missing_in_odk,
                     "updated_candidates": None, "preview_status": "unmapped",
                 })
                 totals["local_submissions"] += len(local_sids)
+                totals["missing_in_odk_flags"] += missing_in_odk
                 continue
 
             client = va_odk_clientsetup(project_id=form["project_id"])
@@ -456,7 +461,6 @@ def sync_preview():
             form_id_lower = form["form_id"].lower()
             expected = {f"{iid}-{form_id_lower}" for iid in odk_ids}
             missing_locally = max(len(expected - local_sids), 0)
-            missing_in_odk = max(len(local_sids - expected), 0)
             updated_candidates = None
             if form["last_synced_at"]:
                 try:
@@ -492,7 +496,7 @@ def sync_preview():
 
 
 @bp.get("/sync/runs")
-@role_required("data_manager")
+@action_authorized("dm_sync_runs_view")
 def sync_runs():
 
     scoped_form_ids = {f["form_id"] for f in dm_scoped_forms(current_user)}
@@ -503,11 +507,22 @@ def sync_runs():
         .limit(25)
     ).all()
 
-    return jsonify({
-        "runs": [
+    visible_runs = []
+    seen_targets: set[str | None] = set()
+    for run in runs:
+        target = sync_run_target_label(run)
+        if not (
+            run.triggered_user_id == current_user.user_id
+            or target in scoped_form_ids
+        ):
+            continue
+        if target in seen_targets:
+            continue
+        seen_targets.add(target)
+        visible_runs.append(
             {
                 "sync_run_id": str(run.sync_run_id),
-                "target": sync_run_target_label(run),
+                "target": target,
                 "started_at": run.started_at.isoformat() if run.started_at else None,
                 "finished_at": run.finished_at.isoformat() if run.finished_at else None,
                 "status": run.status,
@@ -516,27 +531,22 @@ def sync_runs():
                 "error_message": run.error_message,
                 "entries": sync_run_entries(run)[-6:],
             }
-            for run in runs
-            if (
-                run.triggered_user_id == current_user.user_id
-                or sync_run_target_label(run) in scoped_form_ids
-            )
-        ]
-    })
+        )
+
+    return jsonify({"runs": visible_runs})
 
 
 @bp.get("/project-site-submissions")
-@role_required("data_manager")
+@action_authorized("dm_project_site_submissions_view")
 @limiter.limit("120 per minute")
 def project_site_submissions():
 
     timezone_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
+    scope_pairs = reporting_scope_pairs(current_user)
     return jsonify({
         "stats": get_dm_project_site_stats_from_mv(
-            project_ids=project_ids,
-            project_site_pairs=project_site_pairs,
+            project_ids=[],
+            project_site_pairs=scope_pairs,
             timezone_name=timezone_name,
             project=request.args.get("project", ""),
             site=request.args.get("site", ""),
@@ -554,22 +564,11 @@ def project_site_submissions():
 
 
 @bp.post("/submissions/<va_sid>/sync")
-@role_required("data_manager")
+@action_authorized("dm_submission_sync", resource_resolver=submission_from_kwarg("va_sid"))
 def sync_submission(va_sid: str):
-
     submission = db.session.get(VaSubmissions, va_sid)
     if submission is None:
         return jsonify({"error": "Submission not found."}), 404
-
-    form_row = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id).where(
-            VaForms.form_id == submission.va_form_id
-        )
-    ).first()
-    if not form_row or not current_user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id
-    ):
-        return jsonify({"error": "You do not have access to sync this submission."}), 403
 
     try:
         from app.tasks.sync_tasks import run_single_submission_sync
@@ -597,7 +596,7 @@ def sync_submission(va_sid: str):
 # ---------------------------------------------------------------------------
 
 @bp.post("/submissions/<va_sid>/accept-upstream-change")
-@role_required("data_manager", "admin")
+@action_authorized("dm_submission_upstream_accept", resource_resolver=submission_from_kwarg("va_sid"))
 def accept_upstream_change(va_sid: str):
     """Accept an upstream ODK data change: clear COD artifacts and reopen coding."""
     try:
@@ -630,7 +629,7 @@ def accept_upstream_change(va_sid: str):
 
 
 @bp.post("/submissions/<va_sid>/screening-pass")
-@role_required("data_manager", "admin")
+@action_authorized("dm_submission_screening_pass", resource_resolver=submission_from_kwarg("va_sid"))
 def screening_pass(va_sid: str):
     """Pass a screening-pending submission into SmartVA processing."""
     try:
@@ -648,7 +647,7 @@ def screening_pass(va_sid: str):
 
 
 @bp.post("/submissions/<va_sid>/screening-reject")
-@role_required("data_manager", "admin")
+@action_authorized("dm_submission_screening_reject", resource_resolver=submission_from_kwarg("va_sid"))
 def screening_reject(va_sid: str):
     """Reject a screening-pending submission before SmartVA/coding."""
     try:
@@ -666,7 +665,7 @@ def screening_reject(va_sid: str):
 
 
 @bp.post("/submissions/<va_sid>/reject-upstream-change")
-@role_required("data_manager", "admin")
+@action_authorized("dm_submission_upstream_keep_current_icd", resource_resolver=submission_from_kwarg("va_sid"))
 def reject_upstream_change(va_sid: str):
     """Keep the current ICD decision while adopting the latest upstream ODK data."""
     try:

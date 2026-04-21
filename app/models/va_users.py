@@ -110,6 +110,12 @@ class VaUsers(UserMixin, db.Model):
             return va_form in site_pi_va_form
         return bool(site_pi_va_form)
 
+    def is_project_pi(self, project_id=None):
+        project_ids = self.get_project_pi_projects()
+        if project_id:
+            return project_id in project_ids
+        return bool(project_ids)
+
     def is_reviewer(self, va_form=None):
         reviewer_va_form = self.get_reviewer_va_forms()
         if va_form:
@@ -140,6 +146,15 @@ class VaUsers(UserMixin, db.Model):
             VaUserAccessGrants.grant_status == VaStatuses.active,
         ))
         return bool(db.session.scalar(stmt))
+
+    def is_collaborator(self, project_id=None, site_id=None):
+        if project_id and site_id:
+            return self.has_collaborator_submission_access(project_id, site_id)
+        if project_id:
+            return project_id in self.get_collaborator_projects()
+        return bool(
+            self.get_collaborator_projects() or self.get_collaborator_project_sites()
+        )
 
     def has_demo_training_access(self) -> bool:
         from app.services.demo_project_service import get_demo_training_project_ids
@@ -188,6 +203,9 @@ class VaUsers(UserMixin, db.Model):
     def get_site_pi_va_forms(self):
         return self._get_granted_va_forms("site_pi")
 
+    def get_site_pi_project_sites(self) -> set[tuple[str, str]]:
+        return self._get_granted_project_site_pairs("site_pi")
+
     def get_site_pi_sites(self, project_id=None):
         from app.models import (
             VaProjectSites,
@@ -221,11 +239,17 @@ class VaUsers(UserMixin, db.Model):
     def get_data_manager_projects(self):
         return self._get_granted_project_ids("data_manager")
 
+    def get_collaborator_projects(self):
+        return self._get_granted_project_ids("collaborator")
+
     def get_data_manager_va_forms(self):
         return self._get_granted_va_forms("data_manager")
 
     def get_data_manager_project_sites(self):
         return self._get_granted_project_site_pairs("data_manager")
+
+    def get_collaborator_project_sites(self):
+        return self._get_granted_project_site_pairs("collaborator")
 
     def has_data_manager_submission_access(self, project_id: str, site_id: str) -> bool:
         if project_id in self.get_data_manager_projects():
@@ -241,6 +265,17 @@ class VaUsers(UserMixin, db.Model):
         if not row:
             return False
         return self.has_data_manager_submission_access(row.project_id, row.site_id)
+
+    def has_collaborator_submission_access(self, project_id: str, site_id: str) -> bool:
+        if project_id in self.get_collaborator_projects():
+            return True
+        return (project_id, site_id) in self.get_collaborator_project_sites()
+
+    def has_project_pi_submission_access(self, project_id: str) -> bool:
+        return project_id in self.get_project_pi_projects()
+
+    def has_site_pi_submission_access(self, project_id: str, site_id: str) -> bool:
+        return (project_id, site_id) in self.get_site_pi_project_sites()
 
     def get_all_accessible_va_forms(self):
         all_va_forms = set()

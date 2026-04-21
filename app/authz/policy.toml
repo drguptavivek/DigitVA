@@ -1,0 +1,199 @@
+[metadata]
+version = 1
+reason = "Central action policy for migrated blueprints. Docs remain normative; this TOML is the executable representation."
+
+[action.dm_dashboard_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "The main data-management dashboard is an operational surface for global admins and scoped data managers."
+
+[action.dm_kpi_dashboard_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "The KPI dashboard is a read-only operational analytics surface for global admins and scoped data managers."
+
+[action.cod_dashboard_view]
+roles = ["admin", "data_manager", "project_pi", "site_pi"]
+resource = "none"
+scope = "any_scope"
+reason = "The CoD dashboard is a scoped reporting surface for admins, data managers, and PI roles within their grants."
+
+[action.dm_submission_view]
+roles = ["admin", "data_manager"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Viewing a submission from the data-management workflow is limited to admins and scoped data managers."
+
+[action.dm_submission_odk_edit]
+roles = ["admin", "data_manager"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Opening the ODK edit link is an operational action limited to admins and scoped data managers."
+
+[action.dm_user_management_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "The user and grant management shell is available to admins and scoped data managers."
+
+[action.dm_user_management_bootstrap]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "The user-management bootstrap endpoint returns scope and CSRF metadata for admins and scoped data managers."
+
+[action.dm_manage_projects]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Project lists for data-manager management are available to admins and scoped data managers."
+
+[action.dm_manage_project_sites]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Project-site lists for data-manager management are available to admins and scoped data managers."
+
+[action.dm_manage_users]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "User search for grant management is available to admins and scoped data managers."
+
+[action.dm_manage_user_create]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Creating a user from the data-management management surface is available to admins and scoped data managers."
+
+[action.dm_manage_user_detail]
+roles = ["admin", "data_manager"]
+resource = "user"
+scope = "any_scope"
+reason = "Viewing a managed user detail record is available to admins and scoped data managers."
+
+[action.dm_manage_user_resend_verification]
+roles = ["admin", "data_manager"]
+resource = "user"
+scope = "any_scope"
+reason = "Resending verification is an administrative user-management action for admins and scoped data managers."
+
+[action.dm_manage_user_update]
+roles = ["admin", "data_manager"]
+resource = "user"
+scope = "any_scope"
+reason = "Updating managed user metadata is available to admins and scoped data managers, with extra route-level rules where needed."
+
+[action.dm_manage_grants_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Listing managed grants is available to admins and scoped data managers."
+
+[action.dm_manage_grants_create]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Creating grants is available to admins and scoped data managers, with route-level manageable-scope checks."
+
+[action.dm_manage_grants_toggle]
+roles = ["admin", "data_manager"]
+resource = "grant"
+scope = "any_scope"
+reason = "Toggling grants is available to admins and scoped data managers, with route-level manageable-scope checks."
+
+[action.dm_submissions_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "The paginated data-management submissions grid is a read-only operational surface for admins and scoped data managers."
+
+[action.dm_export_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Data-management exports are read-only scoped reporting outputs for admins and scoped data managers."
+
+[action.dm_kpi_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Data-management KPI APIs are read-only scoped analytics for admins and scoped data managers."
+
+[action.dm_filter_options_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Filter option APIs are read-only data-management support endpoints for admins and scoped data managers."
+
+[action.dm_upstream_change_details_view]
+roles = ["admin", "data_manager"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Viewing upstream change details is limited to admins and scoped data managers for the target submission."
+
+[action.dm_form_sync]
+roles = ["data_manager"]
+resource = "form"
+scope = "resource_scope"
+reason = "Triggering a scoped form sync is an operational data-manager action and is not opened to PI roles."
+
+[action.dm_sync_preview]
+roles = ["data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Sync preview is an operational data-manager action that depends on data-manager scope."
+
+[action.dm_sync_runs_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Recent sync-run history is a read-only operational surface for admins and scoped data managers."
+
+[action.dm_project_site_submissions_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Project-site submission summaries are read-only operational analytics for admins and scoped data managers."
+
+[action.dm_submission_sync]
+roles = ["data_manager"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Refreshing a single submission from ODK is an operational data-manager action within submission scope."
+
+[action.dm_submission_upstream_accept]
+roles = ["admin", "data_manager"]
+resource = "submission"
+scope = "resource_scope"
+predicate = "can_accept_upstream_change"
+reason = "Accepting an upstream payload change is an operational triage action limited to admins and scoped data managers when the submission is awaiting upstream review."
+
+[action.dm_submission_screening_pass]
+roles = ["admin", "data_manager"]
+resource = "submission"
+scope = "resource_scope"
+predicate = "can_screening_pass"
+reason = "Passing screening is a workflow action limited to admins and scoped data managers when the submission is in screening_pending."
+
+[action.dm_submission_screening_reject]
+roles = ["admin", "data_manager"]
+resource = "submission"
+scope = "resource_scope"
+predicate = "can_screening_reject"
+reason = "Rejecting screening is a workflow action limited to admins and scoped data managers when the submission is in screening_pending."
+
+[action.dm_submission_upstream_keep_current_icd]
+roles = ["admin", "data_manager"]
+resource = "submission"
+scope = "resource_scope"
+predicate = "can_keep_current_icd_on_upstream_change"
+reason = "Keeping the current ICD decision while adopting latest upstream data is limited to admins and scoped data managers when upstream review is pending."
+
+[action.workflow_events_view]
+roles = ["admin", "data_manager", "project_pi", "site_pi", "coder", "coding_tester", "reviewer"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Workflow event history follows the same scoped submission visibility model as the rest of the app's business-data surfaces."

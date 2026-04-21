@@ -1,29 +1,27 @@
 """Workflow event history JSON API."""
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify
-from flask_login import current_user, login_required
+from flask import Blueprint, g, jsonify
 
 from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflowEvent
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
+from app.models import VaSubmissionWorkflowEvent
 
 bp = Blueprint("workflow", __name__)
 
 
 @bp.get("/events/<va_sid>")
-@login_required
+@action_authorized("workflow_events_view", resource_resolver=submission_from_kwarg("va_sid"))
 def get_events(va_sid: str):
     """Return the workflow event history for a submission.
 
     Access is scoped: the caller must have at least form-level access
     (coder, reviewer, data manager, or admin role on the form).
     """
-    submission = db.session.get(VaSubmissions, va_sid)
+    submission = g.authz_resource.obj
     if not submission:
         return jsonify({"error": "Submission not found."}), 404
-
-    if not current_user.has_va_form_access(submission.va_form_id):
-        return jsonify({"error": "Access denied."}), 403
 
     events = db.session.scalars(
         sa.select(VaSubmissionWorkflowEvent)

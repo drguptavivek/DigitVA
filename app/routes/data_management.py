@@ -16,7 +16,13 @@ from flask_wtf.csrf import generate_csrf
 from functools import wraps
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.authz.resources import (
+    form_from_kwarg,
+    grant_from_kwarg,
+    submission_from_kwarg,
+    user_from_kwarg,
+)
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -44,6 +50,7 @@ from app.services.data_management_service import (
     dm_odk_edit_url,
     audit_dm_submission_action,
     dm_scoped_forms,
+    reporting_scope_pairs,
 )
 from app.services.cod_bucket_mapping_service import (
     SCHEME_CODE_SRS_INDIA,
@@ -181,16 +188,15 @@ def require_dm_scope(f):
 
 
 @data_management.get("/")
-@role_required("data_manager", "admin")
+@action_authorized("dm_dashboard_view")
 def dashboard():
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
-    if not current_user.is_admin() and not project_ids and not project_site_pairs:
+    scope_pairs = reporting_scope_pairs(current_user)
+    if not scope_pairs:
         va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     kpi = get_dm_kpi_from_mv(
-        project_ids=project_ids,
-        project_site_pairs=project_site_pairs,
+        project_ids=[],
+        project_site_pairs=scope_pairs,
     )
     return render_template(
         "va_frontpages/va_data_manager.html",
@@ -202,29 +208,23 @@ def dashboard():
 
 
 @data_management.get("/dashboard")
-@role_required("data_manager", "admin")
+@action_authorized("dm_kpi_dashboard_view")
 def kpi_dashboard():
     """Data manager KPI analytics dashboard.
 
     Shell template only — all data fetched client-side from /api/v1/analytics/dm-kpi/* endpoints.
     """
-    if not current_user.is_admin():
-        project_ids = current_user.get_data_manager_projects()
-        project_site_pairs = current_user.get_data_manager_project_sites()
-        if not project_ids and not project_site_pairs:
-            va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
+    if not reporting_scope_pairs(current_user):
+        va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     return render_template("va_frontpages/va_dm_kpi_dashboard.html")
 
 
 @data_management.get("/cod-buckets")
-@role_required("data_manager", "admin")
+@action_authorized("cod_dashboard_view")
 def cod_bucket_reporting():
-    if not current_user.is_admin():
-        project_ids = current_user.get_data_manager_projects()
-        project_site_pairs = current_user.get_data_manager_project_sites()
-        if not project_ids and not project_site_pairs:
-            va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
+    if not reporting_scope_pairs(current_user):
+        va_permission_abortwithflash("No reporting scope has been assigned.", 403)
 
     forms = dm_scoped_forms(current_user)
     schemes = [
@@ -249,20 +249,12 @@ def cod_bucket_reporting():
 
 
 @data_management.get("/view/<va_sid>")
-@role_required("data_manager", "admin")
+@action_authorized("dm_submission_view", resource_resolver=submission_from_kwarg("va_sid"))
 def view_submission(va_sid):
     """Data manager read-only view of a submission."""
     from app.models import VaSubmissionsAuditlog
     from app.services.coding_service import render_va_coding_page
-    form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    # ABAC: verify the DM's grant scope covers this submission's project/site
-    form_meta = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form.va_form_id)
-    ).mappings().first()
-    if not form_meta or not current_user.has_data_manager_submission_access(form_meta["project_id"], form_meta["site_id"]):
-        va_permission_abortwithflash("You do not have data-manager access to this submission.", 403)
+    form = g.authz_resource.obj
     # Audit read
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,
@@ -277,7 +269,7 @@ def view_submission(va_sid):
 
 
 @data_management.get("/submissions/<path:va_sid>/odk-edit")
-@role_required("data_manager", "admin")
+@action_authorized("dm_submission_odk_edit", resource_resolver=submission_from_kwarg("va_sid"))
 def submission_odk_edit(va_sid):
     odk_edit_url = dm_odk_edit_url(current_user, va_sid)
     if not odk_edit_url:
@@ -288,13 +280,45 @@ def submission_odk_edit(va_sid):
     return redirect(odk_edit_url)
 
 
+@data_management.post("/api/sync/preview")
+@action_authorized("dm_sync_preview")
+def legacy_sync_preview():
+    from app.routes.api.data_management import sync_preview
+
+    return sync_preview.__wrapped__()
+
+
+@data_management.get("/api/project-site-submissions")
+@action_authorized("dm_project_site_submissions_view")
+def legacy_project_site_submissions():
+    from app.routes.api.data_management import project_site_submissions
+
+    return project_site_submissions.__wrapped__()
+
+
+@data_management.post("/api/forms/<form_id>/sync")
+@action_authorized("dm_form_sync", resource_resolver=form_from_kwarg("form_id"))
+def legacy_sync_form(form_id):
+    from app.routes.api.data_management import sync_form
+
+    return sync_form.__wrapped__(form_id=form_id)
+
+
+@data_management.post("/api/submissions/<va_sid>/sync")
+@action_authorized("dm_submission_sync", resource_resolver=submission_from_kwarg("va_sid"))
+def legacy_sync_submission(va_sid):
+    from app.routes.api.data_management import sync_submission
+
+    return sync_submission.__wrapped__(va_sid=va_sid)
+
+
 # ---------------------------------------------------------------------------
 # User & Grant Management
 # ---------------------------------------------------------------------------
 
 
 @data_management.get("/users")
-@role_required("data_manager", "admin")
+@action_authorized("dm_user_management_view")
 def user_management():
     """User + grant management page for data-managers."""
     from app.models.mas_languages import MasLanguages
@@ -314,7 +338,7 @@ def user_management():
 
 
 @data_management.get("/api/bootstrap")
-@role_required("data_manager", "admin")
+@action_authorized("dm_user_management_bootstrap")
 def manage_bootstrap():
     """Return CSRF token and scope context for the management JS."""
     is_admin = current_user.is_admin()
@@ -342,7 +366,7 @@ def manage_bootstrap():
 
 
 @data_management.get("/api/projects")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_projects")
 def manage_projects():
     """Projects the data-manager can manage."""
     dm_projects = current_user.get_data_manager_projects()
@@ -373,7 +397,7 @@ def manage_projects():
 
 
 @data_management.get("/api/project-sites")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_project_sites")
 def manage_project_sites():
     """Project-sites within the data-manager's scope."""
     project_id = request.args.get("project_id")
@@ -429,7 +453,7 @@ def manage_project_sites():
 
 
 @data_management.get("/api/users")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_users")
 def manage_users():
     """User search for data-manager grant assignment."""
     query = (request.args.get("query") or "").strip()
@@ -447,7 +471,7 @@ def manage_users():
 
 
 @data_management.post("/api/users")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_user_create")
 def manage_create_user():
     """Create a new user (data-manager scoped)."""
     from app.models.mas_languages import MasLanguages
@@ -571,7 +595,7 @@ def manage_create_user():
 
 
 @data_management.get("/api/users/<uuid:target_user_id>")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_user_detail", resource_resolver=user_from_kwarg("target_user_id"))
 def manage_user_detail(target_user_id):
     """Return user details for DM/admin view."""
     user = db.session.get(VaUsers, target_user_id)
@@ -631,7 +655,7 @@ def manage_user_detail(target_user_id):
 
 
 @data_management.post("/api/users/<uuid:target_user_id>/resend-verification")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_user_resend_verification", resource_resolver=user_from_kwarg("target_user_id"))
 def manage_resend_verification(target_user_id):
     """Resend email verification link for a user."""
     user = db.session.get(VaUsers, target_user_id)
@@ -661,7 +685,7 @@ def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
 
 
 @data_management.put("/api/users/<uuid:target_user_id>")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_user_update", resource_resolver=user_from_kwarg("target_user_id"))
 def manage_update_user(target_user_id):
     """Update user email and/or languages (email is creator-scoped for DMs)."""
     target_user = db.session.get(VaUsers, target_user_id)
@@ -736,7 +760,7 @@ def manage_update_user(target_user_id):
 
 
 @data_management.get("/api/access-grants")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_grants_view")
 def manage_access_grants():
     """List coder/coding_tester/data_manager grants within the DM's scope."""
     project_id_expression = _grant_project_id_expression()
@@ -786,7 +810,7 @@ def manage_access_grants():
 
 
 @data_management.post("/api/access-grants")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_grants_create")
 @require_dm_scope
 def manage_create_access_grant():
     """Create a coder/coding_tester/data_manager grant within the DM's scope."""
@@ -891,7 +915,7 @@ def manage_create_access_grant():
 
 
 @data_management.post("/api/access-grants/<uuid:grant_id>/toggle")
-@role_required("data_manager", "admin")
+@action_authorized("dm_manage_grants_toggle", resource_resolver=grant_from_kwarg("grant_id"))
 @require_dm_scope
 def manage_toggle_access_grant(grant_id):
     """Toggle (activate/deactivate) a coder/coding_tester/data_manager grant."""

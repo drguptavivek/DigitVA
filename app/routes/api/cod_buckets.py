@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request, session
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.models import VaUsers
 from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
@@ -44,7 +44,7 @@ def _resolved_scope_user():
 
 
 @bp.get("/schemes")
-@role_required("data_manager", "admin")
+@action_authorized("cod_dashboard_view")
 def schemes():
     rows = [
         {
@@ -61,7 +61,7 @@ def schemes():
 
 
 @bp.get("/aggregates")
-@role_required("data_manager", "admin")
+@action_authorized("cod_dashboard_view")
 def aggregates():
     forms = dm_scoped_forms(_resolved_scope_user())
     allowed_pairs = {(row["project_id"], row["site_id"]) for row in forms}

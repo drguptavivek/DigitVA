@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-21
 ---
 
 # Policy Docs
@@ -13,6 +13,7 @@ This folder contains policy baselines for application behavior.
 Current policy docs:
 
 - [Access Control Model](access-control-model.md)
+- [Authorization Policy](authorization-policy.md)
 - [Admin Activity Log Policy](admin-activity-log.md)
 - [Admin API Access Policy](admin-api-access.md)
 - [Category Navigation Visibility Policy](category-navigation-visibility.md)

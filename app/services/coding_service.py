@@ -128,6 +128,10 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         back_dashboard_role == "data_manager"
         and get_latest_pending_upstream_change(submission.va_sid) is not None
     )
+    show_upstream_change_details = (
+        back_dashboard_role == "data_manager"
+        and (has_pending_upstream_change or is_upstream_recode(submission.va_sid))
+    )
     return render_template(
         "va_frontpages/va_coding.html",
         va_sid=submission.va_sid,
@@ -153,7 +157,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
                 "api_v1.data_management_api.upstream_change_details",
                 va_sid=submission.va_sid,
             )
-            if has_pending_upstream_change
+            if show_upstream_change_details
             else None
         ),
     )

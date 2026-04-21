@@ -13,6 +13,9 @@ last_updated: 2026-04-21
 Define how DigitVA classifies coded submissions into reporting-oriented
 cause-of-death buckets such as `SRS India` and `CMEA10`.
 
+This policy also defines who may access the CoD dashboard and how reported
+data must be scoped.
+
 ## Policy
 
 1. Authoritative coding data remains the submission's final ICD outcome.
@@ -49,6 +52,131 @@ cause-of-death buckets such as `SRS India` and `CMEA10`.
 16. The scheme-level unmapped ICD grid must support bulk allocation by letting
     the operator choose a target age band and a target disease-level leaf
     within that scheme, then map multiple selected ICD codes in one action.
+
+## CoD Dashboard Access Policy
+
+The CoD dashboard is a reporting surface. Access must follow the same
+route-level role checks and grant-scoped authorization model used elsewhere in
+DigitVA.
+
+DigitVA does not use a separate policy class of "operational" versus
+"read-only oversight" roles. Each route defines which roles are allowed, and
+scope is then limited by that user's explicit grants.
+
+Initial access baseline:
+
+- `admin` may access all CoD dashboard pages and APIs globally
+- `data_manager` may access the CoD dashboard within their explicit grant scope
+- `project_pi` should have CoD dashboard access within granted projects
+- `site_pi` should have CoD dashboard access within granted project-site pairs
+- `collaborator` should have CoD dashboard access within explicit collaborator
+  scope when that role is fully wired into route authorization
+
+Initial non-access baseline:
+
+- `coder` must not receive CoD dashboard access by default
+- `reviewer` must not receive CoD dashboard access by default
+
+Rationale:
+
+- the existing `/data-management` area is already the operational home for
+  scoped reporting and triage
+- the application already defines access at the route level per role
+- `admin` already owns global visibility and scheme maintenance
+- `data_manager`, `project_pi`, `site_pi`, and `collaborator` are valid
+  reporting consumers when the route explicitly allows them
+
+Implementation rule:
+
+- scheme maintenance remains admin-only
+- do not infer CoD dashboard access from generic read access elsewhere without
+  explicit route and API authorization
+- if a route grants a role access to the CoD dashboard, that route must still
+  enforce the same scoped project/project-site visibility rules for that user
+
+## CoD Dashboard Scope Policy
+
+The CoD dashboard must remain scope-based, following the same explicit grant
+boundaries as other data-management reporting.
+
+Scope rules:
+
+- `admin` sees all projects, sites, forms, and coded submissions
+- project-scoped `data_manager` grants see all active project-site pairs in the
+  granted project
+- project-site-scoped `data_manager` grants see only that explicit
+  project-site pair
+- `project_pi` sees all active project-site pairs in granted projects
+- `site_pi` sees only explicitly granted project-site pairs
+- `collaborator` follows the same explicit project or project-site scope model
+  as documented in the access-control policy
+
+Data must be filtered by active `(project_id, site_id)` scope pairs, not by
+free-floating project, site, or form filters alone.
+
+Form behavior:
+
+- form filters are convenience filters inside the user's allowed scope
+- a form must never expand visibility beyond the user's scoped
+  project-site pairs
+- inactive or de-scoped project-site mappings must not continue to leak into
+  CoD dashboard visibility
+
+Aggregation boundary:
+
+- CoD counts must be computed only from coded submissions whose resolved
+  project-site pair is inside the user's allowed scope
+- the dashboard must not collapse across out-of-scope rows and then filter only
+  the presentation layer
+
+Single-project-first rule:
+
+- the product remains single-project-first unless a task explicitly broadens
+  that behavior
+- for the initial rollout, the default user journey should assume one active
+  project context with optional site/form narrowing inside that project
+- multi-project comparison can remain an admin capability or a later expansion,
+  but it should not drive the first-pass UX
+
+## Data Included In Scope
+
+Within the authorized scope, the CoD dashboard may report only authoritative,
+reporting-safe COD aggregates and supporting filters.
+
+Included baseline:
+
+- authoritative final ICD-derived bucket counts
+- age-scope splits defined by the selected reporting scheme
+- selected filter dimensions already used in data-management reporting, such as
+  project, site, form, and submission date
+- unmatched-ICD counts and drill-downs for the same in-scope population
+
+Excluded baseline:
+
+- draft coder decisions
+- reviewer work-in-progress rows
+- submissions outside the caller's explicit project/project-site scope
+- raw payload data unless another policy explicitly adds a drill-down use case
+
+## Export And Drill-Down Policy
+
+If the CoD dashboard exposes export or drill-down behavior:
+
+- the same scope rules as the dashboard page must apply
+- the same current filters must apply
+- exports should default to aggregate outputs, not row-level submission dumps
+- any row-level drill-down must be explicitly justified and documented because
+  it increases sensitivity beyond the current aggregate view
+
+For the initial rollout, prefer:
+
+- aggregate tables
+- aggregate chart downloads
+- unmatched ICD summaries
+
+Avoid introducing submission-level CoD dashboard drill-down until there is a
+clear operational need and a separate policy baseline for who may inspect those
+rows.
 
 ## Scheme model
 

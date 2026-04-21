@@ -19,6 +19,7 @@ Current policy docs:
 - [Coding Workflow State Machine Policy](coding-workflow-state-machine.md)
 - [Coding Allocation Timeout Policy](coding-allocation-timeouts.md)
 - [Coding Debug Stats API Policy](coding-debug-stats-api.md)
+- [COD Bucket Reporting Policy](cod-bucket-reporting.md)
 - [Data Manager User and Grant Management Policy](dm-user-grant-management.md)
 - [Data Manager Workflow Policy](data-manager-workflow.md)
 - [Demo Coding Retention Policy](demo-coding-retention.md)

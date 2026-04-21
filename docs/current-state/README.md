@@ -28,12 +28,13 @@ Read these documents in this order:
 5. [Field Mapping System](field-mapping-system.md)
 6. [Category Rendering And Visibility](category-rendering-and-visibility.md)
 7. [Workflow And Permissions](workflow-and-permissions.md)
-8. [Admin And Setup Model](admin-and-setup.md)
-9. [Runtime And Operations](runtime-and-operations.md)
-10. [Data Manager Dashboard](data-manager-dashboard.md)
-11. [Submission Analytics Materialized View](submission-analytics.md)
-12. [COD Bucket Reporting](cod-bucket-reporting.md)
-13. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
+8. [Access Control Route Inventory](access-control-route-inventory.md)
+9. [Admin And Setup Model](admin-and-setup.md)
+10. [Runtime And Operations](runtime-and-operations.md)
+11. [Data Manager Dashboard](data-manager-dashboard.md)
+12. [Submission Analytics Materialized View](submission-analytics.md)
+13. [COD Bucket Reporting](cod-bucket-reporting.md)
+14. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
 
 Related planning:
 

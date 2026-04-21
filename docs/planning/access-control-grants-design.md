@@ -3,7 +3,7 @@ title: Access Control Grants Technical Design
 doc_type: planning
 status: draft
 owner: engineering
-last_updated: 2026-04-21
+last_updated: 2026-04-22
 ---
 
 # Access Control Grants Technical Design
@@ -156,6 +156,7 @@ Suggested fields:
 
 Allowed values:
 
+- `data_manager`
 - `admin`
 - `project_pi`
 - `site_pi`
@@ -262,6 +263,50 @@ The following are derived resource constraints, not grant scopes:
 - sync state
 
 These derived constraints are evaluated after role and grant scope checks.
+
+## Collaborator Constraints
+
+`collaborator` is a reporting-only scoped role.
+
+Runtime collaborator access should be limited to:
+
+- analytics routes
+- KPI routes
+- CoD reporting routes
+
+It should not be used for:
+
+- form access
+- submission read views
+- attachment or media access
+- user management
+- grant management
+- sync actions
+- workflow mutation actions
+
+## PI And DM Operational Alignment
+
+`project_pi` and `site_pi` should be treated as scoped operational roles for
+submission-facing data-management work, not reporting-only roles.
+
+Allowed within scope:
+
+- submission read views
+- KPI and analytics views
+- CoD reporting
+- export routes
+- data-manager workflow actions on submissions inside scope
+
+Not allowed:
+
+- user management
+- grant management
+- configuration management
+
+Scope boundaries remain explicit:
+
+- `project_pi` covers all active project-sites in the granted project
+- `site_pi` covers only the granted `project_site`
 
 ## Recommended Constraints
 

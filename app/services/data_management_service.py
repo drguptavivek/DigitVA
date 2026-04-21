@@ -271,6 +271,19 @@ def reporting_scope_pairs(user) -> set[tuple[str, str]]:
     return pairs
 
 
+def has_dm_like_submission_access(user, project_id: str, site_id: str) -> bool:
+    """Return whether the user has scoped DM-like operational access."""
+    if user.is_admin():
+        return True
+    if user.has_data_manager_submission_access(project_id, site_id):
+        return True
+    if user.has_project_pi_submission_access(project_id):
+        return True
+    if user.has_site_pi_submission_access(project_id, site_id):
+        return True
+    return False
+
+
 def dm_form_in_scope(user, form_id: str) -> bool:
     row = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form_id)
@@ -411,9 +424,7 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
     ).first()
     if not row:
         return None
-    if not user.is_admin() and not user.has_data_manager_submission_access(
-        row.project_id, row.site_id
-    ):
+    if not has_dm_like_submission_access(user, row.project_id, row.site_id):
         return None
     if not row.odk_project_id or not row.odk_form_id:
         return None
@@ -1944,9 +1955,7 @@ def _dm_submission_scope_check(user, va_sid: str):
     ).first()
     if not form_row:
         raise ValueError("Form not found.")
-    if not user.is_admin() and not user.has_data_manager_submission_access(
-        form_row.project_id, form_row.site_id
-    ):
+    if not has_dm_like_submission_access(user, form_row.project_id, form_row.site_id):
         raise PermissionError("You do not have access to this submission.")
     return submission, form_row
 

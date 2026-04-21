@@ -324,8 +324,58 @@ class DataManagerDashboardTests(BaseTestCase):
                 grant_status=VaStatuses.active,
             )
         )
+        self.site_pi_user = VaUsers(
+            user_id=uuid.uuid4(),
+            name=f"sitepi.{suffix}",
+            email=f"sitepi.{suffix}@example.com",
+            vacode_language=["English"],
+            permission={},
+            landing_page="sitepi",
+            pw_reset_t_and_c=True,
+            email_verified=True,
+            user_status=VaStatuses.active,
+        )
+        self.site_pi_user.set_password("SitePi123")
+        db.session.add(self.site_pi_user)
+        db.session.flush()
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=self.site_pi_user.user_id,
+                role=VaAccessRoles.site_pi,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site_id,
+                notes="site pi dashboard grant",
+                grant_status=VaStatuses.active,
+            )
+        )
+        self.collaborator_user = VaUsers(
+            user_id=uuid.uuid4(),
+            name=f"collab.{suffix}",
+            email=f"collab.{suffix}@example.com",
+            vacode_language=["English"],
+            permission={},
+            landing_page="data_manager",
+            pw_reset_t_and_c=True,
+            email_verified=True,
+            user_status=VaStatuses.active,
+        )
+        self.collaborator_user.set_password("Collaborator123")
+        db.session.add(self.collaborator_user)
+        db.session.flush()
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=self.collaborator_user.user_id,
+                role=VaAccessRoles.collaborator,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site_id,
+                notes="collaborator reporting grant",
+                grant_status=VaStatuses.active,
+            )
+        )
         db.session.commit()
         self.dm_user_id = str(self.dm_user.user_id)
+        self.site_pi_user_id = str(self.site_pi_user.user_id)
+        self.collaborator_user_id = str(self.collaborator_user.user_id)
 
     @patch(
         "app.routes.data_management.get_dm_kpi_from_mv",
@@ -1225,6 +1275,93 @@ class DataManagerDashboardTests(BaseTestCase):
             "data_manager_viewed_submission_read_only",
         )
         self.assertEqual(audit_row.va_audit_byrole, "data_manager")
+
+    def test_project_pi_can_access_dm_submission_view_and_export(self):
+        self._login(self.base_project_pi_id)
+
+        view_response = self.client.get(f"/data-management/view/{self.SID}")
+        export_response = self.client.get("/api/v1/data-management/submissions/export.csv")
+
+        self.assertEqual(view_response.status_code, 200)
+        self.assertEqual(export_response.status_code, 200)
+
+    def test_site_pi_can_perform_scoped_screening_reject(self):
+        self._login(self.site_pi_user_id)
+        headers = self._csrf_headers()
+        screening_sid = f"uuid:screening-{uuid.uuid4().hex[:8]}"
+        now = datetime.now(timezone.utc)
+        db.session.add(
+            VaSubmissions(
+                va_sid=screening_sid,
+                va_form_id=self.FORM_ID,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_odk_reviewstate="approved",
+                va_data_collector="Collector",
+                va_instance_name=screening_sid,
+                va_uniqueid_real=screening_sid,
+                va_uniqueid_masked="screening-masked-id",
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=35,
+                va_deceased_gender="female",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=screening_sid,
+                workflow_state="screening_pending",
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.commit()
+
+        response = self.client.post(
+            f"/api/v1/data-management/submissions/{screening_sid}/screening-reject",
+            headers=headers,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        updated_state = db.session.scalar(
+            sa.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == screening_sid
+            )
+        )
+        self.assertEqual(updated_state, "not_codeable_by_data_manager")
+
+    def test_project_pi_and_site_pi_cannot_access_user_management(self):
+        self._login(self.base_project_pi_id)
+        project_pi_response = self.client.get("/data-management/users")
+
+        self._login(self.site_pi_user_id)
+        site_pi_response = self.client.get("/data-management/api/bootstrap")
+
+        self.assertEqual(project_pi_response.status_code, 403)
+        self.assertEqual(site_pi_response.status_code, 403)
+
+    def test_collaborator_can_access_reporting_but_not_submission_or_management(self):
+        self._login(self.collaborator_user_id)
+
+        kpi_dashboard_response = self.client.get("/data-management/dashboard")
+        cod_response = self.client.get("/data-management/cod-buckets")
+        kpi_api_response = self.client.get("/api/v1/data-management/kpi")
+        project_site_summary_response = self.client.get(
+            "/api/v1/data-management/project-site-submissions"
+        )
+        submission_response = self.client.get(f"/data-management/view/{self.SID}")
+        management_response = self.client.get("/data-management/users")
+
+        self.assertEqual(kpi_dashboard_response.status_code, 200)
+        self.assertEqual(cod_response.status_code, 200)
+        self.assertEqual(kpi_api_response.status_code, 200)
+        self.assertEqual(project_site_summary_response.status_code, 200)
+        self.assertEqual(submission_response.status_code, 403)
+        self.assertEqual(management_response.status_code, 403)
 
     @patch("app.routes.api.analytics.refresh_submission_analytics_mv")
     def test_data_manager_can_refresh_analytics_mv(self, refresh_mv):

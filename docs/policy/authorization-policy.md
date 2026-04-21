@@ -3,7 +3,7 @@ title: Authorization Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-21
+last_updated: 2026-04-22
 ---
 
 # Authorization Policy
@@ -64,12 +64,20 @@ Roles are additive. No role implicitly inherits another role's access.
 - `data_manager`
   - operational triage and reporting within assigned scope
 - `project_pi`
-  - project-wide oversight within assigned projects
+  - project-wide operational and reporting access within assigned projects
+  - may perform data-manager-style submission and export actions within project scope
+  - may view KPI, analytics, and CoD reporting within project scope
+  - may not manage users, grants, or configuration
 - `site_pi`
-  - project-site oversight within assigned project-site scope
+  - project-site operational and reporting access within assigned project-site scope
+  - may perform data-manager-style submission and export actions within project-site scope
+  - may view KPI, analytics, and CoD reporting within project-site scope
+  - may not manage users, grants, or configuration
 - `collaborator`
-  - read-only scoped role
-  - deferred from the first implementation rollout until runtime support is completed end to end
+  - read-only scoped reporting role
+  - may see analytics, KPI surfaces, and CoD reports within scope
+  - may not open submissions or forms
+  - may not manage users, grants, configuration, sync, or workflow actions
 - `coder`
   - coding actions within scoped resources and workflow rules
 - `coding_tester`
@@ -157,7 +165,20 @@ Any policy-sensitive authorization change requires:
 
 ### Collaborator rollout
 
-`collaborator` remains part of the target role model but is deferred from the first authorization implementation rollout until runtime route support is completed.
+`collaborator` is part of the target role model and is limited to reporting-only access.
+
+When implemented, collaborator access is limited to scoped reporting outputs:
+
+- analytics
+- KPI dashboards
+- CoD reports
+
+Collaborators do not get:
+
+- form access
+- submission read views
+- user or grant management
+- sync or workflow mutation actions
 
 ### Admin on data-manager reporting
 
@@ -196,6 +217,30 @@ The data-manager management surface follows these rules:
 - returned grant records are limited to manageable scope
 - user identity records may be searched and loaded to support grant assignment workflows
 - out-of-scope grants must never be exposed or mutated
+
+`project_pi`, `site_pi`, and `collaborator` do not get access to user or grant
+management surfaces.
+
+### PI operational scope
+
+`project_pi` and `site_pi` are not reporting-only roles.
+
+Within their explicit scope, they may use the same operational read and
+data-triage surfaces as data managers, including:
+
+- submission read views
+- dashboard and KPI surfaces
+- analytics
+- CoD reports
+- export routes
+- data-manager workflow actions that operate on submissions inside scope
+
+They do not get:
+
+- user management
+- grant management
+- configuration management
+- global administration
 
 ### Upstream-change naming
 

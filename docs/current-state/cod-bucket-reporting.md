@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-21
 ---
 
 # COD Bucket Reporting
@@ -97,9 +97,12 @@ current editor supports:
 - loading ICD mappings on demand only for the selected last-level disease leaf
 - searching within the selected leaf's mapped ICD list in the right-side card
 - adding ICD codes through a modal ICD search that shows the current mapped
-  path for each result and can be filtered to unmapped codes only
+  path for each result, can be filtered to unmapped codes only, and keeps
+  non-assignable master ICD rows available with a `Currently not assignable in
+  coding` marker
 - showing a scheme-wide grid of active ICD master rows not yet mapped anywhere
-  in the selected scheme, across all age groups, as a single ICD code list
+  in the selected scheme, across all age groups, as a single ICD code list,
+  including non-assignable rows flagged as `Currently not assignable in coding`
 - bulk-allocating selected rows from that unmapped ICD list to a chosen age
   band and disease leaf in the current scheme
 - unmapping an ICD code directly from the selected disease leaf
@@ -110,9 +113,10 @@ current editor supports:
   scheme + age scope
 
 The admin ICD picker used in the COD bucket editor now searches the ICD-10
-2019 master table (`mas_icd10_2019_2`) and returns only active,
-coding-selectable 3-character or detailed ICD rows. It does not apply age or
-sex policy filtering inside the COD bucket editor.
+2019 master table (`mas_icd10_2019_2`) and returns active 3-character or
+detailed ICD rows. It does not apply age or sex policy filtering inside the COD
+bucket editor, and rows that are not currently assignable in coding remain
+available for bucket mapping with an explicit warning marker.
 
 Age band bound semantics are:
 
@@ -161,6 +165,16 @@ scope. Each table shows:
 - `Disease`
 - `Count`
 - `Total (%)`
+
+If coded submissions in an age group have a final ICD that does not map to any
+active node in the selected scheme, those submissions are not rendered as
+hierarchy rows. Instead, the page shows a note beneath that age-group table
+stating how many submitted CODs were dropped because they did not match any
+configured category. That note now includes a modal link showing two tabulated
+sections for the same age group:
+
+- ICD codes not included in the selected scheme's CoD categories for that age group
+- ICD codes not eligible for coding
 
 Rows are sorted by the active scheme hierarchy display order, using the stored
 `sort_order` values on category, subcategory, and field nodes rather than label

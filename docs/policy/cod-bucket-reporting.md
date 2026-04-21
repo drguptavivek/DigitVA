@@ -3,7 +3,7 @@ title: COD Bucket Reporting Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-21
 ---
 
 # COD Bucket Reporting Policy
@@ -34,13 +34,19 @@ cause-of-death buckets such as `SRS India` and `CMEA10`.
     nodes, and all ICD mappings for that scheme.
 12. The ICD picker used while maintaining COD bucket mappings must read from
     `mas_icd10_2019_2`, not legacy `va_icd_codes`.
-13. The COD bucket ICD picker must return only active, coding-selectable ICD
-    rows from the master table, without applying age- or sex-based filtering.
-14. The admin COD bucket editor must expose a scheme-level grid of active,
-    coding-selectable ICD rows that are not mapped anywhere in the current
-    scheme, across all age groups, shown as a single ICD code list rather than
-    split three-character vs detailed columns.
-15. The scheme-level unmapped ICD grid must support bulk allocation by letting
+13. The COD bucket ICD picker must return active three-character or detailed
+    ICD rows from the master table, without applying age- or sex-based
+    filtering. Rows that are not currently assignable in coding must still be
+    available for COD bucket mapping and must be explicitly marked as
+    `Currently not assignable in coding`.
+14. The admin COD bucket editor must expose a scheme-level grid of active
+    three-character or detailed ICD rows that are not mapped anywhere in the
+    current scheme, across all age groups, shown as a single ICD code list
+    rather than split three-character vs detailed columns.
+15. Rows in that scheme-level unmapped ICD grid that are not currently
+    assignable in coding must remain bulk-mappable and must be explicitly
+    marked as `Currently not assignable in coding`.
+16. The scheme-level unmapped ICD grid must support bulk allocation by letting
     the operator choose a target age band and a target disease-level leaf
     within that scheme, then map multiple selected ICD codes in one action.
 
@@ -99,6 +105,16 @@ Current aggregate inputs:
 - authoritative `final_icd`
 - demographics-derived age band
 - active COD bucket mapping scheme
+- per-age-group count of final ICDs that do not match any active scheme category
+
+Unmatched final ICDs must not be merged into hierarchy rows. The reporting UI
+must show them as a note for the relevant age group stating that those
+submitted CODs did not match any category and were dropped from the displayed
+table. That note must offer a modal tabulation of the dropped ICD codes for the
+selected age group, split into:
+
+- ICD codes not included in the selected scheme's CoD categories for that age group
+- ICD codes not eligible for coding
 
 ## Change policy
 

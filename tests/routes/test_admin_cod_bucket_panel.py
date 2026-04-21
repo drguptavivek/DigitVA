@@ -390,7 +390,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertTrue(any(item["icd_code"] == "V02" for item in payload["results"]))
         self.assertFalse(any(item["icd_code"] == "V01" for item in payload["results"]))
 
-    def test_cod_bucket_icd_search_excludes_disabled_master_codes(self):
+    def test_cod_bucket_icd_search_includes_non_assignable_master_codes_with_marker(self):
         self._login(self.base_admin_id)
         response = self.client.get(
             f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
@@ -399,7 +399,9 @@ class AdminCodBucketPanelTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertFalse(any(item["icd_code"] == "Z91" for item in payload["results"]))
+        z91 = next(item for item in payload["results"] if item["icd_code"] == "Z91")
+        self.assertFalse(z91["is_assignable_in_coding"])
+        self.assertEqual(z91["coding_status_label"], "Currently not assignable in coding")
 
     def test_cod_bucket_unmapped_icd_grid_payload_lists_active_scheme_unmapped_codes(self):
         self._login(self.base_admin_id)
@@ -441,7 +443,9 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertEqual(payload["scheme"]["scheme_code"], self.scheme_code)
         self.assertTrue(any(item["code"] == "XY01" for item in payload["rows"]))
         self.assertFalse(any(item["code"] == "V01" for item in payload["rows"]))
-        self.assertFalse(any(item["code"] == "Z91" for item in payload["rows"]))
+        z91 = next(item for item in payload["rows"] if item["code"] == "Z91")
+        self.assertFalse(z91["is_assignable_in_coding"])
+        self.assertEqual(z91["coding_status_label"], "Currently not assignable in coding")
 
     def test_cod_bucket_node_patch_updates_label_and_sort_order(self):
         self._login(self.base_admin_id)

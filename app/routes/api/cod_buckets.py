@@ -13,7 +13,9 @@ from app.decorators import role_required
 from app.models import VaUsers
 from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
+    list_unmatched_coded_submission_icds_by_bucket,
     list_cod_bucket_schemes,
+    summarize_unmatched_coded_submissions_by_bucket,
 )
 from app.services.data_management_service import dm_scoped_forms
 
@@ -81,9 +83,33 @@ def aggregates():
         allowed_project_site_pairs=allowed_pairs,
         collapse_scope=True,
     )
+    unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
+        scheme_code=request.args.get("scheme_code", "").strip() or "SRS_INDIA",
+        project_id=project_id,
+        site_id=site_id,
+        form_id=form_id,
+        submission_date_from=_parse_iso_date(request.args.get("date_from")),
+        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        allowed_project_site_pairs=allowed_pairs,
+        collapse_scope=True,
+    )
+    unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
+        scheme_code=request.args.get("scheme_code", "").strip() or "SRS_INDIA",
+        project_id=project_id,
+        site_id=site_id,
+        form_id=form_id,
+        submission_date_from=_parse_iso_date(request.args.get("date_from")),
+        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        allowed_project_site_pairs=allowed_pairs,
+        collapse_scope=True,
+    )
     return jsonify(
         {
             "data": rows,
+            "summary": {
+                "unmatched_by_age_scope": unmatched_rows,
+                "unmatched_icd_breakdown": unmatched_icd_rows,
+            },
             "filters": {
                 "scheme_code": request.args.get("scheme_code", "").strip() or "SRS_INDIA",
                 "project_id": project_id,

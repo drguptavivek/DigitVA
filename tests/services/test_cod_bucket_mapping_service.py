@@ -11,6 +11,7 @@ from app.models import (
     MasCodBucketNode,
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
+    MasIcd1020192,
     VaFinalAssessments,
     VaForms,
     VaResearchProjects,
@@ -35,7 +36,9 @@ from app.services.cod_bucket_mapping_service import (
     create_cod_bucket_scheme,
     import_cmea10_scheme,
     import_srs_india_scheme,
+    list_unmatched_coded_submission_icds_by_bucket,
     reset_cod_bucket_scheme_age_band_to_source,
+    summarize_unmatched_coded_submissions_by_bucket,
 )
 from app.services.submission_analytics_mv import refresh_submission_analytics_mv
 from app.services.submission_analytics_mv import (
@@ -753,3 +756,147 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(rows[1]["bucket_category_sort_order"], 2)
         self.assertEqual(rows[1]["bucket_field_sort_order"], 2)
         self.assertEqual(rows[1]["coded_count"], 2)
+
+    def test_summarize_unmatched_coded_submissions_by_bucket_counts_dropped_icds(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        now = datetime.now(timezone.utc)
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_UNMATCHED",
+            scheme_name="Test Unmatched Summary",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                age_label="Adult / Over 5 Years",
+                min_age_value=5,
+                min_age_unit="years",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=1,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            node_code="matched_field",
+            node_label="Matched Disease",
+            sort_order=1,
+        )
+        db.session.add(field)
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                icd_code="I21",
+                node_id=field.node_id,
+                is_active=True,
+            )
+        )
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-matched",
+            icd="I21",
+            submitted_at=now,
+            normalized_years=Decimal("52"),
+        )
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-unmatched",
+            icd="I22",
+            submitted_at=now,
+            normalized_years=Decimal("53"),
+        )
+        db.session.merge(
+            MasIcd1020192(
+                code="I22",
+                title="Subsequent myocardial infarction",
+                node_type="category",
+                semantic_level="three_character",
+                sort_order=1,
+                parent_code=None,
+                chapter_code="IX",
+                chapter_title="Diseases of the circulatory system",
+                block_code="I20-I25",
+                block_title="Ischaemic heart diseases",
+                three_character_code="I22",
+                three_character_title="Subsequent myocardial infarction",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=True,
+                is_detailed_code=False,
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                policy_status="allowed",
+                source_version="2019-test",
+                source_path="tests",
+                is_active=True,
+            )
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code="TEST_UNMATCHED",
+            form_id=self.FORM_ID,
+            collapse_scope=True,
+        )
+        unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
+            scheme_code="TEST_UNMATCHED",
+            form_id=self.FORM_ID,
+            collapse_scope=True,
+        )
+        unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
+            scheme_code="TEST_UNMATCHED",
+            form_id=self.FORM_ID,
+            collapse_scope=True,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["bucket_field"], "Matched Disease")
+        self.assertEqual(rows[0]["coded_count"], 1)
+        self.assertEqual(
+            unmatched_rows,
+            [
+                {
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "unmatched_count": 1,
+                }
+            ],
+        )
+        self.assertEqual(
+            unmatched_icd_rows,
+            [
+                {
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "icd_code": "I22",
+                    "unmatched_count": 1,
+                    "category": "not_included_in_scheme",
+                    "category_label": "ICD codes not included in CoD Categories",
+                    "is_master_coding_eligible": True,
+                }
+            ],
+        )

@@ -18,6 +18,7 @@ from app.models import (
     MasCodBucketNode,
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
+    MasIcd1020192,
     MasOdkConnections,
     VaProjectMaster,
     VaProjectSites,
@@ -766,11 +767,40 @@ class DataManagerDashboardTests(BaseTestCase):
                 is_active=True,
             )
         )
+        db.session.merge(
+            MasIcd1020192(
+                code="I22",
+                title="Subsequent myocardial infarction",
+                node_type="category",
+                semantic_level="three_character",
+                sort_order=1,
+                parent_code=None,
+                chapter_code="IX",
+                chapter_title="Diseases of the circulatory system",
+                block_code="I20-I25",
+                block_title="Ischaemic heart diseases",
+                three_character_code="I22",
+                three_character_title="Subsequent myocardial infarction",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=True,
+                is_detailed_code=False,
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                policy_status="allowed",
+                source_version="2019-test",
+                source_path="tests",
+                is_active=True,
+            )
+        )
 
         in_scope_sid = f"uuid:bucket-scope-{uuid.uuid4().hex[:8]}"
+        unmatched_in_scope_sid = f"uuid:bucket-scope-{uuid.uuid4().hex[:8]}"
         out_scope_sid = f"uuid:bucket-scope-{uuid.uuid4().hex[:8]}"
         for sid, form_id in (
             (in_scope_sid, self.FORM_ID),
+            (unmatched_in_scope_sid, self.FORM_ID),
             (out_scope_sid, self.OUT_FORM_ID),
         ):
             db.session.add(
@@ -809,7 +839,7 @@ class DataManagerDashboardTests(BaseTestCase):
                 VaFinalAssessments(
                     va_sid=sid,
                     va_finassess_by=uuid.UUID(self.dm_user_id),
-                    va_conclusive_cod="I21",
+                    va_conclusive_cod="I22" if sid == unmatched_in_scope_sid else "I21",
                     va_finassess_status=VaStatuses.active,
                     va_finassess_createdat=now,
                     va_finassess_updatedat=now,
@@ -828,6 +858,28 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(payload["data"][0]["age_scope"], "adult_over5y")
         self.assertEqual(payload["data"][0]["bucket_field"], "Scope Field")
         self.assertEqual(payload["data"][0]["coded_count"], 1)
+        self.assertEqual(
+            payload["summary"]["unmatched_by_age_scope"],
+            [
+                {
+                    "age_scope": "adult_over5y",
+                    "unmatched_count": 1,
+                }
+            ],
+        )
+        self.assertEqual(
+            payload["summary"]["unmatched_icd_breakdown"],
+            [
+                {
+                    "age_scope": "adult_over5y",
+                    "icd_code": "I22",
+                    "unmatched_count": 1,
+                    "category": "not_included_in_scheme",
+                    "category_label": "ICD codes not included in CoD Categories",
+                    "is_master_coding_eligible": True,
+                }
+            ],
+        )
 
     @patch(
         "app.routes.api.data_management.get_dm_kpi_from_mv",

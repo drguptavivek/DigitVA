@@ -1620,6 +1620,7 @@ def search_cod_bucket_icd_candidates(
         sa.select(
             MasIcd1020192.code.label("icd_code"),
             MasIcd1020192.title.label("icd_to_display"),
+            MasIcd1020192.is_coding_selectable.label("is_coding_selectable"),
             MapIcdCodBucket.mapping_id,
             MapIcdCodBucket.node_id,
         )
@@ -1634,7 +1635,6 @@ def search_cod_bucket_icd_candidates(
         )
         .where(
             MasIcd1020192.is_active.is_(True),
-            MasIcd1020192.is_coding_selectable.is_(True),
             MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
             sa.or_(
                 lower_code.like(code_prefix, escape=_LIKE_ESCAPE),
@@ -1673,6 +1673,10 @@ def search_cod_bucket_icd_candidates(
             ),
             "is_mapped": row["node_id"] is not None,
             "is_selected_leaf": bool(selected_node_id and row["node_id"] == selected_node_id),
+            "is_assignable_in_coding": bool(row["is_coding_selectable"]),
+            "coding_status_label": (
+                None if row["is_coding_selectable"] else "Currently not assignable in coding"
+            ),
         }
         for row in rows
     ]
@@ -1701,6 +1705,7 @@ def list_cod_bucket_unmapped_icd_rows(
             MasIcd1020192.code,
             MasIcd1020192.title,
             MasIcd1020192.semantic_level,
+            MasIcd1020192.is_coding_selectable,
             MasIcd1020192.chapter_code,
             MasIcd1020192.chapter_title,
             MasIcd1020192.three_character_code,
@@ -1710,7 +1715,6 @@ def list_cod_bucket_unmapped_icd_rows(
         .outerjoin(mapped_codes_sq, mapped_codes_sq.c.icd_code == MasIcd1020192.code)
         .where(
             MasIcd1020192.is_active.is_(True),
-            MasIcd1020192.is_coding_selectable.is_(True),
             MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
             mapped_codes_sq.c.icd_code.is_(None),
         )
@@ -1740,6 +1744,12 @@ def list_cod_bucket_unmapped_icd_rows(
                 "semantic_level": row["semantic_level"],
                 "code": row["code"],
                 "title": row["title"],
+                "is_assignable_in_coding": bool(row["is_coding_selectable"]),
+                "coding_status_label": (
+                    None
+                    if row["is_coding_selectable"]
+                    else "Currently not assignable in coding"
+                ),
             }
             for row in rows
         ],
@@ -1777,6 +1787,320 @@ def aggregate_coded_submissions_by_bucket(
     collapse_scope: bool = False,
 ) -> list[dict]:
     """Return grouped coded-form counts by bucket for the given scheme."""
+    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+        return []
+    scheme, base_rows = _cod_bucket_aggregate_base_subquery(
+        scheme_code=scheme_code,
+        project_id=project_id,
+        site_id=site_id,
+        form_id=form_id,
+        submission_date_from=submission_date_from,
+        submission_date_to=submission_date_to,
+        allowed_project_site_pairs=allowed_project_site_pairs,
+    )
+
+    field_node = sa.orm.aliased(MasCodBucketNode)
+    parent_node = sa.orm.aliased(MasCodBucketNode)
+    grandparent_node = sa.orm.aliased(MasCodBucketNode)
+
+    category_label = sa.case(
+        (field_node.parent_node_id.is_(None), sa.null()),
+        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.node_label),
+        else_=grandparent_node.node_label,
+    ).label("bucket_category")
+    category_sort_order = sa.case(
+        (field_node.parent_node_id.is_(None), 0),
+        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.sort_order),
+        else_=grandparent_node.sort_order,
+    ).label("bucket_category_sort_order")
+    subcategory_label = sa.case(
+        (field_node.parent_node_id.is_(None), sa.null()),
+        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.node_label),
+        else_=sa.null(),
+    ).label("bucket_subcategory")
+    subcategory_sort_order = sa.case(
+        (field_node.parent_node_id.is_(None), 0),
+        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.sort_order),
+        else_=0,
+    ).label("bucket_subcategory_sort_order")
+
+    select_columns = [
+        base_rows.c.age_scope,
+        category_label,
+        category_sort_order,
+        subcategory_label,
+        subcategory_sort_order,
+        field_node.node_label.label("bucket_field"),
+        field_node.sort_order.label("bucket_field_sort_order"),
+        sa.func.count().label("coded_count"),
+    ]
+    group_by_columns = [
+        base_rows.c.age_scope,
+        category_label,
+        category_sort_order,
+        subcategory_label,
+        subcategory_sort_order,
+        field_node.node_label,
+        field_node.sort_order,
+    ]
+    order_by_columns = [
+        base_rows.c.age_scope.asc().nullsfirst(),
+        category_sort_order.asc(),
+        subcategory_sort_order.asc(),
+        field_node.sort_order.asc(),
+        category_label.asc().nullslast(),
+        subcategory_label.asc().nullslast(),
+        field_node.node_label.asc(),
+    ]
+
+    if not collapse_scope:
+        select_columns = [
+            base_rows.c.project_id,
+            base_rows.c.site_id,
+            base_rows.c.form_id,
+            *select_columns,
+        ]
+        group_by_columns = [
+            base_rows.c.project_id,
+            base_rows.c.site_id,
+            base_rows.c.form_id,
+            *group_by_columns,
+        ]
+        order_by_columns = [
+            base_rows.c.project_id.asc(),
+            base_rows.c.site_id.asc(),
+            base_rows.c.form_id.asc(),
+            *order_by_columns,
+        ]
+
+    query = (
+        sa.select(*select_columns)
+        .select_from(base_rows)
+        .join(
+            MapIcdCodBucket,
+            sa.and_(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_code == base_rows.c.final_icd,
+                sa.or_(
+                    sa.and_(
+                        MapIcdCodBucket.age_scope.is_(None),
+                        base_rows.c.age_scope.is_(None),
+                    ),
+                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
+                ),
+            ),
+        )
+        .join(field_node, field_node.node_id == MapIcdCodBucket.node_id)
+        .outerjoin(parent_node, parent_node.node_id == field_node.parent_node_id)
+        .outerjoin(grandparent_node, grandparent_node.node_id == parent_node.parent_node_id)
+        .group_by(*group_by_columns)
+        .order_by(*order_by_columns)
+    )
+    rows = db.session.execute(query).mappings().all()
+    return [dict(row) for row in rows]
+
+
+def summarize_unmatched_coded_submissions_by_bucket(
+    *,
+    scheme_code: str,
+    project_id: str | None = None,
+    site_id: str | None = None,
+    form_id: str | None = None,
+    submission_date_from=None,
+    submission_date_to=None,
+    allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    collapse_scope: bool = False,
+) -> list[dict]:
+    """Return counts for coded submissions that do not match the active scheme."""
+    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+        return []
+    scheme, base_rows = _cod_bucket_aggregate_base_subquery(
+        scheme_code=scheme_code,
+        project_id=project_id,
+        site_id=site_id,
+        form_id=form_id,
+        submission_date_from=submission_date_from,
+        submission_date_to=submission_date_to,
+        allowed_project_site_pairs=allowed_project_site_pairs,
+    )
+
+    select_columns = [
+        base_rows.c.age_scope,
+        sa.func.count().label("unmatched_count"),
+    ]
+    group_by_columns = [base_rows.c.age_scope]
+    order_by_columns = [base_rows.c.age_scope.asc().nullsfirst()]
+
+    if not collapse_scope:
+        select_columns = [
+            base_rows.c.project_id,
+            base_rows.c.site_id,
+            base_rows.c.form_id,
+            *select_columns,
+        ]
+        group_by_columns = [
+            base_rows.c.project_id,
+            base_rows.c.site_id,
+            base_rows.c.form_id,
+            *group_by_columns,
+        ]
+        order_by_columns = [
+            base_rows.c.project_id.asc(),
+            base_rows.c.site_id.asc(),
+            base_rows.c.form_id.asc(),
+            *order_by_columns,
+        ]
+
+    query = (
+        sa.select(*select_columns)
+        .select_from(base_rows)
+        .outerjoin(
+            MapIcdCodBucket,
+            sa.and_(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_code == base_rows.c.final_icd,
+                sa.or_(
+                    sa.and_(
+                        MapIcdCodBucket.age_scope.is_(None),
+                        base_rows.c.age_scope.is_(None),
+                    ),
+                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
+                ),
+            ),
+        )
+        .where(MapIcdCodBucket.mapping_id.is_(None))
+        .group_by(*group_by_columns)
+        .order_by(*order_by_columns)
+    )
+    rows = db.session.execute(query).mappings().all()
+    return [dict(row) for row in rows]
+
+
+def list_unmatched_coded_submission_icds_by_bucket(
+    *,
+    scheme_code: str,
+    project_id: str | None = None,
+    site_id: str | None = None,
+    form_id: str | None = None,
+    submission_date_from=None,
+    submission_date_to=None,
+    allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    collapse_scope: bool = False,
+) -> list[dict]:
+    """Return unmatched ICD codes and counts for the active scheme."""
+    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+        return []
+    scheme, base_rows = _cod_bucket_aggregate_base_subquery(
+        scheme_code=scheme_code,
+        project_id=project_id,
+        site_id=site_id,
+        form_id=form_id,
+        submission_date_from=submission_date_from,
+        submission_date_to=submission_date_to,
+        allowed_project_site_pairs=allowed_project_site_pairs,
+    )
+
+    select_columns = [
+        base_rows.c.age_scope,
+        base_rows.c.final_icd.label("icd_code"),
+        sa.func.count().label("unmatched_count"),
+    ]
+    group_by_columns = [
+        base_rows.c.age_scope,
+        base_rows.c.final_icd,
+    ]
+    order_by_columns = [
+        base_rows.c.age_scope.asc().nullsfirst(),
+        sa.func.count().desc(),
+        base_rows.c.final_icd.asc(),
+    ]
+
+    if not collapse_scope:
+        select_columns = [
+            base_rows.c.project_id,
+            base_rows.c.site_id,
+            base_rows.c.form_id,
+            *select_columns,
+        ]
+        group_by_columns = [
+            base_rows.c.project_id,
+            base_rows.c.site_id,
+            base_rows.c.form_id,
+            *group_by_columns,
+        ]
+        order_by_columns = [
+            base_rows.c.project_id.asc(),
+            base_rows.c.site_id.asc(),
+            base_rows.c.form_id.asc(),
+            *order_by_columns,
+        ]
+
+    query = (
+        sa.select(*select_columns)
+        .select_from(base_rows)
+        .outerjoin(
+            MapIcdCodBucket,
+            sa.and_(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_code == base_rows.c.final_icd,
+                sa.or_(
+                    sa.and_(
+                        MapIcdCodBucket.age_scope.is_(None),
+                        base_rows.c.age_scope.is_(None),
+                    ),
+                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
+                ),
+            ),
+        )
+        .where(MapIcdCodBucket.mapping_id.is_(None))
+        .group_by(*group_by_columns)
+        .order_by(*order_by_columns)
+    )
+    rows = db.session.execute(query).mappings().all()
+    icd_codes = [row["icd_code"] for row in rows if row["icd_code"]]
+    master_rows = {
+        row.code: row
+        for row in db.session.scalars(
+            sa.select(MasIcd1020192).where(MasIcd1020192.code.in_(icd_codes))
+        )
+    } if icd_codes else {}
+
+    classified_rows = []
+    for row in rows:
+        item = dict(row)
+        master_row = master_rows.get(item["icd_code"])
+        is_master_coding_eligible = bool(
+            master_row
+            and master_row.is_active
+            and master_row.is_coding_selectable
+            and master_row.semantic_level in {"three_character", "detailed_code"}
+        )
+        item["category"] = (
+            "not_included_in_scheme"
+            if is_master_coding_eligible
+            else "not_eligible_for_coding"
+        )
+        item["category_label"] = (
+            "ICD codes not included in CoD Categories"
+            if is_master_coding_eligible
+            else "ICD codes not eligible for coding"
+        )
+        item["is_master_coding_eligible"] = is_master_coding_eligible
+        classified_rows.append(item)
+    return classified_rows
+
+
+def _cod_bucket_aggregate_base_subquery(
+    *,
+    scheme_code: str,
+    project_id: str | None = None,
+    site_id: str | None = None,
+    form_id: str | None = None,
+    submission_date_from=None,
+    submission_date_to=None,
+    allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+):
+    """Return the filtered coded submission set joined to scheme age bands."""
     scheme = db.session.scalar(
         sa.select(MasCodBucketScheme).where(
             MasCodBucketScheme.scheme_code == scheme_code,
@@ -1806,37 +2130,12 @@ def aggregate_coded_submissions_by_bucket(
         sa.column("final_icd"),
     )
 
-    field_node = sa.orm.aliased(MasCodBucketNode)
-    parent_node = sa.orm.aliased(MasCodBucketNode)
-    grandparent_node = sa.orm.aliased(MasCodBucketNode)
-
     submission_age_days = sa.cast(demo.c.analytics_age_normalized_days, sa.Numeric())
     age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
-    category_label = sa.case(
-        (field_node.parent_node_id.is_(None), sa.null()),
-        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.node_label),
-        else_=grandparent_node.node_label,
-    ).label("bucket_category")
-    category_sort_order = sa.case(
-        (field_node.parent_node_id.is_(None), 0),
-        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.sort_order),
-        else_=grandparent_node.sort_order,
-    ).label("bucket_category_sort_order")
-    subcategory_label = sa.case(
-        (field_node.parent_node_id.is_(None), sa.null()),
-        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.node_label),
-        else_=sa.null(),
-    ).label("bucket_subcategory")
-    subcategory_sort_order = sa.case(
-        (field_node.parent_node_id.is_(None), 0),
-        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.sort_order),
-        else_=0,
-    ).label("bucket_subcategory_sort_order")
 
     conditions = [
         cod.c.final_icd.is_not(None),
         demo.c.has_human_final_cod.is_(True),
-        MapIcdCodBucket.scheme_id == scheme.scheme_id,
     ]
     if project_id:
         conditions.append(core.c.project_id == project_id)
@@ -1849,63 +2148,18 @@ def aggregate_coded_submissions_by_bucket(
     if submission_date_to:
         conditions.append(core.c.submission_date <= submission_date_to)
     if allowed_project_site_pairs is not None:
-        if not allowed_project_site_pairs:
-            return []
         conditions.append(
             sa.tuple_(core.c.project_id, core.c.site_id).in_(list(allowed_project_site_pairs))
         )
 
-    select_columns = [
-        age_band.age_scope.label("age_scope"),
-        category_label,
-        category_sort_order,
-        subcategory_label,
-        subcategory_sort_order,
-        field_node.node_label.label("bucket_field"),
-        field_node.sort_order.label("bucket_field_sort_order"),
-        sa.func.count().label("coded_count"),
-    ]
-    group_by_columns = [
-        age_band.age_scope,
-        category_label,
-        category_sort_order,
-        subcategory_label,
-        subcategory_sort_order,
-        field_node.node_label,
-        field_node.sort_order,
-    ]
-    order_by_columns = [
-        age_band.age_scope.asc().nullsfirst(),
-        category_sort_order.asc(),
-        subcategory_sort_order.asc(),
-        field_node.sort_order.asc(),
-        category_label.asc().nullslast(),
-        subcategory_label.asc().nullslast(),
-        field_node.node_label.asc(),
-    ]
-
-    if not collapse_scope:
-        select_columns = [
-            core.c.project_id,
-            core.c.site_id,
-            VaSubmissions.va_form_id.label("form_id"),
-            *select_columns,
-        ]
-        group_by_columns = [
-            core.c.project_id,
-            core.c.site_id,
-            VaSubmissions.va_form_id,
-            *group_by_columns,
-        ]
-        order_by_columns = [
-            core.c.project_id.asc(),
-            core.c.site_id.asc(),
-            VaSubmissions.va_form_id.asc(),
-            *order_by_columns,
-        ]
-
     query = (
-        sa.select(*select_columns)
+        sa.select(
+            core.c.project_id.label("project_id"),
+            core.c.site_id.label("site_id"),
+            VaSubmissions.va_form_id.label("form_id"),
+            age_band.age_scope.label("age_scope"),
+            cod.c.final_icd.label("final_icd"),
+        )
         .select_from(core)
         .join(demo, demo.c.va_sid == core.c.va_sid)
         .join(cod, cod.c.va_sid == core.c.va_sid)
@@ -1925,26 +2179,6 @@ def aggregate_coded_submissions_by_bucket(
                 ),
             ),
         )
-        .join(
-            MapIcdCodBucket,
-            sa.and_(
-                MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_code == cod.c.final_icd,
-                sa.or_(
-                    sa.and_(
-                        MapIcdCodBucket.age_scope.is_(None),
-                        age_band.age_scope.is_(None),
-                    ),
-                    MapIcdCodBucket.age_scope == age_band.age_scope,
-                ),
-            ),
-        )
-        .join(field_node, field_node.node_id == MapIcdCodBucket.node_id)
-        .outerjoin(parent_node, parent_node.node_id == field_node.parent_node_id)
-        .outerjoin(grandparent_node, grandparent_node.node_id == parent_node.parent_node_id)
         .where(sa.and_(*conditions))
-        .group_by(*group_by_columns)
-        .order_by(*order_by_columns)
     )
-    rows = db.session.execute(query).mappings().all()
-    return [dict(row) for row in rows]
+    return scheme, query.subquery("cod_bucket_base")

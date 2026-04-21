@@ -130,6 +130,26 @@
   </div>
 </div>
 
+<div class="modal fade" id="cod-bucket-dropped-modal" tabindex="-1" aria-labelledby="cod-bucket-dropped-modal-label" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-1" id="cod-bucket-dropped-modal-label">Dropped CODs</h5>
+          <div class="small text-muted" id="cod-bucket-dropped-modal-scope"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="cod-bucket-dropped-modal-body">
+        <div class="text-center text-muted py-4">No dropped CODs found.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 window.COD_BUCKET_REPORTING_BOOTSTRAP = {
   forms: {{ cod_bucket_forms|tojson }},
@@ -152,13 +172,19 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
     coded: document.getElementById('cod-bucket-kpi-coded'),
     scope: document.getElementById('cod-bucket-kpi-scope'),
     selectedScheme: document.getElementById('cod-bucket-selected-scheme'),
+    droppedModal: document.getElementById('cod-bucket-dropped-modal'),
+    droppedModalScope: document.getElementById('cod-bucket-dropped-modal-scope'),
+    droppedModalBody: document.getElementById('cod-bucket-dropped-modal-body'),
   };
   const ageScopeLabels = {
+    __none__: 'All Ages',
     adult_over5y: 'Adult / Over 5 Years',
     child_1_59m: 'Child / 1–59 Months',
     neonate: 'Neonate',
   };
   const ageScopeOrder = ['adult_over5y', 'child_1_59m', 'neonate'];
+  const droppedIcdRowsByScope = new Map();
+  let droppedModal = null;
 
   function uniq(values) {
     return Array.from(new Set(values.filter(Boolean)));
@@ -214,6 +240,20 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
     if (value === null || value === undefined) return '—';
     const text = String(value).trim();
     return text || '—';
+  }
+
+  function normalizeScopeKey(value) {
+    if (value === null || value === undefined || value === '') return '__none__';
+    return String(value);
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function formatCountPercent(count, total) {
@@ -336,26 +376,40 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
     return hierarchyRows;
   }
 
-  function renderRows(rows) {
-    if (!rows.length) {
+  function renderRows(rows, unmatchedSummary, unmatchedIcdBreakdown) {
+    const unmatchedByScope = new Map(
+      (unmatchedSummary || []).map(row => [normalizeScopeKey(row.age_scope), row.unmatched_count || 0])
+    );
+    droppedIcdRowsByScope.clear();
+    (unmatchedIcdBreakdown || []).forEach(row => {
+      const scope = normalizeScopeKey(row.age_scope);
+      if (!droppedIcdRowsByScope.has(scope)) {
+        droppedIcdRowsByScope.set(scope, []);
+      }
+      droppedIcdRowsByScope.get(scope).push(row);
+    });
+    if (!rows.length && unmatchedByScope.size === 0) {
       els.ageTables.innerHTML = '<div class="text-center text-muted py-4">No aggregate rows found.</div>';
       return;
     }
     const rowsByAge = rows.reduce((acc, row) => {
-      const scope = row.age_scope || 'unknown';
+      const scope = normalizeScopeKey(row.age_scope);
       if (!acc[scope]) {
         acc[scope] = [];
       }
       acc[scope].push(row);
       return acc;
     }, {});
+    const scopeKeys = new Set([...Object.keys(rowsByAge), ...Array.from(unmatchedByScope.keys())]);
     const sectionOrder = [
-      ...ageScopeOrder.filter(scope => rowsByAge[scope]),
-      ...Object.keys(rowsByAge).filter(scope => !ageScopeOrder.includes(scope)).sort(),
+      ...ageScopeOrder.filter(scope => scopeKeys.has(scope)),
+      ...Array.from(scopeKeys).filter(scope => !ageScopeOrder.includes(scope)).sort(),
     ];
     els.ageTables.innerHTML = sectionOrder.map(scope => {
-      const scopeRows = rowsByAge[scope];
+      const scopeRows = rowsByAge[scope] || [];
       const scopeTotal = scopeRows.reduce((sum, row) => sum + (row.coded_count || 0), 0);
+      const hierarchyRows = buildHierarchyRows(scopeRows, scopeTotal);
+      const unmatchedCount = unmatchedByScope.get(scope) || 0;
       return `
         <section class="cod-bucket-age-section">
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
@@ -374,7 +428,7 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
                 </tr>
               </thead>
               <tbody>
-                ${buildHierarchyRows(scopeRows, scopeTotal).map(row => `
+                ${hierarchyRows.length ? hierarchyRows.map(row => `
                     <tr>
                       <td class="cod-bucket-code-col">${row.code}</td>
                       <td class="cod-bucket-label-cell">
@@ -384,6 +438,78 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
                         <span class="cod-bucket-tree-label cod-bucket-level-${row.level}">${row.countText}</span>
                       </td>
                     </tr>
+                `).join('') : `
+                    <tr>
+                      <td colspan="3" class="text-center text-muted py-3">No matched category rows.</td>
+                    </tr>
+                `}
+              </tbody>
+            </table>
+          </div>
+          ${unmatchedCount ? `
+            <div class="small cod-bucket-muted mt-2">
+              Note: ${unmatchedCount} submitted CoDs in this age group did not match any of the categories and were dropped.
+              <button
+                type="button"
+                class="btn btn-link btn-sm p-0 align-baseline ms-1 cod-bucket-dropped-link"
+                data-age-scope="${escapeHtml(scope)}"
+              >
+                View dropped CoDs
+              </button>
+            </div>
+          ` : ''}
+        </section>
+      `;
+    }).join('');
+  }
+
+  function renderDroppedModal(scope) {
+    const scopeLabel = ageScopeLabels[scope] || scope;
+    const rows = droppedIcdRowsByScope.get(scope) || [];
+    els.droppedModalScope.textContent = scopeLabel;
+    if (!rows.length) {
+      els.droppedModalBody.innerHTML = '<div class="text-center text-muted py-4">No dropped CODs found.</div>';
+      return;
+    }
+    const sectionSpecs = [
+      {
+        key: 'not_included_in_scheme',
+        heading: `ICD codes not included in CoD Categories in ${els.selectedScheme.textContent || 'this'} Scheme for ${scopeLabel}`,
+      },
+      {
+        key: 'not_eligible_for_coding',
+        heading: 'ICD codes not eligible for coding',
+      },
+    ];
+    els.droppedModalBody.innerHTML = sectionSpecs.map(section => {
+      const sectionRows = rows.filter(row => row.category === section.key);
+      if (!sectionRows.length) {
+        return `
+          <section class="mb-4">
+            <h6 class="mb-2">${escapeHtml(section.heading)}</h6>
+            <div class="text-muted small">None.</div>
+          </section>
+        `;
+      }
+      return `
+        <section class="mb-4">
+          <h6 class="mb-2">${escapeHtml(section.heading)}</h6>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width: 5rem;">No.</th>
+                  <th>ICD Code</th>
+                  <th class="text-end">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${sectionRows.map((row, index) => `
+                  <tr>
+                    <td>${index + 1}</td>
+                    <td>${escapeHtml(row.icd_code || '—')}</td>
+                    <td class="text-end">${row.unmatched_count || 0}</td>
+                  </tr>
                 `).join('')}
               </tbody>
             </table>
@@ -429,7 +555,11 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
       return;
     }
     const rows = payload.data || [];
-    renderRows(rows);
+    renderRows(
+      rows,
+      payload.summary?.unmatched_by_age_scope || [],
+      payload.summary?.unmatched_icd_breakdown || [],
+    );
     els.rows.textContent = String(rows.length);
     els.coded.textContent = String(rows.reduce((sum, row) => sum + (row.coded_count || 0), 0));
   }
@@ -448,6 +578,16 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
   els.dateFrom.addEventListener('change', updateScopeText);
   els.dateTo.addEventListener('change', updateScopeText);
   els.apply.addEventListener('click', loadAggregates);
+  els.ageTables.addEventListener('click', event => {
+    const trigger = event.target.closest('.cod-bucket-dropped-link');
+    if (!trigger) return;
+    const scope = normalizeScopeKey(trigger.dataset.ageScope);
+    renderDroppedModal(scope);
+    if (!droppedModal) {
+      droppedModal = new bootstrap.Modal(els.droppedModal);
+    }
+    droppedModal.show();
+  });
 
   syncSelectors();
   updateScopeText();

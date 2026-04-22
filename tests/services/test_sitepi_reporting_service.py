@@ -1,10 +1,15 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import sqlalchemy as sa
+
 from app import db
 from app.models import (
     VaFinalAssessments,
+    VaFinalCodAuthority,
     VaForms,
+    VaProjectMaster,
+    VaProjectSites,
     VaResearchProjects,
     VaReviewerFinalAssessments,
     VaSites,
@@ -38,6 +43,40 @@ from tests.base import BaseTestCase
 
 class SitePiReportingServiceTests(BaseTestCase):
     FORM_ID = "BSPIFORM01"
+    OTHER_PROJECT_ID = "BSPIO2"
+    OTHER_FORM_ID = "BSPIFORM02"
+
+    def setUp(self):
+        super().setUp()
+        sitepi_sids = list(
+            db.session.scalars(
+                sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_sid.like("uuid:sitepi-%"))
+            ).all()
+        )
+        if sitepi_sids:
+            db.session.execute(
+                sa.delete(VaFinalCodAuthority).where(VaFinalCodAuthority.va_sid.in_(sitepi_sids))
+            )
+            db.session.execute(
+                sa.delete(VaReviewerFinalAssessments).where(
+                    VaReviewerFinalAssessments.va_sid.in_(sitepi_sids)
+                )
+            )
+            db.session.execute(
+                sa.delete(VaFinalAssessments).where(VaFinalAssessments.va_sid.in_(sitepi_sids))
+            )
+            db.session.execute(
+                sa.delete(VaSubmissionWorkflowEvent).where(
+                    VaSubmissionWorkflowEvent.va_sid.in_(sitepi_sids)
+                )
+            )
+            db.session.execute(
+                sa.delete(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid.in_(sitepi_sids))
+            )
+            db.session.execute(
+                sa.delete(VaSubmissions).where(VaSubmissions.va_sid.in_(sitepi_sids))
+            )
+            db.session.flush()
 
     @classmethod
     def setUpClass(cls):
@@ -80,14 +119,60 @@ class SitePiReportingServiceTests(BaseTestCase):
                 form_updated_at=now,
             )
         )
+        db.session.add(
+            VaResearchProjects(
+                project_id=cls.OTHER_PROJECT_ID,
+                project_code=cls.OTHER_PROJECT_ID,
+                project_name="Other Reporting Project",
+                project_nickname="OtherReporting",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaProjectMaster(
+                project_id=cls.OTHER_PROJECT_ID,
+                project_code=cls.OTHER_PROJECT_ID,
+                project_name="Other Reporting Project",
+                project_nickname="OtherReporting",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaForms(
+                form_id=cls.OTHER_FORM_ID,
+                project_id=cls.OTHER_PROJECT_ID,
+                site_id=cls.BASE_SITE_ID,
+                odk_form_id="SITE_PI_FORM_OTHER",
+                odk_project_id="2",
+                form_type="WHO_2022_VA",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaProjectSites(
+                project_id=cls.OTHER_PROJECT_ID,
+                site_id=cls.BASE_SITE_ID,
+                project_site_status=VaStatuses.active,
+            )
+        )
         db.session.commit()
 
     def _add_submission(self, sid: str, workflow_state: str) -> None:
+        self._add_submission_for_form(sid, self.FORM_ID, workflow_state)
+
+    def _add_submission_for_form(self, sid: str, form_id: str, workflow_state: str) -> None:
         now = datetime.now(timezone.utc)
         db.session.add(
             VaSubmissions(
                 va_sid=sid,
-                va_form_id=self.FORM_ID,
+                va_form_id=form_id,
                 va_submission_date=now,
                 va_odk_updatedat=now,
                 va_data_collector="sitepi",
@@ -262,7 +347,13 @@ class SitePiReportingServiceTests(BaseTestCase):
         )
         db.session.commit()
 
-        data = get_sitepi_dashboard_data(self.BASE_SITE_ID)
+        project_site_id = db.session.scalar(
+            sa.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == self.BASE_PROJECT_ID,
+                VaProjectSites.site_id == self.BASE_SITE_ID,
+            )
+        )
+        data = get_sitepi_dashboard_data(project_site_id)
 
         self.assertEqual(data["total_submissions"], 4)
         self.assertEqual(data["total_coded"], 2)
@@ -293,3 +384,24 @@ class SitePiReportingServiceTests(BaseTestCase):
 
         coder_row = next(row for row in data["coder_kpis"] if row["coder_name"] == self.base_coder_user.name)
         self.assertEqual(coder_row["total_done"], 2)
+
+    def test_sitepi_dashboard_data_is_scoped_to_project_site(self):
+        self._add_submission("uuid:sitepi-base", WORKFLOW_READY_FOR_CODING)
+        self._add_submission_for_form(
+            "uuid:sitepi-other-project",
+            self.OTHER_FORM_ID,
+            WORKFLOW_REVIEWER_FINALIZED,
+        )
+        db.session.commit()
+
+        project_site_id = db.session.scalar(
+            sa.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == self.BASE_PROJECT_ID,
+                VaProjectSites.site_id == self.BASE_SITE_ID,
+            )
+        )
+
+        data = get_sitepi_dashboard_data(project_site_id)
+
+        self.assertEqual(data["total_submissions"], 1)
+        self.assertEqual({row["va_sid"] for row in data["submission_rows"]}, {"uuid:sitepi-base"})

@@ -55,7 +55,7 @@
             hx-trigger="change"
             hx-indicator="#loading">
       {% for site in sitepi_sites %}
-        <option value="{{ site }}" {% if loop.first %}selected{% endif %}>{{ site }}</option>
+        <option value="{{ site.project_site_id }}" {% if loop.first %}selected{% endif %}>{{ site.label }}</option>
       {% endfor %}
     </select>
   </div>
@@ -69,7 +69,7 @@
 
 <!-- Dynamic Content Area -->
 <div id="siteContent">
-  {% with site_data=default_site_data, site_label=default_site %}
+  {% with site_data=default_site_data, site_label=(default_site.label if default_site else None) %}
     {% include 'va_intermediate_partials/sitepi_dashboard_content.html' %}
   {% endwith %}
 </div>

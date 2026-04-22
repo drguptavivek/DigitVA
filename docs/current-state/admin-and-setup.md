@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-22
 ---
 
 # Admin And Setup Model
@@ -11,6 +11,8 @@ last_updated: 2026-04-20
 ## Summary
 
 The application includes a complete HTMX-driven admin UI under `/admin` for managing master data, users, access grants, ODK connections, and project configuration.
+
+The admin route layer is in a transitional split: [app/routes/admin.py](../../app/routes/admin.py) now mainly owns the shared `admin` blueprint and request guard, extracted route modules live under [app/routes/admin_sections](../../app/routes/admin_sections), and reusable route-support code lives under [app/routes/admin_support](../../app/routes/admin_support). The extracted admin section modules are `shell.py`, `projects.py`, `sites.py`, `languages.py`, `activity.py`, `users.py`, `access_grants.py`, `project_sites.py`, `project_pis.py`, `project_forms.py`, `odk_connections.py`, `field_mapping.py`, `cod_buckets.py`, `icd10_browser.py`, and `data_sync.py`. The support package currently groups HTTP helpers, auth/session helpers, serializers, grant/scope helpers, ODK helpers, field-mapping helpers, and activity-log helpers.
 
 The admin panel is accessible to authenticated users with the appropriate role. Some panels are admin-only; others are accessible to project PIs for their own project scope.
 
@@ -63,7 +65,6 @@ The following panels are restricted to application-level admins:
 
 Project PIs can access the following panels, scoped to their own project:
 
-- Access Grants
 - Project Sites
 - Project Forms
 - Project PIs

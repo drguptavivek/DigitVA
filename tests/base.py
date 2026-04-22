@@ -286,10 +286,13 @@ class BaseTestCase(unittest.TestCase):
         ):
             session_identifier = _create_identifier()
         with self.client.session_transaction() as sess:
+            csrf_token = sess.get("csrf_token")
             sess.clear()
             sess["_user_id"] = user_id
             sess["_fresh"] = True
             sess["_id"] = session_identifier
+            if csrf_token is not None:
+                sess["csrf_token"] = csrf_token
 
     def _csrf_headers(self):
         """Return headers containing a valid CSRF token for the current session."""

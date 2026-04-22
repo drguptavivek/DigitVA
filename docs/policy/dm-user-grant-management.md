@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-22
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -161,6 +161,13 @@ The details panel includes:
 - email update action only for users created by the same data-manager
 - language update action for data-managers/admins
 - a `Manage Grants` action that opens the grants tab focused on that user
+
+Target-user access rule:
+
+- data-managers may open details, resend verification, and update users only
+  when the target user has at least one active `coder`, `coding_tester`, or
+  `data_manager` grant within the caller's manageable scope
+- admins may perform those actions for any user
 
 ## CSRF
 

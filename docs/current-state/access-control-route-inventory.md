@@ -23,6 +23,10 @@ The app now has two route-level authorization patterns:
 - the first migrated slice uses `@action_authorized(...)` backed by
   `app/authz/policy.toml`
 
+Shared runtime scope utilities now live in `app/authz/scope.py`. Both
+`@action_authorized(...)` and legacy permission helpers are being migrated to
+that module so active-user and scope decisions do not drift.
+
 `@role_required(...)` currently enforces:
 
 - authenticated user
@@ -117,11 +121,14 @@ Current scope pattern:
 
 - dashboard and history are effectively form-scoped
 - `start` is project-scoped on input, then allocation-scoped in service logic
-- `resume` is allocation-scoped
+- `resume` is allocation-scoped and now revalidates current coder/tester form
+  scope against the allocated submission
 - `pick` is submission/form/workflow scoped, then allocation-scoped
 - `recode` appears role and workflow-window gated, with no obvious explicit
   coder/tester form-scope re-check in the workflow service
 - `view/<va_sid>` is form-scoped, not allocation-scoped
+- general coding actions are coder/coding_tester-only; admin-only support
+  remains limited to explicit demo and override endpoints
 
 Current migrated action families:
 
@@ -151,7 +158,8 @@ Current scope pattern:
 
 - dashboard is reviewer-form plus reviewer-language scoped
 - `start` is form/language/workflow scoped, then allocation-scoped
-- `resume` is allocation-scoped
+- `resume` is allocation-scoped and now revalidates reviewer form and language
+  scope against the allocated submission
 - `view/<va_sid>` requires reviewer form access and an active reviewer-owned
   finalized artifact
 
@@ -175,12 +183,11 @@ Current scope pattern:
 - data endpoint validates requested site membership through
   `get_site_pi_sites()`
 
-Important current limitation:
+Current behavior:
 
-- implementation keys reporting primarily by `site_id`
-- policy/grants design expects `project_site` scope
-- same-site-across-multiple-projects behavior is therefore not represented
-  cleanly
+- site PI reporting now resolves and enforces explicit `project_site` scope
+- dashboard selection must remain bound to granted project-site mappings rather
+  than bare `site_id`
 
 ### Data management blueprint
 
@@ -201,10 +208,11 @@ Current user/grant management status:
 - projects and project-sites are filtered to caller-manageable scope
 - grant listing/create/toggle is structurally scoped through helper checks
 - user search is global
-- user detail returns any user object, even when only the grant subset is
-  scope-filtered
-- resend verification is global to any target user
-- user update has uneven scope rules across fields
+- user detail now requires at least one active assignable-role grant in the
+  caller's manageable scope
+- resend verification now follows the same manageable-target-user scope gate
+- user update now follows the same manageable-target-user scope gate before
+  field-level checks like creator-owned email edits
 
 ### `va_form` blueprint
 
@@ -225,10 +233,18 @@ Current scope pattern:
 - `renderpartial`
   - mixed form, project-site, allocation, and workflow-specific access
 - `serve_attachment`
-  - centrally form-scoped, then file lookup and form access checks
+  - centrally form-scoped
+  - route-local lookup resolves the owning submission
+  - coder/coding_tester/reviewer reads are allocation-bound to that submission
+  - admin/data-manager/project_pi/site_pi reads follow policy scope without
+    allocation binding
 - `serve_media`
-  - centrally form-scoped, then allocation-bound for coder/reviewer and
-    form-bound for admin/data-manager
+  - centrally form-scoped
+  - requires a matching attachment record before serving any file
+  - coder/coding_tester/reviewer reads are allocation-bound to the owning
+    submission
+  - admin/data-manager/project_pi/site_pi reads follow policy scope without
+    allocation binding
 
 Current migrated action families:
 
@@ -433,8 +449,6 @@ Current scope pattern:
 - `site_pi` policy is `project_site`, but major reporting helpers still key by
   bare `site_id`
 - some routes use only `@login_required`, not `@role_required(...)`
-- some attachment/media/read routes are broader than allocation-bound coding
-  access
 - some admin/data-manager capabilities are inconsistent about whether `admin`
   is allowed on read-only data-manager surfaces
 - user-management routes under `/data-management` combine properly scoped grant
@@ -444,13 +458,11 @@ Current scope pattern:
 
 1. Decide whether self-service profile APIs should remain on `@login_required`
    or move into the central action model.
-2. Decide whether attachment access for coder/reviewer should stay form-scoped
-   or return to allocation/viewability-scoped behavior.
-3. Decide whether `coding.recode` must enforce the same coder/tester form scope
+2. Decide whether `coding.recode` must enforce the same coder/tester form scope
    as other coding entrypoints.
-4. Decide whether `project_pi` and `site_pi` need first-class shared
+3. Decide whether `project_pi` and `site_pi` need first-class shared
    resource-scope helpers comparable to the data-manager helpers.
-5. Decide whether `collaborator` is a real runtime role for this rollout; if
+4. Decide whether `collaborator` is a real runtime role for this rollout; if
    yes, implement it end to end before documenting collaborator route access.
 6. Decide whether global admin should be allowed to access all remaining
    read-only data-manager analytics/reporting routes for consistency.

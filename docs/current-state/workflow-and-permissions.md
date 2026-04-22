@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-22
 ---
 
 # Workflow And Permissions
@@ -26,6 +26,15 @@ Current admin scope rule:
 - project- or site-scoped admin grants are not supported
 - admin-only workflow actions such as override-to-recode therefore rely on
   global admin membership, not submission scope checks
+
+Current authorization plumbing note:
+
+- shared active-user, role, and scoped-resource checks are now being
+  centralized in `app/authz/scope.py`
+- migrated action-based routes evaluate those checks through
+  `app/authz/access.py`
+- remaining legacy validators still exist, but the intent is for them to call
+  the same shared scope utilities rather than keeping parallel logic
 
 Current demo/training access rule:
 
@@ -614,7 +623,7 @@ An additive admin JSON API now exists under:
 Current baseline:
 
 - `admin` may manage all admin API resources
-- `project_pi` may manage project-site mappings and non-global access grants only inside explicitly granted projects
+- `project_pi` may manage project-site mappings only inside explicitly granted projects
 - `data_manager` may create users and manage coder/coding_tester/data_manager grants within their own grant scope via `/data-management/users`
 - `admin` may also use the data-manager user management interface with full scope access
 - browser-originated mutating admin API requests require the `X-CSRFToken` header

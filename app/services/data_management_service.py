@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from flask_login import current_user
 
 from app import db
+from app.authz.scope import user_has_dm_like_submission_access, user_has_role
 from app.models import (
     MasOdkConnections,
     MapProjectOdk,
@@ -250,7 +251,7 @@ def reporting_scope_pairs(user) -> set[tuple[str, str]]:
     """Return active project/site pairs visible for reporting-style access."""
     from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
 
-    if user.is_admin():
+    if user_has_role(user, "admin"):
         rows = db.session.execute(
             sa.select(VaProjectSites.project_id, VaProjectSites.site_id).where(
                 VaProjectSites.project_site_status == VaStatuses.active,
@@ -271,26 +272,13 @@ def reporting_scope_pairs(user) -> set[tuple[str, str]]:
     return pairs
 
 
-def has_dm_like_submission_access(user, project_id: str, site_id: str) -> bool:
-    """Return whether the user has scoped DM-like operational access."""
-    if user.is_admin():
-        return True
-    if user.has_data_manager_submission_access(project_id, site_id):
-        return True
-    if user.has_project_pi_submission_access(project_id):
-        return True
-    if user.has_site_pi_submission_access(project_id, site_id):
-        return True
-    return False
-
-
 def dm_form_in_scope(user, form_id: str) -> bool:
     row = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).where(VaForms.form_id == form_id)
     ).first()
     if not row:
         return False
-    return user.has_data_manager_submission_access(row.project_id, row.site_id)
+    return user_has_dm_like_submission_access(user, row.project_id, row.site_id)
 
 
 def dm_scoped_forms(user) -> list[dict]:
@@ -424,7 +412,7 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
     ).first()
     if not row:
         return None
-    if not has_dm_like_submission_access(user, row.project_id, row.site_id):
+    if not user_has_dm_like_submission_access(user, row.project_id, row.site_id):
         return None
     if not row.odk_project_id or not row.odk_form_id:
         return None
@@ -1955,7 +1943,7 @@ def _dm_submission_scope_check(user, va_sid: str):
     ).first()
     if not form_row:
         raise ValueError("Form not found.")
-    if not has_dm_like_submission_access(user, form_row.project_id, form_row.site_id):
+    if not user_has_dm_like_submission_access(user, form_row.project_id, form_row.site_id):
         raise PermissionError("You do not have access to this submission.")
     return submission, form_row
 
@@ -2003,12 +1991,16 @@ def _require_fresh_reviewable_upstream_payload(
 
 def _upstream_resolution_actor(user):
     """Return the canonical workflow actor for upstream-change resolution."""
-    return admin_actor(user.user_id) if user.is_admin() else data_manager_actor(user.user_id)
+    return admin_actor(user.user_id) if user_has_role(user, "admin") else data_manager_actor(
+        user.user_id
+    )
 
 
 def _data_manager_workflow_actor(user):
     """Return canonical workflow actor for DM/admin workflow actions."""
-    return admin_actor(user.user_id) if user.is_admin() else data_manager_actor(user.user_id)
+    return admin_actor(user.user_id) if user_has_role(user, "admin") else data_manager_actor(
+        user.user_id
+    )
 
 
 def _flatten_form_field_labels(form_type_code: str) -> dict[str, dict[str, str | None]]:

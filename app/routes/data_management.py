@@ -17,6 +17,11 @@ from functools import wraps
 
 from app import db
 from app.authz.access import action_authorized
+from app.authz.scope import (
+    user_can_manage_grant_scope,
+    user_can_manage_target_user,
+    user_has_role,
+)
 from app.authz.resources import (
     form_from_kwarg,
     grant_from_kwarg,
@@ -35,15 +40,17 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
-from app.routes.admin import (
-    _grant_project_id_expression,
-    _grant_site_id_expression,
-    _json_error,
-    _resolve_scope_from_payload,
-    _serialize_grant,
-    _serialize_project,
-    _serialize_project_site,
-    _serialize_user,
+from app.routes.admin_support.grants import (
+    grant_project_id_expression as _grant_project_id_expression,
+    resolve_scope_from_payload as _resolve_scope_from_payload,
+    grant_site_id_expression as _grant_site_id_expression,
+)
+from app.routes.admin_support.http import json_error as _json_error
+from app.routes.admin_support.serializers import (
+    serialize_grant as _serialize_grant,
+    serialize_project as _serialize_project,
+    serialize_project_site as _serialize_project_site,
+    serialize_user,
 )
 from app.services.submission_analytics_mv import get_dm_kpi_from_mv
 from app.services.data_management_service import (
@@ -71,39 +78,18 @@ log = logging.getLogger(__name__)
 
 def _dm_can_manage_scope(user, role, scope_type, resolved_project_id, project_site_id):
     """Return (ok, error_message) for whether *user* can create/toggle a grant."""
-    if user.is_admin():
-        if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
-            return False, "Only coder, coding_tester, or data_manager roles may be assigned from this interface."
-        return True, None
-    if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
-        return False, "Data-managers may only assign coder, coding_tester, or data_manager roles."
-
-    dm_projects = user.get_data_manager_projects()
-    dm_site_pairs = user.get_data_manager_project_sites()
-
-    if scope_type == VaAccessScopeTypes.project:
-        if resolved_project_id not in dm_projects:
-            return False, "You do not have access to assign grants at project level for this project."
-        return True, None
-
-    if scope_type == VaAccessScopeTypes.project_site:
-        ps = db.session.get(VaProjectSites, project_site_id)
-        if not ps or ps.project_site_status != VaStatuses.active:
-            return False, "Active project-site mapping not found."
-        # Project-scoped DM covers all sites in their project
-        if ps.project_id in dm_projects:
-            return True, None
-        # Site-scoped DM covers only their specific sites
-        if (ps.project_id, ps.site_id) in dm_site_pairs:
-            return True, None
-        return False, "You do not have access to assign grants for this site."
-
-    return False, "Invalid scope type."
+    return user_can_manage_grant_scope(
+        user,
+        role,
+        scope_type,
+        resolved_project_id,
+        project_site_id,
+    )
 
 
 def _dm_grant_filter(project_id_expression):
     """SQLAlchemy WHERE clause limiting grants to the DM's managed scope."""
-    if current_user.is_admin():
+    if user_has_role(current_user, "admin"):
         return sa.true()
     dm_projects = current_user.get_data_manager_projects()
     dm_site_pairs = current_user.get_data_manager_project_sites()
@@ -129,6 +115,11 @@ def _dm_grant_filter(project_id_expression):
     if not conditions:
         return sa.false()
     return sa.or_(*conditions)
+
+
+def _dm_can_manage_target_user(target_user_id) -> bool:
+    """Return whether the current caller may manage the target user."""
+    return user_can_manage_target_user(current_user, target_user_id)
 
 
 def require_dm_scope(f):
@@ -341,7 +332,7 @@ def user_management():
 @action_authorized("dm_user_management_bootstrap")
 def manage_bootstrap():
     """Return CSRF token and scope context for the management JS."""
-    is_admin = current_user.is_admin()
+    is_admin = user_has_role(current_user, "admin")
     dm_projects = sorted(current_user.get_data_manager_projects())
     dm_site_pairs = current_user.get_data_manager_project_sites()
     # Admins are treated as project-scoped (can assign at project or site level)
@@ -374,7 +365,7 @@ def manage_projects():
     # Union of project IDs from both project-scoped and site-scoped grants
     all_project_ids = dm_projects | {pid for pid, _ in dm_site_pairs}
     # Admins see all projects
-    if current_user.is_admin():
+    if user_has_role(current_user, "admin"):
         stmt = (
             sa.select(VaProjectMaster)
             .where(VaProjectMaster.project_status == VaStatuses.active)
@@ -430,7 +421,7 @@ def manage_project_sites():
         stmt = stmt.where(VaProjectSites.project_id == project_id)
 
     # Admins see all project-sites.
-    if not current_user.is_admin():
+    if not user_has_role(current_user, "admin"):
         # Filter to DM's accessible sites
         conditions = []
         if dm_projects:
@@ -467,7 +458,7 @@ def manage_users():
             sa.or_(VaUsers.email.ilike(pattern), VaUsers.name.ilike(pattern))
         )
     users = db.session.scalars(stmt.order_by(VaUsers.email).limit(25)).all()
-    return jsonify({"users": [_serialize_user(u) for u in users]})
+    return jsonify({"users": [serialize_user(u) for u in users]})
 
 
 @data_management.post("/api/users")
@@ -591,7 +582,7 @@ def manage_create_user():
     except Exception:
         pass  # non-critical — user can request resend/reset
 
-    return jsonify({"user": _serialize_user(new_user)}), 201
+    return jsonify({"user": serialize_user(new_user)}), 201
 
 
 @data_management.get("/api/users/<uuid:target_user_id>")
@@ -638,6 +629,9 @@ def manage_user_detail(target_user_id):
         )
     ).all()
 
+    if not user_has_role(current_user, "admin") and not rows:
+        return _json_error("User not found.", 404)
+
     serialized_grants = [_serialize_grant(row) for row in rows]
     project_grants = [g for g in serialized_grants if g["scope_type"] == VaAccessScopeTypes.project.value]
     project_site_grants = [
@@ -646,7 +640,7 @@ def manage_user_detail(target_user_id):
 
     return jsonify(
         {
-            "user": _serialize_user(user),
+            "user": serialize_user(user),
             "grants": serialized_grants,
             "project_grants": project_grants,
             "project_site_grants": project_site_grants,
@@ -660,6 +654,8 @@ def manage_resend_verification(target_user_id):
     """Resend email verification link for a user."""
     user = db.session.get(VaUsers, target_user_id)
     if not user:
+        return _json_error("User not found.", 404)
+    if not _dm_can_manage_target_user(target_user_id):
         return _json_error("User not found.", 404)
     if user.email_verified:
         return _json_error("User email is already verified.", 400)
@@ -677,7 +673,7 @@ def manage_resend_verification(target_user_id):
 
 def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
     """DM can edit email only for users created by them; admins bypass."""
-    if current_user.is_admin():
+    if user_has_role(current_user, "admin"):
         return True
     other = target_user.other or {}
     created_by = other.get("created_by_user_id")
@@ -690,6 +686,8 @@ def manage_update_user(target_user_id):
     """Update user email and/or languages (email is creator-scoped for DMs)."""
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user:
+        return _json_error("User not found.", 404)
+    if not _dm_can_manage_target_user(target_user_id):
         return _json_error("User not found.", 404)
     payload = request.get_json(silent=True) or {}
     email_raw = payload.get("email")
@@ -756,7 +754,7 @@ def manage_update_user(target_user_id):
         except Exception:
             pass
 
-    return jsonify({"user": _serialize_user(target_user)})
+    return jsonify({"user": serialize_user(target_user)})
 
 
 @data_management.get("/api/access-grants")
@@ -924,7 +922,7 @@ def manage_toggle_access_grant(grant_id):
     if not grant:
         return _json_error("Grant not found.", 404)
     if (
-        not current_user.is_admin()
+        not user_has_role(current_user, "admin")
         and grant.role == VaAccessRoles.data_manager
         and grant.user_id == current_user.user_id
     ):

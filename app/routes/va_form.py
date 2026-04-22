@@ -8,6 +8,12 @@ from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from app import db, cache as flask_cache
 from app.authz.access import action_authorized, dynamic_action_authorized
+from app.authz.scope import (
+    user_has_active_allocation,
+    user_has_form_access,
+    user_has_role,
+    user_requires_allocation_bound_attachment_access,
+)
 from app.authz.resources import (
     attachment_form_from_storage_name,
     form_from_kwarg,
@@ -188,9 +194,31 @@ def _resolve_renderpartial_action(va_sid, va_partial):
 
 def _has_attachment_form_access(form_id: str) -> bool:
     return bool(
-        current_user.has_va_form_access(form_id)
-        or current_user.is_coding_tester(form_id)
+        user_has_form_access(current_user, form_id)
+        or user_has_form_access(current_user, form_id, "coding_tester")
     )
+
+
+def _user_has_active_attachment_allocation(va_sid: str) -> bool:
+    allocation_for = (
+        VaAllocation.reviewing
+        if user_has_role(current_user, "reviewer")
+        else VaAllocation.coding
+    )
+    return user_has_active_allocation(
+        current_user,
+        allocation_for,
+        va_sid=va_sid,
+    )
+
+
+def _enforce_attachment_access(*, va_form_id: str, va_sid: str) -> None:
+    if not user_requires_allocation_bound_attachment_access(current_user, va_form_id):
+        return
+    if not _has_attachment_form_access(va_form_id):
+        abort(403)
+    if not _user_has_active_attachment_allocation(va_sid):
+        abort(403)
 adult = [
     "I10 - Essential Hypertension",
     "E11 - Type 2 Diabetes Mellitus",
@@ -1380,6 +1408,7 @@ def serve_attachment(storage_name_raw):
         local_path = cached["local_path"]
         mime_type = cached["mime_type"]
         va_form_id = cached["va_form_id"]
+        va_sid = cached["va_sid"]
     else:
         # DB fallback
         row = db.session.execute(
@@ -1387,6 +1416,7 @@ def serve_attachment(storage_name_raw):
                 VaSubmissionAttachments.local_path,
                 VaSubmissionAttachments.mime_type,
                 VaSubmissions.va_form_id,
+                VaSubmissionAttachments.va_sid,
             )
             .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
             .where(VaSubmissionAttachments.storage_name == storage_name)
@@ -1394,11 +1424,9 @@ def serve_attachment(storage_name_raw):
         ).first()
         if not row:
             abort(404)
-        local_path, mime_type, va_form_id = row
+        local_path, mime_type, va_form_id, va_sid = row
 
-    # Permission check
-    if not _has_attachment_form_access(va_form_id):
-        abort(403)
+    _enforce_attachment_access(va_form_id=va_form_id, va_sid=va_sid)
 
     # Path guard — ensure local_path stays under APP_DATA/{va_form_id}/media/
     media_base = os.path.realpath(
@@ -1419,6 +1447,7 @@ def serve_attachment(storage_name_raw):
             "local_path": local_path,
             "mime_type": mime_type,
             "va_form_id": va_form_id,
+            "va_sid": va_sid,
         }, timeout=3600)
 
     return send_file(resolved, mimetype=mime_type)
@@ -1435,49 +1464,25 @@ def serve_media(va_form_id, va_filename):
     if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
         abort(400, description="Invalid form ID format")
 
-    if not _has_attachment_form_access(va_form_id):
-        va_permission_abortwithflash(f"You don't have permissions to access the media files for '{va_form_id}'", 403)
+    att_cache_key = f"media:att:{va_form_id}:{va_filename}"
+    cached_att = flask_cache.get(att_cache_key)
+    if cached_att:
+        cached_va_sid = cached_att["va_sid"]
+    else:
+        att_row = db.session.execute(
+            sa.select(VaSubmissionAttachments.va_sid)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .where(
+                VaSubmissions.va_form_id == va_form_id,
+                VaSubmissionAttachments.filename == va_filename,
+            )
+        ).first()
+        if not att_row:
+            abort(404)
+        cached_va_sid = att_row.va_sid
+        flask_cache.set(att_cache_key, {"va_sid": cached_va_sid}, timeout=300)
 
-    # OW-002: submission-level access check for coder/reviewer roles.
-    # Admins and data managers have form-level access (already verified above).
-    # Coders and reviewers must have an active allocation for the specific submission
-    # that owns this file — form-level access alone is insufficient.
-    if not (current_user.is_admin() or current_user.is_data_manager()):
-        # Cache the attachment → va_sid mapping (static; long TTL)
-        att_cache_key = f"media:att:{va_form_id}:{va_filename}"
-        cached_sid = flask_cache.get(att_cache_key)
-        if cached_sid is None:
-            att_row = db.session.execute(
-                sa.select(VaSubmissionAttachments.va_sid)
-                .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
-                .where(
-                    VaSubmissions.va_form_id == va_form_id,
-                    VaSubmissionAttachments.filename == va_filename,
-                )
-            ).scalar_one_or_none()
-            cached_sid = att_row or ""  # empty string = no record found
-            flask_cache.set(att_cache_key, cached_sid, timeout=300)  # 5 min
-
-        if cached_sid:  # non-empty means an attachment record exists
-            # Cache the allocation check per (sid, user); shorter TTL as allocations change
-            alloc_cache_key = f"media:alloc:{cached_sid}:{current_user.user_id}"
-            has_allocation = flask_cache.get(alloc_cache_key)
-            if has_allocation is None:
-                has_allocation = bool(db.session.scalar(
-                    sa.select(sa.func.count()).where(
-                        VaAllocations.va_sid == cached_sid,
-                        VaAllocations.va_allocated_to == current_user.user_id,
-                        VaAllocations.va_allocation_status == VaStatuses.active,
-                    )
-                ))
-                flask_cache.set(alloc_cache_key, has_allocation, timeout=300)  # 5 min
-
-            if not has_allocation:
-                log.warning(
-                    "serve_media: user=%s denied submission-level access to %s/%s (sid=%s)",
-                    current_user.user_id, va_form_id, va_filename, cached_sid,
-                )
-                abort(403)
+    _enforce_attachment_access(va_form_id=va_form_id, va_sid=cached_va_sid)
 
     # Sanitize filename to prevent path traversal attacks
     safe_filename = secure_filename(va_filename)

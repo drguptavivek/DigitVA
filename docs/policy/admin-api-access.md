@@ -3,7 +3,7 @@ title: Admin API Access Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-04-22
 ---
 
 # Admin API Access Policy
@@ -65,10 +65,10 @@ No other role may call `/admin/api` routes.
 - list accessible projects
 - list accessible sites and project-site mappings
 - create or reactivate project-site mappings for assigned projects
-- create, view, and deactivate non-global access grants inside assigned projects
 
 `project_pi` may not:
 
+- access user or access-grant management surfaces
 - create or deactivate `admin` grants
 - create or deactivate `project_pi` grants
 - manage data outside assigned projects

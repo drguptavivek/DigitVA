@@ -27,6 +27,7 @@ If code and policy disagree:
 - simple is elegant
 - policy first, implementation second
 - one central action policy source of truth in TOML
+- one shared Python scope utility layer for role, active-user, and scoped-resource checks
 - workflow and sync conditions stay in code as small predicates
 
 ## Decision Order
@@ -118,6 +119,22 @@ The central action policy is represented in TOML and must define:
 - mandatory `reason`
 
 Action policy in TOML is an executable encoding of this document, not an independent policy source.
+
+## Central Scope Utilities
+
+Runtime authorization helpers must be centralized under `app/authz/`.
+
+Baseline:
+
+- `app/authz/policy.toml` defines action-level policy
+- `app/authz/access.py` evaluates action policy
+- `app/authz/resources.py` resolves resource context
+- `app/authz/predicates.py` holds narrow workflow/state predicates
+- `app/authz/scope.py` holds shared active-user, role, and scope checks used by
+  both central auth and legacy decorators/helpers
+
+Route-local copies of project, project-site, form, or active-user checks should
+be treated as migration debt and collapsed onto the shared scope utilities.
 
 Stable action names should describe business intent rather than route paths.
 

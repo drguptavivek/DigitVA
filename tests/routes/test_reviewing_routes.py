@@ -8,8 +8,10 @@ from app.models import (
     VaAllocation,
     VaAllocations,
     VaForms,
+    VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
+    VaSiteMaster,
     VaSites,
     VaStatuses,
     VaSubmissionWorkflow,
@@ -33,49 +35,169 @@ class ReviewingRoutesTests(BaseTestCase):
     BASE_PROJECT_ID = "RR01"
     BASE_SITE_ID = "RS01"
     FORM_ID = "RRTFORM001"
+    EXTRA_PROJECT_ID = "RR02"
+    EXTRA_SITE_ID = "RS02"
+    EXTRA_FORM_ID = "RRTFORM002"
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
 
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Reviewer Route Project",
-                project_nickname="ReviewerRoute",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
+        if not db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID):
+            db.session.add(
+                VaProjectMaster(
+                    project_id=cls.BASE_PROJECT_ID,
+                    project_code=cls.BASE_PROJECT_ID,
+                    project_name="Reviewer Route Project",
+                    project_nickname="ReviewerRoute",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
             )
-        )
+        if not db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID):
+            db.session.add(
+                VaResearchProjects(
+                    project_id=cls.BASE_PROJECT_ID,
+                    project_code=cls.BASE_PROJECT_ID,
+                    project_name="Reviewer Route Project",
+                    project_nickname="ReviewerRoute",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
+            )
         db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Reviewer Route Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
+        if not db.session.get(VaSiteMaster, cls.BASE_SITE_ID):
+            db.session.add(
+                VaSiteMaster(
+                    site_id=cls.BASE_SITE_ID,
+                    site_name="Reviewer Route Site",
+                    site_abbr=cls.BASE_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                )
             )
-        )
+        if not db.session.get(VaSites, cls.BASE_SITE_ID):
+            db.session.add(
+                VaSites(
+                    site_id=cls.BASE_SITE_ID,
+                    project_id=cls.BASE_PROJECT_ID,
+                    site_name="Reviewer Route Site",
+                    site_abbr=cls.BASE_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                )
+            )
+        if db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
+                VaProjectSites.site_id == cls.BASE_SITE_ID,
+            )
+        ) is None:
+            db.session.add(
+                VaProjectSites(
+                    project_id=cls.BASE_PROJECT_ID,
+                    site_id=cls.BASE_SITE_ID,
+                    project_site_status=VaStatuses.active,
+                    project_site_registered_at=now,
+                    project_site_updated_at=now,
+                )
+            )
+        if not db.session.get(VaForms, cls.FORM_ID):
+            db.session.add(
+                VaForms(
+                    form_id=cls.FORM_ID,
+                    project_id=cls.BASE_PROJECT_ID,
+                    site_id=cls.BASE_SITE_ID,
+                    odk_form_id="REVIEWER_ROUTE_FORM",
+                    odk_project_id="1",
+                    form_type="WHO_2022_VA",
+                    form_status=VaStatuses.active,
+                    form_registered_at=now,
+                    form_updated_at=now,
+                )
+            )
+        if not db.session.get(VaProjectMaster, cls.EXTRA_PROJECT_ID):
+            db.session.add(
+                VaProjectMaster(
+                    project_id=cls.EXTRA_PROJECT_ID,
+                    project_code=cls.EXTRA_PROJECT_ID,
+                    project_name="Reviewer Route Extra Project",
+                    project_nickname="ReviewerRouteExtra",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
+            )
+        if not db.session.get(VaResearchProjects, cls.EXTRA_PROJECT_ID):
+            db.session.add(
+                VaResearchProjects(
+                    project_id=cls.EXTRA_PROJECT_ID,
+                    project_code=cls.EXTRA_PROJECT_ID,
+                    project_name="Reviewer Route Extra Project",
+                    project_nickname="ReviewerRouteExtra",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
+            )
         db.session.flush()
-        db.session.add(
-            VaForms(
-                form_id=cls.FORM_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_id=cls.BASE_SITE_ID,
-                odk_form_id="REVIEWER_ROUTE_FORM",
-                odk_project_id="1",
-                form_type="WHO_2022_VA",
-                form_status=VaStatuses.active,
-                form_registered_at=now,
-                form_updated_at=now,
+        if not db.session.get(VaSiteMaster, cls.EXTRA_SITE_ID):
+            db.session.add(
+                VaSiteMaster(
+                    site_id=cls.EXTRA_SITE_ID,
+                    site_name="Reviewer Route Extra Site",
+                    site_abbr=cls.EXTRA_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                )
             )
-        )
+        if not db.session.get(VaSites, cls.EXTRA_SITE_ID):
+            db.session.add(
+                VaSites(
+                    site_id=cls.EXTRA_SITE_ID,
+                    project_id=cls.EXTRA_PROJECT_ID,
+                    site_name="Reviewer Route Extra Site",
+                    site_abbr=cls.EXTRA_SITE_ID,
+                    site_status=VaStatuses.active,
+                    site_registered_at=now,
+                    site_updated_at=now,
+                )
+            )
+        if db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == cls.EXTRA_PROJECT_ID,
+                VaProjectSites.site_id == cls.EXTRA_SITE_ID,
+            )
+        ) is None:
+            db.session.add(
+                VaProjectSites(
+                    project_id=cls.EXTRA_PROJECT_ID,
+                    site_id=cls.EXTRA_SITE_ID,
+                    project_site_status=VaStatuses.active,
+                    project_site_registered_at=now,
+                    project_site_updated_at=now,
+                )
+            )
+        if not db.session.get(VaForms, cls.EXTRA_FORM_ID):
+            db.session.add(
+                VaForms(
+                    form_id=cls.EXTRA_FORM_ID,
+                    project_id=cls.EXTRA_PROJECT_ID,
+                    site_id=cls.EXTRA_SITE_ID,
+                    odk_form_id="REVIEWER_ROUTE_FORM_2",
+                    odk_project_id="2",
+                    form_type="WHO_2022_VA",
+                    form_status=VaStatuses.active,
+                    form_registered_at=now,
+                    form_updated_at=now,
+                )
+            )
         db.session.flush()
 
         project_site_id = db.session.scalar(
@@ -84,23 +206,82 @@ class ReviewingRoutesTests(BaseTestCase):
                 VaProjectSites.site_id == cls.BASE_SITE_ID,
             )
         )
-        cls.base_reviewer_user = cls._make_user(
+        cls.base_reviewer_user = cls._get_or_make_user(
             "base.reviewer.routes@test.local",
             "BaseReviewerRoutes123",
         )
         cls.base_reviewer_user.landing_page = "reviewer"
-        db.session.add(
-            VaUserAccessGrants(
-                user_id=cls.base_reviewer_user.user_id,
-                role=VaAccessRoles.reviewer,
-                scope_type=VaAccessScopeTypes.project_site,
-                project_site_id=project_site_id,
-                notes="reviewer route grant",
-                grant_status=VaStatuses.active,
+        if db.session.scalar(
+            db.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == cls.base_reviewer_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.reviewer,
+                VaUserAccessGrants.project_site_id == project_site_id,
+            )
+        ) is None:
+            db.session.add(
+                VaUserAccessGrants(
+                    user_id=cls.base_reviewer_user.user_id,
+                    role=VaAccessRoles.reviewer,
+                    scope_type=VaAccessScopeTypes.project_site,
+                    project_site_id=project_site_id,
+                    notes="reviewer route grant",
+                    grant_status=VaStatuses.active,
+                )
+            )
+        extra_project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == cls.EXTRA_PROJECT_ID,
+                VaProjectSites.site_id == cls.EXTRA_SITE_ID,
             )
         )
+        if db.session.scalar(
+            db.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == cls.base_reviewer_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.reviewer,
+                VaUserAccessGrants.project_site_id == extra_project_site_id,
+            )
+        ) is None:
+            db.session.add(
+                VaUserAccessGrants(
+                    user_id=cls.base_reviewer_user.user_id,
+                    role=VaAccessRoles.reviewer,
+                    scope_type=VaAccessScopeTypes.project_site,
+                    project_site_id=extra_project_site_id,
+                    notes="reviewer route extra grant",
+                    grant_status=VaStatuses.active,
+                )
+            )
         db.session.commit()
         cls.base_reviewer_id = str(cls.base_reviewer_user.user_id)
+
+        cls.revoked_reviewer_user = cls._get_or_make_user(
+            "revoked.reviewer.routes@test.local",
+            "RevokedReviewerRoutes123",
+        )
+        cls.revoked_reviewer_user.landing_page = "reviewer"
+        for project_site_id, notes in (
+            (project_site_id, "reviewer revoked route grant"),
+            (extra_project_site_id, "reviewer revoked route extra grant"),
+        ):
+            if db.session.scalar(
+                db.select(VaUserAccessGrants).where(
+                    VaUserAccessGrants.user_id == cls.revoked_reviewer_user.user_id,
+                    VaUserAccessGrants.role == VaAccessRoles.reviewer,
+                    VaUserAccessGrants.project_site_id == project_site_id,
+                )
+            ) is None:
+                db.session.add(
+                    VaUserAccessGrants(
+                        user_id=cls.revoked_reviewer_user.user_id,
+                        role=VaAccessRoles.reviewer,
+                        scope_type=VaAccessScopeTypes.project_site,
+                        project_site_id=project_site_id,
+                        notes=notes,
+                        grant_status=VaStatuses.active,
+                    )
+                )
+        db.session.commit()
+        cls.revoked_reviewer_id = str(cls.revoked_reviewer_user.user_id)
 
     def _add_submission(self, sid: str, workflow_state: str) -> None:
         now = datetime.now(timezone.utc)
@@ -139,10 +320,11 @@ class ReviewingRoutesTests(BaseTestCase):
         )
         db.session.commit()
 
-    def _clear_active_reviewing_allocations(self) -> None:
+    def _clear_active_reviewing_allocations(self, user_id=None) -> None:
+        target_user_id = user_id or self.base_reviewer_user.user_id
         for allocation in db.session.scalars(
             db.select(VaAllocations).where(
-                VaAllocations.va_allocated_to == self.base_reviewer_user.user_id,
+                VaAllocations.va_allocated_to == target_user_id,
                 VaAllocations.va_allocation_for == VaAllocation.reviewing,
                 VaAllocations.va_allocation_status == VaStatuses.active,
             )
@@ -215,6 +397,32 @@ class ReviewingRoutesTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_data(as_text=True), "reviewer-resume-page")
         render_page.assert_called_once()
+
+    def test_reviewing_resume_denies_revoked_submission_scope(self):
+        sid = "uuid:reviewer-route-revoked"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._clear_active_reviewing_allocations(self.revoked_reviewer_user.user_id)
+        self._login(self.revoked_reviewer_id)
+        self.client.get(f"/reviewing/start/{sid}")
+
+        revoked_grant = db.session.scalar(
+            db.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == self.revoked_reviewer_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.reviewer,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.project_site_id
+                == db.select(VaProjectSites.project_site_id).where(
+                    VaProjectSites.project_id == self.BASE_PROJECT_ID,
+                    VaProjectSites.site_id == self.BASE_SITE_ID,
+                ).scalar_subquery(),
+            )
+        )
+        revoked_grant.grant_status = VaStatuses.deactive
+        db.session.commit()
+
+        response = self.client.get("/reviewing/resume")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_reviewing_api_allocate_finalize_and_view_use_canonical_paths(self):
         sid = "uuid:reviewer-route-api"

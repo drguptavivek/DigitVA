@@ -388,6 +388,13 @@ class DmManageTests(BaseTestCase):
         self.assertTrue(any(g["role"] == "coder" for g in data["project_site_grants"]))
 
     def test_dm_can_update_user_languages(self):
+        self._grant(
+            self.target,
+            VaAccessRoles.coder,
+            VaAccessScopeTypes.project,
+            "language update scope grant",
+            project_id=self.project_id,
+        )
         self._login(self.project_dm_id)
         headers = self._csrf_headers()
         resp = self.client.put(
@@ -398,6 +405,63 @@ class DmManageTests(BaseTestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.get_json()
         self.assertEqual(sorted(data["user"]["languages"]), ["english", "hindi"])
+
+    def test_dm_cannot_view_out_of_scope_user_detail(self):
+        outside_user = self._create_user(f"dm.outside.detail.{uuid.uuid4().hex[:8]}@example.com")
+        self._grant(
+            outside_user,
+            VaAccessRoles.coder,
+            VaAccessScopeTypes.project,
+            "outside scope detail grant",
+            project_id=self.other_project_id,
+        )
+        self._login(self.project_dm_id)
+
+        resp = self.client.get(f"/data-management/api/users/{outside_user.user_id}")
+
+        self.assertEqual(resp.status_code, 404)
+
+    def test_dm_cannot_resend_verification_for_out_of_scope_user(self):
+        outside_user = self._create_user(f"dm.outside.verify.{uuid.uuid4().hex[:8]}@example.com")
+        outside_user.email_verified = False
+        self._grant(
+            outside_user,
+            VaAccessRoles.coder,
+            VaAccessScopeTypes.project,
+            "outside scope resend grant",
+            project_id=self.other_project_id,
+        )
+        db.session.commit()
+        self._login(self.project_dm_id)
+        headers = self._csrf_headers()
+
+        resp = self.client.post(
+            f"/data-management/api/users/{outside_user.user_id}/resend-verification",
+            headers=headers,
+        )
+
+        self.assertEqual(resp.status_code, 404)
+
+    def test_dm_cannot_update_out_of_scope_user(self):
+        outside_user = self._create_user(f"dm.outside.update.{uuid.uuid4().hex[:8]}@example.com")
+        self._grant(
+            outside_user,
+            VaAccessRoles.coder,
+            VaAccessScopeTypes.project,
+            "outside scope update grant",
+            project_id=self.other_project_id,
+        )
+        db.session.commit()
+        self._login(self.project_dm_id)
+        headers = self._csrf_headers()
+
+        resp = self.client.put(
+            f"/data-management/api/users/{outside_user.user_id}",
+            json={"languages": ["english", "hindi"]},
+            headers=headers,
+        )
+
+        self.assertEqual(resp.status_code, 404)
 
     # ── Grant creation: project-scoped DM ──────────────────────────────────────
 

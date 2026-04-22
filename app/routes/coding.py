@@ -1,6 +1,7 @@
 import sqlalchemy as sa
 from app import db
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms
+from app.authz.scope import user_has_coding_form_access, user_has_role
 from flask_login import current_user
 from flask import Blueprint, render_template, url_for, redirect, request
 from app.authz.access import action_authorized
@@ -188,7 +189,7 @@ def dashboard():
         has_pick_mode=has_pick_mode,
         va_has_allocation=va_has_allocation,
         va_recodeable=get_coder_recodeable_sids(current_user.user_id, va_form_access),
-        is_admin=current_user.is_admin(),
+        is_admin=user_has_role(current_user, "admin"),
         demo_projects=demo_projects,
         coder_eligibility=coder_eligibility,
         coder_languages=coder_languages,
@@ -216,6 +217,15 @@ def resume():
     if not va_sid:
         va_permission_abortwithflash("No active coding allocation found.", 404)
     form = db.session.get(VaSubmissions, va_sid)
+    if not form:
+        va_permission_abortwithflash("Submission not found.", 404)
+    if not user_has_role(current_user, "admin") and not user_has_coding_form_access(
+        current_user, form.va_form_id
+    ):
+        va_permission_abortwithflash(
+            "You do not have coder access to resume this submission.",
+            403,
+        )
     actiontype = (
         "vademo_start_coding"
         if should_use_demo_actiontype_for_submission(va_sid)
@@ -263,9 +273,6 @@ def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:
         va_permission_abortwithflash("Submission not found.", 404)
-    if not (
-        current_user.has_va_form_access(form.va_form_id, "coder")
-        or current_user.is_coding_tester(form.va_form_id)
-    ):
+    if not user_has_coding_form_access(current_user, form.va_form_id):
         va_permission_abortwithflash("You do not have coder access to view this submission.", 403)
     return render_va_coding_page(form, "vacode", "vaview", "coder")

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import uuid
+
 import sqlalchemy as sa
 
 from app import db
-from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses
+from app.models import VaAccessRoles, VaAccessScopeTypes, VaProjectSites, VaStatuses
 from app.services.workflow.definition import (
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
     TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
@@ -40,8 +42,72 @@ _PENDING_STATES = (
 )
 
 
-def get_sitepi_dashboard_data(site_id: str) -> dict:
-    """Return workflow-aware reporting for a Site PI site."""
+def get_sitepi_dashboard_data(project_site_id) -> dict:
+    """Return workflow-aware reporting for a Site PI project-site scope."""
+    if isinstance(project_site_id, str):
+        try:
+            project_site_id = uuid.UUID(project_site_id)
+        except ValueError:
+            return {
+                "total_submissions": 0,
+                "total_coded": 0,
+                "total_not_codeable": 0,
+                "current_state_kpis": {
+                    "reviewer_eligible": 0,
+                    "reviewer_finalized": 0,
+                    "post_coder_complete": 0,
+                    "upstream_changed": 0,
+                    "pending_or_active": 0,
+                },
+                "authority_kpis": {
+                    "coder_authority": 0,
+                    "reviewer_authority": 0,
+                },
+                "cycle_kpis": {
+                    "admin_resets": 0,
+                    "upstream_changes": 0,
+                    "upstream_accepts": 0,
+                    "recode_started": 0,
+                    "recode_finalized": 0,
+                    "reviewer_started": 0,
+                    "reviewer_finalized": 0,
+                },
+                "coder_kpis": [],
+                "submission_rows": [],
+            }
+
+    project_site = db.session.get(VaProjectSites, project_site_id)
+    if project_site is None or project_site.project_site_status != VaStatuses.active:
+        return {
+            "total_submissions": 0,
+            "total_coded": 0,
+            "total_not_codeable": 0,
+            "current_state_kpis": {
+                "reviewer_eligible": 0,
+                "reviewer_finalized": 0,
+                "post_coder_complete": 0,
+                "upstream_changed": 0,
+                "pending_or_active": 0,
+            },
+            "authority_kpis": {
+                "coder_authority": 0,
+                "reviewer_authority": 0,
+            },
+            "cycle_kpis": {
+                "admin_resets": 0,
+                "upstream_changes": 0,
+                "upstream_accepts": 0,
+                "recode_started": 0,
+                "recode_finalized": 0,
+                "reviewer_started": 0,
+                "reviewer_finalized": 0,
+            },
+            "coder_kpis": [],
+            "submission_rows": [],
+        }
+
+    project_id = project_site.project_id
+    site_id = project_site.site_id
     kpi_sql = sa.text(
         f"""
         WITH site_submissions AS (
@@ -51,7 +117,8 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-            WHERE f.site_id = :site_id
+            WHERE f.project_id = :project_id
+              AND f.site_id = :site_id
         ),
         authority AS (
             SELECT
@@ -121,6 +188,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     kpi_row = db.session.execute(
         kpi_sql,
         {
+            "project_id": project_id,
             "site_id": site_id,
             "default_ready_state": WORKFLOW_READY_FOR_CODING,
             "workflow_reviewer_eligible": WORKFLOW_REVIEWER_ELIGIBLE,
@@ -144,13 +212,8 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
         WITH site_forms AS (
             SELECT form_id
             FROM va_forms
-            WHERE site_id = :site_id
-        ),
-        site_project_sites AS (
-            SELECT ps.project_site_id
-            FROM va_project_sites ps
-            WHERE ps.site_id = :site_id
-              AND ps.project_site_status = :active_status
+            WHERE project_id = :project_id
+              AND site_id = :site_id
         )
         SELECT
             u.name AS coder_name,
@@ -159,11 +222,11 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             COALESCE(review.total_errors, 0) AS total_errors
         FROM va_users u
         JOIN va_user_access_grants g
-          ON g.user_id = u.user_id
+         ON g.user_id = u.user_id
          AND g.role = :coder_role
          AND g.scope_type = :project_site_scope
          AND g.grant_status = :active_status
-         AND g.project_site_id IN (SELECT project_site_id FROM site_project_sites)
+         AND g.project_site_id = :project_site_id
         LEFT JOIN (
             SELECT
                 fa.va_finassess_by AS user_id,
@@ -191,7 +254,9 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     coder_rows = db.session.execute(
         coder_kpi_sql,
         {
+            "project_id": project_id,
             "site_id": site_id,
+            "project_site_id": project_site.project_site_id,
             "active_status": VaStatuses.active.value,
             "coder_role": VaAccessRoles.coder.value,
             "project_site_scope": VaAccessScopeTypes.project_site.value,
@@ -207,7 +272,8 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-            WHERE f.site_id = :site_id
+            WHERE f.project_id = :project_id
+              AND f.site_id = :site_id
         ),
         authority AS (
             SELECT
@@ -258,6 +324,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     submission_rows = db.session.execute(
         submission_rows_sql,
         {
+            "project_id": project_id,
             "site_id": site_id,
             "default_ready_state": WORKFLOW_READY_FOR_CODING,
             "transition_coder_finalized": TRANSITION_CODER_FINALIZED,

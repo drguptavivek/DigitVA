@@ -35,23 +35,12 @@ from functools import wraps
 from flask import jsonify, redirect, request, url_for
 from flask_login import current_user, logout_user
 
-from app.models import VaStatuses
+from app.authz.scope import user_has_role, user_is_active
 from app.utils.va_permission.va_permission_01_abortwithflash import (
     va_permission_abortwithflash,
 )
 
 log = logging.getLogger(__name__)
-
-_ROLE_METHODS = {
-    "admin":          lambda u: u.is_admin(),
-    "coder":          lambda u: u.is_coder(),
-    "coding_tester":  lambda u: u.is_coding_tester(),
-    "reviewer":       lambda u: u.is_reviewer(),
-    "data_manager":   lambda u: u.is_data_manager(),
-    "site_pi":        lambda u: u.is_site_pi(),
-    "project_pi":     lambda u: bool(u.get_project_pi_projects()),
-}
-
 
 def role_required(*roles):
     """Gate a route by role. OR semantics — user must hold at least one role."""
@@ -75,7 +64,7 @@ def role_required(*roles):
                 return redirect(url_for("va_auth.va_login", next=request.url))
 
             # ── Layer 2: Active-status ────────────────────────────────────────
-            if current_user.user_status != VaStatuses.active:
+            if not user_is_active(current_user):
                 log.warning(
                     "Access denied — inactive user: user=%s path=%s ip=%s",
                     current_user.get_id(), request.path, request.remote_addr,
@@ -87,9 +76,8 @@ def role_required(*roles):
 
             # ── Layer 3: Role check ──────────────────────────────────────────
             if not any(
-                _ROLE_METHODS[role](current_user)
+                user_has_role(current_user, role)
                 for role in roles
-                if role in _ROLE_METHODS
             ):
                 role_label = " or ".join(roles)
                 log.warning(

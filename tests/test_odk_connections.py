@@ -436,7 +436,7 @@ class OdkConnectionsApiTests(BaseTestCase):
         self._login(self.base_admin_id)
         headers = self._csrf_headers()
         with patch(
-            "app.routes.admin.guarded_odk_call",
+            "app.routes.admin_sections.odk_connections.guarded_odk_call",
             side_effect=OdkConnectionCooldownError(
                 conn.connection_name,
                 datetime.now(timezone.utc) + timedelta(minutes=5),

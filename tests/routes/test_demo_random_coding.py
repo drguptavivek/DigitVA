@@ -170,6 +170,17 @@ class DemoRandomCodingRouteTests(BaseTestCase):
             )
         )
 
+    def _clear_active_allocations_for(self, user_id):
+        for allocation in db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_allocated_to == user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all():
+            allocation.va_allocation_status = VaStatuses.deactive
+        db.session.commit()
+
     def test_demo_random_coding_uses_only_coder_accessible_forms(self):
         self._login(self.base_admin_id)
 
@@ -289,3 +300,66 @@ class DemoRandomCodingRouteTests(BaseTestCase):
             "ready_for_coding",
             payload["workflow_visibility"]["coder_ready_pool_states"],
         )
+
+    def test_coding_resume_denies_revoked_submission_scope(self):
+        coder_user = self._make_user(
+            "resume.revoked.coder@test.local",
+            "ResumeRevokedCoder123",
+        )
+        blk01_project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == "BLK01",
+                VaProjectSites.site_id == "B101",
+            )
+        )
+        dmo02_project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == "DMO02",
+                VaProjectSites.site_id == "D201",
+            )
+        )
+        db.session.add_all(
+            [
+                VaUserAccessGrants(
+                    user_id=coder_user.user_id,
+                    role=VaAccessRoles.coder,
+                    scope_type=VaAccessScopeTypes.project_site,
+                    project_site_id=blk01_project_site_id,
+                    notes="resume revoked coder grant 1",
+                    grant_status=VaStatuses.active,
+                ),
+                VaUserAccessGrants(
+                    user_id=coder_user.user_id,
+                    role=VaAccessRoles.coder,
+                    scope_type=VaAccessScopeTypes.project_site,
+                    project_site_id=dmo02_project_site_id,
+                    notes="resume revoked coder grant 2",
+                    grant_status=VaStatuses.active,
+                ),
+            ]
+        )
+        db.session.commit()
+        self._clear_active_allocations_for(coder_user.user_id)
+        self._login(str(coder_user.user_id))
+
+        db.session.add(
+            VaAllocations(
+                va_sid="sid-blocked-1",
+                va_allocated_to=coder_user.user_id,
+                va_allocation_for=VaAllocation.coding,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
+        revoked_grant = db.session.scalar(
+            db.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == coder_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.coder,
+                VaUserAccessGrants.project_site_id == blk01_project_site_id,
+            )
+        )
+        revoked_grant.grant_status = VaStatuses.deactive
+        db.session.commit()
+
+        response = self.client.get("/coding/resume")
+
+        self.assertEqual(response.status_code, 403)

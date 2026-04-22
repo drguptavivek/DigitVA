@@ -271,22 +271,22 @@ scope = "authenticated"
 reason = "Updating the current user's own timezone is a self-service authenticated action."
 
 [action.coding_dashboard_view]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "The coding dashboard is available to admins, coders, and coding testers with coding scope."
+reason = "The coding dashboard is available to coders and coding testers with coding scope."
 
 [action.coding_start]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Starting a coding allocation is available to admins, coders, and coding testers, with downstream workflow and allocation checks enforced in service code."
+reason = "Starting a coding allocation is available to coders and coding testers, with downstream workflow and allocation checks enforced in service code."
 
 [action.coding_resume]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Resuming an active coding allocation is available to admins, coders, and coding testers who already hold coding scope."
+reason = "Resuming an active coding allocation is available to coders and coding testers who already hold coding scope."
 
 [action.coding_pick]
 roles = ["coder", "coding_tester"]
@@ -307,46 +307,46 @@ scope = "global"
 reason = "Starting a demo coding allocation is an admin-only action."
 
 [action.coding_submission_view]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "submission"
 scope = "resource_scope"
-reason = "Direct coding submission view is available to coders and coding testers within form scope, with admin access preserved for coding support."
+reason = "Direct coding submission view is available to coders and coding testers within form scope."
 
 [action.coding_allocation_view]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Reading the current coding allocation is available to admins, coders, and coding testers with coding scope."
+reason = "Reading the current coding allocation is available to coders and coding testers with coding scope."
 
 [action.coding_allocation_create]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Creating a coding allocation through the API is available to admins, coders, and coding testers, with branch-specific demo and pick constraints enforced in service code."
+reason = "Creating a coding allocation through the API is available to coders and coding testers, with branch-specific demo and pick constraints enforced in service code."
 
 [action.coding_available_view]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Listing pick-mode coding availability is available to admins, coders, and coding testers with coding scope."
+reason = "Listing pick-mode coding availability is available to coders and coding testers with coding scope."
 
 [action.coding_stats_view]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Coding dashboard stats are available to admins, coders, and coding testers with coding scope."
+reason = "Coding dashboard stats are available to coders and coding testers with coding scope."
 
 [action.coding_history_view]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Coding history is available to admins, coders, and coding testers with coding scope."
+reason = "Coding history is available to coders and coding testers with coding scope."
 
 [action.coding_projects_view]
-roles = ["admin", "coder", "coding_tester"]
+roles = ["coder", "coding_tester"]
 resource = "none"
 scope = "any_scope"
-reason = "Coding project options are available to admins, coders, and coding testers with coding scope."
+reason = "Coding project options are available to coders and coding testers with coding scope."
 
 [action.coding_admin_override_recode]
 roles = ["admin"]
@@ -486,7 +486,7 @@ reason = "Workflow history follows the same scoped submission visibility model a
 roles = ["admin", "data_manager", "project_pi", "site_pi", "coder", "coding_tester", "reviewer"]
 resource = "form"
 scope = "resource_scope"
-reason = "Attachment and legacy media reads follow scoped form access, with tighter allocation checks for some legacy paths kept in va_form."
+reason = "Attachment and legacy media reads follow scoped form access, with additional allocation binding for coder, coding_tester, and reviewer reads enforced in va_form."
 
 [action.submission_narrative_qa_save]
 roles = ["admin", "coder", "coding_tester", "reviewer"]

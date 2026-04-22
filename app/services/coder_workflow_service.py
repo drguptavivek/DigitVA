@@ -14,6 +14,7 @@ from datetime import datetime
 import sqlalchemy as sa
 
 from app import db
+from app.authz.scope import user_has_coding_form_access, user_has_form_access
 from app.models import (
     VaAllocation,
     VaAllocations,
@@ -80,7 +81,7 @@ def _narration_language_filter(user):
 
 def _tr01_cutoff_filter(user):
     """Limit TR01 site submissions by date without restricting other forms."""
-    if not user or not user.is_coder(va_form="UNSW01TR0101"):
+    if not user or not user_has_form_access(user, "UNSW01TR0101", "coder"):
         return None
     return sa.or_(
         VaSubmissions.va_form_id != "UNSW01TR0101",
@@ -495,7 +496,7 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
     form = db.session.get(VaSubmissions, va_sid)
     if not form:
         raise AllocationError("Submission not found.", 404)
-    if not (user.has_va_form_access(form.va_form_id, "coder") or user.is_coding_tester(form.va_form_id)):
+    if not user_has_coding_form_access(user, form.va_form_id):
         raise AllocationError("You do not have coder access for this VA form.")
 
     sub_row = _require_submission_exists(va_sid)

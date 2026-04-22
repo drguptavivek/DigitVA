@@ -6,6 +6,7 @@ from flask_login import current_user
 
 from app import db
 from app.authz.access import action_authorized
+from app.authz.scope import user_has_role
 from app.authz.resources import submission_from_kwarg
 from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow, VaSubmissions
 from app.services.coder_dashboard_service import (
@@ -116,7 +117,7 @@ def allocate():
 
     try:
         if is_demo:
-            if not current_user.is_admin():
+            if not user_has_role(current_user, "admin"):
                 current_app.logger.warning(
                     "coding_allocation_denied reason=demo_requires_admin user_id=%s project_id=%s",
                     current_user.user_id,
@@ -127,7 +128,10 @@ def allocate():
         elif sid:
             result = allocate_pick_form(current_user, sid)
         else:
-            if not (current_user.is_coder() or current_user.is_coding_tester()):
+            if not (
+                user_has_role(current_user, "coder")
+                or user_has_role(current_user, "coding_tester")
+            ):
                 current_app.logger.warning(
                     "coding_allocation_denied reason=coding_role_required user_id=%s project_id=%s",
                     current_user.user_id,
@@ -341,7 +345,7 @@ def debug_stats():
         "user": {
             "user_id": str(current_user.user_id),
             "email": current_user.email,
-            "is_admin": bool(current_user.is_admin()),
+            "is_admin": user_has_role(current_user, "admin"),
         },
         "coder_scope": {
             "languages": language_list,

@@ -110,7 +110,7 @@ class AdminPanelRoutingTests(BaseTestCase):
         for url in self.PANELS:
             with self.subTest(url=url):
                 response = self.client.get(url)
-                if url == "/admin/panels/activity":
+                if url in {"/admin/panels/access-grants", "/admin/panels/activity"}:
                     self.assertEqual(response.status_code, 403)
                 else:
                     self.assertEqual(response.status_code, 200)

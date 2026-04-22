@@ -9,7 +9,12 @@ from flask import current_app, g, jsonify, redirect, request, url_for
 from flask_login import current_user, logout_user
 
 from app.authz import policy as auth_policy
-from app.models import VaStatuses
+from app.authz.scope import (
+    user_has_any_scope,
+    user_has_resource_scope,
+    user_has_role,
+    user_is_active,
+)
 from app.utils.va_permission.va_permission_01_abortwithflash import (
     va_permission_abortwithflash,
 )
@@ -119,73 +124,27 @@ def _predicate_registry() -> dict[str, Callable[[Any, ResourceContext | None], b
 
 
 def _user_has_role(user, role: str) -> bool:
-    return {
-        "admin": user.is_admin,
-        "project_pi": user.is_project_pi,
-        "site_pi": user.is_site_pi,
-        "data_manager": user.is_data_manager,
-        "collaborator": user.is_collaborator,
-        "coder": user.is_coder,
-        "coding_tester": user.is_coding_tester,
-        "reviewer": user.is_reviewer,
-    }[role]()
+    return user_has_role(user, role)
 
 
 def _role_has_any_scope(user, role: str) -> bool:
-    if role == "admin":
-        return user.is_admin()
-    if role == "project_pi":
-        return bool(user.get_project_pi_projects())
-    if role == "site_pi":
-        return bool(user.get_site_pi_project_sites())
-    if role == "data_manager":
-        return bool(user.get_data_manager_projects() or user.get_data_manager_project_sites())
-    if role == "collaborator":
-        return bool(user.get_collaborator_projects() or user.get_collaborator_project_sites())
-    if role == "coder":
-        return bool(user.get_coder_va_forms())
-    if role == "coding_tester":
-        return bool(user.get_coding_tester_va_forms())
-    if role == "reviewer":
-        return bool(user.get_reviewer_va_forms())
-    return False
+    return user_has_any_scope(user, role)
 
 
 def _role_has_resource_scope(user, role: str, resource: ResourceContext) -> bool:
-    if role == "admin":
-        return user.is_admin()
-    if role == "project_pi":
-        return bool(resource.project_id) and user.has_project_pi_submission_access(resource.project_id)
-    if role == "site_pi":
-        return (
-            bool(resource.project_id and resource.site_id)
-            and user.has_site_pi_submission_access(resource.project_id, resource.site_id)
-        )
-    if role == "data_manager":
-        if resource.form_id:
-            return user.has_data_manager_form_access(resource.form_id)
-        return (
-            bool(resource.project_id and resource.site_id)
-            and user.has_data_manager_submission_access(resource.project_id, resource.site_id)
-        )
-    if role == "collaborator":
-        return (
-            bool(resource.project_id and resource.site_id)
-            and user.has_collaborator_submission_access(resource.project_id, resource.site_id)
-        )
-    if role == "coder":
-        return bool(resource.form_id) and user.is_coder(resource.form_id)
-    if role == "coding_tester":
-        return bool(resource.form_id) and user.is_coding_tester(resource.form_id)
-    if role == "reviewer":
-        return bool(resource.form_id) and user.is_reviewer(resource.form_id)
-    return False
+    return user_has_resource_scope(
+        user,
+        role,
+        project_id=resource.project_id,
+        site_id=resource.site_id,
+        form_id=resource.form_id,
+    )
 
 
 def authorize_action(user, action: str, resource: ResourceContext | None = None) -> auth_policy.ActionPolicy:
     if not user.is_authenticated:
         raise AuthorizationDenied("Authentication required.", status_code=401)
-    if user.user_status != VaStatuses.active:
+    if not user_is_active(user):
         logout_user()
         raise AuthorizationDenied("Authentication required.", status_code=401)
 
@@ -203,7 +162,7 @@ def authorize_action(user, action: str, resource: ResourceContext | None = None)
             raise AuthorizationDenied(f"{', '.join(policy.roles)} access is required.")
 
     if policy.scope == "global":
-        scope_ok = any(role == "admin" and user.is_admin() for role in allowed_roles)
+        scope_ok = any(role == "admin" and user_has_role(user, "admin") for role in allowed_roles)
     elif policy.scope == "any_scope":
         scope_ok = any(_role_has_any_scope(user, role) for role in allowed_roles)
     elif policy.scope == "resource_scope":

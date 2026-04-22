@@ -265,24 +265,28 @@ def _get_request_user(user_id):
 
 
 def _authorize_data_manager_form_sync(user_id, va_form):
+    from app.authz.scope import user_has_role
+
     user = _get_request_user(user_id)
     if user is None:
         return
-    if user.is_admin():
+    if user_has_role(user, "admin"):
         return
-    if not user.is_data_manager():
+    if not user_has_role(user, "data_manager"):
         raise PermissionError("User is not allowed to run data-manager sync.")
     if not user.has_data_manager_submission_access(va_form.project_id, va_form.site_id):
         raise PermissionError("User does not have access to this form.")
 
 
 def _authorize_data_manager_submission_sync(user_id, submission, va_form):
+    from app.authz.scope import user_has_role
+
     user = _get_request_user(user_id)
     if user is None:
         return
-    if user.is_admin():
+    if user_has_role(user, "admin"):
         return
-    if not user.is_data_manager():
+    if not user_has_role(user, "data_manager"):
         raise PermissionError("User is not allowed to run data-manager sync.")
     if not user.has_data_manager_submission_access(va_form.project_id, va_form.site_id):
         raise PermissionError("User does not have access to this submission.")

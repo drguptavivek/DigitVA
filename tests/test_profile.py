@@ -1,6 +1,8 @@
 import uuid
+from urllib.parse import urlparse
 
 from app import db
+from app.models import VaStatuses
 from app.models.va_users import VaUsers
 from tests.base import BaseTestCase
 
@@ -59,3 +61,16 @@ class ProfileTests(BaseTestCase):
         user = db.session.get(VaUsers, uuid.UUID(self.user_id))
         db.session.refresh(user)
         self.assertTrue(user.pw_reset_t_and_c)
+
+    def test_inactive_user_is_redirected_from_profile_routes(self):
+        user = db.session.get(VaUsers, uuid.UUID(self.user_id))
+        user.user_status = VaStatuses.deactive
+        db.session.commit()
+
+        resp = self.client.get("/profile/", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(urlparse(resp.location).path, "/vaauth/valogin")
+
+        resp = self.client.get("/profile/force-password-change", follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(urlparse(resp.location).path, "/vaauth/valogin")

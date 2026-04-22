@@ -1,5 +1,11 @@
 import sqlalchemy as sa
 from app import db
+from app.authz.scope import (
+    user_has_coding_form_access,
+    user_has_dm_like_submission_access,
+    user_has_form_access,
+    user_has_role,
+)
 from functools import wraps
 from flask import redirect, url_for, request
 from flask_login import current_user
@@ -90,28 +96,27 @@ def validate_va_request(
 
 
 def va_hasrole(role):
-    if current_user.is_admin():
-        return True
-    mapping = {
-        "coder": current_user.is_coder() or current_user.is_coding_tester(),
-        "reviewer": current_user.is_reviewer(),
-        "sitepi": current_user.is_site_pi(),
-        "data_manager": current_user.is_data_manager(),
-    }
-    return mapping.get(role)
+    if role == "coder":
+        return user_has_role(current_user, "coder") or user_has_role(
+            current_user, "coding_tester"
+        )
+    if role == "sitepi":
+        return user_has_role(current_user, "site_pi")
+    if role == "data_manager":
+        return user_has_role(current_user, "data_manager")
+    if role == "reviewer":
+        return user_has_role(current_user, "reviewer")
+    return False
 
 
 def _has_coding_role() -> bool:
-    return current_user.is_coder() or current_user.is_coding_tester()
+    return user_has_role(current_user, "coder") or user_has_role(
+        current_user, "coding_tester"
+    )
 
 
 def _has_coding_form_access(form_id: str | None) -> bool:
-    if not form_id:
-        return False
-    return (
-        current_user.has_va_form_access(form_id, "coder")
-        or current_user.is_coding_tester(form_id)
-    )
+    return user_has_coding_form_access(current_user, form_id)
 
 
 def _validate_vacode(actiontype, sid, partial):
@@ -177,7 +182,7 @@ def _validate_vacode(actiontype, sid, partial):
                 "This submission is no longer available for coding.", 409
             )
     elif actiontype == "vademo_start_coding":
-        if current_user.is_admin():
+        if user_has_role(current_user, "admin"):
             return
         if not _has_coding_role():
             va_permission_abortwithflash(
@@ -217,7 +222,7 @@ def _validate_vareview(actiontype, sid, partial):
     )
     if actiontype == "vastartreviewing":
         if not partial:
-            if not current_user.has_va_form_access(form_id, "reviewer"):
+            if not user_has_form_access(current_user, form_id, "reviewer"):
                 va_permission_abortwithflash(
                     "Reviewer access is required to access this VA form.", 403
                 )
@@ -231,7 +236,7 @@ def _validate_vareview(actiontype, sid, partial):
             va_permission_ensureallocation(sid, "reviewing")
     elif actiontype == "varesumereviewing":
         if not partial:
-            if not current_user.is_reviewer():
+            if not user_has_role(current_user, "reviewer"):
                 va_permission_abortwithflash(
                     "You lack the VA Reviewer role required to resume reviewing.", 403
                 )
@@ -239,7 +244,7 @@ def _validate_vareview(actiontype, sid, partial):
         else:
             va_permission_ensureallocation(sid, "reviewing")
     elif actiontype == "vaview":
-        if not current_user.has_va_form_access(form_id, "reviewer"):
+        if not user_has_form_access(current_user, form_id, "reviewer"):
             va_permission_abortwithflash(
                 "You do not have reviewer access to view this form.", 403
             )
@@ -252,7 +257,7 @@ def _validate_vasitepi(actiontype, sid, partial):
     form_id = db.session.scalar(
         sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == sid)
     )
-    if not current_user.has_va_form_access(form_id, "sitepi"):
+    if not user_has_form_access(current_user, form_id, "sitepi"):
         va_permission_abortwithflash(
             "VA Site PI access is required for this operation.", 403
         )
@@ -276,12 +281,8 @@ def _validate_vadata(actiontype, sid, partial):
     ).mappings().first()
     if not form:
         va_permission_abortwithflash("Submission not found.", 404)
-    has_scope = current_user.has_data_manager_submission_access(
-        form["project_id"],
-        form["site_id"],
-    ) or current_user.has_project_pi_submission_access(
-        form["project_id"]
-    ) or current_user.has_site_pi_submission_access(
+    has_scope = user_has_dm_like_submission_access(
+        current_user,
         form["project_id"],
         form["site_id"],
     )
@@ -297,10 +298,10 @@ def _validate_vadata(actiontype, sid, partial):
         )
     if partial == "vadmtriage":
         return
-    if not (
-        current_user.has_data_manager_submission_access(form["project_id"], form["site_id"])
-        or current_user.has_project_pi_submission_access(form["project_id"])
-        or current_user.has_site_pi_submission_access(form["project_id"], form["site_id"])
+    if not user_has_dm_like_submission_access(
+        current_user,
+        form["project_id"],
+        form["site_id"],
     ):
         va_permission_abortwithflash(
             "You do not have data-manager access to this submission.", 403

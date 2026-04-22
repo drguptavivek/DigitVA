@@ -11,6 +11,7 @@ from flask import jsonify, request
 from flask_login import current_user
 
 from app import db
+from app.authz.scope import user_has_role
 from app.models import VaAllocations, VaAllocation, VaStatuses
 from app.services.demo_project_service import is_demo_training_submission
 
@@ -24,9 +25,12 @@ def require_coding_access(va_sid: str):
     data = request.get_json(silent=True) or {}
     actiontype = data.get("va_actiontype")
     if actiontype == "vademo_start_coding":
-        if current_user.is_admin():
+        if user_has_role(current_user, "admin"):
             return None
-        if not (current_user.is_coder() or current_user.is_coding_tester()) or not is_demo_training_submission(va_sid):
+        if not (
+            user_has_role(current_user, "coder")
+            or user_has_role(current_user, "coding_tester")
+        ) or not is_demo_training_submission(va_sid):
             return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
 
     allocation_for = VaAllocation.coding

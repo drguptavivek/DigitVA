@@ -21,11 +21,17 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    VaAllocation,
+    VaAllocations,
+    VaAccessRoles,
+    VaAccessScopeTypes,
     VaForms,
+    VaProjectSites,
     VaResearchProjects,
     VaSites,
     VaStatuses,
     VaSubmissions,
+    VaUserAccessGrants,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from tests.base import BaseTestCase
@@ -232,6 +238,47 @@ class ServeAttachmentTests(BaseTestCase):
             self._make_attachment_row(storage_name, local_path=tmp_path)
             with patch("app.models.va_users.VaUsers.has_va_form_access", return_value=True):
                 response = self.client.get(self._url(storage_name))
+            self.assertEqual(response.status_code, 200)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_coder_requires_active_allocation_for_attachment(self):
+        self._login(self.base_coder_id)
+        storage_name = self._make_storage_name()
+        media_dir = self._media_dir()
+        tmp_path = os.path.join(media_dir, storage_name)
+        with open(tmp_path, "wb") as f:
+            f.write(b"fake-image-data")
+
+        try:
+            self._make_attachment_row(storage_name, local_path=tmp_path)
+            response = self.client.get(self._url(storage_name))
+            self.assertEqual(response.status_code, 403)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    def test_coder_with_active_allocation_can_read_attachment(self):
+        self._login(self.base_coder_id)
+        storage_name = self._make_storage_name()
+        media_dir = self._media_dir()
+        tmp_path = os.path.join(media_dir, storage_name)
+        with open(tmp_path, "wb") as f:
+            f.write(b"fake-image-data")
+
+        try:
+            self._make_attachment_row(storage_name, local_path=tmp_path)
+            db.session.add(
+                VaAllocations(
+                    va_sid=self.submission.va_sid,
+                    va_allocated_to=uuid.UUID(self.base_coder_id),
+                    va_allocation_for=VaAllocation.coding,
+                    va_allocation_status=VaStatuses.active,
+                )
+            )
+            db.session.commit()
+            response = self.client.get(self._url(storage_name))
             self.assertEqual(response.status_code, 200)
         finally:
             if os.path.exists(tmp_path):

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 
 from app import db
+from app.authz.scope import user_has_form_access
 from app.models import (
     VaAllocation,
     VaAllocations,
@@ -68,7 +69,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
+    if not user_has_form_access(user, submission.va_form_id, "reviewer"):
         raise ReviewerCodingError("Reviewer access is required.", 403)
     if submission.va_narration_language not in user.vacode_language:
         raise ReviewerCodingError(
@@ -131,7 +132,7 @@ def submit_reviewer_final_cod(
     submission = db.session.get(VaSubmissions, va_sid)
     if not submission:
         raise ReviewerCodingError("Submission not found.", 404)
-    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
+    if not user_has_form_access(user, submission.va_form_id, "reviewer"):
         raise ReviewerCodingError("Reviewer access is required.", 403)
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:

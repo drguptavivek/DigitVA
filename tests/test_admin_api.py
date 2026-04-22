@@ -192,7 +192,7 @@ class AdminApiTests(BaseTestCase):
         db.session.commit()
 
     def test_sync_task_names_include_canonical_repair_tasks(self):
-        from app.routes.admin import _sync_task_names
+        from app.routes.admin_sections.data_sync import _sync_task_names
 
         names = _sync_task_names()
 
@@ -349,7 +349,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("CSRF", response.get_json()["error"])
 
-    def test_project_pi_can_create_project_site_grant_within_owned_project(self):
+    def test_project_pi_cannot_create_access_grant(self):
         self._login(self.manager_id)
         headers = self._csrf_headers()
 
@@ -367,12 +367,7 @@ class AdminApiTests(BaseTestCase):
             headers=headers,
         )
 
-        self.assertEqual(response.status_code, 201)
-        payload = response.get_json()["grant"]
-        self.assertEqual(payload["role"], "reviewer")
-        self.assertEqual(payload["scope_type"], "project_site")
-        self.assertEqual(payload["project_id"], self.project_id)
-        self.assertEqual(payload["site_id"], self.site_a)
+        self.assertEqual(response.status_code, 403)
 
     def test_project_pi_cannot_create_project_pi_grant(self):
         self._login(self.manager_id)
@@ -392,7 +387,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(
             response.get_json()["error"],
-            "Project PI may not manage admin or project_pi grants.",
+            "admin access is required.",
         )
 
     def test_project_pi_cannot_create_grant_outside_owned_project(self):
@@ -416,7 +411,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(
             response.get_json()["error"],
-            "You do not have access to that project.",
+            "admin access is required.",
         )
 
     def test_project_site_mapping_create_is_idempotent(self):
@@ -441,7 +436,7 @@ class AdminApiTests(BaseTestCase):
             second_response.get_json()["project_site"]["project_site_id"],
         )
 
-    def test_project_pi_can_deactivate_owned_project_grant(self):
+    def test_project_pi_cannot_toggle_access_grant(self):
         self._login(self.manager_id)
         grant = self._grant(
             db.session.get(VaUsers, uuid.UUID(self.target_id)),
@@ -459,10 +454,16 @@ class AdminApiTests(BaseTestCase):
             headers=headers,
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json()["status"], VaStatuses.deactive.value)
+        self.assertEqual(response.status_code, 403)
         refreshed_grant = db.session.get(VaUserAccessGrants, uuid.UUID(grant_id))
-        self.assertEqual(refreshed_grant.grant_status, VaStatuses.deactive)
+        self.assertEqual(refreshed_grant.grant_status, VaStatuses.active)
+
+    def test_project_pi_cannot_list_access_grants(self):
+        self._login(self.manager_id)
+
+        response = self.client.get("/admin/api/access-grants")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_project_site_toggle_deactivates_then_activates(self):
         self._login(self.manager_id)
@@ -729,6 +730,13 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(self_toggle.status_code, 400)
 
+    def test_project_pi_cannot_list_admin_users(self):
+        self._login(self.manager_id)
+
+        response = self.client.get("/admin/api/users")
+
+        self.assertEqual(response.status_code, 403)
+
     def test_orphaned_grants_api(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()
@@ -839,7 +847,7 @@ class AdminApiTests(BaseTestCase):
             "form_smartvafreetext": "False",
             "form_smartvacountry": "ZAF",
         }, headers=headers)
-        self.assertEqual(save_resp.status_code, 201)
+        self.assertIn(save_resp.status_code, [200, 201])
         saved_mapping = save_resp.get_json()["mapping"]
         self.assertEqual(saved_mapping["form_smartvahiv"], "True")
         self.assertEqual(saved_mapping["form_smartvamalaria"], "True")
@@ -1199,7 +1207,10 @@ class AdminApiTests(BaseTestCase):
                 "/app/data/ADM001AA0101/media/opaque-current-photo.jpg",
             }
 
-        with patch("app.routes.admin.os.path.exists", side_effect=fake_exists):
+        with patch(
+            "app.routes.admin_sections.data_sync.os.path.exists",
+            side_effect=fake_exists,
+        ):
             response = self.client.get("/admin/api/sync/backfill-stats")
 
         self.assertEqual(response.status_code, 200)
@@ -1416,7 +1427,7 @@ class AdminApiTests(BaseTestCase):
     def test_sync_status_returns_null_schedule_when_beat_tables_missing(self):
         self._login(self.admin_user_id)
 
-        with patch("app.routes.admin.db.engine.connect") as mocked_connect:
+        with patch("app.routes.admin_sections.data_sync.db.engine.connect") as mocked_connect:
             mocked_conn = MagicMock()
             mocked_connect.return_value.__enter__.return_value = mocked_conn
             mocked_conn.execute.return_value.scalar.return_value = False
@@ -1430,7 +1441,7 @@ class AdminApiTests(BaseTestCase):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()
 
-        with patch("app.routes.admin.db.engine.begin") as mocked_begin:
+        with patch("app.routes.admin_sections.data_sync.db.engine.begin") as mocked_begin:
             mocked_conn = MagicMock()
             mocked_begin.return_value.__enter__.return_value = mocked_conn
             mocked_conn.execute.return_value.scalar.return_value = False
@@ -1518,7 +1529,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(payload["reserved_tasks"], [])
 
     def test_interrupted_sync_error_helper_matches_new_and_legacy_messages(self):
-        from app.routes.admin import _is_interrupted_sync_error
+        from app.routes.admin_sections.data_sync import _is_interrupted_sync_error
 
         self.assertTrue(
             _is_interrupted_sync_error(

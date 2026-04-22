@@ -1,5 +1,6 @@
 import sqlalchemy as sa
 from app import db
+from app.authz.scope import user_has_form_access
 from app.models import (
     VaAllocations,
     VaAllocation,
@@ -152,6 +153,15 @@ def resume():
     if not va_sid:
         va_permission_abortwithflash("You have no active VA form allocation.", 403)
     form = db.session.get(VaSubmissions, va_sid)
+    if not form:
+        va_permission_abortwithflash("Submission not found.", 404)
+    if not user_has_form_access(current_user, form.va_form_id, "reviewer"):
+        va_permission_abortwithflash("Reviewer access is required to resume this submission.", 403)
+    if form.va_narration_language not in current_user.vacode_language:
+        va_permission_abortwithflash(
+            f"Your profile does not support reviewing forms in {form.va_narration_language}.",
+            403,
+        )
     return render_va_coding_page(form, "vareview", "varesumereviewing", "reviewer")
 
 

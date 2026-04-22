@@ -1,6 +1,8 @@
 import uuid
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from sqlalchemy import event
+from sqlalchemy.orm import Session
 from app import db, login
 from typing import Optional
 from flask_login import UserMixin
@@ -92,6 +94,19 @@ class VaUsers(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password, password)
 
+    def _authz_cache_get(self, key: str, loader):
+        session = sa.inspect(self).session
+        generation = None
+        if session is not None:
+            generation = session.info.get("authz_cache_generation", 0)
+        if self.__dict__.get("_authz_cache_generation") != generation:
+            self.__dict__["_authz_cache"] = {}
+            self.__dict__["_authz_cache_generation"] = generation
+        cache = self.__dict__.setdefault("_authz_cache", {})
+        if key not in cache:
+            cache[key] = loader()
+        return cache[key]
+
     def is_coder(self, va_form=None):
         coder_va_form = self.get_coder_va_forms()
         if va_form:
@@ -139,13 +154,16 @@ class VaUsers(UserMixin, db.Model):
             VaStatuses,
         )
 
-        stmt = sa.select(sa.exists().where(
-            VaUserAccessGrants.user_id == self.user_id,
-            VaUserAccessGrants.role == VaAccessRoles.admin,
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.global_scope,
-            VaUserAccessGrants.grant_status == VaStatuses.active,
-        ))
-        return bool(db.session.scalar(stmt))
+        def _load():
+            stmt = sa.select(sa.exists().where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.admin,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.global_scope,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+            ))
+            return bool(db.session.scalar(stmt))
+
+        return self._authz_cache_get("is_admin", _load)
 
     def is_collaborator(self, project_id=None, site_id=None):
         if project_id and site_id:
@@ -177,13 +195,16 @@ class VaUsers(UserMixin, db.Model):
             VaStatuses,
         )
 
-        stmt = sa.select(VaUserAccessGrants.project_id).where(
-            VaUserAccessGrants.user_id == self.user_id,
-            VaUserAccessGrants.role == VaAccessRoles.project_pi,
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-            VaUserAccessGrants.grant_status == VaStatuses.active,
-        )
-        return set(db.session.scalars(stmt).all())
+        def _load():
+            stmt = sa.select(VaUserAccessGrants.project_id).where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.project_pi,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+            )
+            return set(db.session.scalars(stmt).all())
+
+        return self._authz_cache_get("project_pi_projects", _load)
 
     def can_manage_project(self, project_id):
         return project_id in self.get_project_pi_projects()
@@ -361,10 +382,13 @@ class VaUsers(UserMixin, db.Model):
         )
         if role == "coder":
             stmt = stmt.where(active_project_site_exists)
-        granted_form_ids = set(db.session.scalars(stmt).all())
-        if role in ("coder", "coding_tester", "data_manager"):
-            return granted_form_ids | get_coder_demo_project_form_ids()
-        return granted_form_ids
+        def _load():
+            granted_form_ids = set(db.session.scalars(stmt).all())
+            if role in ("coder", "coding_tester", "data_manager"):
+                return granted_form_ids | get_coder_demo_project_form_ids()
+            return granted_form_ids
+
+        return self._authz_cache_get(f"granted_va_forms:{role}", _load)
 
     def _get_granted_project_ids(self, role: str) -> set[str]:
         from app.models import (
@@ -374,17 +398,20 @@ class VaUsers(UserMixin, db.Model):
             VaStatuses,
         )
 
-        stmt = sa.select(VaUserAccessGrants.project_id).where(
-            VaUserAccessGrants.user_id == self.user_id,
-            VaUserAccessGrants.role == VaAccessRoles(role),
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-            VaUserAccessGrants.grant_status == VaStatuses.active,
-        )
-        return {
-            project_id
-            for project_id in db.session.scalars(stmt).all()
-            if project_id is not None
-        }
+        def _load():
+            stmt = sa.select(VaUserAccessGrants.project_id).where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == VaAccessRoles(role),
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+            )
+            return {
+                project_id
+                for project_id in db.session.scalars(stmt).all()
+                if project_id is not None
+            }
+
+        return self._authz_cache_get(f"granted_project_ids:{role}", _load)
 
     def _get_granted_project_site_pairs(self, role: str) -> set[tuple[str, str]]:
         from app.models import (
@@ -395,21 +422,27 @@ class VaUsers(UserMixin, db.Model):
             VaStatuses,
         )
 
-        stmt = (
-            sa.select(VaProjectSites.project_id, VaProjectSites.site_id)
-            .join(
-                VaUserAccessGrants,
-                VaUserAccessGrants.project_site_id == VaProjectSites.project_site_id,
+        def _load():
+            stmt = (
+                sa.select(VaProjectSites.project_id, VaProjectSites.site_id)
+                .join(
+                    VaUserAccessGrants,
+                    VaUserAccessGrants.project_site_id == VaProjectSites.project_site_id,
+                )
+                .where(
+                    VaUserAccessGrants.user_id == self.user_id,
+                    VaUserAccessGrants.role == VaAccessRoles(role),
+                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                    VaUserAccessGrants.grant_status == VaStatuses.active,
+                    VaProjectSites.project_site_status == VaStatuses.active,
+                )
             )
-            .where(
-                VaUserAccessGrants.user_id == self.user_id,
-                VaUserAccessGrants.role == VaAccessRoles(role),
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-                VaUserAccessGrants.grant_status == VaStatuses.active,
-                VaProjectSites.project_site_status == VaStatuses.active,
-            )
-        )
-        return {(project_id, site_id) for project_id, site_id in db.session.execute(stmt)}
+            return {
+                (project_id, site_id)
+                for project_id, site_id in db.session.execute(stmt)
+            }
+
+        return self._authz_cache_get(f"granted_project_site_pairs:{role}", _load)
 
 
 @login.user_loader
@@ -419,3 +452,19 @@ def load_user(user_id: str):
     except (ValueError, TypeError):
         return None
     return db.session.get(VaUsers, uid)
+
+
+def _bump_authz_cache_generation(session: Session) -> None:
+    session.info["authz_cache_generation"] = session.info.get(
+        "authz_cache_generation", 0
+    ) + 1
+
+
+@event.listens_for(Session, "after_commit")
+def _authz_cache_after_commit(session: Session) -> None:
+    _bump_authz_cache_generation(session)
+
+
+@event.listens_for(Session, "after_rollback")
+def _authz_cache_after_rollback(session: Session) -> None:
+    _bump_authz_cache_generation(session)

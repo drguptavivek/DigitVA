@@ -41,6 +41,7 @@ Implemented and startup-validated:
 | `api_v1.workflow` | workflow event history | `workflow_events_view` |
 | `api_v1.analytics` | analytics time series, demographics, workflow, COD, MV refresh | `dm_kpi_view`, `dm_analytics_refresh` |
 | `api_v1.dm_kpi_*` | DM KPI read APIs, cache bust, dashboard refresh | `dm_kpi_view`, `dm_kpi_cache_bust`, `dm_kpi_refresh` |
+| `api_v1.icd10_api` | shared ICD search, coding ICD utilities, ICD browser and policy mutation | `icd10_search`, `coding_submission_view`, `icd10_browser_view`, `icd10_policy_import`, `icd10_policy_update` |
 
 ## Verification
 
@@ -53,6 +54,7 @@ The first migrated slice is verified by:
   - data-manager user/grant routes
   - data-manager dashboard and sync/reporting routes
   - analytics and DM KPI read/refresh routes
+  - ICD search, browser, and coding utility routes
   - coding dashboard and allocation routes
   - reviewing dashboard, allocation, finalize, and reviewer review routes
   - `va_form` attachments, reviewer review, demo final COD, and DM triage routes
@@ -62,4 +64,4 @@ The first migrated slice is verified by:
 
 Still on legacy route auth:
 
-- `api_v1.icd10_api`
+- self-scoped `api_v1.profile_api`

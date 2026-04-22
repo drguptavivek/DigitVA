@@ -309,12 +309,34 @@ As of `2026-04-22`, the first central-auth slice covers:
 - `api_v1.workflow`
 - `api_v1.analytics`
 - `api_v1.dm_kpi_*`
+- `api_v1.icd10_api`
 
 These surfaces are governed by:
 
 - [../policy/authorization-policy.md](../policy/authorization-policy.md)
 - `app/authz/policy.toml`
 - generic `/api/v1/icd10/search` is available to any authenticated user
+
+### ICD-10 API
+
+`/api/v1/icd10/*` now uses central action authorization.
+
+Current route split:
+
+- generic search is an authenticated shared utility action
+- coding search and coding-children reuse the coding submission action plus the
+  existing route-local `require_coding_access(...)` session check
+- browser and policy-export/options routes are restricted to `admin` and
+  `data_manager`
+- policy-import and policy-update routes are `admin` only
+
+Current scope pattern:
+
+- generic search uses role presence only
+- coding utility endpoints are submission-scoped through the target submission
+- browser and policy-management reads are non-resource scoped management
+  utilities
+- admin mutations use global admin scope
 
 ### Analytics and DM KPI APIs
 
@@ -401,8 +423,8 @@ Current scope pattern:
 
 ## High-Signal Gaps To Resolve Before Grants Refactor
 
-1. Finish the remaining legacy API cutover for ICD browser and ICD policy
-   routes.
+1. Decide whether self-service profile APIs should remain on `@login_required`
+   or move into the central action model.
 2. Decide whether attachment access for coder/reviewer should stay form-scoped
    or return to allocation/viewability-scoped behavior.
 3. Decide whether `coding.recode` must enforce the same coder/tester form scope

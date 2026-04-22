@@ -216,6 +216,30 @@ resource = "submission"
 scope = "resource_scope"
 reason = "Workflow event history follows the same scoped submission visibility model as the rest of the app's business-data surfaces."
 
+[action.icd10_search]
+roles = ["admin", "data_manager", "project_pi", "site_pi", "collaborator", "coder", "coding_tester", "reviewer"]
+resource = "none"
+scope = "any_scope"
+reason = "The generic ICD-10 search API is a shared authenticated utility available to active users across the app's operational and reporting roles."
+
+[action.icd10_browser_view]
+roles = ["admin", "data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "The ICD-10 browser and policy-helper APIs are restricted to admins and data managers who use the curated coding policy management surface."
+
+[action.icd10_policy_import]
+roles = ["admin"]
+resource = "none"
+scope = "global"
+reason = "Importing ICD-10 policy JSON is a global admin-only mutation of the curated ICD policy dataset."
+
+[action.icd10_policy_update]
+roles = ["admin"]
+resource = "none"
+scope = "global"
+reason = "Updating a curated ICD-10 policy node is a global admin-only mutation of the ICD policy dataset."
+
 [action.coding_dashboard_view]
 roles = ["admin", "coder", "coding_tester"]
 resource = "none"

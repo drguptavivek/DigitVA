@@ -7,11 +7,11 @@ Resources:
 import sqlalchemy as sa
 import json
 from flask import Blueprint, current_app, jsonify, request
-from flask_login import login_required
 
 from app import cache, db, limiter
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
 from app.models import MasIcd1020192
-from app.decorators.role_required import role_required
 from app.services.icd10_2019_2_service import (
     export_icd10_2019_2_policy_json,
     get_icd10_2019_2_node_details,
@@ -102,7 +102,7 @@ def _browser_filters_from_request() -> dict[str, str]:
 
 @bp.get("/search")
 @limiter.limit("20000 per day;5000 per hour")
-@login_required
+@action_authorized("icd10_search")
 def icd10_search():
     normalized_query = _normalize_query(request.args.get("q", ""))
     if len(normalized_query) < _ICD_MIN_QUERY_LEN:
@@ -123,7 +123,10 @@ def icd10_search():
 
 
 @bp.get("/2019-2/coding-search/<va_sid>")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized(
+    "coding_submission_view",
+    resource_resolver=submission_from_kwarg("va_sid"),
+)
 def icd10_2019_2_coding_search(va_sid: str):
     err = require_coding_access(va_sid)
     if err:
@@ -140,7 +143,10 @@ def icd10_2019_2_coding_search(va_sid: str):
 
 
 @bp.get("/2019-2/coding-children/<va_sid>")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized(
+    "coding_submission_view",
+    resource_resolver=submission_from_kwarg("va_sid"),
+)
 def icd10_2019_2_coding_children(va_sid: str):
     err = require_coding_access(va_sid)
     if err:
@@ -157,7 +163,7 @@ def icd10_2019_2_coding_children(va_sid: str):
 
 
 @bp.get("/2019-2/children")
-@role_required("data_manager", "admin")
+@action_authorized("icd10_browser_view")
 def icd10_2019_2_children():
     parent_code = (request.args.get("parent_code") or "").strip() or None
     filters = _browser_filters_from_request()
@@ -170,7 +176,7 @@ def icd10_2019_2_children():
 
 
 @bp.get("/2019-2/node/<code>")
-@role_required("data_manager", "admin")
+@action_authorized("icd10_browser_view")
 def icd10_2019_2_node(code: str):
     payload = get_icd10_2019_2_node_details(code.strip())
     if payload is None:
@@ -179,13 +185,13 @@ def icd10_2019_2_node(code: str):
 
 
 @bp.get("/2019-2/policy-options")
-@role_required("data_manager", "admin")
+@action_authorized("icd10_browser_view")
 def icd10_2019_2_policy_options():
     return jsonify(get_icd10_2019_2_policy_options())
 
 
 @bp.get("/2019-2/policy-export")
-@role_required("data_manager", "admin")
+@action_authorized("icd10_browser_view")
 def icd10_2019_2_policy_export():
     payload = export_icd10_2019_2_policy_json()
     return current_app.response_class(
@@ -198,7 +204,7 @@ def icd10_2019_2_policy_export():
 
 
 @bp.post("/2019-2/policy-import")
-@role_required("admin")
+@action_authorized("icd10_policy_import")
 def icd10_2019_2_policy_import():
     uploaded = request.files.get("file")
     if uploaded is None:
@@ -226,7 +232,7 @@ def icd10_2019_2_policy_import():
 
 
 @bp.patch("/2019-2/node/<code>/policy")
-@role_required("admin")
+@action_authorized("icd10_policy_update")
 def icd10_2019_2_update_policy(code: str):
     body = request.get_json(silent=True) or {}
     try:

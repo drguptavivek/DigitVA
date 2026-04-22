@@ -26,6 +26,7 @@ MIGRATED_BLUEPRINTS = frozenset(
         "dm_kpi_pipeline",
         "dm_kpi_sync",
         "dm_kpi_workflow",
+        "icd10_api",
         "nqa_api",
         "reviewing",
         "reviewing_api",

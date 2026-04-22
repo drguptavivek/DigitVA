@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from app import db
 from app.authz.access import ResourceContext, ResourceResolutionError
 from app.models import VaForms, VaProjectSites, VaSubmissions, VaUserAccessGrants
+from app.models.va_submission_attachments import VaSubmissionAttachments
 
 
 def submission_from_kwarg(param_name: str):
@@ -42,6 +43,30 @@ def form_from_kwarg(param_name: str):
         ).first()
         if row is None:
             raise ResourceResolutionError("Form not found.", status_code=404)
+        return ResourceContext(
+            resource_type="form",
+            resource_id=row.form_id,
+            project_id=row.project_id,
+            site_id=row.site_id,
+            form_id=row.form_id,
+        )
+
+    return resolver
+
+
+def attachment_form_from_storage_name(param_name: str):
+    def resolver(*_args, **kwargs):
+        storage_name = kwargs.get(param_name)
+        row = db.session.execute(
+            sa.select(VaForms.form_id, VaForms.project_id, VaForms.site_id)
+            .select_from(VaSubmissionAttachments)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .where(VaSubmissionAttachments.storage_name == storage_name)
+            .where(VaSubmissionAttachments.exists_on_odk == True)  # noqa: E712
+        ).first()
+        if row is None:
+            raise ResourceResolutionError("Attachment not found.", status_code=404)
         return ResourceContext(
             resource_type="form",
             resource_id=row.form_id,

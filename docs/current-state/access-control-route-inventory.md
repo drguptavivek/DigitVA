@@ -205,25 +205,43 @@ Current user/grant management status:
 
 ### `va_form` blueprint
 
-`/vaform` is a mixed-control surface.
+`/vaform` is now a dynamic action-mapped surface.
 
 Current route pattern:
 
-- `renderpartial` uses `@login_required` plus the shared
-  `va_validate_permissions(...)` dispatcher
-- effective scope depends on `action` and `actiontype`
-- `serve_attachment` uses broad multi-role `@role_required(...)`
-- `serve_media` uses `@login_required` plus explicit form/allocation checks
+- `renderpartial` uses `@login_required` plus dynamic central action
+  authorization
+- effective business action depends on `action`, `actiontype`, `va_partial`,
+  and request method
+- thin workflow/session checks still live in `validate_va_request(...)`
+- `serve_attachment` and `serve_media` now use central action authorization with
+  route-local file and allocation checks
 
 Current scope pattern:
 
 - `renderpartial`
   - mixed form, project-site, allocation, and workflow-specific access
 - `serve_attachment`
-  - form access only through `has_va_form_access(...)`
+  - centrally form-scoped, then file lookup and form access checks
 - `serve_media`
-  - allocation-bound for coder/reviewer
-  - form-bound for admin/data-manager
+  - centrally form-scoped, then allocation-bound for coder/reviewer and
+    form-bound for admin/data-manager
+
+Current migrated action families:
+
+- `va_form_section_view_coding`
+- `va_form_section_view_reviewing`
+- `va_form_section_view_sitepi`
+- `va_form_section_view_dm`
+- `dm_triage_view`
+- `dm_triage_save`
+- `reviewing_nqa_save`
+- `coding_initial_assessment_save`
+- `coding_final_assessment_submit`
+- `coding_not_codeable_submit`
+- `submission_user_note_save`
+- `workflow_history_view`
+- `attachment_view`
 
 ## API Inventory
 
@@ -238,6 +256,18 @@ Current notes:
 - reviewer allocation/finalization endpoints are reviewer-only through TOML
   action policy
 - state-changing routes rely on app-wide CSRF using `X-CSRFToken`
+
+### Narrative QA and Social Autopsy APIs
+
+`/api/v1/va/<sid>/narrative-qa` and `/api/v1/va/<sid>/social-autopsy` now use
+central action authorization.
+
+Current notes:
+
+- they resolve submission scope centrally
+- they still use route-local session and feature-toggle checks
+- valid access depends on coding or reviewing allocation context from
+  `va_actiontype`
 
 ### Workflow API
 
@@ -271,8 +301,11 @@ As of `2026-04-22`, the first central-auth slice covers:
 - `api_v1.cod_buckets_api`
 - `coding`
 - `api_v1.coding_api`
+- `va_form`
+- `api_v1.nqa_api`
 - `reviewing`
 - `api_v1.reviewing_api`
+- `api_v1.so_api`
 - `api_v1.workflow`
 
 These surfaces are governed by:

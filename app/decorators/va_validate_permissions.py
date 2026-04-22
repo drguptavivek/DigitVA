@@ -35,30 +35,58 @@ def va_validate_permissions():
             va_actiontype = kwargs.get("va_actiontype") or request.values.get("actiontype")
             va_sid = kwargs.get("va_sid")
             va_partial = kwargs.get("va_partial")
-            if va_role and not any([va_action, va_actiontype, va_sid, va_partial]):
-                if not va_hasrole(va_role):
-                    va_permission_abortwithflash(
-                        f"You don't have permission to access the '{va_role}' dashboard.",
-                        403,
-                    )
-            elif va_action:
-                validate_sid = db.session.scalar(sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_sid == va_sid))
-                if not validate_sid and va_actiontype not in ["vastartcoding", "vademo_start_coding", "varesumecoding", "varesumereviewing"]:
-                    va_permission_abortwithflash("Invalid va_sid in the URL. Please verify and try again.", 404)
-                validator = _ACTION_VALIDATORS.get(va_action)
-                if not validator:
-                    va_permission_abortwithflash("Invalid VA action token in URL.", 404)
-                validator(actiontype=va_actiontype, sid=va_sid, partial=va_partial)
-            else:
-                va_permission_abortwithflash(
-                    "The requested URL appears invalid or expired. Please verify and try again.",
-                    404,
-                )
+            validate_va_request(
+                va_role=va_role,
+                va_action=va_action,
+                va_actiontype=va_actiontype,
+                va_sid=va_sid,
+                va_partial=va_partial,
+            )
             return func(*args, **kwargs)
 
         return wrapper
 
     return decorator
+
+
+def validate_va_request(
+    *,
+    va_role=None,
+    va_action=None,
+    va_actiontype=None,
+    va_sid=None,
+    va_partial=None,
+):
+    if va_role and not any([va_action, va_actiontype, va_sid, va_partial]):
+        if not va_hasrole(va_role):
+            va_permission_abortwithflash(
+                f"You don't have permission to access the '{va_role}' dashboard.",
+                403,
+            )
+        return
+    if va_action:
+        validate_sid = db.session.scalar(
+            sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_sid == va_sid)
+        )
+        if not validate_sid and va_actiontype not in [
+            "vastartcoding",
+            "vademo_start_coding",
+            "varesumecoding",
+            "varesumereviewing",
+        ]:
+            va_permission_abortwithflash(
+                "Invalid va_sid in the URL. Please verify and try again.",
+                404,
+            )
+        validator = _ACTION_VALIDATORS.get(va_action)
+        if not validator:
+            va_permission_abortwithflash("Invalid VA action token in URL.", 404)
+        validator(actiontype=va_actiontype, sid=va_sid, partial=va_partial)
+        return
+    va_permission_abortwithflash(
+        "The requested URL appears invalid or expired. Please verify and try again.",
+        404,
+    )
 
 
 def va_hasrole(role):
@@ -248,15 +276,34 @@ def _validate_vadata(actiontype, sid, partial):
     ).mappings().first()
     if not form:
         va_permission_abortwithflash("Submission not found.", 404)
-    if not current_user.has_data_manager_submission_access(
-        form["project_id"], form["site_id"]
-    ):
+    has_scope = current_user.has_data_manager_submission_access(
+        form["project_id"],
+        form["site_id"],
+    ) or current_user.has_project_pi_submission_access(
+        form["project_id"]
+    ) or current_user.has_site_pi_submission_access(
+        form["project_id"],
+        form["site_id"],
+    )
+    if not has_scope:
         va_permission_abortwithflash(
-            "You do not have data-manager access to this submission.", 403
+            "You do not have data-manager access to this submission.",
+            403,
         )
     if actiontype != "vaview":
         va_permission_abortwithflash(
-            "Unknown data-manager action requested.", 404
+            "Unknown data-manager action requested.",
+            404,
+        )
+    if partial == "vadmtriage":
+        return
+    if not (
+        current_user.has_data_manager_submission_access(form["project_id"], form["site_id"])
+        or current_user.has_project_pi_submission_access(form["project_id"])
+        or current_user.has_site_pi_submission_access(form["project_id"], form["site_id"])
+    ):
+        va_permission_abortwithflash(
+            "You do not have data-manager access to this submission.", 403
         )
 
 

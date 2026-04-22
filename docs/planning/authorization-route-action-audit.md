@@ -35,6 +35,9 @@ Implemented and startup-validated:
 | `api_v1.coding_api` | allocation, availability, stats, history, project options, admin maintenance | `coding_allocation_*`, `coding_available_view`, `coding_stats_view`, `coding_history_view`, `coding_projects_view`, `coding_admin_override_recode`, `coding_mark_reviewer_eligible`, `coding_debug_stats_view` |
 | `reviewing` | dashboard, start, resume, reviewed submission view | `reviewing_dashboard_view`, `reviewing_start`, `reviewing_resume`, `reviewing_submission_view` |
 | `api_v1.reviewing_api` | allocation read/create and finalization | `reviewing_allocation_view`, `reviewing_allocation_create`, `reviewing_finalize` |
+| `va_form` | dynamic submission section rendering, triage, user notes, coder/reviewer supporting forms, attachment/media | `va_form_section_view_*`, `dm_triage_*`, `reviewing_nqa_save`, `coding_initial_assessment_save`, `coding_final_assessment_submit`, `coding_not_codeable_submit`, `submission_user_note_save`, `workflow_history_view`, `attachment_view` |
+| `api_v1.nqa_api` | Narrative QA save | `submission_narrative_qa_save` |
+| `api_v1.so_api` | Social Autopsy save | `submission_social_autopsy_save` |
 | `api_v1.workflow` | workflow event history | `workflow_events_view` |
 
 ## Verification
@@ -49,11 +52,11 @@ The first migrated slice is verified by:
   - data-manager dashboard and sync/reporting routes
   - coding dashboard and allocation routes
   - reviewing dashboard, allocation, finalize, and reviewer review routes
+  - `va_form` attachments, reviewer review, demo final COD, and DM triage routes
+  - Narrative QA and Social Autopsy APIs for coding and reviewing sessions
 
 ## Deferred Blueprints
 
 Still on legacy route auth:
 
-- `va_form`
-- attachment and media routes outside the migrated slice
 - analytics blueprint outside the data-management API slice

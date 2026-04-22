@@ -1,8 +1,9 @@
-"""Shared coding-allocation access check for API routes.
+"""Shared work-session access check for coding/reviewing artifact APIs.
 
-Used by the NQA and Social Autopsy APIs — both require an active coding
-allocation for the target submission.  Admin users performing demo-mode
-sessions are allowed through when va_actiontype == "vademo_start_coding".
+Used by the NQA and Social Autopsy APIs. These routes require an active
+coding or reviewing allocation for the target submission depending on the
+submitted actiontype. Admin users performing demo-mode sessions are allowed
+through when va_actiontype == "vademo_start_coding".
 """
 
 import sqlalchemy as sa
@@ -15,26 +16,33 @@ from app.services.demo_project_service import is_demo_training_submission
 
 
 def require_coding_access(va_sid: str):
-    """Return a JSON 403 response if the user lacks an active coding allocation.
+    """Return a JSON 403 response if the user lacks a valid work-session allocation.
 
     Returns None if access is granted, or a (response, status_code) tuple to
     return immediately from the route if access is denied.
     """
     data = request.get_json(silent=True) or {}
-    if data.get("va_actiontype") == "vademo_start_coding":
+    actiontype = data.get("va_actiontype")
+    if actiontype == "vademo_start_coding":
         if current_user.is_admin():
             return None
         if not (current_user.is_coder() or current_user.is_coding_tester()) or not is_demo_training_submission(va_sid):
             return jsonify({"error": "Only demo/training projects allow coder demo sessions."}), 403
 
+    allocation_for = VaAllocation.coding
+    allocation_label = "coding"
+    if actiontype in {"vastartreviewing", "varesumereviewing"}:
+        allocation_for = VaAllocation.reviewing
+        allocation_label = "reviewing"
+
     alloc = db.session.scalar(
         sa.select(VaAllocations.va_sid).where(
             VaAllocations.va_allocated_to == current_user.user_id,
-            VaAllocations.va_allocation_for == VaAllocation.coding,
+            VaAllocations.va_allocation_for == allocation_for,
             VaAllocations.va_allocation_status == VaStatuses.active,
             VaAllocations.va_sid == va_sid,
         )
     )
     if not alloc:
-        return jsonify({"error": "Active coding allocation required."}), 403
+        return jsonify({"error": f"Active {allocation_label} allocation required."}), 403
     return None

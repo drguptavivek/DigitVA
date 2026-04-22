@@ -7,10 +7,15 @@ log = logging.getLogger(__name__)
 from datetime import datetime, timedelta, timezone
 import sqlalchemy as sa
 from app import db, cache as flask_cache
+from app.authz.access import action_authorized, dynamic_action_authorized
+from app.authz.resources import (
+    attachment_form_from_storage_name,
+    form_from_kwarg,
+    submission_from_kwarg,
+)
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaSubmissionWorkflowEvent, VaReviewerReview, VaAllocations, VaAllocation, VaStatuses, VaFinalAssessments, VaInitialAssessments, VaCoderReview, VaDataManagerReview, VaSmartvaResults, VaUsernotes, VaSubmissionsAuditlog
 from app.models.va_submission_attachments import VaSubmissionAttachments
-from app.decorators import va_validate_permissions
-from app.decorators import role_required
+from app.decorators.va_validate_permissions import validate_va_request
 from flask_login import current_user, login_required
 from flask import Blueprint, render_template, current_app, send_file, send_from_directory, flash, redirect, url_for, jsonify, request, abort, make_response
 from werkzeug.utils import secure_filename
@@ -146,6 +151,46 @@ def _is_social_autopsy_enabled_for_submission(va_sid: str) -> bool:
     if project is None:
         return True
     return bool(project.social_autopsy_enabled)
+
+
+def _resolve_renderpartial_action(va_sid, va_partial):
+    resource = submission_from_kwarg("va_sid")(va_sid=va_sid)
+    va_action = request.values.get("action", "vacode")
+    if va_partial == "workflow_history":
+        return "workflow_history_view", resource
+    if va_partial == "vausernote" and request.method == "POST":
+        return "submission_user_note_save", resource
+    if va_partial == "vadmtriage":
+        return (
+            "dm_triage_save" if request.method == "POST" else "dm_triage_view",
+            resource,
+        )
+    if va_partial == "vareviewform" and request.method == "POST":
+        return "reviewing_nqa_save", resource
+    if va_partial == "vafinalasses" and request.method == "POST":
+        return "coding_final_assessment_submit", resource
+    if (
+        va_partial == "vainitialasses"
+        and request.method == "POST"
+        and request.form.get("va_save_assessment")
+    ):
+        return "coding_initial_assessment_save", resource
+    if va_partial == "vacoderreview" and request.method == "POST":
+        return "coding_not_codeable_submit", resource
+    action_map = {
+        "vacode": "va_form_section_view_coding",
+        "vareview": "va_form_section_view_reviewing",
+        "vasitepi": "va_form_section_view_sitepi",
+        "vadata": "va_form_section_view_dm",
+    }
+    return action_map.get(va_action), resource
+
+
+def _has_attachment_form_access(form_id: str) -> bool:
+    return bool(
+        current_user.has_va_form_access(form_id)
+        or current_user.is_coding_tester(form_id)
+    )
 adult = [
     "I10 - Essential Hypertension",
     "E11 - Type 2 Diabetes Mellitus",
@@ -255,10 +300,16 @@ def _data_manager_reason_label(reason_code: str) -> str:
 
 @va_form.route("/<va_sid>/<va_partial>", methods=["GET", "POST"])
 @login_required
-@va_validate_permissions()
+@dynamic_action_authorized(_resolve_renderpartial_action)
 def renderpartial(va_sid, va_partial):
     va_action = request.values.get("action", "vacode")
     va_actiontype = request.values.get("actiontype", "")
+    validate_va_request(
+        va_action=va_action,
+        va_actiontype=va_actiontype,
+        va_sid=va_sid,
+        va_partial=va_partial,
+    )
     va_submission = db.session.get(VaSubmissions, va_sid)
     _active_version = get_active_payload_version(va_sid) if va_submission else None
     va_payload_data = _active_version.payload_data if _active_version else None
@@ -306,10 +357,6 @@ def renderpartial(va_sid, va_partial):
             success_message = None
 
             if request.method == "POST":
-                # Defense-in-depth: the route is already guarded by @role_required("data_manager"),
-                # but vadmtriage POSTs arrive via the shared va_form endpoint, so we re-check here.
-                if not current_user.is_data_manager():
-                    abort(403)
                 if submission_workflow not in DATA_MANAGER_TRIAGE_ALLOWED_STATES:
                     return render_template(
                         "va_formcategory_partials/category_data_manager_triage.html",
@@ -1304,7 +1351,10 @@ def renderpartial(va_sid, va_partial):
         
 
 @va_form.route('/attachment/<path:storage_name_raw>')
-@role_required("coder", "reviewer", "data_manager", "site_pi", "project_pi", "admin")
+@action_authorized(
+    "attachment_view",
+    resource_resolver=attachment_form_from_storage_name("storage_name_raw"),
+)
 def serve_attachment(storage_name_raw):
     """Serve an attachment by opaque storage_name token.
 
@@ -1347,7 +1397,7 @@ def serve_attachment(storage_name_raw):
         local_path, mime_type, va_form_id = row
 
     # Permission check
-    if not current_user.has_va_form_access(va_form_id):
+    if not _has_attachment_form_access(va_form_id):
         abort(403)
 
     # Path guard — ensure local_path stays under APP_DATA/{va_form_id}/media/
@@ -1375,7 +1425,7 @@ def serve_attachment(storage_name_raw):
 
 
 @va_form.route('/media/<va_form_id>/<va_filename>')
-@login_required
+@action_authorized("attachment_view", resource_resolver=form_from_kwarg("va_form_id"))
 def serve_media(va_form_id, va_filename):
     # DEPRECATED: use /attachment/<storage_name> for new attachments.
     # Kept for backward compatibility during migration (storage_name IS NULL rows).
@@ -1385,7 +1435,7 @@ def serve_media(va_form_id, va_filename):
     if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
         abort(400, description="Invalid form ID format")
 
-    if not current_user.has_va_form_access(va_form_id):
+    if not _has_attachment_form_access(va_form_id):
         va_permission_abortwithflash(f"You don't have permissions to access the media files for '{va_form_id}'", 403)
 
     # OW-002: submission-level access check for coder/reviewer roles.

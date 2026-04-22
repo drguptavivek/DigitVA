@@ -5,14 +5,20 @@ from flask import Response
 
 from app import db
 from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaAllocation,
+    VaAllocations,
     VaForms,
     VaNarrativeAssessment,
     VaProjectMaster,
+    VaProjectSites,
     VaResearchProjects,
     VaSites,
     VaStatuses,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaUserAccessGrants,
 )
 from app.routes.va_form import _apply_partial_cache_policy
 from app.services.submission_payload_version_service import ensure_active_payload_version
@@ -97,8 +103,29 @@ class TestNarrativeQaRoute(BaseTestCase):
             source_updated_at=submission.va_odk_updatedat,
             created_by_role="vasystem",
         )
+        project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
+                VaProjectSites.site_id == cls.BASE_SITE_ID,
+            )
+        )
+        cls.reviewer_user = cls._make_user(
+            "nqa.reviewer@test.local",
+            "NqaReviewer123",
+        )
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.reviewer_user.user_id,
+                role=VaAccessRoles.reviewer,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site_id,
+                notes="nqa reviewer grant",
+                grant_status=VaStatuses.active,
+            )
+        )
         db.session.commit()
         cls.sid = submission.va_sid
+        cls.reviewer_id = str(cls.reviewer_user.user_id)
 
     def test_save_nqa_creates_assessment_and_audit_entry(self):
         self._login(self.base_admin_id)
@@ -186,6 +213,34 @@ class TestNarrativeQaRoute(BaseTestCase):
         self.assertEqual(rows[0].va_nqa_status, VaStatuses.deactive)
         self.assertEqual(rows[1].payload_version_id, new_payload_version.payload_version_id)
         self.assertEqual(rows[1].va_nqa_status, VaStatuses.active)
+
+    def test_reviewer_can_save_nqa_with_active_reviewing_allocation(self):
+        self._login(self.reviewer_id)
+        db.session.add(
+            VaAllocations(
+                va_sid=self.sid,
+                va_allocated_to=self.reviewer_user.user_id,
+                va_allocation_for=VaAllocation.reviewing,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.post(
+            f"/api/v1/va/{self.sid}/narrative-qa",
+            json={
+                "va_actiontype": "varesumereviewing",
+                "length": 2,
+                "pos_symptoms": 2,
+                "neg_symptoms": 1,
+                "chronology": 1,
+                "doc_review": 1,
+                "comorbidity": 1,
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
 
     def test_narration_partial_is_not_http_cached_in_coding_mode(self):
         response = _apply_partial_cache_policy(

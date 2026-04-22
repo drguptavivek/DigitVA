@@ -260,9 +260,23 @@ Initial families:
 - submission read and data-management workflow actions
 - coding actions
 - reviewing actions
+- shared `va_form` section-render and artifact-save actions
 - reporting and dashboard actions
 - grant and user-management actions
 - attachment and workflow history actions
+
+For shared `va_form` routes, the policy unit is the business action, not the
+partial name.
+
+Examples:
+
+- section rendering actions such as coding, reviewing, site-PI, and
+  data-management submission views
+- supporting artifact saves such as Narrative QA and Social Autopsy
+- coder finalization and not-codeable submission actions
+
+Feature toggles such as Narrative QA and Social Autopsy remain route/service
+predicates driven by project-site-form configuration. They are not RBAC policy.
 
 ## Non-goals
 

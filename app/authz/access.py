@@ -54,6 +54,8 @@ def _is_api_request() -> bool:
         request.path.startswith("/api/")
         or request.path.startswith("/admin/api/")
         or request.path.startswith("/data-management/api/")
+        or request.path.startswith("/vaform/attachment/")
+        or request.path.startswith("/vaform/media/")
     )
 
 
@@ -272,11 +274,15 @@ def action_authorized(
         def wrapped(*args, **kwargs):
             resource: ResourceContext | None = None
             try:
-                if resource_resolver is not None:
-                    resource = resource_resolver(*args, **kwargs)
                 g.authz_action = action
                 g.authz_resource = resource
-                authorize_action(current_user, action, resource)
+                if not getattr(current_user, "is_authenticated", False):
+                    authorize_action(current_user, action, None)
+                else:
+                    if resource_resolver is not None:
+                        resource = resource_resolver(*args, **kwargs)
+                    g.authz_resource = resource
+                    authorize_action(current_user, action, resource)
             except Exception as exc:
                 handled = _handle_auth_exception(action, exc, resource)
                 if handled is not None:
@@ -290,6 +296,36 @@ def action_authorized(
     return decorator
 
 
+def dynamic_action_authorized(
+    action_resolver: Callable[..., tuple[str | None, ResourceContext | None]],
+):
+    def decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            action: str | None = None
+            resource: ResourceContext | None = None
+            try:
+                action, resource = action_resolver(*args, **kwargs)
+                g.authz_action = action
+                g.authz_resource = resource
+                if action is None:
+                    return f(*args, **kwargs)
+                if not getattr(current_user, "is_authenticated", False):
+                    authorize_action(current_user, action, None)
+                else:
+                    authorize_action(current_user, action, resource)
+            except Exception as exc:
+                handled = _handle_auth_exception(action or "dynamic", exc, resource)
+                if handled is not None:
+                    return handled
+            return f(*args, **kwargs)
+
+        wrapped.__authz_dynamic__ = True
+        return wrapped
+
+    return decorator
+
+
 def _validate_route_coverage(app) -> None:
     missing = []
     for endpoint, view_func in app.view_functions.items():
@@ -298,7 +334,10 @@ def _validate_route_coverage(app) -> None:
             continue
         if endpoint in {"static"}:
             continue
-        if not getattr(view_func, "__authz_action__", None):
+        if not (
+            getattr(view_func, "__authz_action__", None)
+            or getattr(view_func, "__authz_dynamic__", False)
+        ):
             missing.append(endpoint)
     if missing:
         raise AuthorizationConfigurationError(

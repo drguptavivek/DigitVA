@@ -3,14 +3,20 @@ from datetime import datetime, timezone
 from app import db
 from app.models import (
     MasFormTypes,
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaAllocation,
+    VaAllocations,
     VaForms,
     VaProjectMaster,
+    VaProjectSites,
     VaResearchProjects,
     VaSites,
     VaSocialAutopsyAnalysis,
     VaStatuses,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaUserAccessGrants,
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
@@ -120,8 +126,29 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         db.session.add(submission)
         db.session.flush()
         ensure_active_payload_version(submission, payload_data={"sa01": 1.0}, source_updated_at=None, created_by_role="vasystem")
+        project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
+                VaProjectSites.site_id == cls.BASE_SITE_ID,
+            )
+        )
+        cls.reviewer_user = cls._make_user(
+            "social.reviewer@test.local",
+            "SocialReviewer123",
+        )
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.reviewer_user.user_id,
+                role=VaAccessRoles.reviewer,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site_id,
+                notes="social reviewer grant",
+                grant_status=VaStatuses.active,
+            )
+        )
         db.session.commit()
         cls.social_sid = submission.va_sid
+        cls.reviewer_id = str(cls.reviewer_user.user_id)
 
     def test_save_social_autopsy_analysis_creates_parent_and_options(self):
         self._login(self.base_admin_id)
@@ -293,6 +320,33 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         self.assertEqual(rows[0].va_saa_status, VaStatuses.deactive)
         self.assertEqual(rows[1].payload_version_id, new_payload_version.payload_version_id)
         self.assertEqual(rows[1].va_saa_status, VaStatuses.active)
+
+    def test_reviewer_can_save_social_autopsy_with_active_reviewing_allocation(self):
+        self._login(self.reviewer_id)
+        db.session.add(
+            VaAllocations(
+                va_sid=self.social_sid,
+                va_allocated_to=self.reviewer_user.user_id,
+                va_allocation_for=VaAllocation.reviewing,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={
+                "va_actiontype": "varesumereviewing",
+                "selected_options": [
+                    {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                    {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
+                    {"delay_level": "delay_3_receiving", "option_code": "delay_in_referral"},
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(resp.status_code, 200)
 
     def test_save_rejects_blank_or_incomplete_submission(self):
         self._login(self.base_admin_id)

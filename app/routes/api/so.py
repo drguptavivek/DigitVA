@@ -13,7 +13,8 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
 from app.models import (
     VaStatuses,
     VaSocialAutopsyAnalysis,
@@ -39,7 +40,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.post("/<va_sid>/social-autopsy")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("submission_social_autopsy_save", resource_resolver=submission_from_kwarg("va_sid"))
 def save_social_autopsy(va_sid: str):
     """Save or update the Social Autopsy analysis selections for a coder."""
     err = require_coding_access(va_sid)

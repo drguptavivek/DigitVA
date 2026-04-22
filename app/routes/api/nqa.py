@@ -13,7 +13,8 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
 from app.models import (
     VaStatuses,
     VaNarrativeAssessment,
@@ -38,7 +39,7 @@ def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comor
 
 
 @bp.post("/<va_sid>/narrative-qa")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("submission_narrative_qa_save", resource_resolver=submission_from_kwarg("va_sid"))
 def save_narrative_qa(va_sid: str):
     """Save or update the Narrative Quality Assessment for a coder on a submission."""
     err = require_coding_access(va_sid)

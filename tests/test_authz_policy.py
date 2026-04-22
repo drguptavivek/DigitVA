@@ -20,7 +20,10 @@ def test_migrated_routes_have_action_mapping():
             continue
         if endpoint == "static":
             continue
-        if not getattr(view_func, "__authz_action__", None):
+        if not (
+            getattr(view_func, "__authz_action__", None)
+            or getattr(view_func, "__authz_dynamic__", False)
+        ):
             missing.append(endpoint)
 
     assert missing == []

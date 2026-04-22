@@ -8,7 +8,7 @@ from app.models.va_selectives import VaAccessRoles
 
 
 VALID_RESOURCES = frozenset({"none", "submission", "form", "grant", "user"})
-VALID_SCOPES = frozenset({"global", "any_scope", "resource_scope"})
+VALID_SCOPES = frozenset({"global", "any_scope", "resource_scope", "authenticated"})
 MIGRATED_BLUEPRINTS = frozenset(
     {
         "analytics",
@@ -28,6 +28,7 @@ MIGRATED_BLUEPRINTS = frozenset(
         "dm_kpi_workflow",
         "icd10_api",
         "nqa_api",
+        "profile_api",
         "reviewing",
         "reviewing_api",
         "so_api",

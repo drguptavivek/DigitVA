@@ -2,9 +2,10 @@
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from app import db, limiter
+from app.authz.access import action_authorized
 from app.models.mas_languages import MasLanguages
 from app.utils.password_policy import password_error_message
 
@@ -20,7 +21,7 @@ def _error(message: str, status_code: int = 400):
 # ---------------------------------------------------------------------------
 
 @bp.get("/")
-@login_required
+@action_authorized("profile_view")
 def get_profile():
     """Return the current user's profile data."""
     return jsonify({
@@ -37,7 +38,7 @@ def get_profile():
 # ---------------------------------------------------------------------------
 
 @bp.get("/languages")
-@login_required
+@action_authorized("profile_languages_view")
 def get_languages():
     """Return available VA language options."""
     languages = db.session.scalars(
@@ -56,7 +57,7 @@ def get_languages():
 # ---------------------------------------------------------------------------
 
 @bp.patch("/password")
-@login_required
+@action_authorized("profile_password_update")
 @limiter.limit("5 per minute")
 def update_password():
     """Change the current user's password."""
@@ -87,7 +88,7 @@ def update_password():
 # ---------------------------------------------------------------------------
 
 @bp.patch("/language")
-@login_required
+@action_authorized("profile_language_update")
 def update_language():
     """Update the current user's VA coding language preferences."""
     body = request.get_json(silent=True) or {}
@@ -114,7 +115,7 @@ def update_language():
 # ---------------------------------------------------------------------------
 
 @bp.patch("/timezone")
-@login_required
+@action_authorized("profile_timezone_update")
 def update_timezone():
     """Update the current user's timezone."""
     import pytz

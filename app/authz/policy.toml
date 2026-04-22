@@ -240,6 +240,36 @@ resource = "none"
 scope = "global"
 reason = "Updating a curated ICD-10 policy node is a global admin-only mutation of the ICD policy dataset."
 
+[action.profile_view]
+roles = ["admin", "data_manager", "project_pi", "site_pi", "collaborator", "coder", "coding_tester", "reviewer"]
+resource = "none"
+scope = "authenticated"
+reason = "Reading the current user's own profile is a self-service authenticated action, not a shared business-resource permission."
+
+[action.profile_languages_view]
+roles = ["admin", "data_manager", "project_pi", "site_pi", "collaborator", "coder", "coding_tester", "reviewer"]
+resource = "none"
+scope = "authenticated"
+reason = "Reading available profile language choices is a self-service authenticated action for the current user."
+
+[action.profile_password_update]
+roles = ["admin", "data_manager", "project_pi", "site_pi", "collaborator", "coder", "coding_tester", "reviewer"]
+resource = "none"
+scope = "authenticated"
+reason = "Changing the current user's own password is a self-service authenticated action for the current session."
+
+[action.profile_language_update]
+roles = ["admin", "data_manager", "project_pi", "site_pi", "collaborator", "coder", "coding_tester", "reviewer"]
+resource = "none"
+scope = "authenticated"
+reason = "Updating the current user's own coding language preferences is a self-service authenticated action."
+
+[action.profile_timezone_update]
+roles = ["admin", "data_manager", "project_pi", "site_pi", "collaborator", "coder", "coding_tester", "reviewer"]
+resource = "none"
+scope = "authenticated"
+reason = "Updating the current user's own timezone is a self-service authenticated action."
+
 [action.coding_dashboard_view]
 roles = ["admin", "coder", "coding_tester"]
 resource = "none"

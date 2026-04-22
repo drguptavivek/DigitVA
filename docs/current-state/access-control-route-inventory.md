@@ -45,6 +45,9 @@ mapped action exists in the TOML policy registry.
 
 Some routes still use only `@login_required`, which means they require an
 authenticated session but do not require active-status or role membership.
+The migrated self-service profile API is the exception: it now uses central
+action authorization with explicit `authenticated` scope for current-user-only
+actions.
 
 ## Current Runtime Role Detection
 
@@ -282,7 +285,22 @@ Current scope pattern:
 
 ### Profile API
 
-`/api/v1/profile/*` is self-scoped and uses `@login_required`.
+`/api/v1/profile/*` is self-scoped and now uses central action authorization.
+
+Current route split:
+
+- current-user profile read
+- available language choice read
+- password update
+- language preference update
+- timezone update
+
+Current scope pattern:
+
+- all routes are current-user-only and do not resolve a shared business
+  resource
+- the central action layer enforces authenticated and active user state through
+  `authenticated` scope rather than grant-backed resource scope
 
 ### ICD10 API
 
@@ -308,6 +326,7 @@ As of `2026-04-22`, the first central-auth slice covers:
 - `api_v1.so_api`
 - `api_v1.workflow`
 - `api_v1.analytics`
+- `api_v1.profile_api`
 - `api_v1.dm_kpi_*`
 - `api_v1.icd10_api`
 

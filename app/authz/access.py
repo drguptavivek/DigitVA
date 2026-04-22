@@ -194,9 +194,13 @@ def authorize_action(user, action: str, resource: ResourceContext | None = None)
     if policy is None:
         raise AuthorizationConfigurationError(f"Missing authorization policy for action {action}.")
 
-    allowed_roles = [role for role in policy.roles if _user_has_role(user, role)]
-    if not allowed_roles:
-        raise AuthorizationDenied(f"{', '.join(policy.roles)} access is required.")
+    if policy.scope == "authenticated":
+        scope_ok = True
+        allowed_roles = []
+    else:
+        allowed_roles = [role for role in policy.roles if _user_has_role(user, role)]
+        if not allowed_roles:
+            raise AuthorizationDenied(f"{', '.join(policy.roles)} access is required.")
 
     if policy.scope == "global":
         scope_ok = any(role == "admin" and user.is_admin() for role in allowed_roles)
@@ -208,7 +212,7 @@ def authorize_action(user, action: str, resource: ResourceContext | None = None)
                 f"Action {action} requires a resource context."
             )
         scope_ok = any(_role_has_resource_scope(user, role, resource) for role in allowed_roles)
-    else:
+    elif policy.scope != "authenticated":
         raise AuthorizationConfigurationError(
             f"Action {action} uses unsupported scope {policy.scope!r}."
         )

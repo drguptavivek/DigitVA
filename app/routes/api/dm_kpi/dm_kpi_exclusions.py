@@ -32,7 +32,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_exclusions", __name__)
@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.get("/rates")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def exclusion_rates():
     """KPIs: C-05 (% Not Codeable Overall), C-06 (Consent Refusal Rate),
     D-QG-01 (Coder Not-Codeable Rate), D-QG-02 (DM Not-Codeable Rate).
@@ -126,7 +126,7 @@ def exclusion_rates():
 
 
 @bp.get("/breakdown")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def exclusion_breakdown():
     """KPIs: D-QG-04 (Coder Not-Codeable Reason Breakdown),
     D-QG-05 (DM Not-Codeable Reason Breakdown), D-QG-03 (Exclusions by Actor).
@@ -237,7 +237,7 @@ def exclusion_breakdown():
 
 
 @bp.get("/blocked")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def blocked_forms():
     """KPI: C-23 — Blocked Forms Alert (Composite).
 
@@ -366,7 +366,7 @@ def blocked_forms():
 
 
 @bp.get("/nqa-sa")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def nqa_sa_rates():
     """KPIs: D-QG-07 (NQA Completion Rate), D-QG-08 (Social Autopsy Completion Rate).
 
@@ -457,7 +457,7 @@ def nqa_sa_rates():
 
 
 @bp.get("/odk-issues")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def odk_issues():
     """KPI: D-QG-06 — ODK Has Issues Count.
 

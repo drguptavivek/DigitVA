@@ -9,9 +9,9 @@ Context:
 The first slice now covers `data_management`, `api_v1.data_management_api`,
 `api_v1.cod_buckets_api`, and `api_v1.workflow`. The next slice now also covers
 `coding`, `api_v1.coding_api`, `reviewing`, `api_v1.reviewing_api`, `va_form`,
-`api_v1.nqa_api`, and `api_v1.so_api`. The main remaining authz surface is the
-analytics blueprint outside the migrated slice, plus any straggler APIs that
-still rely on legacy route auth.
+`api_v1.nqa_api`, `api_v1.so_api`, `api_v1.analytics`, and the
+`api_v1.dm_kpi_*` read/refresh APIs. The main remaining authz surface is the
+ICD API blueprint, plus any later non-API route families still on legacy auth.
 
 References:
 - `docs/policy/authorization-policy.md`
@@ -24,7 +24,7 @@ References:
 - `app/routes/va_form.py`
 
 Expected Scope:
-- extend the action catalog for analytics and remaining straggler APIs
+- extend the action catalog for remaining straggler APIs
 - keep workflow/sync checks in predicates
 - remove legacy route auth from each blueprint once migrated
 - add focused route tests for each migrated blueprint

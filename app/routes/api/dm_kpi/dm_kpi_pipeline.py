@@ -33,7 +33,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_pipeline", __name__)
@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.get("/pending")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def pending_rate():
     """KPI: C-04 — % Uncoded (Pending Rate).
 
@@ -87,7 +87,7 @@ def pending_rate():
 
 
 @bp.get("/aging")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def pipeline_aging():
     """KPI: C-07 — Pipeline Aging (Stagnation).
 
@@ -128,7 +128,7 @@ def pipeline_aging():
 
 
 @bp.get("/time-to-code")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def time_to_code():
     """KPI: C-08 — Time to Code (Min / Max / Median / P90).
 
@@ -198,7 +198,7 @@ def time_to_code():
 
 
 @bp.get("/reviewed")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def review_rate():
     """KPI: C-09 — % Forms Reviewed.
 
@@ -266,7 +266,7 @@ def review_rate():
 
 
 @bp.get("/upstream-changes")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def upstream_changes():
     """KPIs: C-10 (Upstream Change Queue), C-11 (% Forms with Upstream Changes),
     D-WT-02 (Upstream Change Resolution Time), D-WT-04 (Reopen Rate).
@@ -400,7 +400,7 @@ def upstream_changes():
 
 
 @bp.get("/inflow-outflow")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def inflow_outflow():
     """KPI: C-19 — Daily Inflow vs Outflow.
 
@@ -467,7 +467,7 @@ def inflow_outflow():
 
 
 @bp.get("/site-bottleneck")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def site_bottleneck():
     """KPI: C-22 — Site-Level Bottleneck.
 
@@ -527,7 +527,7 @@ def site_bottleneck():
 
 
 @bp.get("/reviewer-throughput")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def reviewer_throughput():
     """KPI: D-WT-01 — Reviewer Throughput.
 
@@ -570,7 +570,7 @@ def reviewer_throughput():
 
 
 @bp.get("/backlog-trend")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def backlog_trend():
     """KPI: D-WT-03 — Coding Backlog Trend.
 

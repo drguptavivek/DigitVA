@@ -27,7 +27,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     cached_kpi,
     dm_project_site_pairs,
@@ -39,7 +39,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.get("/utilization")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def coder_utilization():
     """KPI: C-21 — Coder Utilization Rate.
 
@@ -99,7 +99,7 @@ def coder_utilization():
 
 
 @bp.get("/output")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def coder_output():
     """KPIs: C-12 (Coder Throughput), C-24 (Forms per Coder by Language),
     D-LC-04 (Coder Output by Language).
@@ -197,7 +197,7 @@ def coder_output():
 
 
 @bp.get("/roster")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def coder_roster():
     """KPI: D-LC-06 — Coder Roster.
 
@@ -274,7 +274,7 @@ def coder_roster():
 
 
 @bp.get("/disagreement")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def coder_reviewer_disagreement():
     """KPI: D-QG-09 — Coder-Reviewer Disagreement Rate.
 

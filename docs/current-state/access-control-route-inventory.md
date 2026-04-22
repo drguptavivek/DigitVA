@@ -307,6 +307,8 @@ As of `2026-04-22`, the first central-auth slice covers:
 - `api_v1.reviewing_api`
 - `api_v1.so_api`
 - `api_v1.workflow`
+- `api_v1.analytics`
+- `api_v1.dm_kpi_*`
 
 These surfaces are governed by:
 
@@ -318,17 +320,20 @@ These surfaces are governed by:
 
 Current route split:
 
-- `/api/v1/analytics/*` is overwhelmingly `data_manager`
-- `/api/v1/analytics/mv/refresh` is `data_manager` but has system-wide side
-  effects
-- `/api/v1/analytics/dm-kpi/*` is `data_manager`
+- `/api/v1/analytics/*` now uses central action authorization
+- `/api/v1/analytics/dm-kpi/*` now uses central action authorization
+- read endpoints use the shared reporting action family
+- refresh and cache-bust endpoints use data-manager-only operational actions
 
 Current scope pattern:
 
-- most reads expand data-manager project grants into active
-  `(project_id, site_id)` pairs
+- read endpoints resolve reporting scope through active
+  `(project_id, site_id)` pairs for `admin`, `data_manager`, `project_pi`,
+  `site_pi`, and `collaborator`
+- collaborators remain read-only because refresh and cache-bust endpoints are
+  separate data-manager-only actions
 - some sync-related KPI endpoints intentionally expose system-level information
-  to any data manager
+  under the same broad reporting action
 
 ### CoD buckets API
 
@@ -396,9 +401,8 @@ Current scope pattern:
 
 ## High-Signal Gaps To Resolve Before Grants Refactor
 
-1. Decide whether route protection should standardize on `@role_required(...)`
-   for all business data surfaces, replacing broad `@login_required` paths where
-   appropriate.
+1. Finish the remaining legacy API cutover for ICD browser and ICD policy
+   routes.
 2. Decide whether attachment access for coder/reviewer should stay form-scoped
    or return to allocation/viewability-scoped behavior.
 3. Decide whether `coding.recode` must enforce the same coder/tester form scope
@@ -407,8 +411,8 @@ Current scope pattern:
    resource-scope helpers comparable to the data-manager helpers.
 5. Decide whether `collaborator` is a real runtime role for this rollout; if
    yes, implement it end to end before documenting collaborator route access.
-6. Decide whether global admin should be allowed to access all read-only
-   data-manager analytics/reporting routes for consistency.
+6. Decide whether global admin should be allowed to access all remaining
+   read-only data-manager analytics/reporting routes for consistency.
 7. Decide how much of `/data-management/users` should remain globally
    targetable versus fully scoped to manageable users/grants.
 

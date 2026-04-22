@@ -11,11 +11,21 @@ VALID_RESOURCES = frozenset({"none", "submission", "form", "grant", "user"})
 VALID_SCOPES = frozenset({"global", "any_scope", "resource_scope"})
 MIGRATED_BLUEPRINTS = frozenset(
     {
+        "analytics",
         "data_management",
         "data_management_api",
         "cod_buckets_api",
         "coding",
         "coding_api",
+        "dm_kpi_burndown",
+        "dm_kpi_cache",
+        "dm_kpi_coders",
+        "dm_kpi_exclusions",
+        "dm_kpi_grid",
+        "dm_kpi_language",
+        "dm_kpi_pipeline",
+        "dm_kpi_sync",
+        "dm_kpi_workflow",
         "nqa_api",
         "reviewing",
         "reviewing_api",

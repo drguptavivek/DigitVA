@@ -27,7 +27,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_grid", __name__)
@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.get("/")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def daily_grid():
     """KPI: C-01 — Daily Operations Grid.
 

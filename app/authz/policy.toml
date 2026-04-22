@@ -128,6 +128,24 @@ resource = "none"
 scope = "any_scope"
 reason = "Filter option APIs support scoped analytics and reporting for admins, data managers, PI roles, and reporting-only collaborators."
 
+[action.dm_analytics_refresh]
+roles = ["data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Refreshing analytics materialized views is an operational data-manager action rather than a read-only reporting capability."
+
+[action.dm_kpi_cache_bust]
+roles = ["data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Clearing KPI cache entries is an operational data-manager action used to refresh dashboard state."
+
+[action.dm_kpi_refresh]
+roles = ["data_manager"]
+resource = "none"
+scope = "any_scope"
+reason = "Refreshing the KPI dashboard snapshot and related analytics caches is an operational data-manager action."
+
 [action.dm_upstream_change_details_view]
 roles = ["admin", "data_manager", "project_pi", "site_pi"]
 resource = "submission"

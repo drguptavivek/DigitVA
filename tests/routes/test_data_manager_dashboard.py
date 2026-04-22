@@ -1363,6 +1363,49 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(submission_response.status_code, 403)
         self.assertEqual(management_response.status_code, 403)
 
+    def test_reporting_roles_can_access_analytics_and_dm_kpi_reads(self):
+        cases = (
+            (self.base_admin_id, 200),
+            (self.dm_user_id, 200),
+            (self.base_project_pi_id, 200),
+            (self.site_pi_user_id, 200),
+            (self.collaborator_user_id, 200),
+        )
+        paths = (
+            "/api/v1/analytics/kpi",
+            "/api/v1/analytics/workflow",
+            "/api/v1/analytics/dm-kpi/pipeline/pending",
+            "/api/v1/analytics/dm-kpi/sync/status",
+        )
+
+        for user_id, expected in cases:
+            with self.subTest(user_id=user_id, expected=expected):
+                self._login(user_id)
+                for path in paths:
+                    response = self.client.get(path)
+                    self.assertEqual(response.status_code, expected, path)
+
+    def test_reporting_roles_cannot_trigger_operational_analytics_refresh_actions(self):
+        cases = (
+            (self.base_admin_id, 403),
+            (self.base_project_pi_id, 403),
+            (self.site_pi_user_id, 403),
+            (self.collaborator_user_id, 403),
+        )
+        paths = (
+            "/api/v1/analytics/mv/refresh",
+            "/api/v1/analytics/dm-kpi/cache/bust",
+            "/api/v1/analytics/dm-kpi/refresh",
+        )
+
+        for user_id, expected in cases:
+            with self.subTest(user_id=user_id, expected=expected):
+                self._login(user_id)
+                headers = self._csrf_headers()
+                for path in paths:
+                    response = self.client.post(path, headers=headers)
+                    self.assertEqual(response.status_code, expected, path)
+
     @patch("app.routes.api.analytics.refresh_submission_analytics_mv")
     def test_data_manager_can_refresh_analytics_mv(self, refresh_mv):
         self._login(self.dm_user_id)
@@ -1378,6 +1421,51 @@ class DataManagerDashboardTests(BaseTestCase):
             {"message": "Analytics data refreshed successfully."},
         )
         refresh_mv.assert_called_once_with(concurrently=True)
+
+    @patch("app.routes.api.dm_kpi.dm_kpi_scope.bust_dm_kpi_cache", return_value=7)
+    def test_data_manager_can_bust_dm_kpi_cache(self, bust_cache):
+        self._login(self.dm_user_id)
+
+        response = self.client.post(
+            "/api/v1/analytics/dm-kpi/cache/bust",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json(), {"deleted": 7})
+        bust_cache.assert_called_once_with()
+
+    @patch("app.routes.api.dm_kpi.dm_kpi_scope.bust_dm_kpi_cache", return_value=5)
+    @patch("app.services.submission_analytics_mv.refresh_submission_analytics_mv")
+    @patch("app.tasks.kpi_tasks.compute_daily_kpi_snapshot")
+    def test_data_manager_can_refresh_dm_kpi_dashboard(
+        self,
+        compute_snapshot,
+        refresh_mv,
+        bust_cache,
+    ):
+        compute_snapshot.apply.return_value = SimpleNamespace(
+            successful=lambda: True,
+            result={"status": "ok", "sites_processed": 1},
+        )
+        self._login(self.dm_user_id)
+
+        response = self.client.post(
+            "/api/v1/analytics/dm-kpi/refresh",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(
+            response.get_json(),
+            {
+                "kpi_snapshot": {"status": "ok", "sites_processed": 1},
+                "mv_refreshed": True,
+                "cache_deleted": 5,
+            },
+        )
+        refresh_mv.assert_called_once_with(concurrently=True)
+        bust_cache.assert_called_once_with()
 
     def test_submissions_export_csv_includes_payload_and_current_state_fields(self):
         db.session.add(

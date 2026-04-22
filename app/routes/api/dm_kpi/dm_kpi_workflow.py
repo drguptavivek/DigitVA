@@ -23,7 +23,7 @@ import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_workflow", __name__)
@@ -177,7 +177,7 @@ def _coder_finalized_24h_split(site_ids: list[str]) -> dict:
 # ---------------------------------------------------------------------------
 
 @bp.get("/flowchart")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def flowchart():
     """KPI: D-WF-01 — CONSORT Pipeline Flowchart.
 
@@ -266,7 +266,7 @@ def flowchart():
 # ---------------------------------------------------------------------------
 
 @bp.get("/state-velocity")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def state_velocity():
     """KPI: D-WF-02 — State Velocity.
 
@@ -359,7 +359,7 @@ def state_velocity():
 # ---------------------------------------------------------------------------
 
 @bp.get("/stagnation")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def stagnation():
     """KPI: D-WF-03 — State Stagnation Alerts.
 
@@ -472,7 +472,7 @@ def stagnation():
 # ---------------------------------------------------------------------------
 
 @bp.get("/daily-transitions")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def daily_transitions():
     """KPI: D-WF-04 — Daily State Transitions.
 

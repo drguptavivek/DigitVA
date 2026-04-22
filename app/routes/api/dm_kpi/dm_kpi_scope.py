@@ -1,15 +1,15 @@
-"""Shared DM scope helpers for KPI endpoints.
+"""Shared reporting-scope helpers for KPI endpoints.
 
-All KPI endpoints use these to resolve the current data-manager's visible
-site_ids and build scoped sub-queries.  The key design decision:
+All KPI endpoints use these to resolve the current reporting user's visible
+site_ids and build scoped sub-queries. The key design decision:
 
 - **Site-project attribution uses current `va_project_sites` active membership**,
   not the frozen `va_forms.project_id`.
 - **DM scoping uses `site_id` resolved from current `va_project_sites`**.
   The `project_id` column in `va_daily_kpi_aggregates` is audit data,
   not the access gate.
-- A DM sees **all rows for their currently-owned site_ids**, regardless of
-  which project owned those sites historically.
+- A reporting user sees **all rows for their currently-owned site_ids**,
+  regardless of which project owned those sites historically.
 """
 
 from __future__ import annotations
@@ -21,10 +21,8 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
 from app import cache, db
-from app.decorators import role_required
-from app.services.submission_analytics_mv import (
-    _expand_project_ids_to_active_pairs,
-)
+from app.authz.access import action_authorized
+from app.services.data_management_service import reporting_scope_pairs
 
 log = logging.getLogger(__name__)
 
@@ -38,37 +36,13 @@ bp = Blueprint("dm_kpi_cache", __name__)
 # ---------------------------------------------------------------------------
 
 def dm_site_ids() -> list[str]:
-    """Resolve the current DM's grants → active site_ids.
-
-    - Project-level grants (`scope_type = 'project'`): expanded to all
-      currently active sites within those projects via `va_project_sites`.
-    - Project-site grants (`scope_type = 'project_site'`): looked up
-      individually.
-
-    Returns a deduplicated, sorted list of site_ids the DM can see.
-    """
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
-
-    # project_site_pairs is set of (project_id, site_id)
-    site_set: set[str] = {sid for _pid, sid in project_site_pairs}
-
-    # Expand project-level grants
-    expanded = _expand_project_ids_to_active_pairs(project_ids)
-    site_set |= {sid for _pid, sid in expanded}
-
-    return sorted(site_set)
+    """Resolve the current reporting user's grants → active site_ids."""
+    return sorted({site_id for _project_id, site_id in reporting_scope_pairs(current_user)})
 
 
 def dm_project_site_pairs() -> set[tuple[str, str]]:
-    """Resolve the current DM's grants → active (project_id, site_id) pairs.
-
-    Used when the query needs project_id grouping (e.g. burndown per project).
-    """
-    project_ids = sorted(current_user.get_data_manager_projects())
-    pairs: set[tuple[str, str]] = set(current_user.get_data_manager_project_sites())
-    pairs |= _expand_project_ids_to_active_pairs(project_ids)
-    return pairs
+    """Resolve the current reporting user's grants → active project/site pairs."""
+    return reporting_scope_pairs(current_user)
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +125,7 @@ def bust_dm_kpi_cache(user_id: int | None = None) -> int:
 
 
 @bp.post("/cache/bust")
-@role_required("data_manager")
+@action_authorized("dm_kpi_cache_bust")
 def cache_bust():
     """Clear all cached KPI data for the current DM."""
     deleted = bust_dm_kpi_cache()
@@ -159,7 +133,7 @@ def cache_bust():
 
 
 @bp.post("/refresh")
-@role_required("data_manager")
+@action_authorized("dm_kpi_refresh")
 def refresh_dashboard():
     """Full dashboard refresh: recompute daily KPIs, refresh MVs, bust cache.
 

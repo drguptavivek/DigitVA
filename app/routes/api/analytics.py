@@ -10,7 +10,8 @@ Resources:
   GET  cod                    — cause-of-death (ICD) summary
   POST mv/refresh             — on-demand MV refresh (rate-limited 1/min)
 
-All endpoints scoped to the current user's data-manager grants.
+Read endpoints are scoped to the current user's reporting grants.
+The MV refresh endpoint remains a data-manager-only operational action.
 """
 
 from __future__ import annotations
@@ -22,7 +23,8 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
 from app import db, limiter, cache
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.services.data_management_service import reporting_scope_pairs
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
@@ -83,20 +85,8 @@ _CACHE_TTL = 300  # 5 minutes
 
 
 def _dm_scope_filter():
-    """WHERE clause restricted to the current data-manager user's grants.
-
-    Project-level grants are expanded to their currently active
-    (project_id, site_id) pairs so that sites removed from a project are
-    not included.
-    """
-    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
-
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
-
-    all_pairs: set[tuple[str, str]] = set(project_site_pairs)
-    all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
-
+    """WHERE clause restricted to the current reporting user's grants."""
+    all_pairs = reporting_scope_pairs(current_user)
     if not all_pairs:
         return sa.false()
 
@@ -143,18 +133,21 @@ def _bust_user_analytics_cache():
 # ---------------------------------------------------------------------------
 
 @bp.get("/kpi")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def kpi():
-
-    data = _cached("kpi", lambda: get_dm_kpi_from_mv(
-        project_ids=sorted(current_user.get_data_manager_projects()),
-        project_site_pairs=current_user.get_data_manager_project_sites(),
-    ))
+    scope_pairs = reporting_scope_pairs(current_user)
+    data = _cached(
+        "kpi",
+        lambda: get_dm_kpi_from_mv(
+            project_ids=[],
+            project_site_pairs=sorted(scope_pairs),
+        ),
+    )
     return jsonify(data)
 
 
 @bp.get("/submissions/by-date")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def submissions_by_date():
 
     limit = min(int(request.args.get("limit", 90)), 365)
@@ -178,7 +171,7 @@ def submissions_by_date():
 
 
 @bp.get("/submissions/by-week")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def submissions_by_week():
 
     limit = min(int(request.args.get("limit", 26)), 104)
@@ -202,7 +195,7 @@ def submissions_by_week():
 
 
 @bp.get("/submissions/by-month")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def submissions_by_month():
 
     limit = min(int(request.args.get("limit", 12)), 60)
@@ -226,16 +219,17 @@ def submissions_by_month():
 
 
 @bp.get("/demographics")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 @limiter.limit("120 per minute")
 def demographics():
+    scope_pairs = reporting_scope_pairs(current_user)
 
     def compute():
         core_conditions = build_dm_mv_filter_conditions(
             _core,
             _demo,
-            project_ids=sorted(current_user.get_data_manager_projects()),
-            project_site_pairs=current_user.get_data_manager_project_sites(),
+            project_ids=[],
+            project_site_pairs=sorted(scope_pairs),
             project=request.args.get("project", ""),
             site=request.args.get("site", ""),
             date_from=request.args.get("date_from") or None,
@@ -280,7 +274,7 @@ def demographics():
 
 
 @bp.get("/workflow")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def workflow():
 
     def compute():
@@ -300,7 +294,7 @@ def workflow():
 
 
 @bp.get("/cod")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def cod():
 
     cod_type = request.args.get("type", "final")
@@ -346,7 +340,7 @@ def cod():
 
 
 @bp.post("/mv/refresh")
-@role_required("data_manager")
+@action_authorized("dm_analytics_refresh")
 @limiter.limit("5 per minute")
 def mv_refresh():
     """Refresh the submission analytics materialized views on demand."""

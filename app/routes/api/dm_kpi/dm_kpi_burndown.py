@@ -28,7 +28,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     cached_kpi,
     dm_project_site_pairs,
@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.get("/")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def burndown():
     """KPIs: C-16 (Mean Daily Coding Rate), C-17 (Predicted Days to Clear
     Backlog), C-18 (Predicted vs Achieved Burndown).

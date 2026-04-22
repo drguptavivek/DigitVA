@@ -39,6 +39,8 @@ Implemented and startup-validated:
 | `api_v1.nqa_api` | Narrative QA save | `submission_narrative_qa_save` |
 | `api_v1.so_api` | Social Autopsy save | `submission_social_autopsy_save` |
 | `api_v1.workflow` | workflow event history | `workflow_events_view` |
+| `api_v1.analytics` | analytics time series, demographics, workflow, COD, MV refresh | `dm_kpi_view`, `dm_analytics_refresh` |
+| `api_v1.dm_kpi_*` | DM KPI read APIs, cache bust, dashboard refresh | `dm_kpi_view`, `dm_kpi_cache_bust`, `dm_kpi_refresh` |
 
 ## Verification
 
@@ -50,6 +52,7 @@ The first migrated slice is verified by:
   - policy loading
   - data-manager user/grant routes
   - data-manager dashboard and sync/reporting routes
+  - analytics and DM KPI read/refresh routes
   - coding dashboard and allocation routes
   - reviewing dashboard, allocation, finalize, and reviewer review routes
   - `va_form` attachments, reviewer review, demo final COD, and DM triage routes
@@ -59,4 +62,4 @@ The first migrated slice is verified by:
 
 Still on legacy route auth:
 
-- analytics blueprint outside the data-management API slice
+- `api_v1.icd10_api`

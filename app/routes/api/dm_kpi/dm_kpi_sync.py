@@ -30,7 +30,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_sync", __name__)
@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 
 
 @bp.get("/status")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def sync_status():
     """KPIs: C-02 (Last Sync Run Status) + C-03 (Sync Error Rate).
 
@@ -126,7 +126,7 @@ def sync_status():
 
 
 @bp.get("/latency")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def sync_latency():
     """KPI: C-13 — Sync Latency (ODK → App).
 
@@ -191,7 +191,7 @@ def sync_latency():
 
 
 @bp.get("/attachment-health")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def attachment_health():
     """KPIs: C-14 (Attachment Health) + D-SH-01 (Attachment Download Completeness).
 
@@ -285,7 +285,7 @@ def attachment_health():
 
 
 @bp.get("/smartva-failure-rate")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def smartva_failure_rate():
     """KPI: D-SH-04 — SmartVA Failure Rate.
 

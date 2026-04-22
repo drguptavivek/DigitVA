@@ -24,7 +24,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids, dm_project_site_pairs
 
 bp = Blueprint("dm_kpi_language", __name__)
@@ -40,7 +40,7 @@ _PENDING_STATES = (
 
 
 @bp.get("/gap")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def language_gap():
     """KPIs: C-15 (Language Gap Alert), C-20 (Language with Maximum Pendency),
     D-LC-03 (Language Gap Analysis).
@@ -164,7 +164,7 @@ def language_gap():
 
 
 @bp.get("/distribution")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def language_distribution():
     """KPI: D-LC-01 — Submission Language Distribution.
 
@@ -236,7 +236,7 @@ def language_distribution():
 
 
 @bp.get("/missing")
-@role_required("data_manager")
+@action_authorized("dm_kpi_view")
 def language_missing():
     """KPI: D-LC-07 — Forms with Missing/Unmapped Language.
 

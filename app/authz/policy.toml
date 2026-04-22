@@ -197,3 +197,99 @@ roles = ["admin", "data_manager", "project_pi", "site_pi", "coder", "coding_test
 resource = "submission"
 scope = "resource_scope"
 reason = "Workflow event history follows the same scoped submission visibility model as the rest of the app's business-data surfaces."
+
+[action.coding_dashboard_view]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "The coding dashboard is available to admins, coders, and coding testers with coding scope."
+
+[action.coding_start]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Starting a coding allocation is available to admins, coders, and coding testers, with downstream workflow and allocation checks enforced in service code."
+
+[action.coding_resume]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Resuming an active coding allocation is available to admins, coders, and coding testers who already hold coding scope."
+
+[action.coding_pick]
+roles = ["coder", "coding_tester"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Pick-mode coding is limited to coders and coding testers with access to the target submission form."
+
+[action.coding_recode_start]
+roles = ["coder", "coding_tester"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Starting a recode episode is limited to coders and coding testers with access to the target submission form; recode-window rules stay in service code."
+
+[action.coding_demo_start]
+roles = ["admin"]
+resource = "none"
+scope = "global"
+reason = "Starting a demo coding allocation is an admin-only action."
+
+[action.coding_submission_view]
+roles = ["admin", "coder", "coding_tester"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Direct coding submission view is available to coders and coding testers within form scope, with admin access preserved for coding support."
+
+[action.coding_allocation_view]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Reading the current coding allocation is available to admins, coders, and coding testers with coding scope."
+
+[action.coding_allocation_create]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Creating a coding allocation through the API is available to admins, coders, and coding testers, with branch-specific demo and pick constraints enforced in service code."
+
+[action.coding_available_view]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Listing pick-mode coding availability is available to admins, coders, and coding testers with coding scope."
+
+[action.coding_stats_view]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Coding dashboard stats are available to admins, coders, and coding testers with coding scope."
+
+[action.coding_history_view]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Coding history is available to admins, coders, and coding testers with coding scope."
+
+[action.coding_projects_view]
+roles = ["admin", "coder", "coding_tester"]
+resource = "none"
+scope = "any_scope"
+reason = "Coding project options are available to admins, coders, and coding testers with coding scope."
+
+[action.coding_admin_override_recode]
+roles = ["admin"]
+resource = "submission"
+scope = "global"
+reason = "Admin override to recode is an admin-only workflow control on a specific submission."
+
+[action.coding_mark_reviewer_eligible]
+roles = ["admin"]
+resource = "none"
+scope = "global"
+reason = "Advancing aged recode submissions to reviewer eligibility is an admin-only maintenance action."
+
+[action.coding_debug_stats_view]
+roles = ["admin"]
+resource = "none"
+scope = "global"
+reason = "Detailed coding visibility diagnostics are admin-only."

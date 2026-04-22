@@ -3,7 +3,7 @@ title: Access Control Route Inventory
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-21
+last_updated: 2026-04-22
 ---
 
 # Access Control Route Inventory
@@ -107,11 +107,8 @@ surfaces.
 
 ### Coding blueprint
 
-Routes under `/coding` primarily use:
-
-- `@role_required("coder", "coding_tester", "admin")`
-- `@role_required("coder", "coding_tester")`
-- `@role_required("admin")` for demo/admin-only actions
+Routes under `/coding` now use central action authorization backed by
+`app/authz/policy.toml`.
 
 Current scope pattern:
 
@@ -122,6 +119,25 @@ Current scope pattern:
 - `recode` appears role and workflow-window gated, with no obvious explicit
   coder/tester form-scope re-check in the workflow service
 - `view/<va_sid>` is form-scoped, not allocation-scoped
+
+Current migrated action families:
+
+- `coding_dashboard_view`
+- `coding_start`
+- `coding_resume`
+- `coding_pick`
+- `coding_recode_start`
+- `coding_demo_start`
+- `coding_submission_view`
+- `coding_allocation_view`
+- `coding_allocation_create`
+- `coding_available_view`
+- `coding_stats_view`
+- `coding_history_view`
+- `coding_projects_view`
+- `coding_admin_override_recode`
+- `coding_mark_reviewer_eligible`
+- `coding_debug_stats_view`
 
 ### Reviewing blueprint
 

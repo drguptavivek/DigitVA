@@ -5,7 +5,8 @@ from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
 from app import db
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
 from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow, VaSubmissions
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
@@ -58,7 +59,7 @@ def _filter_forms_by_project(form_ids: list[str], project_id: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 @bp.get("/allocation")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_allocation_view")
 def get_allocation():
     """Return the current active coding allocation, or null."""
     va_sid = get_active_coding_allocation(current_user.user_id)
@@ -105,7 +106,7 @@ def get_allocation():
 # ---------------------------------------------------------------------------
 
 @bp.post("/allocation")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_allocation_create")
 def allocate():
     """Allocate a form for coding and return the allocation details."""
     body = request.get_json(silent=True) or {}
@@ -163,7 +164,7 @@ def allocate():
 # ---------------------------------------------------------------------------
 
 @bp.post("/recode/<va_sid>")
-@role_required("coder", "coding_tester")
+@action_authorized("coding_recode_start", resource_resolver=submission_from_kwarg("va_sid"))
 def recode(va_sid):
     """Start a recode episode for a finalized submission."""
     try:
@@ -174,7 +175,7 @@ def recode(va_sid):
 
 
 @bp.post("/admin-override-recode/<va_sid>")
-@role_required("admin")
+@action_authorized("coding_admin_override_recode", resource_resolver=submission_from_kwarg("va_sid"))
 def admin_override_recode(va_sid):
     """Return a finalized submission to ready_for_coding for recode."""
     try:
@@ -185,7 +186,7 @@ def admin_override_recode(va_sid):
 
 
 @bp.post("/reviewer-eligible-after-recode-window")
-@role_required("admin")
+@action_authorized("coding_mark_reviewer_eligible")
 def mark_reviewer_eligible_after_recode_window():
     """Move coder-finalized submissions into reviewer_eligible after 24 hours."""
     transitioned = mark_reviewer_eligible_after_recode_window_submissions(
@@ -199,7 +200,7 @@ def mark_reviewer_eligible_after_recode_window():
 # ---------------------------------------------------------------------------
 
 @bp.get("/available")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_available_view")
 def available_forms():
     """Return forms available for pick-mode coding."""
     va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
@@ -213,7 +214,7 @@ def available_forms():
 # ---------------------------------------------------------------------------
 
 @bp.get("/stats")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_stats_view")
 def stats():
     """Return ready-pool counts and mode flags for the coder dashboard."""
     project_id = (request.args.get("project_id") or "").strip().upper() or None
@@ -229,7 +230,7 @@ def stats():
 # ---------------------------------------------------------------------------
 
 @bp.get("/history")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_history_view")
 def history():
     """Return the coder's completed coding history with recodeable flags."""
     va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
@@ -245,7 +246,7 @@ def history():
 # ---------------------------------------------------------------------------
 
 @bp.get("/projects")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_projects_view")
 def projects():
     """Return distinct project IDs accessible to the current coding user."""
     va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
@@ -262,7 +263,7 @@ def projects():
 # ---------------------------------------------------------------------------
 
 @bp.get("/debug-stats")
-@role_required("admin")
+@action_authorized("coding_debug_stats_view")
 def debug_stats():
     """Return detailed coder visibility diagnostics for the current session."""
     form_ids = sorted(current_user.get_coder_va_forms() or [])

@@ -21,3 +21,27 @@ def legacy_data_manager_view_submission(va_sid):
     from app.routes.data_management import view_submission
 
     return view_submission.__wrapped__(va_sid=va_sid)
+
+
+@va_main.get("/vadashboard/coder")
+@action_authorized("coding_dashboard_view")
+def legacy_coding_dashboard():
+    from app.routes.coding import dashboard
+
+    return dashboard.__wrapped__()
+
+
+@va_main.get("/vacta/vacode/vastartcoding/vastartcoding")
+@action_authorized("coding_start")
+def legacy_coding_start():
+    from app.routes.coding import start
+
+    return start.__wrapped__()
+
+
+@va_main.get("/vacta/vacode/vapickcoding/<path:va_sid>")
+@action_authorized("coding_pick", resource_resolver=submission_from_kwarg("va_sid"))
+def legacy_coding_pick(va_sid):
+    from app.routes.coding import pick
+
+    return pick.__wrapped__(va_sid=va_sid)

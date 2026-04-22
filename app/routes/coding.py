@@ -3,7 +3,8 @@ from app import db
 from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms
 from flask_login import current_user
 from flask import Blueprint, render_template, url_for, redirect, request
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
@@ -39,7 +40,7 @@ def _handle_allocation_error(e: AllocationError):
 
 
 @coding.get("/")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_dashboard_view")
 def dashboard():
     va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     if va_form_access:
@@ -195,7 +196,7 @@ def dashboard():
 
 
 @coding.post("/start")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_start")
 def start():
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
@@ -209,7 +210,7 @@ def start():
 
 
 @coding.get("/resume")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_resume")
 def resume():
     va_sid = get_active_coding_allocation(current_user.user_id)
     if not va_sid:
@@ -224,7 +225,7 @@ def resume():
 
 
 @coding.post("/pick/<va_sid>")
-@role_required("coder", "coding_tester")
+@action_authorized("coding_pick", resource_resolver=submission_from_kwarg("va_sid"))
 def pick(va_sid):
     try:
         result = allocate_pick_form(current_user, va_sid)
@@ -235,7 +236,7 @@ def pick(va_sid):
 
 
 @coding.post("/recode/<va_sid>")
-@role_required("coder", "coding_tester")
+@action_authorized("coding_recode_start", resource_resolver=submission_from_kwarg("va_sid"))
 def recode(va_sid):
     try:
         start_recode_allocation(current_user, va_sid)
@@ -245,7 +246,7 @@ def recode(va_sid):
 
 
 @coding.post("/demo")
-@role_required("admin")
+@action_authorized("coding_demo_start")
 def demo():
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     try:
@@ -257,7 +258,7 @@ def demo():
 
 
 @coding.get("/view/<va_sid>")
-@role_required("coder", "coding_tester", "admin")
+@action_authorized("coding_submission_view", resource_resolver=submission_from_kwarg("va_sid"))
 def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
     if not form:

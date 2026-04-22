@@ -93,6 +93,10 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
                     project_site_status=VaStatuses.active,
                     project_site_registered_at=now,
                     project_site_updated_at=now,
+                    coding_enabled=True,
+                    coding_start_date=None,
+                    coding_end_date=None,
+                    daily_coder_limit=100,
                 )
             )
             db.session.add(
@@ -204,19 +208,28 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
     def test_dashboard_shows_pick_and_choose_section(self):
         self._login(self.base_coder_id)
 
-        response = self.client.get("/vadashboard/coder")
+        response = self.client.get("/coding/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Random Allocation Forms Ready", response.data)
-        self.assertIn(b"Pick And Choose Forms Ready", response.data)
-        self.assertIn(b"Two coding modes are active for your access scope.", response.data)
+        self.assertIn(b"Random Allocation Submissions Available", response.data)
+        self.assertIn(b"Selection Based Submissions Available", response.data)
         self.assertIn(b"Start Random Allocation Coding", response.data)
         self.assertIn(b"Pick And Choose Coding", response.data)
-        self.assertIn(b"sid-pick-1", response.data)
-        self.assertIn(b"vapickcoding/sid-pick-1", response.data)
+        self.assertIn(b'id="pick-section"', response.data)
+        self.assertIn(b'id="pickCodingTable"', response.data)
 
     def test_startcoding_uses_only_random_projects(self):
         self._login(self.base_coder_id)
+        project_site = db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == "RND01",
+                VaProjectSites.site_id == "RN01",
+            )
+        )
+        project_site.coding_enabled = True
+        project_site.coding_start_date = None
+        project_site.coding_end_date = None
+        project_site.daily_coder_limit = 100
         db.session.query(VaAllocations).filter(
             VaAllocations.va_allocated_to == self.base_coder_user.user_id,
             VaAllocations.va_allocation_for == VaAllocation.coding,
@@ -226,8 +239,9 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         )
         db.session.commit()
 
-        response = self.client.get(
-            "/vacta/vacode/vastartcoding/vastartcoding",
+        response = self.client.post(
+            "/coding/start",
+            headers=self._csrf_headers(),
             follow_redirects=True,
         )
 
@@ -237,7 +251,10 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
     def test_pickcoding_allocates_selected_ready_submission(self):
         self._login(self.base_coder_id)
 
-        response = self.client.get("/vacta/vacode/vapickcoding/sid-pick-1")
+        response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_coding_sid(), "sid-pick-1")

@@ -8,8 +8,9 @@ Migrate the remaining business blueprints to the central TOML-backed authorizati
 Context:
 The first slice now covers `data_management`, `api_v1.data_management_api`,
 `api_v1.cod_buckets_api`, and `api_v1.workflow`. The next slice now also covers
-`coding` and `api_v1.coding_api`. `reviewing`, `va_form`, and attachment/media
-routes still use legacy route auth and need policy-aligned cutover.
+`coding`, `api_v1.coding_api`, `reviewing`, and `api_v1.reviewing_api`.
+`va_form` and attachment/media routes still use legacy route auth and need
+policy-aligned cutover.
 
 References:
 - `docs/policy/authorization-policy.md`
@@ -22,7 +23,7 @@ References:
 - `app/routes/va_form.py`
 
 Expected Scope:
-- extend the action catalog for reviewing, `va_form`, and attachment/media
+- extend the action catalog for `va_form` and attachment/media
 - keep workflow/sync checks in predicates
 - remove legacy route auth from each blueprint once migrated
 - add focused route tests for each migrated blueprint

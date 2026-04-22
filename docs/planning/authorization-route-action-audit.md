@@ -33,6 +33,8 @@ Implemented and startup-validated:
 | `api_v1.cod_buckets_api` | CoD dashboard schemes and aggregates | `cod_dashboard_view` |
 | `coding` | dashboard, allocation entrypoints, demo, submission view | `coding_dashboard_view`, `coding_start`, `coding_resume`, `coding_pick`, `coding_recode_start`, `coding_demo_start`, `coding_submission_view` |
 | `api_v1.coding_api` | allocation, availability, stats, history, project options, admin maintenance | `coding_allocation_*`, `coding_available_view`, `coding_stats_view`, `coding_history_view`, `coding_projects_view`, `coding_admin_override_recode`, `coding_mark_reviewer_eligible`, `coding_debug_stats_view` |
+| `reviewing` | dashboard, start, resume, reviewed submission view | `reviewing_dashboard_view`, `reviewing_start`, `reviewing_resume`, `reviewing_submission_view` |
+| `api_v1.reviewing_api` | allocation read/create and finalization | `reviewing_allocation_view`, `reviewing_allocation_create`, `reviewing_finalize` |
 | `api_v1.workflow` | workflow event history | `workflow_events_view` |
 
 ## Verification
@@ -46,12 +48,12 @@ The first migrated slice is verified by:
   - data-manager user/grant routes
   - data-manager dashboard and sync/reporting routes
   - coding dashboard and allocation routes
+  - reviewing dashboard, allocation, finalize, and reviewer review routes
 
 ## Deferred Blueprints
 
 Still on legacy route auth:
 
-- `reviewing`
 - `va_form`
 - attachment and media routes outside the migrated slice
 - analytics blueprint outside the data-management API slice

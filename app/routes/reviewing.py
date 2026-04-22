@@ -10,9 +10,9 @@ from app.models import (
 )
 from flask_login import current_user
 from flask import Blueprint, render_template
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
-from app.utils import va_permission_ensureanyallocation, va_permission_ensurereviewed
 from app.services.coding_service import render_va_coding_page
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
@@ -24,7 +24,7 @@ reviewing = Blueprint("reviewing", __name__)
 
 
 @reviewing.get("/")
-@role_required("reviewer")
+@action_authorized("reviewing_dashboard_view")
 def dashboard():
     va_form_access = current_user.get_reviewer_va_forms()
     if va_form_access:
@@ -134,7 +134,7 @@ def dashboard():
 
 
 @reviewing.get("/start/<va_sid>")
-@role_required("reviewer")
+@action_authorized("reviewing_start", resource_resolver=submission_from_kwarg("va_sid"))
 def start(va_sid):
     try:
         result = start_reviewer_coding(current_user, va_sid)
@@ -146,21 +146,20 @@ def start(va_sid):
 
 
 @reviewing.get("/resume")
-@role_required("reviewer")
+@action_authorized("reviewing_resume")
 def resume():
-    va_permission_ensureanyallocation("reviewing")
     va_sid = get_active_reviewing_allocation(current_user.user_id)
+    if not va_sid:
+        va_permission_abortwithflash("You have no active VA form allocation.", 403)
     form = db.session.get(VaSubmissions, va_sid)
     return render_va_coding_page(form, "vareview", "varesumereviewing", "reviewer")
 
 
 @reviewing.get("/view/<va_sid>")
-@role_required("reviewer")
+@action_authorized(
+    "reviewing_submission_view",
+    resource_resolver=submission_from_kwarg("va_sid"),
+)
 def view_submission(va_sid):
     form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    if not current_user.has_va_form_access(form.va_form_id, "reviewer"):
-        va_permission_abortwithflash("Reviewer access is required.", 403)
-    va_permission_ensurereviewed(va_sid)
     return render_va_coding_page(form, "vareview", "vaview", "reviewer")

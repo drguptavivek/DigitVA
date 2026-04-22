@@ -17,10 +17,13 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
     VaUserAccessGrants,
+    VaReviewerFinalAssessments,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.workflow.definition import (
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_FINALIZED,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
 from tests.base import BaseTestCase
@@ -101,24 +104,29 @@ class ReviewingRoutesTests(BaseTestCase):
 
     def _add_submission(self, sid: str, workflow_state: str) -> None:
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaSubmissions(
-                va_sid=sid,
-                va_form_id=self.FORM_ID,
-                va_submission_date=now,
-                va_odk_updatedat=now,
-                va_data_collector="reviewer-route",
-                va_instance_name=sid,
-                va_uniqueid_real=sid,
-                va_uniqueid_masked=sid,
-                va_consent="yes",
-                va_narration_language="English",
-                va_deceased_age=42,
-                va_deceased_gender="male",
-                va_summary=[],
-                va_catcount={},
-                va_category_list=[],
-            )
+        submission = VaSubmissions(
+            va_sid=sid,
+            va_form_id=self.FORM_ID,
+            va_submission_date=now,
+            va_odk_updatedat=now,
+            va_data_collector="reviewer-route",
+            va_instance_name=sid,
+            va_uniqueid_real=sid,
+            va_uniqueid_masked=sid,
+            va_consent="yes",
+            va_narration_language="English",
+            va_deceased_age=42,
+            va_deceased_gender="male",
+            va_summary=[],
+            va_catcount={},
+            va_category_list=[],
+        )
+        db.session.add(submission)
+        db.session.flush()
+        ensure_active_payload_version(
+            submission,
+            payload_data={},
+            source_updated_at=submission.va_odk_updatedat,
         )
         db.session.flush()
         db.session.add(
@@ -131,9 +139,21 @@ class ReviewingRoutesTests(BaseTestCase):
         )
         db.session.commit()
 
+    def _clear_active_reviewing_allocations(self) -> None:
+        for allocation in db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_allocated_to == self.base_reviewer_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all():
+            allocation.va_allocation_status = VaStatuses.deactive
+        db.session.commit()
+
     def test_reviewing_start_uses_canonical_reviewer_transition_path(self):
         sid = "uuid:reviewer-route-start"
         self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._clear_active_reviewing_allocations()
         self._login(self.base_reviewer_id)
 
         with patch(
@@ -178,6 +198,85 @@ class ReviewingRoutesTests(BaseTestCase):
             )
         )
         self.assertIsNotNone(legacy_audit)
+
+    def test_reviewing_resume_uses_active_allocation(self):
+        sid = "uuid:reviewer-route-resume"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._clear_active_reviewing_allocations()
+        self._login(self.base_reviewer_id)
+        self.client.get(f"/reviewing/start/{sid}")
+
+        with patch(
+            "app.routes.reviewing.render_va_coding_page",
+            return_value="reviewer-resume-page",
+        ) as render_page:
+            response = self.client.get("/reviewing/resume")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_data(as_text=True), "reviewer-resume-page")
+        render_page.assert_called_once()
+
+    def test_reviewing_api_allocate_finalize_and_view_use_canonical_paths(self):
+        sid = "uuid:reviewer-route-api"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._clear_active_reviewing_allocations()
+        self._login(self.base_reviewer_id)
+
+        allocate = self.client.post(
+            f"/api/v1/reviewing/allocation/{sid}",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(allocate.status_code, 201)
+        self.assertEqual(allocate.get_json()["actiontype"], "vastartreviewing")
+
+        finalize = self.client.post(
+            f"/api/v1/reviewing/finalize/{sid}",
+            json={"conclusive_cod": "I21", "remark": "route finalize"},
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(finalize.status_code, 200)
+        self.assertEqual(
+            finalize.get_json()["workflow_state"],
+            WORKFLOW_REVIEWER_FINALIZED,
+        )
+
+        workflow_state = db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(
+                VaSubmissionWorkflow.va_sid == sid
+            )
+        )
+        self.assertEqual(workflow_state, WORKFLOW_REVIEWER_FINALIZED)
+
+        active_allocation = db.session.scalar(
+            db.select(VaAllocations).where(
+                VaAllocations.va_sid == sid,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNone(active_allocation)
+
+        reviewer_final = db.session.scalar(
+            db.select(VaReviewerFinalAssessments).where(
+                VaReviewerFinalAssessments.va_sid == sid,
+                VaReviewerFinalAssessments.va_rfinassess_by
+                == self.base_reviewer_user.user_id,
+                VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNotNone(reviewer_final)
+
+        with patch(
+            "app.routes.reviewing.render_va_coding_page",
+            return_value="reviewed-page",
+        ) as render_page:
+            view_response = self.client.get(f"/reviewing/view/{sid}")
+
+        self.assertEqual(view_response.status_code, 200)
+        self.assertEqual(view_response.get_data(as_text=True), "reviewed-page")
+        render_page.assert_called_once()
 
     def test_admin_revoked_stats_uses_canonical_workflow_state(self):
         sid = "uuid:admin-revoked-stats"

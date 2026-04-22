@@ -3,7 +3,8 @@
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
-from app.decorators import role_required
+from app.authz.access import action_authorized
+from app.authz.resources import submission_from_kwarg
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
@@ -21,14 +22,14 @@ def _error(message: str, status_code: int):
 
 
 @bp.get("/allocation")
-@role_required("reviewer")
+@action_authorized("reviewing_allocation_view")
 def get_allocation():
     va_sid = get_active_reviewing_allocation(current_user.user_id)
     return jsonify({"allocation": {"va_sid": va_sid} if va_sid else None})
 
 
 @bp.post("/allocation/<va_sid>")
-@role_required("reviewer")
+@action_authorized("reviewing_allocation_create", resource_resolver=submission_from_kwarg("va_sid"))
 def allocate(va_sid):
     try:
         result = start_reviewer_coding(current_user, va_sid)
@@ -38,7 +39,7 @@ def allocate(va_sid):
 
 
 @bp.post("/finalize/<va_sid>")
-@role_required("reviewer")
+@action_authorized("reviewing_finalize", resource_resolver=submission_from_kwarg("va_sid"))
 def finalize(va_sid):
     body = request.get_json(silent=True) or {}
     conclusive_cod = (body.get("conclusive_cod") or "").strip()

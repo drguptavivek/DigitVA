@@ -16,6 +16,8 @@ MIGRATED_BLUEPRINTS = frozenset(
         "cod_buckets_api",
         "coding",
         "coding_api",
+        "reviewing",
+        "reviewing_api",
         "workflow",
     }
 )

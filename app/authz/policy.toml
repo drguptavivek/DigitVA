@@ -293,3 +293,47 @@ roles = ["admin"]
 resource = "none"
 scope = "global"
 reason = "Detailed coding visibility diagnostics are admin-only."
+
+[action.reviewing_dashboard_view]
+roles = ["reviewer"]
+resource = "none"
+scope = "any_scope"
+reason = "The reviewing dashboard is available to reviewers with reviewer form scope."
+
+[action.reviewing_start]
+roles = ["reviewer"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Starting reviewer secondary coding is limited to reviewers with access to the target submission form; workflow and allocation rules stay in service code."
+
+[action.reviewing_resume]
+roles = ["reviewer"]
+resource = "none"
+scope = "any_scope"
+predicate = "can_resume_reviewing"
+reason = "Resuming reviewer coding is limited to reviewers who already hold an active reviewing allocation."
+
+[action.reviewing_submission_view]
+roles = ["reviewer"]
+resource = "submission"
+scope = "resource_scope"
+predicate = "can_view_reviewed_submission"
+reason = "Post-session reviewed submission view is limited to reviewers with form access who submitted the active reviewer final COD."
+
+[action.reviewing_allocation_view]
+roles = ["reviewer"]
+resource = "none"
+scope = "any_scope"
+reason = "Reading the current reviewing allocation is available to reviewers with reviewer form scope."
+
+[action.reviewing_allocation_create]
+roles = ["reviewer"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Creating a reviewing allocation is limited to reviewers with access to the target submission form; workflow and allocation checks stay in service code."
+
+[action.reviewing_finalize]
+roles = ["reviewer"]
+resource = "submission"
+scope = "resource_scope"
+reason = "Submitting reviewer final COD is limited to reviewers with access to the target submission form; ownership and workflow-state checks stay in service code."

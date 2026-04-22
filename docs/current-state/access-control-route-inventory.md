@@ -141,7 +141,8 @@ Current migrated action families:
 
 ### Reviewing blueprint
 
-Routes under `/reviewing` use `@role_required("reviewer")`.
+Routes under `/reviewing` now use central action authorization backed by
+`app/authz/policy.toml`.
 
 Current scope pattern:
 
@@ -150,6 +151,16 @@ Current scope pattern:
 - `resume` is allocation-scoped
 - `view/<va_sid>` requires reviewer form access and an active reviewer-owned
   finalized artifact
+
+Current migrated action families:
+
+- `reviewing_dashboard_view`
+- `reviewing_start`
+- `reviewing_resume`
+- `reviewing_submission_view`
+- `reviewing_allocation_view`
+- `reviewing_allocation_create`
+- `reviewing_finalize`
 
 ### Site PI blueprint
 
@@ -218,13 +229,14 @@ Current scope pattern:
 
 ### Coding and reviewer APIs
 
-`/api/v1/coding` and `/api/v1/reviewing` are strongly role-gated and mostly
-allocation-scoped once a specific submission is involved.
+`/api/v1/coding` and `/api/v1/reviewing` now use central action authorization
+for the migrated route families.
 
 Current notes:
 
 - coding allocation and history endpoints are coder/tester/admin role-gated
-- reviewer allocation/finalization endpoints are reviewer-only
+- reviewer allocation/finalization endpoints are reviewer-only through TOML
+  action policy
 - state-changing routes rely on app-wide CSRF using `X-CSRFToken`
 
 ### Workflow API
@@ -252,11 +264,15 @@ Current route split:
 
 ## First Migrated Slice
 
-As of `2026-04-21`, the first central-auth slice covers:
+As of `2026-04-22`, the first central-auth slice covers:
 
 - `data_management`
 - `api_v1.data_management_api`
 - `api_v1.cod_buckets_api`
+- `coding`
+- `api_v1.coding_api`
+- `reviewing`
+- `api_v1.reviewing_api`
 - `api_v1.workflow`
 
 These surfaces are governed by:

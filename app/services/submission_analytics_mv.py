@@ -596,7 +596,10 @@ def get_dm_kpi_from_mv(
         .where(where)
         .group_by(core.c.workflow_state)
     ).all()
-    workflow_counts = {row.workflow_state: row.cnt for row in state_rows}
+    workflow_counts = {
+        (row.workflow_state or "unknown"): row.cnt
+        for row in state_rows
+    }
 
     return {
         "total_submissions": total,

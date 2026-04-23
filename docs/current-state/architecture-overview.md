@@ -3,7 +3,7 @@ title: Architecture Overview
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-04-23
 ---
 
 # Architecture Overview
@@ -29,10 +29,30 @@ Main code areas:
 
 - `app/routes`
   - HTTP routes, dashboards, auth, coding/review actions, media serving
+  - route implementations are grouped into top-level packages such as
+    `auth/`, `profile/`, `home/`, `workflow/`, `operations/`, `api/`,
+    plus the existing `admin_sections/` packages
+  - shared route helpers now live in `helpers/`
+  - heavier route surfaces are now being split into domain packages such as
+    `workflow/forms/`, `operations/data_management/`,
+    `operations/data_management/user_management/`,
+    `api/data_management/`, `admin_sections/data_sync/`, and
+    `admin_sections/field_mapping/`
+  - the VA form partial route now keeps a thin entrypoint in
+    `workflow/forms/partials.py`, with branch handlers split into
+    `workflow/forms/handlers/category.py` and
+    `workflow/forms/handlers/assessments.py`
+  - the `workflow/forms/` subtree now also splits attachment routes into
+    `workflow/forms/attachments/` and shared route support into
+    `workflow/forms/helpers/`
 - `app/models`
   - SQLAlchemy models for users, submissions, allocations, assessments, review records, audit logs, and master data
 - `app/services`
   - setup, sync, backup, mapping generation, and CRUD-like operational services
+- `app/http`
+  - app-level error handling and HTTP response helpers
+- `app/authz`
+  - authorization policy, resource access, and shared grant/scope helpers
 - `app/utils`
   - shared helper logic for ODK, preprocessing, rendering, permissions, SmartVA, and mapping consumers
 - `app/templates`

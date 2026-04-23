@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify
+
 from app import limiter
 
 health = Blueprint("health", __name__)

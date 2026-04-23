@@ -210,6 +210,7 @@ class ReviewingRoutesTests(BaseTestCase):
             "base.reviewer.routes@test.local",
             "BaseReviewerRoutes123",
         )
+        cls.base_reviewer_id = cls.base_reviewer_user.user_id
         cls.base_reviewer_user.landing_page = "reviewer"
         if db.session.scalar(
             db.select(VaUserAccessGrants).where(
@@ -321,7 +322,7 @@ class ReviewingRoutesTests(BaseTestCase):
         db.session.commit()
 
     def _clear_active_reviewing_allocations(self, user_id=None) -> None:
-        target_user_id = user_id or self.base_reviewer_user.user_id
+        target_user_id = user_id or self.base_reviewer_id
         for allocation in db.session.scalars(
             db.select(VaAllocations).where(
                 VaAllocations.va_allocated_to == target_user_id,

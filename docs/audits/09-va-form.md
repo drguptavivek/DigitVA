@@ -3,12 +3,12 @@ title: "Route Audit — va_form Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2026-04-05
+last_updated: 2026-04-23
 ---
 
 # va_form Blueprint Audit
 
-**File:** `app/routes/va_form.py`
+**File:** `app/routes/workflow/forms/partials.py`
 **URL Prefix:** `/vaform`
 **Registration:** `app.register_blueprint(va_form, url_prefix="/vaform")`
 
@@ -16,7 +16,7 @@ last_updated: 2026-04-05
 
 | # | Method | Path | Decorator | Auth | Roles | Scope | Mutates |
 |---|--------|------|-----------|------|-------|-------|---------|
-| 1 | GET/POST | `/vaform/<va_sid>/<va_partial>` | `@login_required`, `@va_validate_permissions()` | login_required + va_validate_permissions | Varies by action | Varies by action | Yes (many sub-partials) |
+| 1 | GET/POST | `/vaform/<va_sid>/<va_partial>` | `@login_required`, `@dynamic_action_authorized(_resolve_renderpartial_action)` | login_required + action authorization | Varies by action | Varies by action | Yes (many sub-partials) |
 | 2 | GET | `/vaform/attachment/<storage_name>` | None | Manual `is_authenticated` | Any role with form access | `has_va_form_access()` | No |
 | 3 | GET | `/vaform/media/<va_form_id>/<va_filename>` | `@login_required` | `@login_required` | Any role with form access | `has_va_form_access()` | No |
 
@@ -24,7 +24,9 @@ last_updated: 2026-04-05
 
 ### 1. `GET/POST /vaform/<va_sid>/<va_partial>` — `renderpartial()`
 
-Main form rendering workhorse. `@va_validate_permissions()` handles role + scope + workflow state validation based on `action` parameter.
+Main form rendering workhorse. The route lives in `app/routes/workflow/forms/partials.py`, remains import-compatible through `app/routes/va_form.py`, and now dispatches into focused handler modules under `app/routes/workflow/forms/handlers/`.
+
+`@dynamic_action_authorized(_resolve_renderpartial_action)` resolves the action from `va_partial`, request method, and `action` query parameter. `validate_va_request(...)` still performs the route-specific permission and workflow validation used by the legacy form flow.
 
 **Action types and their role/scope requirements:**
 
@@ -63,7 +65,7 @@ Deprecated — kept for backward compatibility. Validates form_id, checks `has_v
 
 ## Scoping Details
 
-### `@va_validate_permissions()` Decorator
+### `validate_va_request(...)` Guard
 
 Located at `app/decorators/va_validate_permissions.py`:
 
@@ -72,13 +74,13 @@ Located at `app/decorators/va_validate_permissions.py`:
 - `_validate_vasitepi()`: Checks site_pi role, form access
 - `_validate_vadata()`: Checks data_manager or admin, submission access
 
-Admin users bypass all role checks inside these validators.
+Admin users bypass all role checks inside these validators. The outer action-authorization layer now adds a centralized policy mapping before this legacy validation runs.
 
 ## Policy Compliance
 
 | Policy | Status | Notes |
 |--------|--------|-------|
-| Auth Decorator RBAC | Partial | Route 1 uses `@login_required` + `@va_validate_permissions`. Route 2 uses manual check. Route 3 uses `@login_required` |
+| Auth Decorator RBAC | Partial | Route 1 uses `@login_required` + action authorization + `validate_va_request(...)`. Route 2 uses manual check. Route 3 uses `@login_required` |
 | Access Control Model | Compliant | Multi-role, multi-scope validation via decorator |
 | CSRF Protection | Compliant | POST forms use CSRF |
 | Coding Workflow State Machine | Compliant | All state transitions enforced |
@@ -87,6 +89,6 @@ Admin users bypass all role checks inside these validators.
 
 1. **F1 — `serve_attachment()` (route 2) uses manual `is_authenticated` check instead of `@role_required()`.** Skips the active-status gate (`user_status != active` does not trigger logout). ABAC check (`has_va_form_access`) is present and correct. **Severity: Medium** — a deactivated user could still access attachments until session expires.
 
-2. **F2 — `renderpartial()` (route 1) uses `@login_required` instead of `@role_required()`.** Intentional multi-role design — the route serves coders, reviewers, DMs, and site PIs. `@va_validate_permissions()` handles role-specific checks. Acceptable but deviates from the standard pattern. **Severity: Info**.
+2. **F2 — `renderpartial()` (route 1) uses `@login_required` instead of `@role_required()`.** Intentional multi-role design — the route serves coders, reviewers, DMs, and site PIs. `@dynamic_action_authorized(...)` and `validate_va_request(...)` handle role- and action-specific checks. Acceptable but deviates from the standard pattern. **Severity: Info**.
 
 3. **F3 — `serve_media()` (route 3) is deprecated** but still functional. Should be removed once all attachments have migrated to `storage_name`-based references. **Severity: Low**.

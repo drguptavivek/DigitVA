@@ -25,10 +25,7 @@ from app.models import (
     VaAllocations,
     VaAccessRoles,
     VaAccessScopeTypes,
-    VaForms,
     VaProjectSites,
-    VaResearchProjects,
-    VaSites,
     VaStatuses,
     VaSubmissions,
     VaUserAccessGrants,
@@ -47,46 +44,24 @@ class ServeAttachmentTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
-        # va_forms has FKs to va_research_projects and va_sites
-        if not db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID):
-            db.session.add(VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Base Research Project",
-                project_nickname="BaseResearch",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            ))
-            db.session.flush()
-
-        existing_site = db.session.scalar(
-            sa.select(VaSites).where(VaSites.site_id == cls.BASE_SITE_ID)
+        cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Base Research Project",
+            project_nickname="BaseResearch",
+            site_name="Base Test Site",
+            create_research_project=True,
+            now=now,
         )
-        if not existing_site:
-            db.session.add(VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Base Test Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            ))
-            db.session.flush()
-
-        db.session.add(VaForms(
+        cls._ensure_form_fixture(
             form_id=cls.FORM_ID,
             project_id=cls.BASE_PROJECT_ID,
             site_id=cls.BASE_SITE_ID,
             odk_form_id="SA_TEST_ODK",
             odk_project_id="99",
             form_type="WHO VA 2022",
-            form_status=VaStatuses.active,
-            form_registered_at=now,
-            form_updated_at=now,
-        ))
-        db.session.flush()
+            now=now,
+        )
 
         cls.submission = VaSubmissions(
             va_sid=str(uuid.uuid4()),

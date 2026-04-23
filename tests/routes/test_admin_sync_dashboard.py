@@ -21,63 +21,20 @@ from tests.base import BaseTestCase
 
 class AdminSyncDashboardTests(BaseTestCase):
     PROJECT_ID = "SADEMO"
-    SITE_ID = "SA01"
+    SITE_ID = "SD01"
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
 
-        db.session.add(
-            VaProjectMaster(
-                project_id=cls.PROJECT_ID,
-                project_code=cls.PROJECT_ID,
-                project_name="Social Autopsy Demo",
-                project_nickname="SADemo",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
+        cls._ensure_project_site_fixture(
+            project_id=cls.PROJECT_ID,
+            site_id=cls.SITE_ID,
+            project_name="Social Autopsy Demo",
+            project_nickname="SADemo",
+            site_name="Social Autopsy Site",
         )
-        db.session.flush()
-        db.session.add(
-            VaSiteMaster(
-                site_id=cls.SITE_ID,
-                site_name="Social Autopsy Site",
-                site_abbr=cls.SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.PROJECT_ID,
-                project_code=cls.PROJECT_ID,
-                project_name="Social Autopsy Demo",
-                project_nickname="SADemo",
-                project_status=VaStatuses.active,
-            )
-        )
-        db.session.add(
-            VaSites(
-                site_id=cls.SITE_ID,
-                project_id=cls.PROJECT_ID,
-                site_name="Social Autopsy Site",
-                site_abbr=cls.SITE_ID,
-                site_status=VaStatuses.active,
-            )
-        )
-        db.session.flush()
-        db.session.add(
-            VaProjectSites(
-                project_id=cls.PROJECT_ID,
-                site_id=cls.SITE_ID,
-                project_site_status=VaStatuses.active,
-            )
-        )
-        db.session.flush()
 
         social_form_type = db.session.scalar(
             db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA_SOCIAL")
@@ -99,7 +56,7 @@ class AdminSyncDashboardTests(BaseTestCase):
                 project_id=cls.PROJECT_ID,
                 site_id=cls.SITE_ID,
                 odk_project_id=17,
-                odk_form_id="SA01_SOCIAL_AUTOPSY",
+                odk_form_id="SD01_SOCIAL_AUTOPSY",
                 form_type_id=cls.social_form_type_id,
             )
         )

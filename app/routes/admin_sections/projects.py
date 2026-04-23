@@ -7,11 +7,11 @@ from app.authz.scope import user_has_role
 from app.decorators import role_required
 from app.models import VaProjectMaster, VaStatuses
 from app.routes.admin import admin
-from app.routes.admin_support.http import (
+from app.http.responses import (
     json_error as _json_error,
     validate_entity_id as _validate_entity_id,
 )
-from app.routes.admin_support.serializers import serialize_project as _serialize_project
+from app.serializers import serialize_project as _serialize_project
 
 
 @admin.get("/api/projects")

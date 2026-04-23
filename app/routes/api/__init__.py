@@ -40,3 +40,7 @@ api_v1.register_blueprint(dm_kpi_pipeline.bp, url_prefix="/analytics/dm-kpi/pipe
 api_v1.register_blueprint(dm_kpi_burndown.bp, url_prefix="/analytics/dm-kpi/burndown")
 api_v1.register_blueprint(dm_kpi_workflow.bp, url_prefix="/analytics/dm-kpi/workflow")
 api_v1.register_blueprint(dm_kpi_cache_bp, url_prefix="/analytics/dm-kpi")
+
+__all__ = [
+    "api_v1",
+]

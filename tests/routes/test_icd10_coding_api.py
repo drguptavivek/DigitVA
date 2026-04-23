@@ -8,9 +8,6 @@ from app.models import (
     MasIcd1020192,
     VaAllocation,
     VaAllocations,
-    VaForms,
-    VaResearchProjects,
-    VaSites,
     VaStatuses,
     VaSubmissions,
 )
@@ -24,52 +21,25 @@ class TestIcd10CodingApi(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        research_project = db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID)
-        if research_project is None:
-            db.session.add(
-                VaResearchProjects(
-                    project_id=cls.BASE_PROJECT_ID,
-                    project_code=cls.BASE_PROJECT_ID,
-                    project_name="Base Test Project",
-                    project_nickname="BaseTest",
-                    project_status=VaStatuses.active,
-                    project_registered_at=datetime.now(timezone.utc),
-                    project_updated_at=datetime.now(timezone.utc),
-                )
-            )
-            db.session.flush()
-
-        site = db.session.get(VaSites, cls.BASE_SITE_ID)
-        if site is None:
-            db.session.add(
-                VaSites(
-                    site_id=cls.BASE_SITE_ID,
-                    project_id=cls.BASE_PROJECT_ID,
-                    site_name="Base Test Site",
-                    site_abbr=cls.BASE_SITE_ID,
-                    site_status=VaStatuses.active,
-                    site_registered_at=datetime.now(timezone.utc),
-                    site_updated_at=datetime.now(timezone.utc),
-                )
-            )
-            db.session.flush()
-
-        form = db.session.get(VaForms, cls.FORM_ID)
-        if form is None:
-            db.session.add(
-                VaForms(
-                    form_id=cls.FORM_ID,
-                    project_id=cls.BASE_PROJECT_ID,
-                    site_id=cls.BASE_SITE_ID,
-                    odk_form_id="ICD_FORM",
-                    odk_project_id="1",
-                    form_type="WHO 2022 VA",
-                    form_status=VaStatuses.active,
-                    form_registered_at=datetime.now(timezone.utc),
-                    form_updated_at=datetime.now(timezone.utc),
-                )
-            )
-            db.session.flush()
+        now = datetime.now(timezone.utc)
+        cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Base Test Project",
+            project_nickname="BaseTest",
+            site_name="Base Test Site",
+            create_research_project=True,
+            now=now,
+        )
+        cls._ensure_form_fixture(
+            form_id=cls.FORM_ID,
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            odk_form_id="ICD_FORM",
+            odk_project_id="1",
+            form_type="WHO 2022 VA",
+            now=now,
+        )
         db.session.commit()
 
     def setUp(self):
@@ -101,6 +71,7 @@ class TestIcd10CodingApi(BaseTestCase):
             va_category_list=[],
         )
         db.session.add(submission)
+        db.session.flush()
         db.session.add(
             VaAllocations(
                 va_sid=self.SID,

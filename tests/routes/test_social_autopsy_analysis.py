@@ -35,6 +35,13 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Base Test Project",
+            project_nickname="BaseTest",
+            site_name="Base Test Site",
+        )
         form_type = db.session.scalar(
             db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA_SOCIAL")
         )
@@ -48,62 +55,15 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
             db.session.flush()
         cls.form_type_id = form_type.form_type_id
 
-        project_master = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
-        if not project_master:
-            db.session.add(
-                VaProjectMaster(
-                    project_id=cls.BASE_PROJECT_ID,
-                    project_code=cls.BASE_PROJECT_ID,
-                    project_name="Base Test Project",
-                    project_nickname="BaseTest",
-                    project_status=VaStatuses.active,
-                    project_registered_at=datetime.now(timezone.utc),
-                    project_updated_at=datetime.now(timezone.utc),
-                )
-            )
-
-        research_project = db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID)
-        if not research_project:
-            db.session.add(
-                VaResearchProjects(
-                    project_id=cls.BASE_PROJECT_ID,
-                    project_code=cls.BASE_PROJECT_ID,
-                    project_name="Base Test Project",
-                    project_nickname="BaseTest",
-                    project_status=VaStatuses.active,
-                    project_registered_at=datetime.now(timezone.utc),
-                    project_updated_at=datetime.now(timezone.utc),
-                )
-            )
-
-        site = db.session.get(VaSites, cls.BASE_SITE_ID)
-        if not site:
-            db.session.add(
-                VaSites(
-                    site_id=cls.BASE_SITE_ID,
-                    project_id=cls.BASE_PROJECT_ID,
-                    site_name="Base Test Site",
-                    site_abbr=cls.BASE_SITE_ID,
-                    site_status=VaStatuses.active,
-                    site_registered_at=datetime.now(timezone.utc),
-                    site_updated_at=datetime.now(timezone.utc),
-                )
-            )
-        db.session.flush()
-
-        form = VaForms(
+        form = cls._ensure_form_fixture(
             form_id="SAA01SA0101",
             project_id=cls.BASE_PROJECT_ID,
             site_id=cls.BASE_SITE_ID,
             odk_form_id="SOCIAL_FORM",
             odk_project_id="1",
             form_type="WHO 2022 VA Social",
-            form_type_id=cls.form_type_id,
-            form_status=VaStatuses.active,
-            form_registered_at=datetime.now(timezone.utc),
-            form_updated_at=datetime.now(timezone.utc),
         )
-        db.session.add(form)
+        form.form_type_id = cls.form_type_id
 
         submission = VaSubmissions(
             va_sid="uuid:test-social-analysis-saa01sa0101",

@@ -16,6 +16,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services.demo_project_service import get_coder_demo_project_form_ids
 
 from tests.base import BaseTestCase
 
@@ -177,6 +178,12 @@ class AuthGrantResolutionTests(BaseTestCase):
         db.session.flush()
         return grant
 
+    def _demo_coder_forms(self):
+        return set(get_coder_demo_project_form_ids())
+
+    def _expected_coder_forms(self, *granted_forms):
+        return set(granted_forms) | self._demo_coder_forms()
+
     def test_coder_project_site_grant_resolves_only_matching_form(self):
         user = self._create_user("test.auth.coder@example.com")
         self._grant(
@@ -188,7 +195,7 @@ class AuthGrantResolutionTests(BaseTestCase):
         )
         db.session.refresh(user)
 
-        self.assertEqual(user.get_coder_va_forms(), {self.form_a})
+        self.assertEqual(user.get_coder_va_forms(), self._expected_coder_forms(self.form_a))
         self.assertTrue(user.is_coder())
         self.assertTrue(user.has_va_form_access(self.form_a, "coder"))
         self.assertFalse(user.has_va_form_access(self.form_b, "coder"))
@@ -256,8 +263,9 @@ class AuthGrantResolutionTests(BaseTestCase):
         )
         db.session.refresh(user)
 
-        self.assertEqual(user.get_coder_va_forms(), set())
-        self.assertFalse(user.is_coder())
+        expected_forms = self._expected_coder_forms()
+        self.assertEqual(user.get_coder_va_forms(), expected_forms)
+        self.assertEqual(user.is_coder(), bool(expected_forms))
         self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
         self.assertFalse(user.has_va_form_access(self.form_a))
 
@@ -289,8 +297,9 @@ class AuthGrantResolutionTests(BaseTestCase):
         )
         db.session.refresh(user)
 
-        self.assertEqual(user.get_coder_va_forms(), set())
-        self.assertFalse(user.is_coder())
+        expected_forms = self._expected_coder_forms()
+        self.assertEqual(user.get_coder_va_forms(), expected_forms)
+        self.assertEqual(user.is_coder(), bool(expected_forms))
         self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
 
     def test_coder_project_grant_excludes_inactive_project_site_forms(self):
@@ -307,7 +316,7 @@ class AuthGrantResolutionTests(BaseTestCase):
         db.session.flush()
         db.session.refresh(user)
 
-        self.assertEqual(user.get_coder_va_forms(), {self.form_b})
+        self.assertEqual(user.get_coder_va_forms(), self._expected_coder_forms(self.form_b))
         self.assertTrue(user.is_coder())
         self.assertFalse(user.has_va_form_access(self.form_a, "coder"))
         self.assertTrue(user.has_va_form_access(self.form_b, "coder"))

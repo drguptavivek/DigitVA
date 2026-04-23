@@ -38,50 +38,33 @@ class TestNarrativeQaRoute(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        now = datetime.now(timezone.utc)
+        cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Narrative QA Legacy Project",
+            project_nickname="NarrativeQALegacy",
+            site_name="Narrative QA Legacy Site",
+            create_research_project=True,
+            now=now,
+        )
         project = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
         project.narrative_qa_enabled = True
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Narrative QA Legacy Project",
-                project_nickname="NarrativeQALegacy",
-                project_status=VaStatuses.active,
-                project_registered_at=datetime.now(timezone.utc),
-                project_updated_at=datetime.now(timezone.utc),
-            )
-        )
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Narrative QA Legacy Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=datetime.now(timezone.utc),
-                site_updated_at=datetime.now(timezone.utc),
-            )
-        )
-        db.session.flush()
-
-        form = VaForms(
+        form = cls._ensure_form_fixture(
             form_id=f"{cls.BASE_PROJECT_ID}{cls.BASE_SITE_ID}01",
             project_id=cls.BASE_PROJECT_ID,
             site_id=cls.BASE_SITE_ID,
             odk_form_id="NQA_FORM",
             odk_project_id="1",
             form_type="WHO 2022 VA",
-            form_status=VaStatuses.active,
-            form_registered_at=datetime.now(timezone.utc),
-            form_updated_at=datetime.now(timezone.utc),
+            now=now,
         )
-        db.session.add(form)
 
         submission = VaSubmissions(
             va_sid=f"uuid:test-nqa-{cls.BASE_PROJECT_ID.lower()}{cls.BASE_SITE_ID.lower()}01",
             va_form_id=form.form_id,
-            va_submission_date=datetime.now(timezone.utc),
-            va_odk_updatedat=datetime.now(timezone.utc),
+            va_submission_date=now,
+            va_odk_updatedat=now,
             va_data_collector="tester",
             va_odk_reviewstate=None,
             va_instance_name="NQA-1",

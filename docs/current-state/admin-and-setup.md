@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-22
+last_updated: 2026-04-23
 ---
 
 # Admin And Setup Model
@@ -12,7 +12,7 @@ last_updated: 2026-04-22
 
 The application includes a complete HTMX-driven admin UI under `/admin` for managing master data, users, access grants, ODK connections, and project configuration.
 
-The admin route layer is in a transitional split: [app/routes/admin.py](../../app/routes/admin.py) now mainly owns the shared `admin` blueprint and request guard, extracted route modules live under [app/routes/admin_sections](../../app/routes/admin_sections), and reusable route-support code lives under [app/routes/admin_support](../../app/routes/admin_support). The extracted admin section modules are `shell.py`, `projects.py`, `sites.py`, `languages.py`, `activity.py`, `users.py`, `access_grants.py`, `project_sites.py`, `project_pis.py`, `project_forms.py`, `odk_connections.py`, `field_mapping.py`, `cod_buckets.py`, `icd10_browser.py`, and `data_sync.py`. The support package currently groups HTTP helpers, auth/session helpers, serializers, grant/scope helpers, ODK helpers, field-mapping helpers, and activity-log helpers.
+The admin route layer is now mostly package-based: [app/routes/admin.py](../../app/routes/admin.py) mainly owns the shared `admin` blueprint and request guard, extracted route branches live under [app/routes/admin_sections](../../app/routes/admin_sections), admin-specific helper code lives under [app/admin_support](../../app/admin_support), app-wide HTTP helpers live under [app/http](../../app/http), and shared grant/scope helpers live under [app/authz](../../app/authz). The remaining flat admin section modules are `shell.py`, `projects.py`, `sites.py`, and `project_pis.py`. Admin subtree packages now cover [users](../../app/routes/admin_sections/users), [access_grants](../../app/routes/admin_sections/access_grants), [project_forms](../../app/routes/admin_sections/project_forms), [project_sites](../../app/routes/admin_sections/project_sites), [odk_connections](../../app/routes/admin_sections/odk_connections), [languages](../../app/routes/admin_sections/languages), [activity](../../app/routes/admin_sections/activity), [cod_buckets](../../app/routes/admin_sections/cod_buckets), [icd10_browser](../../app/routes/admin_sections/icd10_browser), [field_mapping](../../app/routes/admin_sections/field_mapping), and [data_sync](../../app/routes/admin_sections/data_sync). The compatibility shims under [app/routes/admin_support](../../app/routes/admin_support) remain only for legacy imports.
 
 The admin panel is accessible to authenticated users with the appropriate role. Some panels are admin-only; others are accessible to project PIs for their own project scope.
 

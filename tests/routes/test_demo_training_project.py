@@ -20,6 +20,7 @@ from app.models import (
     VaSubmissions,
     VaUsers,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 
@@ -123,6 +124,13 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
             )
         )
         db.session.flush()
+        submission = db.session.get(VaSubmissions, cls.DEMO_SID)
+        ensure_active_payload_version(
+            submission,
+            payload_data={"vademographicdetails": {}, "vacodassessment": {}},
+            source_updated_at=None,
+            created_by_role="vasystem",
+        )
         db.session.add(
             VaSubmissionWorkflow(
                 va_sid=cls.DEMO_SID,

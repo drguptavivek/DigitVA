@@ -137,7 +137,7 @@ def create_app(config_class=None):
 
     from app.routes import register_blueprints  
     register_blueprints(app)
-    from app.routes.va_errors import register_error_handlers
+    from app.http.errors import register_error_handlers
     register_error_handlers(app)
     from app.logging import va_logging
     va_logging(app)

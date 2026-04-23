@@ -3,14 +3,12 @@ from datetime import datetime, timezone
 from app import db
 from app.models import (
     VaFinalAssessments,
-    VaForms,
     VaInitialAssessments,
-    VaResearchProjects,
-    VaSites,
     VaStatuses,
     VaSubmissions,
 )
-from app.routes.va_form import _get_display_initial_assessment
+from app.routes.va_form import _get_display_initial_assessment, renderpartial
+from app.routes.workflow.forms.partials import renderpartial as workflow_renderpartial
 from tests.base import BaseTestCase
 
 
@@ -22,49 +20,24 @@ class CodingViewCodAssessmentTests(BaseTestCase):
         super().setUp()
         now = datetime.now(timezone.utc)
 
-        if db.session.get(VaResearchProjects, self.BASE_PROJECT_ID) is None:
-            db.session.add(
-                VaResearchProjects(
-                    project_id=self.BASE_PROJECT_ID,
-                    project_code=self.BASE_PROJECT_ID,
-                    project_name="Base Test Project",
-                    project_nickname="BaseTest",
-                    project_status=VaStatuses.active,
-                    project_registered_at=now,
-                    project_updated_at=now,
-                )
-            )
-            db.session.flush()
-
-        if db.session.get(VaSites, self.BASE_SITE_ID) is None:
-            db.session.add(
-                VaSites(
-                    site_id=self.BASE_SITE_ID,
-                    project_id=self.BASE_PROJECT_ID,
-                    site_name="Base Test Site",
-                    site_abbr=self.BASE_SITE_ID,
-                    site_status=VaStatuses.active,
-                    site_registered_at=now,
-                    site_updated_at=now,
-                )
-            )
-            db.session.flush()
-
-        if db.session.get(VaForms, self.FORM_ID) is None:
-            db.session.add(
-                VaForms(
-                    form_id=self.FORM_ID,
-                    project_id=self.BASE_PROJECT_ID,
-                    site_id=self.BASE_SITE_ID,
-                    odk_form_id="BASE_FORM",
-                    odk_project_id="1",
-                    form_type="WHO VA 2022",
-                    form_status=VaStatuses.active,
-                    form_registered_at=now,
-                    form_updated_at=now,
-                )
-            )
-            db.session.flush()
+        self._ensure_project_site_fixture(
+            project_id=self.BASE_PROJECT_ID,
+            site_id=self.BASE_SITE_ID,
+            project_name="Base Test Project",
+            project_nickname="BaseTest",
+            site_name="Base Test Site",
+            create_research_project=True,
+            now=now,
+        )
+        self._ensure_form_fixture(
+            form_id=self.FORM_ID,
+            project_id=self.BASE_PROJECT_ID,
+            site_id=self.BASE_SITE_ID,
+            odk_form_id="BASE_FORM",
+            odk_project_id="1",
+            form_type="WHO VA 2022",
+            now=now,
+        )
 
         if db.session.get(VaSubmissions, self.SID) is None:
             db.session.add(
@@ -109,6 +82,9 @@ class CodingViewCodAssessmentTests(BaseTestCase):
         self.assertIsNotNone(resolved)
         self.assertEqual(resolved.va_iniassess_id, active_initial.va_iniassess_id)
         self.assertEqual(resolved.va_other_conditions, "Active Condition")
+
+    def test_va_form_compat_module_reexports_renderpartial(self):
+        self.assertIs(renderpartial, workflow_renderpartial)
 
     def test_display_initial_assessment_falls_back_to_final_linked_source(self):
         now = datetime.now(timezone.utc)

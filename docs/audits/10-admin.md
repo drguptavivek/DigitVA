@@ -3,7 +3,7 @@ title: "Route Audit — admin Blueprint"
 doc_type: audit
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-23
 ---
 
 # admin Blueprint Audit
@@ -12,7 +12,12 @@ last_updated: 2026-04-19
 **URL Prefix:** `/admin`
 **Registration:** `app.register_blueprint(admin, url_prefix="/admin")`
 
-This is the largest blueprint (~4900 lines, ~94 routes). Routes are split into:
+This is the largest blueprint (~4900 lines, ~94 routes). The blueprint now
+registers route slices from subtree packages under `app/routes/admin_sections/`
+for data sync, field mapping, users, access grants, project-form mapping,
+project-site management, language management, activity-log views, ODK
+connection management, ICD-10 browser routes, and COD bucket routes.
+Routes are split into:
 1. **Admin API routes** (`/admin/api/...`) — JSON, gated by `@role_required()`
 2. **Admin UI panel routes** (`/admin/panels/...`) — HTML, gated by `@role_required()`
 3. **Field mapping routes** — Admin-only configuration
@@ -53,7 +58,7 @@ This is the largest blueprint (~4900 lines, ~94 routes). Routes are split into:
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 13 | GET | `/admin/api/users` | `@role_required("admin","project_pi")` | admin, project_pi | PI: active users only | No |
+| 13 | GET | `/admin/api/users` | `@role_required("admin")` | admin only | Global | No |
 | 14 | POST | `/admin/api/users` | `@role_required("admin")` | admin only | Global | Yes |
 | 15 | PUT | `/admin/api/users/<uuid>` | `@role_required("admin")` | admin only | Global | Yes |
 | 16 | POST | `/admin/api/users/<uuid>/toggle` | `@role_required("admin")` | admin only | Global | Yes |
@@ -62,10 +67,10 @@ This is the largest blueprint (~4900 lines, ~94 routes). Routes are split into:
 
 | # | Method | Path | Decorator | Roles | Scope | Mutates |
 |---|--------|------|-----------|-------|-------|---------|
-| 17 | GET | `/admin/api/access-grants` | `@role_required("admin","project_pi")` | admin, project_pi | `_project_access_filter()` | No |
-| 18 | GET | `/admin/api/access-grants/orphaned` | `@role_required("admin","project_pi")` | admin, project_pi | `_project_access_filter()` | No |
-| 19 | POST | `/admin/api/access-grants` | `@role_required("admin","project_pi")` | admin, project_pi | PI: cannot manage admin/pi grants | Yes |
-| 20 | POST | `/admin/api/access-grants/<uuid>/toggle` | `@role_required("admin","project_pi")` | admin, project_pi | PI: cannot toggle admin/pi grants | Yes |
+| 17 | GET | `/admin/api/access-grants` | `@role_required("admin")` | admin only | Global | No |
+| 18 | GET | `/admin/api/access-grants/orphaned` | `@role_required("admin")` | admin only | Global | No |
+| 19 | POST | `/admin/api/access-grants` | `@role_required("admin")` | admin only | Global | Yes |
+| 20 | POST | `/admin/api/access-grants/<uuid>/toggle` | `@role_required("admin")` | admin only | Global | Yes |
 
 ## API Routes — ODK Connections
 

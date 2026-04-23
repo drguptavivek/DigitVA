@@ -13,14 +13,13 @@ Per-class setup (BaseTestCase.setUpClass):
   - Seeds base fixtures idempotently (shared across all classes in the session).
   - Subclass fixtures use unique IDs and accumulate harmlessly; schema is dropped at session end.
 
-Per-test isolation (savepoint rollback):
-  - setUp: open a PostgreSQL SAVEPOINT via db.session.begin_nested()
-  - tearDown: ROLLBACK TO SAVEPOINT — removes all test data automatically
-  No manual DELETE queries are needed in test setUp/tearDown methods.
+Per-test isolation (outer transaction + nested savepoint):
+  - setUp: bind db.session to a dedicated connection, open an outer
+    transaction, then open a nested savepoint
+  - tearDown: remove the scoped session and roll back the outer transaction
 
-  This works because in our pushed-app-context test environment, Flask test
-  client requests share the same scoped db.session as the test body, so the
-  savepoint covers both direct ORM writes and data created through HTTP routes.
+  This keeps route code free to call db.session.commit() while still ensuring
+  that all writes are discarded at the end of each test.
 
 Standard fixtures available on every test class (via class attributes):
   - base_admin_user / base_admin_id         — global admin
@@ -55,9 +54,12 @@ from app import db
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaForms,
     VaProjectMaster,
     VaProjectSites,
+    VaResearchProjects,
     VaSiteMaster,
+    VaSites,
     VaStatuses,
     VaUserAccessGrants,
     VaUsers,
@@ -91,6 +93,7 @@ class BaseTestCase(unittest.TestCase):
         from flask import current_app
         cls.app = current_app._get_current_object()
         cls.ctx = None  # context is managed by conftest; do not push/pop per class
+        db.session().expire_on_commit = False
 
         # _seed_base_fixtures is idempotent: safe to call once per class.
         # Base fixtures (BASE_PROJECT_ID, BASE_SITE_ID, 3 users) are shared across
@@ -114,51 +117,13 @@ class BaseTestCase(unittest.TestCase):
         This allows all test classes to share a single copy of the base fixtures for the
         whole pytest session without unique-constraint conflicts.
         """
-        now = datetime.now(timezone.utc)
-
-        project = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
-        if project is None:
-            project = VaProjectMaster(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Base Test Project",
-                project_nickname="BaseTest",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
-            db.session.add(project)
-            db.session.flush()
-
-        site = db.session.get(VaSiteMaster, cls.BASE_SITE_ID)
-        if site is None:
-            site = VaSiteMaster(
-                site_id=cls.BASE_SITE_ID,
-                site_name="Base Test Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-            db.session.add(site)
-            db.session.flush()
-
-        project_site = db.session.scalar(
-            sa.select(VaProjectSites).where(
-                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
-                VaProjectSites.site_id == cls.BASE_SITE_ID,
-            )
+        project_site = cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Base Test Project",
+            project_nickname="BaseTest",
+            site_name="Base Test Site",
         )
-        if project_site is None:
-            project_site = VaProjectSites(
-                project_id=cls.BASE_PROJECT_ID,
-                site_id=cls.BASE_SITE_ID,
-                project_site_status=VaStatuses.active,
-                project_site_registered_at=now,
-                project_site_updated_at=now,
-            )
-            db.session.add(project_site)
-            db.session.flush()
 
         cls.base_admin_user = cls._get_or_make_user("base.admin@test.local", "BaseAdmin123")
         cls.base_project_pi_user = cls._get_or_make_user("base.project_pi@test.local", "BaseProjectPi123")
@@ -184,6 +149,7 @@ class BaseTestCase(unittest.TestCase):
             sa.select(VaUserAccessGrants).where(
                 VaUserAccessGrants.user_id == cls.base_project_pi_user.user_id,
                 VaUserAccessGrants.role == VaAccessRoles.project_pi,
+                VaUserAccessGrants.project_id == cls.BASE_PROJECT_ID,
             )
         )
         if pi_grant is None:
@@ -200,6 +166,7 @@ class BaseTestCase(unittest.TestCase):
             sa.select(VaUserAccessGrants).where(
                 VaUserAccessGrants.user_id == cls.base_coder_user.user_id,
                 VaUserAccessGrants.role == VaAccessRoles.coder,
+                VaUserAccessGrants.project_site_id == project_site.project_site_id,
             )
         )
         if coder_grant is None:
@@ -217,6 +184,134 @@ class BaseTestCase(unittest.TestCase):
         cls.base_admin_id = str(cls.base_admin_user.user_id)
         cls.base_project_pi_id = str(cls.base_project_pi_user.user_id)
         cls.base_coder_id = str(cls.base_coder_user.user_id)
+
+    @classmethod
+    def _ensure_project_site_fixture(
+        cls,
+        *,
+        project_id,
+        site_id,
+        project_name,
+        project_nickname,
+        site_name,
+        site_abbr=None,
+        create_research_project=True,
+        now=None,
+    ):
+        """Create or reuse a project/site/runtime scope graph for route tests."""
+        now = now or datetime.now(timezone.utc)
+        site_abbr = site_abbr or site_id
+
+        project = db.session.get(VaProjectMaster, project_id)
+        if project is None:
+            project = VaProjectMaster(
+                project_id=project_id,
+                project_code=project_id,
+                project_name=project_name,
+                project_nickname=project_nickname,
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+            db.session.add(project)
+            db.session.flush()
+
+        if create_research_project:
+            research_project = db.session.get(VaResearchProjects, project_id)
+            if research_project is None:
+                research_project = VaResearchProjects(
+                    project_id=project_id,
+                    project_code=project_id,
+                    project_name=project_name,
+                    project_nickname=project_nickname,
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
+                db.session.add(research_project)
+                db.session.flush()
+
+        site_master = db.session.get(VaSiteMaster, site_id)
+        if site_master is None:
+            site_master = VaSiteMaster(
+                site_id=site_id,
+                site_name=site_name,
+                site_abbr=site_abbr,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+            db.session.add(site_master)
+            db.session.flush()
+
+        site = db.session.get(VaSites, site_id)
+        if site is not None and site.project_id != project_id:
+            raise AssertionError(
+                f"Test fixture site_id {site_id!r} is already bound to project "
+                f"{site.project_id!r}; choose a globally unique site_id for {project_id!r}."
+            )
+        if site is None:
+            site = VaSites(
+                site_id=site_id,
+                project_id=project_id,
+                site_name=site_name,
+                site_abbr=site_abbr,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+            db.session.add(site)
+            db.session.flush()
+
+        project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == project_id,
+                VaProjectSites.site_id == site_id,
+            )
+        )
+        if project_site is None:
+            project_site = VaProjectSites(
+                project_id=project_id,
+                site_id=site_id,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+            db.session.add(project_site)
+            db.session.flush()
+
+        return project_site
+
+    @classmethod
+    def _ensure_form_fixture(
+        cls,
+        *,
+        form_id,
+        project_id,
+        site_id,
+        odk_form_id,
+        odk_project_id,
+        form_type,
+        now=None,
+    ):
+        """Create or reuse a form fixture keyed by form_id."""
+        now = now or datetime.now(timezone.utc)
+        form = db.session.get(VaForms, form_id)
+        if form is None:
+            form = VaForms(
+                form_id=form_id,
+                project_id=project_id,
+                site_id=site_id,
+                odk_form_id=odk_form_id,
+                odk_project_id=odk_project_id,
+                form_type=form_type,
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+            db.session.add(form)
+            db.session.flush()
+        return form
 
     @classmethod
     def _get_or_make_user(cls, email, password):
@@ -249,12 +344,24 @@ class BaseTestCase(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def setUp(self):
-        # Begin a nested transaction (SAVEPOINT).  Any commit() inside this
-        # test — whether from test code or from an HTTP route — only releases
-        # the savepoint back to the outer transaction; nothing is permanently
-        # written to the DB until that outer transaction commits (which it
-        # never does in tests).  tearDown rolls back the outer transaction.
+        # Use a dedicated connection + outer transaction per test so route
+        # handlers may call db.session.commit() without leaking data into
+        # later tests in the same session-scoped schema.
+        self._connection = db.engine.connect()
+        self._outer_transaction = self._connection.begin()
+        db.session.remove()
+        db.session.configure(bind=self._connection)
         db.session.begin_nested()
+
+        self._session = db.session()
+
+        @sa.event.listens_for(self._session, "after_transaction_end")
+        def _restart_savepoint(session, transaction):
+            parent = getattr(transaction, "_parent", None)
+            if transaction.nested and (parent is None or not parent.nested):
+                session.begin_nested()
+        self._restart_savepoint = _restart_savepoint
+
         # Flask 3.1 keeps g attached to the session-scoped app context used in
         # tests. Flask-Login caches the loaded user in g._login_user, so clear
         # it here to prevent auth leakage between requests in different tests.
@@ -265,11 +372,11 @@ class BaseTestCase(unittest.TestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
-        # Roll back the outer transaction.  This undoes all writes made during
-        # this test regardless of whether they came from direct ORM calls or
-        # from HTTP routes that called db.session.commit() (which only released
-        # the savepoint, not the outer transaction).
-        db.session.rollback()
+        sa.event.remove(self._session, "after_transaction_end", self._restart_savepoint)
+        db.session.remove()
+        self._outer_transaction.rollback()
+        self._connection.close()
+        db.session.configure(bind=db.engine)
         db.session.expire_all()
 
     # ------------------------------------------------------------------

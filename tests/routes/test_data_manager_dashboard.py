@@ -68,44 +68,24 @@ class DataManagerDashboardTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Base Test Project",
-                project_nickname="BaseTest",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
+        cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Base Test Project",
+            project_nickname="BaseTest",
+            site_name="Base Test Site",
+            create_research_project=True,
+            now=now,
         )
-        db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Base Test Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
+        cls._ensure_form_fixture(
+            form_id=cls.FORM_ID,
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            odk_form_id="DM_DASHBOARD_FORM",
+            odk_project_id="11",
+            form_type="WHO VA 2022",
+            now=now,
         )
-        db.session.flush()
-        db.session.add(
-            VaForms(
-                form_id=cls.FORM_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_id=cls.BASE_SITE_ID,
-                odk_form_id="DM_DASHBOARD_FORM",
-                odk_project_id="11",
-                form_type="WHO VA 2022",
-                form_status=VaStatuses.active,
-                form_registered_at=now,
-                form_updated_at=now,
-            )
-        )
-        db.session.flush()
         db.session.add(
             MapProjectSiteOdk(
                 project_id=cls.BASE_PROJECT_ID,
@@ -190,75 +170,24 @@ class DataManagerDashboardTests(BaseTestCase):
                 workflow_updated_by_role="vasystem",
             )
         )
-        db.session.add(
-            VaProjectMaster(
-                project_id=cls.OUT_PROJECT_ID,
-                project_code=cls.OUT_PROJECT_ID,
-                project_name="Out Of Scope Project",
-                project_nickname="OutScope",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
+        cls._ensure_project_site_fixture(
+            project_id=cls.OUT_PROJECT_ID,
+            site_id=cls.OUT_SITE_ID,
+            project_name="Out Of Scope Project",
+            project_nickname="OutScope",
+            site_name="Out Of Scope Site",
+            create_research_project=True,
+            now=now,
         )
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.OUT_PROJECT_ID,
-                project_code=cls.OUT_PROJECT_ID,
-                project_name="Out Of Scope Project",
-                project_nickname="OutScope",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
+        cls._ensure_form_fixture(
+            form_id=cls.OUT_FORM_ID,
+            project_id=cls.OUT_PROJECT_ID,
+            site_id=cls.OUT_SITE_ID,
+            odk_form_id="DM_OUT_FORM",
+            odk_project_id="12",
+            form_type="WHO VA 2022",
+            now=now,
         )
-        db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=cls.OUT_SITE_ID,
-                project_id=cls.OUT_PROJECT_ID,
-                site_name="Out Of Scope Site",
-                site_abbr=cls.OUT_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
-        db.session.add(
-            VaSiteMaster(
-                site_id=cls.OUT_SITE_ID,
-                site_name="Out Of Scope Site",
-                site_abbr=cls.OUT_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
-        db.session.add(
-            VaProjectSites(
-                project_id=cls.OUT_PROJECT_ID,
-                site_id=cls.OUT_SITE_ID,
-                project_site_status=VaStatuses.active,
-                project_site_registered_at=now,
-                project_site_updated_at=now,
-            )
-        )
-        db.session.add(
-            VaForms(
-                form_id=cls.OUT_FORM_ID,
-                project_id=cls.OUT_PROJECT_ID,
-                site_id=cls.OUT_SITE_ID,
-                odk_form_id="DM_OUT_FORM",
-                odk_project_id="12",
-                form_type="WHO VA 2022",
-                form_status=VaStatuses.active,
-                form_registered_at=now,
-                form_updated_at=now,
-            )
-        )
-        db.session.flush()
         db.session.add(
             VaSubmissions(
                 va_sid=cls.OUT_SID,

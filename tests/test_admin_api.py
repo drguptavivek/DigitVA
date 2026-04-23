@@ -259,6 +259,94 @@ class AdminApiTests(BaseTestCase):
         self.target_id = str(self.target.user_id)
         self.viewer_id = str(self.viewer.user_id)
         self.admin_user_id = str(self.admin_user.user_id)
+        self._reset_runtime_baseline()
+
+    def _reset_runtime_baseline(self):
+        now = datetime.now(timezone.utc)
+        site_a_project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.project_id,
+                VaProjectSites.site_id == self.site_a,
+            )
+        )
+        if site_a_project_site is None:
+            db.session.add(
+                VaProjectSites(
+                    project_id=self.project_id,
+                    site_id=self.site_a,
+                    project_site_status=VaStatuses.active,
+                    project_site_registered_at=now,
+                    project_site_updated_at=now,
+                )
+            )
+        else:
+            site_a_project_site.project_site_status = VaStatuses.active
+
+        db.session.execute(
+            sa.delete(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.project_id,
+                MapProjectSiteOdk.site_id == self.site_b,
+            )
+        )
+        db.session.execute(
+            sa.delete(VaForms).where(
+                VaForms.project_id == self.project_id,
+                VaForms.site_id == self.site_b,
+            )
+        )
+        site_b_project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.project_id,
+                VaProjectSites.site_id == self.site_b,
+            )
+        )
+        if site_b_project_site is not None:
+            db.session.delete(site_b_project_site)
+
+        site_a_mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.project_id,
+                MapProjectSiteOdk.site_id == self.site_a,
+            )
+        )
+        if site_a_mapping is None:
+            db.session.add(
+                MapProjectSiteOdk(
+                    project_id=self.project_id,
+                    site_id=self.site_a,
+                    odk_project_id=11,
+                    odk_form_id="ADMIN_API_FORM_A",
+                    form_type_id=None,
+                )
+            )
+        else:
+            site_a_mapping.odk_project_id = 11
+            site_a_mapping.odk_form_id = "ADMIN_API_FORM_A"
+
+        baseline_form = db.session.get(VaForms, "ADM001AA0101")
+        if baseline_form is None:
+            db.session.add(
+                VaForms(
+                    form_id="ADM001AA0101",
+                    project_id=self.project_id,
+                    site_id=self.site_a,
+                    odk_form_id="ADMIN_API_FORM_A",
+                    odk_project_id="11",
+                    form_type="WHO VA 2022",
+                    form_status=VaStatuses.active,
+                    form_registered_at=now,
+                    form_updated_at=now,
+                )
+            )
+        else:
+            baseline_form.project_id = self.project_id
+            baseline_form.site_id = self.site_a
+            baseline_form.odk_form_id = "ADMIN_API_FORM_A"
+            baseline_form.odk_project_id = "11"
+            baseline_form.form_type = "WHO VA 2022"
+            baseline_form.form_status = VaStatuses.active
+
+        db.session.commit()
 
     def _create_user(self, email):
         user = VaUsers(
@@ -1427,11 +1515,10 @@ class AdminApiTests(BaseTestCase):
     def test_sync_status_returns_null_schedule_when_beat_tables_missing(self):
         self._login(self.admin_user_id)
 
-        with patch("app.routes.admin_sections.data_sync.db.engine.connect") as mocked_connect:
-            mocked_conn = MagicMock()
-            mocked_connect.return_value.__enter__.return_value = mocked_conn
-            mocked_conn.execute.return_value.scalar.return_value = False
-
+        with patch(
+            "app.routes.admin_sections.data_sync._get_sync_schedule_hours",
+            return_value=None,
+        ):
             response = self.client.get("/admin/api/sync/status")
 
         self.assertEqual(response.status_code, 200)

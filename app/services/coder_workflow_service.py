@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.services.coding_allocation_service import release_stale_coding_allocations
 from app.services.demo_project_service import (
+    get_demo_training_project_ids,
     is_demo_training_submission,
     should_use_demo_actiontype_for_submission,
 )
@@ -339,6 +340,29 @@ def _actiontype_for_submission(va_sid: str, default_actiontype: str) -> str:
     return default_actiontype
 
 
+def _prefer_non_demo_random_forms(
+    form_ids: set[str],
+    *,
+    project_id: str | None,
+) -> set[str]:
+    """Keep demo forms in the generic random pool only when they are the only option."""
+    if project_id or not form_ids:
+        return form_ids
+
+    demo_project_ids = set(get_demo_training_project_ids(form_ids))
+    if not demo_project_ids:
+        return form_ids
+
+    non_demo_form_ids = {
+        form_id
+        for form_id, form_project_id in db.session.execute(
+            sa.select(VaForms.form_id, VaForms.project_id).where(VaForms.form_id.in_(form_ids))
+        )
+        if form_project_id not in demo_project_ids
+    }
+    return non_demo_form_ids or form_ids
+
+
 def _require_submission_exists(va_sid: str):
     row = db.session.execute(
         sa.select(
@@ -431,6 +455,7 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
 
     all_form_ids = user.get_coder_va_forms() | user.get_coding_tester_va_forms()
     random_form_ids, _ = split_form_ids_by_coding_intake_mode(all_form_ids)
+    random_form_ids = _prefer_non_demo_random_forms(random_form_ids, project_id=project_id)
     if not random_form_ids:
         raise AllocationError("No random-allocation coding projects are available to you.")
 

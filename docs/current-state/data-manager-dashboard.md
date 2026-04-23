@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-22
 ---
 
 # Data Manager Dashboard
@@ -344,7 +344,8 @@ for the full policy baseline.
 
 Main route and query logic:
 
-- [data_management.py](../../app/routes/data_management.py)
+- [app/routes/operations/data_management/](../../app/routes/operations/data_management)
+- [app/routes/api/data_management/](../../app/routes/api/data_management)
 
 Template and client-side behavior:
 

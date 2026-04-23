@@ -3,7 +3,7 @@ title: Access Control Route Inventory
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-22
+last_updated: 2026-04-23
 ---
 
 # Access Control Route Inventory
@@ -202,6 +202,11 @@ Current scope pattern:
 - CoD dashboard page now uses reporting scope, not only data-manager scope
 - user/grant management mixes scoped grant controls with some global target-user
   visibility
+- the route surface is now split between `app/routes/operations/data_management/`
+  for HTML/dashboard handlers and `app/routes/api/data_management/` for JSON
+  endpoints
+- the data-manager user/grant branch now has its own subtree under
+  `app/routes/operations/data_management/user_management/`
 
 Current user/grant management status:
 
@@ -475,6 +480,11 @@ Current scope pattern:
 - `app/models/va_users.py`
 - `app/models/va_user_access_grants.py`
 - `app/routes/`
+- `app/routes/auth/`, `app/routes/profile/`, `app/routes/home/`, and `app/routes/helpers/`
+- `app/http/` for web-facing error handling and HTTP response helpers
+- `app/authz/grants.py` for shared grant/scope resolution helpers
+- `app/routes/workflow/`
+- `app/routes/operations/`
 - `app/routes/api/`
 - `docs/policy/access-control-model.md`
 - `docs/planning/access-control-grants-design.md`

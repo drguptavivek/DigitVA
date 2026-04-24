@@ -1,13 +1,10 @@
-"""Support helpers for admin and adjacent route modules."""
+"""Admin-specific support helpers."""
 
-from . import activity, auth, field_mapping, grants, http, odk, serializers
+from . import activity, auth, field_mapping, odk
 
 __all__ = [
     "activity",
     "auth",
     "field_mapping",
-    "grants",
-    "http",
     "odk",
-    "serializers",
 ]

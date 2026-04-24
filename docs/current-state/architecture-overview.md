@@ -53,6 +53,8 @@ Main code areas:
   - app-level error handling and HTTP response helpers
 - `app/authz`
   - authorization policy, resource access, and shared grant/scope helpers
+- `app/serializers`
+  - response payload serializers grouped by domain
 - `app/utils`
   - shared helper logic for ODK, preprocessing, rendering, permissions, SmartVA, and mapping consumers
 - `app/templates`

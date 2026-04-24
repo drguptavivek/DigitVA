@@ -3,13 +3,13 @@ import app.routes.data_management as legacy_data_management
 import app.routes.health as legacy_health
 import app.routes.profile as legacy_profile
 import app.routes.reviewing as legacy_reviewing
-import app.routes.admin_support as legacy_admin_support
 import app.routes.sitepi as legacy_sitepi
 import app.routes.va_auth as legacy_auth
 import app.routes.va_main as legacy_public
-import app.admin_support as admin_support
+from pathlib import Path
+
+from app.http import errors as http_errors
 from app.routes import auth as route_auth
-from app.routes import errors as route_errors
 from app.routes import health as route_health
 from app.routes import home as route_home
 from app.routes import profile as route_profile
@@ -54,17 +54,32 @@ class RoutePackageExportTests(BaseTestCase):
         self.assertTrue(hasattr(route_home, "va_index"))
         self.assertTrue(hasattr(route_profile, "profile"))
         self.assertTrue(hasattr(route_profile, "force_password_change"))
-        self.assertTrue(hasattr(route_errors, "register_error_handlers"))
+        self.assertTrue(hasattr(http_errors, "register_error_handlers"))
         self.assertTrue(hasattr(route_helpers, "active_session_required"))
 
-    def test_admin_support_shims_alias_live_modules(self):
-        self.assertIs(legacy_admin_support.activity, admin_support.activity)
-        self.assertIs(legacy_admin_support.auth, admin_support.auth)
-        self.assertIs(legacy_admin_support.field_mapping, admin_support.field_mapping)
-        self.assertIs(legacy_admin_support.grants, admin_support.grants)
-        self.assertIs(legacy_admin_support.http, admin_support.http)
-        self.assertIs(legacy_admin_support.odk, admin_support.odk)
-        self.assertIs(legacy_admin_support.serializers, admin_support.serializers)
+    def test_deprecated_route_support_imports_are_not_reintroduced(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        deprecated_imports = (
+            "app.routes.admin_support",
+            "app.admin_support.http",
+            "app.admin_support.grants",
+            "app.admin_support.serializers",
+            "app.routes.errors",
+        )
+        ignored_dirs = {".git", ".venv", "__pycache__"}
+
+        for path in repo_root.rglob("*.py"):
+            if path == Path(__file__).resolve():
+                continue
+            if ignored_dirs.intersection(path.parts):
+                continue
+            text = path.read_text()
+            for deprecated_import in deprecated_imports:
+                self.assertNotIn(
+                    deprecated_import,
+                    text,
+                    msg=f"{path.relative_to(repo_root)} imports {deprecated_import}",
+                )
 
     def test_workflow_forms_package_exports_stable_patch_points(self):
         self.assertIs(workflow_forms.renderpartial, workflow_renderpartial)

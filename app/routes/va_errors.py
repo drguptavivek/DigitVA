@@ -2,6 +2,6 @@
 
 import sys
 
-from app.routes import errors as _impl
+from app.http import errors as _impl
 
 sys.modules[__name__] = _impl

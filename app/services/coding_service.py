@@ -6,30 +6,13 @@ Used by:
 """
 
 import logging
-import sqlalchemy as sa
 from app import db, cache as flask_cache
-from app.models import VaSubmissions
 from app.models.va_forms import VaForms
 from app.models.va_project_master import VaProjectMaster
 
 log = logging.getLogger(__name__)
 
 OPEN_REPAIR_QUEUE_TTL_SECONDS = 120
-
-
-def get_project_for_submission(va_sid: str):
-    """Return the VaProjectMaster for a submission, or None."""
-    form_id = db.session.scalar(
-        sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == va_sid)
-    )
-    if not form_id:
-        return None
-    project_id = db.session.scalar(
-        sa.select(VaForms.project_id).where(VaForms.form_id == form_id)
-    )
-    if not project_id:
-        return None
-    return db.session.get(VaProjectMaster, project_id)
 
 
 from typing import TYPE_CHECKING

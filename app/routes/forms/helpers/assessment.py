@@ -5,12 +5,14 @@ from flask_login import current_user
 
 from app import db
 from app.models import VaInitialAssessments, VaStatuses
-from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.demo_project_service import get_demo_expiry_for_submission
 from app.services.final_cod_authority_service import get_authoritative_final_assessment
 from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_narrative_assessment,
     get_current_payload_social_autopsy_analysis,
+)
+from app.services.submission_project_service import (
+    get_project_for_submission as _get_project_for_submission,
 )
 
 

@@ -32,7 +32,7 @@ from app.services.payload_bound_coding_artifact_service import (
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
 )
-from app.services.coding_service import get_project_for_submission
+from app.services.submission_project_service import get_project_for_submission
 from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
 
 bp = Blueprint("so_api", __name__)

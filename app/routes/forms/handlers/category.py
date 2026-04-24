@@ -242,7 +242,7 @@ def handle_category_partial(va_sid, va_partial, va_action, va_actiontype, va_sub
     )
     _nqa_project = None
     if va_partial == "vanarrationanddocuments":
-        from app.services.coding_service import get_project_for_submission
+        from app.services.submission_project_service import get_project_for_submission
 
         _nqa_project = get_project_for_submission(va_sid)
     narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)

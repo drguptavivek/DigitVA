@@ -13,8 +13,8 @@ from app.models import (
     VaProjectMaster,
     VaStatuses,
     VaSubmissionWorkflowEvent,
-    VaSubmissions,
 )
+from app.services.submission_project_service import get_project_for_submission
 from app.services.workflow.definition import TRANSITION_DEMO_RESET, TRANSITION_DEMO_STARTED
 
 
@@ -59,26 +59,6 @@ def get_demo_project_retention_minutes(project: VaProjectMaster | None) -> int:
     if not project or not project.demo_retention_minutes:
         return DEFAULT_DEMO_PROJECT_RETENTION_MINUTES
     return max(int(project.demo_retention_minutes), 1)
-
-
-def get_project_for_form(form_id: str | None) -> VaProjectMaster | None:
-    if not form_id or not demo_project_schema_ready():
-        return None
-    project_id = db.session.scalar(
-        sa.select(VaForms.project_id).where(VaForms.form_id == form_id)
-    )
-    if not project_id:
-        return None
-    return db.session.get(VaProjectMaster, project_id)
-
-
-def get_project_for_submission(va_sid: str | None) -> VaProjectMaster | None:
-    if not va_sid or not demo_project_schema_ready():
-        return None
-    form_id = db.session.scalar(
-        sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == va_sid)
-    )
-    return get_project_for_form(form_id)
 
 
 def get_demo_expiry_for_submission(

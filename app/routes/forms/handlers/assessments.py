@@ -370,7 +370,7 @@ def handle_final_assessment(va_sid, va_partial, va_action, va_actiontype):
 
     if form1.validate_on_submit():
         blocking_messages: list[str] = []
-        from app.services.coding_service import get_project_for_submission
+        from app.services.submission_project_service import get_project_for_submission
         from app.services.category_rendering_service import (
             get_category_rendering_service,
             get_visible_category_codes,

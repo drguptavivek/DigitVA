@@ -8,7 +8,7 @@ from app.models import (
     VaSubmissions,
 )
 from app.routes.va_form import _get_display_initial_assessment, renderpartial
-from app.routes.workflow.forms.partials import renderpartial as workflow_renderpartial
+from app.routes.forms.partials import renderpartial as forms_renderpartial
 from tests.base import BaseTestCase
 
 
@@ -84,7 +84,7 @@ class CodingViewCodAssessmentTests(BaseTestCase):
         self.assertEqual(resolved.va_other_conditions, "Active Condition")
 
     def test_va_form_compat_module_reexports_renderpartial(self):
-        self.assertIs(renderpartial, workflow_renderpartial)
+        self.assertIs(renderpartial, forms_renderpartial)
 
     def test_display_initial_assessment_falls_back_to_final_linked_source(self):
         now = datetime.now(timezone.utc)

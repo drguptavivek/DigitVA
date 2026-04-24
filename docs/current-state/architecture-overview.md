@@ -3,7 +3,7 @@ title: Architecture Overview
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-23
+last_updated: 2026-04-24
 ---
 
 # Architecture Overview
@@ -34,17 +34,20 @@ Main code areas:
     plus the existing `admin_sections/` packages
   - shared route helpers now live in `helpers/`
   - heavier route surfaces are now being split into domain packages such as
-    `workflow/forms/`, `operations/data_management/`,
+    `workflow/coding/`, `workflow/reviewing/`, `forms/`, `attachments/`,
+    `operations/data_management/`,
     `operations/data_management/user_management/`,
     `api/data_management/`, `admin_sections/data_sync/`, and
     `admin_sections/field_mapping/`
   - the VA form partial route now keeps a thin entrypoint in
-    `workflow/forms/partials.py`, with branch handlers split into
-    `workflow/forms/handlers/category.py` and
-    `workflow/forms/handlers/assessments.py`
-  - the `workflow/forms/` subtree now also splits attachment routes into
-    `workflow/forms/attachments/` and shared route support into
-    `workflow/forms/helpers/`
+    `forms/partials.py`, with branch handlers split into
+    `forms/handlers/category.py` and `forms/handlers/assessments.py`
+  - attachment and legacy media file-serving routes live in `attachments/`
+    while preserving the existing `/vaform/attachment/...` and
+    `/vaform/media/...` URLs
+  - the coder and reviewer workflow routes now use small route packages with
+    `dashboard.py`, `actions.py`, and `common.py` submodules while preserving
+    the existing `coding` and `reviewing` blueprint endpoints
 - `app/models`
   - SQLAlchemy models for users, submissions, allocations, assessments, review records, audit logs, and master data
 - `app/services`

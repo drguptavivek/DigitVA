@@ -6,12 +6,13 @@ transitional code, but new imports should use the domain packages directly.
 
 from app.routes.operations import data_management as data_management_routes
 from app.routes.operations import sitepi as sitepi_routes
+from app.routes import attachments as attachment_routes  # noqa: F401
 from app.routes import auth as auth_routes
+from app.routes import forms as form_routes
 from app.routes import health as health_routes
 from app.routes import home as home_routes
 from app.routes import profile as profile_routes
 from app.routes.workflow import coding as coding_routes
-from app.routes.workflow import forms as form_routes
 from app.routes.workflow import reviewing as reviewing_routes
 from app.routes.admin import admin
 from app.routes.api import api_v1

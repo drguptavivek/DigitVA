@@ -1,27 +1,22 @@
+"""Reviewer dashboard route."""
+
 import sqlalchemy as sa
+from flask import render_template
+from flask_login import current_user
+
 from app import db
-from app.authz.scope import user_has_form_access
+from app.authz.access import action_authorized
 from app.models import (
-    VaAllocations,
     VaAllocation,
+    VaAllocations,
     VaReviewerFinalAssessments,
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from flask_login import current_user
-from flask import Blueprint, render_template
-from app.authz.access import action_authorized
-from app.authz.resources import submission_from_kwarg
-from app.utils import va_permission_abortwithflash, va_render_serialisedates
-from app.services.coding_service import render_va_coding_page
-from app.services.reviewer_coding_service import (
-    ReviewerCodingError,
-    get_active_reviewing_allocation,
-    start_reviewer_coding,
-)
+from app.utils import va_render_serialisedates
 
-reviewing = Blueprint("reviewing", __name__)
+from .common import reviewing
 
 
 @reviewing.get("/")
@@ -41,10 +36,6 @@ def dashboard():
                 )
             )
         )
-        # "Completed" = this reviewer has submitted a final COD
-        # (reviewer_finalized state). NQA and Social Autopsy are supporting
-        # artifacts filled during the session — they are not terminal actions
-        # and do not count as "completed".
         va_forms_completed = db.session.scalar(
             sa.select(sa.func.count())
             .select_from(VaReviewerFinalAssessments)
@@ -65,10 +56,6 @@ def dashboard():
                     VaSubmissions.va_data_collector,
                     VaSubmissions.va_deceased_age,
                     VaSubmissions.va_deceased_gender,
-                    # Workflow state is the canonical source for review status.
-                    # reviewer_finalized  → terminal, final COD submitted
-                    # reviewer_coding_in_progress → session active
-                    # anything else       → not yet started
                     sa.case(
                         (
                             VaSubmissionWorkflow.workflow_state
@@ -132,44 +119,3 @@ def dashboard():
         va_forms=va_forms,
         va_has_allocation=va_has_allocation,
     )
-
-
-@reviewing.get("/start/<va_sid>")
-@action_authorized("reviewing_start", resource_resolver=submission_from_kwarg("va_sid"))
-def start(va_sid):
-    try:
-        result = start_reviewer_coding(current_user, va_sid)
-    except ReviewerCodingError as exc:
-        va_permission_abortwithflash(exc.message, exc.status_code)
-
-    form = db.session.get(VaSubmissions, result.va_sid)
-    return render_va_coding_page(form, "vareview", result.actiontype, "reviewer")
-
-
-@reviewing.get("/resume")
-@action_authorized("reviewing_resume")
-def resume():
-    va_sid = get_active_reviewing_allocation(current_user.user_id)
-    if not va_sid:
-        va_permission_abortwithflash("You have no active VA form allocation.", 403)
-    form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    if not user_has_form_access(current_user, form.va_form_id, "reviewer"):
-        va_permission_abortwithflash("Reviewer access is required to resume this submission.", 403)
-    if form.va_narration_language not in current_user.vacode_language:
-        va_permission_abortwithflash(
-            f"Your profile does not support reviewing forms in {form.va_narration_language}.",
-            403,
-        )
-    return render_va_coding_page(form, "vareview", "varesumereviewing", "reviewer")
-
-
-@reviewing.get("/view/<va_sid>")
-@action_authorized(
-    "reviewing_submission_view",
-    resource_resolver=submission_from_kwarg("va_sid"),
-)
-def view_submission(va_sid):
-    form = db.session.get(VaSubmissions, va_sid)
-    return render_va_coding_page(form, "vareview", "vaview", "reviewer")

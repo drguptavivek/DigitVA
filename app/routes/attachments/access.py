@@ -1,5 +1,6 @@
-"""Access-control helpers for workflow form attachments and artifacts."""
+"""Access-control helpers for attachment and media file routes."""
 
+from flask import abort
 from flask_login import current_user
 
 from app.authz.scope import (
@@ -9,14 +10,6 @@ from app.authz.scope import (
     user_requires_allocation_bound_attachment_access,
 )
 from app.models import VaAllocation
-from app.services.coding_service import get_project_for_submission as _get_project_for_submission
-
-
-def _is_social_autopsy_enabled_for_submission(va_sid: str) -> bool:
-    project = _get_project_for_submission(va_sid)
-    if project is None:
-        return True
-    return bool(project.social_autopsy_enabled)
 
 
 def _has_attachment_form_access(form_id: str) -> bool:
@@ -40,8 +33,6 @@ def _user_has_active_attachment_allocation(va_sid: str) -> bool:
 
 
 def _enforce_attachment_access(*, va_form_id: str, va_sid: str) -> None:
-    from flask import abort
-
     if not user_requires_allocation_bound_attachment_access(current_user, va_form_id):
         return
     if not _has_attachment_form_access(va_form_id):

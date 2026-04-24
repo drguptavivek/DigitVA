@@ -1,43 +1,39 @@
+"""Coding dashboard route."""
+
+from datetime import datetime
+
 import sqlalchemy as sa
-from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms
-from app.authz.scope import user_has_coding_form_access, user_has_role
+from flask import render_template
 from flask_login import current_user
-from flask import Blueprint, render_template, url_for, redirect, request
+
+from app import db
 from app.authz.access import action_authorized
-from app.authz.resources import submission_from_kwarg
-from app.utils import va_permission_abortwithflash, va_render_serialisedates
+from app.authz.scope import user_has_role
+from app.models import (
+    VaAllocation,
+    VaAllocations,
+    VaForms,
+    VaStatuses,
+    VaSubmissionWorkflow,
+    VaSubmissions,
+)
+from app.models.va_project_sites import VaProjectSites
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
     get_coder_recodeable_sids,
 )
-from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
-from app.services.coding_service import render_va_coding_page
 from app.services.coder_workflow_service import (
-    AllocationError,
-    AllocationResult,
     _narration_language_filter,
     _tr01_cutoff_filter,
-    allocate_random_form,
-    allocate_pick_form,
-    start_recode_allocation,
-    start_demo_allocation,
     get_active_coding_allocation,
     get_pick_available_forms,
 )
-from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
-from app.models.va_project_sites import VaProjectSites
-from datetime import datetime
+from app.services.workflow.definition import CODER_READY_POOL_STATES
+from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 
-
-coding = Blueprint("coding", __name__)
-
-
-def _handle_allocation_error(e: AllocationError):
-    va_permission_abortwithflash(e.message, e.status_code)
+from .common import coding
 
 
 @coding.get("/")
@@ -84,7 +80,8 @@ def dashboard():
         va_pick_ready_forms_count = len(pick_ready_rows)
         has_random_mode = bool(random_form_ids)
         has_pick_mode = bool(pick_form_ids)
-        from app.models import VaSites, VaResearchProjects  # noqa: PLC0415
+        from app.models import VaResearchProjects, VaSites  # noqa: PLC0415
+
         today = datetime.utcnow().date()
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         _tc_rows = db.session.execute(
@@ -116,11 +113,14 @@ def dashboard():
             )
             .join(VaSites, VaSites.site_id == VaForms.site_id)
             .join(VaResearchProjects, VaResearchProjects.project_id == VaForms.project_id)
-            .join(VaProjectSites, sa.and_(
-                VaProjectSites.project_id == VaForms.project_id,
-                VaProjectSites.site_id == VaForms.site_id,
-                VaProjectSites.project_site_status == VaStatuses.active,
-            ))
+            .join(
+                VaProjectSites,
+                sa.and_(
+                    VaProjectSites.project_id == VaForms.project_id,
+                    VaProjectSites.site_id == VaForms.site_id,
+                    VaProjectSites.project_site_status == VaStatuses.active,
+                ),
+            )
             .where(VaForms.form_id.in_(va_form_access))
             .order_by(VaResearchProjects.project_id, VaSites.site_id)
         ).all()
@@ -130,34 +130,39 @@ def dashboard():
         tester_projects = set(current_user.get_coding_tester_projects())
         tester_pairs = current_user.get_coding_tester_project_site_pairs()
 
-        def _coding_status(r):
-            is_pi = r.project_id in pi_project_ids or r.site_id in pi_site_ids
-            is_tester = r.project_id in tester_projects or (r.project_id, r.site_id) in tester_pairs
+        def _coding_status(row):
+            is_pi = row.project_id in pi_project_ids or row.site_id in pi_site_ids
+            is_tester = row.project_id in tester_projects or (
+                row.project_id,
+                row.site_id,
+            ) in tester_pairs
             if not is_pi and not is_tester:
-                if r.coding_enabled is False:
+                if row.coding_enabled is False:
                     return "disabled"
-                if r.coding_start_date and r.coding_start_date > today:
+                if row.coding_start_date and row.coding_start_date > today:
                     return "not_started"
             if not is_pi:
-                if r.coding_end_date and r.coding_end_date < today:
+                if row.coding_end_date and row.coding_end_date < today:
                     return "ended"
             return "open"
 
         coder_eligibility = [
             {
-                "project_id": r.project_id,
-                "project": r.project_nickname,
-                "site": r.site_name,
-                "site_abbr": r.site_abbr,
-                "form_id": r.form_id,
-                "site_id": r.site_id,
-                "coding_status": _coding_status(r),
-                "coding_start_date": r.coding_start_date,
-                "coding_end_date": r.coding_end_date,
-                "daily_coder_limit": r.daily_coder_limit if r.daily_coder_limit is not None else 100,
-                "today_count": site_today_counts.get(r.site_id, 0),
+                "project_id": row.project_id,
+                "project": row.project_nickname,
+                "site": row.site_name,
+                "site_abbr": row.site_abbr,
+                "form_id": row.form_id,
+                "site_id": row.site_id,
+                "coding_status": _coding_status(row),
+                "coding_start_date": row.coding_start_date,
+                "coding_end_date": row.coding_end_date,
+                "daily_coder_limit": row.daily_coder_limit
+                if row.daily_coder_limit is not None
+                else 100,
+                "today_count": site_today_counts.get(row.site_id, 0),
             }
-            for r in eligibility_rows
+            for row in eligibility_rows
         ]
         coder_languages = sorted(current_user.vacode_language or [])
     else:
@@ -194,85 +199,3 @@ def dashboard():
         coder_eligibility=coder_eligibility,
         coder_languages=coder_languages,
     )
-
-
-@coding.post("/start")
-@action_authorized("coding_start")
-def start():
-    project_id = (request.args.get("project_id") or "").strip().upper() or None
-    try:
-        result = allocate_random_form(current_user, project_id=project_id)
-    except AllocationError as e:
-        _handle_allocation_error(e)
-    if result.actiontype == "varesumecoding":
-        return redirect(url_for("coding.resume"))
-    form = db.session.get(VaSubmissions, result.va_sid)
-    return render_va_coding_page(form, "vacode", result.actiontype, "coder")
-
-
-@coding.get("/resume")
-@action_authorized("coding_resume")
-def resume():
-    va_sid = get_active_coding_allocation(current_user.user_id)
-    if not va_sid:
-        va_permission_abortwithflash("No active coding allocation found.", 404)
-    form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    if not user_has_role(current_user, "admin") and not user_has_coding_form_access(
-        current_user, form.va_form_id
-    ):
-        va_permission_abortwithflash(
-            "You do not have coder access to resume this submission.",
-            403,
-        )
-    actiontype = (
-        "vademo_start_coding"
-        if should_use_demo_actiontype_for_submission(va_sid)
-        else "varesumecoding"
-    )
-    return render_va_coding_page(form, "vacode", actiontype, "coder")
-
-
-@coding.post("/pick/<va_sid>")
-@action_authorized("coding_pick", resource_resolver=submission_from_kwarg("va_sid"))
-def pick(va_sid):
-    try:
-        result = allocate_pick_form(current_user, va_sid)
-    except AllocationError as e:
-        _handle_allocation_error(e)
-    form = db.session.get(VaSubmissions, result.va_sid)
-    return render_va_coding_page(form, "vacode", result.actiontype, "coder")
-
-
-@coding.post("/recode/<va_sid>")
-@action_authorized("coding_recode_start", resource_resolver=submission_from_kwarg("va_sid"))
-def recode(va_sid):
-    try:
-        start_recode_allocation(current_user, va_sid)
-    except AllocationError as e:
-        _handle_allocation_error(e)
-    return redirect(url_for("coding.resume"))
-
-
-@coding.post("/demo")
-@action_authorized("coding_demo_start")
-def demo():
-    project_id = (request.args.get("project_id") or "").strip().upper() or None
-    try:
-        result = start_demo_allocation(current_user, project_id)
-    except AllocationError as e:
-        _handle_allocation_error(e)
-    form = db.session.get(VaSubmissions, result.va_sid)
-    return render_va_coding_page(form, "vacode", result.actiontype, "coder")
-
-
-@coding.get("/view/<va_sid>")
-@action_authorized("coding_submission_view", resource_resolver=submission_from_kwarg("va_sid"))
-def view_submission(va_sid):
-    form = db.session.get(VaSubmissions, va_sid)
-    if not form:
-        va_permission_abortwithflash("Submission not found.", 404)
-    if not user_has_coding_form_access(current_user, form.va_form_id):
-        va_permission_abortwithflash("You do not have coder access to view this submission.", 403)
-    return render_va_coding_page(form, "vacode", "vaview", "coder")

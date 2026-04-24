@@ -1,3 +1,5 @@
+"""Request-scoped authorization helpers."""
+
 import uuid
 
 from flask import session

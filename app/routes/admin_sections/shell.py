@@ -9,7 +9,7 @@ from app import db
 from app.decorators import role_required
 from app.models import VaProjectMaster, VaStatuses
 from app.routes.admin import admin
-from app.admin_support.auth import request_user_has_role
+from app.authz.request_context import request_user_has_role
 from app.http.responses import json_error as _json_error
 
 

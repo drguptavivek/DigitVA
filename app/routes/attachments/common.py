@@ -1,4 +1,4 @@
-"""Shared helpers for workflow attachment routes."""
+"""Shared helpers for attachment and media routes."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from app import db
 from app.models import VaSubmissions
 from app.models.va_submission_attachments import VaSubmissionAttachments
 
-from ..helpers import _enforce_attachment_access
+from .access import _enforce_attachment_access
 
 STORAGE_NAME_PATTERN = re.compile(r"^[a-f0-9]{32}\.[a-z0-9]{1,5}$")
 FORM_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")

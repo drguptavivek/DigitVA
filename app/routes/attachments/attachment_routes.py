@@ -9,7 +9,8 @@ from flask import abort, send_file
 from app.authz.access import action_authorized
 from app.authz.resources import attachment_form_from_storage_name
 
-from .. import va_form
+from app.routes.forms import va_form
+
 from .common import (
     enforce_attachment_file_access,
     get_attachment_lookup,

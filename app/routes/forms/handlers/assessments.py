@@ -27,7 +27,7 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaUsernotes,
 )
-from app.routes.workflow import forms as form_routes
+import app.routes.forms as form_routes
 from app.services.final_cod_authority_service import (
     complete_recode_episode,
     get_active_recode_episode,

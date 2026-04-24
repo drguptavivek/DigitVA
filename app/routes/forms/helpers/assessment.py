@@ -1,4 +1,4 @@
-"""Assessment and workflow helpers for workflow form rendering."""
+"""Assessment and workflow helpers for VA form rendering."""
 
 import sqlalchemy as sa
 from flask_login import current_user
@@ -13,11 +13,16 @@ from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_social_autopsy_analysis,
 )
 
-from .access import _is_social_autopsy_enabled_for_submission
-
 
 def _demo_expiry_for_actiontype(va_sid: str, va_actiontype: str):
     return get_demo_expiry_for_submission(va_sid, va_actiontype)
+
+
+def _is_social_autopsy_enabled_for_submission(va_sid: str) -> bool:
+    project = _get_project_for_submission(va_sid)
+    if project is None:
+        return True
+    return bool(project.social_autopsy_enabled)
 
 
 def _get_display_initial_assessment(va_sid: str):

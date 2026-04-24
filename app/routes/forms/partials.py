@@ -25,7 +25,7 @@ from .handlers import (
     handle_workflow_history,
 )
 
-from app.routes.workflow import forms as form_routes
+import app.routes.forms as form_routes
 from . import va_form
 from .helpers import (
     _invalidate_section_data_cache,

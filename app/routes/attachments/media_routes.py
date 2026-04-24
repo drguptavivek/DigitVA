@@ -9,8 +9,9 @@ from flask import current_app, send_from_directory
 from app.authz.access import action_authorized
 from app.authz.resources import form_from_kwarg
 
-from .. import va_form
-from ..helpers import _enforce_attachment_access
+from app.routes.forms import va_form
+
+from .access import _enforce_attachment_access
 from .common import get_media_attachment_sid, validate_media_request
 
 

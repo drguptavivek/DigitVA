@@ -8,8 +8,10 @@ import app.routes.va_auth as legacy_auth
 import app.routes.va_main as legacy_public
 from pathlib import Path
 
+from app.routes import attachments as route_attachments
 from app.http import errors as http_errors
 from app.routes import auth as route_auth
+from app.routes import forms as route_forms
 from app.routes import health as route_health
 from app.routes import home as route_home
 from app.routes import profile as route_profile
@@ -28,9 +30,8 @@ from app.routes.api import data_management as api_data_management
 from app.routes.operations import data_management as operations_data_management
 from app.routes.operations import sitepi as operations_sitepi
 from app.routes.workflow import coding as workflow_coding
-from app.routes.workflow import forms as workflow_forms
 from app.routes.workflow import reviewing as workflow_reviewing
-from app.routes.workflow.forms.partials import renderpartial as workflow_renderpartial
+from app.routes.forms.partials import renderpartial as forms_renderpartial
 from tests.base import BaseTestCase
 
 
@@ -81,13 +82,30 @@ class RoutePackageExportTests(BaseTestCase):
                     msg=f"{path.relative_to(repo_root)} imports {deprecated_import}",
                 )
 
-    def test_workflow_forms_package_exports_stable_patch_points(self):
-        self.assertIs(workflow_forms.renderpartial, workflow_renderpartial)
-        self.assertTrue(hasattr(workflow_forms, "_apply_partial_cache_policy"))
-        self.assertTrue(hasattr(workflow_forms, "_get_display_initial_assessment"))
-        self.assertTrue(hasattr(workflow_forms, "bust_coder_dashboard_cache"))
-        self.assertTrue(hasattr(workflow_forms, "get_category_rendering_service"))
-        self.assertTrue(hasattr(workflow_forms, "sync_not_codeable_review_state"))
+    def test_forms_package_exports_stable_patch_points(self):
+        self.assertIs(route_forms.renderpartial, forms_renderpartial)
+        self.assertTrue(hasattr(route_forms, "_apply_partial_cache_policy"))
+        self.assertTrue(hasattr(route_forms, "_get_display_initial_assessment"))
+        self.assertTrue(hasattr(route_forms, "bust_coder_dashboard_cache"))
+        self.assertTrue(hasattr(route_forms, "get_category_rendering_service"))
+        self.assertTrue(hasattr(route_forms, "sync_not_codeable_review_state"))
+
+    def test_attachment_package_exports_file_serving_routes(self):
+        self.assertTrue(hasattr(route_attachments, "_enforce_attachment_access"))
+        self.assertTrue(hasattr(route_attachments, "serve_attachment"))
+        self.assertTrue(hasattr(route_attachments, "serve_media"))
+
+    def test_workflow_route_packages_export_stable_patch_points(self):
+        self.assertEqual(workflow_coding.coding.name, "coding")
+        self.assertTrue(hasattr(workflow_coding, "dashboard"))
+        self.assertTrue(hasattr(workflow_coding, "start"))
+        self.assertTrue(hasattr(workflow_coding, "resume"))
+        self.assertTrue(hasattr(workflow_coding, "render_va_coding_page"))
+        self.assertEqual(workflow_reviewing.reviewing.name, "reviewing")
+        self.assertTrue(hasattr(workflow_reviewing, "dashboard"))
+        self.assertTrue(hasattr(workflow_reviewing, "start"))
+        self.assertTrue(hasattr(workflow_reviewing, "resume"))
+        self.assertTrue(hasattr(workflow_reviewing, "render_va_coding_page"))
 
     def test_data_management_packages_export_primary_blueprints(self):
         self.assertEqual(operations_data_management.data_management.name, "data_management")

@@ -18,7 +18,7 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaUsernotes,
 )
-from app.routes.workflow import forms as form_routes
+import app.routes.forms as form_routes
 from app.services.category_rendering_service import get_visible_category_codes
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (

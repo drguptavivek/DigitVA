@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 from flask_login import current_user
 
-from app.admin_support.auth import request_user_has_role
+from app.authz.request_context import request_user_has_role
 from app.http.responses import json_error
 
 admin = Blueprint("admin", __name__)

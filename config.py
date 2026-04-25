@@ -31,9 +31,6 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
     SESSION_COOKIE_SECURE = True
-    REMEMBER_COOKIE_HTTPONLY = True
-    REMEMBER_COOKIE_SAMESITE = os.environ.get("REMEMBER_COOKIE_SAMESITE", "Lax")
-    REMEMBER_COOKIE_SECURE = True
     WTF_CSRF_SSL_STRICT = True
     
     # Session Configuration
@@ -171,7 +168,6 @@ class Config:
 class TestConfig(Config):
     TESTING = True
     SESSION_COOKIE_SECURE = False
-    REMEMBER_COOKIE_SECURE = False
     WTF_CSRF_SSL_STRICT = False
     ODK_CREDENTIAL_PEPPER = "test-pepper-do-not-use-in-production"
     # Use in-memory storage for the rate limiter during tests.
@@ -214,5 +210,4 @@ class TestConfig(Config):
 class DevelopmentConfig(Config):
     DEBUG = True
     SESSION_COOKIE_SECURE = False
-    REMEMBER_COOKIE_SECURE = False
     WTF_CSRF_SSL_STRICT = False

@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-24
+last_updated: 2026-04-25
 ---
 
 # Admin And Setup Model
@@ -12,7 +12,7 @@ last_updated: 2026-04-24
 
 The application includes a complete HTMX-driven admin UI under `/admin` for managing master data, users, access grants, ODK connections, and project configuration.
 
-The admin route layer is now mostly package-based: [app/routes/admin.py](../../app/routes/admin.py) mainly owns the shared `admin` blueprint and request guard, extracted route branches live under [app/routes/admin_sections](../../app/routes/admin_sections), admin-specific helper code lives under [app/admin_support](../../app/admin_support), app-wide HTTP helpers live under [app/http](../../app/http), shared grant/scope/request-context helpers live under [app/authz](../../app/authz), and response serializers live under [app/serializers](../../app/serializers). The remaining flat admin section modules are `shell.py`, `projects.py`, `sites.py`, and `project_pis.py`. Admin subtree packages now cover [users](../../app/routes/admin_sections/users), [access_grants](../../app/routes/admin_sections/access_grants), [project_forms](../../app/routes/admin_sections/project_forms), [project_sites](../../app/routes/admin_sections/project_sites), [odk_connections](../../app/routes/admin_sections/odk_connections), [languages](../../app/routes/admin_sections/languages), [activity](../../app/routes/admin_sections/activity), [cod_buckets](../../app/routes/admin_sections/cod_buckets), [icd10_browser](../../app/routes/admin_sections/icd10_browser), [field_mapping](../../app/routes/admin_sections/field_mapping), and [data_sync](../../app/routes/admin_sections/data_sync).
+The admin route layer is package-based: [app/routes/admin.py](../../app/routes/admin.py) owns only the shared `admin` blueprint and section registration, while request guards and extracted route branches live under [app/routes/admin_sections](../../app/routes/admin_sections). App-wide HTTP helpers live under [app/http](../../app/http), shared grant/scope/request-context helpers live under [app/authz](../../app/authz), and response serializers live under [app/serializers](../../app/serializers). The remaining flat admin section modules are `shell.py`, `projects.py`, `sites.py`, and `project_pis.py`. Admin subtree packages now cover [users](../../app/routes/admin_sections/users), [access_grants](../../app/routes/admin_sections/access_grants), [project_forms](../../app/routes/admin_sections/project_forms), [project_sites](../../app/routes/admin_sections/project_sites), [odk_connections](../../app/routes/admin_sections/odk_connections), [languages](../../app/routes/admin_sections/languages), [activity](../../app/routes/admin_sections/activity), [cod_buckets](../../app/routes/admin_sections/cod_buckets), [icd10_browser](../../app/routes/admin_sections/icd10_browser), [field_mapping](../../app/routes/admin_sections/field_mapping), and [data_sync](../../app/routes/admin_sections/data_sync).
 
 The admin panel is accessible to authenticated users with the appropriate role. Some panels are admin-only; others are accessible to project PIs for their own project scope.
 

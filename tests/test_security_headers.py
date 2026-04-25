@@ -40,6 +40,3 @@ class SecurityHeadersTests(BaseTestCase):
         self.assertTrue(Config.SESSION_COOKIE_HTTPONLY)
         self.assertEqual(Config.SESSION_COOKIE_SAMESITE, "Lax")
         self.assertTrue(Config.SESSION_COOKIE_SECURE)
-        self.assertTrue(Config.REMEMBER_COOKIE_HTTPONLY)
-        self.assertEqual(Config.REMEMBER_COOKIE_SAMESITE, "Lax")
-        self.assertTrue(Config.REMEMBER_COOKIE_SECURE)

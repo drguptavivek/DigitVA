@@ -23,7 +23,7 @@ from app.models import (
 from app.services.demo_training import (
     get_demo_expiry_for_submission,
 )
-from app.services.assessments.payload_artifacts import (
+from app.services.coding.payload_artifacts import (
     deactivate_other_active_narrative_assessments,
     get_submission_with_current_payload,
 )

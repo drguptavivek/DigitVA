@@ -24,7 +24,7 @@ from app.services.forms.field_mapping import get_mapping_service
 from app.services.coding.final_cod_authority import (
     get_authoritative_final_cod_record,
 )
-from app.services.assessments.payload_artifacts import (
+from app.services.coding.payload_artifacts import (
     get_current_payload_narrative_assessment,
     get_current_payload_reviewer_review,
     get_current_payload_social_autopsy_analysis,

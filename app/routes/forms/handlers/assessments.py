@@ -34,7 +34,7 @@ from app.services.coding.final_cod_authority import (
     get_authoritative_final_assessment,
     upsert_final_cod_authority,
 )
-from app.services.assessments.payload_artifacts import (
+from app.services.coding.payload_artifacts import (
     deactivate_other_active_reviewer_reviews,
     get_current_payload_narrative_assessment,
     get_current_payload_social_autopsy_analysis,

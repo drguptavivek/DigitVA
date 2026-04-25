@@ -25,7 +25,7 @@ from app.services.forms.social_autopsy import (
     SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
     social_autopsy_option_set,
 )
-from app.services.assessments.payload_artifacts import (
+from app.services.coding.payload_artifacts import (
     deactivate_other_active_social_autopsy_analyses,
     get_submission_with_current_payload,
 )

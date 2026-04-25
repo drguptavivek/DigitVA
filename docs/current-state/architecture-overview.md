@@ -55,14 +55,13 @@ Main code areas:
   - `workflow/` owns only the canonical submission state machine: definitions,
     state store, transitions, and events
   - `coding/` owns allocation, coder/reviewer workflow actions, coding intake
-    policy, and final COD authority
+    policy, final COD authority, and payload-bound coding artifacts split by
+    artifact policy under `coding/payload_artifacts/`
   - `projects/` owns project/site setup helpers and submission-to-project lookup
   - `demo_training.py` owns demo/training project behavior that cuts across
     coding, allocation, and access
   - `submissions/` owns pure submission payload version/projection helpers and
     derived submission summaries
-  - `assessments/` owns assessment/review/social-autopsy artifacts that are
-    bound to the current submission payload version
   - `sync/` owns ODK-to-local sync orchestration, payload enrichment/backfill,
     current-payload repair, attachment repair triggering, and sync workflow
     advancement

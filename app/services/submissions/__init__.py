@@ -1,1 +1,1 @@
-"""Submission payload, repair, and lookup services."""
+"""Submission-local payload, artifact, summary, and lookup services."""

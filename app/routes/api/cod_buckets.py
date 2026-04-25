@@ -11,13 +11,13 @@ from flask_login import current_user
 from app import db
 from app.authz.access import action_authorized
 from app.models import VaUsers
-from app.services.analytics.cod_buckets import (
+from app.services.cod_buckets.management import (
     aggregate_coded_submissions_by_bucket,
     list_unmatched_coded_submission_icds_by_bucket,
     list_cod_bucket_schemes,
     summarize_unmatched_coded_submissions_by_bucket,
 )
-from app.services.analytics.data_management import dm_scoped_forms
+from app.services.data_management.dashboard import dm_scoped_forms
 
 bp = Blueprint("cod_buckets_api", __name__)
 

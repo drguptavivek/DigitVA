@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from flask import current_app
-from app.services.odk.submission_update import va_odk_submissionupdatedate
+from app.services.odk.submission_metadata import va_odk_submission_update_dates
 
 
 def va_preprocess_prepdata(va_form):
@@ -13,7 +13,7 @@ def va_preprocess_prepdata(va_form):
             df = pd.read_csv(csv_path)
             df = df.replace({pd.NA: None, float("nan"): None})
             submissions = df.to_dict("records")
-            update_dates = va_odk_submissionupdatedate(va_form)
+            update_dates = va_odk_submission_update_dates(va_form)
             processed_data = []
             for submission in submissions:
                 if "form_def" not in submission:

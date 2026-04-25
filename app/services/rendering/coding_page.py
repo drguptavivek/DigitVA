@@ -66,7 +66,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     from app.utils import va_get_form_type_code_for_form
     from app.services.forms.category_rendering import get_category_rendering_service, get_visible_category_codes
     from app.services.coding.coder_workflow import is_upstream_recode
-    from app.services.coding.demo_project import is_demo_training_submission
+    from app.services.projects.demo_training import is_demo_training_submission
     from app.services.submissions.payload_version import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
     from app.tasks.sync_tasks import run_open_submission_repair

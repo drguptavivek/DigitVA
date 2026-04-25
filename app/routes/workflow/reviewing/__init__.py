@@ -1,6 +1,6 @@
 """Reviewing workflow routes package."""
 
-from app.services.coding.page_rendering import render_va_coding_page
+from app.services.rendering.coding_page import render_va_coding_page
 from app.services.coding.reviewer_coding import (
     ReviewerCodingError,
     get_active_reviewing_allocation,

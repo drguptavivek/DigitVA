@@ -1,6 +1,6 @@
 import click
 
-from app.services.analytics.cod_buckets import (
+from app.services.cod_buckets.management import (
     DEFAULT_CMEA10_WORKBOOK_PATH,
     DEFAULT_SRS_WORKBOOK_PATH,
     aggregate_coded_submissions_by_bucket,

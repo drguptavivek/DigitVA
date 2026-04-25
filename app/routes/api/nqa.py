@@ -20,7 +20,7 @@ from app.models import (
     VaNarrativeAssessment,
     VaSubmissionsAuditlog,
 )
-from app.services.coding.demo_project import (
+from app.services.projects.demo_training import (
     get_demo_expiry_for_submission,
 )
 from app.services.submissions.payload_bound_artifacts import (

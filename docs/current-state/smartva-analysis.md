@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-25
 ---
 
 # SmartVA Analysis
@@ -351,7 +351,7 @@ Current storage behavior:
 
 ---
 
-## Result Storage (`va_data_sync_01_odkcentral.py`)
+## Result Storage (`odk_central.py`)
 
 SmartVA attempts are persisted in `va_smartva_results`. The save logic per row:
 
@@ -510,7 +510,7 @@ Use the SmartVA-only trigger path, or from the worker container:
 
 ```python
 from app import create_app
-from app.services.va_data_sync.va_data_sync_01_odkcentral import va_smartva_run_pending
+from app.services.sync.odk_central import va_smartva_run_pending
 app = create_app()
 with app.app_context():
     va_smartva_run_pending()

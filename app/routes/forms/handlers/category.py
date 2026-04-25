@@ -29,7 +29,7 @@ from app.services.submissions.payload_bound_artifacts import (
     get_current_payload_reviewer_review,
     get_current_payload_social_autopsy_analysis,
 )
-from app.services.coding.social_autopsy_analysis import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
+from app.services.forms.social_autopsy import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submissions.summary import build_submission_summary
 from app.services.workflow.definition import (
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,

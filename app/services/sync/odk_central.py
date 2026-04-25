@@ -68,7 +68,7 @@ from app.models import (
     VaSubmissionUpstreamChange,
     VaSubmissionsAuditlog,
 )
-from app.services.odk.attachment_sync import va_odk_sync_form_attachments
+from app.services.attachments.sync import va_odk_sync_form_attachments
 from app.services.odk.client import va_odk_clientsetup
 from app.services.odk.delta import va_odk_delta_count
 from app.services.odk.submission_fetch import (

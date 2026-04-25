@@ -33,7 +33,7 @@ from app.models import VaForms, VaSubmissions
 from app.models.va_selectives import VaStatuses
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
-from app.services.submissions.open_repair import repair_submission_current_payload
+from app.services.sync.open_repair import repair_submission_current_payload
 from app.services.submissions.payload_version import _derive_payload_metadata
 
 log = logging.getLogger(__name__)
@@ -213,7 +213,7 @@ def enrich_unenriched_payloads(
             "workflow_errors": int,
         }
     """
-    from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+    from app.services.sync.odk_central import (
         _enrich_submission_payload_for_storage,
     )
     from app.services.odk.client import va_odk_clientsetup
@@ -585,7 +585,7 @@ def _run_single_submission_attachment(
     audit_by_sid: dict,
     force_redownload: bool = False,
 ) -> None:
-    from app.services.odk.attachment_sync import va_odk_sync_submission_attachments
+    from app.services.attachments.sync import va_odk_sync_submission_attachments
 
     stats["attachments_checked"] += 1
     if not media_dir:
@@ -752,7 +752,7 @@ def _run_attachment_sync_stage(
 ) -> None:
     """Sync attachments for enriched submissions form-by-form."""
     from app.services.odk.client import va_odk_clientsetup
-    from app.services.odk.attachment_sync import va_odk_sync_submission_attachments
+    from app.services.attachments.sync import va_odk_sync_submission_attachments
 
     app_data_root = current_app.config.get("APP_DATA")
     if not app_data_root:

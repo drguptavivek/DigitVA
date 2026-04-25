@@ -52,17 +52,32 @@ Main code areas:
   - SQLAlchemy models for users, submissions, allocations, assessments, review records, audit logs, and master data
 - `app/services`
   - domain services grouped by package instead of flat `*_service.py` modules
-  - `coding/` owns allocation, coder/reviewer workflow helpers, demo coding,
-    final COD authority, coding page rendering, and social autopsy analysis
-  - `submissions/` owns payload versions/projections/enrichment, repair,
-    attachment storage naming, submission summaries, and submission/project
-    resolution
-  - `forms/` owns form type management, field mapping, category rendering, and
-    runtime form synchronization
-  - `analytics/` owns data manager analytics, COD buckets, Site PI reporting,
-    and the submission analytics materialized view
-  - `odk/` owns ODK client, guarded calls, schema sync, deltas, submission fetch,
-    attachment sync, reviews, and submission updates
+  - `workflow/` owns only the canonical submission state machine: definitions,
+    state store, transitions, and events
+  - `coding/` owns allocation, coder/reviewer workflow actions, and final COD
+    authority
+  - `projects/` owns project/site policy helpers such as coding intake mode and
+    demo-training project behavior
+  - `submissions/` owns pure submission payload/version/projection/artifact
+    helpers, submission summaries, and submission/project resolution
+  - `sync/` owns ODK-to-local sync orchestration, payload enrichment/backfill,
+    current-payload repair, attachment repair triggering, and sync workflow
+    advancement
+  - `odk/` owns primitive ODK client, guarded calls, deltas, submission fetch,
+    submission metadata fetch, and reviews
+  - `forms/` owns form type management, field mapping, ODK schema-to-form
+    mapping, category rendering, social-autopsy form metadata, and runtime form
+    synchronization
+  - `data_management/` owns data-manager dashboard scope, exports, screening
+    actions, upstream-change review actions, and related audit helpers
+  - `analytics/` owns read-only analytics materialized-view query helpers
+  - `cod_buckets/` owns cause-of-death bucket schemes, mappings, import/reset
+    helpers, and bucket reporting
+  - `reporting/` owns read-only operational reporting such as Site PI reporting
+  - `rendering/` owns template composition helpers that must remain outside
+    route modules
+  - `attachments/` owns attachment synchronization, storage, and serving
+    support helpers
   - `smartva/`, `medical/`, `notifications/`, and `security/` own focused
     SmartVA, ICD-10, email, token, and abuse-protection services
   - legacy operational packages remain for setup, backup, mapping generation,

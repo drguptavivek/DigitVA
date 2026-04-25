@@ -360,7 +360,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         ]
 
         with patch(
-            "app.services.submissions.open_repair.repair_submission_current_payload",
+            "app.services.sync.open_repair.repair_submission_current_payload",
             side_effect=result_rows,
         ), patch(
             "app.services.smartva.service.generate_for_form",
@@ -462,7 +462,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             patch("app.services.odk.submission_fetch.va_odk_fetch_instance_ids", return_value=missing_ids), \
             patch("app.services.odk.submission_fetch.va_odk_fetch_submissions_by_ids", side_effect=_fake_fetch), \
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral._upsert_form_submissions",
+                "app.services.sync.odk_central._upsert_form_submissions",
                 side_effect=_fake_upsert,
             ), \
             patch("app.tasks.sync_tasks._build_repair_map_for_form", side_effect=_fake_build), \

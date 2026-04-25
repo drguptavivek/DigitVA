@@ -546,7 +546,7 @@ Current site PI capabilities:
 Implementation note:
 
 - Site PI dashboard reporting now resolves through
-  `app/services/analytics/sitepi_reporting.py`
+  `app/services/reporting/sitepi.py`
 - that service is site-scoped through `va_forms.site_id` and no longer relies
   on the earlier mixed site/form assumptions
 

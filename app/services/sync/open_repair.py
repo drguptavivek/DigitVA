@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import VaForms, VaSubmissions
 from app.services.smartva import service as smartva_service
-from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+from app.services.sync.odk_central import (
     _attach_all_odk_comments,
     _finalize_enriched_submissions_for_form,
 )
@@ -38,7 +38,7 @@ from app.tasks.sync_tasks import (
     _release_read_transaction,
 )
 from app.services.odk.submission_fetch import va_odk_fetch_submissions_by_ids
-from app.services.odk.attachment_sync import va_odk_sync_form_attachments
+from app.services.attachments.sync import va_odk_sync_form_attachments
 
 log = logging.getLogger(__name__)
 

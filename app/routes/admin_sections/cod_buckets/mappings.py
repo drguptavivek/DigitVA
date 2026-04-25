@@ -12,7 +12,7 @@ from app.decorators import role_required
 from app.models import MapIcdCodBucket, MasCodBucketNode
 from app.http.responses import json_error as _json_error
 from app.routes.admin import admin
-from app.services.analytics.cod_buckets import (
+from app.services.cod_buckets.management import (
     NODE_TYPE_FIELD,
     get_cod_bucket_scheme,
 )

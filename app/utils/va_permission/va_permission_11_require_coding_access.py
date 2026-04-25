@@ -13,7 +13,7 @@ from flask_login import current_user
 from app import db
 from app.authz.scope import user_has_role
 from app.models import VaAllocations, VaAllocation, VaStatuses
-from app.services.coding.demo_project import is_demo_training_submission
+from app.services.projects.demo_training import is_demo_training_submission
 
 
 def require_coding_access(va_sid: str):

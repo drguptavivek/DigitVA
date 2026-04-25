@@ -180,7 +180,7 @@ Current runtime behavior:
 
 Main service:
 
-- [`va_data_sync_odkcentral()`](../../app/services/va_data_sync/va_data_sync_01_odkcentral.py)
+- [`va_data_sync_odkcentral()`](../../app/services/sync/odk_central.py)
 
 Behavior:
 
@@ -350,8 +350,8 @@ Current implementation detail:
 
 Implemented in:
 
-- [`va_odk_sync_submission_attachments()`](../../app/services/odk/attachment_sync.py)
-- [`va_odk_sync_form_attachments()`](../../app/services/odk/attachment_sync.py)
+- [`va_odk_sync_submission_attachments()`](../../app/services/attachments/sync.py)
+- [`va_odk_sync_form_attachments()`](../../app/services/attachments/sync.py)
 
 Rules:
 

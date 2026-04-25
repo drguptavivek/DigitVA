@@ -29,9 +29,9 @@ from app.services.coding.coder_workflow import (
     get_active_coding_allocation,
     get_pick_available_forms,
 )
-from app.services.coding.demo_project import get_demo_training_project_ids
+from app.services.projects.demo_training import get_demo_training_project_ids
 from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
+from app.services.projects.coding_intake import split_form_ids_by_coding_intake_mode
 
 from .common import coding
 

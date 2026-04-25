@@ -649,7 +649,7 @@ All state-changing routes require `X-CSRFToken` header and admin role.
 |------|---------|
 | [`app/models/va_field_mapping.py`](../../app/models/va_field_mapping.py) | SQLAlchemy models for all `mas_*` tables |
 | [`app/services/forms/form_type.py`](../../app/services/forms/form_type.py) | CRUD, duplicate, export, import |
-| [`app/services/odk/schema_sync.py`](../../app/services/odk/schema_sync.py) | XLSForm parsing and DB upsert |
+| [`app/services/forms/odk_schema_sync.py`](../../app/services/forms/odk_schema_sync.py) | XLSForm parsing and DB upsert |
 | [`app/services/forms/field_mapping.py`](../../app/services/forms/field_mapping.py) | Runtime rendering cache |
 | [`app/routes/admin.py`](../../app/routes/admin.py) | All admin routes (~line 1089 onward) |
 | [`app/templates/admin/panels/field_mapping.html`](../../app/templates/admin/panels/field_mapping.html) | Main panel — cards, import/export modals |

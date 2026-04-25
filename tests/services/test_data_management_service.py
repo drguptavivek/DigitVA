@@ -61,7 +61,7 @@ from app.services.workflow.state_store import (
     get_submission_workflow_state,
     set_submission_workflow_state,
 )
-from app.services.analytics.data_management import (
+from app.services.data_management.dashboard import (
     dm_accept_upstream_change,
     dm_odk_edit_url,
     dm_reject_upstream_change,

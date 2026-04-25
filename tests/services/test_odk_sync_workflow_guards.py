@@ -40,7 +40,7 @@ from app.services.workflow.state_store import (
     set_submission_workflow_state,
 )
 from app.services.submissions.payload_version import ensure_active_payload_version
-from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+from app.services.sync.odk_central import (
     _upsert_form_submissions,
 )
 from tests.base import BaseTestCase

@@ -1,7 +1,7 @@
 """Coding workflow routes package."""
 
 from app.services.coding.coder_workflow import AllocationError, AllocationResult
-from app.services.coding.page_rendering import render_va_coding_page
+from app.services.rendering.coding_page import render_va_coding_page
 
 from .actions import demo, pick, recode, resume, start, view_submission
 from .common import coding, handle_allocation_error

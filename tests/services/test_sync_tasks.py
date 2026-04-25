@@ -128,7 +128,7 @@ class SyncTaskBatchingTests(TestCase):
             }
 
         with patch(
-            "app.services.va_data_sync.va_data_sync_01_odkcentral.va_data_sync_odkcentral",
+            "app.services.sync.odk_central.va_data_sync_odkcentral",
             side_effect=fake_data_sync,
         ):
             with patch(
@@ -199,11 +199,11 @@ class SyncTaskBatchingTests(TestCase):
                                             return_value=["instance-1"],
                                         ):
                                             with patch(
-                                                "app.services.va_data_sync.va_data_sync_01_odkcentral._upsert_form_submissions",
+                                                "app.services.sync.odk_central._upsert_form_submissions",
                                                 side_effect=fake_upsert,
                                             ):
                                                 with patch(
-                                                    "app.services.va_data_sync.va_data_sync_01_odkcentral._mark_form_sync_issues"
+                                                    "app.services.sync.odk_central._mark_form_sync_issues"
                                                 ):
                                                     with patch(
                                                         "app.tasks.sync_tasks.run_canonical_repair_batches_task.delay"

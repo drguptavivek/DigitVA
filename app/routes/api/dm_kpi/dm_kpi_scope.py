@@ -22,7 +22,7 @@ from flask_login import current_user
 
 from app import cache, db
 from app.authz.access import action_authorized
-from app.services.analytics.data_management import reporting_scope_pairs
+from app.services.data_management.dashboard import reporting_scope_pairs
 
 log = logging.getLogger(__name__)
 

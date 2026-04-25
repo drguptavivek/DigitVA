@@ -7,7 +7,7 @@ Usage:
 """
 import click
 from app import db
-from app.services.odk.schema_sync import get_sync_service
+from app.services.forms.odk_schema_sync import get_sync_service
 
 
 @click.group("odk-sync")

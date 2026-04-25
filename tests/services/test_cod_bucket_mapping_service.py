@@ -20,7 +20,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.analytics.cod_buckets import (
+from app.services.cod_buckets.management import (
     AGE_SCOPE_ADULT_OVER5Y,
     AGE_SCOPE_CHILD_1_59M,
     DEFAULT_MAX_AGE_UNIT,

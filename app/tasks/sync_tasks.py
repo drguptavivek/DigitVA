@@ -331,7 +331,7 @@ def _run_canonical_repair_batches(
     from app.models import VaForms
     from app.models.va_sync_runs import VaSyncRun
     from app.services.smartva import service as smartva_service
-    from app.services.submissions.open_repair import (
+    from app.services.sync.open_repair import (
         repair_submission_current_payload,
     )
 
@@ -914,7 +914,7 @@ def run_odk_sync(self, triggered_by="scheduled", user_id=None):
     """Run ODK sync and record the outcome in va_sync_runs."""
     from app import db
     from app.models.va_sync_runs import VaSyncRun
-    from app.services.va_data_sync.va_data_sync_01_odkcentral import va_data_sync_odkcentral
+    from app.services.sync.odk_central import va_data_sync_odkcentral
 
     # Expire any orphaned "running" rows left by a crashed worker.
     cleanup_stale_runs()
@@ -1030,7 +1030,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions,
     )
-    from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+    from app.services.sync.odk_central import (
         _mark_form_sync_issues,
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
@@ -1190,7 +1190,7 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
     from app.models.va_forms import VaForms
     from app.models.va_submissions import VaSubmissions
     from app.models.va_sync_runs import VaSyncRun
-    from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+    from app.services.sync.odk_central import (
         _mark_form_sync_issues,
         _upsert_form_submissions,
     )
@@ -1487,7 +1487,7 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions_by_ids,
     )
-    from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+    from app.services.sync.odk_central import (
         _mark_form_sync_issues,
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
@@ -1631,7 +1631,7 @@ def run_open_submission_repair(
 ):
     """Run the canonical current-payload repair engine asynchronously for one submission."""
     from app import db
-    from app.services.submissions.open_repair import repair_submission_current_payload
+    from app.services.sync.open_repair import repair_submission_current_payload
 
     try:
         result = repair_submission_current_payload(

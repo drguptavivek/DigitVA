@@ -53,7 +53,7 @@ It also separates true ODK sync actions from read-only refresh actions.
 ## Adjacent But Different "Sync" Surface
 
 The Field Mapping area (`/admin/panels/field-mapping/sync`) is not submission
-sync. It calls `app.services.odk.schema_sync` to preview/apply schema/choice mapping
+sync. It calls `app.services.forms.odk_schema_sync` to preview/apply schema/choice mapping
 changes:
 
 - `POST /admin/panels/field-mapping/sync/preview`

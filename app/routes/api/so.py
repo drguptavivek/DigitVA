@@ -21,7 +21,7 @@ from app.models import (
     VaSocialAutopsyAnalysisOption,
     VaSubmissionsAuditlog,
 )
-from app.services.coding.social_autopsy_analysis import (
+from app.services.forms.social_autopsy import (
     SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
     social_autopsy_option_set,
 )
@@ -29,7 +29,7 @@ from app.services.submissions.payload_bound_artifacts import (
     deactivate_other_active_social_autopsy_analyses,
     get_submission_with_current_payload,
 )
-from app.services.coding.demo_project import (
+from app.services.projects.demo_training import (
     get_demo_expiry_for_submission,
 )
 from app.services.submissions.project import get_project_for_submission

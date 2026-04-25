@@ -440,7 +440,7 @@ def admin_sync_backfill_stats():
 def admin_sync_legacy_attachment_stats():
     try:
         from app.models.va_submission_attachments import VaSubmissionAttachments
-        from app.services.submissions.attachment_storage_name import legacy_attachment_storage_name
+        from app.services.attachments.storage_name import legacy_attachment_storage_name
 
         counts = db.session.execute(
             sa.select(

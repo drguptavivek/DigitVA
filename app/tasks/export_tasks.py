@@ -20,7 +20,7 @@ _EXPORT_FUNCTIONS = {}  # lazy registry, populated on first call
 def _get_export_fn(kind: str):
     """Lazy-import to avoid circulars at module level."""
     if kind not in _EXPORT_FUNCTIONS:
-        from app.services.analytics.data_management import (
+        from app.services.data_management.dashboard import (
             dm_submissions_export_csv,
             dm_smartva_input_export_csv,
             dm_smartva_likelihoods_export_csv,

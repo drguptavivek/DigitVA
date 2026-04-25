@@ -95,14 +95,14 @@ def enrich(form_id, batch_size, max_forms, max_per_form, dry_run, force_attachme
       # Full backfill\n
       flask payload-backfill enrich
     """
-    from app.services.submissions.payload_enrichment import enrich_unenriched_payloads
+    from app.services.sync.payload_enrichment import enrich_unenriched_payloads
 
     # Wire up click.echo handler so log.info/warning lines appear in CLI output
     handler = _ClickEchoHandler()
     handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     # Show clean per-submission stage lines in console without logger-name noise.
     handler.setLevel(logging.INFO)
-    svc_logger = logging.getLogger("app.services.submissions.payload_enrichment")
+    svc_logger = logging.getLogger("app.services.sync.payload_enrichment")
     svc_logger.addHandler(handler)
     svc_logger.setLevel(logging.INFO)
     run_id = uuid.uuid4().hex[:12]

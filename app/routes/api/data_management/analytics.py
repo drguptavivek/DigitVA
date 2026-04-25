@@ -6,7 +6,7 @@ from flask_login import current_user
 from app import limiter
 from app.routes.api import data_management as dm_routes
 from app.authz.access import action_authorized
-from app.services.analytics.data_management import (
+from app.services.data_management.dashboard import (
     dm_coder_daily_statistics,
     dm_filter_options,
     reporting_scope_pairs,

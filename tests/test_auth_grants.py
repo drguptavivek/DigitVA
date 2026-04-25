@@ -16,7 +16,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
-from app.services.coding.demo_project import get_coder_demo_project_form_ids
+from app.services.projects.demo_training import get_coder_demo_project_form_ids
 
 from tests.base import BaseTestCase
 

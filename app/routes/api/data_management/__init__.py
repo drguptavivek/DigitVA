@@ -2,7 +2,7 @@
 
 from flask import Blueprint
 
-from app.services.analytics.data_management import (
+from app.services.data_management.dashboard import (
     dm_smartva_input_export_csv,
     dm_smartva_likelihoods_export_csv,
     dm_smartva_results_export_csv,

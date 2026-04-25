@@ -12,7 +12,7 @@ from app import db
 from app.authz.access import action_authorized
 from app.authz.resources import form_from_kwarg, submission_from_kwarg
 from app.models import VaSyncRun, VaSubmissions
-from app.services.analytics.data_management import (
+from app.services.data_management.dashboard import (
     audit_dm_submission_action,
     dm_form_in_scope,
     dm_scoped_forms,

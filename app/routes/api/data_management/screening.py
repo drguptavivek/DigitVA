@@ -8,7 +8,7 @@ from flask_login import current_user
 from app import db
 from app.authz.access import action_authorized
 from app.authz.resources import submission_from_kwarg
-from app.services.analytics.data_management import dm_screening_pass, dm_screening_reject
+from app.services.data_management.dashboard import dm_screening_pass, dm_screening_reject
 
 from . import bp
 

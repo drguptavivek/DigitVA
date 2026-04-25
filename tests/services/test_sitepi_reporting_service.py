@@ -25,7 +25,7 @@ from app.services.coding.final_cod_authority import (
     upsert_final_cod_authority,
     upsert_reviewer_final_cod_authority,
 )
-from app.services.analytics.sitepi_reporting import get_sitepi_dashboard_data
+from app.services.reporting.sitepi import get_sitepi_dashboard_data
 from app.services.workflow.definition import (
     TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
     TRANSITION_CODER_FINALIZED,

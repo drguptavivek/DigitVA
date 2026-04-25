@@ -1,7 +1,8 @@
 from app.services.odk.client import va_odk_clientsetup
 
 
-def va_odk_submissionupdatedate(va_form):
+def va_odk_submission_update_dates(va_form):
+    """Fetch ODK submission updatedAt values keyed by ODK submission id."""
     client = va_odk_clientsetup(project_id=va_form.project_id)
     try:
         submissions = client.submissions.get_table(

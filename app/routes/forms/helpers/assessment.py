@@ -5,7 +5,7 @@ from flask_login import current_user
 
 from app import db
 from app.models import VaInitialAssessments, VaStatuses
-from app.services.coding.demo_project import get_demo_expiry_for_submission
+from app.services.projects.demo_training import get_demo_expiry_for_submission
 from app.services.coding.final_cod_authority import get_authoritative_final_assessment
 from app.services.submissions.payload_bound_artifacts import (
     get_current_payload_narrative_assessment,

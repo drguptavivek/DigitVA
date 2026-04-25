@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from app.services.odk.delta import va_odk_delta_count
 from app.services.odk.submission_fetch import va_odk_fetch_submissions
-from app.services.odk.attachment_sync import (
+from app.services.attachments.sync import (
     SubmissionAttachmentSyncResult,
     _cleanup_replaced_attachment_files,
     _apply_submission_attachment_result,
@@ -81,7 +81,7 @@ class TestOdkClientReuse(TestCase):
         )
 
         with patch(
-            "app.services.odk.attachment_sync._invalidate_attachment_cache"
+            "app.services.attachments.sync._invalidate_attachment_cache"
         ):
             stale_paths = _apply_submission_attachment_result(
                 {"uuid:abc-form01": {"photo.jpg": record}},
@@ -94,10 +94,10 @@ class TestOdkClientReuse(TestCase):
 
     def test_cleanup_replaced_attachment_files_deletes_only_unreferenced_paths(self):
         with patch("app.db") as mock_db, patch(
-            "app.services.odk.attachment_sync.os.path.exists",
+            "app.services.attachments.sync.os.path.exists",
             return_value=True,
         ), patch(
-            "app.services.odk.attachment_sync.os.remove"
+            "app.services.attachments.sync.os.remove"
         ) as mock_remove:
             mock_db.session.scalar.side_effect = [0, 2]
 

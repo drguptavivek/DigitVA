@@ -70,7 +70,7 @@ filter.
 ### Code Reference
 
 ```python
-# app/services/va_data_sync/va_data_sync_01_odkcentral.py:110
+# app/services/sync/odk_central.py:110
 va_submission_gender = va_submission.get("Id10019")
 ```
 
@@ -99,7 +99,7 @@ va_submission_gender = va_submission.get("Id10019")
 ### Code Reference
 
 ```python
-# app/services/va_data_sync/va_data_sync_01_odkcentral.py:105-109
+# app/services/sync/odk_central.py:105-109
 _raw_age = va_submission.get("finalAgeInYears")
 try:
     va_submission_age = int(_raw_age) if _raw_age else 0
@@ -164,7 +164,7 @@ Unknown values pass through unchanged and are stored as-is.
 ### Code Reference
 
 ```python
-# app/services/va_data_sync/va_data_sync_01_odkcentral.py
+# app/services/sync/odk_central.py
 _raw_lang = (
     va_submission.get("narr_language")
     if va_submission.get("narr_language")
@@ -347,7 +347,7 @@ When creating a new ODK form for DigitVA, ensure it contains:
 
 ### Changing Field Names
 
-1. **Update sync code** — `va_data_sync_01_odkcentral.py`
+1. **Update sync code** — `odk_central.py`
 2. **Update mapping files** — `resource/mapping/*.xlsx`
 3. **Update preprocessing** — `va_preprocess_*.py`
 4. **Update SmartVA prep** — `va_smartva_02_prepdata.py`

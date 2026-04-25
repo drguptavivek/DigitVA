@@ -169,7 +169,7 @@ Add `partial`: one or more forms failed but at least one succeeded. The error me
 | `app/models/map_project_site_odk.py` | Add `last_synced_at` (nullable timezone-aware timestamp) |
 | `migrations/` | One additive idempotent migration |
 | `app/services/odk/delta.py` | New: `va_odk_delta_count()` |
-| `app/services/va_data_sync/va_data_sync_01_odkcentral.py` | Add delta check before download, per-form commit, partial status handling |
+| `app/services/sync/odk_central.py` | Add delta check before download, per-form commit, partial status handling |
 | `app/tasks/sync_tasks.py` | Add `run_single_form_sync` task; handle `partial` status in `run_odk_sync` |
 | `app/routes/admin.py` | Add `POST /admin/api/sync/form/<form_id>` |
 | `app/templates/admin/panels/sync_dashboard.html` | Per-form sync button; surface `last_synced_at` per form |
@@ -180,7 +180,7 @@ Add `partial`: one or more forms failed but at least one succeeded. The error me
 
 1. Schema migration — add `last_synced_at` to `map_project_site_odk`.
 2. `odk/delta.py` — implement and unit-test the OData filter call in isolation.
-3. Refactor `va_data_sync_01_odkcentral.py` — add delta check + per-form commit. No skip logic yet (delta count > 0 always). Verify per-form commit works correctly.
+3. Refactor `odk_central.py` — add delta check + per-form commit. No skip logic yet (delta count > 0 always). Verify per-form commit works correctly.
 4. Add skip logic — wire in `last_synced_at` update on success; skip when delta == 0.
 5. Add `partial` status to sync run recording.
 6. Add `run_single_form_sync` task + admin API + UI button.

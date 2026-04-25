@@ -25,7 +25,7 @@ from app.models.va_submission_payload_versions import (
     PAYLOAD_VERSION_STATUS_SUPERSEDED,
 )
 from app.services.odk.connection_guard import OdkConnectionCooldownError
-from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+from app.services.sync.odk_central import (
     SYNC_ISSUE_MISSING_IN_ODK,
     _attach_all_odk_comments,
     _enrich_submission_payload_for_storage,
@@ -268,34 +268,34 @@ class OdkSyncServiceTests(BaseTestCase):
             dispatch_calls.append(list(upserted_map.keys()))
 
         with patch(
-            "app.services.va_data_sync.va_data_sync_01_odkcentral.sync_runtime_forms_from_site_mappings",
+            "app.services.sync.odk_central.sync_runtime_forms_from_site_mappings",
             return_value=[fake_form],
         ):
             with patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral._resolve_project_connections",
+                "app.services.sync.odk_central._resolve_project_connections",
                 return_value={},
             ):
                 with patch(
-                    "app.services.va_data_sync.va_data_sync_01_odkcentral._get_or_create_sync_odk_client",
+                    "app.services.sync.odk_central._get_or_create_sync_odk_client",
                     return_value=object(),
                 ):
                     with patch(
-                        "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_fetch_instance_ids",
+                        "app.services.sync.odk_central.va_odk_fetch_instance_ids",
                         return_value=missing_ids,
                     ):
                         with patch(
-                            "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_delta_count",
+                            "app.services.sync.odk_central.va_odk_delta_count",
                             return_value=0,
                         ):
                             with patch(
-                                "app.services.va_data_sync.va_data_sync_01_odkcentral._mark_form_sync_issues"
+                                "app.services.sync.odk_central._mark_form_sync_issues"
                             ):
                                 with patch(
-                                    "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_fetch_submissions_by_ids",
+                                    "app.services.sync.odk_central.va_odk_fetch_submissions_by_ids",
                                     side_effect=fake_fetch_by_ids,
                                 ):
                                     with patch(
-                                        "app.services.va_data_sync.va_data_sync_01_odkcentral._upsert_form_submissions",
+                                        "app.services.sync.odk_central._upsert_form_submissions",
                                         side_effect=fake_upsert,
                                     ):
                                         result = va_data_sync_odkcentral(
@@ -311,16 +311,16 @@ class OdkSyncServiceTests(BaseTestCase):
         fake_form = db.session.get(VaForms, self.FORM_ID)
 
         with patch(
-            "app.services.va_data_sync.va_data_sync_01_odkcentral.sync_runtime_forms_from_site_mappings",
+            "app.services.sync.odk_central.sync_runtime_forms_from_site_mappings",
             return_value=[fake_form],
         ), patch(
-            "app.services.va_data_sync.va_data_sync_01_odkcentral._resolve_project_connections",
+            "app.services.sync.odk_central._resolve_project_connections",
             return_value={},
         ), patch(
-            "app.services.va_data_sync.va_data_sync_01_odkcentral.get_active_mapping_for_form",
+            "app.services.sync.odk_central.get_active_mapping_for_form",
             return_value=None,
         ), patch(
-            "app.services.va_data_sync.va_data_sync_01_odkcentral.va_odk_fetch_instance_ids",
+            "app.services.sync.odk_central.va_odk_fetch_instance_ids",
         ) as fetch_ids_mock:
             result = va_data_sync_odkcentral(log_progress=lambda _msg: None)
 
@@ -411,7 +411,7 @@ class OdkSyncServiceTests(BaseTestCase):
         self.assertIsNone(enriched.get("ageInYears"))
 
     @patch(
-        "app.services.va_data_sync.va_data_sync_01_odkcentral._enrich_submission_payload_for_storage"
+        "app.services.sync.odk_central._enrich_submission_payload_for_storage"
     )
     def test_upsert_persists_enriched_metadata_fields(self, mocked_enrich):
         mocked_enrich.side_effect = lambda _form, payload, client=None: {
@@ -898,7 +898,7 @@ class OdkSyncLoopCooldownTests(BaseTestCase):
         form_behaviors: {form_id: callable(client) -> None or raise}
         Returns (added, updated, failed_form_ids, cooldown_skipped_form_ids).
         """
-        from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+        from app.services.sync.odk_central import (
             va_data_sync_odkcentral,
         )
         import uuid
@@ -934,27 +934,27 @@ class OdkSyncLoopCooldownTests(BaseTestCase):
 
         with (
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 ".sync_runtime_forms_from_site_mappings",
                 return_value=fake_forms,
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 "._resolve_project_connections",
                 return_value=conn_for_form,
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 "._get_or_create_sync_odk_client",
                 return_value=Mock(),
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 ".get_active_mapping_for_form",
                 return_value=Mock(),
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 ".db.session.get",
                 side_effect=lambda model, key: next(
                     (form for form in fake_forms if getattr(form, "form_id", None) == key),
@@ -962,21 +962,21 @@ class OdkSyncLoopCooldownTests(BaseTestCase):
                 ),
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 ".va_odk_fetch_instance_ids",
                 side_effect=_fake_fetch_instance_ids,
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 ".db.session.scalars",
                 return_value=Mock(all=lambda: []),
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 "._release_active_allocations_after_sync",
             ),
             patch(
-                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                "app.services.sync.odk_central"
                 ".smartva_service",
                 create=True,
             ),

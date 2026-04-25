@@ -11,11 +11,11 @@ from flask import redirect, url_for, request
 from flask_login import current_user
 from app.models import VaForms, VaSubmissions, VaSubmissionWorkflow
 from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.workflow.intake_modes import (
+from app.services.projects.coding_intake import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )
-from app.services.coding.demo_project import is_demo_training_submission
+from app.services.projects.demo_training import is_demo_training_submission
 from app.utils import (
     va_permission_abortwithflash,
     va_permission_ensureallocation,

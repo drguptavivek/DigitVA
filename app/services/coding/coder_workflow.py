@@ -25,7 +25,7 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.coding.allocation import release_stale_coding_allocations
-from app.services.coding.demo_project import (
+from app.services.projects.demo_training import (
     get_demo_training_project_ids,
     is_demo_training_submission,
     should_use_demo_actiontype_for_submission,
@@ -42,8 +42,8 @@ from app.services.workflow.definition import (
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
-from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
-from app.services.workflow.intake_modes import (
+from app.services.projects.coding_intake import split_form_ids_by_coding_intake_mode
+from app.services.projects.coding_intake import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )

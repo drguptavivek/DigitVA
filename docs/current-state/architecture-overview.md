@@ -89,7 +89,7 @@ Main code areas:
   - `backups/` owns database backup/restore helpers
   - `users/` owns legacy user lifecycle helpers not yet replaced by the web
     user-management flow
-  - `smartva/`, `medical/`, `notifications/`, and `security/` own focused
+  - `smartva/`, `icd/`, `notifications/`, and `security/` own focused
     SmartVA, ICD-10, email, token, and abuse-protection services; legacy
     SmartVA adapter functions live under `smartva/legacy/` and are invoked
     through the SmartVA service

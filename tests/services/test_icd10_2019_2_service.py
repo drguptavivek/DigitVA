@@ -6,7 +6,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MasIcd1020192
-from app.services.medical.icd10_2019_2 import import_icd10_2019_2_from_csv
+from app.services.icd.icd10_2019_2 import import_icd10_2019_2_from_csv
 from tests.base import BaseTestCase
 
 

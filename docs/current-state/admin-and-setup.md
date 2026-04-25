@@ -16,7 +16,7 @@ The admin route layer is package-based: [app/routes/admin.py](../../app/routes/a
 
 The admin panel is accessible to authenticated users with the appropriate role. Some panels are admin-only; others are accessible to project PIs for their own project scope.
 
-Shell helpers and initialization services remain available for initial bootstrap and bulk operations, but day-to-day operational setup is now self-service through the web UI.
+CLI commands and initialization services remain available for initial bootstrap and bulk operations, but day-to-day operational setup is now self-service through the web UI.
 
 ## Admin Panel Overview
 
@@ -205,25 +205,10 @@ Current behavior:
 
 ## Current Setup Path
 
-The main operational shell helpers are exposed in:
-
-- [`run.py`](../../run.py)
-
-Important shell operations include:
-
-- `va_db_initialise_researchprojects()`
-- `va_db_initialise_researchsites()`
-- `va_db_initialise_vaforms()`
-- `va_db_initialise_vausers()`
-- `va_mapping_icd()`
-- `va_mapping_fieldsitepi()`
-- `va_mapping_fieldcoder()`
-- `va_mapping_choice()`
-- `va_mapping_summary()`
-- `va_mapping_summaryflip()`
-- `va_mapping_info()`
-- `va_mapping_flip()`
-- `va_data_sync_odkcentral()`
+Operational setup now uses Flask CLI commands registered by the application
+factory instead of legacy shell-context helpers in [`run.py`](../../run.py).
+The shell context is intentionally minimal and exposes only `db` and
+`sqlalchemy` as `sa` for inspection/debugging.
 
 ## Form Type Bootstrap
 
@@ -255,17 +240,9 @@ Current behavior of that command for field mapping bootstrap:
 
 ## Full Initialization Flow
 
-The shell helper `va_initialise_platform()` currently performs:
-
-1. database backup creation
-2. full schema drop and recreate
-3. seed project, site, and form master data
-4. load ICD codes
-5. generate mapping Python modules from spreadsheets
-6. perform ODK sync
-7. initialize users
-
-This reflects the current one-project-first bootstrap model.
+Fresh initialization is additive and command-driven. The standard baseline is
+`flask seed run`, which creates the default admin user, canonical languages,
+the `WHO_2022_VA` form type, and field/choice mappings without test data.
 
 ## Mapping Administration
 
@@ -273,13 +250,10 @@ Mapping spreadsheets are stored under:
 
 - `resource/mapping`
 
-The app does not read them dynamically from the UI on every request.
-
-Instead, service functions read the spreadsheets and generate Python modules under:
-
-- `app/utils/va_mapping`
-
-This is currently an operational/admin task, not a user-facing feature.
+The app does not read them dynamically from the UI on every request. The
+runtime field-mapping tables are populated by the seed/migration command path,
+while legacy static mapping modules under `app/utils/va_mapping` remain only as
+compatibility data for code paths not yet fully runtime-mapping based.
 
 ## User And Access Administration
 

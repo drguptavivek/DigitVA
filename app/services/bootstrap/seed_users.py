@@ -1,4 +1,4 @@
-from app.services.va_user.va_user_01_create import va_user_create
+from app.services.users.legacy_crud import va_user_create
 
 
 def va_db_initialise_vausers():

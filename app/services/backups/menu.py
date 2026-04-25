@@ -1,9 +1,9 @@
 import os
 import traceback
 from flask import current_app
-from app.services.va_db_backup.va_db_backup_01_create import va_db_backup_create
-from app.services.va_db_backup.va_db_backup_02_restore import va_db_backup_restore
-from app.services.va_db_backup.va_db_backup_03_listbackups import va_db_backup_listbackups
+from app.services.backups.create import va_db_backup_create
+from app.services.backups.restore import va_db_backup_restore
+from app.services.backups.list_backups import va_db_backup_listbackups
 
 
 def va_db_backup_execute():

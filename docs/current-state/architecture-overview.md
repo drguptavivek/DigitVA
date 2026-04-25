@@ -69,7 +69,8 @@ Main code areas:
     submission metadata fetch, and reviews
   - `forms/` owns form type management, field mapping, ODK schema-to-form
     mapping, category rendering, social-autopsy form metadata, and runtime form
-    synchronization
+    synchronization; legacy `VaForms` CRUD and generated mapping loaders live
+    here until setup flows are fully runtime-mapping based
   - `data_management/` owns data-manager dashboard scope, exports, screening
     actions, upstream-change review actions, and related audit helpers
   - `analytics/` owns read-only analytics materialized-view query helpers
@@ -80,6 +81,11 @@ Main code areas:
     route modules
   - `attachments/` owns attachment synchronization, storage, and serving
     support helpers
+  - `bootstrap/` owns legacy one-shot seed helpers for historical project,
+    site, form, and user setup
+  - `backups/` owns database backup/restore helpers
+  - `users/` owns legacy user lifecycle helpers not yet replaced by the web
+    user-management flow
   - `smartva/`, `medical/`, `notifications/`, and `security/` own focused
     SmartVA, ICD-10, email, token, and abuse-protection services
   - legacy operational packages remain for setup, backup, mapping generation,

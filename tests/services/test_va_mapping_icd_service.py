@@ -5,7 +5,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MasIcd1020192
-from app.services.va_mapping.va_mapping_08_icd import va_mapping_icd
+from app.services.medical.legacy_icd_mapping import va_mapping_icd
 from tests.base import BaseTestCase
 
 

@@ -1,4 +1,4 @@
-from app.services.va_form.va_form_01_addform import va_form_addform
+from app.services.forms.legacy_crud import va_form_addform
 
 
 def va_db_initialise_vaforms():

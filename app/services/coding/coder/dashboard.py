@@ -18,7 +18,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.demo_training import get_coder_demo_project_form_ids
+from app.services.coding.demo import get_coder_demo_project_form_ids
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,

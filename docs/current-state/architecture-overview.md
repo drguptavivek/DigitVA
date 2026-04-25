@@ -52,14 +52,21 @@ Main code areas:
   - SQLAlchemy models for users, submissions, allocations, assessments, review records, audit logs, and master data
 - `app/services`
   - domain services grouped by package instead of flat `*_service.py` modules
+  - service modules must not import Flask, Flask-Login, or Flask-Mail directly;
+    runtime framework access is isolated behind `app/framework.py` while older
+    handlers are migrated out of services or given explicit dependencies
   - `workflow/` owns only the canonical submission state machine: definitions,
     state store, transitions, and events
   - `coding/` owns allocation, coder/reviewer workflow actions, coding intake
-    policy, final COD authority, and payload-bound coding artifacts split by
-    artifact policy under `coding/payload_artifacts/`
+    policy, final COD authority, demo/training coding behavior, and
+    payload-bound coding artifacts split by artifact policy
+  - `coding/allocations/` owns allocation lifecycle and stale/demo cleanup
+  - `coding/coder/` owns coder dashboard, intake policy, and coder workflow
+  - `coding/reviewer/` owns reviewer workflow and reviewer final assessment
+  - `coding/authority/` owns final COD authority and recode episodes
+  - `coding/demo/` owns demo/training coding project behavior
+  - `coding/payload_artifacts/` owns current-payload-bound artifact policies
   - `projects/` owns project/site setup helpers and submission-to-project lookup
-  - `demo_training.py` owns demo/training project behavior that cuts across
-    coding, allocation, and access
   - `submissions/` owns pure submission payload version/projection helpers and
     derived submission summaries
   - `sync/` owns ODK-to-local sync orchestration, payload enrichment/backfill,
@@ -83,8 +90,6 @@ Main code areas:
     `rendering/legacy/`
   - `attachments/` owns attachment synchronization, storage, and serving
     support helpers
-  - `bootstrap/` owns legacy one-shot seed helpers for historical project,
-    site, form, and user setup
   - `backups/` owns database backup/restore helpers
   - `users/` owns legacy user lifecycle helpers not yet replaced by the web
     user-management flow
@@ -96,6 +101,10 @@ Main code areas:
     and older CRUD-style flows
 - `app/http`
   - app-level error handling and HTTP response helpers
+- `scripts`
+  - one-off and operator-run helpers that are not runtime domain services,
+    including the legacy WHO 2022 VA mapping migration and historical bootstrap
+    seed helpers under `scripts/legacy_bootstrap/`
 - `app/authz`
   - authorization policy, resource access, shared grant/scope helpers, and
     legacy workflow permission guards used by existing route decorators

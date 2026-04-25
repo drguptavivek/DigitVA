@@ -13,11 +13,11 @@ class TestEmailService(BaseTestCase):
         user = SimpleNamespace(email="vivekguptarpc@gmail.com", name="Vivek")
 
         with self.app.app_context(), patch(
-            "app.services.notifications.email.render_template",
+            "app.services.notifications.email.template_render",
             side_effect=lambda template, **context: f"{template}:{context['name']}",
-        ) as render_template, patch(
-            "app.services.notifications.email.mail.send"
-        ) as mail_send:
+        ) as template_render, patch(
+            "app.services.notifications.email.send_mail_message"
+        ) as send_mail_message:
             from app.services.notifications.email import _actually_send_email
 
             _actually_send_email(
@@ -27,11 +27,13 @@ class TestEmailService(BaseTestCase):
                 context={"name": user.name, "verify_url": "https://example.test"},
             )
 
-        self.assertEqual(render_template.call_count, 2)
-        mail_send.assert_called_once()
-        msg = mail_send.call_args.args[0]
-        self.assertEqual(msg.recipients, [user.email])
-        self.assertEqual(msg.subject, "Verify Your DigitVA Email")
+        self.assertEqual(template_render.call_count, 2)
+        send_mail_message.assert_called_once_with(
+            to=user.email,
+            subject="Verify Your DigitVA Email",
+            html="emails/verify_email.html:Vivek",
+            body="emails/verify_email.txt:Vivek",
+        )
 
     def test_send_password_reset_email_uses_invite_copy_for_new_users(self):
         user = SimpleNamespace(email="new.user@example.com", name="New User")

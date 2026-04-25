@@ -12,7 +12,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
-from app.services.coding.final_cod_authority import (
+from app.services.coding.authority.final_cod import (
     EPISODE_STATUS_ABANDONED,
     EPISODE_STATUS_COMPLETED,
     get_authoritative_final_cod_record,

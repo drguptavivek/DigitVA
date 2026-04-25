@@ -1,8 +1,7 @@
 import logging
 import threading
 
-from flask import has_app_context
-
+from app.framework import has_app_context
 from app.services.odk.connection_guard import guarded_odk_call
 from app.services.odk.client import va_odk_clientsetup
 

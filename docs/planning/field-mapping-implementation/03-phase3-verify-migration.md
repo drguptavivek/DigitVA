@@ -227,7 +227,7 @@ class TestMigrationCompleteness(BaseTestCase):
 
     def test_07_category_order_preserved(self):
         """Category display order matches hardcoded list."""
-        from app.services.migrations.migrate_who_2022_va import WHO_2022_CATEGORIES
+        from scripts.migrate_who_2022_va import WHO_2022_CATEGORIES
 
         db_categories = db.session.scalars(
             db.select(MasCategoryOrder)
@@ -568,7 +568,7 @@ Phase 3 is complete when ALL of the following pass:
    ```
 4. **Re-run migration**:
    ```bash
-   docker compose exec minerva_app_service uv run python -m app.services.migrations.migrate_who_2022_va
+   docker compose exec minerva_app_service uv run python -m scripts.migrate_who_2022_va
    ```
 5. **Re-run verification tests**
 

@@ -24,13 +24,13 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.coding.allocation import release_stale_coding_allocations
-from app.services.demo_training import (
+from app.services.coding.allocations.lifecycle import release_stale_coding_allocations
+from app.services.coding.demo import (
     get_demo_training_project_ids,
     is_demo_training_submission,
     should_use_demo_actiontype_for_submission,
 )
-from app.services.coding.final_cod_authority import (
+from app.services.coding.authority.final_cod import (
     get_authoritative_final_assessment,
     get_active_recode_episode,
     start_recode_episode,
@@ -42,8 +42,8 @@ from app.services.workflow.definition import (
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
-from app.services.coding.intake_policy import split_form_ids_by_coding_intake_mode
-from app.services.coding.intake_policy import (
+from app.services.coding.coder.intake_policy import split_form_ids_by_coding_intake_mode
+from app.services.coding.coder.intake_policy import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )

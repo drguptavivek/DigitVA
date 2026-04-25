@@ -26,9 +26,9 @@ import os
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
-from flask import current_app
 
 from app import db
+from app.framework import config_get
 from app.models import VaForms, VaSubmissions
 from app.models.va_selectives import VaStatuses
 from app.models.va_smartva_results import VaSmartvaResults
@@ -246,7 +246,7 @@ def enrich_unenriched_payloads(
     smartva_candidate_sids: set[str] = set()
     attachment_candidate_by_form: dict[str, dict[str, str]] = {}
     audit_by_sid: dict[str, dict] = {}
-    app_data_root = current_app.config.get("APP_DATA") if not dry_run else None
+    app_data_root = config_get("APP_DATA") if not dry_run else None
     if not dry_run and not app_data_root:
         log.warning("APP_DATA not configured: attachment stage will fail per submission")
 
@@ -754,7 +754,7 @@ def _run_attachment_sync_stage(
     from app.services.odk.client import va_odk_clientsetup
     from app.services.attachments.sync import va_odk_sync_submission_attachments
 
-    app_data_root = current_app.config.get("APP_DATA")
+    app_data_root = config_get("APP_DATA")
     if not app_data_root:
         log.warning("Attachments stage skipped: APP_DATA not configured")
         stats["attachments_errors"] += sum(

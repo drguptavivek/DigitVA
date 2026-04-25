@@ -28,7 +28,7 @@ from app.models import (
     VaUsernotes,
 )
 import app.routes.forms as form_routes
-from app.services.coding.final_cod_authority import (
+from app.services.coding.authority.final_cod import (
     complete_recode_episode,
     get_active_recode_episode,
     get_authoritative_final_assessment,

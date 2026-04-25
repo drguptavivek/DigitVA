@@ -11,7 +11,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
-from app.services.coding.reviewer_final_assessment import (
+from app.services.coding.reviewer.final_assessment import (
     create_reviewer_final_assessment,
     get_latest_active_reviewer_final_assessment,
 )

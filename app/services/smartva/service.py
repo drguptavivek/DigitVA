@@ -12,9 +12,9 @@ from datetime import datetime, timezone
 
 import pandas as pd
 import sqlalchemy as sa
-from flask import current_app
 
 from app import db
+from app.framework import config_value
 from app.models import (
     VaSmartvaFormRun,
     VaSmartvaRun,
@@ -34,7 +34,7 @@ def _utcnow() -> datetime:
 
 
 def smartva_runs_base_dir() -> str:
-    return current_app.config["APP_SMARTVA_RUNS"]
+    return config_value("APP_SMARTVA_RUNS")
 
 
 def resolve_form_run_disk_path(disk_path: str | None) -> str | None:
@@ -42,7 +42,7 @@ def resolve_form_run_disk_path(disk_path: str | None) -> str | None:
         return None
     normalized = str(disk_path).replace("\\", "/").lstrip("/")
     if normalized.startswith("smartva_runs/"):
-        return os.path.join(current_app.config["APP_DATA"], normalized)
+        return os.path.join(config_value("APP_DATA"), normalized)
     return os.path.join(smartva_runs_base_dir(), normalized)
 
 

@@ -9,9 +9,9 @@ import uuid
 
 import requests
 import sqlalchemy as sa
-from flask import current_app
 
 from app import db
+from app.framework import config_get
 from app.models.mas_odk_connections import MasOdkConnections
 
 
@@ -83,17 +83,15 @@ def _connection_uuid(connection_id) -> uuid.UUID | None:
 
 
 def _threshold() -> int:
-    return int(current_app.config.get("ODK_CONNECTION_FAILURE_THRESHOLD", 3))
+    return int(config_get("ODK_CONNECTION_FAILURE_THRESHOLD", 3))
 
 
 def _cooldown_seconds() -> int:
-    return int(current_app.config.get("ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS", 300))
+    return int(config_get("ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS", 300))
 
 
 def _min_interval_seconds() -> float:
-    return float(
-        current_app.config.get("ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS", 0.5)
-    )
+    return float(config_get("ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS", 0.5))
 
 
 def _row_to_snapshot(row) -> OdkConnectionGuardSnapshot:

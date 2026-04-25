@@ -20,7 +20,7 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
-from app.services.coding.reviewer_coding import (
+from app.services.coding.reviewer.workflow import (
     ReviewerCodingError,
     start_reviewer_coding,
     submit_reviewer_final_cod,

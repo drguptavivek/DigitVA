@@ -1,7 +1,7 @@
 import io
 import os
 import pandas as pd
-from flask import current_app
+
 from app.services.smartva.legacy.icd_codes import VA_SMARTVA_ICDS
 
 

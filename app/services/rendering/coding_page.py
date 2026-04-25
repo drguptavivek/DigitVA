@@ -62,13 +62,13 @@ def _count_attachments_per_category(form_type_code: str, payload_data: dict, va_
 
 def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_dashboard_role: str):
     """Render va_coding.html for a VA form session entry point."""
-    from flask import render_template, url_for
+    from app.framework import route_url, template_render
     from app.services.forms.type_resolution import (
         va_get_form_type_code_for_form,
     )
     from app.services.forms.category_rendering import get_category_rendering_service, get_visible_category_codes
-    from app.services.coding.coder_workflow import is_upstream_recode
-    from app.services.demo_training import is_demo_training_submission
+    from app.services.coding.coder.workflow import is_upstream_recode
+    from app.services.coding.demo import is_demo_training_submission
     from app.services.submissions.payload_version import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
     from app.tasks.sync_tasks import run_open_submission_repair
@@ -117,7 +117,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         back_dashboard_role == "data_manager"
         and (has_pending_upstream_change or is_upstream_recode(submission.va_sid))
     )
-    return render_template(
+    return template_render(
         "va_frontpages/va_coding.html",
         va_sid=submission.va_sid,
         va_action=va_action,
@@ -138,7 +138,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         is_upstream_recode=is_upstream_recode(submission.va_sid),
         has_pending_upstream_change=has_pending_upstream_change,
         upstream_change_details_url=(
-            url_for(
+            route_url(
                 "api_v1.data_management_api.upstream_change_details",
                 va_sid=submission.va_sid,
             )

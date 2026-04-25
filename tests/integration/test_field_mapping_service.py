@@ -27,7 +27,7 @@ from app.models import (
     VaSubmissions,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
-from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator, WHO_2022_CATEGORIES
+from scripts.migrate_who_2022_va import Who2022VaMigrator, WHO_2022_CATEGORIES
 from app.services.forms.field_mapping import FieldMappingService
 from tests.base import BaseTestCase
 

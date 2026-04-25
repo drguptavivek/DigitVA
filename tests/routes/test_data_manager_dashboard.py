@@ -993,7 +993,7 @@ class DataManagerDashboardTests(BaseTestCase):
             ["updatedAt"],
         )
 
-    @patch("app.services.coding.coder_workflow.is_upstream_recode", return_value=True)
+    @patch("app.services.coding.coder.workflow.is_upstream_recode", return_value=True)
     def test_data_manager_view_includes_inline_upstream_change_panel(self, _mocked_upstream):
         self._login(self.dm_user_id)
 

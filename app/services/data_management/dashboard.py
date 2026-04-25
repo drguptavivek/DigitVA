@@ -16,9 +16,9 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 import pytz
 import sqlalchemy as sa
-from flask_login import current_user
 
 from app import db
+from app.framework import current_user_object
 from app.authz.scope import user_has_dm_like_submission_access, user_has_role
 from app.models import (
     MasOdkConnections,
@@ -46,7 +46,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
-from app.services.coding.final_cod_authority import upsert_final_cod_authority
+from app.services.coding.authority.final_cod import upsert_final_cod_authority
 from app.services.odk.review import resolve_odk_instance_id
 from app.services.coding.payload_artifacts import (
     deactivate_active_reviewer_reviews_for_submission,
@@ -144,7 +144,10 @@ def _format_datetime_for_current_user(
     if getattr(dt_value, "tzinfo", None) is None:
         dt_value = dt_value.replace(tzinfo=timezone.utc)
 
-    tz_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
+    tz_name = (
+        getattr(current_user_object(), "timezone", "Asia/Kolkata")
+        or "Asia/Kolkata"
+    )
     try:
         user_tz = pytz.timezone(tz_name)
     except pytz.UnknownTimeZoneError:
@@ -1920,7 +1923,7 @@ def audit_dm_submission_action(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
             va_audit_byrole="data_manager",
-            va_audit_by=current_user.user_id,
+            va_audit_by=current_user_object().user_id,
             va_audit_operation=operation,
             va_audit_action=action,
             va_audit_entityid=uuid.uuid4(),

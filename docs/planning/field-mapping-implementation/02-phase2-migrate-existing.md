@@ -3,7 +3,7 @@ title: Phase 2 - Migrate Existing WHO_2022_VA Data
 doc_type: implementation-plan
 status: draft
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-04-25
 phase: 2
 estimated_duration: 1 day
 risk_level: critical
@@ -42,7 +42,7 @@ Migrate all existing WHO_2022_VA mappings from Excel files to database tables **
 
 ## Step 2.1: Create Migration Script
 
-**File**: `app/services/migrations/migrate_who_2022_va.py`
+**File**: `scripts/migrate_who_2022_va.py`
 
 ```python
 """
@@ -432,7 +432,7 @@ from app.models import (
     MasFieldDisplayConfig,
     MasChoiceMappings,
 )
-from app.services.migrations.migrate_who_2022_va import (
+from scripts.migrate_who_2022_va import (
     Who2022VaMigrator,
     WHO_2022_CATEGORIES,
 )
@@ -695,14 +695,10 @@ class TestWho2022VaMigration(BaseTestCase):
 # 1. Run tests first (TDD - should fail initially)
 docker compose exec minerva_app_service uv run pytest tests/migrations/test_migrate_who_2022_va.py -v
 
-# 2. Create migrations directory if needed
-mkdir -p app/services/migrations
-touch app/services/migrations/__init__.py
+# 2. Run migration script
+docker compose exec minerva_app_service uv run python -m scripts.migrate_who_2022_va
 
-# 3. Run migration script
-docker compose exec minerva_app_service uv run python -m app.services.migrations.migrate_who_2022_va
-
-# 4. Re-run tests (should pass now)
+# 3. Re-run tests (should pass now)
 docker compose exec minerva_app_service uv run pytest tests/migrations/test_migrate_who_2022_va.py -v
 ```
 
@@ -913,7 +909,7 @@ DELETE FROM mas_form_types;
 "
 
 # 2. Re-run migration after fixing issues
-docker compose exec minerva_app_service uv run python -m app.services.migrations.migrate_who_2022_va
+docker compose exec minerva_app_service uv run python -m scripts.migrate_who_2022_va
 ```
 
 ---

@@ -191,9 +191,9 @@ def repair_submission_current_payload(
             return result
 
         if batch_plan[va_sid].get("needs_attachments"):
-            from flask import current_app
+            from app.framework import config_value
 
-            media_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id, "media")
+            media_dir = os.path.join(config_value("APP_DATA"), va_form.form_id, "media")
             os.makedirs(media_dir, exist_ok=True)
             totals = va_odk_sync_form_attachments(
                 va_form,

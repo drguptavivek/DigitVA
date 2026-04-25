@@ -1,8 +1,9 @@
 import os
 import traceback
 import subprocess
+
 from app import db
-from flask import current_app
+from app.framework import config_value
 
 
 def va_db_backup_restore(va_backup_path):
@@ -10,7 +11,7 @@ def va_db_backup_restore(va_backup_path):
         if not os.path.exists(va_backup_path):
             print(f"App DB backup not found: {va_backup_path}")
             return
-        va_db_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
+        va_db_url = config_value("SQLALCHEMY_DATABASE_URI")
         db.session.remove()
         drop_cmd = [
             "psql",

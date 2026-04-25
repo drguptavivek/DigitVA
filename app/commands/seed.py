@@ -151,7 +151,7 @@ def _seed_who_2022_va_fields():
             click.echo(f"  [skip] WHO_2022_VA fields already populated ({count} fields)")
             return
 
-    from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
+    from scripts.migrate_who_2022_va import Who2022VaMigrator
     click.echo("  [run]  migrating WHO_2022_VA fields from Excel...")
     migrator = Who2022VaMigrator()
     success = migrator.run()

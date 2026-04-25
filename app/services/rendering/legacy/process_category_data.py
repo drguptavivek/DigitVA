@@ -6,7 +6,8 @@ dates/numbers, and builds attachment URLs for the server-rendered VA form UI.
 
 import os
 from collections import OrderedDict
-from flask import url_for, current_app
+
+from app.framework import config_value, route_url
 from app.services.rendering.legacy.map_choice_value import va_render_mapchoicevalue
 from app.services.rendering.legacy.standardize_date import va_render_standardizedate
 from app.services.rendering.legacy.clean_numeric_value import va_render_cleannumericvalue
@@ -91,9 +92,9 @@ def _resolve_attachment_url(
             return None
 
     if storage_name is not None:
-        return url_for("va_form.serve_attachment", storage_name_raw=storage_name)
+        return route_url("va_form.serve_attachment", storage_name_raw=storage_name)
 
-    return url_for(
+    return route_url(
         "va_form.serve_media",
         va_form_id=va_form_id,
         va_filename=original_filename,
@@ -177,7 +178,7 @@ def va_render_processcategorydata(
                         if value.lower().endswith(".amr"):
                             value = value[: -len(".amr")] + ".mp3"
                         disk_path = os.path.join(
-                            current_app.config["APP_DATA"], va_form_id, "media", value
+                            config_value("APP_DATA"), va_form_id, "media", value
                         )
                         if not os.path.exists(disk_path):
                             continue

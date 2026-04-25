@@ -23,8 +23,7 @@ Computed fields added to each record:
 import logging
 from datetime import datetime, timezone
 
-from flask import current_app, has_app_context
-
+from app.framework import config_get, has_app_context
 from app.services.odk.connection_guard import guarded_odk_call
 from app.services.odk.client import va_odk_clientsetup
 
@@ -37,8 +36,8 @@ def _request_timeout() -> tuple[float, float]:
     """Return bounded connect/read timeouts for ODK fetch calls."""
     if has_app_context():
         return (
-            float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
-            float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+            float(config_get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+            float(config_get("ODK_READ_TIMEOUT_SECONDS", 60)),
         )
     return (10.0, 60.0)
 

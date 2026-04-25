@@ -21,7 +21,7 @@ from app.models import (
     VaAccessScopeTypes,
     VaUserAccessGrants,
 )
-from app.services.coding.final_cod_authority import (
+from app.services.coding.authority.final_cod import (
     upsert_final_cod_authority,
     upsert_reviewer_final_cod_authority,
 )

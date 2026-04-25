@@ -1,15 +1,16 @@
 import os
 import subprocess
 import traceback
-from app import db
-from flask import current_app
 from datetime import datetime
+
+from app import db
+from app.framework import config_value
 
 
 def va_db_backup_create():
     try:
-        va_backup_dir = current_app.config["APP_BACKUP"]
-        va_db_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
+        va_backup_dir = config_value("APP_BACKUP")
+        va_db_url = config_value("SQLALCHEMY_DATABASE_URI")
         os.makedirs(va_backup_dir, exist_ok=True)
         va_all_backups = [
             os.path.join(va_backup_dir, f)

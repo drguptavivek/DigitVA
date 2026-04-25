@@ -1,11 +1,12 @@
 import os
 import traceback
-from flask import current_app
+
+from app.framework import config_value
 
 
 def va_db_backup_listbackups():
     try:
-        va_backup_dir = current_app.config["APP_BACKUP"]
+        va_backup_dir = config_value("APP_BACKUP")
         if not os.path.exists(va_backup_dir):
             print("App DB backup directory not found.")
             return []

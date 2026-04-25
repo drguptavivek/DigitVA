@@ -322,7 +322,7 @@ Current ODK operational protection:
 Current coding allocation cleanup behavior:
 
 - implemented in
-  [`app/services/coding/allocation.py`](../../app/services/coding/allocation.py)
+  [`app/services/coding/allocations/lifecycle.py`](../../app/services/coding/allocations/lifecycle.py)
 - scheduled by [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py)
 - deactivates stale active coding allocations older than 1 hour
 - preserves any saved `va_initial_assessments` rows

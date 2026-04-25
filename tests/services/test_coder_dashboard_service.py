@@ -12,7 +12,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
-from app.services.coding.coder_dashboard import (
+from app.services.coding.coder.dashboard import (
     bust_coder_dashboard_cache,
     get_coder_completed_count,
     get_coder_completed_history,

@@ -476,7 +476,7 @@ Reviewer NQA (supporting artifact, optional):
 Reviewer final COD (terminal action):
 
 - the reviewer submits a final COD via `submit_reviewer_final_cod()`
-  (`app/services/coding/reviewer_coding.py`)
+  (`app/services/coding/reviewer/workflow.py`)
 - this releases the reviewing allocation and transitions to `reviewer_finalized`
 - `va_final_cod_authority` is updated to point to the reviewer's final assessment
 

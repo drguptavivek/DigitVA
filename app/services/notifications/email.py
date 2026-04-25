@@ -11,13 +11,14 @@ import logging
 import smtplib
 from datetime import datetime, timezone
 
-from flask import current_app, render_template
-from flask_mail import Mail, Message
+from app.framework import (
+    config_get,
+    init_mail_extension,
+    send_mail_message,
+    template_render,
+)
 
 log = logging.getLogger(__name__)
-
-mail = Mail()
-
 
 def init_mail(app) -> None:
     """Configure Flask-Mail from environment and initialise the extension."""
@@ -28,19 +29,19 @@ def init_mail(app) -> None:
     app.config.setdefault("MAIL_USERNAME", "")
     app.config.setdefault("MAIL_PASSWORD", "")
     app.config.setdefault("MAIL_DEFAULT_SENDER", "noreply@digitva.org")
-    mail.init_app(app)
+    init_mail_extension(app)
 
 
 def is_mail_configured() -> bool:
     """Return True if SMTP is configured (non-empty MAIL_SERVER)."""
-    if current_app.config.get("MAIL_SUPPRESS_SEND"):
+    if config_get("MAIL_SUPPRESS_SEND"):
         return True
-    server = current_app.config.get("MAIL_SERVER", "")
+    server = config_get("MAIL_SERVER", "")
     return bool(server and server != "localhost")
 
 
 def _mail_base_url() -> str:
-    base_url = current_app.config.get("MAIL_BASE_URL") or current_app.config.get("SERVER_NAME")
+    base_url = config_get("MAIL_BASE_URL") or config_get("SERVER_NAME")
     if not base_url:
         base_url = "localhost:5000"
     if not str(base_url).startswith("http"):
@@ -53,11 +54,11 @@ def _normalized_email(value: str) -> str:
 
 
 def _email_delivery_enabled() -> bool:
-    return bool(current_app.config.get("EMAIL_DELIVERY_ENABLED", True))
+    return bool(config_get("EMAIL_DELIVERY_ENABLED", True))
 
 
 def _email_suppression_cache_key(to: str) -> str:
-    prefix = current_app.config.get("EMAIL_SUPPRESSION_CACHE_PREFIX", "digitva_email_suppressed:")
+    prefix = config_get("EMAIL_SUPPRESSION_CACHE_PREFIX", "digitva_email_suppressed:")
     return f"{prefix}{_normalized_email(to)}"
 
 
@@ -76,7 +77,7 @@ def _mark_suppressed_email(to: str, exc: Exception) -> None:
     from app import cache
 
     key = _email_suppression_cache_key(to)
-    ttl_seconds = int(current_app.config.get("EMAIL_SUPPRESSION_TTL_SECONDS", 60 * 60 * 24 * 14))
+    ttl_seconds = int(config_get("EMAIL_SUPPRESSION_TTL_SECONDS", 60 * 60 * 24 * 14))
     payload = {
         "reason": type(exc).__name__,
         "message": str(exc),
@@ -155,16 +156,15 @@ def _actually_send_email(to: str, subject: str, template_name: str, context: dic
         log.warning("Mail not configured — skipping email to %s", to)
         return
 
-    html = render_template(template_name + ".html", **context)
-    text = render_template(template_name + ".txt", **context)
+    html = template_render(template_name + ".html", **context)
+    text = template_render(template_name + ".txt", **context)
 
-    msg = Message(
+    send_mail_message(
+        to=to,
         subject=subject,
-        recipients=[to],
         html=html,
         body=text,
     )
-    mail.send(msg)
     log.info("Email sent to %s: %s", to, subject)
 
 

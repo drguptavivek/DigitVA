@@ -175,7 +175,7 @@ class VaUsers(UserMixin, db.Model):
         )
 
     def has_demo_training_access(self) -> bool:
-        from app.services.demo_training import get_demo_training_project_ids
+        from app.services.coding.demo import get_demo_training_project_ids
 
         return bool(get_demo_training_project_ids())
 
@@ -338,7 +338,7 @@ class VaUsers(UserMixin, db.Model):
             VaAccessScopeTypes,
             VaStatuses,
         )
-        from app.services.demo_training import get_coder_demo_project_form_ids
+        from app.services.coding.demo import get_coder_demo_project_form_ids
 
         role_enum = VaAccessRoles(role)
         active_status = VaStatuses.active

@@ -10,8 +10,10 @@ for the project (backward compatibility during migration).
 
 import os
 import logging
-from flask import current_app
+
 from pyodk.client import Client
+
+from app.framework import config_get
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ def va_odk_clientsetup(project_id: str | None = None) -> Client:
 
     Raises Exception on failure.
     """
-    pyodk_dir = os.path.join(current_app.config.get("APP_RESOURCE"), "pyodk")
+    pyodk_dir = os.path.join(config_get("APP_RESOURCE"), "pyodk")
 
     if project_id:
         client = _client_from_db(project_id, pyodk_dir)
@@ -94,7 +96,7 @@ def client_from_connection(conn, pyodk_dir: str) -> Client:
 def _client_from_toml(cache_path: str) -> Client:
     """Return a Client built from the legacy TOML config file."""
     config_path = os.path.join(
-        current_app.config.get("APP_RESOURCE"), "pyodk", "odk_config.toml"
+        config_get("APP_RESOURCE"), "pyodk", "odk_config.toml"
     )
     try:
         return Client(config_path=config_path, cache_path=cache_path)

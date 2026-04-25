@@ -5,7 +5,7 @@ from flask_login import current_user
 
 from app.authz.access import action_authorized
 from app.authz.resources import submission_from_kwarg
-from app.services.coding.reviewer_coding import (
+from app.services.coding.reviewer.workflow import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
     start_reviewer_coding,

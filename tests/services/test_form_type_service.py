@@ -6,7 +6,7 @@ Run (inside Docker):
 """
 from app import db
 from app.models import MasCategoryDisplayConfig, MasFormTypes
-from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
+from scripts.migrate_who_2022_va import Who2022VaMigrator
 from tests.base import BaseTestCase
 
 

@@ -24,17 +24,17 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.coding.allocation import (
+from app.services.coding.allocations.lifecycle import (
     cleanup_expired_demo_coding_artifacts,
     release_stale_coding_allocations,
 )
-from app.services.coding.coder_workflow import (
+from app.services.coding.coder.workflow import (
     AllocationError,
     _get_site_coding_error,
     mark_reviewer_eligible_after_recode_window_submissions,
     start_recode_allocation,
 )
-from app.services.coding.final_cod_authority import (
+from app.services.coding.authority.final_cod import (
     EPISODE_STATUS_ACTIVE,
     EPISODE_TYPE_RECODE,
     upsert_final_cod_authority,

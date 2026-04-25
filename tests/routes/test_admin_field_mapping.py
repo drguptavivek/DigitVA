@@ -9,7 +9,7 @@ from decimal import Decimal
 from app import db
 from app.models import MasCategoryDisplayConfig, MasFormTypes, MasFieldDisplayConfig
 from app.models.va_field_mapping import MasChoiceMappings
-from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator
+from scripts.migrate_who_2022_va import Who2022VaMigrator
 from tests.base import BaseTestCase
 
 

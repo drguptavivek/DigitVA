@@ -1819,11 +1819,11 @@ def refresh_submission_analytics_mv_task(self):
 )
 def release_stale_coding_allocations_task(self):
     """Release stale coding allocations older than the configured timeout."""
-    from app.services.coding.allocation import (
+    from app.services.coding.allocations.lifecycle import (
         release_stale_coding_allocations,
         release_stale_reviewer_allocations,
     )
-    from app.services.coding.coder_workflow import (
+    from app.services.coding.coder.workflow import (
         mark_reviewer_eligible_after_recode_window_submissions,
     )
 
@@ -1904,7 +1904,7 @@ def ensure_coding_timeout_cleanup_scheduled():
 )
 def cleanup_expired_demo_coding_task(self):
     """Deactivate expired demo-coding artifacts and return forms to the ready pool."""
-    from app.services.coding.allocation import cleanup_expired_demo_coding_artifacts
+    from app.services.coding.allocations.lifecycle import cleanup_expired_demo_coding_artifacts
 
     expired = cleanup_expired_demo_coding_artifacts()
     return {"expired_demo_artifacts": expired}

@@ -28,8 +28,8 @@ import uuid
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
-from flask import current_app, has_app_context
 
+from app.framework import app_object, config_get, has_app_context
 from app.services.odk.connection_guard import guarded_odk_call
 
 log = logging.getLogger(__name__)
@@ -129,8 +129,8 @@ def _sync_submission_attachments_no_db(
     os.makedirs(media_dir, exist_ok=True)
     if has_app_context():
         request_timeout = (
-            current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10),
-            current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60),
+            config_get("ODK_CONNECT_TIMEOUT_SECONDS", 10),
+            config_get("ODK_READ_TIMEOUT_SECONDS", 60),
         )
     else:
         request_timeout = (10, 60)
@@ -490,7 +490,7 @@ def va_odk_sync_form_attachments(
         per_sid_storage_names,
     ) = _load_existing_attachment_state(list(upserted_map.keys()))
     db.session.rollback()
-    app = current_app._get_current_object() if has_app_context() else None
+    app = app_object()
 
     thread_local = threading.local()
 

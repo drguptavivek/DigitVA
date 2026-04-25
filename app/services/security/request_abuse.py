@@ -3,9 +3,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from flask import current_app
-
 from app import cache
+from app.framework import config_get, logger_warning
 
 
 def _normalize_ip(ip_address: str | None) -> str | None:
@@ -16,7 +15,7 @@ def _normalize_ip(ip_address: str | None) -> str | None:
 
 
 def _tracked_methods() -> set[str]:
-    configured = current_app.config.get(
+    configured = config_get(
         "METHOD_NOT_ALLOWED_BAN_METHODS",
         ("POST", "PATCH"),
     )
@@ -28,7 +27,7 @@ def _tracked_methods() -> set[str]:
 
 
 def _counter_key(ip_address: str) -> str:
-    prefix = current_app.config.get(
+    prefix = config_get(
         "METHOD_NOT_ALLOWED_BAN_COUNTER_PREFIX",
         "digitva_method_not_allowed:count:",
     )
@@ -36,7 +35,7 @@ def _counter_key(ip_address: str) -> str:
 
 
 def _ban_key(ip_address: str) -> str:
-    prefix = current_app.config.get(
+    prefix = config_get(
         "METHOD_NOT_ALLOWED_BAN_PREFIX",
         "digitva_method_not_allowed:ban:",
     )
@@ -44,7 +43,7 @@ def _ban_key(ip_address: str) -> str:
 
 
 def abuse_ban_message() -> str:
-    return current_app.config.get(
+    return config_get(
         "METHOD_NOT_ALLOWED_BAN_MESSAGE",
         (
             "Access temporarily blocked because this IP sent repeated invalid "
@@ -55,7 +54,7 @@ def abuse_ban_message() -> str:
 
 
 def is_method_not_allowed_ban_enabled() -> bool:
-    return bool(current_app.config.get("METHOD_NOT_ALLOWED_BAN_ENABLED", True))
+    return bool(config_get("METHOD_NOT_ALLOWED_BAN_ENABLED", True))
 
 
 def is_tracked_method(method: str | None) -> bool:
@@ -112,10 +111,10 @@ def record_method_not_allowed_abuse(
 
     now = int(time.time())
     window_seconds = int(
-        current_app.config.get("METHOD_NOT_ALLOWED_BAN_WINDOW_SECONDS", 600)
+        config_get("METHOD_NOT_ALLOWED_BAN_WINDOW_SECONDS", 600)
     )
-    threshold = int(current_app.config.get("METHOD_NOT_ALLOWED_BAN_THRESHOLD", 10))
-    ban_seconds = int(current_app.config.get("METHOD_NOT_ALLOWED_BAN_SECONDS", 3600))
+    threshold = int(config_get("METHOD_NOT_ALLOWED_BAN_THRESHOLD", 10))
+    ban_seconds = int(config_get("METHOD_NOT_ALLOWED_BAN_SECONDS", 3600))
 
     counter_payload = cache.get(_counter_key(normalized_ip)) or {
         "count": 0,
@@ -149,7 +148,7 @@ def record_method_not_allowed_abuse(
     cache.set(_ban_key(normalized_ip), ban_payload, timeout=ban_seconds)
     cache.delete(_counter_key(normalized_ip))
 
-    current_app.logger.warning(
+    logger_warning(
         "method_not_allowed_ip_banned ip=%s method=%s path=%s count=%s window_seconds=%s ban_seconds=%s",
         normalized_ip,
         normalized_method,

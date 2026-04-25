@@ -71,7 +71,7 @@ from app.services.workflow.transitions import (
     reset_incomplete_recode,
     system_actor,
 )
-from app.services.coding.final_cod_authority import start_recode_episode
+from app.services.coding.authority.final_cod import start_recode_episode
 from tests.base import BaseTestCase
 
 

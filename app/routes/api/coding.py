@@ -9,7 +9,7 @@ from app.authz.access import action_authorized
 from app.authz.scope import user_has_role
 from app.authz.resources import submission_from_kwarg
 from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow, VaSubmissions
-from app.services.coding.coder_dashboard import (
+from app.services.coding.coder.dashboard import (
     get_coder_completed_count,
     get_coder_completed_history,
     get_coder_output_summary,
@@ -18,7 +18,7 @@ from app.services.coding.coder_dashboard import (
     get_coder_recodeable_sids,
 )
 
-from app.services.coding.coder_workflow import (
+from app.services.coding.coder.workflow import (
     AllocationError,
     admin_override_to_recode,
     allocate_pick_form,
@@ -33,8 +33,8 @@ from app.services.coding.coder_workflow import (
     start_recode_allocation,
 )
 from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.demo_training import should_use_demo_actiontype_for_submission
-from app.services.coding.intake_policy import split_form_ids_by_coding_intake_mode
+from app.services.coding.demo import should_use_demo_actiontype_for_submission
+from app.services.coding.coder.intake_policy import split_form_ids_by_coding_intake_mode
 from app.services.workflow.transitions import admin_actor
 
 bp = Blueprint("coding_api", __name__)

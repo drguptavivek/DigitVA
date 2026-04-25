@@ -21,8 +21,9 @@ TOKEN_PURPOSES = {
 
 
 def _serializer() -> URLSafeTimedSerializer:
-    from flask import current_app
-    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
+    from app.framework import config_value
+
+    return URLSafeTimedSerializer(config_value("SECRET_KEY"))
 
 
 def generate_token(user_id, purpose: str) -> str:
@@ -37,7 +38,7 @@ def generate_token(user_id, purpose: str) -> str:
     """
     if purpose not in TOKEN_PURPOSES:
         raise ValueError(f"Unknown token purpose: {purpose}")
-    return _serializer(). dumps(
+    return _serializer().dumps(
         {"user_id": str(user_id), "purpose": purpose},
         salt=TOKEN_PURPOSES[purpose]["salt"],
     )

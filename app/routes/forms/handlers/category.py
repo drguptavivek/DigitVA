@@ -21,7 +21,7 @@ from app.models import (
 import app.routes.forms as form_routes
 from app.services.forms.category_rendering import get_visible_category_codes
 from app.services.forms.field_mapping import get_mapping_service
-from app.services.coding.final_cod_authority import (
+from app.services.coding.authority.final_cod import (
     get_authoritative_final_cod_record,
 )
 from app.services.coding.payload_artifacts import (

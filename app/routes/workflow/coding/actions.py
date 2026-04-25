@@ -10,7 +10,7 @@ from app.authz.access import action_authorized
 from app.authz.resources import submission_from_kwarg
 from app.authz.scope import user_has_coding_form_access, user_has_role
 from app.models import VaSubmissions
-from app.services.coding.coder_workflow import (
+from app.services.coding.coder.workflow import (
     AllocationError,
     allocate_pick_form,
     allocate_random_form,
@@ -18,7 +18,7 @@ from app.services.coding.coder_workflow import (
     start_demo_allocation,
     start_recode_allocation,
 )
-from app.services.demo_training import should_use_demo_actiontype_for_submission
+from app.services.coding.demo import should_use_demo_actiontype_for_submission
 from app.authz.legacy_guards.abort_with_flash import (
     va_permission_abortwithflash,
 )

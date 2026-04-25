@@ -6,8 +6,14 @@ These helpers support category rendering and action responses used by the
 
 from app import db
 import sqlalchemy as sa
-from flask_login import current_user
-from flask import jsonify, render_template, url_for, flash, request
+from app.framework import (
+    current_user_object,
+    flash_message,
+    json_response,
+    request_header,
+    route_url,
+    template_render,
+)
 from app.models import (
     VaAllocations,
     VaAllocation,
@@ -152,7 +158,7 @@ def va_get_category_context(va_sid, va_action, va_partial):
             sa.select(model).where(
                 status == VaStatuses.deactive,
                 model.va_sid == va_sid,
-                user == current_user.user_id,
+                user == current_user_object().user_id,
             )
         )
         final_assess = active(VaFinalAssessments, VaFinalAssessments.va_finassess_status)
@@ -206,7 +212,7 @@ def va_get_category_context(va_sid, va_action, va_partial):
 def va_render_category_partial(context, va_action, va_actiontype, va_sid, va_partial):
     submission = context["submission"]
     if va_partial == "vanarrationanddocuments":
-        return render_template(
+        return template_render(
             f"va_formcategory_partials/{va_partial}.html",
             instance_name=submission.va_uniqueid_masked,
             category_data=context["processed_data"],
@@ -232,7 +238,7 @@ def va_render_category_partial(context, va_action, va_actiontype, va_sid, va_par
             da_va_coder_review=context["inactive_coder"],
         )
     else:
-        return render_template(
+        return template_render(
             f"va_formcategory_partials/{va_partial}.html",
             instance_name=submission.va_uniqueid_masked,
             category_data=context["processed_data"],
@@ -252,7 +258,7 @@ def va_log_submission_action(va_sid, role, action, entity_id, operation="c"):
         VaSubmissionsAuditlog(
             va_sid=va_sid,
             va_audit_byrole=role,
-            va_audit_by=current_user.user_id,
+            va_audit_by=current_user_object().user_id,
             va_audit_operation=operation,
             va_audit_action=action,
             va_audit_entityid=entity_id,
@@ -274,14 +280,14 @@ def va_deactivate_allocation(user_id, allocation_for):
 
 
 def va_handle_htmx_redirect(route_name, va_role, message):
-    response = jsonify(success=True)
-    response.headers["HX-Redirect"] = url_for(route_name, va_role=va_role)
-    flash(message, "success")
+    response = json_response(success=True)
+    response.headers["HX-Redirect"] = route_url(route_name, va_role=va_role)
+    flash_message(message, "success")
     return response
 
 
 def va_request_is_htmx():
-    return bool(request.headers.get("HX-Request"))
+    return bool(request_header("HX-Request"))
 
 
 def va_get_age_labels(va_sid):
@@ -325,7 +331,7 @@ def va_get_active_smartva_result(va_sid):
 def va_get_user_note_for_current_user(va_sid):
     return _scalar(
         sa.select(VaUsernotes).where(
-            VaUsernotes.note_by == current_user.user_id,
+            VaUsernotes.note_by == current_user_object().user_id,
             VaUsernotes.note_vasubmission == va_sid,
             VaUsernotes.note_status == VaStatuses.active,
         )

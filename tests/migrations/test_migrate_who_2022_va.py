@@ -22,7 +22,7 @@ from app.models import (
     MasFieldDisplayConfig,
     MasChoiceMappings,
 )
-from app.services.migrations.migrate_who_2022_va import (
+from scripts.migrate_who_2022_va import (
     Who2022VaMigrator,
     WHO_2022_CATEGORIES,
 )

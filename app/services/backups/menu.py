@@ -1,6 +1,7 @@
 import os
 import traceback
-from flask import current_app
+
+from app.framework import config_value
 from app.services.backups.create import va_db_backup_create
 from app.services.backups.restore import va_db_backup_restore
 from app.services.backups.list_backups import va_db_backup_listbackups
@@ -24,7 +25,7 @@ def va_db_backup_execute():
             try:
                 index = int(input("Enter VA backup number to restore: ")) - 1
                 va_backup_file = os.path.join(
-                    current_app.config["APP_BACKUP"], va_backups[index]
+                    config_value("APP_BACKUP"), va_backups[index]
                 )
                 va_db_backup_restore(va_backup_file)
             except (ValueError, IndexError):

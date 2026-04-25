@@ -6,8 +6,9 @@ from decimal import Decimal
 import sqlalchemy as sa
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from flask import current_app
+
 from app import db
+from app.framework import config_get, config_value
 from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
@@ -22,7 +23,7 @@ from app.services.odk.connection_guard import (
     is_retryable_odk_connectivity_error,
 )
 from app.services.smartva.age_normalization import normalize_who_2022_age
-from app.services.coding.final_cod_authority import (
+from app.services.coding.authority.final_cod import (
     abandon_active_recode_episode,
     upsert_final_cod_authority,
 )
@@ -309,8 +310,8 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
 
     client = client or va_odk_clientsetup(project_id=va_form.project_id)
     request_timeout = (
-        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
-        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+        float(config_get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(config_get("ODK_READ_TIMEOUT_SECONDS", 60)),
     )
     comments_url_base = (
         f"projects/{va_form.odk_project_id}"
@@ -365,8 +366,8 @@ def _attach_all_odk_comments(va_form, submissions, client=None, log_progress=Non
 def _fetch_submission_xml_enrichment(va_form, instance_id: str, *, client) -> dict:
     """Fetch XML-only metadata fields needed for the canonical stored payload."""
     request_timeout = (
-        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
-        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+        float(config_get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(config_get("ODK_READ_TIMEOUT_SECONDS", 60)),
     )
     response = guarded_odk_call(
         lambda: client.session.get(
@@ -396,8 +397,8 @@ def _fetch_submission_xml_enrichment(va_form, instance_id: str, *, client) -> di
 def _fetch_submission_metadata_enrichment(va_form, instance_id: str, *, client) -> dict:
     """Fetch extended Central submission metadata not present in OData rows."""
     request_timeout = (
-        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
-        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+        float(config_get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(config_get("ODK_READ_TIMEOUT_SECONDS", 60)),
     )
     response = guarded_odk_call(
         lambda: client.session.get(
@@ -427,8 +428,8 @@ def _fetch_submission_metadata_enrichment(va_form, instance_id: str, *, client) 
 def _fetch_submission_attachment_enrichment(va_form, instance_id: str, *, client) -> dict:
     """Fetch attachment-derived metadata fields needed in the canonical payload."""
     request_timeout = (
-        float(current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
-        float(current_app.config.get("ODK_READ_TIMEOUT_SECONDS", 60)),
+        float(config_get("ODK_CONNECT_TIMEOUT_SECONDS", 10)),
+        float(config_get("ODK_READ_TIMEOUT_SECONDS", 60)),
     )
     response = guarded_odk_call(
         lambda: client.session.get(
@@ -1216,7 +1217,7 @@ def va_data_sync_odkcentral(
                     gap_errors = 0
                     gap_upserted_map: dict[str, str] = {}
                     gap_records_for_finalize: list[dict] = []
-                    form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
+                    form_dir = os.path.join(config_value("APP_DATA"), va_form.form_id)
                     media_dir = os.path.join(form_dir, "media")
                     os.makedirs(media_dir, exist_ok=True)
 
@@ -1390,7 +1391,7 @@ def va_data_sync_odkcentral(
                         f"{len(va_submissions_raw)} submission(s) from ODK"
                     )
 
-                form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
+                form_dir = os.path.join(config_value("APP_DATA"), va_form.form_id)
                 media_dir = os.path.join(form_dir, "media")
                 os.makedirs(media_dir, exist_ok=True)
 

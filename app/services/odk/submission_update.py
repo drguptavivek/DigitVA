@@ -1,4 +1,4 @@
-from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+from app.services.odk.client import va_odk_clientsetup
 
 
 def va_odk_submissionupdatedate(va_form):

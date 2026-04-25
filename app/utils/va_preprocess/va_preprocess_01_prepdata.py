@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from datetime import datetime
 from flask import current_app
-from app.utils.va_odk.va_odk_03_submissionupdatedate import va_odk_submissionupdatedate
+from app.services.odk.submission_update import va_odk_submissionupdatedate
 
 
 def va_preprocess_prepdata(va_form):

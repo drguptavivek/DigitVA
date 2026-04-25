@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-25
 ---
 
 # ODK Sync And Attachments
@@ -238,7 +238,7 @@ GET /v1/projects/{id}/forms/{formId}/submissions.svc/Submissions
   &$top=0&$count=true
 ```
 
-Implemented in [`va_odk_delta_count()`](../../app/utils/va_odk/va_odk_05_deltacheck.py).
+Implemented in [`va_odk_delta_count()`](../../app/services/odk/delta.py).
 
 Rules:
 
@@ -267,8 +267,8 @@ Steps:
 
 Implemented in:
 
-- [`va_odk_fetch_instance_ids()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py) — lightweight ID listing
-- [`va_odk_fetch_submissions_by_ids()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py) — targeted fetch by instance ID
+- [`va_odk_fetch_instance_ids()`](../../app/services/odk/submission_fetch.py) — lightweight ID listing
+- [`va_odk_fetch_submissions_by_ids()`](../../app/services/odk/submission_fetch.py) — targeted fetch by instance ID
 
 Note: OData `$filter` on `__id` is not supported by ODK Central (HTTP 501). The single-entity access pattern `Submissions('{instanceId}')` is used instead.
 
@@ -299,7 +299,7 @@ GET /v1/projects/{id}/forms/{formId}/submissions.svc/Submissions
 
 For first-ever syncs (`last_synced_at` is NULL), no filter is applied — all submissions are fetched.
 
-Implemented in [`va_odk_fetch_submissions()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py).
+Implemented in [`va_odk_fetch_submissions()`](../../app/services/odk/submission_fetch.py).
 
 ### OData JSON normalization
 
@@ -350,8 +350,8 @@ Current implementation detail:
 
 Implemented in:
 
-- [`va_odk_sync_submission_attachments()`](../../app/utils/va_odk/va_odk_07_syncattachments.py)
-- [`va_odk_sync_form_attachments()`](../../app/utils/va_odk/va_odk_07_syncattachments.py)
+- [`va_odk_sync_submission_attachments()`](../../app/services/odk/attachment_sync.py)
+- [`va_odk_sync_form_attachments()`](../../app/services/odk/attachment_sync.py)
 
 Rules:
 
@@ -649,7 +649,7 @@ Stale `running` rows (older than 45 minutes) are marked `error` automatically on
 
 A lightweight OData count utility:
 
-- [`va_odk_delta_count()`](../../app/utils/va_odk/va_odk_05_deltacheck.py) — uses `$top=0&$count=true` with an optional `since` filter
+- [`va_odk_delta_count()`](../../app/services/odk/delta.py) — uses `$top=0&$count=true` with an optional `since` filter
 - Returns total or filtered submission count without downloading any data
 
 Also used by `GET /admin/api/sync/coverage` to compare ODK totals against local `va_submissions` counts per site mapping.

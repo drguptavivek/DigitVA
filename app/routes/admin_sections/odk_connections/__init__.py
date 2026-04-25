@@ -14,7 +14,7 @@ from app.admin_support.odk import (
     get_odk_client_for_connection as _get_odk_client_for_connection,
     validate_odk_base_url as _validate_odk_base_url,
 )
-from app.services.odk_connection_guard_service import (
+from app.services.odk.connection_guard import (
     OdkConnectionCooldownError,
     guarded_odk_call,
     serialize_connection_guard_state,

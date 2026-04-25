@@ -9,7 +9,7 @@ from app.decorators import role_required
 from app.models import MapProjectOdk, MasOdkConnections
 from app.http.responses import json_error as _json_error
 from app.routes.admin import admin
-from app.services.odk_connection_guard_service import serialize_connection_guard_state
+from app.services.odk.connection_guard import serialize_connection_guard_state
 
 
 @admin.get("/api/projects/<project_id>/odk-connection")

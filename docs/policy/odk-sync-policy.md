@@ -3,7 +3,7 @@ title: ODK Sync Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-25
 ---
 
 # ODK Sync Policy
@@ -642,7 +642,7 @@ SyncResult:
 ## Connection Guard and Pacing
 
 All outbound ODK Central calls pass through a shared connection guard
-(`app/services/odk_connection_guard_service.py`). The guard enforces
+(`app/services/odk/connection_guard.py`). The guard enforces
 per-connection pacing and cooldown using state persisted in `mas_odk_connections`.
 
 ### Pacing

@@ -3,7 +3,7 @@ title: ODK Field Dependencies — Application Logic Based on ODK Form Fields
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-17
+last_updated: 2026-04-25
 ---
 
 # ODK Field Dependencies — Application Logic Based on ODK Form Fields
@@ -129,7 +129,7 @@ except (ValueError, TypeError):
 Computed from `unique_id` + `start` timestamp:
 
 ```python
-# app/utils/va_odk/va_odk_06_fetchsubmissions.py:217-232
+# app/services/odk/submission_fetch.py:217-232
 out["unique_id2"] = (
     str(out["unique_id"]).rsplit("_", 1)[0]
     + "_"
@@ -214,7 +214,7 @@ These fields come from ODK Central's `__system` metadata and are always present.
 ### Code Reference
 
 ```python
-# app/utils/va_odk/va_odk_06_fetchsubmissions.py:200-206
+# app/services/odk/submission_fetch.py:200-206
 out["KEY"] = instance_id
 out["SubmissionDate"] = system.get("submissionDate")
 out["updatedAt"] = system.get("updatedAt")
@@ -236,7 +236,7 @@ out["instanceName"] = meta.get("instanceName")
 ### Code Reference
 
 ```python
-# app/utils/va_odk/va_odk_06_fetchsubmissions.py:213
+# app/services/odk/submission_fetch.py:213
 out["sid"] = f"{instance_id}-{form_id.lower()}"
 ```
 

@@ -19,7 +19,7 @@ def admin_sync_coverage():
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
         from app.models.va_submissions import VaSubmissions
-        from app.utils.va_odk.va_odk_04_submissioncount import va_odk_submissioncount
+        from app.services.odk.submission_count import va_odk_submissioncount
 
         forms = sync_runtime_forms_from_site_mappings()
         mappings = {

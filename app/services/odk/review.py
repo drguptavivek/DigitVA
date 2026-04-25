@@ -5,8 +5,8 @@ import re
 
 from app import db
 from app.models import VaForms, VaSubmissions
-from app.services.odk_connection_guard_service import guarded_odk_call
-from app.utils import va_odk_clientsetup
+from app.services.odk.connection_guard import guarded_odk_call
+from app.services.odk.client import va_odk_clientsetup
 
 
 ODK_REVIEW_STATE_HAS_ISSUES = "hasIssues"

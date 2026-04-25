@@ -47,7 +47,7 @@ from app.models import (
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.final_cod_authority_service import upsert_final_cod_authority
-from app.services.odk_review_service import resolve_odk_instance_id
+from app.services.odk.review import resolve_odk_instance_id
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_active_reviewer_reviews_for_submission,
     deactivate_active_narrative_assessments_for_submission,

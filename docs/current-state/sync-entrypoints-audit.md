@@ -3,7 +3,7 @@ title: Sync Entrypoints Audit
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-25
 ---
 
 # Sync Entrypoints Audit
@@ -53,7 +53,7 @@ It also separates true ODK sync actions from read-only refresh actions.
 ## Adjacent But Different "Sync" Surface
 
 The Field Mapping area (`/admin/panels/field-mapping/sync`) is not submission
-sync. It calls `odk_schema_sync_service` to preview/apply schema/choice mapping
+sync. It calls `app.services.odk.schema_sync` to preview/apply schema/choice mapping
 changes:
 
 - `POST /admin/panels/field-mapping/sync/preview`

@@ -37,7 +37,8 @@ from app.tasks.sync_tasks import (
     _refresh_batch_plan_after_enrichment,
     _release_read_transaction,
 )
-from app.utils import va_odk_fetch_submissions_by_ids, va_odk_sync_form_attachments
+from app.services.odk.submission_fetch import va_odk_fetch_submissions_by_ids
+from app.services.odk.attachment_sync import va_odk_sync_form_attachments
 
 log = logging.getLogger(__name__)
 

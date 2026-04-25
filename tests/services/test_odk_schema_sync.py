@@ -47,7 +47,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
 
     def test_01_sync_unknown_form_type_returns_error(self):
         """Sync with unknown form_type_code returns error in stats."""
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
         svc = OdkSchemaSyncService()
         stats = svc.sync_form_choices("UNKNOWN_FORM", 1, "test_form")
         self.assertIn("errors", stats)
@@ -57,9 +57,9 @@ class TestOdkSchemaSyncService(BaseTestCase):
     def test_02_sync_returns_stats_dict(self):
         """sync_form_choices returns dict with required stat keys."""
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             mock_client.get.return_value = _mock_odk_response([])
             mock_setup.return_value = mock_client
@@ -74,9 +74,9 @@ class TestOdkSchemaSyncService(BaseTestCase):
     def test_03_sync_adds_new_choices(self):
         """Sync adds choices from ODK fields endpoint."""
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             mock_client.get.return_value = _mock_odk_response([
                 {
@@ -107,7 +107,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
     def test_04_sync_updates_changed_label(self):
         """Sync updates choice_label when ODK returns a different label."""
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
         existing = MasChoiceMappings(
             form_type_id=self.form_type.form_type_id,
@@ -120,7 +120,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
         db.session.add(existing)
         db.session.flush()
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             mock_client.get.return_value = _mock_odk_response([
                 {
@@ -148,7 +148,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
         one form would incorrectly remove other sites' choices.
         """
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
         old_choice = MasChoiceMappings(
             form_type_id=self.form_type.form_type_id,
@@ -161,7 +161,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
         db.session.add(old_choice)
         db.session.flush()
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             mock_client.get.return_value = _mock_odk_response([
                 {
@@ -185,7 +185,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
     def test_06_sync_unchanged_choice_not_counted(self):
         """Sync does not count a choice as updated if label is unchanged."""
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
         existing = MasChoiceMappings(
             form_type_id=self.form_type.form_type_id,
@@ -198,7 +198,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
         db.session.add(existing)
         db.session.flush()
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             mock_client.get.return_value = _mock_odk_response([
                 {
@@ -220,9 +220,9 @@ class TestOdkSchemaSyncService(BaseTestCase):
     def test_07_non_select_fields_do_not_add_choices(self):
         """Non-select fields never produce choice records."""
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             mock_client.get.return_value = _mock_odk_response([
                 {"name": "TextField", "type": "text"},
@@ -240,9 +240,9 @@ class TestOdkSchemaSyncService(BaseTestCase):
     def test_08_fields_processed_counts_db_matched_fields(self):
         """fields_processed counts all ODK fields that exist in MasFieldDisplayConfig."""
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             # These field names don't exist in MasFieldDisplayConfig in the test DB,
             # so fields_processed stays 0 regardless of type.
@@ -271,7 +271,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
 
     def test_09_detect_changes_unknown_form_type(self):
         """detect_schema_changes returns error for unknown form type."""
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
         svc = OdkSchemaSyncService()
         result = svc.detect_schema_changes("UNKNOWN_FORM", 1, "test")
         self.assertIn("error", result)
@@ -279,9 +279,9 @@ class TestOdkSchemaSyncService(BaseTestCase):
     def test_10_detect_changes_identifies_new_choices(self):
         """detect_schema_changes finds choices in ODK but not in DB."""
         from unittest.mock import patch
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
-        with patch("app.services.odk_schema_sync_service.va_odk_clientsetup") as mock_setup:
+        with patch("app.services.odk.schema_sync.va_odk_clientsetup") as mock_setup:
             mock_client = Mock()
             mock_client.get.return_value = _mock_odk_response([
                 {
@@ -305,7 +305,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
 
     def test_11_sync_selected_reuses_existing_choices_for_new_field(self):
         """Applying a new field reuses orphaned choice rows instead of duplicating them."""
-        from app.services.odk_schema_sync_service import OdkSchemaSyncService
+        from app.services.odk.schema_sync import OdkSchemaSyncService
 
         db.session.add_all(
             [

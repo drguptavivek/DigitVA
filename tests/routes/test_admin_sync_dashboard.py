@@ -73,7 +73,7 @@ class AdminSyncDashboardTests(BaseTestCase):
         db.session.commit()
 
         with patch(
-            "app.utils.va_odk.va_odk_04_submissioncount.va_odk_submissioncount",
+            "app.services.odk.submission_count.va_odk_submissioncount",
             return_value=12,
         ):
             response = self.client.get("/admin/api/sync/coverage")

@@ -4,7 +4,7 @@ import uuid
 
 from app import db
 from app.models import VaForms, VaResearchProjects, VaSites, VaStatuses, VaSubmissions
-from app.services.odk_review_service import (
+from app.services.odk.review import (
     ODK_REVIEW_STATE_HAS_ISSUES,
     build_not_codeable_review_comment,
     mark_submission_needs_revision,
@@ -119,7 +119,7 @@ class TestOdkReviewService(BaseTestCase):
         db.session.commit()
 
         fake_client = MagicMock()
-        with patch("app.services.odk_review_service.va_odk_clientsetup", return_value=fake_client):
+        with patch("app.services.odk.review.va_odk_clientsetup", return_value=fake_client):
             review_state, comment = mark_submission_needs_revision(
                 sid,
                 "no_info",
@@ -162,7 +162,7 @@ class TestOdkReviewService(BaseTestCase):
         db.session.commit()
 
         fake_client = MagicMock()
-        with patch("app.services.odk_review_service.va_odk_clientsetup", return_value=fake_client):
+        with patch("app.services.odk.review.va_odk_clientsetup", return_value=fake_client):
             result = sync_not_codeable_review_state(
                 sid,
                 "form_is_empty",
@@ -198,7 +198,7 @@ class TestOdkReviewService(BaseTestCase):
         db.session.commit()
 
         fake_client = MagicMock()
-        with patch("app.services.odk_review_service.va_odk_clientsetup", return_value=fake_client):
+        with patch("app.services.odk.review.va_odk_clientsetup", return_value=fake_client):
             result = sync_not_codeable_review_state(
                 sid,
                 "duplicate_submission",
@@ -234,7 +234,7 @@ class TestOdkReviewService(BaseTestCase):
         db.session.commit()
 
         with patch(
-            "app.services.odk_review_service.va_odk_clientsetup",
+            "app.services.odk.review.va_odk_clientsetup",
             side_effect=RuntimeError("Central unavailable"),
         ):
             result = sync_not_codeable_review_state(

@@ -3,7 +3,7 @@ title: Incremental ODK Sync — OData Filter-Gated Per-Form Download
 doc_type: planning
 status: implemented
 owner: engineering
-last_updated: 2026-03-14
+last_updated: 2026-04-25
 ---
 
 # Incremental ODK Sync — OData Filter-Gated Per-Form Download
@@ -59,7 +59,7 @@ Supported filter fields relevant to sync:
 
 Migration: additive, backward-compatible. One column, no data loss.
 
-### 2. Delta check — `va_odk_05_deltacheck.py`
+### 2. Delta check — `odk/delta.py`
 
 New utility function:
 
@@ -168,7 +168,7 @@ Add `partial`: one or more forms failed but at least one succeeded. The error me
 |---|---|
 | `app/models/map_project_site_odk.py` | Add `last_synced_at` (nullable timezone-aware timestamp) |
 | `migrations/` | One additive idempotent migration |
-| `app/utils/va_odk/va_odk_05_deltacheck.py` | New: `va_odk_delta_count()` |
+| `app/services/odk/delta.py` | New: `va_odk_delta_count()` |
 | `app/services/va_data_sync/va_data_sync_01_odkcentral.py` | Add delta check before download, per-form commit, partial status handling |
 | `app/tasks/sync_tasks.py` | Add `run_single_form_sync` task; handle `partial` status in `run_odk_sync` |
 | `app/routes/admin.py` | Add `POST /admin/api/sync/form/<form_id>` |
@@ -179,7 +179,7 @@ Add `partial`: one or more forms failed but at least one succeeded. The error me
 ## Implementation Sequence
 
 1. Schema migration — add `last_synced_at` to `map_project_site_odk`.
-2. `va_odk_05_deltacheck.py` — implement and unit-test the OData filter call in isolation.
+2. `odk/delta.py` — implement and unit-test the OData filter call in isolation.
 3. Refactor `va_data_sync_01_odkcentral.py` — add delta check + per-form commit. No skip logic yet (delta count > 0 always). Verify per-form commit works correctly.
 4. Add skip logic — wire in `last_synced_at` update on success; skip when delta == 0.
 5. Add `partial` status to sync run recording.
@@ -264,7 +264,7 @@ For a routine sync where 5 new submissions arrive out of 1,155:
 
 ### Why deferred to Phase 2
 
-Requires replacing the CSV ZIP + pandas pipeline with OData JSON parsing — a rewrite of `va_odk_02_downloadformdata.py` and `va_preprocess_01_prepdata.py`. Phase 1 (delta check + skip unchanged forms entirely) delivers the majority of the benefit with minimal code change and regression risk.
+Requires replacing the CSV ZIP + pandas pipeline with OData JSON parsing — a rewrite of `app/services/odk/submission_fetch.py` and `app/utils/va_preprocess/va_preprocess_01_prepdata.py`. Phase 1 (delta check + skip unchanged forms entirely) delivers the majority of the benefit with minimal code change and regression risk.
 
 ### Local ETag storage
 

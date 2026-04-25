@@ -5,17 +5,17 @@ from unittest.mock import MagicMock, patch
 class TestOdkClientSetupLogging(TestCase):
     def test_logs_db_backed_connection_usage_for_project(self):
         with patch(
-            "app.utils.va_odk.va_odk_01_clientsetup._client_from_db",
+            "app.services.odk.client._client_from_db",
             return_value=MagicMock(name="db_client"),
         ):
             with patch(
-                "app.utils.va_odk.va_odk_01_clientsetup._client_from_toml",
+                "app.services.odk.client._client_from_toml",
             ) as toml_client:
                 with patch(
-                    "app.utils.va_odk.va_odk_01_clientsetup.log"
+                    "app.services.odk.client.log"
                 ) as mock_log:
                     client = __import__(
-                        "app.utils.va_odk.va_odk_01_clientsetup",
+                        "app.services.odk.client",
                         fromlist=["va_odk_clientsetup"],
                     ).va_odk_clientsetup(project_id="ROOT01")
 
@@ -31,18 +31,18 @@ class TestOdkClientSetupLogging(TestCase):
         fallback_client = MagicMock(name="fallback_client")
 
         with patch(
-            "app.utils.va_odk.va_odk_01_clientsetup._client_from_db",
+            "app.services.odk.client._client_from_db",
             return_value=None,
         ):
             with patch(
-                "app.utils.va_odk.va_odk_01_clientsetup._client_from_toml",
+                "app.services.odk.client._client_from_toml",
                 return_value=fallback_client,
             ) as toml_client:
                 with patch(
-                    "app.utils.va_odk.va_odk_01_clientsetup.log"
+                    "app.services.odk.client.log"
                 ) as mock_log:
                     client = __import__(
-                        "app.utils.va_odk.va_odk_01_clientsetup",
+                        "app.services.odk.client",
                         fromlist=["va_odk_clientsetup"],
                     ).va_odk_clientsetup(project_id="ROOT01")
 

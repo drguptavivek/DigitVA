@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MasOdkConnections, MapProjectOdk, VaStatuses
-from app.services.odk_connection_guard_service import OdkConnectionCooldownError
+from app.services.odk.connection_guard import OdkConnectionCooldownError
 from app.utils.credential_crypto import decrypt_credential, encrypt_credential
 from tests.base import BaseTestCase
 

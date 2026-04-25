@@ -8,7 +8,7 @@ from app.models import VaForms
 
 class SyncTaskBatchingTests(TestCase):
     def test_fetch_submissions_by_ids_applies_request_timeout(self):
-        from app.utils.va_odk.va_odk_06_fetchsubmissions import (
+        from app.services.odk.submission_fetch import (
             va_odk_fetch_submissions_by_ids,
         )
 
@@ -187,15 +187,15 @@ class SyncTaskBatchingTests(TestCase):
                         with patch("app.tasks.sync_tasks._authorize_data_manager_submission_sync"):
                             with patch("app.tasks.sync_tasks._get_single_form_odk_client", return_value=object()):
                                 with patch(
-                                    "app.services.odk_review_service.resolve_odk_instance_id",
+                                    "app.services.odk.review.resolve_odk_instance_id",
                                     return_value="instance-1",
                                 ):
                                     with patch(
-                                        "app.utils.va_odk_fetch_submissions_by_ids",
+                                        "app.services.odk.submission_fetch.va_odk_fetch_submissions_by_ids",
                                         return_value=[{"sid": "sid-1", "KEY": "instance-1"}],
                                     ):
                                         with patch(
-                                            "app.utils.va_odk_fetch_instance_ids",
+                                            "app.services.odk.submission_fetch.va_odk_fetch_instance_ids",
                                             return_value=["instance-1"],
                                         ):
                                             with patch(

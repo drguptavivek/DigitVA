@@ -3,7 +3,7 @@ title: ODK Repair Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-25
 ---
 
 # ODK Repair Workflow
@@ -338,8 +338,8 @@ Shared coding render path:
 
 Attachment repair primitives:
 
-- [`va_odk_sync_form_attachments(...)`](../../app/utils/va_odk/va_odk_07_syncattachments.py)
-- [`va_odk_sync_submission_attachments(...)`](../../app/utils/va_odk/va_odk_07_syncattachments.py)
+- [`va_odk_sync_form_attachments(...)`](../../app/services/odk/attachment_sync.py)
+- [`va_odk_sync_submission_attachments(...)`](../../app/services/odk/attachment_sync.py)
 
 SmartVA repair primitive:
 

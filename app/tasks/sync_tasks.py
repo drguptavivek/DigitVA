@@ -193,7 +193,7 @@ def _refresh_batch_plan_after_enrichment(
 
 def _get_single_form_odk_client(va_form):
     """Return one pyODK client for the single-form sync run."""
-    from app.utils import va_odk_clientsetup
+    from app.services.odk.client import va_odk_clientsetup
     from app.services.runtime_form_sync_service import get_active_mapping_for_form
 
     mapping = get_active_mapping_for_form(va_form)
@@ -1026,7 +1026,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
     from app.models.va_forms import VaForms
     from app.models.map_project_site_odk import MapProjectSiteOdk
     import sqlalchemy as sa
-    from app.utils import (
+    from app.services.odk.submission_fetch import (
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions,
     )
@@ -1194,7 +1194,7 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
         _mark_form_sync_issues,
         _upsert_form_submissions,
     )
-    from app.utils import (
+    from app.services.odk.submission_fetch import (
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions_by_ids,
     )
@@ -1482,8 +1482,8 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
     from app import db
     from app.models.va_sync_runs import VaSyncRun
     from app.models import VaForms, VaSubmissions
-    from app.services.odk_review_service import resolve_odk_instance_id
-    from app.utils import (
+    from app.services.odk.review import resolve_odk_instance_id
+    from app.services.odk.submission_fetch import (
         va_odk_fetch_instance_ids,
         va_odk_fetch_submissions_by_ids,
     )

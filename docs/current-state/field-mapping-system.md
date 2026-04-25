@@ -3,7 +3,7 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-04-25
 ---
 
 # Field Mapping System
@@ -649,7 +649,7 @@ All state-changing routes require `X-CSRFToken` header and admin role.
 |------|---------|
 | [`app/models/va_field_mapping.py`](../../app/models/va_field_mapping.py) | SQLAlchemy models for all `mas_*` tables |
 | [`app/services/form_type_service.py`](../../app/services/form_type_service.py) | CRUD, duplicate, export, import |
-| [`app/services/odk_schema_sync_service.py`](../../app/services/odk_schema_sync_service.py) | XLSForm parsing and DB upsert |
+| [`app/services/odk/schema_sync.py`](../../app/services/odk/schema_sync.py) | XLSForm parsing and DB upsert |
 | [`app/services/field_mapping_service.py`](../../app/services/field_mapping_service.py) | Runtime rendering cache |
 | [`app/routes/admin.py`](../../app/routes/admin.py) | All admin routes (~line 1089 onward) |
 | [`app/templates/admin/panels/field_mapping.html`](../../app/templates/admin/panels/field_mapping.html) | Main panel — cards, import/export modals |
@@ -670,5 +670,5 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-04-25
 ---

@@ -30,7 +30,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from flask import current_app, has_app_context
 
-from app.services.odk_connection_guard_service import guarded_odk_call
+from app.services.odk.connection_guard import guarded_odk_call
 
 log = logging.getLogger(__name__)
 _ATTACHMENT_SYNC_MAX_WORKERS = 3
@@ -609,7 +609,7 @@ def va_odk_sync_submission_attachments(
     """Sync attachments for one submission using ETag-based conditional download."""
     from app import db
     from app.models.va_submission_attachments import VaSubmissionAttachments
-    from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+    from app.services.odk.client import va_odk_clientsetup
 
     os.makedirs(media_dir, exist_ok=True)
     client = client or va_odk_clientsetup(project_id=va_form.project_id)

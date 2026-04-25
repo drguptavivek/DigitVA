@@ -10,7 +10,7 @@ from flask import current_app
 from app import db
 from app.models import MapProjectOdk, MasOdkConnections, VaStatuses
 from app.serializers import serialize_odk_connection
-from app.services.odk_connection_guard_service import serialize_connection_guard_state
+from app.services.odk.connection_guard import serialize_connection_guard_state
 
 _BLOCKED_HOSTNAMES = frozenset({"localhost", "metadata.google.internal"})
 
@@ -82,7 +82,7 @@ def odk_connection_alerts() -> list[dict]:
 
 
 def get_odk_client_for_connection(conn: MasOdkConnections):
-    from app.utils.va_odk.va_odk_01_clientsetup import client_from_connection
+    from app.services.odk.client import client_from_connection
 
     pyodk_dir = os.path.join(current_app.config.get("APP_RESOURCE"), "pyodk")
     return client_from_connection(conn, pyodk_dir)

@@ -216,7 +216,7 @@ def enrich_unenriched_payloads(
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
         _enrich_submission_payload_for_storage,
     )
-    from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+    from app.services.odk.client import va_odk_clientsetup
     from app.services.workflow.transitions import system_actor
 
     stats = {
@@ -585,7 +585,7 @@ def _run_single_submission_attachment(
     audit_by_sid: dict,
     force_redownload: bool = False,
 ) -> None:
-    from app.utils.va_odk.va_odk_07_syncattachments import va_odk_sync_submission_attachments
+    from app.services.odk.attachment_sync import va_odk_sync_submission_attachments
 
     stats["attachments_checked"] += 1
     if not media_dir:
@@ -751,8 +751,8 @@ def _run_attachment_sync_stage(
     audit_by_sid: dict,
 ) -> None:
     """Sync attachments for enriched submissions form-by-form."""
-    from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
-    from app.utils.va_odk.va_odk_07_syncattachments import va_odk_sync_submission_attachments
+    from app.services.odk.client import va_odk_clientsetup
+    from app.services.odk.attachment_sync import va_odk_sync_submission_attachments
 
     app_data_root = current_app.config.get("APP_DATA")
     if not app_data_root:

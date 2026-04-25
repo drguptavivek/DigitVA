@@ -8,7 +8,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MapProjectSiteOdk, VaSyncRun
-from app.services.odk_connection_guard_service import serialize_connection_guard_state
+from app.services.odk.connection_guard import serialize_connection_guard_state
 
 log = logging.getLogger(__name__)
 

@@ -368,9 +368,9 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"id=\"dm-table\"", response.data)
 
-    @patch("app.utils.va_odk_delta_count")
-    @patch("app.utils.va_odk_fetch_instance_ids")
-    @patch("app.utils.va_odk.va_odk_01_clientsetup.va_odk_clientsetup")
+    @patch("app.services.odk.delta.va_odk_delta_count")
+    @patch("app.services.odk.submission_fetch.va_odk_fetch_instance_ids")
+    @patch("app.services.odk.client.va_odk_clientsetup")
     def test_data_manager_can_load_sync_preview(
         self,
         mocked_clientsetup,

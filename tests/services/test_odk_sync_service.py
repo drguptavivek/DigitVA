@@ -24,7 +24,7 @@ from app.models.va_submission_payload_versions import (
     PAYLOAD_VERSION_STATUS_ACTIVE,
     PAYLOAD_VERSION_STATUS_SUPERSEDED,
 )
-from app.services.odk_connection_guard_service import OdkConnectionCooldownError
+from app.services.odk.connection_guard import OdkConnectionCooldownError
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     SYNC_ISSUE_MISSING_IN_ODK,
     _attach_all_odk_comments,
@@ -946,6 +946,11 @@ class OdkSyncLoopCooldownTests(BaseTestCase):
             patch(
                 "app.services.va_data_sync.va_data_sync_01_odkcentral"
                 "._get_or_create_sync_odk_client",
+                return_value=Mock(),
+            ),
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                ".get_active_mapping_for_form",
                 return_value=Mock(),
             ),
             patch(

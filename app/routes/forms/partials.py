@@ -12,7 +12,7 @@ from app.models import (
     VaSubmissions,
 )
 from app.services.category_rendering_service import get_category_rendering_service
-from app.services.odk_review_service import sync_not_codeable_review_state
+from app.services.odk.review import sync_not_codeable_review_state
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.utils import va_permission_abortwithflash
 from .handlers import (

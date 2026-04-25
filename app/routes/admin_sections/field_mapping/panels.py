@@ -453,7 +453,7 @@ def admin_panel_field_mapping_sync_preview():
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
-    from app.services.odk_schema_sync_service import get_sync_service
+    from app.services.odk.schema_sync import get_sync_service
 
     data = request.get_json(force=True)
     form_type_code = data.get("form_type_code")
@@ -494,7 +494,7 @@ def admin_panel_field_mapping_sync_apply():
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
-    from app.services.odk_schema_sync_service import get_sync_service
+    from app.services.odk.schema_sync import get_sync_service
 
     data = request.get_json(force=True)
     form_type_code = data.get("form_type_code")
@@ -513,7 +513,7 @@ def admin_panel_field_mapping_sync_run():
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
-    from app.services.odk_schema_sync_service import get_sync_service
+    from app.services.odk.schema_sync import get_sync_service
 
     data = request.get_json(force=True)
     form_type_code = data.get("form_type_code")

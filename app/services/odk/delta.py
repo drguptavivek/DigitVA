@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 
 from flask import has_app_context
 
-from app.services.odk_connection_guard_service import guarded_odk_call
-from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+from app.services.odk.connection_guard import guarded_odk_call
+from app.services.odk.client import va_odk_clientsetup
 
 log = logging.getLogger(__name__)
 

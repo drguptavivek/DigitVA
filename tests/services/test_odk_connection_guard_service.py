@@ -5,7 +5,7 @@ import requests
 
 from app import db
 from app.models import MasOdkConnections, VaStatuses
-from app.services.odk_connection_guard_service import (
+from app.services.odk.connection_guard import (
     OdkConnectionCooldownError,
     guarded_odk_call,
     record_odk_connection_failure,

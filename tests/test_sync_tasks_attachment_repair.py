@@ -389,7 +389,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
     def test_run_single_form_backfill_delegates_repairs_to_canonical_engine_batches(self):
         with patch("app.tasks.sync_tasks._authorize_data_manager_form_sync"), \
             patch("app.tasks.sync_tasks._get_single_form_odk_client", return_value=object()), \
-            patch("app.utils.va_odk_fetch_instance_ids", return_value=[]), \
+            patch("app.services.odk.submission_fetch.va_odk_fetch_instance_ids", return_value=[]), \
             patch(
                 "app.tasks.sync_tasks._build_repair_map_for_form",
                 return_value=(
@@ -459,8 +459,8 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
 
         with patch("app.tasks.sync_tasks._authorize_data_manager_form_sync"), \
             patch("app.tasks.sync_tasks._get_single_form_odk_client", return_value=object()), \
-            patch("app.utils.va_odk_fetch_instance_ids", return_value=missing_ids), \
-            patch("app.utils.va_odk_fetch_submissions_by_ids", side_effect=_fake_fetch), \
+            patch("app.services.odk.submission_fetch.va_odk_fetch_instance_ids", return_value=missing_ids), \
+            patch("app.services.odk.submission_fetch.va_odk_fetch_submissions_by_ids", side_effect=_fake_fetch), \
             patch(
                 "app.services.va_data_sync.va_data_sync_01_odkcentral._upsert_form_submissions",
                 side_effect=_fake_upsert,

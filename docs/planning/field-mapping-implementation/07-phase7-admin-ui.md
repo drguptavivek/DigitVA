@@ -3,7 +3,7 @@ title: Phase 7 - Admin UI
 doc_type: implementation-plan
 status: draft
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-04-25
 phase: 7
 estimated_duration: 2 days
 risk_level: important
@@ -106,7 +106,7 @@ from app.models import (
 )
 from app.services.field_mapping_service import get_mapping_service
 from app.services.form_type_service import get_form_type_service
-from app.services.odk_schema_sync_service import get_sync_service
+from app.services.odk.schema_sync import get_sync_service
 from app.utils.decorators import admin_required
 
 bp = Blueprint("admin_field_mapping", __name__, url_prefix="/admin/field-mapping")

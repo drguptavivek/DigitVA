@@ -3,7 +3,7 @@ title: Phase 5 - ODK Schema Sync Service
 doc_type: implementation-plan
 status: draft
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-04-25
 phase: 5
 estimated_duration: 1 day
 risk_level: medium
@@ -63,7 +63,7 @@ Implement automatic synchronization of choice mappings from ODK Central form sch
 
 ## Step 5.1: Create ODK Schema Sync Service
 
-**File**: `app/services/odk_schema_sync_service.py`
+**File**: `app/services/odk/schema_sync.py`
 
 ```python
 """
@@ -88,7 +88,7 @@ from app.models import (
     MasChoiceMappings,
     MasFieldDisplayConfig,
 )
-from app.services.odk_service import OdkCentralService
+from app.services.odk.schema_sync import OdkSchemaSyncService
 
 
 class OdkSchemaSyncService:
@@ -141,11 +141,11 @@ class OdkSchemaSyncService:
         try:
             # Fetch fields from ODK
             odk_service = OdkCentralService()
-            fields = odk_service.get_form_fields(odk_project_id, odk_form_id)
+            fields = schema_sync_service.get_form_fields(odk_project_id, odk_form_id)
 
             if not fields:
                 # Fallback to XLSX if fields endpoint fails
-                fields = self._fetch_from_xlsx(odk_service, odk_project_id, odk_form_id)
+                fields = self._fetch_from_xlsx(schema_sync_service, odk_project_id, odk_form_id)
 
             if not fields:
                 self.stats["errors"].append("Failed to fetch form schema from ODK")
@@ -330,10 +330,10 @@ class OdkSchemaSyncService:
 
         # Get ODK fields
         odk_service = OdkCentralService()
-        odk_fields = odk_service.get_form_fields(odk_project_id, odk_form_id)
+        odk_fields = schema_sync_service.get_form_fields(odk_project_id, odk_form_id)
 
         if not odk_fields:
-            odk_fields = self._fetch_from_xlsx(odk_service, odk_project_id, odk_form_id)
+            odk_fields = self._fetch_from_xlsx(schema_sync_service, odk_project_id, odk_form_id)
 
         # Get DB fields
         db_fields = db.session.scalars(
@@ -385,10 +385,10 @@ def get_sync_service() -> OdkSchemaSyncService:
 
 ## Step 5.2: Add ODK Service Methods
 
-**File**: `app/services/odk_service.py` (add to existing)
+**File**: `app/services/odk/schema_sync.py` (add to existing)
 
 ```python
-# Add these methods to the existing OdkCentralService class
+# Add these helpers to the ODK schema sync service
 
 def get_form_fields(self, project_id: int, form_id: str) -> list[dict]:
     """
@@ -473,7 +473,7 @@ CLI commands for ODK schema synchronization.
 import click
 from flask import current_app
 from app import db
-from app.services.odk_schema_sync_service import get_sync_service
+from app.services.odk.schema_sync import get_sync_service
 from app.models import VaForms, MasFormTypes
 
 
@@ -634,7 +634,7 @@ import pytest
 from unittest.mock import Mock, patch
 from app import db
 from app.models import MasFormTypes, MasChoiceMappings
-from app.services.odk_schema_sync_service import OdkSchemaSyncService
+from app.services.odk.schema_sync import OdkSchemaSyncService
 from tests.base import BaseTestCase
 
 
@@ -650,8 +650,8 @@ class TestOdkSchemaSync(BaseTestCase):
             )
         )
 
-    @patch('app.services.odk_schema_sync_service.OdkCentralService')
-    def test_01_sync_adds_new_choices(self, mock_odk_service):
+    @patch('app.services.odk.schema_sync.OdkCentralService')
+    def test_01_sync_adds_new_choices(self, mock_schema_sync_service):
         """Sync adds new choices from ODK."""
         # Mock ODK response
         mock_service = Mock()
@@ -665,7 +665,7 @@ class TestOdkSchemaSync(BaseTestCase):
                 ]
             }
         ]
-        mock_odk_service.return_value = mock_service
+        mock_schema_sync_service.return_value = mock_service
 
         sync_service = OdkSchemaSyncService()
         stats = sync_service.sync_form_choices("WHO_2022_VA", 1, "test_form")
@@ -673,8 +673,8 @@ class TestOdkSchemaSync(BaseTestCase):
         self.assertEqual(stats["choices_added"], 2)
         self.assertEqual(stats["errors"], [])
 
-    @patch('app.services.odk_schema_sync_service.OdkCentralService')
-    def test_02_sync_updates_existing_choices(self, mock_odk_service):
+    @patch('app.services.odk.schema_sync.OdkCentralService')
+    def test_02_sync_updates_existing_choices(self, mock_schema_sync_service):
         """Sync updates existing choice labels."""
         # Create existing choice
         existing = MasChoiceMappings(
@@ -698,7 +698,7 @@ class TestOdkSchemaSync(BaseTestCase):
                 ]
             }
         ]
-        mock_odk_service.return_value = mock_service
+        mock_schema_sync_service.return_value = mock_service
 
         sync_service = OdkSchemaSyncService()
         stats = sync_service.sync_form_choices("WHO_2022_VA", 1, "test_form")
@@ -707,8 +707,8 @@ class TestOdkSchemaSync(BaseTestCase):
         db.session.refresh(existing)
         self.assertEqual(existing.choice_label, "New Label")
 
-    @patch('app.services.odk_schema_sync_service.OdkCentralService')
-    def test_03_sync_deactivates_removed_choices(self, mock_odk_service):
+    @patch('app.services.odk.schema_sync.OdkCentralService')
+    def test_03_sync_deactivates_removed_choices(self, mock_schema_sync_service):
         """Sync deactivates choices no longer in ODK."""
         # Create existing choice
         existing = MasChoiceMappings(
@@ -733,7 +733,7 @@ class TestOdkSchemaSync(BaseTestCase):
                 ]
             }
         ]
-        mock_odk_service.return_value = mock_service
+        mock_schema_sync_service.return_value = mock_service
 
         sync_service = OdkSchemaSyncService()
         stats = sync_service.sync_form_choices("WHO_2022_VA", 1, "test_form")

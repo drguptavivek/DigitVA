@@ -16,7 +16,7 @@ from app.services.runtime_form_sync_service import (
     get_active_mapping_for_form,
     sync_runtime_forms_from_site_mappings,
 )
-from app.services.odk_connection_guard_service import (
+from app.services.odk.connection_guard import (
     OdkConnectionCooldownError,
     guarded_odk_call,
     is_retryable_odk_connectivity_error,
@@ -68,13 +68,15 @@ from app.models import (
     VaSubmissionUpstreamChange,
     VaSubmissionsAuditlog,
 )
-from app.utils import (
-    va_odk_clientsetup,
-    va_odk_delta_count,
+from app.services.odk.attachment_sync import va_odk_sync_form_attachments
+from app.services.odk.client import va_odk_clientsetup
+from app.services.odk.delta import va_odk_delta_count
+from app.services.odk.submission_fetch import (
     va_odk_fetch_instance_ids,
     va_odk_fetch_submissions,
     va_odk_fetch_submissions_by_ids,
-    va_odk_sync_form_attachments,
+)
+from app.utils import (
     va_preprocess_summcatenotification,
     va_preprocess_categoriestodisplay,
 )

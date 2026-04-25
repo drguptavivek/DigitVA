@@ -75,7 +75,7 @@ def _client_from_db(project_id: str, pyodk_dir: str) -> Client | None:
 def client_from_connection(conn, pyodk_dir: str) -> Client:
     """Return a Client built from a MasOdkConnections object."""
     from app.utils.credential_crypto import decrypt_credential, get_odk_pepper
-    from app.services.odk_connection_guard_service import attach_connection_metadata
+    from app.services.odk.connection_guard import attach_connection_metadata
 
     pepper = get_odk_pepper()
     username = decrypt_credential(conn.username_enc, conn.username_salt, pepper)

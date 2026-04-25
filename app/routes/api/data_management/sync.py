@@ -65,8 +65,9 @@ def run_sync_preview():
     site_ids = payload.get("site_ids") or []
 
     try:
-        from app.utils import va_odk_delta_count, va_odk_fetch_instance_ids
-        from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+        from app.services.odk.delta import va_odk_delta_count
+        from app.services.odk.submission_fetch import va_odk_fetch_instance_ids
+        from app.services.odk.client import va_odk_clientsetup
 
         scoped = dm_scoped_forms(current_user)
         matched = filter_scoped_forms(scoped, project_ids, site_ids)

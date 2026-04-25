@@ -56,10 +56,12 @@ Main code areas:
     state store, transitions, and events
   - `coding/` owns allocation, coder/reviewer workflow actions, and final COD
     authority
-  - `projects/` owns project/site policy helpers such as coding intake mode and
-    demo-training project behavior
-  - `submissions/` owns pure submission payload/version/projection/artifact
-    helpers, submission summaries, and submission/project resolution
+  - `projects/` owns project/site policy helpers such as coding intake mode,
+    demo-training project behavior, and submission-to-project lookup
+  - `submissions/` owns pure submission payload version/projection helpers and
+    derived submission summaries
+  - `assessments/` owns assessment/review/social-autopsy artifacts that are
+    bound to the current submission payload version
   - `sync/` owns ODK-to-local sync orchestration, payload enrichment/backfill,
     current-payload repair, attachment repair triggering, and sync workflow
     advancement

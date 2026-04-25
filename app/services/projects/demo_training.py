@@ -14,7 +14,7 @@ from app.models import (
     VaStatuses,
     VaSubmissionWorkflowEvent,
 )
-from app.services.submissions.project import get_project_for_submission
+from app.services.projects.submission_lookup import get_project_for_submission
 from app.services.workflow.definition import TRANSITION_DEMO_RESET, TRANSITION_DEMO_STARTED
 
 

@@ -24,7 +24,7 @@ from app.services.forms.field_mapping import get_mapping_service
 from app.services.coding.final_cod_authority import (
     get_authoritative_final_cod_record,
 )
-from app.services.submissions.payload_bound_artifacts import (
+from app.services.assessments.payload_artifacts import (
     get_current_payload_narrative_assessment,
     get_current_payload_reviewer_review,
     get_current_payload_social_autopsy_analysis,
@@ -242,7 +242,7 @@ def handle_category_partial(va_sid, va_partial, va_action, va_actiontype, va_sub
     )
     _nqa_project = None
     if va_partial == "vanarrationanddocuments":
-        from app.services.submissions.project import get_project_for_submission
+        from app.services.projects.submission_lookup import get_project_for_submission
 
         _nqa_project = get_project_for_submission(va_sid)
     narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)

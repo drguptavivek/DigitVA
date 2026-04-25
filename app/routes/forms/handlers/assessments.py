@@ -34,7 +34,7 @@ from app.services.coding.final_cod_authority import (
     get_authoritative_final_assessment,
     upsert_final_cod_authority,
 )
-from app.services.submissions.payload_bound_artifacts import (
+from app.services.assessments.payload_artifacts import (
     deactivate_other_active_reviewer_reviews,
     get_current_payload_narrative_assessment,
     get_current_payload_social_autopsy_analysis,
@@ -370,7 +370,7 @@ def handle_final_assessment(va_sid, va_partial, va_action, va_actiontype):
 
     if form1.validate_on_submit():
         blocking_messages: list[str] = []
-        from app.services.submissions.project import get_project_for_submission
+        from app.services.projects.submission_lookup import get_project_for_submission
         from app.services.forms.category_rendering import (
             get_category_rendering_service,
             get_visible_category_codes,

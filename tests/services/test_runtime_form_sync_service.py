@@ -5,11 +5,6 @@ from app.models import (
     MapProjectSiteOdk,
     MasFormTypes,
     VaForms,
-    VaProjectMaster,
-    VaProjectSites,
-    VaResearchProjects,
-    VaSiteMaster,
-    VaSites,
     VaStatuses,
 )
 from app.services.forms.runtime_form_sync import sync_runtime_forms_from_site_mappings
@@ -17,8 +12,11 @@ from tests.base import BaseTestCase
 
 
 class TestRuntimeFormSyncService(BaseTestCase):
+    _RUN_SUFFIX = uuid.uuid4().hex[:4].upper()
     BASE_PROJECT_ID = "RTF001"
     BASE_SITE_ID = "RTF1"
+    SYNC_PROJECT_ID = f"RN{_RUN_SUFFIX}"
+    SYNC_SITE_ID = f"RN{_RUN_SUFFIX[:2]}"
 
     @classmethod
     def setUpClass(cls):
@@ -43,49 +41,20 @@ class TestRuntimeFormSyncService(BaseTestCase):
             )
             db.session.add(cls.form_type)
 
-        project_master = VaProjectMaster(
-            project_id="RNSY01",
-            project_code="RNSY01",
+        cls._ensure_project_site_fixture(
+            project_id=cls.SYNC_PROJECT_ID,
+            site_id=cls.SYNC_SITE_ID,
             project_name="Sync Test Project",
             project_nickname="SyncTest",
-            project_status=VaStatuses.active,
-        )
-        project = VaResearchProjects(
-            project_id="RNSY01",
-            project_code="RNSY01",
-            project_name="Sync Test Project",
-            project_nickname="SyncTest",
-            project_status=VaStatuses.active,
-        )
-        site_master = VaSiteMaster(
-            site_id="RN01",
             site_name="Sync Site 1",
-            site_abbr="RN01",
-            site_status=VaStatuses.active,
         )
-        site_legacy = VaSites(
-            site_id="RN01",
-            project_id="RNSY01",
-            site_name="Sync Site 1",
-            site_abbr="RN01",
-            site_status=VaStatuses.active,
-        )
-        db.session.add_all([project_master, project, site_master, site_legacy])
-        db.session.commit()
-
-        project_site = VaProjectSites(
-            project_id="RNSY01",
-            site_id="RN01",
-            project_site_status=VaStatuses.active,
-        )
-        db.session.add(project_site)
         db.session.commit()
 
     def test_creates_runtime_form_for_mapped_site(self):
         db.session.add(
             MapProjectSiteOdk(
-                project_id="RNSY01",
-                site_id="RN01",
+                project_id=self.SYNC_PROJECT_ID,
+                site_id=self.SYNC_SITE_ID,
                 odk_project_id=11,
                 odk_form_id="social_form",
                 form_type_id=self.form_type.form_type_id,
@@ -99,9 +68,15 @@ class TestRuntimeFormSyncService(BaseTestCase):
         runtime_form = next(
             form
             for form in runtime_forms
-            if form.project_id == "RNSY01" and form.site_id == "RN01"
+            if (
+                form.project_id == self.SYNC_PROJECT_ID
+                and form.site_id == self.SYNC_SITE_ID
+            )
         )
-        self.assertEqual(runtime_form.form_id, "RNSY01RN0101")
+        self.assertEqual(
+            runtime_form.form_id,
+            f"{self.SYNC_PROJECT_ID}{self.SYNC_SITE_ID}01",
+        )
         self.assertEqual(runtime_form.odk_project_id, "11")
         self.assertEqual(runtime_form.odk_form_id, "social_form")
         self.assertEqual(runtime_form.form_type_id, self.form_type.form_type_id)

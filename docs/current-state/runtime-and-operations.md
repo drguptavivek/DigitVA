@@ -42,7 +42,7 @@ Key current libraries:
 Operational implication:
 
 - this is a synchronous Flask application with ORM-backed DB access and file-based integration steps.
-- **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login.
+- **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login. Remember-me login is disabled; authentication persistence is timeout-based only.
 - password creation and reset flows now reject passwords found in the Have I Been Pwned breach corpus using the shared password policy helper
 - SmartVA form-run evidence is stored under the configured
   `APP_SMARTVA_RUNS` directory, which defaults to `/app/smartva_runs` in the
@@ -85,7 +85,7 @@ Current services:
 Current behavior:
 
 - local override (`docker-compose.override.yml`) runs Flask dev server on `0.0.0.0:5000`, mapped to host port `8051`
-- the dev override now activates a dedicated development config via `FLASK_ENV=development`, which disables `Secure` session/remember cookies and strict HTTPS-only CSRF checks so login works on plain `http://localhost:8051`
+- the dev override now activates a dedicated development config via `FLASK_ENV=development`, which disables `Secure` session cookies and strict HTTPS-only CSRF checks so login works on plain `http://localhost:8051`
 - redis is bound to host port `6379`
 - source code is mounted into the container via `.:/app`
 - a named `minerva_venv` volume preserves the image's `/app/.venv` from the host mount and is shared by the app, Celery worker, and Celery beat services

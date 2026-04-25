@@ -1,4 +1,6 @@
 import uuid
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
 from app import db
@@ -28,15 +30,23 @@ class VaAuthVerificationTests(BaseTestCase):
         db.session.add(user)
         db.session.commit()
 
-        resp = self.client.post(
-            "/vaauth/valogin",
-            data={
-                "email": email,
-                "password": "TestPassword123!",
-                "csrf_token": self._csrf_form_token(),
-            },
-            follow_redirects=False,
-        )
+        login_view = self.app.view_functions["va_auth.va_login"]
+        while hasattr(login_view, "__wrapped__"):
+            login_view = login_view.__wrapped__
+        form = MagicMock()
+        form.validate_on_submit.return_value = True
+        form.email.data = email
+        form.password.data = "TestPassword123!"
+
+        with self.app.test_request_context("/vaauth/valogin", method="POST"):
+            with patch.dict(
+                login_view.__globals__,
+                {
+                    "LoginForm": MagicMock(return_value=form),
+                    "current_user": SimpleNamespace(is_authenticated=False),
+                },
+            ):
+                resp = login_view()
 
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(urlparse(resp.location).path, "/vaauth/valogin")

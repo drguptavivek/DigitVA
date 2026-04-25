@@ -25,7 +25,6 @@ class Config:
     # Docker Compose will fail to start if .env is missing required variables.
     SECRET_KEY = _require_env("SECRET_KEY")
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
-    REMEMBER_COOKIE_DURATION = timedelta(days=30)
     STATIC_ASSET_CACHE_MAX_AGE = int(
         os.environ.get("STATIC_ASSET_CACHE_MAX_AGE", str(60 * 60 * 24 * 30))
     )

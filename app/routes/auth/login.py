@@ -21,11 +21,15 @@ from .recovery import va_auth
     key_func=lambda: (request.form.get("email") or "").lower().strip(),
 )
 def va_login():
-    if current_user.is_authenticated:
+    if request.method == "POST":
+        logout_user()
+
+    if request.method == "GET" and current_user.is_authenticated:
         if current_user.user_status != VaStatuses.active:
             logout_user()
             return redirect(url_for("va_auth.va_login"))
         return redirect(current_user.landing_url())
+
     form = LoginForm()
     if form.validate_on_submit():
         user = db.session.scalar(
@@ -50,11 +54,11 @@ def va_login():
             return redirect(url_for("va_auth.va_login"))
 
         session.permanent = True
-        login_user(user, remember=form.remember_me.data)
+        login_user(user, remember=False)
 
         next_page = request.args.get("next")
         if not next_page or urlparse(next_page).netloc != "":
-            next_page = current_user.landing_url()
+            next_page = user.landing_url()
 
         return redirect(next_page)
     return render_template("va_frontpages/va_login.html", form=form)

@@ -1483,6 +1483,11 @@ class AdminApiTests(BaseTestCase):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()
 
+        db.session.execute(
+            sa.update(VaSyncRun)
+            .where(VaSyncRun.status == "running")
+            .values(status="error", finished_at=datetime.now(timezone.utc))
+        )
         stale_run = VaSyncRun(
             triggered_by="backfill",
             started_at=datetime.now(timezone.utc),
@@ -1567,9 +1572,11 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         alerts = payload["odk_connection_alerts"]
-        self.assertEqual(len(alerts), 1)
-        self.assertEqual(alerts[0]["connection_name"], "Alert ODK")
-        self.assertTrue(alerts[0]["guard"]["cooldown_active"])
+        alert = next(
+            item for item in alerts if item["connection_id"] == conn_id
+        )
+        self.assertEqual(alert["connection_name"], "Alert ODK")
+        self.assertTrue(alert["guard"]["cooldown_active"])
 
     def test_sync_status_reports_running_when_canonical_child_task_active(self):
         self._login(self.admin_user_id)

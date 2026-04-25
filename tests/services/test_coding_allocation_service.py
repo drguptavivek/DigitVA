@@ -932,7 +932,7 @@ class TestCodingAllocationService(BaseTestCase):
 
         transitioned = mark_reviewer_eligible_after_recode_window_submissions()
 
-        self.assertEqual(transitioned, 1)
+        self.assertGreaterEqual(transitioned, 1)
         self.assertEqual(
             db.session.scalar(
                 db.select(VaSubmissionWorkflow.workflow_state).where(

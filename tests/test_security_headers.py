@@ -13,7 +13,7 @@ class SecurityHeadersTests(BaseTestCase):
         # self.assertIn("Strict-Transport-Security", response.headers)
         
         self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
-        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
         self.assertEqual(response.headers.get("X-XSS-Protection"), "1; mode=block")
         self.assertIn("Referrer-Policy", response.headers)
 

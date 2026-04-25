@@ -1,7 +1,6 @@
 import os
 import tempfile
 import uuid
-from itertools import count
 from datetime import datetime, timezone
 from unittest.mock import patch
 
@@ -33,16 +32,22 @@ from tests.base import BaseTestCase
 
 
 class SyncTaskAttachmentRepairTests(BaseTestCase):
-    _id_counter = count(1)
-
     def setUp(self):
         super().setUp()
         self._tmp_dir = tempfile.TemporaryDirectory()
         self._old_app_data = self.app.config.get("APP_DATA")
         self.app.config["APP_DATA"] = self._tmp_dir.name
-        seq = next(self._id_counter)
-        self.project_id = f"P{seq:05d}"
-        self.site_id = f"S{seq % 1000:03d}"
+        while True:
+            fixture_suffix = uuid.uuid4().hex.upper()
+            project_id = f"P{fixture_suffix[:5]}"
+            site_id = f"S{fixture_suffix[5:8]}"
+            if (
+                db.session.get(VaResearchProjects, project_id) is None
+                and db.session.get(VaSites, site_id) is None
+            ):
+                self.project_id = project_id
+                self.site_id = site_id
+                break
         self.form_id = f"BS01{uuid.uuid4().hex[:8].upper()}"[:12]
         now = datetime.now(timezone.utc)
         db.session.add_all(

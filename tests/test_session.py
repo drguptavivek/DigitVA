@@ -7,13 +7,9 @@ from tests.base import BaseTestCase
 
 class SessionTests(BaseTestCase):
     def test_session_timeout_config(self):
-        """Verify that PERMANENT_SESSION_LIFETIME is set to 30 minutes."""
+        """Verify timeout-based session lifetime."""
         self.assertEqual(
             self.app.config["PERMANENT_SESSION_LIFETIME"], 
-            timedelta(minutes=30)
-        )
-        self.assertEqual(
-            self.app.config["REMEMBER_COOKIE_DURATION"], 
             timedelta(minutes=30)
         )
 
@@ -48,7 +44,6 @@ class SessionTests(BaseTestCase):
             data={
                 "email": email,
                 "password": password,
-                "remember_me": "y"
             },
             headers=self._csrf_headers(),
             follow_redirects=False
@@ -88,7 +83,6 @@ class SessionTests(BaseTestCase):
             data={
                 "email": email,
                 "password": password,
-                "remember_me": "y"
             },
             headers=self._csrf_headers(),
             follow_redirects=False

@@ -50,18 +50,24 @@ class DmManageTests(BaseTestCase):
     @classmethod
     def _create_fixture_rows(cls):
         now = datetime.now(timezone.utc)
+        for language_code, language_name in (
+            ("english", "English"),
+            ("hindi", "Hindi"),
+        ):
+            language = db.session.get(MasLanguages, language_code)
+            if language is None:
+                db.session.add(
+                    MasLanguages(
+                        language_code=language_code,
+                        language_name=language_name,
+                        is_active=True,
+                    )
+                )
+            else:
+                language.language_name = language_name
+                language.is_active = True
         db.session.add_all(
             [
-                MasLanguages(
-                    language_code="english",
-                    language_name="English",
-                    is_active=True,
-                ),
-                MasLanguages(
-                    language_code="hindi",
-                    language_name="Hindi",
-                    is_active=True,
-                ),
                 VaProjectMaster(
                     project_id=cls.project_id,
                     project_code=cls.project_id,

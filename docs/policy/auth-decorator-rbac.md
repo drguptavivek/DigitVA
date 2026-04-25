@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-05
+last_updated: 2026-04-25
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -142,6 +142,7 @@ as defense-in-depth. They are NOT replaced by `@role_required()`.
 - 30 minutes (`PERMANENT_SESSION_LIFETIME` in `config.py`)
 - Backend: SQLAlchemy (`va_sessions` table)
 - Flask-login: Stores `_user_id` in session; `load_user()` does a fresh DB lookup per request
+- Remember-me login is disabled. Login persistence is timeout-based only.
 
 ### Frontend interceptor (`app/static/js/base.js`)
 

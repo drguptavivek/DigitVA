@@ -57,8 +57,11 @@ from tests.base import BaseTestCase
 
 
 class DataManagerDashboardTests(BaseTestCase):
-    FORM_ID = f"{BaseTestCase.BASE_PROJECT_ID}{BaseTestCase.BASE_SITE_ID}01"
-    SID = "uuid:data-manager-dashboard"
+    _RUN_SUFFIX = uuid.uuid4().hex[:4].upper()
+    BASE_PROJECT_ID = f"DM{_RUN_SUFFIX}"
+    BASE_SITE_ID = f"D{_RUN_SUFFIX[:3]}"
+    FORM_ID = f"{BASE_PROJECT_ID}{BASE_SITE_ID}01"
+    SID = f"uuid:data-manager-dashboard-{_RUN_SUFFIX.lower()}"
     OUT_PROJECT_ID = "DMOUT1"
     OUT_SITE_ID = "DMO1"
     OUT_FORM_ID = "DMOUT1DMO101"
@@ -86,6 +89,24 @@ class DataManagerDashboardTests(BaseTestCase):
             form_type="WHO VA 2022",
             now=now,
         )
+        pi_grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == cls.base_project_pi_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.project_pi,
+                VaUserAccessGrants.project_id == cls.BASE_PROJECT_ID,
+            )
+        )
+        if pi_grant is None:
+            db.session.add(
+                VaUserAccessGrants(
+                    user_id=cls.base_project_pi_user.user_id,
+                    role=VaAccessRoles.project_pi,
+                    scope_type=VaAccessScopeTypes.project,
+                    project_id=cls.BASE_PROJECT_ID,
+                    notes="dm dashboard project pi grant",
+                    grant_status=VaStatuses.active,
+                )
+            )
         db.session.add(
             MapProjectSiteOdk(
                 project_id=cls.BASE_PROJECT_ID,
@@ -380,7 +401,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self._login(self.dm_user_id)
         headers = self._csrf_headers()
         mocked_clientsetup.return_value = object()
-        mocked_fetch_instance_ids.return_value = ["uuid:data-manager-dashboard", "uuid:new-remote"]
+        mocked_fetch_instance_ids.return_value = [self.SID, "uuid:new-remote"]
         mocked_delta_count.return_value = 3
 
         response = self.client.post(
@@ -407,7 +428,10 @@ class DataManagerDashboardTests(BaseTestCase):
             status="success",
             records_added=2,
             records_updated=1,
-            progress_log='[{"ts":"2026-03-18T00:00:00+00:00","msg":"[BASE01BS0101] force-resync started"}]',
+            progress_log=(
+                f'[{{"ts":"2026-03-18T00:00:00+00:00","msg":"[{self.FORM_ID}] '
+                'force-resync started"}]'
+            ),
         )
         db.session.add(run)
         db.session.commit()
@@ -1174,7 +1198,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(
             response.headers["Location"],
             "https://minerva.example.org/projects/11/forms/"
-            "DM_DASHBOARD_FORM/submissions/uuid%3Adata-manager-dashboard",
+            f"DM_DASHBOARD_FORM/submissions/{self.SID.replace(':', '%3A')}",
         )
         audit_row = db.session.scalar(
             sa.select(VaSubmissionsAuditlog)

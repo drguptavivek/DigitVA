@@ -11,9 +11,9 @@ from app.decorators.va_validate_permissions import validate_va_request
 from app.models import (
     VaSubmissions,
 )
-from app.services.category_rendering_service import get_category_rendering_service
+from app.services.forms.category_rendering import get_category_rendering_service
 from app.services.odk.review import sync_not_codeable_review_state
-from app.services.coder_dashboard_service import bust_coder_dashboard_cache
+from app.services.coding.coder_dashboard import bust_coder_dashboard_cache
 from app.utils import va_permission_abortwithflash
 from .handlers import (
     handle_category_partial,
@@ -79,7 +79,7 @@ def renderpartial(va_sid, va_partial):
         va_partial=va_partial,
     )
     va_submission = db.session.get(VaSubmissions, va_sid)
-    from app.services.submission_payload_version_service import get_active_payload_version
+    from app.services.submissions.payload_version import get_active_payload_version
 
     _active_version = get_active_payload_version(va_sid) if va_submission else None
     va_payload_data = _active_version.payload_data if _active_version else None

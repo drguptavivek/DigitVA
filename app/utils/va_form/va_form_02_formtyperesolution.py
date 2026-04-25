@@ -3,7 +3,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import MasFormTypes
 from app.models.va_forms import VaForms
-from app.services.field_mapping_service import get_mapping_service
+from app.services.forms.field_mapping import get_mapping_service
 
 
 def va_get_form_type_code_from_form(form: VaForms | None) -> str:

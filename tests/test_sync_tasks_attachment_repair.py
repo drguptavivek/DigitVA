@@ -360,10 +360,10 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         ]
 
         with patch(
-            "app.services.open_submission_repair_service.repair_submission_current_payload",
+            "app.services.submissions.open_repair.repair_submission_current_payload",
             side_effect=result_rows,
         ), patch(
-            "app.services.smartva_service.generate_for_form",
+            "app.services.smartva.service.generate_for_form",
             side_effect=[5, 1],
         ) as mock_smartva:
             totals = _run_canonical_repair_batches(

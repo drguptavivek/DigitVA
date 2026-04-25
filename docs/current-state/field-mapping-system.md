@@ -78,7 +78,7 @@ category table for runtime rendering and admin category management.
 | `render_mode` | VARCHAR(32) | e.g. `table_sections`, `health_history_summary`, `attachments` |
 | `show_to_coder` | BOOLEAN | Role visibility flag |
 | `show_to_reviewer` | BOOLEAN | Role visibility flag |
-| `show_to_site_pi` | BOOLEAN | Role visibility flag |
+| `show_to_site_pi_datamanager` | BOOLEAN | Role visibility flag |
 | `always_include` | BOOLEAN | Category is present even when no mapped field survives |
 | `is_default_start` | BOOLEAN | Preferred initial category for the coding screen |
 | `is_active` | BOOLEAN | |
@@ -287,7 +287,7 @@ Export bundle format:
       "render_mode": "table_sections",
       "show_to_coder": true,
       "show_to_reviewer": true,
-      "show_to_site_pi": true,
+      "show_to_site_pi_datamanager": true,
       "always_include": false,
       "is_default_start": true,
       "is_active": true
@@ -528,7 +528,7 @@ At runtime, the `FieldMappingService` (singleton) serves field and choice data t
 rendering code. It caches queries per form type.
 
 ```python
-from app.services.field_mapping_service import get_mapping_service
+from app.services.forms.field_mapping import get_mapping_service
 
 svc = get_mapping_service()
 config = svc.get_field_config(form_type_id, field_id)   # MasFieldDisplayConfig | None
@@ -554,7 +554,7 @@ renders after the explicitly ordered subcategories for that category.
 The `FormTypeService` singleton handles all admin operations.
 
 ```python
-from app.services.form_type_service import get_form_type_service
+from app.services.forms.form_type import get_form_type_service
 
 svc = get_form_type_service()
 
@@ -648,9 +648,9 @@ All state-changing routes require `X-CSRFToken` header and admin role.
 | Path | Purpose |
 |------|---------|
 | [`app/models/va_field_mapping.py`](../../app/models/va_field_mapping.py) | SQLAlchemy models for all `mas_*` tables |
-| [`app/services/form_type_service.py`](../../app/services/form_type_service.py) | CRUD, duplicate, export, import |
+| [`app/services/forms/form_type.py`](../../app/services/forms/form_type.py) | CRUD, duplicate, export, import |
 | [`app/services/odk/schema_sync.py`](../../app/services/odk/schema_sync.py) | XLSForm parsing and DB upsert |
-| [`app/services/field_mapping_service.py`](../../app/services/field_mapping_service.py) | Runtime rendering cache |
+| [`app/services/forms/field_mapping.py`](../../app/services/forms/field_mapping.py) | Runtime rendering cache |
 | [`app/routes/admin.py`](../../app/routes/admin.py) | All admin routes (~line 1089 onward) |
 | [`app/templates/admin/panels/field_mapping.html`](../../app/templates/admin/panels/field_mapping.html) | Main panel — cards, import/export modals |
 | [`app/templates/admin/panels/field_mapping_fields.html`](../../app/templates/admin/panels/field_mapping_fields.html) | Field list sub-panel |

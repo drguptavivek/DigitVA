@@ -5,7 +5,7 @@ from flask_login import current_user
 
 from app import limiter
 from app.authz.access import action_authorized
-from app.services.data_management_service import dm_submissions_page
+from app.services.analytics.data_management import dm_submissions_page
 
 from . import bp
 

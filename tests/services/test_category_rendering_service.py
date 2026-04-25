@@ -2,7 +2,7 @@ import uuid
 
 from app import db
 from app.models import MasCategoryDisplayConfig, MasFormTypes
-from app.services.category_rendering_service import get_category_rendering_service
+from app.services.forms.category_rendering import get_category_rendering_service
 from tests.base import BaseTestCase
 
 
@@ -31,7 +31,7 @@ class TestCategoryRenderingService(BaseTestCase):
                     render_mode="table_sections",
                     show_to_coder=False,
                     show_to_reviewer=False,
-                    show_to_site_pi=True,
+                    show_to_site_pi_datamanager=True,
                     always_include=False,
                     is_default_start=False,
                     is_active=True,
@@ -46,7 +46,7 @@ class TestCategoryRenderingService(BaseTestCase):
                     render_mode="table_sections",
                     show_to_coder=True,
                     show_to_reviewer=True,
-                    show_to_site_pi=True,
+                    show_to_site_pi_datamanager=True,
                     always_include=False,
                     is_default_start=True,
                     is_active=True,
@@ -61,7 +61,7 @@ class TestCategoryRenderingService(BaseTestCase):
                     render_mode="attachments",
                     show_to_coder=True,
                     show_to_reviewer=True,
-                    show_to_site_pi=True,
+                    show_to_site_pi_datamanager=True,
                     always_include=True,
                     is_default_start=False,
                     is_active=True,

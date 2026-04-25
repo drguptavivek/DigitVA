@@ -17,12 +17,15 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissionWorkflowEvent,
     VaSubmissions,
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaUserAccessGrants,
 )
-from app.services.final_cod_authority_service import (
+from app.services.coding.final_cod_authority import (
     upsert_final_cod_authority,
     upsert_reviewer_final_cod_authority,
 )
-from app.services.sitepi_reporting_service import get_sitepi_dashboard_data
+from app.services.analytics.sitepi_reporting import get_sitepi_dashboard_data
 from app.services.workflow.definition import (
     TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
     TRANSITION_CODER_FINALIZED,
@@ -42,6 +45,8 @@ from tests.base import BaseTestCase
 
 
 class SitePiReportingServiceTests(BaseTestCase):
+    BASE_PROJECT_ID = "BSPIP1"
+    BASE_SITE_ID = "BSP1"
     FORM_ID = "BSPIFORM01"
     OTHER_PROJECT_ID = "BSPIO2"
     OTHER_FORM_ID = "BSPIFORM02"
@@ -82,30 +87,13 @@ class SitePiReportingServiceTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Base Reporting Project",
-                project_nickname="BaseReporting",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
+        project_site = cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Base Reporting Project",
+            project_nickname="BaseReporting",
+            site_name="Base Reporting Site",
         )
-        db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Base Reporting Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
         db.session.add(
             VaForms(
                 form_id=cls.FORM_ID,
@@ -117,6 +105,16 @@ class SitePiReportingServiceTests(BaseTestCase):
                 form_status=VaStatuses.active,
                 form_registered_at=now,
                 form_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.base_coder_user.user_id,
+                role=VaAccessRoles.coder,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site.project_site_id,
+                notes="site pi reporting coder fixture grant",
+                grant_status=VaStatuses.active,
             )
         )
         db.session.add(

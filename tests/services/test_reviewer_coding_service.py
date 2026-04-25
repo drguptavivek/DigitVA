@@ -20,12 +20,12 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
-from app.services.reviewer_coding_service import (
+from app.services.coding.reviewer_coding import (
     ReviewerCodingError,
     start_reviewer_coding,
     submit_reviewer_final_cod,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from app.services.workflow.definition import (
     TRANSITION_REVIEWER_CODING_STARTED,
     TRANSITION_REVIEWER_FINALIZED,
@@ -58,26 +58,13 @@ class TestReviewerCodingService(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Reviewer Coding Project",
-                project_nickname="ReviewerCoding",
-                project_status=VaStatuses.active,
-            )
+        project_site = cls._ensure_project_site_fixture(
+            project_id=cls.BASE_PROJECT_ID,
+            site_id=cls.BASE_SITE_ID,
+            project_name="Reviewer Coding Project",
+            project_nickname="ReviewerCoding",
+            site_name="Reviewer Coding Site",
         )
-        db.session.commit()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Reviewer Coding Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-            )
-        )
-        db.session.commit()
         db.session.add(
             VaForms(
                 form_id=cls.FORM_ID,
@@ -91,12 +78,6 @@ class TestReviewerCodingService(BaseTestCase):
         )
         db.session.commit()
 
-        project_site_id = db.session.scalar(
-            db.select(VaProjectSites.project_site_id).where(
-                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
-                VaProjectSites.site_id == cls.BASE_SITE_ID,
-            )
-        )
         cls.base_reviewer_user = cls._make_user(
             "base.reviewer.coding@test.local",
             "BaseReviewerCoding123",
@@ -107,7 +88,7 @@ class TestReviewerCodingService(BaseTestCase):
                 user_id=cls.base_reviewer_user.user_id,
                 role=VaAccessRoles.reviewer,
                 scope_type=VaAccessScopeTypes.project_site,
-                project_site_id=project_site_id,
+                project_site_id=project_site.project_site_id,
                 notes="base reviewer coding grant",
                 grant_status=VaStatuses.active,
             )

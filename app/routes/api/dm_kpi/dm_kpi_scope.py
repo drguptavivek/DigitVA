@@ -22,7 +22,7 @@ from flask_login import current_user
 
 from app import cache, db
 from app.authz.access import action_authorized
-from app.services.data_management_service import reporting_scope_pairs
+from app.services.analytics.data_management import reporting_scope_pairs
 
 log = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ def refresh_dashboard():
       2. Refresh all materialized views
       3. Clear cached KPI data and analytics cache
     """
-    from app.services.submission_analytics_mv import refresh_submission_analytics_mv
+    from app.services.analytics.submission_mv import refresh_submission_analytics_mv
     from app.tasks.kpi_tasks import compute_daily_kpi_snapshot
 
     # Step 1: Recompute today's KPI aggregates for the DM's sites

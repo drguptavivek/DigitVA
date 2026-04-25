@@ -20,7 +20,7 @@ class TestFormTypeService(BaseTestCase):
         Who2022VaMigrator().run()
 
     def _service(self):
-        from app.services.form_type_service import FormTypeService
+        from app.services.forms.form_type import FormTypeService
         return FormTypeService()
 
     def test_01_register_new_form_type(self):
@@ -100,7 +100,7 @@ class TestFormTypeService(BaseTestCase):
 
     def test_10_get_default_form_type(self):
         """get_default_form_type returns WHO_2022_VA."""
-        from app.services.field_mapping_service import FieldMappingService
+        from app.services.forms.field_mapping import FieldMappingService
         svc = FieldMappingService()
         self.assertEqual(svc.get_default_form_type(), "WHO_2022_VA")
 

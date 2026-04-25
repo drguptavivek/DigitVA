@@ -12,7 +12,7 @@ from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
 from app.models.va_forms import VaForms
-from app.services.runtime_form_sync_service import (
+from app.services.forms.runtime_form_sync import (
     get_active_mapping_for_form,
     sync_runtime_forms_from_site_mappings,
 )
@@ -21,8 +21,8 @@ from app.services.odk.connection_guard import (
     guarded_odk_call,
     is_retryable_odk_connectivity_error,
 )
-from app.services.who_age_normalization import normalize_who_2022_age
-from app.services.final_cod_authority_service import (
+from app.services.smartva.age_normalization import normalize_who_2022_age
+from app.services.coding.final_cod_authority import (
     abandon_active_recode_episode,
     upsert_final_cod_authority,
 )
@@ -48,7 +48,7 @@ from app.services.workflow.transitions import (
     system_actor,
 )
 from app.services.workflow.upstream_changes import record_protected_upstream_change
-from app.services.submission_payload_version_service import (
+from app.services.submissions.payload_version import (
     canonical_payload_fingerprint,
     create_or_update_pending_upstream_payload_version,
     ensure_active_payload_version,
@@ -1342,7 +1342,7 @@ def va_data_sync_odkcentral(
                                     f"[{va_form.form_id}] workflow: attachments finished for "
                                     f"{len(gap_upserted_map)} submission(s); ready for SmartVA"
                                 )
-                                from app.services import smartva_service
+                                from app.services.smartva import service as smartva_service
                                 _progress(
                                     f"SmartVA {va_form.form_id}: starting for "
                                     f"{len(gap_upserted_map)} submission(s)…"
@@ -1540,7 +1540,7 @@ def va_data_sync_odkcentral(
                             f"[{va_form.form_id}] workflow: attachments finished for "
                             f"{len(upserted_map)} submission(s); ready for SmartVA"
                         )
-                        from app.services import smartva_service
+                        from app.services.smartva import service as smartva_service
                         _progress(
                             f"SmartVA {va_form.form_id}: starting for "
                             f"{len(upserted_map)} submission(s)…"
@@ -1651,5 +1651,5 @@ def va_smartva_run_pending(log_progress=None):
     submission that does not yet have an active SmartVA result.
     Does NOT download new data from ODK.
     """
-    from app.services import smartva_service
+    from app.services.smartva import service as smartva_service
     return smartva_service.generate_all_pending(log_progress=log_progress)

@@ -12,7 +12,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
-from app.services.final_cod_authority_service import (
+from app.services.coding.final_cod_authority import (
     EPISODE_STATUS_ABANDONED,
     EPISODE_STATUS_COMPLETED,
     get_authoritative_final_cod_record,
@@ -24,7 +24,7 @@ from app.services.final_cod_authority_service import (
     upsert_final_cod_authority,
     upsert_reviewer_final_cod_authority,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 

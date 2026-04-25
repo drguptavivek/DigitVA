@@ -1117,7 +1117,7 @@ def generate_for_submission(
 
 
 def generate_all_pending(*, log_progress=None) -> dict:
-    from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+    from app.services.forms.runtime_form_sync import sync_runtime_forms_from_site_mappings
 
     if log_progress:
         log_progress("SmartVA-only run started.")

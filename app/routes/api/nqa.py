@@ -20,14 +20,14 @@ from app.models import (
     VaNarrativeAssessment,
     VaSubmissionsAuditlog,
 )
-from app.services.demo_project_service import (
+from app.services.coding.demo_project import (
     get_demo_expiry_for_submission,
 )
-from app.services.payload_bound_coding_artifact_service import (
+from app.services.submissions.payload_bound_artifacts import (
     deactivate_other_active_narrative_assessments,
     get_submission_with_current_payload,
 )
-from app.services.submission_project_service import get_project_for_submission
+from app.services.submissions.project import get_project_for_submission
 from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
 
 bp = Blueprint("nqa_api", __name__)

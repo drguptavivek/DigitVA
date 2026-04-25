@@ -2,12 +2,12 @@
 
 from flask import Blueprint
 
-from app.services.data_management_service import (
+from app.services.analytics.data_management import (
     dm_smartva_input_export_csv,
     dm_smartva_likelihoods_export_csv,
     dm_smartva_results_export_csv,
 )
-from app.services.submission_analytics_mv import get_dm_kpi_from_mv
+from app.services.analytics.submission_mv import get_dm_kpi_from_mv
 
 bp = Blueprint("data_management_api", __name__)
 

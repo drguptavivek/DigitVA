@@ -16,12 +16,12 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.final_cod_authority_service import (
+from app.services.coding.final_cod_authority import (
     upsert_final_cod_authority,
     upsert_reviewer_final_cod_authority,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
-from app.services.submission_analytics_mv import (
+from app.services.submissions.payload_version import ensure_active_payload_version
+from app.services.analytics.submission_mv import (
     build_submission_analytics_core_mv_sql,
     build_submission_analytics_demographics_mv_sql,
     build_submission_cod_detail_mv_sql,
@@ -44,30 +44,14 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.PROJECT_ID,
-                project_code=cls.PROJECT_ID,
-                project_name="Analytics MV Project",
-                project_nickname="AnalyticsMV",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
+        cls._ensure_project_site_fixture(
+            project_id=cls.PROJECT_ID,
+            site_id=cls.SITE_ID,
+            project_name="Analytics MV Project",
+            project_nickname="AnalyticsMV",
+            site_name="Analytics MV Site",
+            now=now,
         )
-        db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=cls.SITE_ID,
-                project_id=cls.PROJECT_ID,
-                site_name="Analytics MV Site",
-                site_abbr=cls.SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
         db.session.add(
             VaForms(
                 form_id=cls.FORM_ID,
@@ -133,12 +117,13 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         normalized_years: Decimal | None = None,
         normalized_source: str | None = None,
         workflow_state: str = "coding_in_progress",
+        form_id: str | None = None,
     ):
         now = datetime.now(timezone.utc)
         db.session.add(
             VaSubmissions(
                 va_sid=sid,
-                va_form_id=self.FORM_ID,
+                va_form_id=form_id or self.FORM_ID,
                 va_submission_date=now,
                 va_odk_updatedat=now,
                 va_data_collector="analytics",
@@ -506,30 +491,14 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         kpi_site = "KP01"
         kpi_form = "KPMV01KP0101"
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaResearchProjects(
-                project_id=kpi_project,
-                project_code=kpi_project,
-                project_name="KPI Isolation Project",
-                project_nickname="KPIIsolation",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
+        self._ensure_project_site_fixture(
+            project_id=kpi_project,
+            site_id=kpi_site,
+            project_name="KPI Isolation Project",
+            project_nickname="KPIIsolation",
+            site_name="KPI Isolation Site",
+            now=now,
         )
-        db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=kpi_site,
-                project_id=kpi_project,
-                site_name="KPI Isolation Site",
-                site_abbr=kpi_site,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
         db.session.add(
             VaForms(
                 form_id=kpi_form,
@@ -674,6 +643,33 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(kpi["smartva_pending_submissions"], 0)
 
     def test_smartva_missing_includes_consent_refused_workflow(self):
+        smartva_project = "SMMV01"
+        smartva_site = "SM01"
+        smartva_form = "SMMV01SM0101"
+        now = datetime.now(timezone.utc)
+        self._ensure_project_site_fixture(
+            project_id=smartva_project,
+            site_id=smartva_site,
+            project_name="SmartVA KPI Isolation Project",
+            project_nickname="SmartVAKPI",
+            site_name="SmartVA KPI Isolation Site",
+            now=now,
+        )
+        db.session.add(
+            VaForms(
+                form_id=smartva_form,
+                project_id=smartva_project,
+                site_id=smartva_site,
+                odk_form_id="SMARTVA_MV_FORM",
+                odk_project_id="98",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.commit()
+
         sid_missing = "uuid:mv-kpi-smartva-missing"
         sid_consent_refused = "uuid:mv-kpi-consent-refused"
 
@@ -693,6 +689,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             normalized_years=Decimal("41"),
             normalized_source="ageInYears",
             workflow_state="ready_for_coding",
+            form_id=smartva_form,
         )
         self._add_submission(
             sid_consent_refused,
@@ -710,18 +707,19 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             normalized_years=Decimal("39"),
             normalized_source="ageInYears",
             workflow_state="consent_refused",
+            form_id=smartva_form,
         )
         db.session.commit()
 
         refresh_submission_analytics_mv(concurrently=False)
 
-        kpi = get_dm_kpi_from_mv([], [(self.PROJECT_ID, self.SITE_ID)])
+        kpi = get_dm_kpi_from_mv([], [(smartva_project, smartva_site)])
         self.assertEqual(kpi["smartva_missing_submissions"], 2)
         self.assertEqual(kpi["consent_refused_submissions"], 1)
 
         missing_filter_kpi = get_dm_kpi_from_mv(
             [],
-            [(self.PROJECT_ID, self.SITE_ID)],
+            [(smartva_project, smartva_site)],
             smartva="missing",
         )
         self.assertEqual(missing_filter_kpi["total_submissions"], 2)

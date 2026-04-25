@@ -104,8 +104,8 @@ from app.models import (
     MasFieldDisplayConfig,
     MasChoiceMappings,
 )
-from app.services.field_mapping_service import get_mapping_service
-from app.services.form_type_service import get_form_type_service
+from app.services.forms.field_mapping import get_mapping_service
+from app.services.forms.form_type import get_form_type_service
 from app.services.odk.schema_sync import get_sync_service
 from app.utils.decorators import admin_required
 

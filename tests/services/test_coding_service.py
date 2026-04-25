@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from app.models.va_forms import VaForms
 from app.models.va_project_master import VaProjectMaster
-from app.services.coding_service import render_va_coding_page
+from app.services.coding.page_rendering import render_va_coding_page
 
 
 class TestCodingService(unittest.TestCase):
@@ -22,20 +22,20 @@ class TestCodingService(unittest.TestCase):
         category_service.get_default_category_code.return_value = "vademographicdetails"
 
         with (
-            patch("app.services.coding_service._count_attachments_per_category", return_value={}),
-            patch("app.services.coding_service.db.session.get") as mock_db_get,
+            patch("app.services.coding.page_rendering._count_attachments_per_category", return_value={}),
+            patch("app.services.coding.page_rendering.db.session.get") as mock_db_get,
             patch("app.utils.va_get_form_type_code_for_form", return_value="WHO_2022_VA"),
             patch(
-                "app.services.category_rendering_service.get_category_rendering_service",
+                "app.services.forms.category_rendering.get_category_rendering_service",
                 return_value=category_service,
             ),
             patch(
-                "app.services.category_rendering_service.get_visible_category_codes",
+                "app.services.forms.category_rendering.get_visible_category_codes",
                 return_value=["vademographicdetails"],
             ),
-            patch("app.services.coder_workflow_service.is_upstream_recode", return_value=False),
-            patch("app.services.demo_project_service.is_demo_training_submission", return_value=True),
-            patch("app.services.submission_payload_version_service.get_active_payload_version", return_value=None),
+            patch("app.services.coding.coder_workflow.is_upstream_recode", return_value=False),
+            patch("app.services.coding.demo_project.is_demo_training_submission", return_value=True),
+            patch("app.services.submissions.payload_version.get_active_payload_version", return_value=None),
             patch("app.services.workflow.upstream_changes.get_latest_pending_upstream_change", return_value=None),
             patch("flask.url_for", return_value="/stub"),
             patch("flask.render_template", return_value="OK") as mock_render_template,
@@ -78,23 +78,23 @@ class TestCodingService(unittest.TestCase):
         category_service.get_default_category_code.return_value = "vademographicdetails"
 
         with (
-            patch("app.services.coding_service._count_attachments_per_category", return_value={}),
-            patch("app.services.coding_service.db.session.get", side_effect=lambda model, key: submission if key == "SID-1" else (SimpleNamespace(project_id="PROJ01", site_id="SITE1") if model is VaForms else (SimpleNamespace(project_code="PROJECT-CODE") if model is VaProjectMaster else None))),
+            patch("app.services.coding.page_rendering._count_attachments_per_category", return_value={}),
+            patch("app.services.coding.page_rendering.db.session.get", side_effect=lambda model, key: submission if key == "SID-1" else (SimpleNamespace(project_id="PROJ01", site_id="SITE1") if model is VaForms else (SimpleNamespace(project_code="PROJECT-CODE") if model is VaProjectMaster else None))),
             patch("app.utils.va_get_form_type_code_for_form", return_value="WHO_2022_VA"),
             patch(
-                "app.services.category_rendering_service.get_category_rendering_service",
+                "app.services.forms.category_rendering.get_category_rendering_service",
                 return_value=category_service,
             ),
             patch(
-                "app.services.category_rendering_service.get_visible_category_codes",
+                "app.services.forms.category_rendering.get_visible_category_codes",
                 return_value=["vademographicdetails"],
             ),
-            patch("app.services.coder_workflow_service.is_upstream_recode", return_value=False),
-            patch("app.services.demo_project_service.is_demo_training_submission", return_value=False),
-            patch("app.services.coding_service.flask_cache.get", return_value=None),
-            patch("app.services.coding_service.flask_cache.set") as mock_cache_set,
+            patch("app.services.coding.coder_workflow.is_upstream_recode", return_value=False),
+            patch("app.services.coding.demo_project.is_demo_training_submission", return_value=False),
+            patch("app.services.coding.page_rendering.flask_cache.get", return_value=None),
+            patch("app.services.coding.page_rendering.flask_cache.set") as mock_cache_set,
             patch("app.tasks.sync_tasks.run_open_submission_repair.delay") as mock_repair,
-            patch("app.services.submission_payload_version_service.get_active_payload_version", return_value=None),
+            patch("app.services.submissions.payload_version.get_active_payload_version", return_value=None),
             patch("app.services.workflow.upstream_changes.get_latest_pending_upstream_change", return_value=None),
             patch("flask.url_for", return_value="/stub"),
             patch("flask.render_template", return_value="OK"),
@@ -127,23 +127,23 @@ class TestCodingService(unittest.TestCase):
         category_service.get_default_category_code.return_value = "vademographicdetails"
 
         with (
-            patch("app.services.coding_service._count_attachments_per_category", return_value={}),
-            patch("app.services.coding_service.db.session.get", side_effect=lambda model, key: submission if key == "SID-1" else (SimpleNamespace(project_id="PROJ01", site_id="SITE1") if model is VaForms else (SimpleNamespace(project_code="PROJECT-CODE") if model is VaProjectMaster else None))),
+            patch("app.services.coding.page_rendering._count_attachments_per_category", return_value={}),
+            patch("app.services.coding.page_rendering.db.session.get", side_effect=lambda model, key: submission if key == "SID-1" else (SimpleNamespace(project_id="PROJ01", site_id="SITE1") if model is VaForms else (SimpleNamespace(project_code="PROJECT-CODE") if model is VaProjectMaster else None))),
             patch("app.utils.va_get_form_type_code_for_form", return_value="WHO_2022_VA"),
             patch(
-                "app.services.category_rendering_service.get_category_rendering_service",
+                "app.services.forms.category_rendering.get_category_rendering_service",
                 return_value=category_service,
             ),
             patch(
-                "app.services.category_rendering_service.get_visible_category_codes",
+                "app.services.forms.category_rendering.get_visible_category_codes",
                 return_value=["vademographicdetails"],
             ),
-            patch("app.services.coder_workflow_service.is_upstream_recode", return_value=False),
-            patch("app.services.demo_project_service.is_demo_training_submission", return_value=False),
-            patch("app.services.coding_service.flask_cache.get", return_value=None),
-            patch("app.services.coding_service.flask_cache.set") as mock_cache_set,
+            patch("app.services.coding.coder_workflow.is_upstream_recode", return_value=False),
+            patch("app.services.coding.demo_project.is_demo_training_submission", return_value=False),
+            patch("app.services.coding.page_rendering.flask_cache.get", return_value=None),
+            patch("app.services.coding.page_rendering.flask_cache.set") as mock_cache_set,
             patch("app.tasks.sync_tasks.run_open_submission_repair.delay") as mock_repair,
-            patch("app.services.submission_payload_version_service.get_active_payload_version", return_value=None),
+            patch("app.services.submissions.payload_version.get_active_payload_version", return_value=None),
             patch("app.services.workflow.upstream_changes.get_latest_pending_upstream_change", return_value=None),
             patch("flask.url_for", return_value="/stub"),
             patch("flask.render_template", return_value="OK"),
@@ -176,21 +176,21 @@ class TestCodingService(unittest.TestCase):
         category_service.get_default_category_code.return_value = "vademographicdetails"
 
         with (
-            patch("app.services.coding_service._count_attachments_per_category", return_value={}),
-            patch("app.services.coding_service.db.session.get", side_effect=lambda model, key: submission if key == "SID-1" else (SimpleNamespace(project_id="PROJ01", site_id="SITE1") if model is VaForms else (SimpleNamespace(project_code="PROJECT-CODE") if model is VaProjectMaster else None))),
+            patch("app.services.coding.page_rendering._count_attachments_per_category", return_value={}),
+            patch("app.services.coding.page_rendering.db.session.get", side_effect=lambda model, key: submission if key == "SID-1" else (SimpleNamespace(project_id="PROJ01", site_id="SITE1") if model is VaForms else (SimpleNamespace(project_code="PROJECT-CODE") if model is VaProjectMaster else None))),
             patch("app.utils.va_get_form_type_code_for_form", return_value="WHO_2022_VA"),
             patch(
-                "app.services.category_rendering_service.get_category_rendering_service",
+                "app.services.forms.category_rendering.get_category_rendering_service",
                 return_value=category_service,
             ),
             patch(
-                "app.services.category_rendering_service.get_visible_category_codes",
+                "app.services.forms.category_rendering.get_visible_category_codes",
                 return_value=["vademographicdetails"],
             ),
-            patch("app.services.coder_workflow_service.is_upstream_recode", return_value=False),
-            patch("app.services.demo_project_service.is_demo_training_submission", return_value=False),
+            patch("app.services.coding.coder_workflow.is_upstream_recode", return_value=False),
+            patch("app.services.coding.demo_project.is_demo_training_submission", return_value=False),
             patch("app.tasks.sync_tasks.run_open_submission_repair.delay") as mock_repair,
-            patch("app.services.submission_payload_version_service.get_active_payload_version", return_value=None),
+            patch("app.services.submissions.payload_version.get_active_payload_version", return_value=None),
             patch("app.services.workflow.upstream_changes.get_latest_pending_upstream_change", return_value=None),
             patch("flask.url_for", return_value="/stub"),
             patch("flask.render_template", return_value="OK"),

@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 
-from app.services.payload_enrichment_backfill_service import (
+from app.services.submissions.payload_enrichment import (
     _enrich_with_single_reauth_retry,
     _is_odk_auth_401_error,
 )

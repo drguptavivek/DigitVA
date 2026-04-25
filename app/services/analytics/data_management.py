@@ -46,9 +46,9 @@ from app.models import (
     VaUsers,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
-from app.services.final_cod_authority_service import upsert_final_cod_authority
+from app.services.coding.final_cod_authority import upsert_final_cod_authority
 from app.services.odk.review import resolve_odk_instance_id
-from app.services.payload_bound_coding_artifact_service import (
+from app.services.submissions.payload_bound_artifacts import (
     deactivate_active_reviewer_reviews_for_submission,
     deactivate_active_narrative_assessments_for_submission,
     deactivate_active_social_autopsy_analyses_for_submission,
@@ -56,11 +56,11 @@ from app.services.payload_bound_coding_artifact_service import (
     promote_active_narrative_assessments_to_payload,
     promote_active_social_autopsy_analyses_to_payload,
 )
-from app.services.smartva_service import promote_active_smartva_to_payload
-from app.services.submission_payload_projection_service import (
+from app.services.smartva.service import promote_active_smartva_to_payload
+from app.services.submissions.payload_projection import (
     apply_payload_to_submission_summary,
 )
-from app.services.submission_payload_version_service import (
+from app.services.submissions.payload_version import (
     VOLATILE_PAYLOAD_KEYS,
     get_payload_version,
     normalize_payload_for_fingerprint,
@@ -86,7 +86,7 @@ from app.services.workflow.upstream_changes import (
     get_latest_pending_upstream_change,
     resolve_pending_upstream_change,
 )
-from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.forms.runtime_form_sync import sync_runtime_forms_from_site_mappings
 
 
 NON_SUBSTANTIVE_REVIEW_FIELDS = frozenset(
@@ -237,7 +237,7 @@ def dm_scope_filter(user):
 
 def _dm_scope_pairs(user) -> set[tuple[str, str]]:
     """Return active project/site pairs visible to this data manager."""
-    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+    from app.services.analytics.submission_mv import _expand_project_ids_to_active_pairs
 
     project_ids = sorted(user.get_data_manager_projects())
     project_site_pairs = user.get_data_manager_project_sites()
@@ -249,7 +249,7 @@ def _dm_scope_pairs(user) -> set[tuple[str, str]]:
 
 def reporting_scope_pairs(user) -> set[tuple[str, str]]:
     """Return active project/site pairs visible for reporting-style access."""
-    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+    from app.services.analytics.submission_mv import _expand_project_ids_to_active_pairs
 
     if user_has_role(user, "admin"):
         rows = db.session.execute(
@@ -956,7 +956,7 @@ CSV_EXPORT_OMIT_PAYLOAD_FIELDS = frozenset(
 
 
 def _pii_payload_fields_by_form(rows) -> dict[str, set[str]]:
-    from app.services.field_mapping_service import get_mapping_service
+    from app.services.forms.field_mapping import get_mapping_service
     from app.utils import va_get_form_type_code_for_form
 
     pii_fields_by_form: dict[str, set[str]] = {}
@@ -1689,7 +1689,7 @@ def dm_smartva_likelihoods_export_csv(
 
 def dm_kpi(user, project_ids, project_site_pairs) -> dict:
     """Return KPI counts for the data manager dashboard."""
-    from app.services.submission_analytics_mv import get_dm_kpi_from_mv
+    from app.services.analytics.submission_mv import get_dm_kpi_from_mv
     return get_dm_kpi_from_mv(
         project_ids=project_ids,
         project_site_pairs=project_site_pairs,
@@ -2005,7 +2005,7 @@ def _data_manager_workflow_actor(user):
 
 def _flatten_form_field_labels(form_type_code: str) -> dict[str, dict[str, str | None]]:
     """Return field metadata keyed by field id for a form type."""
-    from app.services.field_mapping_service import get_mapping_service
+    from app.services.forms.field_mapping import get_mapping_service
 
     field_metadata: dict[str, dict[str, str | None]] = {}
     mapping_service = get_mapping_service()
@@ -2095,7 +2095,7 @@ def _build_upstream_changed_fields(
     incoming_payload: dict | None,
 ) -> tuple[list[dict], list[dict], list[dict]]:
     """Build structured substantive, formatting-only, and non-substantive diffs."""
-    from app.services.field_mapping_service import get_mapping_service
+    from app.services.forms.field_mapping import get_mapping_service
 
     previous_payload = previous_payload or {}
     incoming_payload = incoming_payload or {}

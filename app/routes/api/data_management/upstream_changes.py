@@ -8,12 +8,12 @@ from flask_login import current_user
 from app import db, limiter
 from app.authz.access import action_authorized
 from app.authz.resources import submission_from_kwarg
-from app.services.data_management_service import (
+from app.services.analytics.data_management import (
     dm_accept_upstream_change,
     dm_reject_upstream_change,
     dm_upstream_change_details,
 )
-from app.services.submission_analytics_mv import refresh_submission_analytics_mv
+from app.services.analytics.submission_mv import refresh_submission_analytics_mv
 
 from . import bp
 from .helpers import refresh_dm_dashboard_analytics

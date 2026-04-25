@@ -194,7 +194,7 @@ def _refresh_batch_plan_after_enrichment(
 def _get_single_form_odk_client(va_form):
     """Return one pyODK client for the single-form sync run."""
     from app.services.odk.client import va_odk_clientsetup
-    from app.services.runtime_form_sync_service import get_active_mapping_for_form
+    from app.services.forms.runtime_form_sync import get_active_mapping_for_form
 
     mapping = get_active_mapping_for_form(va_form)
     if mapping is None:
@@ -330,8 +330,8 @@ def _run_canonical_repair_batches(
     from app import db
     from app.models import VaForms
     from app.models.va_sync_runs import VaSyncRun
-    from app.services import smartva_service
-    from app.services.open_submission_repair_service import (
+    from app.services.smartva import service as smartva_service
+    from app.services.submissions.open_repair import (
         repair_submission_current_payload,
     )
 
@@ -1121,7 +1121,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             )
 
         # Update last_synced_at
-        from app.services.runtime_form_sync_service import get_active_mapping_for_form
+        from app.services.forms.runtime_form_sync import get_active_mapping_for_form
 
         mapping = get_active_mapping_for_form(va_form)
         if mapping:
@@ -1631,7 +1631,7 @@ def run_open_submission_repair(
 ):
     """Run the canonical current-payload repair engine asynchronously for one submission."""
     from app import db
-    from app.services.open_submission_repair_service import repair_submission_current_payload
+    from app.services.submissions.open_repair import repair_submission_current_payload
 
     try:
         result = repair_submission_current_payload(
@@ -1672,7 +1672,7 @@ def run_smartva_for_submission(self, va_sid: str, triggered_by: str = "manual"):
     re-queue SmartVA without a full ODK re-sync.
     """
     from app import db
-    from app.services import smartva_service
+    from app.services.smartva import service as smartva_service
 
     log.info("SmartVA task [%s]: starting (triggered_by=%s).", va_sid, triggered_by)
     try:
@@ -1772,7 +1772,7 @@ def refresh_submission_analytics_mv_task(self):
     """Refresh the submission analytics materialized views and record the run."""
     from app import db
     from app.models.va_sync_runs import VaSyncRun
-    from app.services.submission_analytics_mv import refresh_submission_analytics_mv
+    from app.services.analytics.submission_mv import refresh_submission_analytics_mv
 
     run = VaSyncRun(
         triggered_by=ANALYTICS_MV_TRIGGER,
@@ -1819,11 +1819,11 @@ def refresh_submission_analytics_mv_task(self):
 )
 def release_stale_coding_allocations_task(self):
     """Release stale coding allocations older than the configured timeout."""
-    from app.services.coding_allocation_service import (
+    from app.services.coding.allocation import (
         release_stale_coding_allocations,
         release_stale_reviewer_allocations,
     )
-    from app.services.coder_workflow_service import (
+    from app.services.coding.coder_workflow import (
         mark_reviewer_eligible_after_recode_window_submissions,
     )
 
@@ -1904,7 +1904,7 @@ def ensure_coding_timeout_cleanup_scheduled():
 )
 def cleanup_expired_demo_coding_task(self):
     """Deactivate expired demo-coding artifacts and return forms to the ready pool."""
-    from app.services.coding_allocation_service import cleanup_expired_demo_coding_artifacts
+    from app.services.coding.allocation import cleanup_expired_demo_coding_artifacts
 
     expired = cleanup_expired_demo_coding_artifacts()
     return {"expired_demo_artifacts": expired}

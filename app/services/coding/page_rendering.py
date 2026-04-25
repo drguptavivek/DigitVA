@@ -36,7 +36,7 @@ def _count_attachments_per_category(form_type_code: str, payload_data: dict, va_
     if cached is not None:
         return cached
 
-    from app.services.field_mapping_service import get_mapping_service
+    from app.services.forms.field_mapping import get_mapping_service
 
     _mapping_svc = get_mapping_service()
     fieldsitepi = _mapping_svc.get_fieldsitepi(form_type_code)
@@ -64,10 +64,10 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     """Render va_coding.html for a VA form session entry point."""
     from flask import render_template, url_for
     from app.utils import va_get_form_type_code_for_form
-    from app.services.category_rendering_service import get_category_rendering_service, get_visible_category_codes
-    from app.services.coder_workflow_service import is_upstream_recode
-    from app.services.demo_project_service import is_demo_training_submission
-    from app.services.submission_payload_version_service import get_active_payload_version
+    from app.services.forms.category_rendering import get_category_rendering_service, get_visible_category_codes
+    from app.services.coding.coder_workflow import is_upstream_recode
+    from app.services.coding.demo_project import is_demo_training_submission
+    from app.services.submissions.payload_version import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
     from app.tasks.sync_tasks import run_open_submission_repair
 

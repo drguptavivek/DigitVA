@@ -3,7 +3,7 @@ title: Phase 6 - Add New Form Types
 doc_type: implementation-plan
 status: draft
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-04-25
 phase: 6
 estimated_duration: 0.5 day
 risk_level: low
@@ -91,7 +91,7 @@ class VaForms(db.Model):
 
 ## Step 6.2: Create Form Type Registration Service
 
-**File**: `app/services/form_type_service.py`
+**File**: `app/services/forms/form_type.py`
 
 ```python
 """
@@ -254,7 +254,7 @@ CLI commands for form type management.
 """
 import click
 from app import db
-from app.services.form_type_service import get_form_type_service
+from app.services.forms.form_type import get_form_type_service
 from app.models import MasFormTypes
 
 
@@ -354,7 +354,7 @@ def init_app(app):
 
 ## Step 6.4: Update Field Mapping Service for Multi-Form-Type
 
-**File**: `app/services/field_mapping_service.py` (update existing)
+**File**: `app/services/forms/field_mapping.py` (update existing)
 
 The existing service already supports `form_type_code` parameter. Just ensure it's used consistently.
 
@@ -379,7 +379,7 @@ Tests for form type service.
 import pytest
 from app import db
 from app.models import MasFormTypes, MasCategoryOrder, MasFieldDisplayConfig
-from app.services.form_type_service import FormTypeService, get_form_type_service
+from app.services.forms.form_type import FormTypeService, get_form_type_service
 from tests.base import BaseTestCase
 
 

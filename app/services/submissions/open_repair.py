@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaForms, VaSubmissions
-from app.services import smartva_service
+from app.services.smartva import service as smartva_service
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     _attach_all_odk_comments,
     _finalize_enriched_submissions_for_form,

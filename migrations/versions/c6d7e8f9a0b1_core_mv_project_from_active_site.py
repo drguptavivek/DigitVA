@@ -17,7 +17,7 @@ Create Date: 2026-04-06
 from alembic import op
 import sqlalchemy as sa
 
-from app.services.submission_analytics_mv import (
+from app.services.analytics.submission_mv import (
     build_submission_analytics_core_mv_sql,
 )
 

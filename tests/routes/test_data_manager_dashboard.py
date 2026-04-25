@@ -44,8 +44,8 @@ from app.services.workflow.definition import (
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
 )
-from app.services.submission_analytics_mv import refresh_submission_analytics_mv
-from app.services.submission_analytics_mv import (
+from app.services.analytics.submission_mv import refresh_submission_analytics_mv
+from app.services.analytics.submission_mv import (
     CORE_MV_NAME,
     COD_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
@@ -969,7 +969,7 @@ class DataManagerDashboardTests(BaseTestCase):
             ["updatedAt"],
         )
 
-    @patch("app.services.coder_workflow_service.is_upstream_recode", return_value=True)
+    @patch("app.services.coding.coder_workflow.is_upstream_recode", return_value=True)
     def test_data_manager_view_includes_inline_upstream_change_panel(self, _mocked_upstream):
         self._login(self.dm_user_id)
 
@@ -1365,7 +1365,7 @@ class DataManagerDashboardTests(BaseTestCase):
         bust_cache.assert_called_once_with()
 
     @patch("app.routes.api.dm_kpi.dm_kpi_scope.bust_dm_kpi_cache", return_value=5)
-    @patch("app.services.submission_analytics_mv.refresh_submission_analytics_mv")
+    @patch("app.services.analytics.submission_mv.refresh_submission_analytics_mv")
     @patch("app.tasks.kpi_tasks.compute_daily_kpi_snapshot")
     def test_data_manager_can_refresh_dm_kpi_dashboard(
         self,

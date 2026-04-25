@@ -5,7 +5,7 @@ from flask_login import current_user
 
 from app.decorators import role_required
 from app.routes.admin import admin
-from app.services.cod_bucket_mapping_service import list_cod_bucket_scheme_cards
+from app.services.analytics.cod_buckets import list_cod_bucket_scheme_cards
 
 
 @admin.get("/panels/cod-buckets")

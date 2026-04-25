@@ -75,7 +75,7 @@ class TestCategoryFormTypeResolution(BaseTestCase):
                 render_mode="table_sections",
                 show_to_coder=True,
                 show_to_reviewer=True,
-                show_to_site_pi=True,
+                show_to_site_pi_datamanager=True,
                 is_active=True,
             )
         )
@@ -89,7 +89,7 @@ class TestCategoryFormTypeResolution(BaseTestCase):
                 render_mode="attachments",
                 show_to_coder=True,
                 show_to_reviewer=True,
-                show_to_site_pi=True,
+                show_to_site_pi_datamanager=True,
                 always_include=True,
                 is_active=True,
             )

@@ -8,7 +8,7 @@ Usage:
   flask form-types deactivate --code=TEST_FORM
 """
 import click
-from app.services.form_type_service import get_form_type_service
+from app.services.forms.form_type import get_form_type_service
 
 
 @click.group("form-types")

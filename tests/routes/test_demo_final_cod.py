@@ -15,7 +15,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from app.services.workflow.definition import (
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,

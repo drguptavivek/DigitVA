@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 
 from app import db
 from app.models import VaStatuses, VaUsers
-from app.services.token_service import generate_token
+from app.services.security.token import generate_token
 from tests.base import BaseTestCase
 
 

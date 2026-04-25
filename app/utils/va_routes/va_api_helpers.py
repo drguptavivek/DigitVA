@@ -20,12 +20,12 @@ from app.utils import (
     va_mapping_fieldcoder,
     va_render_processcategorydata,
 )
-from app.services.category_rendering_service import (
+from app.services.forms.category_rendering import (
     get_category_rendering_service,
     get_visible_category_codes,
 )
-from app.services.field_mapping_service import get_mapping_service
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.forms.field_mapping import get_mapping_service
+from app.services.submissions.payload_version import get_active_payload_version
 
 
 VA_RENDER_FOR_ALL = set(

@@ -28,7 +28,7 @@ def upgrade():
     op.execute(f"DROP MATERIALIZED VIEW IF EXISTS {MV_NAME} CASCADE")
     op.drop_column("va_submissions", "va_data")
 
-    from app.services.submission_analytics_mv import build_submission_analytics_demographics_mv_sql
+    from app.services.analytics.submission_mv import build_submission_analytics_demographics_mv_sql
     op.execute(build_submission_analytics_demographics_mv_sql())
 
 

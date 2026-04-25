@@ -28,19 +28,19 @@ from app.models import (
     VaUsernotes,
 )
 import app.routes.forms as form_routes
-from app.services.final_cod_authority_service import (
+from app.services.coding.final_cod_authority import (
     complete_recode_episode,
     get_active_recode_episode,
     get_authoritative_final_assessment,
     upsert_final_cod_authority,
 )
-from app.services.payload_bound_coding_artifact_service import (
+from app.services.submissions.payload_bound_artifacts import (
     deactivate_other_active_reviewer_reviews,
     get_current_payload_narrative_assessment,
     get_current_payload_social_autopsy_analysis,
     get_submission_with_current_payload,
 )
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.submissions.payload_version import get_active_payload_version
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_READY_FOR_CODING,
@@ -370,8 +370,8 @@ def handle_final_assessment(va_sid, va_partial, va_action, va_actiontype):
 
     if form1.validate_on_submit():
         blocking_messages: list[str] = []
-        from app.services.submission_project_service import get_project_for_submission
-        from app.services.category_rendering_service import (
+        from app.services.submissions.project import get_project_for_submission
+        from app.services.forms.category_rendering import (
             get_category_rendering_service,
             get_visible_category_codes,
         )

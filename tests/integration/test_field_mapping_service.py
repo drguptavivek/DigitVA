@@ -28,7 +28,7 @@ from app.models import (
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator, WHO_2022_CATEGORIES
-from app.services.field_mapping_service import FieldMappingService
+from app.services.forms.field_mapping import FieldMappingService
 from tests.base import BaseTestCase
 
 
@@ -336,6 +336,12 @@ class TestFieldMappingServiceStructure(BaseTestCase):
 
 class TestRenderProcessCategoryDataLegacyAttachmentFallback(BaseTestCase):
     FORM_ID = "LEGACYATT01"
+
+    def setUp(self):
+        super().setUp()
+        Who2022VaMigrator().run()
+        self.service = FieldMappingService()
+        self.form_type_code = "WHO_2022_VA"
 
     @classmethod
     def setUpClass(cls):

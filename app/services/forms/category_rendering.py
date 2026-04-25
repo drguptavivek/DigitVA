@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app import db
 from app.models import MasCategoryDisplayConfig, MasFormTypes
-from app.services.field_mapping_service import get_mapping_service
+from app.services.forms.field_mapping import get_mapping_service
 from app.utils.va_render.va_render_06_processcategorydata import (
     va_render_processcategorydata,
 )

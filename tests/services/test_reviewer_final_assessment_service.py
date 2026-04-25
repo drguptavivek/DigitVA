@@ -11,11 +11,11 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
-from app.services.reviewer_final_assessment_service import (
+from app.services.coding.reviewer_final_assessment import (
     create_reviewer_final_assessment,
     get_latest_active_reviewer_final_assessment,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 

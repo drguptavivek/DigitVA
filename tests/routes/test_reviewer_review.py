@@ -20,7 +20,7 @@ from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from app.services.workflow.definition import WORKFLOW_REVIEWER_CODING_IN_PROGRESS
 from tests.base import BaseTestCase
 
@@ -44,6 +44,19 @@ class TestReviewerReviewRoute(BaseTestCase):
         project = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
         if project is not None:
             project.narrative_qa_enabled = False
+        else:
+            db.session.add(
+                VaProjectMaster(
+                    project_id=cls.BASE_PROJECT_ID,
+                    project_code=cls.BASE_PROJECT_ID,
+                    project_name="Reviewer Review Project",
+                    project_nickname="ReviewerReview",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                    narrative_qa_enabled=False,
+                )
+            )
         site_master = db.session.get(VaSiteMaster, cls.BASE_SITE_ID)
         if site_master is None:
             db.session.add(

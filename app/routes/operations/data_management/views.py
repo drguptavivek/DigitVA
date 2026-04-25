@@ -8,17 +8,17 @@ from flask_login import current_user
 from app import db
 from app.authz.access import action_authorized
 from app.authz.resources import submission_from_kwarg
-from app.services.cod_bucket_mapping_service import (
+from app.services.analytics.cod_buckets import (
     SCHEME_CODE_SRS_INDIA,
     list_cod_bucket_schemes,
 )
-from app.services.data_management_service import (
+from app.services.analytics.data_management import (
     audit_dm_submission_action,
     dm_odk_edit_url,
     dm_scoped_forms,
     reporting_scope_pairs,
 )
-from app.services.submission_analytics_mv import get_dm_kpi_from_mv
+from app.services.analytics.submission_mv import get_dm_kpi_from_mv
 from app.utils.va_permission.va_permission_01_abortwithflash import (
     va_permission_abortwithflash,
 )
@@ -87,7 +87,7 @@ def cod_bucket_reporting():
 def view_submission(va_sid):
     """Data manager read-only view of a submission."""
     from app.models import VaSubmissionsAuditlog
-    from app.services.coding_service import render_va_coding_page
+    from app.services.coding.page_rendering import render_va_coding_page
 
     form = g.authz_resource.obj
     db.session.add(

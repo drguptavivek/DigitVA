@@ -3,7 +3,7 @@ from __future__ import annotations
 from app import limiter
 from app.routes.api import data_management as dm_routes
 from app.authz.access import action_authorized
-from app.services.data_management_service import dm_submissions_export_csv
+from app.services.analytics.data_management import dm_submissions_export_csv
 
 from . import bp
 from .helpers import serve_cached_export_csv

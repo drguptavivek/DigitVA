@@ -58,7 +58,7 @@ def admin_sync_legacy_attachment_repair():
 def admin_sync_form(form_id: str):
     try:
         from app.models.va_forms import VaForms
-        from app.services.runtime_form_sync_service import get_active_mapping_for_form
+        from app.services.forms.runtime_form_sync import get_active_mapping_for_form
         from app.tasks.sync_tasks import run_single_form_sync
 
         va_form = db.session.get(VaForms, form_id)
@@ -81,7 +81,7 @@ def admin_sync_form(form_id: str):
 @role_required("admin")
 def admin_sync_project_site(project_id: str, site_id: str):
     try:
-        from app.services.runtime_form_sync_service import ensure_runtime_form_for_mapping, sync_runtime_forms_from_site_mappings
+        from app.services.forms.runtime_form_sync import ensure_runtime_form_for_mapping, sync_runtime_forms_from_site_mappings
         from app.tasks.sync_tasks import run_single_form_sync
 
         active_form = next(

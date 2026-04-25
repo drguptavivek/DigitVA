@@ -108,7 +108,7 @@ def _seed_admin():
 
 def _seed_form_types():
     """Register built-in form types if not already present."""
-    from app.services.form_type_service import get_form_type_service
+    from app.services.forms.form_type import get_form_type_service
     service = get_form_type_service()
 
     FORM_TYPES = [

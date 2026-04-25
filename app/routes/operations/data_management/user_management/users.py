@@ -165,11 +165,11 @@ def manage_create_user():
     db.session.commit()
 
     try:
-        from app.services.email_service import (
+        from app.services.notifications.email import (
             send_password_reset_email,
             send_verification_email,
         )
-        from app.services.token_service import generate_token
+        from app.services.security.token import generate_token
 
         verify_token = generate_token(new_user.user_id, "email_verify")
         reset_token = generate_token(new_user.user_id, "password_reset")
@@ -267,8 +267,8 @@ def manage_resend_verification(target_user_id):
         return _json_error("User email is already verified.", 400)
 
     try:
-        from app.services.email_service import send_verification_email
-        from app.services.token_service import generate_token
+        from app.services.notifications.email import send_verification_email
+        from app.services.security.token import generate_token
 
         verify_token = generate_token(user.user_id, "email_verify")
         send_verification_email(user, verify_token)
@@ -344,8 +344,8 @@ def manage_update_user(target_user_id):
 
     if changed_email:
         try:
-            from app.services.email_service import send_verification_email
-            from app.services.token_service import generate_token
+            from app.services.notifications.email import send_verification_email
+            from app.services.security.token import generate_token
 
             verify_token = generate_token(target_user.user_id, "email_verify")
             send_verification_email(target_user, verify_token)

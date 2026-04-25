@@ -6,12 +6,12 @@ from flask_login import current_user
 from app import limiter
 from app.routes.api import data_management as dm_routes
 from app.authz.access import action_authorized
-from app.services.data_management_service import (
+from app.services.analytics.data_management import (
     dm_coder_daily_statistics,
     dm_filter_options,
     reporting_scope_pairs,
 )
-from app.services.submission_analytics_mv import get_dm_project_site_stats_from_mv
+from app.services.analytics.submission_mv import get_dm_project_site_stats_from_mv
 
 from . import bp
 from .helpers import cache_result, export_filters_from_request

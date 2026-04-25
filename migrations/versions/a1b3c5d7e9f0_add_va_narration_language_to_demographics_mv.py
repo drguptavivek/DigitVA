@@ -10,7 +10,7 @@ Create Date: 2026-04-07T00:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
-from app.services.submission_analytics_mv import build_submission_analytics_demographics_mv_sql
+from app.services.analytics.submission_mv import build_submission_analytics_demographics_mv_sql
 
 revision = 'a1b3c5d7e9f0'
 down_revision = 'f9a0b1c2d3e4'

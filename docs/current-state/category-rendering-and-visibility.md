@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-25
 ---
 
 # Category Rendering And Visibility
@@ -44,7 +44,7 @@ Current route behavior:
   but now bridge in DB-backed categories that are visible in category config and
   missing from the static dict
 - site PI view uses DB-backed site-PI mappings from
-  [`app/services/field_mapping_service.py`](../../app/services/field_mapping_service.py)
+  [`app/services/forms/field_mapping.py`](../../app/services/forms/field_mapping.py)
   via `get_fieldsitepi()`
 - category partial selection now branches by `mas_category_display_config.render_mode`
   for categories visible to the current role:
@@ -146,7 +146,7 @@ Current visibility rules:
   derived from mapped submission fields
 
 The live visible category set is computed by
-[`get_visible_category_codes()`](../../app/services/category_rendering_service.py)
+[`get_visible_category_codes()`](../../app/services/forms/category_rendering.py)
 from current submission data, form type, and mapped category content. Stored
 `va_category_list` remains in the database for legacy compatibility, but it is no
 longer the runtime source of truth for the nav.

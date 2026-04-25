@@ -43,7 +43,7 @@ def reset_password(token):
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
 
-    from app.services.token_service import validate_token
+    from app.services.security.token import validate_token
 
     user_id = validate_token(token, "password_reset")
     if not user_id:
@@ -90,7 +90,7 @@ def reset_password(token):
 @va_auth.route("/verify-email/<token>", methods=["GET"])
 @limiter.limit("3 per minute")
 def verify_email(token):
-    from app.services.token_service import generate_token, validate_token
+    from app.services.security.token import generate_token, validate_token
 
     user_id = validate_token(token, "email_verify")
     if not user_id:

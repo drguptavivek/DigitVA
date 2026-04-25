@@ -52,7 +52,7 @@ The current simplification goal is:
 
 Today that shared per-submission engine is:
 
-- [`repair_submission_current_payload(...)`](../../app/services/open_submission_repair_service.py)
+- [`repair_submission_current_payload(...)`](../../app/services/submissions/open_repair.py)
 - [`run_canonical_repair_batches_task(...)`](../../app/tasks/sync_tasks.py)
   is the async wrapper used when a sync entrypoint needs to fan out the same
   canonical repair logic across many submissions
@@ -110,7 +110,7 @@ Page-open on-demand entrypoints:
 
 These entrypoints eventually render through:
 
-- [`render_va_coding_page(...)`](../../app/services/coding_service.py)
+- [`render_va_coding_page(...)`](../../app/services/coding/page_rendering.py)
 
 That shared shell now queues:
 
@@ -330,11 +330,11 @@ Shared repair-planning and stage helpers:
 
 Single-submission on-open repair service:
 
-- [`repair_submission_for_coding_open(...)`](../../app/services/open_submission_repair_service.py)
+- [`repair_submission_for_coding_open(...)`](../../app/services/submissions/open_repair.py)
 
 Shared coding render path:
 
-- [`render_va_coding_page(...)`](../../app/services/coding_service.py)
+- [`render_va_coding_page(...)`](../../app/services/coding/page_rendering.py)
 
 Attachment repair primitives:
 
@@ -343,4 +343,4 @@ Attachment repair primitives:
 
 SmartVA repair primitive:
 
-- [`generate_for_submission(...)`](../../app/services/smartva_service.py)
+- [`generate_for_submission(...)`](../../app/services/smartva/service.py)

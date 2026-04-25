@@ -33,8 +33,8 @@ from app.models import VaForms, VaSubmissions
 from app.models.va_selectives import VaStatuses
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
-from app.services.open_submission_repair_service import repair_submission_current_payload
-from app.services.submission_payload_version_service import _derive_payload_metadata
+from app.services.submissions.open_repair import repair_submission_current_payload
+from app.services.submissions.payload_version import _derive_payload_metadata
 
 log = logging.getLogger(__name__)
 
@@ -656,7 +656,7 @@ def _run_single_submission_smartva(
     stats: dict,
     audit_by_sid: dict,
 ) -> None:
-    from app.services import smartva_service
+    from app.services.smartva import service as smartva_service
 
     stats["smartva_checked"] += 1
     missing = _find_missing_current_payload_smartva_sids({va_sid})
@@ -935,7 +935,7 @@ def _run_missing_current_payload_smartva(
     audit_by_sid: dict,
 ) -> None:
     """Generate SmartVA for candidate submissions missing current-payload rows."""
-    from app.services import smartva_service
+    from app.services.smartva import service as smartva_service
 
     missing_sids = _find_missing_current_payload_smartva_sids(candidate_sids)
     stats["smartva_checked"] = len(candidate_sids)

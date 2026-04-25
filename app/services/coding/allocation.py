@@ -16,12 +16,12 @@ from app.models import (
     VaStatuses,
     VaSubmissionsAuditlog,
 )
-from app.services.final_cod_authority_service import (
+from app.services.coding.final_cod_authority import (
     abandon_active_recode_episode,
     get_active_recode_episode,
     upsert_final_cod_authority,
 )
-from app.services.demo_project_service import (
+from app.services.coding.demo_project import (
     get_demo_coding_allocation_timeout_minutes,
     should_use_demo_actiontype_for_submission,
 )

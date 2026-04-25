@@ -17,7 +17,7 @@ from app.models import (
     MasIcd1020192,
     VaSubmissions,
 )
-from app.services.submission_analytics_mv import (
+from app.services.analytics.submission_mv import (
     CORE_MV_NAME,
     COD_MV_NAME,
     DEMOGRAPHICS_MV_NAME,

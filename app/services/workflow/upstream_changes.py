@@ -15,7 +15,7 @@ from app.models import (
     VaSubmissionUpstreamChange,
     VaStatuses,
 )
-from app.services.submission_payload_version_service import get_payload_version
+from app.services.submissions.payload_version import get_payload_version
 
 
 UPSTREAM_CHANGE_STATUS_PENDING = "pending"

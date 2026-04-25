@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-04-25
 ---
 
 # Data Manager KPI Framework
@@ -744,7 +744,7 @@ Potential MV improvements noted for future implementation:
 - `app/models/va_narrative_assessments.py` — NQA model
 - `app/models/va_social_autopsy_analysis.py` — social autopsy model
 - `app/models/va_project_master.py` — project feature flags
-- `app/services/submission_analytics_mv.py` — current MV definitions
+- `app/services/analytics/submission_mv.py` — current MV definitions
 - `docs/policy/data-manager-workflow.md` — existing DM policy
 - `docs/policy/coding-workflow-state-machine.md` — workflow state machine
 

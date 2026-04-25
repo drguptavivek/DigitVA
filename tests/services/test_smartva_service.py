@@ -31,8 +31,8 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version, get_active_payload_version
-from app.services.smartva_service import (
+from app.services.submissions.payload_version import ensure_active_payload_version, get_active_payload_version
+from app.services.smartva.service import (
     generate_for_form,
     generate_for_submission,
     pending_smartva_sids,
@@ -493,7 +493,7 @@ class GenerateForSubmissionTests(BaseTestCase):
             patch("app.utils.va_smartva_prepdata"),
             patch("app.utils.va_smartva_runsmartva"),
             patch(
-                "app.services.smartva_service._read_raw_likelihood_outputs",
+                "app.services.smartva.service._read_raw_likelihood_outputs",
                 return_value={
                     sub.va_sid: [
                         (
@@ -513,7 +513,7 @@ class GenerateForSubmissionTests(BaseTestCase):
                 return_value="/fake/output.csv",
             ),
             patch(
-                "app.services.smartva_service._read_formatted_results",
+                "app.services.smartva.service._read_formatted_results",
                 return_value=new_result_df,
             ),
         ):
@@ -708,7 +708,7 @@ class GenerateForSubmissionTests(BaseTestCase):
                 return_value="/fake/output.csv",
             ),
             patch(
-                "app.services.smartva_service._read_formatted_results",
+                "app.services.smartva.service._read_formatted_results",
                 return_value=other_result_df,
             ),
         ):
@@ -939,7 +939,7 @@ class GenerateForSubmissionTests(BaseTestCase):
             patch("app.utils.va_smartva_prepdata", side_effect=fake_prepdata),
             patch("app.utils.va_smartva_runsmartva", side_effect=fake_runsmartva),
             patch(
-                "app.services.smartva_service._read_raw_likelihood_outputs",
+                "app.services.smartva.service._read_raw_likelihood_outputs",
                 return_value={
                     sub.va_sid: [
                         (
@@ -959,7 +959,7 @@ class GenerateForSubmissionTests(BaseTestCase):
                 return_value="/fake/output.csv",
             ),
             patch(
-                "app.services.smartva_service._read_formatted_results",
+                "app.services.smartva.service._read_formatted_results",
                 return_value=new_result_df,
             ),
         ):

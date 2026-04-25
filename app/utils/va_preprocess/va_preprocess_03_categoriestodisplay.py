@@ -1,4 +1,4 @@
-from app.services.field_mapping_service import get_mapping_service
+from app.services.forms.field_mapping import get_mapping_service
 from app.utils.va_form.va_form_02_formtyperesolution import (
     va_get_form_type_code_for_form,
 )
@@ -8,7 +8,7 @@ from app.utils.va_render.va_render_06_processcategorydata import va_render_proce
 def va_preprocess_categoriestodisplay(va_data, va_form_id, *, form_type_code=None):
     category_list = []
     try:
-        from app.services.category_rendering_service import get_category_rendering_service
+        from app.services.forms.category_rendering import get_category_rendering_service
 
         mapping_svc = get_mapping_service()
         category_svc = get_category_rendering_service()

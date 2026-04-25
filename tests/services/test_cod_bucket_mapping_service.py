@@ -20,7 +20,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services.cod_bucket_mapping_service import (
+from app.services.analytics.cod_buckets import (
     AGE_SCOPE_ADULT_OVER5Y,
     AGE_SCOPE_CHILD_1_59M,
     DEFAULT_MAX_AGE_UNIT,
@@ -40,8 +40,8 @@ from app.services.cod_bucket_mapping_service import (
     reset_cod_bucket_scheme_age_band_to_source,
     summarize_unmatched_coded_submissions_by_bucket,
 )
-from app.services.submission_analytics_mv import refresh_submission_analytics_mv
-from app.services.submission_analytics_mv import (
+from app.services.analytics.submission_mv import refresh_submission_analytics_mv
+from app.services.analytics.submission_mv import (
     CORE_MV_NAME,
     COD_MV_NAME,
     DEMOGRAPHICS_MV_NAME,

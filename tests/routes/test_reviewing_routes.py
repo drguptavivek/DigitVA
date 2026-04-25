@@ -21,7 +21,7 @@ from app.models import (
     VaUserAccessGrants,
     VaReviewerFinalAssessments,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from app.services.workflow.definition import (
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,

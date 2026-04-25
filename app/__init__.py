@@ -98,7 +98,7 @@ def create_app(config_class=None):
     cache.init_app(app)
 
     # Initialize email (Flask-Mail)
-    from app.services.email_service import init_mail
+    from app.services.notifications.email import init_mail
     init_mail(app)
 
     # Initialize security headers with Flask-Talisman
@@ -213,7 +213,7 @@ def create_app(config_class=None):
         if request.path.startswith(timed_prefixes):
             g._request_started_at = perf_counter()
 
-        from app.services.request_abuse_service import (
+        from app.services.security.request_abuse import (
             abuse_ban_message,
             get_temporary_ban,
         )

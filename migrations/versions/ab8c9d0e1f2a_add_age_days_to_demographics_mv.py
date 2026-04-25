@@ -9,7 +9,7 @@ Create Date: 2026-04-20T01:10:00.000000
 import sqlalchemy as sa
 from alembic import op
 
-from app.services.submission_analytics_mv import (
+from app.services.analytics.submission_mv import (
     DEMOGRAPHICS_MV_NAME,
     build_submission_analytics_demographics_mv_sql,
 )

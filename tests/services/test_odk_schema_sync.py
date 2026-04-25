@@ -38,8 +38,8 @@ class TestOdkSchemaSyncService(BaseTestCase):
         super().setUpClass()
         cls.form_type = MasFormTypes(
             form_type_id=uuid.uuid4(),
-            form_type_code="WHO_2022_VA",
-            form_type_name="WHO 2022 VA",
+            form_type_code="TEST_ODK_SCHEMA_SYNC",
+            form_type_name="Test ODK Schema Sync",
             is_active=True,
         )
         db.session.add(cls.form_type)
@@ -65,7 +65,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
+            stats = svc.sync_form_choices("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         for key in ("fields_processed", "fields_added", "choices_added", "choices_updated", "errors"):
             self.assertIn(key, stats, f"Missing key: {key}")
@@ -91,7 +91,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
+            stats = svc.sync_form_choices("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         self.assertEqual(stats["choices_added"], 2, stats)
         self.assertEqual(stats["errors"], [])
@@ -134,7 +134,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
+            stats = svc.sync_form_choices("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         self.assertEqual(stats["choices_updated"], 1, stats)
         db.session.refresh(existing)
@@ -175,7 +175,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
+            stats = svc.sync_form_choices("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         # choice was NOT deactivated — sync is additive only
         db.session.refresh(old_choice)
@@ -212,7 +212,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
+            stats = svc.sync_form_choices("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         self.assertEqual(stats["choices_updated"], 0, stats)
         self.assertEqual(stats["choices_added"], 0, stats)
@@ -231,7 +231,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
+            stats = svc.sync_form_choices("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         # Fields not in MasFieldDisplayConfig → fields_processed = 0
         self.assertEqual(stats["fields_processed"], 0)
@@ -262,7 +262,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            stats = svc.sync_form_choices("WHO_2022_VA", 1, "test_form")
+            stats = svc.sync_form_choices("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         # None of Sel1/Sel2/TextF exist in the test MasFieldDisplayConfig
         self.assertEqual(stats["fields_processed"], 0)
@@ -295,7 +295,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
             mock_setup.return_value = mock_client
 
             svc = OdkSchemaSyncService()
-            result = svc.detect_schema_changes("WHO_2022_VA", 1, "test_form")
+            result = svc.detect_schema_changes("TEST_ODK_SCHEMA_SYNC", 1, "test_form")
 
         self.assertIn("new_choices", result)
         self.assertTrue(any(
@@ -331,7 +331,7 @@ class TestOdkSchemaSyncService(BaseTestCase):
 
         svc = OdkSchemaSyncService()
         stats = svc.sync_selected(
-            "WHO_2022_VA",
+            "TEST_ODK_SCHEMA_SYNC",
             {
                 "new_fields": [
                     {

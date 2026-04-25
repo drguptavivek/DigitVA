@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-25
 ---
 
 # Runtime And Operations
@@ -322,7 +322,7 @@ Current ODK operational protection:
 Current coding allocation cleanup behavior:
 
 - implemented in
-  [`app/services/coding_allocation_service.py`](../../app/services/coding_allocation_service.py)
+  [`app/services/coding/allocation.py`](../../app/services/coding/allocation.py)
 - scheduled by [`app/tasks/sync_tasks.py`](../../app/tasks/sync_tasks.py)
 - deactivates stale active coding allocations older than 1 hour
 - preserves any saved `va_initial_assessments` rows
@@ -364,7 +364,7 @@ account recovery.
 
 What exists today:
 
-- Flask-Mail integration in [`app/services/email_service.py`](../../app/services/email_service.py)
+- Flask-Mail integration in [`app/services/notifications/email.py`](../../app/services/notifications/email.py)
 - Celery task dispatch for verification and password-reset messages
 - SMTP settings in [`config.py`](../../config.py)
 - email verification and password reset templates under

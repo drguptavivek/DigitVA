@@ -365,7 +365,7 @@ def va_logging(app):
         if isinstance(e, HTTPException):
             status_code = e.code or 500
             if status_code == 405:
-                from app.services.request_abuse_service import (
+                from app.services.security.request_abuse import (
                     record_method_not_allowed_abuse,
                 )
 

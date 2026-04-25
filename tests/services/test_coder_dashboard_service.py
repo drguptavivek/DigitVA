@@ -12,7 +12,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
-from app.services.coder_dashboard_service import (
+from app.services.coding.coder_dashboard import (
     bust_coder_dashboard_cache,
     get_coder_completed_count,
     get_coder_completed_history,
@@ -36,7 +36,7 @@ _RUN_SUFFIX = uuid.uuid4().hex[:4].upper()
 
 
 class TestCoderDashboardService(BaseTestCase):
-    BASE_PROJECT_ID = f"CD{_RUN_SUFFIX}"
+    BASE_PROJECT_ID = f"CB{_RUN_SUFFIX}"
     BASE_SITE_ID = f"C{_RUN_SUFFIX[:3]}"
     FORM_ID = f"C{_RUN_SUFFIX}000001"
     OTHER_FORM_ID = f"C{_RUN_SUFFIX}000002"

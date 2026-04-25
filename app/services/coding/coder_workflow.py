@@ -24,13 +24,13 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.coding_allocation_service import release_stale_coding_allocations
-from app.services.demo_project_service import (
+from app.services.coding.allocation import release_stale_coding_allocations
+from app.services.coding.demo_project import (
     get_demo_training_project_ids,
     is_demo_training_submission,
     should_use_demo_actiontype_for_submission,
 )
-from app.services.final_cod_authority_service import (
+from app.services.coding.final_cod_authority import (
     get_authoritative_final_assessment,
     get_active_recode_episode,
     start_recode_episode,

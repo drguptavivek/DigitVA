@@ -17,7 +17,7 @@ from .common import (
 @role_required("admin")
 def admin_form_types_list():
     """Return all active form types (code + name)."""
-    from app.services.form_type_service import get_form_type_service
+    from app.services.forms.form_type import get_form_type_service
 
     service = get_form_type_service()
     return jsonify(
@@ -41,7 +41,7 @@ def admin_form_types_create():
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
-    from app.services.form_type_service import get_form_type_service
+    from app.services.forms.form_type import get_form_type_service
 
     data = request.get_json(silent=True) or {}
     code = (data.get("form_type_code") or "").strip().upper()
@@ -100,7 +100,7 @@ def admin_form_types_duplicate(source_code):
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
-    from app.services.form_type_service import get_form_type_service
+    from app.services.forms.form_type import get_form_type_service
 
     data = request.get_json(silent=True) or {}
     new_code = (data.get("new_code") or "").strip().upper()
@@ -129,7 +129,7 @@ def admin_form_types_duplicate(source_code):
 @role_required("admin")
 def admin_form_types_export(form_type_code):
     """Download a form type configuration as a JSON file."""
-    from app.services.form_type_service import get_form_type_service
+    from app.services.forms.form_type import get_form_type_service
 
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
@@ -180,7 +180,7 @@ def admin_form_types_import():
     if override_description is not None:
         override_description = override_description.strip() or None
 
-    from app.services.form_type_service import get_form_type_service
+    from app.services.forms.form_type import get_form_type_service
 
     try:
         form_type, stats = get_form_type_service().import_form_type(

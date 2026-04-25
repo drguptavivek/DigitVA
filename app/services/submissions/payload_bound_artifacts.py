@@ -14,7 +14,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.submissions.payload_version import get_active_payload_version
 
 
 def get_submission_with_current_payload(

@@ -2,7 +2,7 @@
 
 from flask import Blueprint
 
-from app.services.coder_workflow_service import AllocationError
+from app.services.coding.coder_workflow import AllocationError
 from app.utils import va_permission_abortwithflash
 
 coding = Blueprint("coding", __name__)

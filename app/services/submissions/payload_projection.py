@@ -7,7 +7,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models.mas_languages import MapLanguageAliases
-from app.services.who_age_normalization import normalize_who_2022_age
+from app.services.smartva.age_normalization import normalize_who_2022_age
 from app.utils import (
     va_preprocess_categoriestodisplay,
     va_preprocess_summcatenotification,

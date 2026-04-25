@@ -9,7 +9,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import MagicMock, patch
 
-import app.services.demo_project_service as _svc
+import app.services.coding.demo_project as _svc
 
 
 class TestDemoProjectSchemaReadyCache(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestDemoProjectSchemaReadyCache(unittest.TestCase):
         inspector = self._make_inspector(
             ["demo_training_enabled", "demo_retention_minutes", "other_col"]
         )
-        with patch("app.services.demo_project_service.sa") as mock_sa:
+        with patch("app.services.coding.demo_project.sa") as mock_sa:
             mock_sa.inspect.return_value = inspector
             result = _svc.demo_project_schema_ready()
 
@@ -34,7 +34,7 @@ class TestDemoProjectSchemaReadyCache(unittest.TestCase):
 
     def test_returns_false_when_columns_missing(self):
         inspector = self._make_inspector(["project_id", "project_name"])
-        with patch("app.services.demo_project_service.sa") as mock_sa:
+        with patch("app.services.coding.demo_project.sa") as mock_sa:
             mock_sa.inspect.return_value = inspector
             result = _svc.demo_project_schema_ready()
 
@@ -44,7 +44,7 @@ class TestDemoProjectSchemaReadyCache(unittest.TestCase):
         inspector = self._make_inspector(
             ["demo_training_enabled", "demo_retention_minutes"]
         )
-        with patch("app.services.demo_project_service.sa") as mock_sa:
+        with patch("app.services.coding.demo_project.sa") as mock_sa:
             mock_sa.inspect.return_value = inspector
             first = _svc.demo_project_schema_ready()
             second = _svc.demo_project_schema_ready()
@@ -59,7 +59,7 @@ class TestDemoProjectSchemaReadyCache(unittest.TestCase):
         inspector = MagicMock()
         inspector.get_columns.side_effect = Exception("connection refused")
 
-        with patch("app.services.demo_project_service.sa") as mock_sa:
+        with patch("app.services.coding.demo_project.sa") as mock_sa:
             mock_sa.inspect.return_value = inspector
             result = _svc.demo_project_schema_ready()
 
@@ -74,7 +74,7 @@ class TestDemoProjectSchemaReadyCache(unittest.TestCase):
             ["demo_training_enabled", "demo_retention_minutes"]
         )
 
-        with patch("app.services.demo_project_service.sa") as mock_sa:
+        with patch("app.services.coding.demo_project.sa") as mock_sa:
             mock_sa.inspect.return_value = failing_inspector
             first = _svc.demo_project_schema_ready()
 

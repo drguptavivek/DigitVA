@@ -11,7 +11,7 @@ from app.decorators import role_required
 from app.models import MasCodBucketNode, MasCodBucketSchemeAgeBand
 from app.http.responses import json_error as _json_error
 from app.routes.admin import admin
-from app.services.cod_bucket_mapping_service import (
+from app.services.analytics.cod_buckets import (
     NODE_DELETE_DISPOSITION_MOVE_TO_UNMAPPED,
     NODE_DELETE_DISPOSITION_UNMAP,
     delete_cod_bucket_node,

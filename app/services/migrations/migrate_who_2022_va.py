@@ -28,7 +28,7 @@ from app.models import (
     MasFieldDisplayConfig,
     MasChoiceMappings,
 )
-from app.services.category_display_defaults import CATEGORY_DISPLAY_DEFAULTS
+from app.services.forms.category_display_defaults import CATEGORY_DISPLAY_DEFAULTS
 
 
 # Category display order from va_preprocess_03_categoriestodisplay.py

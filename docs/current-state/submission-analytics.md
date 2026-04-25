@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-25
 ---
 
 # Submission Analytics Materialized Views
@@ -113,7 +113,7 @@ Current refresh behavior:
 - tracked in `va_sync_runs` with `triggered_by = "analytics_mv"`
 
 The refresh helpers are implemented in
-[submission_analytics_mv.py](../../app/services/submission_analytics_mv.py).
+[submission_mv.py](../../app/services/analytics/submission_mv.py).
 
 ## Indexes
 

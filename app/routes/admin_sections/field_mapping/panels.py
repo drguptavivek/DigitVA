@@ -27,7 +27,7 @@ def admin_panel_field_mapping():
     if not current_user.is_admin():
         return render_template("va_errors/va_403.html"), 403
 
-    from app.services.form_type_service import get_form_type_service
+    from app.services.forms.form_type import get_form_type_service
 
     service = get_form_type_service()
     form_types = service.list_form_types()

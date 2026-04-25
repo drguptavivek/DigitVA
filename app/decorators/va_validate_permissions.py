@@ -15,7 +15,7 @@ from app.services.workflow.intake_modes import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )
-from app.services.demo_project_service import is_demo_training_submission
+from app.services.coding.demo_project import is_demo_training_submission
 from app.utils import (
     va_permission_abortwithflash,
     va_permission_ensureallocation,

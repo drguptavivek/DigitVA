@@ -9,7 +9,7 @@ from app.decorators import role_required
 from app.http.responses import json_error as _json_error
 from app.routes.admin import admin
 from app.routes.admin_sections import data_sync as sync_routes
-from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.forms.runtime_form_sync import sync_runtime_forms_from_site_mappings
 
 
 @admin.get("/api/sync/coverage")
@@ -440,7 +440,7 @@ def admin_sync_backfill_stats():
 def admin_sync_legacy_attachment_stats():
     try:
         from app.models.va_submission_attachments import VaSubmissionAttachments
-        from app.services.attachment_storage_name_service import legacy_attachment_storage_name
+        from app.services.submissions.attachment_storage_name import legacy_attachment_storage_name
 
         counts = db.session.execute(
             sa.select(

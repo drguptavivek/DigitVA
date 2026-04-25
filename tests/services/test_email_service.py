@@ -13,12 +13,12 @@ class TestEmailService(BaseTestCase):
         user = SimpleNamespace(email="vivekguptarpc@gmail.com", name="Vivek")
 
         with self.app.app_context(), patch(
-            "app.services.email_service.render_template",
+            "app.services.notifications.email.render_template",
             side_effect=lambda template, **context: f"{template}:{context['name']}",
         ) as render_template, patch(
-            "app.services.email_service.mail.send"
+            "app.services.notifications.email.mail.send"
         ) as mail_send:
-            from app.services.email_service import _actually_send_email
+            from app.services.notifications.email import _actually_send_email
 
             _actually_send_email(
                 to=user.email,
@@ -37,9 +37,9 @@ class TestEmailService(BaseTestCase):
         user = SimpleNamespace(email="new.user@example.com", name="New User")
 
         with self.app.app_context(), patch(
-            "app.services.email_service._dispatch_email.delay"
+            "app.services.notifications.email._dispatch_email.delay"
         ) as dispatch_delay:
-            from app.services.email_service import send_password_reset_email
+            from app.services.notifications.email import send_password_reset_email
 
             send_password_reset_email(user, "token-123", invite_mode=True)
 
@@ -58,9 +58,9 @@ class TestEmailService(BaseTestCase):
         user = SimpleNamespace(email="existing.user@example.com", name="Existing User")
 
         with self.app.app_context(), patch(
-            "app.services.email_service._dispatch_email.delay"
+            "app.services.notifications.email._dispatch_email.delay"
         ) as dispatch_delay:
-            from app.services.email_service import send_password_reset_email
+            from app.services.notifications.email import send_password_reset_email
 
             send_password_reset_email(user, "token-456")
 
@@ -78,15 +78,15 @@ class TestEmailService(BaseTestCase):
             {"blocked@example.com": (550, b"blacklisted")}
         )
         with self.app.app_context(), patch(
-            "app.services.email_service._actually_send_email",
+            "app.services.notifications.email._actually_send_email",
             side_effect=recipient_error,
         ), patch(
-            "app.services.email_service._mark_suppressed_email"
+            "app.services.notifications.email._mark_suppressed_email"
         ) as mark_suppressed, patch(
-            "app.services.email_service._is_suppressed_recipient",
+            "app.services.notifications.email._is_suppressed_recipient",
             return_value=False,
-        ), patch("app.services.email_service._dispatch_email.retry") as retry_mock:
-            from app.services.email_service import _dispatch_email
+        ), patch("app.services.notifications.email._dispatch_email.retry") as retry_mock:
+            from app.services.notifications.email import _dispatch_email
 
             _dispatch_email(
                 to="blocked@example.com",
@@ -100,16 +100,16 @@ class TestEmailService(BaseTestCase):
 
     def test_dispatch_email_retries_for_transient_failure(self):
         with self.app.app_context(), patch(
-            "app.services.email_service._actually_send_email",
+            "app.services.notifications.email._actually_send_email",
             side_effect=smtplib.SMTPServerDisconnected("disconnected"),
         ), patch(
-            "app.services.email_service._is_suppressed_recipient",
+            "app.services.notifications.email._is_suppressed_recipient",
             return_value=False,
         ), patch(
-            "app.services.email_service._dispatch_email.retry",
+            "app.services.notifications.email._dispatch_email.retry",
             side_effect=RuntimeError("retry-called"),
         ) as retry_mock:
-            from app.services.email_service import _dispatch_email
+            from app.services.notifications.email import _dispatch_email
 
             with self.assertRaises(RuntimeError):
                 _dispatch_email(
@@ -124,12 +124,12 @@ class TestEmailService(BaseTestCase):
     def test_send_verification_email_skips_suppressed_recipient(self):
         user = SimpleNamespace(email="suppressed@example.com", name="Suppressed User")
         with self.app.app_context(), patch(
-            "app.services.email_service._dispatch_email.delay"
+            "app.services.notifications.email._dispatch_email.delay"
         ) as dispatch_delay, patch(
-            "app.services.email_service._is_suppressed_recipient",
+            "app.services.notifications.email._is_suppressed_recipient",
             return_value=True,
         ):
-            from app.services.email_service import send_verification_email
+            from app.services.notifications.email import send_verification_email
 
             send_verification_email(user, "token-789")
 
@@ -139,13 +139,13 @@ class TestEmailService(BaseTestCase):
         user = SimpleNamespace(email="disabled@example.com", name="Disabled User")
         old_enabled = self.app.config.get("EMAIL_DELIVERY_ENABLED", True)
         with self.app.app_context(), patch(
-            "app.services.email_service._dispatch_email.delay"
+            "app.services.notifications.email._dispatch_email.delay"
         ) as dispatch_delay, patch(
-            "app.services.email_service._is_suppressed_recipient",
+            "app.services.notifications.email._is_suppressed_recipient",
             return_value=False,
         ):
             self.app.config["EMAIL_DELIVERY_ENABLED"] = False
-            from app.services.email_service import send_verification_email
+            from app.services.notifications.email import send_verification_email
 
             send_verification_email(user, "token-999")
 

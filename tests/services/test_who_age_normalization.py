@@ -3,7 +3,7 @@
 from decimal import Decimal
 import unittest
 
-from app.services.who_age_normalization import normalize_who_2022_age
+from app.services.smartva.age_normalization import normalize_who_2022_age
 
 
 class WhoAgeNormalizationTests(unittest.TestCase):

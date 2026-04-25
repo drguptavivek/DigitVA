@@ -3,7 +3,7 @@ title: Phase 4 - Render Integration
 doc_type: implementation-plan
 status: draft
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-04-25
 phase: 4
 estimated_duration: 1 day
 risk_level: medium
@@ -52,7 +52,7 @@ Update the render functions to use the database-backed field mapping system inst
 
 ## Step 4.1: Create Field Mapping Service
 
-**File**: `app/services/field_mapping_service.py`
+**File**: `app/services/forms/field_mapping.py`
 
 ```python
 """
@@ -336,7 +336,7 @@ Display selected fields for VA review.
 
 UPDATED: Now uses database-backed field mapping service instead of Excel.
 """
-from app.services.field_mapping_service import get_mapping_service
+from app.services.forms.field_mapping import get_mapping_service
 
 
 def display_selected_fields(submission_data: dict, form_type_code: str = "WHO_2022_VA") -> dict:
@@ -420,7 +420,7 @@ identical output to the old Excel-based system.
 import pytest
 from app import db
 from app.models import MasFormTypes, MasFieldDisplayConfig, MasChoiceMappings
-from app.services.field_mapping_service import get_mapping_service, FieldMappingService
+from app.services.forms.field_mapping import get_mapping_service, FieldMappingService
 from tests.base import BaseTestCase
 
 
@@ -524,7 +524,7 @@ Mark old Excel-based functions as deprecated but keep them for rollback:
 """
 Field Mapping - DEPRECATED
 
-This module is DEPRECATED. Use app.services.field_mapping_service instead.
+This module is DEPRECATED. Use app.services.forms.field_mapping instead.
 
 The Excel-based mapping system is being replaced by the database-backed
 FieldMappingService. This code is kept for rollback purposes only.
@@ -532,7 +532,7 @@ FieldMappingService. This code is kept for rollback purposes only.
 import warnings
 
 warnings.warn(
-    "va_mapping module is deprecated. Use app.services.field_mapping_service instead.",
+    "va_mapping module is deprecated. Use app.services.forms.field_mapping instead.",
     DeprecationWarning,
     stacklevel=2
 )

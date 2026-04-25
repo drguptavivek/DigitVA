@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.services.icd10_2019_2_service import (
+from app.services.medical.icd10_2019_2 import (
     DEFAULT_ICD10_2019_2_CSV_PATH,
     import_icd10_2019_2_from_csv,
 )

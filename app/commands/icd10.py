@@ -1,6 +1,6 @@
 import click
 
-from app.services.icd10_2019_2_service import (
+from app.services.medical.icd10_2019_2 import (
     DEFAULT_ICD10_2019_2_CSV_PATH,
     get_icd10_2019_2_stats,
     import_icd10_2019_2_from_csv,

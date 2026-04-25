@@ -18,7 +18,7 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaUserAccessGrants,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 

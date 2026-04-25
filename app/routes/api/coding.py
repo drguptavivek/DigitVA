@@ -9,7 +9,7 @@ from app.authz.access import action_authorized
 from app.authz.scope import user_has_role
 from app.authz.resources import submission_from_kwarg
 from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow, VaSubmissions
-from app.services.coder_dashboard_service import (
+from app.services.coding.coder_dashboard import (
     get_coder_completed_count,
     get_coder_completed_history,
     get_coder_output_summary,
@@ -18,7 +18,7 @@ from app.services.coder_dashboard_service import (
     get_coder_recodeable_sids,
 )
 
-from app.services.coder_workflow_service import (
+from app.services.coding.coder_workflow import (
     AllocationError,
     admin_override_to_recode,
     allocate_pick_form,
@@ -33,7 +33,7 @@ from app.services.coder_workflow_service import (
     start_recode_allocation,
 )
 from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.demo_project_service import should_use_demo_actiontype_for_submission
+from app.services.coding.demo_project import should_use_demo_actiontype_for_submission
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.transitions import admin_actor
 

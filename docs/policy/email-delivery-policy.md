@@ -3,7 +3,7 @@ title: Email Delivery Resilience Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-25
 ---
 
 # Email Delivery Resilience Policy
@@ -20,7 +20,7 @@ Applies to:
 
 - verification emails
 - password reset/setup emails
-- Celery email dispatch in `app/services/email_service.py`
+- Celery email dispatch in `app/services/notifications/email.py`
 
 ## Baseline Rules
 

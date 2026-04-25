@@ -2,8 +2,8 @@
 
 from app import cache as flask_cache, db
 from app.models import VaSubmissions
-from app.services.category_rendering_service import get_visible_category_codes
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.forms.category_rendering import get_visible_category_codes
+from app.services.submissions.payload_version import get_active_payload_version
 
 _SECTION_CACHE_TIMEOUT = 1800  # 30 minutes
 

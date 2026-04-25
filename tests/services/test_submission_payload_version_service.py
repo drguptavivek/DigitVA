@@ -2,7 +2,7 @@
 
 from unittest import TestCase
 
-from app.services.submission_payload_version_service import (
+from app.services.submissions.payload_version import (
     canonical_payload_fingerprint,
     normalize_payload_for_fingerprint,
 )

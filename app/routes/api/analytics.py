@@ -24,8 +24,8 @@ from flask_login import current_user
 
 from app import db, limiter, cache
 from app.authz.access import action_authorized
-from app.services.data_management_service import reporting_scope_pairs
-from app.services.submission_analytics_mv import (
+from app.services.analytics.data_management import reporting_scope_pairs
+from app.services.analytics.submission_mv import (
     CORE_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
     COD_MV_NAME,

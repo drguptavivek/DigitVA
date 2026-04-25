@@ -30,7 +30,7 @@ def _load_form_type(form_type_code):
 
 
 def _clear_mapping_cache():
-    from app.services.field_mapping_service import get_mapping_service
+    from app.services.forms.field_mapping import get_mapping_service
 
     get_mapping_service().clear_cache()
 

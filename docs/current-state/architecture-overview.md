@@ -3,7 +3,7 @@ title: Architecture Overview
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-24
+last_updated: 2026-04-25
 ---
 
 # Architecture Overview
@@ -51,7 +51,22 @@ Main code areas:
 - `app/models`
   - SQLAlchemy models for users, submissions, allocations, assessments, review records, audit logs, and master data
 - `app/services`
-  - setup, sync, backup, mapping generation, and CRUD-like operational services
+  - domain services grouped by package instead of flat `*_service.py` modules
+  - `coding/` owns allocation, coder/reviewer workflow helpers, demo coding,
+    final COD authority, coding page rendering, and social autopsy analysis
+  - `submissions/` owns payload versions/projections/enrichment, repair,
+    attachment storage naming, submission summaries, and submission/project
+    resolution
+  - `forms/` owns form type management, field mapping, category rendering, and
+    runtime form synchronization
+  - `analytics/` owns data manager analytics, COD buckets, Site PI reporting,
+    and the submission analytics materialized view
+  - `odk/` owns ODK client, guarded calls, schema sync, deltas, submission fetch,
+    attachment sync, reviews, and submission updates
+  - `smartva/`, `medical/`, `notifications/`, and `security/` own focused
+    SmartVA, ICD-10, email, token, and abuse-protection services
+  - legacy operational packages remain for setup, backup, mapping generation,
+    and older CRUD-style flows
 - `app/http`
   - app-level error handling and HTTP response helpers
 - `app/authz`

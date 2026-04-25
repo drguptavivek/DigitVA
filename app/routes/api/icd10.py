@@ -12,7 +12,7 @@ from app import cache, db, limiter
 from app.authz.access import action_authorized
 from app.authz.resources import submission_from_kwarg
 from app.models import MasIcd1020192
-from app.services.icd10_2019_2_service import (
+from app.services.medical.icd10_2019_2 import (
     export_icd10_2019_2_policy_json,
     get_icd10_2019_2_node_details,
     get_icd10_2019_2_policy_options,

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-25
 ---
 
 # Current Data Model
@@ -960,7 +960,7 @@ Key fields:
 - `render_mode`
 - `show_to_coder`
 - `show_to_reviewer`
-- `show_to_site_pi`
+- `show_to_site_pi_datamanager`
 - `always_include`
 - `is_default_start`
 - `is_active`

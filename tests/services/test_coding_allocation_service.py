@@ -24,17 +24,17 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.coding_allocation_service import (
+from app.services.coding.allocation import (
     cleanup_expired_demo_coding_artifacts,
     release_stale_coding_allocations,
 )
-from app.services.coder_workflow_service import (
+from app.services.coding.coder_workflow import (
     AllocationError,
     _get_site_coding_error,
     mark_reviewer_eligible_after_recode_window_submissions,
     start_recode_allocation,
 )
-from app.services.final_cod_authority_service import (
+from app.services.coding.final_cod_authority import (
     EPISODE_STATUS_ACTIVE,
     EPISODE_TYPE_RECODE,
     upsert_final_cod_authority,
@@ -55,7 +55,7 @@ _RUN_SUFFIX = uuid.uuid4().hex[:4].upper()
 
 
 class TestCodingAllocationService(BaseTestCase):
-    BASE_PROJECT_ID = f"CD{_RUN_SUFFIX}"
+    BASE_PROJECT_ID = f"CA{_RUN_SUFFIX}"
     BASE_SITE_ID = f"S{_RUN_SUFFIX[:3]}"
     FORM_ID = f"F{_RUN_SUFFIX}000001"
     USER_EMAIL_SUFFIX = f"+codingalloc{_RUN_SUFFIX.lower()}"

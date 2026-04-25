@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app import db
 from app.models import MasFieldDisplayConfig
-from app.services.field_mapping_service import get_mapping_service
+from app.services.forms.field_mapping import get_mapping_service
 
 
 SPECIAL_VALUE_SUMMARY_FIELDS = {"Id10121", "Id10122", "Id10120", "Id10436"}

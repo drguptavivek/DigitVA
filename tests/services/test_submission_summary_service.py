@@ -2,7 +2,7 @@ import uuid
 
 from app import db
 from app.models import MasChoiceMappings, MasFieldDisplayConfig, MasFormTypes
-from app.services.submission_summary_service import build_submission_summary
+from app.services.submissions.summary import build_submission_summary
 from tests.base import BaseTestCase
 
 

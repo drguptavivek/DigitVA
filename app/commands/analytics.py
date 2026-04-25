@@ -2,7 +2,7 @@
 
 import click
 
-from app.services.submission_analytics_mv import refresh_submission_analytics_mv
+from app.services.analytics.submission_mv import refresh_submission_analytics_mv
 
 
 @click.group("analytics")

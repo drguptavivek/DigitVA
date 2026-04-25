@@ -40,6 +40,9 @@ from app.models import (
     VaSubmissionWorkflowEvent,
     VaSubmissionWorkflow,
     VaSubmissions,
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaUserAccessGrants,
     VaUsers,
 )
 from app.models.va_submission_payload_versions import (
@@ -58,13 +61,13 @@ from app.services.workflow.state_store import (
     get_submission_workflow_state,
     set_submission_workflow_state,
 )
-from app.services.data_management_service import (
+from app.services.analytics.data_management import (
     dm_accept_upstream_change,
     dm_odk_edit_url,
     dm_reject_upstream_change,
     dm_scoped_forms,
 )
-from app.services.submission_payload_version_service import (
+from app.services.submissions.payload_version import (
     create_or_update_pending_upstream_payload_version,
     ensure_active_payload_version,
 )
@@ -139,6 +142,14 @@ class DataManagementAcceptRejectTests(BaseTestCase):
             form_status=VaStatuses.active,
             form_registered_at=now,
             form_updated_at=now,
+        ))
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.base_admin_user.user_id,
+            role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=cls.PROJECT_ID,
+            notes="test data manager grant for admin upstream-change coverage",
+            grant_status=VaStatuses.active,
         ))
         db.session.commit()
 
@@ -594,6 +605,10 @@ class DataManagementScopedFormsTests(BaseTestCase):
 class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
     """Tests for dm_accept_upstream_change."""
 
+    FORM_ID = "DMA1DM0101"
+    PROJECT_ID = "DMA1"
+    SITE_ID = "UA01"
+
     def test_transitions_to_smartva_pending(self):
         """Accept should transition submission to smartva_pending."""
         va_sid = self._create_revoked_submission("accept-1")
@@ -837,6 +852,10 @@ class DmAcceptUpstreamChangeTests(DataManagementAcceptRejectTests):
 
 class DmRejectUpstreamChangeTests(DataManagementAcceptRejectTests):
     """Tests for dm_reject_upstream_change."""
+
+    FORM_ID = "DMR1DM0101"
+    PROJECT_ID = "DMR1"
+    SITE_ID = "UR01"
 
     def test_transitions_to_coder_finalized(self):
         """Reject should restore submission to coder_finalized."""

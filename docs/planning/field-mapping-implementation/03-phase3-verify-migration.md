@@ -3,7 +3,7 @@ title: Phase 3 - Verify Migration Completeness
 doc_type: implementation-plan
 status: draft
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-04-25
 phase: 3
 estimated_duration: 0.5 day
 risk_level: critical
@@ -326,7 +326,7 @@ class TestMigrationCompleteness(BaseTestCase):
         This is the ultimate test - if outputs match, migration is successful.
         """
         from app.utils.va_mapping import get_categories_to_display
-        from app.services.field_mapping_service import FieldMappingService
+        from app.services.forms.field_mapping import FieldMappingService
 
         # Get categories from old system (Excel)
         old_categories = get_categories_to_display()

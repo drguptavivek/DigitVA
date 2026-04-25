@@ -39,7 +39,7 @@ from app.services.workflow.definition import (
 from app.services.workflow.state_store import (
     set_submission_workflow_state,
 )
-from app.services.submission_payload_version_service import ensure_active_payload_version
+from app.services.submissions.payload_version import ensure_active_payload_version
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     _upsert_form_submissions,
 )

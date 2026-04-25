@@ -19,18 +19,18 @@ from app.models import (
     VaUsernotes,
 )
 import app.routes.forms as form_routes
-from app.services.category_rendering_service import get_visible_category_codes
-from app.services.field_mapping_service import get_mapping_service
-from app.services.final_cod_authority_service import (
+from app.services.forms.category_rendering import get_visible_category_codes
+from app.services.forms.field_mapping import get_mapping_service
+from app.services.coding.final_cod_authority import (
     get_authoritative_final_cod_record,
 )
-from app.services.payload_bound_coding_artifact_service import (
+from app.services.submissions.payload_bound_artifacts import (
     get_current_payload_narrative_assessment,
     get_current_payload_reviewer_review,
     get_current_payload_social_autopsy_analysis,
 )
-from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
-from app.services.submission_summary_service import build_submission_summary
+from app.services.coding.social_autopsy_analysis import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
+from app.services.submissions.summary import build_submission_summary
 from app.services.workflow.definition import (
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
 )
@@ -242,7 +242,7 @@ def handle_category_partial(va_sid, va_partial, va_action, va_actiontype, va_sub
     )
     _nqa_project = None
     if va_partial == "vanarrationanddocuments":
-        from app.services.submission_project_service import get_project_for_submission
+        from app.services.submissions.project import get_project_for_submission
 
         _nqa_project = get_project_for_submission(va_sid)
     narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)

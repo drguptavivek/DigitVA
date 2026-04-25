@@ -117,9 +117,12 @@ class BaseTestCase(unittest.TestCase):
         This allows all test classes to share a single copy of the base fixtures for the
         whole pytest session without unique-constraint conflicts.
         """
+        # Base fixtures are global shared fixtures. Subclasses may override
+        # BASE_PROJECT_ID/BASE_SITE_ID for their own data, but those IDs must
+        # not be implicitly seeded here or subclass setUpClass inserts collide.
         project_site = cls._ensure_project_site_fixture(
-            project_id=cls.BASE_PROJECT_ID,
-            site_id=cls.BASE_SITE_ID,
+            project_id=BaseTestCase.BASE_PROJECT_ID,
+            site_id=BaseTestCase.BASE_SITE_ID,
             project_name="Base Test Project",
             project_nickname="BaseTest",
             site_name="Base Test Site",
@@ -149,7 +152,7 @@ class BaseTestCase(unittest.TestCase):
             sa.select(VaUserAccessGrants).where(
                 VaUserAccessGrants.user_id == cls.base_project_pi_user.user_id,
                 VaUserAccessGrants.role == VaAccessRoles.project_pi,
-                VaUserAccessGrants.project_id == cls.BASE_PROJECT_ID,
+                VaUserAccessGrants.project_id == BaseTestCase.BASE_PROJECT_ID,
             )
         )
         if pi_grant is None:
@@ -157,7 +160,7 @@ class BaseTestCase(unittest.TestCase):
                 user_id=cls.base_project_pi_user.user_id,
                 role=VaAccessRoles.project_pi,
                 scope_type=VaAccessScopeTypes.project,
-                project_id=cls.BASE_PROJECT_ID,
+                project_id=BaseTestCase.BASE_PROJECT_ID,
                 notes="base project pi grant",
                 grant_status=VaStatuses.active,
             ))

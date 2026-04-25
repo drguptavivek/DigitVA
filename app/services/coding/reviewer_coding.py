@@ -18,8 +18,8 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
-from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
-from app.services.reviewer_final_assessment_service import (
+from app.services.coding.final_cod_authority import upsert_reviewer_final_cod_authority
+from app.services.coding.reviewer_final_assessment import (
     create_reviewer_final_assessment,
     get_latest_active_reviewer_final_assessment,
 )
@@ -62,7 +62,7 @@ def get_active_reviewing_allocation(user_id) -> str | None:
 
 
 def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
-    from app.services.coding_allocation_service import release_stale_reviewer_allocations
+    from app.services.coding.allocation import release_stale_reviewer_allocations
 
     release_stale_reviewer_allocations(timeout_hours=1)
 

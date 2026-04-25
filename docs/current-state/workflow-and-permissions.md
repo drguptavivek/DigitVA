@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-22
+last_updated: 2026-04-25
 ---
 
 # Workflow And Permissions
@@ -476,7 +476,7 @@ Reviewer NQA (supporting artifact, optional):
 Reviewer final COD (terminal action):
 
 - the reviewer submits a final COD via `submit_reviewer_final_cod()`
-  (`app/services/reviewer_coding_service.py`)
+  (`app/services/coding/reviewer_coding.py`)
 - this releases the reviewing allocation and transitions to `reviewer_finalized`
 - `va_final_cod_authority` is updated to point to the reviewer's final assessment
 
@@ -546,7 +546,7 @@ Current site PI capabilities:
 Implementation note:
 
 - Site PI dashboard reporting now resolves through
-  `app/services/sitepi_reporting_service.py`
+  `app/services/analytics/sitepi_reporting.py`
 - that service is site-scoped through `va_forms.site_id` and no longer relies
   on the earlier mixed site/form assumptions
 

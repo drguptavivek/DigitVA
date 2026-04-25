@@ -33,8 +33,19 @@ def init_mail(app) -> None:
 
 def is_mail_configured() -> bool:
     """Return True if SMTP is configured (non-empty MAIL_SERVER)."""
+    if current_app.config.get("MAIL_SUPPRESS_SEND"):
+        return True
     server = current_app.config.get("MAIL_SERVER", "")
     return bool(server and server != "localhost")
+
+
+def _mail_base_url() -> str:
+    base_url = current_app.config.get("MAIL_BASE_URL") or current_app.config.get("SERVER_NAME")
+    if not base_url:
+        base_url = "localhost:5000"
+    if not str(base_url).startswith("http"):
+        base_url = "https://" + str(base_url)
+    return str(base_url)
 
 
 def _normalized_email(value: str) -> str:
@@ -98,12 +109,7 @@ def send_password_reset_email(user, token: str, invite_mode: bool = False) -> No
     instructs the user to set a password instead of resetting one.
     """
 
-    base_url = current_app.config.get("MAIL_BASE_URL", "")
-    if not base_url:
-        base_url = current_app.config.get("SERVER_NAME", "localhost:5000")
-        if not base_url.startswith("http"):
-            base_url = "https://" + base_url
-
+    base_url = _mail_base_url()
     reset_url = f"{base_url}/vaauth/reset-password/{token}"
     subject = "Set Your DigitVA Password" if invite_mode else "Reset Your DigitVA Password"
 
@@ -124,11 +130,7 @@ def send_password_reset_email(user, token: str, invite_mode: bool = False) -> No
 
 def send_verification_email(user, token: str) -> None:
     """Dispatch an email-verification email via Celery."""
-    base_url = current_app.config.get("MAIL_BASE_URL", "")
-    if not base_url:
-        base_url = current_app.config.get("SERVER_NAME", "localhost:5000")
-    if not base_url.startswith("http"):
-        base_url = "https://" + base_url
+    base_url = _mail_base_url()
 
     verify_url = f"{base_url}/vaauth/verify-email/{token}"
 

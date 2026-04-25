@@ -2,11 +2,11 @@
 
 Page routes and JSON API routes for data-manager user/grant management.
 Submission-related JSON API routes live in app/routes/api/data_management.py.
-Shared helpers live in app/services/data_management_service.py.
+Shared helpers live in app/services/analytics/data_management.py.
 """
 
-from app.services.data_management_service import dm_scoped_forms
-from app.services.submission_analytics_mv import get_dm_kpi_from_mv
+from app.services.analytics.data_management import dm_scoped_forms
+from app.services.analytics.submission_mv import get_dm_kpi_from_mv
 from app.utils import va_render_serialisedates
 
 from .base import data_management, log

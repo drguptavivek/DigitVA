@@ -6,7 +6,7 @@ from unittest.mock import patch
 from flask import Flask
 
 from app.models import VaForms, VaSubmissions
-from app.services.open_submission_repair_service import repair_submission_for_coding_open
+from app.services.submissions.open_repair import repair_submission_for_coding_open
 
 
 class TestOpenSubmissionRepairService(unittest.TestCase):
@@ -34,9 +34,9 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
 
     def test_returns_without_odk_calls_when_no_current_payload_gaps(self):
         with self.app.app_context(), \
-            patch("app.services.open_submission_repair_service.db.session.get", side_effect=self._db_get), \
-            patch("app.services.open_submission_repair_service._build_repair_map_for_form", return_value=({}, {"attachments_missing": 0})), \
-            patch("app.services.open_submission_repair_service.va_odk_fetch_submissions_by_ids") as mock_fetch:
+            patch("app.services.submissions.open_repair.db.session.get", side_effect=self._db_get), \
+            patch("app.services.submissions.open_repair._build_repair_map_for_form", return_value=({}, {"attachments_missing": 0})), \
+            patch("app.services.submissions.open_repair.va_odk_fetch_submissions_by_ids") as mock_fetch:
             result = repair_submission_for_coding_open("SID-1")
 
         self.assertFalse(result["attempted"])
@@ -63,21 +63,21 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
         }
 
         with self.app.app_context(), \
-            patch("app.services.open_submission_repair_service.db.session.get", side_effect=self._db_get), \
-            patch("app.services.open_submission_repair_service.db.session.commit"), \
-            patch("app.services.open_submission_repair_service._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 1})), \
-            patch("app.services.open_submission_repair_service._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
-            patch("app.services.open_submission_repair_service._get_single_form_odk_client", return_value=object()), \
-            patch("app.services.open_submission_repair_service._release_read_transaction"), \
-            patch("app.services.open_submission_repair_service.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._finalize_enriched_submissions_for_form", return_value=1), \
+            patch("app.services.submissions.open_repair.db.session.get", side_effect=self._db_get), \
+            patch("app.services.submissions.open_repair.db.session.commit"), \
+            patch("app.services.submissions.open_repair._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 1})), \
+            patch("app.services.submissions.open_repair._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
+            patch("app.services.submissions.open_repair._get_single_form_odk_client", return_value=object()), \
+            patch("app.services.submissions.open_repair._release_read_transaction"), \
+            patch("app.services.submissions.open_repair.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._finalize_enriched_submissions_for_form", return_value=1), \
             patch(
-                "app.services.open_submission_repair_service._refresh_batch_plan_after_enrichment",
+                "app.services.submissions.open_repair._refresh_batch_plan_after_enrichment",
                 return_value=(refreshed_plan, {"attachments_missing": 0, "smartva_missing": 0}, 1),
             ), \
-            patch("app.services.open_submission_repair_service.va_odk_sync_form_attachments") as mock_attachments, \
-            patch("app.services.open_submission_repair_service.smartva_service.generate_for_submission") as mock_smartva:
+            patch("app.services.submissions.open_repair.va_odk_sync_form_attachments") as mock_attachments, \
+            patch("app.services.submissions.open_repair.smartva_service.generate_for_submission") as mock_smartva:
             result = repair_submission_for_coding_open("SID-1")
 
         self.assertTrue(result["attempted"])
@@ -114,33 +114,33 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
         }
 
         with self.app.app_context(), \
-            patch("app.services.open_submission_repair_service.db.session.get", side_effect=self._db_get), \
-            patch("app.services.open_submission_repair_service.db.session.commit"), \
-            patch("app.services.open_submission_repair_service._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 1, "smartva_missing": 1})), \
-            patch("app.services.open_submission_repair_service._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
-            patch("app.services.open_submission_repair_service._get_single_form_odk_client", return_value=object()), \
-            patch("app.services.open_submission_repair_service._release_read_transaction"), \
-            patch("app.services.open_submission_repair_service.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._finalize_enriched_submissions_for_form", return_value=1), \
+            patch("app.services.submissions.open_repair.db.session.get", side_effect=self._db_get), \
+            patch("app.services.submissions.open_repair.db.session.commit"), \
+            patch("app.services.submissions.open_repair._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 1, "smartva_missing": 1})), \
+            patch("app.services.submissions.open_repair._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
+            patch("app.services.submissions.open_repair._get_single_form_odk_client", return_value=object()), \
+            patch("app.services.submissions.open_repair._release_read_transaction"), \
+            patch("app.services.submissions.open_repair.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._finalize_enriched_submissions_for_form", return_value=1), \
             patch(
-                "app.services.open_submission_repair_service._refresh_batch_plan_after_enrichment",
+                "app.services.submissions.open_repair._refresh_batch_plan_after_enrichment",
                 side_effect=[
                     (post_enrichment_plan, {"attachments_missing": 1, "smartva_missing": 1}, 0),
                     (post_attachment_plan, {"attachments_missing": 0, "smartva_missing": 1}, 0),
                 ],
             ), \
             patch(
-                "app.services.open_submission_repair_service.va_odk_sync_form_attachments",
+                "app.services.submissions.open_repair.va_odk_sync_form_attachments",
                 return_value={
                     "downloaded": 2,
                     "non_audit_downloaded": 1,
                     "audit_downloaded": 1,
                 },
             ) as mock_attachments, \
-            patch("app.services.open_submission_repair_service.get_submission_workflow_state", return_value="attachment_sync_pending"), \
-            patch("app.services.open_submission_repair_service.mark_attachment_sync_completed") as mock_attachment_transition, \
-            patch("app.services.open_submission_repair_service.smartva_service.generate_for_submission", return_value=1) as mock_smartva:
+            patch("app.services.submissions.open_repair.get_submission_workflow_state", return_value="attachment_sync_pending"), \
+            patch("app.services.submissions.open_repair.mark_attachment_sync_completed") as mock_attachment_transition, \
+            patch("app.services.submissions.open_repair.smartva_service.generate_for_submission", return_value=1) as mock_smartva:
             result = repair_submission_for_coding_open("SID-1")
 
         self.assertTrue(result["attempted"])
@@ -155,7 +155,7 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
         mock_smartva.assert_called_once_with("SID-1", trigger_source="coding_open_repair")
 
     def test_can_skip_inline_smartva_and_return_batch_candidate_signal(self):
-        from app.services.open_submission_repair_service import repair_submission_current_payload
+        from app.services.submissions.open_repair import repair_submission_current_payload
 
         initial_plan = {
             "SID-1": {
@@ -176,21 +176,21 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
         }
 
         with self.app.app_context(), \
-            patch("app.services.open_submission_repair_service.db.session.get", side_effect=self._db_get), \
-            patch("app.services.open_submission_repair_service.db.session.commit"), \
-            patch("app.services.open_submission_repair_service._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 0, "smartva_missing": 1})), \
-            patch("app.services.open_submission_repair_service._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
-            patch("app.services.open_submission_repair_service._get_single_form_odk_client", return_value=object()), \
-            patch("app.services.open_submission_repair_service._release_read_transaction"), \
-            patch("app.services.open_submission_repair_service.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._finalize_enriched_submissions_for_form", return_value=1), \
+            patch("app.services.submissions.open_repair.db.session.get", side_effect=self._db_get), \
+            patch("app.services.submissions.open_repair.db.session.commit"), \
+            patch("app.services.submissions.open_repair._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 0, "smartva_missing": 1})), \
+            patch("app.services.submissions.open_repair._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
+            patch("app.services.submissions.open_repair._get_single_form_odk_client", return_value=object()), \
+            patch("app.services.submissions.open_repair._release_read_transaction"), \
+            patch("app.services.submissions.open_repair.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._finalize_enriched_submissions_for_form", return_value=1), \
             patch(
-                "app.services.open_submission_repair_service._refresh_batch_plan_after_enrichment",
+                "app.services.submissions.open_repair._refresh_batch_plan_after_enrichment",
                 return_value=(post_enrichment_plan, {"attachments_missing": 0, "smartva_missing": 1}, 0),
             ), \
-            patch("app.services.open_submission_repair_service.get_submission_workflow_state", return_value="smartva_pending"), \
-            patch("app.services.open_submission_repair_service.smartva_service.generate_for_submission") as mock_smartva:
+            patch("app.services.submissions.open_repair.get_submission_workflow_state", return_value="smartva_pending"), \
+            patch("app.services.submissions.open_repair.smartva_service.generate_for_submission") as mock_smartva:
             result = repair_submission_current_payload(
                 "SID-1",
                 trigger_source="test-batch",
@@ -231,24 +231,24 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
         }
 
         with self.app.app_context(), \
-            patch("app.services.open_submission_repair_service.db.session.get", side_effect=self._db_get), \
-            patch("app.services.open_submission_repair_service.db.session.commit"), \
-            patch("app.services.open_submission_repair_service._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 1, "smartva_missing": 0})), \
-            patch("app.services.open_submission_repair_service._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
-            patch("app.services.open_submission_repair_service._get_single_form_odk_client", return_value=object()), \
-            patch("app.services.open_submission_repair_service._release_read_transaction"), \
-            patch("app.services.open_submission_repair_service.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
-            patch("app.services.open_submission_repair_service._finalize_enriched_submissions_for_form", return_value=1), \
+            patch("app.services.submissions.open_repair.db.session.get", side_effect=self._db_get), \
+            patch("app.services.submissions.open_repair.db.session.commit"), \
+            patch("app.services.submissions.open_repair._build_repair_map_for_form", return_value=(initial_plan, {"attachments_missing": 1, "smartva_missing": 0})), \
+            patch("app.services.submissions.open_repair._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one"})]), \
+            patch("app.services.submissions.open_repair._get_single_form_odk_client", return_value=object()), \
+            patch("app.services.submissions.open_repair._release_read_transaction"), \
+            patch("app.services.submissions.open_repair.va_odk_fetch_submissions_by_ids", return_value=[{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._attach_all_odk_comments", side_effect=lambda *_args, **_kwargs: [{"sid": "SID-1", "KEY": "uuid:one"}]), \
+            patch("app.services.submissions.open_repair._finalize_enriched_submissions_for_form", return_value=1), \
             patch(
-                "app.services.open_submission_repair_service._refresh_batch_plan_after_enrichment",
+                "app.services.submissions.open_repair._refresh_batch_plan_after_enrichment",
                 side_effect=[
                     (post_enrichment_plan, {"attachments_missing": 1, "smartva_missing": 0}, 0),
                     (post_attachment_plan, {"attachments_missing": 0, "smartva_missing": 0}, 0),
                 ],
             ), \
             patch(
-                "app.services.open_submission_repair_service.va_odk_sync_form_attachments",
+                "app.services.submissions.open_repair.va_odk_sync_form_attachments",
                 return_value={
                     "downloaded": 1,
                     "non_audit_downloaded": 1,
@@ -256,12 +256,12 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
                 },
             ) as mock_attachments, \
             patch(
-                "app.services.open_submission_repair_service.get_submission_workflow_state",
+                "app.services.submissions.open_repair.get_submission_workflow_state",
                 side_effect=["attachment_sync_pending", "smartva_pending", "smartva_pending"],
             ), \
-            patch("app.services.open_submission_repair_service.mark_attachment_sync_completed") as mock_attachment_transition, \
-            patch("app.services.open_submission_repair_service.mark_smartva_completed") as mock_smartva_transition, \
-            patch("app.services.open_submission_repair_service.smartva_service.generate_for_submission") as mock_smartva:
+            patch("app.services.submissions.open_repair.mark_attachment_sync_completed") as mock_attachment_transition, \
+            patch("app.services.submissions.open_repair.mark_smartva_completed") as mock_smartva_transition, \
+            patch("app.services.submissions.open_repair.smartva_service.generate_for_submission") as mock_smartva:
             result = repair_submission_for_coding_open("SID-1")
 
         self.assertTrue(result["attempted"])

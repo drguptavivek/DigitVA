@@ -1,7 +1,7 @@
 """Email-dispatch helpers for auth routes."""
 
-from app.services.email_service import send_password_reset_email, send_verification_email
-from app.services.token_service import generate_token
+from app.services.notifications.email import send_password_reset_email, send_verification_email
+from app.services.security.token import generate_token
 
 
 def send_password_reset(user):

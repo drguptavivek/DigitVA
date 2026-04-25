@@ -18,18 +18,18 @@ from app.models import (
     VaSubmissions,
 )
 from app.models.va_project_sites import VaProjectSites
-from app.services.coder_dashboard_service import (
+from app.services.coding.coder_dashboard import (
     get_coder_completed_count,
     get_coder_completed_history,
     get_coder_recodeable_sids,
 )
-from app.services.coder_workflow_service import (
+from app.services.coding.coder_workflow import (
     _narration_language_filter,
     _tr01_cutoff_filter,
     get_active_coding_allocation,
     get_pick_available_forms,
 )
-from app.services.demo_project_service import get_demo_training_project_ids
+from app.services.coding.demo_project import get_demo_training_project_ids
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 

@@ -63,7 +63,7 @@ Implement automatic synchronization of choice mappings from ODK Central form sch
 
 ## Step 5.1: Create ODK Schema Sync Service
 
-**File**: `app/services/forms/odk_schema_sync.py`
+**File**: `app/services/forms/schema_sync.py`
 
 ```python
 """
@@ -88,7 +88,7 @@ from app.models import (
     MasChoiceMappings,
     MasFieldDisplayConfig,
 )
-from app.services.forms.odk_schema_sync import OdkSchemaSyncService
+from app.services.forms.schema_sync import OdkSchemaSyncService
 
 
 class OdkSchemaSyncService:
@@ -385,7 +385,7 @@ def get_sync_service() -> OdkSchemaSyncService:
 
 ## Step 5.2: Add ODK Service Methods
 
-**File**: `app/services/forms/odk_schema_sync.py` (add to existing)
+**File**: `app/services/forms/schema_sync.py` (add to existing)
 
 ```python
 # Add these helpers to the ODK schema sync service
@@ -473,7 +473,7 @@ CLI commands for ODK schema synchronization.
 import click
 from flask import current_app
 from app import db
-from app.services.forms.odk_schema_sync import get_sync_service
+from app.services.forms.schema_sync import get_sync_service
 from app.models import VaForms, MasFormTypes
 
 
@@ -624,7 +624,7 @@ init_odk_sync(app)
 
 ## Step 5.5: Create Tests
 
-**File**: `tests/services/test_odk_schema_sync.py`
+**File**: `tests/services/test_form_schema_sync_service.py`
 
 ```python
 """
@@ -634,7 +634,7 @@ import pytest
 from unittest.mock import Mock, patch
 from app import db
 from app.models import MasFormTypes, MasChoiceMappings
-from app.services.forms.odk_schema_sync import OdkSchemaSyncService
+from app.services.forms.schema_sync import OdkSchemaSyncService
 from tests.base import BaseTestCase
 
 
@@ -650,7 +650,7 @@ class TestOdkSchemaSync(BaseTestCase):
             )
         )
 
-    @patch('app.services.forms.odk_schema_sync.OdkCentralService')
+    @patch('app.services.forms.schema_sync.OdkCentralService')
     def test_01_sync_adds_new_choices(self, mock_schema_sync_service):
         """Sync adds new choices from ODK."""
         # Mock ODK response
@@ -673,7 +673,7 @@ class TestOdkSchemaSync(BaseTestCase):
         self.assertEqual(stats["choices_added"], 2)
         self.assertEqual(stats["errors"], [])
 
-    @patch('app.services.forms.odk_schema_sync.OdkCentralService')
+    @patch('app.services.forms.schema_sync.OdkCentralService')
     def test_02_sync_updates_existing_choices(self, mock_schema_sync_service):
         """Sync updates existing choice labels."""
         # Create existing choice
@@ -707,7 +707,7 @@ class TestOdkSchemaSync(BaseTestCase):
         db.session.refresh(existing)
         self.assertEqual(existing.choice_label, "New Label")
 
-    @patch('app.services.forms.odk_schema_sync.OdkCentralService')
+    @patch('app.services.forms.schema_sync.OdkCentralService')
     def test_03_sync_deactivates_removed_choices(self, mock_schema_sync_service):
         """Sync deactivates choices no longer in ODK."""
         # Create existing choice

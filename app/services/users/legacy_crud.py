@@ -1,15 +1,15 @@
 import traceback
 from app import db
 from app.models import VaUsers
-from app.utils import (
-    VaRoles,
-    validate_permissions,
+from app.authz.roles import VaRoles
+from app.validators.users import (
     validate_email_format,
-    validate_password_strength,
-    validate_permissions_exist,
     validate_email_uniqueness,
     validate_languages_exist,
     validate_landing_page,
+    validate_password_strength,
+    validate_permissions,
+    validate_permissions_exist,
 )
 
 

@@ -79,8 +79,11 @@ def admin_odk_site_mappings_list(project_id):
 @role_required("admin")
 def admin_odk_site_mappings_save(project_id):
     from app.models.va_field_mapping import MasFormTypes
-    from app.services.forms.runtime_form_sync import ensure_runtime_form_for_mapping
-    from app.utils import validate_boolean_string, validate_smartva_country
+    from app.services.forms.runtime_registry import ensure_runtime_form_for_mapping
+    from app.validators.forms import (
+        validate_boolean_string,
+        validate_smartva_country,
+    )
 
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)

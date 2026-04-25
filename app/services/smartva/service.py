@@ -763,10 +763,10 @@ def _generate_batch(
     Creates its own workspace, form run, and nested transaction.
     Returns the total number of result rows (successes + failures) saved.
     """
-    from app.utils import (
+    from app.services.smartva.legacy.prep_data import va_smartva_prepdata
+    from app.services.smartva.legacy.run_smartva import va_smartva_runsmartva
+    from app.services.smartva.legacy.format_result import (
         va_smartva_formatsmartvaresult,
-        va_smartva_prepdata,
-        va_smartva_runsmartva,
     )
 
     if not batch_sids:
@@ -1117,7 +1117,7 @@ def generate_for_submission(
 
 
 def generate_all_pending(*, log_progress=None) -> dict:
-    from app.services.forms.runtime_form_sync import sync_runtime_forms_from_site_mappings
+    from app.services.forms.runtime_registry import sync_runtime_forms_from_site_mappings
 
     if log_progress:
         log_progress("SmartVA-only run started.")

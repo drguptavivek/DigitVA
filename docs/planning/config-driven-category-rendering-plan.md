@@ -41,7 +41,7 @@ The current category rendering system is split across multiple hardcoded layers:
 - [`app/templates/va_frontpages/va_coding.html`](../../app/templates/va_frontpages/va_coding.html)
   hardcodes left-nav buttons and labels
 - coder rendering still uses the static dict in
-  [`app/utils/va_mapping/va_mapping_02_fieldcoder.py`](../../app/utils/va_mapping/va_mapping_02_fieldcoder.py)
+  [`app/services/forms/legacy_mappings/field_coder.py`](../../app/services/forms/legacy_mappings/field_coder.py)
 - category display is implemented by per-category partials under
   [`app/templates/va_formcategory_partials/`](../../app/templates/va_formcategory_partials)
 
@@ -543,7 +543,7 @@ Tasks:
 
 - remove hardcoded `va_renderforall`
 - remove hardcoded nav buttons
-- remove `va_mapping_02_fieldcoder.py` from category rendering path
+- remove `app/services/forms/legacy_mappings/field_coder.py` from category rendering path
 - delete retired category partials
 
 Outcome:

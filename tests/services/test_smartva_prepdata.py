@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 class TestSmartvaPrepdataLogging(TestCase):
     def test_logs_prepared_and_skipped_counts_clearly(self):
-        from app.utils.va_smartva.va_smartva_02_prepdata import va_smartva_prepdata
+        from app.services.smartva.legacy.prep_data import va_smartva_prepdata
 
         va_form = SimpleNamespace(
             form_id="FORM01",
@@ -17,15 +17,15 @@ class TestSmartvaPrepdataLogging(TestCase):
 
         with tempfile.TemporaryDirectory() as workspace_dir:
             with patch(
-                "app.utils.va_smartva.va_smartva_02_prepdata._prepared_payload_rows",
+                "app.services.smartva.legacy.prep_data._prepared_payload_rows",
                 return_value=[("sid-1", {"field_a": "value"})],
             ):
                 with patch(
-                    "app.utils.va_smartva.va_smartva_02_prepdata._derive_smartva_run_options",
+                    "app.services.smartva.legacy.prep_data._derive_smartva_run_options",
                     return_value={"hiv": "False", "malaria": "False"},
                 ):
                     with patch(
-                        "app.utils.va_smartva.va_smartva_02_prepdata.log"
+                        "app.services.smartva.legacy.prep_data.log"
                     ) as mock_log:
                         result = va_smartva_prepdata(
                             va_form,

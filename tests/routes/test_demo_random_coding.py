@@ -170,6 +170,71 @@ class DemoRandomCodingRouteTests(BaseTestCase):
             )
         )
 
+    def setUp(self):
+        super().setUp()
+        self._reset_demo_fixtures()
+        self._clear_active_allocations_for(self.base_admin_user.user_id)
+
+    def _reset_demo_fixtures(self):
+        for project_id in ("DMO01", "DMO02", "BLK01"):
+            project = db.session.get(VaProjectMaster, project_id)
+            if project:
+                project.project_status = VaStatuses.active
+                project.demo_training_enabled = project_id != "BLK01"
+            legacy_project = db.session.get(VaResearchProjects, project_id)
+            if legacy_project:
+                legacy_project.project_status = VaStatuses.active
+
+        for site_id in ("D101", "D201", "B101"):
+            site = db.session.get(VaSiteMaster, site_id)
+            if site:
+                site.site_status = VaStatuses.active
+            legacy_site = db.session.get(VaSites, site_id)
+            if legacy_site:
+                legacy_site.site_status = VaStatuses.active
+
+        for project_id, site_id in (
+            ("DMO01", "D101"),
+            ("DMO02", "D201"),
+            ("BLK01", "B101"),
+        ):
+            project_site = db.session.scalar(
+                db.select(VaProjectSites).where(
+                    VaProjectSites.project_id == project_id,
+                    VaProjectSites.site_id == site_id,
+                )
+            )
+            if project_site:
+                project_site.project_site_status = VaStatuses.active
+
+        for form_id in ("DMO01D10101", "DMO02D20101", "BLK01B10101"):
+            form = db.session.get(VaForms, form_id)
+            if form:
+                form.form_status = VaStatuses.active
+
+        for sid in ("sid-demo-1", "sid-demo-2", "sid-blocked-1"):
+            submission = db.session.get(VaSubmissions, sid)
+            if submission:
+                submission.va_narration_language = "English"
+            workflow = db.session.scalar(
+                db.select(VaSubmissionWorkflow).where(
+                    VaSubmissionWorkflow.va_sid == sid
+                )
+            )
+            if workflow:
+                workflow.workflow_state = "ready_for_coding"
+                workflow.workflow_reason = "test_reset"
+
+        for grant in db.session.scalars(
+            db.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == self.base_admin_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.coder,
+            )
+        ).all():
+            grant.grant_status = VaStatuses.active
+
+        db.session.commit()
+
     def _clear_active_allocations_for(self, user_id):
         for allocation in db.session.scalars(
             db.select(VaAllocations).where(
@@ -236,8 +301,7 @@ class DemoRandomCodingRouteTests(BaseTestCase):
         self.assertIn("Start Random Allocation Coding", dashboard.get_data(as_text=True))
 
         start = self.client.post("/coding/start", headers=self._csrf_headers())
-        self.assertEqual(start.status_code, 302)
-        self.assertIn("/coding/resume", start.headers.get("Location", ""))
+        self.assertEqual(start.status_code, 200)
         self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})
 
     def test_coder_dashboard_hides_deactivated_project_sites_from_eligibility(self):

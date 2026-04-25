@@ -9,7 +9,7 @@ from app.decorators import role_required
 from app.http.responses import json_error as _json_error
 from app.routes.admin import admin
 from app.routes.admin_sections import data_sync as sync_routes
-from app.services.forms.runtime_form_sync import sync_runtime_forms_from_site_mappings
+from app.services.forms.runtime_registry import sync_runtime_forms_from_site_mappings
 
 
 @admin.get("/api/sync/coverage")

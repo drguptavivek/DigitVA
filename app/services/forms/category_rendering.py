@@ -11,7 +11,7 @@ from sqlalchemy import select
 from app import db
 from app.models import MasCategoryDisplayConfig, MasFormTypes
 from app.services.forms.field_mapping import get_mapping_service
-from app.utils.va_render.va_render_06_processcategorydata import (
+from app.services.rendering.legacy.process_category_data import (
     va_render_processcategorydata,
 )
 
@@ -280,7 +280,7 @@ def get_visible_category_codes(va_data: dict | None, va_form_id: str | None) -> 
     if not va_data or not va_form_id:
         return []
 
-    from app.utils.va_form.va_form_02_formtyperesolution import (
+    from app.services.forms.type_resolution import (
         va_get_form_type_code_for_form,
     )
 

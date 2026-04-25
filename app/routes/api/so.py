@@ -29,11 +29,11 @@ from app.services.assessments.payload_artifacts import (
     deactivate_other_active_social_autopsy_analyses,
     get_submission_with_current_payload,
 )
-from app.services.projects.demo_training import (
+from app.services.demo_training import (
     get_demo_expiry_for_submission,
 )
 from app.services.projects.submission_lookup import get_project_for_submission
-from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
+from app.authz.legacy_guards.require_coding_access import require_coding_access
 
 bp = Blueprint("so_api", __name__)
 log = logging.getLogger(__name__)

@@ -18,8 +18,10 @@ from app.services.coding.coder_workflow import (
     start_demo_allocation,
     start_recode_allocation,
 )
-from app.services.projects.demo_training import should_use_demo_actiontype_for_submission
-from app.utils import va_permission_abortwithflash
+from app.services.demo_training import should_use_demo_actiontype_for_submission
+from app.authz.legacy_guards.abort_with_flash import (
+    va_permission_abortwithflash,
+)
 
 from .common import coding, handle_allocation_error
 

@@ -325,11 +325,11 @@ class TestMigrationCompleteness(BaseTestCase):
 
         This is the ultimate test - if outputs match, migration is successful.
         """
-        from app.utils.va_mapping import get_categories_to_display
+        from app.services.forms.field_mapping import get_mapping_service
         from app.services.forms.field_mapping import FieldMappingService
 
-        # Get categories from old system (Excel)
-        old_categories = get_categories_to_display()
+        # Get categories from current DB-backed mapping service
+        old_categories = get_mapping_service().get_fieldsitepi("WHO_2022_VA")
 
         # Get categories from new system (Database)
         mapping_service = FieldMappingService()

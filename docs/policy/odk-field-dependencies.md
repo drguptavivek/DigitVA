@@ -266,7 +266,7 @@ The following fields are required for SmartVA analysis. If missing or invalid, S
 ### Code Reference
 
 ```python
-# app/utils/va_smartva/va_smartva_02_prepdata.py:45-52
+# app/services/smartva/legacy/prep_data.py:45-52
 nan_check_columns = [
     "ageInDays", "ageInDays2", "ageInYears", "ageInYearsRemain",
     "ageInMonths", "ageInMonthsRemain",
@@ -293,7 +293,7 @@ The following field prefixes are **dropped** from SmartVA input to prevent proce
 ### Code Reference
 
 ```python
-# app/utils/va_smartva/va_smartva_02_prepdata.py:10-14
+# app/services/smartva/legacy/prep_data.py:10-14
 _SMARTVA_DROP_PREFIXES = ("sa01", "sa02", ..., "survey_block", "telephonic_consent")
 ```
 
@@ -350,7 +350,7 @@ When creating a new ODK form for DigitVA, ensure it contains:
 1. **Update sync code** — `odk_central.py`
 2. **Update mapping files** — `resource/mapping/*.xlsx`
 3. **Update preprocessing** — `va_preprocess_*.py`
-4. **Update SmartVA prep** — `va_smartva_02_prepdata.py`
+4. **Update SmartVA prep** — `app/services/smartva/legacy/prep_data.py`
 5. **Test with sample data** before deploying
 
 ### Adding New Consent Values

@@ -14,7 +14,9 @@ from app.models import (
 from app.services.forms.category_rendering import get_category_rendering_service
 from app.services.odk.review import sync_not_codeable_review_state
 from app.services.coding.coder_dashboard import bust_coder_dashboard_cache
-from app.utils import va_permission_abortwithflash
+from app.authz.legacy_guards.abort_with_flash import (
+    va_permission_abortwithflash,
+)
 from .handlers import (
     handle_category_partial,
     handle_coder_review,

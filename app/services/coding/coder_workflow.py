@@ -25,7 +25,7 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.coding.allocation import release_stale_coding_allocations
-from app.services.projects.demo_training import (
+from app.services.demo_training import (
     get_demo_training_project_ids,
     is_demo_training_submission,
     should_use_demo_actiontype_for_submission,
@@ -42,8 +42,8 @@ from app.services.workflow.definition import (
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
-from app.services.projects.coding_intake import split_form_ids_by_coding_intake_mode
-from app.services.projects.coding_intake import (
+from app.services.coding.intake_policy import split_form_ids_by_coding_intake_mode
+from app.services.coding.intake_policy import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )
@@ -835,7 +835,7 @@ def get_pick_available_forms(user, pick_form_ids: list[str]) -> list[dict]:
             VaSubmissions.va_uniqueid_masked,
         )
     )
-    from app.utils import va_render_serialisedates
+    from app.services.rendering.legacy.serialize_dates import va_render_serialisedates
     return [
         va_render_serialisedates(row, ["va_submission_date"])
         for row in db.session.execute(stmt).mappings().all()

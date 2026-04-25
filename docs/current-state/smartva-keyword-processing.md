@@ -320,7 +320,7 @@ smartva --freetext=False  # Exclude s9999* variables
 |------------|---------|-----------------|
 | `form_smartvafreetext` | `"True"` | `va_forms` table |
 
-Passed to SmartVA module in `va_smartva_03_runsmartva.py`:
+Passed to SmartVA module in `app/services/smartva/legacy/run_smartva.py`:
 
 ```python
 cmd = [

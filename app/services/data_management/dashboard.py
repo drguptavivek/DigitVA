@@ -86,7 +86,7 @@ from app.services.workflow.upstream_changes import (
     get_latest_pending_upstream_change,
     resolve_pending_upstream_change,
 )
-from app.services.forms.runtime_form_sync import sync_runtime_forms_from_site_mappings
+from app.services.forms.runtime_registry import sync_runtime_forms_from_site_mappings
 
 
 NON_SUBSTANTIVE_REVIEW_FIELDS = frozenset(
@@ -541,7 +541,7 @@ def dm_submissions_page(
     sort_dir: str = "desc",
 ) -> dict:
     """Return one page of submission rows for the data manager table."""
-    from app.utils import va_render_serialisedates
+    from app.services.rendering.legacy.serialize_dates import va_render_serialisedates
     coder_final_user = sa.orm.aliased(VaUsers)
     reviewer_final_user = sa.orm.aliased(VaUsers)
 
@@ -957,7 +957,9 @@ CSV_EXPORT_OMIT_PAYLOAD_FIELDS = frozenset(
 
 def _pii_payload_fields_by_form(rows) -> dict[str, set[str]]:
     from app.services.forms.field_mapping import get_mapping_service
-    from app.utils import va_get_form_type_code_for_form
+    from app.services.forms.type_resolution import (
+        va_get_form_type_code_for_form,
+    )
 
     pii_fields_by_form: dict[str, set[str]] = {}
     for row in rows:
@@ -1377,7 +1379,7 @@ def dm_smartva_input_export_csv(
     sort_dir: str = "desc",
 ) -> str:
     """Return the SmartVA input CSV shape for all filtered submissions."""
-    from app.utils.va_smartva.va_smartva_02_prepdata import _clean_payload_for_smartva
+    from app.services.smartva.legacy.prep_data import _clean_payload_for_smartva
 
     attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
@@ -2193,7 +2195,9 @@ def _build_upstream_changed_fields(
 
 def dm_upstream_change_details(user, va_sid: str) -> dict:
     """Return structured upstream-change details for a DM/admin-visible submission."""
-    from app.utils import va_get_form_type_code_for_form
+    from app.services.forms.type_resolution import (
+        va_get_form_type_code_for_form,
+    )
 
     submission, _form_row = _dm_submission_scope_check(user, va_sid)
     pending_change = get_latest_pending_upstream_change(va_sid)

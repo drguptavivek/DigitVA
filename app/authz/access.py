@@ -15,7 +15,7 @@ from app.authz.scope import (
     user_has_role,
     user_is_active,
 )
-from app.utils.va_permission.va_permission_01_abortwithflash import (
+from app.authz.legacy_guards.abort_with_flash import (
     va_permission_abortwithflash,
 )
 

@@ -54,10 +54,11 @@ Main code areas:
   - domain services grouped by package instead of flat `*_service.py` modules
   - `workflow/` owns only the canonical submission state machine: definitions,
     state store, transitions, and events
-  - `coding/` owns allocation, coder/reviewer workflow actions, and final COD
-    authority
-  - `projects/` owns project/site policy helpers such as coding intake mode,
-    demo-training project behavior, and submission-to-project lookup
+  - `coding/` owns allocation, coder/reviewer workflow actions, coding intake
+    policy, and final COD authority
+  - `projects/` owns project/site setup helpers and submission-to-project lookup
+  - `demo_training.py` owns demo/training project behavior that cuts across
+    coding, allocation, and access
   - `submissions/` owns pure submission payload version/projection helpers and
     derived submission summaries
   - `assessments/` owns assessment/review/social-autopsy artifacts that are
@@ -66,11 +67,12 @@ Main code areas:
     current-payload repair, attachment repair triggering, and sync workflow
     advancement
   - `odk/` owns primitive ODK client, guarded calls, deltas, submission fetch,
-    submission metadata fetch, and reviews
+    submission metadata fetch, and reviews; ODK transport stays here, while
+    form metadata translation stays in `forms/`
   - `forms/` owns form type management, field mapping, ODK schema-to-form
     mapping, category rendering, social-autopsy form metadata, and runtime form
-    synchronization; legacy `VaForms` CRUD and generated mapping loaders live
-    here until setup flows are fully runtime-mapping based
+    synchronization; static coder/summary mappings live in
+    `forms/legacy_mappings/` until setup flows are fully runtime-mapping based
   - `data_management/` owns data-manager dashboard scope, exports, screening
     actions, upstream-change review actions, and related audit helpers
   - `analytics/` owns read-only analytics materialized-view query helpers
@@ -78,7 +80,8 @@ Main code areas:
     helpers, and bucket reporting
   - `reporting/` owns read-only operational reporting such as Site PI reporting
   - `rendering/` owns template composition helpers that must remain outside
-    route modules
+    route modules; legacy VA category formatting helpers live under
+    `rendering/legacy/`
   - `attachments/` owns attachment synchronization, storage, and serving
     support helpers
   - `bootstrap/` owns legacy one-shot seed helpers for historical project,
@@ -87,17 +90,27 @@ Main code areas:
   - `users/` owns legacy user lifecycle helpers not yet replaced by the web
     user-management flow
   - `smartva/`, `medical/`, `notifications/`, and `security/` own focused
-    SmartVA, ICD-10, email, token, and abuse-protection services
+    SmartVA, ICD-10, email, token, and abuse-protection services; legacy
+    SmartVA adapter functions live under `smartva/legacy/` and are invoked
+    through the SmartVA service
   - legacy operational packages remain for setup, backup, mapping generation,
     and older CRUD-style flows
 - `app/http`
   - app-level error handling and HTTP response helpers
 - `app/authz`
-  - authorization policy, resource access, and shared grant/scope helpers
+  - authorization policy, resource access, shared grant/scope helpers, and
+    legacy workflow permission guards used by existing route decorators
 - `app/serializers`
   - response payload serializers grouped by domain
+- `app/validators`
+  - domain input validators for setup/admin flows; project/site validators live
+    in `projects.py`, while form, ODK-form, boolean, and SmartVA-country
+    validators live in `forms.py`
 - `app/utils`
-  - shared helper logic for ODK, preprocessing, rendering, permissions, SmartVA, and mapping consumers
+  - generic non-domain utilities only, currently credential encryption and
+    password policy helpers
+  - `app/utils/__init__.py` is intentionally not a barrel export; active code
+    should import helpers from their concrete modules or from `app/validators`
 - `app/templates`
   - server-rendered HTML templates and HTMX partials
 - `resource`

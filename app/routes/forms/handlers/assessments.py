@@ -54,7 +54,9 @@ from app.services.workflow.transitions import (
     mark_coder_step1_saved,
     mark_recode_finalized,
 )
-from app.utils import va_get_form_type_code_for_form
+from app.services.forms.type_resolution import (
+    va_get_form_type_code_for_form,
+)
 
 from ..helpers import (
     _demo_expiry_for_actiontype,

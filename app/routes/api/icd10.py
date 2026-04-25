@@ -22,7 +22,7 @@ from app.services.medical.icd10_2019_2 import (
     list_icd10_2019_2_children,
     update_icd10_2019_2_policy,
 )
-from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
+from app.authz.legacy_guards.require_coding_access import require_coding_access
 
 bp = Blueprint("icd10_api", __name__)
 

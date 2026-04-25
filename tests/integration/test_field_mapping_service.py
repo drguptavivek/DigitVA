@@ -241,7 +241,7 @@ class TestFieldMappingServiceStructure(BaseTestCase):
 
     def test_14_render_processcategorydata_works_with_service_data(self):
         """va_render_processcategorydata produces output using service data."""
-        from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
+        from app.services.rendering.legacy.process_category_data import va_render_processcategorydata
 
         fieldsitepi = self.service.get_fieldsitepi(self.form_type_code)
         choices = self.service.get_choices(self.form_type_code)
@@ -263,7 +263,7 @@ class TestFieldMappingServiceStructure(BaseTestCase):
 
     def test_14b_render_processcategorydata_maps_numeric_choice_values(self):
         """Numeric JSON select values still map to field choice labels."""
-        from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
+        from app.services.rendering.legacy.process_category_data import va_render_processcategorydata
 
         datalevel = {
             "social_autopsy": {
@@ -405,7 +405,7 @@ class TestRenderProcessCategoryDataLegacyAttachmentFallback(BaseTestCase):
         db.session.commit()
 
     def test_legacy_attachment_without_storage_name_uses_media_fallback(self):
-        from app.utils.va_render.va_render_06_processcategorydata import (
+        from app.services.rendering.legacy.process_category_data import (
             va_render_processcategorydata,
         )
 

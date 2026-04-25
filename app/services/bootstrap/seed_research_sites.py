@@ -1,4 +1,4 @@
-from app.services.projects.site_crud import va_site_addsite
+from app.services.projects.sites import va_site_addsite
 
 
 def va_db_initialise_researchsites():

@@ -490,8 +490,8 @@ class GenerateForSubmissionTests(BaseTestCase):
         }])
 
         with (
-            patch("app.utils.va_smartva_prepdata"),
-            patch("app.utils.va_smartva_runsmartva"),
+            patch("app.services.smartva.legacy.prep_data.va_smartva_prepdata"),
+            patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva"),
             patch(
                 "app.services.smartva.service._read_raw_likelihood_outputs",
                 return_value={
@@ -509,7 +509,7 @@ class GenerateForSubmissionTests(BaseTestCase):
                 },
             ),
             patch(
-                "app.utils.va_smartva_formatsmartvaresult",
+                "app.services.smartva.legacy.format_result.va_smartva_formatsmartvaresult",
                 return_value="/fake/output.csv",
             ),
             patch(
@@ -570,7 +570,7 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
         db.session.commit()
 
-        with patch("app.utils.va_smartva_runsmartva") as mock_run:
+        with patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva") as mock_run:
             generate_for_submission(sub.va_sid)
             mock_run.assert_not_called()
 
@@ -607,7 +607,7 @@ class GenerateForSubmissionTests(BaseTestCase):
         db.session.commit()
 
         va_form = db.session.get(VaForms, self.FORM_ID)
-        with patch("app.utils.va_smartva_runsmartva") as mock_run:
+        with patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva") as mock_run:
             saved = generate_for_form(va_form)
             mock_run.assert_not_called()
 
@@ -637,8 +637,8 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
 
         with (
-            patch("app.utils.va_smartva_prepdata"),
-            patch("app.utils.va_smartva_runsmartva", side_effect=RuntimeError("smartva crashed")),
+            patch("app.services.smartva.legacy.prep_data.va_smartva_prepdata"),
+            patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva", side_effect=RuntimeError("smartva crashed")),
         ):
             saved = generate_for_submission(sub.va_sid)
 
@@ -701,10 +701,10 @@ class GenerateForSubmissionTests(BaseTestCase):
         }])
 
         with (
-            patch("app.utils.va_smartva_prepdata"),
-            patch("app.utils.va_smartva_runsmartva"),
+            patch("app.services.smartva.legacy.prep_data.va_smartva_prepdata"),
+            patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva"),
             patch(
-                "app.utils.va_smartva_formatsmartvaresult",
+                "app.services.smartva.legacy.format_result.va_smartva_formatsmartvaresult",
                 return_value="/fake/output.csv",
             ),
             patch(
@@ -767,9 +767,9 @@ class GenerateForSubmissionTests(BaseTestCase):
                 )
 
         with (
-            patch("app.utils.va_smartva_prepdata", side_effect=fake_prepdata),
-            patch("app.utils.va_smartva_runsmartva", side_effect=fake_runsmartva),
-            patch("app.utils.va_smartva_formatsmartvaresult", return_value=None),
+            patch("app.services.smartva.legacy.prep_data.va_smartva_prepdata", side_effect=fake_prepdata),
+            patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva", side_effect=fake_runsmartva),
+            patch("app.services.smartva.legacy.format_result.va_smartva_formatsmartvaresult", return_value=None),
         ):
             saved = generate_for_submission(sub.va_sid)
 
@@ -813,8 +813,8 @@ class GenerateForSubmissionTests(BaseTestCase):
         )
 
         with (
-            patch("app.utils.va_smartva_prepdata"),
-            patch("app.utils.va_smartva_runsmartva", side_effect=RuntimeError("form smartva crashed")),
+            patch("app.services.smartva.legacy.prep_data.va_smartva_prepdata"),
+            patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva", side_effect=RuntimeError("form smartva crashed")),
         ):
             saved = generate_for_form(va_form, amended_sids={sub.va_sid})
 
@@ -936,8 +936,8 @@ class GenerateForSubmissionTests(BaseTestCase):
                 handle.write(b"png")
 
         with (
-            patch("app.utils.va_smartva_prepdata", side_effect=fake_prepdata),
-            patch("app.utils.va_smartva_runsmartva", side_effect=fake_runsmartva),
+            patch("app.services.smartva.legacy.prep_data.va_smartva_prepdata", side_effect=fake_prepdata),
+            patch("app.services.smartva.legacy.run_smartva.va_smartva_runsmartva", side_effect=fake_runsmartva),
             patch(
                 "app.services.smartva.service._read_raw_likelihood_outputs",
                 return_value={
@@ -955,7 +955,7 @@ class GenerateForSubmissionTests(BaseTestCase):
                 },
             ),
             patch(
-                "app.utils.va_smartva_formatsmartvaresult",
+                "app.services.smartva.legacy.format_result.va_smartva_formatsmartvaresult",
                 return_value="/fake/output.csv",
             ),
             patch(

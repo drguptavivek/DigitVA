@@ -19,7 +19,7 @@ from app.services.data_management.dashboard import (
     reporting_scope_pairs,
 )
 from app.services.analytics.submission_mv import get_dm_kpi_from_mv
-from app.utils.va_permission.va_permission_01_abortwithflash import (
+from app.authz.legacy_guards.abort_with_flash import (
     va_permission_abortwithflash,
 )
 

@@ -12,10 +12,10 @@ from app.models import (
     VaSites,
     VaStatuses,
 )
-from app.utils.va_form.va_form_02_formtyperesolution import (
+from app.services.forms.type_resolution import (
     va_get_form_type_code_for_form,
 )
-from app.utils.va_preprocess.va_preprocess_03_categoriestodisplay import (
+from app.services.submissions.legacy.category_visibility import (
     va_preprocess_categoriestodisplay,
 )
 from tests.base import BaseTestCase

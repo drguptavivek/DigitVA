@@ -33,8 +33,8 @@ from app.services.coding.coder_workflow import (
     start_recode_allocation,
 )
 from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.projects.demo_training import should_use_demo_actiontype_for_submission
-from app.services.projects.coding_intake import split_form_ids_by_coding_intake_mode
+from app.services.demo_training import should_use_demo_actiontype_for_submission
+from app.services.coding.intake_policy import split_form_ids_by_coding_intake_mode
 from app.services.workflow.transitions import admin_actor
 
 bp = Blueprint("coding_api", __name__)

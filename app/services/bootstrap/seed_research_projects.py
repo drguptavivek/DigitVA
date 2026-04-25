@@ -1,4 +1,4 @@
-from app.services.projects.research_project_crud import va_researchproject_addproject
+from app.services.projects.research_projects import va_researchproject_addproject
 
 
 def va_db_initialise_researchprojects():

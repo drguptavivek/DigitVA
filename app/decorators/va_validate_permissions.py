@@ -11,21 +11,39 @@ from flask import redirect, url_for, request
 from flask_login import current_user
 from app.models import VaForms, VaSubmissions, VaSubmissionWorkflow
 from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.projects.coding_intake import (
+from app.services.coding.intake_policy import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )
-from app.services.projects.demo_training import is_demo_training_submission
-from app.utils import (
+from app.services.demo_training import is_demo_training_submission
+from app.authz.legacy_guards.abort_with_flash import (
     va_permission_abortwithflash,
+)
+from app.authz.legacy_guards.ensure_allocation import (
     va_permission_ensureallocation,
+)
+from app.authz.legacy_guards.ensure_any_allocation import (
     va_permission_ensureanyallocation,
+)
+from app.authz.legacy_guards.ensure_no_active_allocation import (
     va_permission_ensurenoactiveallocation,
+)
+from app.authz.legacy_guards.validate_recode_limits import (
     va_permission_validaterecodelimits,
+)
+from app.authz.legacy_guards.ensure_viewable import (
     va_permission_ensureviewable,
+)
+from app.authz.legacy_guards.ensure_not_reviewed import (
     va_permission_ensurenotreviewed,
+)
+from app.authz.legacy_guards.ensure_reviewed import (
     va_permission_ensurereviewed,
+)
+from app.authz.legacy_guards.ensure_coded import (
     va_permission_ensurecoded,
+)
+from app.authz.legacy_guards.reviewed_once import (
     va_permission_reviewedonce,
 )
 

@@ -28,8 +28,8 @@ class FieldMappingService:
     """
     Service for accessing field mapping configuration from database.
 
-    Builds the same dict structures as the generated static Python files
-    in app/utils/va_mapping/, but reads from database instead of Excel.
+    Builds the same dict structures as the legacy static mapping files, but
+    reads from database-backed `mas_*` configuration instead of Excel output.
     """
 
     def __init__(self):

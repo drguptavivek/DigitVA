@@ -21,7 +21,7 @@ from app.services.coding.final_cod_authority import (
     get_active_recode_episode,
     upsert_final_cod_authority,
 )
-from app.services.projects.demo_training import (
+from app.services.demo_training import (
     get_demo_coding_allocation_timeout_minutes,
     should_use_demo_actiontype_for_submission,
 )

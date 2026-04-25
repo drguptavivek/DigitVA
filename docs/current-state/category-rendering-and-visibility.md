@@ -40,7 +40,7 @@ Current route behavior:
 - if neither link is available, the runtime falls back to the default form type
   `WHO_2022_VA`
 - coder and reviewer views still start from the static coder mapping in
-  [`app/utils/va_mapping/va_mapping_02_fieldcoder.py`](../../app/utils/va_mapping/va_mapping_02_fieldcoder.py)
+  [`app/services/forms/legacy_mappings/field_coder.py`](../../app/services/forms/legacy_mappings/field_coder.py)
   but now bridge in DB-backed categories that are visible in category config and
   missing from the static dict
 - site PI view uses DB-backed site-PI mappings from
@@ -59,7 +59,7 @@ Current route behavior:
     [`category_va_cod_assessment.html`](../../app/templates/va_formcategory_partials/category_va_cod_assessment.html)
 
 Common filtering happens in
-[`app/utils/va_render/va_render_06_processcategorydata.py`](../../app/utils/va_render/va_render_06_processcategorydata.py).
+[`app/services/rendering/legacy/process_category_data.py`](../../app/services/rendering/legacy/process_category_data.py).
 
 A mapped field contributes to rendered category content only if:
 
@@ -538,7 +538,7 @@ rules above.
 - `vanarrationanddocuments` has a subcategory mismatch between site-PI and coder
   mappings: `death_registeration` exists only in the site-PI mapping
 - coder/reviewer category rendering still depends on the static
-  `va_mapping_02_fieldcoder.py` dict even though site-PI and preprocess category mapping
+  `app/services/forms/legacy_mappings/field_coder.py` dict even though site-PI and preprocess category mapping
   are now form-type aware
 - left-nav visibility is derived from stored preprocess output, while panel content is
   recalculated at request time

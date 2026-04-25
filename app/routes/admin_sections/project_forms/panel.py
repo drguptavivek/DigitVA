@@ -9,7 +9,9 @@ from app.routes.admin import admin
 @admin.get("/panels/project-forms")
 @role_required("admin")
 def admin_panel_project_forms():
-    from app.utils import smartva_allowed_countries
+    from app.services.smartva.legacy.countries import (
+        smartva_allowed_countries,
+    )
 
     return render_template(
         "admin/panels/project_forms.html",

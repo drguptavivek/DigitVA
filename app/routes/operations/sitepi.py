@@ -8,7 +8,7 @@ from app import db
 from app.decorators import role_required
 from app.models import VaProjectSites, VaStatuses
 from app.services.reporting.sitepi import get_sitepi_dashboard_data
-from app.utils.va_permission.va_permission_01_abortwithflash import va_permission_abortwithflash
+from app.authz.legacy_guards.abort_with_flash import va_permission_abortwithflash
 
 sitepi = Blueprint("sitepi", __name__)
 

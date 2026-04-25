@@ -253,7 +253,7 @@ For submissions that are NOT in the changed set:
 
 **Do NOT `rmtree` the form directory.** Keep existing files. Only write new/changed ones.
 
-**Why `rmtree` is harmful beyond performance**: The rendering pipeline (`va_render_06_processcategorydata`) checks `os.path.exists(data/<form_id>/media/<file>)` to decide whether to render an attachment field. If the file is missing, the field is silently dropped from the coder's view. Currently, every sync wipes `media/` and then re-downloads — creating a window (seconds to minutes depending on form size) where all attachment fields disappear for any coder actively working on a submission. Eliminating `rmtree` closes this gap entirely.
+**Why `rmtree` is harmful beyond performance**: The rendering pipeline (`app/services/rendering/legacy/process_category_data.py`) checks `os.path.exists(data/<form_id>/media/<file>)` to decide whether to render an attachment field. If the file is missing, the field is silently dropped from the coder's view. Currently, every sync wipes `media/` and then re-downloads — creating a window (seconds to minutes depending on form size) where all attachment fields disappear for any coder actively working on a submission. Eliminating `rmtree` closes this gap entirely.
 
 ### Net result
 
@@ -264,7 +264,7 @@ For a routine sync where 5 new submissions arrive out of 1,155:
 
 ### Why deferred to Phase 2
 
-Requires replacing the CSV ZIP + pandas pipeline with OData JSON parsing — a rewrite of `app/services/odk/submission_fetch.py` and `app/utils/va_preprocess/va_preprocess_01_prepdata.py`. Phase 1 (delta check + skip unchanged forms entirely) delivers the majority of the benefit with minimal code change and regression risk.
+Requires replacing the CSV ZIP + pandas pipeline with OData JSON parsing — a rewrite of `app/services/odk/submission_fetch.py` and the current payload projection path under `app/services/submissions/`. Phase 1 (delta check + skip unchanged forms entirely) delivers the majority of the benefit with minimal code change and regression risk.
 
 ### Local ETag storage
 

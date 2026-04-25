@@ -70,4 +70,4 @@ last_updated: 2026-04-05
 
 3. **F3 — ICD-10 search has no rate limiting.** Wildcard LIKE query could be abused. **Severity: Low** — read-only reference data.
 
-4. **F4 — `_require_coding_access()` was previously duplicated** in nqa.py and so.py. Now consolidated to `app/utils/va_permission/va_permission_11_require_coding_access.py`. **Resolved** in auth standardization commit.
+4. **F4 — `_require_coding_access()` was previously duplicated** in nqa.py and so.py. Now consolidated to `app/authz/legacy_guards/require_coding_access.py`. **Resolved** in auth standardization commit.

@@ -3,7 +3,7 @@ title: SmartVA Agentic Tracing Instructions
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-25
 ---
 
 # SmartVA Agentic Tracing Instructions
@@ -54,8 +54,8 @@ Use it to determine:
 Use sources in this order.
 
 1. DB-backed field display config and the inventory doc
-2. `app/utils/va_mapping/va_mapping_01_fieldsitepi.py`
-3. `app/utils/va_mapping/va_mapping_02_fieldcoder.py`
+2. `FieldMappingService` runtime mapping helpers
+3. `app/services/forms/legacy_mappings/field_coder.py`
 4. `vendor/smartva-analyze/src/smartva/data/who_data.py`
 5. `vendor/smartva-analyze/src/smartva/who_prep.py`
 6. age-group-specific pre-symptom files

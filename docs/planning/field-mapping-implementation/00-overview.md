@@ -28,8 +28,8 @@ Implement a database-backed field mapping system that:
 |-------|----------|---------|---------|
 | `mapping_labels.xlsx` | `resource/mapping/` | 427 rows | Field display config for WHO_2022_VA |
 | `mapping_choices.xlsx` | `resource/mapping/` | 1199 rows | Choice mappings for WHO_2022_VA |
-| Generated Python modules | `app/utils/va_mapping/` | 7 files | Current runtime mapping |
-| Category order list | `va_preprocess_03_categoriestodisplay.py` | 14 categories | Display order |
+| Static compatibility mappings | `app/services/forms/legacy_mappings/` | Remaining coder/summary constants | Legacy compatibility mapping |
+| Category order list | `app/services/submissions/legacy/category_visibility.py` | 14 categories | Display order |
 
 ## Implementation Phases
 

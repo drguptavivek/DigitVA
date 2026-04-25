@@ -97,7 +97,7 @@ class TestWho2022VaMigration(BaseTestCase):
         self.assertEqual(count, 14, f"Expected 14 categories, got {count}")
 
     def test_05_category_order_matches_source(self):
-        """Categories are stored in exact order from va_preprocess_03."""
+        """Categories are stored in the legacy WHO 2022 VA display order."""
         form_type = self._run_migration()
 
         categories = db.session.scalars(

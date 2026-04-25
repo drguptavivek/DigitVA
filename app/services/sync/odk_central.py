@@ -12,7 +12,7 @@ from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
 from app.models.va_forms import VaForms
-from app.services.forms.runtime_form_sync import (
+from app.services.forms.runtime_registry import (
     get_active_mapping_for_form,
     sync_runtime_forms_from_site_mappings,
 )
@@ -76,11 +76,13 @@ from app.services.odk.submission_fetch import (
     va_odk_fetch_submissions,
     va_odk_fetch_submissions_by_ids,
 )
-from app.utils import (
+from app.services.submissions.legacy.summary_notifications import (
     va_preprocess_summcatenotification,
+)
+from app.services.submissions.legacy.category_visibility import (
     va_preprocess_categoriestodisplay,
 )
-from app.utils.va_form.va_form_02_formtyperesolution import (
+from app.services.forms.type_resolution import (
     va_get_form_type_code_from_form,
 )
 

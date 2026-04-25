@@ -28,9 +28,9 @@ import sqlalchemy as sa
 
 from app import create_app, db
 from app.models import VaForms, VaProjectSites, VaStatuses
-from app.utils.va_smartva.va_smartva_02_prepdata import va_smartva_prepdata
-from app.utils.va_smartva.va_smartva_03_runsmartva import va_smartva_runsmartva
-from app.utils.va_smartva.va_smartva_04_formatsmartvaresult import va_smartva_formatsmartvaresult
+from app.services.smartva.legacy.prep_data import va_smartva_prepdata
+from app.services.smartva.legacy.run_smartva import va_smartva_runsmartva
+from app.services.smartva.legacy.format_result import va_smartva_formatsmartvaresult
 
 
 @dataclass(frozen=True)

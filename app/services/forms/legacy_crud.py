@@ -4,13 +4,15 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaForms, VaStatuses
-from app.utils import (
+from app.validators.forms import (
     validate_boolean_string,
     validate_form_id,
     validate_odk_form,
+    validate_smartva_country,
+)
+from app.validators.projects import (
     validate_project_id,
     validate_site_id,
-    validate_smartva_country,
 )
 
 

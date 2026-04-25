@@ -12,7 +12,9 @@ from app.services.coding.reviewer_coding import (
     get_active_reviewing_allocation,
     start_reviewer_coding,
 )
-from app.utils import va_permission_abortwithflash
+from app.authz.legacy_guards.abort_with_flash import (
+    va_permission_abortwithflash,
+)
 
 from .common import render_va_coding_page_for_route, reviewing
 

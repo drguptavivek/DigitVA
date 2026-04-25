@@ -106,7 +106,7 @@ from app.models import (
 )
 from app.services.forms.field_mapping import get_mapping_service
 from app.services.forms.form_type import get_form_type_service
-from app.services.forms.odk_schema_sync import get_sync_service
+from app.services.forms.schema_sync import get_sync_service
 from app.utils.decorators import admin_required
 
 bp = Blueprint("admin_field_mapping", __name__, url_prefix="/admin/field-mapping")

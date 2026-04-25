@@ -4,7 +4,7 @@ WHO_2022_VA Data Migration Script
 Migrates data from:
 - resource/mapping/mapping_labels.xlsx (428 rows)
 - resource/mapping/mapping_choices.xlsx (1199 rows)
-- Hardcoded category order from va_preprocess_03_categoriestodisplay.py
+- Hardcoded category order from app/services/submissions/legacy/category_visibility.py
 
 To database tables:
 - mas_form_types
@@ -31,7 +31,7 @@ from app.models import (
 from app.services.forms.category_display_defaults import CATEGORY_DISPLAY_DEFAULTS
 
 
-# Category display order from va_preprocess_03_categoriestodisplay.py
+# Category display order from app/services/submissions/legacy/category_visibility.py
 WHO_2022_CATEGORIES = [
     "vainterviewdetails",
     "vademographicdetails",

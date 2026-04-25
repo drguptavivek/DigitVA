@@ -94,7 +94,7 @@ Id10477="Fever"  →  adult_7_3=1     →  Tariff scoring for fever symptoms
 |------|---------|
 | `vendor/smartva-analyze/src/smartva/data/who_data.py` | WHO field → PHMRC variable mapping |
 | `vendor/smartva-analyze/src/smartva/data/word_conversions.py` | Free-text word → s9999* mapping |
-| `app/utils/va_smartva/va_smartva_02_prepdata.py` | DigitVA data preparation for SmartVA |
+| `app/services/smartva/legacy/prep_data.py` | DigitVA data preparation for SmartVA |
 
 ---
 

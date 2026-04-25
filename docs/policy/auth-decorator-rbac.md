@@ -207,7 +207,7 @@ request, without waiting for the 30-minute cookie expiry.
 | `_require_data_manager()` | `app/routes/api/data_management.py` | `@role_required("data_manager")` |
 | `_require_data_manager_or_admin()` | `app/routes/api/data_management.py` | `@role_required("data_manager", "admin")` |
 | `_require_data_manager()` | `app/routes/api/analytics.py` | `@role_required("data_manager")` |
-| `_require_coding_access()` (two copies) | `api/nqa.py`, `api/so.py` | `app/utils/va_permission/va_permission_11_require_coding_access.py` |
+| `_require_coding_access()` (two copies) | `api/nqa.py`, `api/so.py` | `app/authz/legacy_guards/require_coding_access.py` |
 | `user` param on `_current_user_can_manage_project` | `app/routes/admin.py` | Simplified to `(project_id)` using `current_user` |
 
 ---
@@ -234,7 +234,7 @@ request, without waiting for the 30-minute cookie expiry.
 
 - `app/decorators/role_required.py` — decorator implementation
 - `app/decorators/va_validate_permissions.py` — existing workflow validator (unchanged)
-- `app/utils/va_permission/va_permission_11_require_coding_access.py` — shared coding access util
+- `app/authz/legacy_guards/require_coding_access.py` — shared coding access util
 - `app/static/js/base.js` — frontend 401/403 interceptor
 - `app/models/va_users.py` — role methods and ABAC checks
 - `app/models/va_user_access_grants.py` — grant model

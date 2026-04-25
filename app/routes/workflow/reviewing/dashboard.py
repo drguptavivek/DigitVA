@@ -14,7 +14,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.utils import va_render_serialisedates
+from app.services.rendering.legacy.serialize_dates import va_render_serialisedates
 
 from .common import reviewing
 

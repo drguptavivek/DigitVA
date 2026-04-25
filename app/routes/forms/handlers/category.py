@@ -39,11 +39,13 @@ from app.services.workflow.state_store import (
     sync_submission_workflow_from_legacy_records,
 )
 from app.services.workflow.transitions import data_manager_actor, mark_data_manager_not_codeable
-from app.utils import (
+from app.services.forms.type_resolution import (
     va_get_form_type_code_for_form,
+)
+from app.services.rendering.legacy.process_category_data import (
     va_render_processcategorydata,
 )
-from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
+from app.services.rendering.form_category_context import va_get_render_datalevel
 
 from ..helpers import (
     DATA_MANAGER_TRIAGE_ALLOWED_STATES,

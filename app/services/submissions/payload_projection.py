@@ -8,9 +8,11 @@ import sqlalchemy as sa
 from app import db
 from app.models.mas_languages import MapLanguageAliases
 from app.services.smartva.age_normalization import normalize_who_2022_age
-from app.utils import (
-    va_preprocess_categoriestodisplay,
+from app.services.submissions.legacy.summary_notifications import (
     va_preprocess_summcatenotification,
+)
+from app.services.submissions.legacy.category_visibility import (
+    va_preprocess_categoriestodisplay,
 )
 
 _language_alias_cache: dict[str, str] | None = None

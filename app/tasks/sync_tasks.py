@@ -194,7 +194,7 @@ def _refresh_batch_plan_after_enrichment(
 def _get_single_form_odk_client(va_form):
     """Return one pyODK client for the single-form sync run."""
     from app.services.odk.client import va_odk_clientsetup
-    from app.services.forms.runtime_form_sync import get_active_mapping_for_form
+    from app.services.forms.runtime_registry import get_active_mapping_for_form
 
     mapping = get_active_mapping_for_form(va_form)
     if mapping is None:
@@ -1121,7 +1121,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
             )
 
         # Update last_synced_at
-        from app.services.forms.runtime_form_sync import get_active_mapping_for_form
+        from app.services.forms.runtime_registry import get_active_mapping_for_form
 
         mapping = get_active_mapping_for_form(va_form)
         if mapping:

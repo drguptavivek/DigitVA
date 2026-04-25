@@ -7,7 +7,7 @@ Shared helpers live in app/services/data_management/dashboard.py.
 
 from app.services.data_management.dashboard import dm_scoped_forms
 from app.services.analytics.submission_mv import get_dm_kpi_from_mv
-from app.utils import va_render_serialisedates
+from app.services.rendering.legacy.serialize_dates import va_render_serialisedates
 
 from .base import data_management, log
 from .helpers import (

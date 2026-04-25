@@ -3,7 +3,9 @@
 from flask import Blueprint
 
 from app.services.coding.coder_workflow import AllocationError
-from app.utils import va_permission_abortwithflash
+from app.authz.legacy_guards.abort_with_flash import (
+    va_permission_abortwithflash,
+)
 
 coding = Blueprint("coding", __name__)
 

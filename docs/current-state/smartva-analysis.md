@@ -242,7 +242,7 @@ Current projection rule:
 
 ---
 
-## Input Preparation (`va_smartva_02_prepdata.py`)
+## Input Preparation (`app/services/smartva/legacy/prep_data.py`)
 
 ### Source data
 
@@ -264,7 +264,7 @@ Columns are dropped **before** writing SmartVA input to maintain the ≥80% `Id#
 The filtered CSV is written to the per-run temporary workspace as
 `smartva_input.csv`, then copied into the persisted form-run disk path.
 
-> Any future form integration that adds non-`Id####` columns should have those columns added to `_SMARTVA_DROP_PREFIXES` in `va_smartva_02_prepdata.py`.
+> Any future form integration that adds non-`Id####` columns should have those columns added to `_SMARTVA_DROP_PREFIXES` in `app/services/smartva/legacy/prep_data.py`.
 
 ### Age derivation
 
@@ -289,7 +289,7 @@ submissions in `va_smartva_results`.
 
 ---
 
-## Execution (`va_smartva_03_runsmartva.py`)
+## Execution (`app/services/smartva/legacy/run_smartva.py`)
 
 SmartVA is invoked as a Python subprocess:
 
@@ -318,7 +318,7 @@ invocation.
 
 ---
 
-## Output Parsing (`va_smartva_04_formatsmartvaresult.py`)
+## Output Parsing (`app/services/smartva/legacy/format_result.py`)
 
 SmartVA produces age-group-specific result CSVs under `smartva_output/`. The formatter merges them into a single DataFrame with columns:
 
@@ -496,7 +496,7 @@ If SmartVA fails on a new form with `Cannot process data without: gen_5_4*`:
    ```
    At least one must appear and have non-empty values in data rows.
 
-3. Add any new non-standard column prefixes to `_SMARTVA_DROP_PREFIXES` in `va_smartva_02_prepdata.py`.
+3. Add any new non-standard column prefixes to `_SMARTVA_DROP_PREFIXES` in `app/services/smartva/legacy/prep_data.py`.
 
 ### ICMR training form specifics
 

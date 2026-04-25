@@ -3,7 +3,7 @@ title: "Plan: Form-Type-Aware Rendering & Social Autopsy Category"
 doc_type: planning
 status: draft
 owner: vivekgupta
-last_updated: 2026-03-12
+last_updated: 2026-04-25
 ---
 
 # Plan: Form-Type-Aware Rendering & Social Autopsy Category
@@ -42,10 +42,10 @@ The `FieldMappingService._build_fieldsitepi()` builds the nested dict consumed b
 - **Category order**: `MasCategoryOrder.display_order`
 - **Field order within subcategory**: `MasFieldDisplayConfig.display_order` (ascending)
 - **Subcategory order within category**: `MasSubcategoryOrder.display_order`
-- **Coder vs Site-PI level**: `va_mapping_fieldcoder` (a static Python dict in
-  `app/utils/va_mapping/va_mapping_02_fieldcoder.py`) is used during coding/review.
-  The DB service `get_fieldsitepi()` is used for site-PI views. There is no
-  `show_to_coder` flag in `MasFieldDisplayConfig` yet.
+- **Coder vs Site-PI level**: `va_mapping_fieldcoder` remains a compatibility
+  static Python dict in `app/services/forms/legacy_mappings/field_coder.py` for
+  coding/review paths not yet fully runtime-mapping based. DB-backed mapping
+  services provide the active fieldsitepi/choice/flip/info data.
 
 ### Data Filtering ("Hide if no relevant data")
 
@@ -53,8 +53,8 @@ At **sync time**, `va_preprocess_categoriestodisplay()` decides which categories
 in each submission's `va_category_list` (stored on `va_submissions`):
 
 1. Iterates a **hardcoded** 13-category list (`va_renderforall`)
-2. For each category, calls `va_render_processcategorydata()` using the **old static mapping**
-   (`va_mapping_fieldsitepi` from `app/utils/va_mapping/va_mapping_01_fieldsitepi.py`)
+2. For each category, calls `va_render_processcategorydata()` using DB-backed
+   mapping data from `FieldMappingService`
 3. `va_render_processcategorydata` skips values that are: `dk`, `ref`, `None`, blank,
    zero-skip fields at 0, and missing attachments
 4. If the result dict is empty (all answers were DK/NA/blank) → category is **excluded**
@@ -81,7 +81,7 @@ At **left nav time** (`va_coding.html`):
 | `va_mapping_fieldcoder` | Static Python dict — no `social_autopsy` entries |
 | `va_coding.html` left nav | Hardcoded nav items — no `social_autopsy` entry |
 | Template | `va_formcategory_partials/social_autopsy.html` does not exist |
-| `va_preprocess_03` | Hardcoded 13-category list + old static mapping — category-list generation still ignores `social_autopsy` |
+| `app/services/submissions/legacy/category_visibility.py` | Legacy category-list generation path formerly ignored `social_autopsy`; current runtime bridges DB-backed categories |
 
 For this phase, the preprocessing gap is acceptable because there are currently no synced
 SOCIAL submissions. We can render the category statically for SOCIAL forms first and
@@ -272,9 +272,9 @@ Step 1 + Step 4 + Step 7 + Step 6
 | `app/models/va_project_master.py` | Add `social_autopsy_enabled` column |
 | `app/routes/admin.py` | Serialize + PUT endpoint for `social_autopsy_enabled` |
 | `app/templates/admin/panels/projects.html` | Toggle button (same pattern as NQA) |
-| `app/utils/va_preprocess/va_preprocess_03_categoriestodisplay.py` | Replace hardcoded list with DB-driven lookup |
+| `app/services/submissions/legacy/category_visibility.py` | Replace legacy category visibility bridge with DB-driven lookup |
 | `app/routes/va_api.py` | Resolve form type dynamically; add `social_autopsy` to `va_renderforall` |
 | `app/routes/va_cta.py` | Pass `social_autopsy_enabled` to `va_coding.html` context |
-| `app/utils/va_mapping/va_mapping_02_fieldcoder.py` | Add `social_autopsy` fields |
+| `app/services/forms/legacy_mappings/field_coder.py` | Add `social_autopsy` fields |
 | `app/templates/va_formcategory_partials/social_autopsy.html` | New template |
 | `app/templates/va_frontpages/va_coding.html` | Add `social_autopsy` nav entry |

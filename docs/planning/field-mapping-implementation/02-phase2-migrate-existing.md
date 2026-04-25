@@ -77,7 +77,7 @@ from app.models import (
 )
 
 
-# Hardcoded category order from va_preprocess_03_categoriestodisplay.py
+# Hardcoded category order from app/services/submissions/legacy/category_visibility.py
 WHO_2022_CATEGORIES = [
     "Id10007",      # 1. Identification
     "Id10011",      # 2. Demographics

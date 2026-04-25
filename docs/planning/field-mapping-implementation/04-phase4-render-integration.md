@@ -131,7 +131,7 @@ class FieldMappingService:
         Get categories with fields for display rendering.
 
         This replaces the old get_categories_to_display() function
-        from va_preprocess_03_categoriestodisplay.py.
+        from app/services/submissions/legacy/category_visibility.py.
 
         Returns list of dicts with:
         - category_code
@@ -328,7 +328,7 @@ def get_mapping_service() -> FieldMappingService:
 
 ## Step 4.2: Update Render Functions
 
-**File**: `app/utils/va_render_01_displayselected.py` (modify existing)
+**File**: `app/services/rendering/legacy/process_category_data.py` (modify existing)
 
 ```python
 """
@@ -476,7 +476,9 @@ class TestFieldMappingRenderIntegration(BaseTestCase):
 
     def test_05_render_output_structure(self):
         """Render output has correct structure."""
-        from app.utils.va_render_01_displayselected import display_selected_fields
+        from app.services.rendering.legacy.process_category_data import (
+            va_render_processcategorydata,
+        )
 
         # Sample submission data
         submission_data = {
@@ -518,7 +520,7 @@ class TestFieldMappingRenderIntegration(BaseTestCase):
 
 Mark old Excel-based functions as deprecated but keep them for rollback:
 
-**File**: `app/utils/va_mapping/__init__.py` (add deprecation warnings)
+**File**: `app/services/forms/legacy_mappings/__init__.py` (add deprecation warnings)
 
 ```python
 """

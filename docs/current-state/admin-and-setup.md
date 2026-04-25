@@ -252,8 +252,24 @@ Mapping spreadsheets are stored under:
 
 The app does not read them dynamically from the UI on every request. The
 runtime field-mapping tables are populated by the seed/migration command path,
-while legacy static mapping modules under `app/utils/va_mapping` remain only as
-compatibility data for code paths not yet fully runtime-mapping based.
+while the remaining static compatibility mappings live under
+`app/services/forms/legacy_mappings`. Active helper code imports concrete
+domain modules directly; `app/utils` is no longer a re-export barrel and now
+contains only generic non-domain helpers.
+
+## Validators And Helper Boundaries
+
+Domain validators used by setup/admin services live under
+[`app/validators`](../../app/validators):
+
+- `forms.py` validates form identifiers, ODK form uniqueness/connectivity,
+  SmartVA boolean flags, and SmartVA countries.
+- `projects.py` validates project identifiers, site identifiers, and project
+  display codes.
+
+Service and route helpers should import validators from these modules directly
+instead of from the old legacy utility tree. User setup validators now live in
+`app/validators/users.py`.
 
 ## User And Access Administration
 
@@ -263,12 +279,12 @@ The admin UI supports:
 - resetting user passwords
 - assigning and revoking user access grants scoped to projects and sites
 
-Underlying service functions remain available for shell-based operations:
+Underlying legacy seed helpers remain available for bootstrap operations:
 
 - `va_user_create`
 - `va_form_addform`
-- `va_site_addsite`
-- `va_researchproject_addproject`
+- `va_site_addsite` from `app/services/projects/sites.py`
+- `va_researchproject_addproject` from `app/services/projects/research_projects.py`
 
 ## Operational Consequences
 

@@ -240,7 +240,7 @@ def generate_policy(
     )
     _apply_rule(
         policy,
-        _expand_expressions(["O00-O99"], icd_rows),
+        {code for code in policy if code.startswith("O")},
         sex="female",
         age_group="adult",
     )
@@ -260,6 +260,18 @@ def generate_policy(
         policy,
         _expand_expressions(["C50"], icd_rows),
         sex="both",
+        age_group="all",
+    )
+    _apply_rule(
+        policy,
+        _expand_expressions(["D25-D28"], icd_rows),
+        sex="female",
+        age_group="all",
+    )
+    _apply_rule(
+        policy,
+        _expand_expressions(["D29"], icd_rows),
+        sex="male",
         age_group="all",
     )
 

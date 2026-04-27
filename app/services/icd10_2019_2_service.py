@@ -20,6 +20,7 @@ SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
+_CODING_VALUE_CODE_RE = re.compile(r"^\s*([A-Z]\d{2}(?:\.\d+)?)\b", re.IGNORECASE)
 _CODING_ICD_MIN_QUERY_LEN = 2
 _CODING_ICD_MAX_RESULTS = 30
 _DAYS_PER_YEAR = Decimal("365.25")
@@ -153,6 +154,47 @@ def _coding_policy_clause(model, *, age_group: str | None, sex: str | None):
             ),
         )
     return clause
+
+
+def _extract_icd_code_from_coding_value(value: str | None) -> str | None:
+    if not value:
+        return None
+    match = _CODING_VALUE_CODE_RE.match(value)
+    if not match:
+        return None
+    return match.group(1).upper()
+
+
+def validate_icd10_2019_2_coding_value_for_submission(
+    va_sid: str,
+    value: str | None,
+) -> None:
+    code = _extract_icd_code_from_coding_value(value)
+    if code is None:
+        raise ValueError("Select a valid ICD-10 code.")
+
+    context = get_icd10_2019_2_coding_context(va_sid)
+    if context is None:
+        raise LookupError(f"Submission not found: {va_sid}")
+
+    is_allowed = db.session.scalar(
+        sa.select(sa.literal(True)).where(
+            sa.exists(
+                sa.select(MasIcd1020192.code).where(
+                    MasIcd1020192.code == code,
+                    MasIcd1020192.is_active.is_(True),
+                    MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
+                    _coding_policy_clause(
+                        MasIcd1020192,
+                        age_group=context["age_group"],
+                        sex=context["sex"],
+                    ),
+                )
+            )
+        )
+    )
+    if not is_allowed:
+        raise ValueError(f"{code} is not selectable for this submission.")
 
 
 def _apply_code_filters(query, model, *, coding_filter: str, sex_filter: str, age_filter: str):

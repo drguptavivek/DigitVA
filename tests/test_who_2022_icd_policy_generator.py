@@ -15,8 +15,9 @@ def _write_workbook(path: Path) -> None:
     crosswalk.append(["Infectious", "VAs-01.04", "Diarrheal diseases", "A00", None])
     crosswalk.append(["External", "VAs-12.99", "Injuries", "S00-T99", None])
     crosswalk.append(["Perinatal", "VAs-10.99", "Perinatal", "P95; R95", None])
-    crosswalk.append(["Maternal", "VAs-09.01", "Maternal", "O00-O99", None])
+    crosswalk.append(["Maternal", "VAs-09.01", "Maternal", "O00-O99; O71.1", None])
     crosswalk.append(["Neoplasm", "VAs-02.01", "Neoplasm", "C50-C63", None])
+    crosswalk.append(["Neoplasm", "VAs-02.99", "Other neoplasms", "C64-D48", None])
 
     road = workbook.create_sheet("RoadTraffic_Footnote")
     road.append(["va_code", "detail"])
@@ -55,12 +56,17 @@ def _write_icd_csv(path: Path) -> None:
         ("R95", "Sudden infant death syndrome", "three_character", 11),
         ("O00", "Ectopic pregnancy", "three_character", 12),
         ("O00.1", "Tubal pregnancy", "detailed_code", 13),
-        ("C50", "Malignant neoplasm of breast", "three_character", 14),
-        ("C50.0", "Malignant neoplasm of nipple and areola", "detailed_code", 15),
-        ("C51", "Malignant neoplasm of vulva", "three_character", 16),
-        ("C51.0", "Malignant neoplasm of labium majus", "detailed_code", 17),
-        ("C60", "Malignant neoplasm of penis", "three_character", 18),
-        ("C60.0", "Malignant neoplasm of prepuce", "detailed_code", 19),
+        ("O71.1", "Rupture of uterus during labour", "detailed_code", 14),
+        ("C50", "Malignant neoplasm of breast", "three_character", 15),
+        ("C50.0", "Malignant neoplasm of nipple and areola", "detailed_code", 16),
+        ("C51", "Malignant neoplasm of vulva", "three_character", 17),
+        ("C51.0", "Malignant neoplasm of labium majus", "detailed_code", 18),
+        ("C60", "Malignant neoplasm of penis", "three_character", 19),
+        ("C60.0", "Malignant neoplasm of prepuce", "detailed_code", 20),
+        ("D26", "Other benign neoplasms of uterus", "three_character", 21),
+        ("D26.0", "Cervix uteri", "detailed_code", 22),
+        ("D28", "Benign neoplasm of other female genital organs", "three_character", 23),
+        ("D29", "Benign neoplasm of male genital organs", "three_character", 24),
     ]
 
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -119,6 +125,8 @@ def test_who_2022_policy_generator_applies_allowability_rules(tmp_path):
     assert by_code["O00"]["sex_selectable"] == "female"
     assert by_code["O00"]["age_group_selectable"] == "adult"
     assert "O00.1" not in by_code
+    assert by_code["O71.1"]["sex_selectable"] == "female"
+    assert by_code["O71.1"]["age_group_selectable"] == "adult"
     assert by_code["C51"]["sex_selectable"] == "female"
     assert by_code["C51"]["age_group_selectable"] == "all"
     assert "C51.0" not in by_code
@@ -128,3 +136,8 @@ def test_who_2022_policy_generator_applies_allowability_rules(tmp_path):
     assert by_code["C50"]["sex_selectable"] == "both"
     assert by_code["C50"]["age_group_selectable"] == "all"
     assert "C50.0" not in by_code
+    assert by_code["D26"]["sex_selectable"] == "female"
+    assert by_code["D26"]["age_group_selectable"] == "all"
+    assert "D26.0" not in by_code
+    assert by_code["D28"]["sex_selectable"] == "female"
+    assert by_code["D29"]["sex_selectable"] == "male"

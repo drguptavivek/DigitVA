@@ -29,6 +29,7 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version, get_active_payload_version
 from app.services.field_mapping_service import get_mapping_service
+from app.services.icd10_2019_2_service import validate_icd10_2019_2_coding_value_for_submission
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_reviewer_reviews,
@@ -824,6 +825,27 @@ def renderpartial(va_sid, va_partial):
         else:
             form.va_other_conditions.choices = adult
         if save_clicked and form.validate_on_submit():
+            coding_errors: list[tuple[object, str]] = []
+            for field in (form.va_immediate_cod, form.va_antecedent_cod):
+                try:
+                    validate_icd10_2019_2_coding_value_for_submission(
+                        va_sid,
+                        field.data,
+                    )
+                except (LookupError, ValueError) as exc:
+                    coding_errors.append((field, str(exc)))
+            if coding_errors:
+                for field, message in coding_errors:
+                    field.errors.append(message)
+                return render_template(
+                    f"va_form_partials/{va_partial}.html",
+                    form=form,
+                    va_action=va_action,
+                    va_actiontype=va_actiontype,
+                    va_sid=va_sid,
+                    pre_immediate_cod=form.va_immediate_cod.data,
+                    pre_antecedent_cod=form.va_antecedent_cod.data,
+                )
             form1 = VaFinalAssessmentForm()
             smartva = db.session.scalar(sa.select(VaSmartvaResults).where((VaSmartvaResults.va_sid == va_sid)&(VaSmartvaResults.va_smartva_status == VaStatuses.active)))
             for existing_initial in db.session.scalars(
@@ -996,6 +1018,13 @@ def renderpartial(va_sid, va_partial):
 
         if form1.validate_on_submit():
             blocking_messages: list[str] = []
+            try:
+                validate_icd10_2019_2_coding_value_for_submission(
+                    va_sid,
+                    form1.va_conclusive_cod.data,
+                )
+            except (LookupError, ValueError) as exc:
+                blocking_messages.append(str(exc))
 
             # Enforce NQA completion if enabled for this project
             _project = _get_project_for_submission(va_sid)

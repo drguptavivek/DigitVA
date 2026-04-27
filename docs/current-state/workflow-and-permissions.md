@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-27
 ---
 
 # Workflow And Permissions
@@ -269,6 +269,15 @@ Coding steps:
   `va_submission_workflow`
 - when a coder marks a case Not Codeable, DigitVA saves the local outcome first
   and then separately attempts to push `hasIssues` review state to ODK Central
+
+ICD coding allowability:
+
+- ICD coding search filters selectable ICD10-2019-2 rows by the submission's
+  classified age group and sex
+- initial, final, and reviewer final COD save paths enforce the same
+  ICD10-2019-2 coding policy server-side before creating new COD rows
+- policy-disallowed posted values are rejected even if they came from stale UI
+  options or manually edited requests
 
 Completion behavior:
 

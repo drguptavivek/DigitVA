@@ -104,6 +104,15 @@ Sex-specific neoplasms:
 - `C51-C58`: female-only, all ages
 - `C60-C63`: male-only, all ages
 - `C50`: both sexes, all ages
+- `D25-D28`: female-only, all ages
+- `D29`: male-only, all ages
+
+These sex-specific neoplasm restrictions are deliberate deviations from the
+default WHO residual bucket allowability. For example, WHO bucket `VAs-02.99`
+lists the broad residual range `C64-D48`; the generated ICD selection policy
+still narrows genital-organ neoplasm rows such as `D26` to the anatomically
+applicable sex. The COD bucket assignment remains unchanged and is not resolved
+by this ICD selection policy.
 
 ## Overlap Rules
 

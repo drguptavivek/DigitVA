@@ -18,6 +18,7 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
+from app.services.icd10_2019_2_service import validate_icd10_2019_2_coding_value_for_submission
 from app.services.reviewer_final_assessment_service import (
     create_reviewer_final_assessment,
     get_latest_active_reviewer_final_assessment,
@@ -31,7 +32,6 @@ from app.services.workflow.transitions import (
     mark_reviewer_coding_started,
     mark_reviewer_finalized,
     reviewer_actor,
-    system_actor,
 )
 
 
@@ -138,6 +138,10 @@ def submit_reviewer_final_cod(
         raise ReviewerCodingError(
             "Reviewer final COD can only be submitted from reviewer_coding_in_progress."
         )
+    try:
+        validate_icd10_2019_2_coding_value_for_submission(va_sid, conclusive_cod)
+    except (LookupError, ValueError) as exc:
+        raise ReviewerCodingError(str(exc), 400) from exc
 
     active_allocation = db.session.scalar(
         sa.select(VaAllocations).where(

@@ -3975,7 +3975,7 @@
       "three_character_code": "D25",
       "three_character_title": "Leiomyoma of uterus",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
+      "sex_selectable": "female",
       "age_group_selectable": "all"
     },
     {
@@ -3989,7 +3989,7 @@
       "three_character_code": "D26",
       "three_character_title": "Other benign neoplasms of uterus",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
+      "sex_selectable": "female",
       "age_group_selectable": "all"
     },
     {
@@ -4003,7 +4003,7 @@
       "three_character_code": "D27",
       "three_character_title": "Benign neoplasm of ovary",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
+      "sex_selectable": "female",
       "age_group_selectable": "all"
     },
     {
@@ -4017,7 +4017,7 @@
       "three_character_code": "D28",
       "three_character_title": "Benign neoplasm of other and unspecified female genital organs",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
+      "sex_selectable": "female",
       "age_group_selectable": "all"
     },
     {
@@ -4031,7 +4031,7 @@
       "three_character_code": "D29",
       "three_character_title": "Benign neoplasm of male genital organs",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
+      "sex_selectable": "male",
       "age_group_selectable": "all"
     },
     {
@@ -15763,8 +15763,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.1",
@@ -15777,8 +15777,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.3",
@@ -15791,8 +15791,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.4",
@@ -15805,8 +15805,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.5",
@@ -15819,8 +15819,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.6",
@@ -15833,8 +15833,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.7",
@@ -15847,8 +15847,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.8",
@@ -15861,8 +15861,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O71.9",
@@ -15875,8 +15875,8 @@
       "three_character_code": "O71",
       "three_character_title": "Other obstetric trauma",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O72",
@@ -15945,8 +15945,8 @@
       "three_character_code": "O75",
       "three_character_title": "Other complications of labour and delivery, not elsewhere classified",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "O80",
@@ -16225,8 +16225,8 @@
       "three_character_code": "O99",
       "three_character_title": "Other maternal diseases classifiable elsewhere but complicating pregnancy, childbirth and the puerperium",
       "is_coding_selectable": true,
-      "sex_selectable": "both",
-      "age_group_selectable": "all"
+      "sex_selectable": "female",
+      "age_group_selectable": "adult"
     },
     {
       "code": "P00",

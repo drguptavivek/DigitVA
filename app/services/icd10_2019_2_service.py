@@ -4,8 +4,8 @@ import csv
 import json
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
 
 import sqlalchemy as sa
 
@@ -17,7 +17,7 @@ DEFAULT_ICD10_2019_2_CSV_PATH = Path(
 )
 SOURCE_VERSION = "ICD-10-2019"
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
-AGE_GROUP_SELECTABLE_OPTIONS = ("all", "adult", "child", "neonate")
+AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
 _CODING_ICD_MIN_QUERY_LEN = 2
@@ -109,16 +109,18 @@ def _coding_age_group_for_submission(submission: VaSubmissions | None) -> str | 
         return None
     normalized_days = submission.va_deceased_age_normalized_days
     if normalized_days is not None:
-        if normalized_days <= Decimal("28"):
+        if normalized_days < Decimal("28"):
             return "neonate"
-        if normalized_days < (Decimal("15") * _DAYS_PER_YEAR):
+        if normalized_days < Decimal("365"):
+            return "infant"
+        if normalized_days < (Decimal("12") * _DAYS_PER_YEAR):
             return "child"
         return "adult"
 
     legacy_age = submission.va_deceased_age
     if legacy_age is None:
         return None
-    if legacy_age < 15:
+    if legacy_age < 12:
         return "child"
     return "adult"
 
@@ -220,7 +222,9 @@ def _validate_policy_update(
     if sex_selectable not in (*SEX_SELECTABLE_OPTIONS, None):
         raise ValueError("sex_selectable must be one of both, female, male, or null.")
     if age_group_selectable not in (*AGE_GROUP_SELECTABLE_OPTIONS, None):
-        raise ValueError("age_group_selectable must be one of all, adult, child, neonate, or null.")
+        raise ValueError(
+            "age_group_selectable must be one of all, neonate, infant, child, adult, or null."
+        )
     if restriction_note is not None and not isinstance(restriction_note, str):
         raise ValueError("restriction_note must be a string or null.")
     return Icd1020192PolicyUpdate(

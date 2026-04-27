@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-27
 ---
 
 # Policy Docs
@@ -36,6 +36,7 @@ Current policy docs:
 - [UI Notification Policy](ui-notifications.md)
 - [User Management CLI Policy](user-management-cli.md)
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)
+- [WHO 2022 ICD-10 Coding Allowability Policy](who-2022-icd10-coding-allowability.md)
 
 Use `docs/policy` when a change affects:
 

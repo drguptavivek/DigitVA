@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import sqlalchemy as sa
@@ -33,8 +33,8 @@ class TestIcd10CodingApi(BaseTestCase):
                     project_name="Base Test Project",
                     project_nickname="BaseTest",
                     project_status=VaStatuses.active,
-                    project_registered_at=datetime.now(timezone.utc),
-                    project_updated_at=datetime.now(timezone.utc),
+                    project_registered_at=datetime.now(UTC),
+                    project_updated_at=datetime.now(UTC),
                 )
             )
             db.session.flush()
@@ -48,8 +48,8 @@ class TestIcd10CodingApi(BaseTestCase):
                     site_name="Base Test Site",
                     site_abbr=cls.BASE_SITE_ID,
                     site_status=VaStatuses.active,
-                    site_registered_at=datetime.now(timezone.utc),
-                    site_updated_at=datetime.now(timezone.utc),
+                    site_registered_at=datetime.now(UTC),
+                    site_updated_at=datetime.now(UTC),
                 )
             )
             db.session.flush()
@@ -65,8 +65,8 @@ class TestIcd10CodingApi(BaseTestCase):
                     odk_project_id="1",
                     form_type="WHO 2022 VA",
                     form_status=VaStatuses.active,
-                    form_registered_at=datetime.now(timezone.utc),
-                    form_updated_at=datetime.now(timezone.utc),
+                    form_registered_at=datetime.now(UTC),
+                    form_updated_at=datetime.now(UTC),
                 )
             )
             db.session.flush()
@@ -79,7 +79,7 @@ class TestIcd10CodingApi(BaseTestCase):
         db.session.execute(sa.delete(MasIcd1020192))
         db.session.flush()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         submission = VaSubmissions(
             va_sid=self.SID,
             va_form_id=self.FORM_ID,
@@ -261,10 +261,10 @@ class TestIcd10CodingApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), [])
 
-    def test_coding_search_allows_neonate_code_at_28_day_boundary(self):
+    def test_coding_search_allows_neonate_code_before_28_day_boundary(self):
         self._login(self.base_coder_id)
         self._set_submission_demographics(
-            normalized_days=Decimal("28"),
+            normalized_days=Decimal("27.999"),
             normalized_years=Decimal("0.08"),
             age_years=0,
         )
@@ -275,10 +275,10 @@ class TestIcd10CodingApi(BaseTestCase):
         payload = response.get_json()
         self.assertEqual([row["icd_code"] for row in payload], ["P07"])
 
-    def test_coding_search_excludes_neonate_code_once_submission_is_child(self):
+    def test_coding_search_excludes_neonate_code_at_infant_boundary(self):
         self._login(self.base_coder_id)
         self._set_submission_demographics(
-            normalized_days=Decimal("29"),
+            normalized_days=Decimal("28"),
             normalized_years=Decimal("1"),
             age_years=1,
         )

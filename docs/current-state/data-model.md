@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-27
 ---
 
 # Current Data Model
@@ -226,6 +226,9 @@ Current behavior:
 - fresh migration creation seeds the table from the checked-in ICD hierarchy CSV
 - coder ICD search now reads from this table for selectable three-character and
   detailed-code lookup
+- coding-time age policy supports `all`, `neonate`, `infant`, `child`, and
+  `adult`; submission age is classified as `<28 days`, `28-<365 days`,
+  `365 days-<12 years`, and `>=12 years`
 - preserves local policy flags in the same table
 - import is idempotent:
   - existing rows are updated by `code`

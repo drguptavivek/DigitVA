@@ -1,14 +1,19 @@
 import csv
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 import sqlalchemy as sa
 
 from app import db
-from app.models import MasIcd1020192
-from app.services.icd10_2019_2_service import import_icd10_2019_2_from_csv
+from app.models import MasIcd1020192, VaSubmissions
+from app.services.icd10_2019_2_service import (
+    _coding_age_group_for_submission,
+    get_icd10_2019_2_policy_options,
+    import_icd10_2019_2_from_csv,
+    import_icd10_2019_2_policy_json,
+)
 from tests.base import BaseTestCase
-
 
 CSV_FIELDS = [
     "code",
@@ -336,6 +341,75 @@ class TestIcd1020192Service(BaseTestCase):
         self.assertEqual(refreshed.sex_selectable, "female")
         self.assertEqual(refreshed.age_group_selectable, "neonate")
         self.assertEqual(refreshed.policy_status, "restricted")
+
+    def test_policy_options_and_import_accept_infant_age_group(self):
+        self.assertIn("infant", get_icd10_2019_2_policy_options()["age_group_selectable"])
+
+        csv_path = self._write_csv(
+            [
+                {
+                    "code": "R95",
+                    "title": "Sudden infant death syndrome",
+                    "node_type": "category",
+                    "semantic_level": "three_character",
+                    "parent_code": "",
+                    "chapter_code": "XVIII",
+                    "chapter_title": "Symptoms, signs and abnormal clinical findings",
+                    "block_code": "R95-R99",
+                    "block_title": "Ill-defined and unknown cause of mortality",
+                    "three_character_code": "R95",
+                    "three_character_title": "Sudden infant death syndrome",
+                    "has_children": "false",
+                    "is_leaf": "true",
+                    "is_three_character_code": "true",
+                    "is_detailed_code": "false",
+                    "is_coding_selectable": "",
+                    "sex_selectable": "",
+                    "age_group_selectable": "",
+                    "policy_status": "unreviewed",
+                    "restriction_note": "",
+                },
+            ]
+        )
+        import_icd10_2019_2_from_csv(csv_path)
+
+        result = import_icd10_2019_2_policy_json(
+            {
+                "source_version": "test",
+                "row_count": 1,
+                "items": [
+                    {
+                        "code": "R95",
+                        "is_coding_selectable": True,
+                        "sex_selectable": "both",
+                        "age_group_selectable": "infant",
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(result.updated_items, 1)
+        refreshed = db.session.get(MasIcd1020192, "R95")
+        self.assertEqual(refreshed.age_group_selectable, "infant")
+
+    def test_coding_age_group_uses_who_2022_infant_boundary(self):
+        cases = [
+            (Decimal("0"), "neonate"),
+            (Decimal("27.999"), "neonate"),
+            (Decimal("28"), "infant"),
+            (Decimal("364.999"), "infant"),
+            (Decimal("365"), "child"),
+            ((Decimal("12") * Decimal("365.25")) - Decimal("0.001"), "child"),
+            (Decimal("12") * Decimal("365.25"), "adult"),
+        ]
+
+        for normalized_days, expected in cases:
+            with self.subTest(normalized_days=normalized_days):
+                submission = VaSubmissions(
+                    va_sid=f"uuid:age-{normalized_days}",
+                    va_deceased_age_normalized_days=normalized_days,
+                )
+                self.assertEqual(_coding_age_group_for_submission(submission), expected)
 
     def test_new_three_character_rows_get_default_selectable_policy_except_stuz_codes(self):
         csv_path = self._write_csv(

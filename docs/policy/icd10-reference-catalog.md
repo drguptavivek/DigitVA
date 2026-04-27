@@ -3,7 +3,7 @@ title: ICD-10 Reference Catalog Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-27
 ---
 
 # ICD-10 Reference Catalog Policy
@@ -38,7 +38,8 @@ catalog.
 11. Coding-time lookup must return only selectable `three_character` and
     `detailed_code` rows.
 12. Coding-time lookup must apply submission-specific policy filters using:
-    - `va_deceased_age_normalized_days` to derive `neonate`, `child`, or `adult`
+    - `va_deceased_age_normalized_days` to derive `neonate`, `infant`,
+      `child`, or `adult`
     - `va_deceased_gender` to enforce `male` / `female` restrictions
 13. Coding-time detailed child lookup must return only selectable detailed
     descendants for the chosen three-character code.

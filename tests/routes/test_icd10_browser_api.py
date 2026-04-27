@@ -1,6 +1,6 @@
-from datetime import datetime, timezone
 import io
 import json
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 
@@ -53,7 +53,7 @@ class TestIcd10BrowserApi(BaseTestCase):
         db.session.execute(sa.delete(MasIcd1020192))
         db.session.flush()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         db.session.add_all(
             [
                 MasIcd1020192(
@@ -215,7 +215,10 @@ class TestIcd10BrowserApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["sex_selectable"], ["both", "female", "male"])
-        self.assertEqual(payload["age_group_selectable"], ["all", "adult", "child", "neonate"])
+        self.assertEqual(
+            payload["age_group_selectable"],
+            ["all", "neonate", "infant", "child", "adult"],
+        )
 
     def test_data_manager_can_export_curated_policy_json(self):
         self._login(str(self.data_manager_user.user_id))

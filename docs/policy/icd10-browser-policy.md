@@ -3,7 +3,7 @@ title: ICD-10 Browser Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-27
 ---
 
 # ICD-10 Browser Policy
@@ -80,6 +80,6 @@ Applicability rule:
 Current vocabulary constraints are:
 
 - `sex_selectable`: `both`, `female`, `male`
-- `age_group_selectable`: `all`, `adult`, `child`, `neonate`
+- `age_group_selectable`: `all`, `neonate`, `infant`, `child`, `adult`
 
 `NULL` remains valid for optional fields where no curation has been applied.

@@ -221,6 +221,114 @@ class TestIcd10CodingApi(BaseTestCase):
                     created_at=now,
                     updated_at=now,
                 ),
+                MasIcd1020192(
+                    code="R95",
+                    title="Sudden infant death syndrome",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=5,
+                    parent_code="R95-R99",
+                    chapter_code="XVIII",
+                    chapter_title="Symptoms, signs and abnormal clinical findings",
+                    block_code="R95-R99",
+                    block_title="Ill-defined and unknown cause of mortality",
+                    three_character_code="R95",
+                    three_character_title="Sudden infant death syndrome",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=True,
+                    sex_selectable="both",
+                    age_group_selectable="infant",
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                MasIcd1020192(
+                    code="C51",
+                    title="Malignant neoplasm of vulva",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=6,
+                    parent_code="C51-C58",
+                    chapter_code="II",
+                    chapter_title="Neoplasms",
+                    block_code="C51-C58",
+                    block_title="Malignant neoplasms of female genital organs",
+                    three_character_code="C51",
+                    three_character_title="Malignant neoplasm of vulva",
+                    has_children=True,
+                    is_leaf=False,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=True,
+                    sex_selectable="female",
+                    age_group_selectable="all",
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                MasIcd1020192(
+                    code="C51.0",
+                    title="Labium majus",
+                    node_type="category",
+                    semantic_level="detailed_code",
+                    sort_order=7,
+                    parent_code="C51",
+                    chapter_code="II",
+                    chapter_title="Neoplasms",
+                    block_code="C51-C58",
+                    block_title="Malignant neoplasms of female genital organs",
+                    three_character_code="C51",
+                    three_character_title="Malignant neoplasm of vulva",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=False,
+                    is_detailed_code=True,
+                    is_coding_selectable=False,
+                    sex_selectable=None,
+                    age_group_selectable=None,
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                MasIcd1020192(
+                    code="C60",
+                    title="Malignant neoplasm of penis",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=8,
+                    parent_code="C60-C63",
+                    chapter_code="II",
+                    chapter_title="Neoplasms",
+                    block_code="C60-C63",
+                    block_title="Malignant neoplasms of male genital organs",
+                    three_character_code="C60",
+                    three_character_title="Malignant neoplasm of penis",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=True,
+                    sex_selectable="male",
+                    age_group_selectable="all",
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
             ]
         )
         db.session.commit()
@@ -288,6 +396,28 @@ class TestIcd10CodingApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), [])
 
+    def test_coding_search_allows_infant_only_code_for_infant_submission(self):
+        self._login(self.base_coder_id)
+        self._set_submission_demographics(
+            normalized_days=Decimal("28"),
+            normalized_years=Decimal("0.08"),
+            age_years=0,
+        )
+
+        response = self.client.get(f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=R95")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual([row["icd_code"] for row in payload], ["R95"])
+
+    def test_coding_search_excludes_infant_only_code_for_adult_submission(self):
+        self._login(self.base_coder_id)
+
+        response = self.client.get(f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=R95")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), [])
+
     def test_coding_search_uses_sex_filter_but_keeps_both_codes(self):
         self._login(self.base_coder_id)
         self._set_submission_demographics(gender="Male")
@@ -304,7 +434,40 @@ class TestIcd10CodingApi(BaseTestCase):
         payload = response.get_json()
         self.assertEqual([row["icd_code"] for row in payload], ["B50"])
 
-    def test_coding_search_treats_submission_under_15_years_as_child(self):
+    def test_coding_search_applies_sex_specific_neoplasm_rules(self):
+        self._login(self.base_coder_id)
+
+        response = self.client.get(f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=C51")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual([row["icd_code"] for row in payload], ["C51"])
+
+        self._set_submission_demographics(gender="Male")
+        response = self.client.get(f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=C51")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), [])
+
+        response = self.client.get(f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=C60")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual([row["icd_code"] for row in payload], ["C60"])
+
+    def test_coding_detailed_children_exclude_disabled_who_granularity_children(self):
+        self._login(self.base_coder_id)
+
+        response = self.client.get(
+            f"/api/v1/icd10/2019-2/coding-children/{self.SID}?parent_code=C51"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["parent_code"], "C51")
+        self.assertEqual(payload["children"], [])
+
+    def test_coding_search_treats_submission_under_12_years_as_child(self):
         self._login(self.base_coder_id)
         self._set_submission_demographics(
             normalized_days=Decimal("3650"),

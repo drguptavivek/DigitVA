@@ -87,14 +87,22 @@ def _range_bounds(expression: str) -> tuple[str, str]:
     return start, end
 
 
-def _row_matches_expression(row_code: str, expression: str) -> bool:
+def _row_matches_expression(
+    row_code: str,
+    expression: str,
+    *,
+    include_descendants: bool = False,
+) -> bool:
     start, end = _range_bounds(expression)
     row = _parse_code(row_code)
     start_code = _parse_code(start)
     end_code = _parse_code(end)
+    has_range = start != end
 
-    if start == end:
-        return row_code == start or row_code.startswith(f"{start}.")
+    if not has_range:
+        if row_code == start:
+            return True
+        return include_descendants and not start_code.decimal and row_code.startswith(f"{start}.")
 
     if row.letter < start_code.letter or row.letter > end_code.letter:
         return False
@@ -108,30 +116,37 @@ def _row_matches_expression(row_code: str, expression: str) -> bool:
     if row.letter == end_code.letter and row.number == end_code.number:
         if end_code.decimal and (not row.decimal or row.decimal > end_code.decimal):
             return False
-    return True
+    if include_descendants:
+        return True
+    if not row.decimal:
+        if row.letter == start_code.letter and row.number == start_code.number:
+            return not start_code.decimal
+        if row.letter == end_code.letter and row.number == end_code.number:
+            return not end_code.decimal
+        return True
+    if start_code.decimal and row.letter == start_code.letter and row.number == start_code.number:
+        return True
+    if end_code.decimal and row.letter == end_code.letter and row.number == end_code.number:
+        return True
+    return False
 
 
-def _expand_expressions(expressions: Iterable[str], icd_rows: list[dict[str, str]]) -> set[str]:
+def _expand_expressions(
+    expressions: Iterable[str],
+    icd_rows: list[dict[str, str]],
+    *,
+    include_descendants: bool = False,
+) -> set[str]:
     expanded: set[str] = set()
     for expression in expressions:
         matched_codes: set[str] = set()
         for row in icd_rows:
-            if _row_matches_expression(row["code"].upper(), expression):
+            if _row_matches_expression(
+                row["code"].upper(),
+                expression,
+                include_descendants=include_descendants,
+            ):
                 matched_codes.add(row["code"])
-        if not matched_codes and "." in expression:
-            start, end = _range_bounds(expression)
-            start_code = _parse_code(start)
-            end_code = _parse_code(end)
-            if start_code.letter == end_code.letter:
-                parent_codes = {
-                    f"{start_code.letter}{number:02d}"
-                    for number in range(start_code.number, end_code.number + 1)
-                }
-                matched_codes.update(
-                    row["code"]
-                    for row in icd_rows
-                    if row["semantic_level"] == "three_character" and row["code"] in parent_codes
-                )
         expanded.update(matched_codes)
     return expanded
 
@@ -248,7 +263,7 @@ def generate_policy(
         age_group="all",
     )
 
-    never_codes = _expand_expressions(["S00-T99"], icd_rows)
+    never_codes = _expand_expressions(["S00-T99"], icd_rows, include_descendants=True)
     for code in never_codes:
         policy.pop(code, None)
 

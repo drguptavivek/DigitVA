@@ -59,6 +59,15 @@ Allowed ICD rows are active ICD10-2019-2 editable rows referenced by
 `WHO_2022_VA_Crosswalk.xlsx`, after expanding raw ICD expressions against the
 existing ICD10 master.
 
+Expansion preserves the granularity shown by WHO:
+
+- a three-character code such as `C50` selects only `C50`
+- a three-character range such as `C51-C58` selects only three-character rows in
+  that range
+- a dotted code such as `I11.0` selects only that dotted code
+- a dotted range such as `V10.4-V10.9` selects only dotted rows in that dotted
+  range
+
 Never selectable:
 
 - `S00-T99`, including all active editable rows in that range

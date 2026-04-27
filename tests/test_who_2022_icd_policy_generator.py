@@ -43,16 +43,24 @@ def _write_icd_csv(path: Path) -> None:
     ]
     rows = [
         ("A00", "Cholera", "three_character", 1),
-        ("S00", "Superficial injury of head", "three_character", 2),
-        ("T99", "Other effects of external causes", "three_character", 3),
-        ("V01.1", "Pedestrian injured in collision with pedal cycle", "detailed_code", 4),
-        ("V10.4", "Pedal cyclist injured in transport accident", "detailed_code", 5),
-        ("P95", "Fetal death of unspecified cause", "three_character", 6),
-        ("R95", "Sudden infant death syndrome", "three_character", 7),
-        ("O00", "Ectopic pregnancy", "three_character", 8),
-        ("C50", "Malignant neoplasm of breast", "three_character", 9),
-        ("C51", "Malignant neoplasm of vulva", "three_character", 10),
-        ("C60", "Malignant neoplasm of penis", "three_character", 11),
+        ("A00.0", "Cholera due to Vibrio cholerae", "detailed_code", 2),
+        ("S00", "Superficial injury of head", "three_character", 3),
+        ("S00.0", "Superficial injury of scalp", "detailed_code", 4),
+        ("T99", "Other effects of external causes", "three_character", 5),
+        ("V01", "Pedestrian injured in collision with pedal cycle", "three_character", 6),
+        ("V01.1", "Pedestrian injured in collision with pedal cycle", "detailed_code", 7),
+        ("V10", "Pedal cyclist injured in collision with pedestrian", "three_character", 8),
+        ("V10.4", "Pedal cyclist injured in transport accident", "detailed_code", 9),
+        ("P95", "Fetal death of unspecified cause", "three_character", 10),
+        ("R95", "Sudden infant death syndrome", "three_character", 11),
+        ("O00", "Ectopic pregnancy", "three_character", 12),
+        ("O00.1", "Tubal pregnancy", "detailed_code", 13),
+        ("C50", "Malignant neoplasm of breast", "three_character", 14),
+        ("C50.0", "Malignant neoplasm of nipple and areola", "detailed_code", 15),
+        ("C51", "Malignant neoplasm of vulva", "three_character", 16),
+        ("C51.0", "Malignant neoplasm of labium majus", "detailed_code", 17),
+        ("C60", "Malignant neoplasm of penis", "three_character", 18),
+        ("C60.0", "Malignant neoplasm of prepuce", "detailed_code", 19),
     ]
 
     with path.open("w", newline="", encoding="utf-8") as handle:
@@ -97,18 +105,26 @@ def test_who_2022_policy_generator_applies_allowability_rules(tmp_path):
     by_code = {item["code"]: item for item in payload["items"]}
     assert by_code["A00"]["sex_selectable"] == "both"
     assert by_code["A00"]["age_group_selectable"] == "all"
+    assert "A00.0" not in by_code
     assert "S00" not in by_code
+    assert "S00.0" not in by_code
     assert "T99" not in by_code
+    assert "V01" not in by_code
     assert by_code["V01.1"]["sex_selectable"] == "both"
     assert by_code["V01.1"]["age_group_selectable"] == "all"
+    assert "V10" not in by_code
     assert by_code["V10.4"]["age_group_selectable"] == "all"
     assert by_code["P95"]["age_group_selectable"] == "neonate"
     assert by_code["R95"]["age_group_selectable"] == "infant"
     assert by_code["O00"]["sex_selectable"] == "female"
     assert by_code["O00"]["age_group_selectable"] == "adult"
+    assert "O00.1" not in by_code
     assert by_code["C51"]["sex_selectable"] == "female"
     assert by_code["C51"]["age_group_selectable"] == "all"
+    assert "C51.0" not in by_code
     assert by_code["C60"]["sex_selectable"] == "male"
     assert by_code["C60"]["age_group_selectable"] == "all"
+    assert "C60.0" not in by_code
     assert by_code["C50"]["sex_selectable"] == "both"
     assert by_code["C50"]["age_group_selectable"] == "all"
+    assert "C50.0" not in by_code

@@ -3,9 +3,11 @@ import click
 from app.services.cod_bucket_mapping_service import (
     DEFAULT_CMEA10_WORKBOOK_PATH,
     DEFAULT_SRS_WORKBOOK_PATH,
+    DEFAULT_WHO_2022_VA_WORKBOOK_PATH,
     aggregate_coded_submissions_by_bucket,
     import_cmea10_scheme,
     import_srs_india_scheme,
+    import_who_2022_va_scheme,
     list_cod_bucket_schemes,
 )
 
@@ -29,6 +31,16 @@ def import_srs_india(path):
 @click.option("--path", default=DEFAULT_CMEA10_WORKBOOK_PATH, show_default=True)
 def import_cmea10(path):
     scheme = import_cmea10_scheme(path)
+    click.echo(
+        f"Imported {scheme.scheme_code} from {path} "
+        f"(mapping_version={scheme.mapping_version})"
+    )
+
+
+@cod_buckets_group.command("import-who-2022-va")
+@click.option("--path", default=DEFAULT_WHO_2022_VA_WORKBOOK_PATH, show_default=True)
+def import_who_2022_va(path):
+    scheme = import_who_2022_va_scheme(path)
     click.echo(
         f"Imported {scheme.scheme_code} from {path} "
         f"(mapping_version={scheme.mapping_version})"

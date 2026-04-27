@@ -20,7 +20,8 @@ depends_on = None
 
 
 CSV_SOURCE_PATH = Path(
-    "docs/icd-causegrp-mappings/generated/icd10_2019_hierarchy.csv"
+    "docs/icd-causegrp-mappings/migration-artifacts/"
+    "icd10-2019-base-2026-04-27/icd10_2019_hierarchy.csv"
 )
 SOURCE_VERSION = "ICD-10-2019"
 CHUNK_SIZE = 1000

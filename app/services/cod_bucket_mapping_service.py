@@ -25,6 +25,7 @@ from app.services.submission_analytics_mv import (
 
 SCHEME_CODE_SRS_INDIA = "SRS_INDIA"
 SCHEME_CODE_CMEA10 = "CMEA10"
+SCHEME_CODE_WHO_2022_VA = "WHO_2022_VA"
 
 AGE_SCOPE_ADULT_OVER5Y = "adult_over5y"
 AGE_SCOPE_CHILD_1_59M = "child_1_59m"
@@ -52,9 +53,13 @@ DEFAULT_SRS_WORKBOOK_PATH = (
 DEFAULT_CMEA10_WORKBOOK_PATH = (
     "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/icd-10-CODES_CMEA10_mapped.xlsx"
 )
+DEFAULT_WHO_2022_VA_WORKBOOK_PATH = (
+    "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx"
+)
 SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_CMEA10,
+    SCHEME_CODE_WHO_2022_VA,
 }
 
 _LIKE_ESCAPE = "\\"
@@ -153,6 +158,8 @@ def _scheme_default_source_path(scheme_code: str) -> str | None:
         return DEFAULT_SRS_WORKBOOK_PATH
     if scheme_code == SCHEME_CODE_CMEA10:
         return DEFAULT_CMEA10_WORKBOOK_PATH
+    if scheme_code == SCHEME_CODE_WHO_2022_VA:
+        return DEFAULT_WHO_2022_VA_WORKBOOK_PATH
     return None
 
 
@@ -181,6 +188,8 @@ def _age_band_can_reset_from_source(
             AGE_SCOPE_NEONATE,
         }
     if scheme.scheme_code == SCHEME_CODE_CMEA10:
+        return age_band.age_scope is None
+    if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
         return age_band.age_scope is None
     return False
 
@@ -388,6 +397,16 @@ def _builtin_age_band_metadata(scheme_code: str, age_scope: str | None) -> dict:
             "level_count": 1,
             "sort_order": 1,
         }
+    if scheme_code == SCHEME_CODE_WHO_2022_VA and age_scope is None:
+        return {
+            "age_label": "All Ages",
+            "min_age_value": DEFAULT_MIN_AGE_VALUE,
+            "min_age_unit": DEFAULT_MIN_AGE_UNIT,
+            "max_age_value": DEFAULT_MAX_AGE_VALUE,
+            "max_age_unit": DEFAULT_MAX_AGE_UNIT,
+            "level_count": 2,
+            "sort_order": 1,
+        }
     raise ValueError(f"Unsupported built-in scheme/age scope: {scheme_code} / {age_scope}")
 
 
@@ -542,6 +561,67 @@ def _populate_cmea10_scheme(
         )
 
 
+def _populate_who_2022_va_scheme(
+    *,
+    scheme: MasCodBucketScheme,
+    workbook_path: str | Path,
+) -> None:
+    category_nodes: dict[str, MasCodBucketNode] = {}
+    field_nodes: dict[tuple[str, str], MasCodBucketNode] = {}
+    category_order = 0
+    field_order = 0
+
+    for row_number, payload in _load_sheet_rows(workbook_path, "ICD_Mapped"):
+        icd_code = _normalize_icd_code(payload.get("icd_code"))
+        section_label = _normalize_label(payload.get("WHO_2022_VA_section"))
+        va_code = _normalize_label(payload.get("WHO_2022_VA_code"))
+        va_title = _normalize_label(payload.get("WHO_2022_VA_cause"))
+        if not icd_code or not section_label or not va_code or not va_title:
+            continue
+
+        category_node = category_nodes.get(section_label)
+        if category_node is None:
+            category_order += 1
+            category_node = _create_node(
+                scheme=scheme,
+                age_scope=None,
+                node_type=NODE_TYPE_CATEGORY,
+                node_label=section_label,
+                sort_order=category_order,
+            )
+            category_nodes[section_label] = category_node
+
+        field_key = (section_label, va_code)
+        field_node = field_nodes.get(field_key)
+        if field_node is None:
+            field_order += 1
+            field_node = _create_node(
+                scheme=scheme,
+                age_scope=None,
+                node_type=NODE_TYPE_FIELD,
+                node_label=va_title,
+                sort_order=field_order,
+                parent=category_node,
+                node_code_suffix=va_code,
+            )
+            field_nodes[field_key] = field_node
+
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                icd_code=icd_code,
+                node_id=field_node.node_id,
+                source_sheet="ICD_Mapped",
+                source_row_number=row_number,
+                source_category=_normalize_label(payload.get("category")),
+                match_type=_normalize_label(payload.get("WHO_2022_VA_match_type")),
+                mapping_note=_normalize_label(payload.get("WHO_2022_VA_note")),
+                is_active=True,
+            )
+        )
+
+
 def _replace_scheme_scope_contents(scheme: MasCodBucketScheme, age_scope: str | None) -> None:
     db.session.execute(
         sa.delete(MapIcdCodBucket).where(
@@ -633,6 +713,39 @@ def import_cmea10_scheme(workbook_path: str | Path = DEFAULT_CMEA10_WORKBOOK_PAT
     return scheme
 
 
+def import_who_2022_va_scheme(
+    workbook_path: str | Path = DEFAULT_WHO_2022_VA_WORKBOOK_PATH,
+) -> MasCodBucketScheme:
+    """Replace the WHO 2022 VA bucket scheme from the generated workbook source."""
+    workbook_path = str(workbook_path)
+    scheme = _get_or_create_scheme(
+        scheme_code=SCHEME_CODE_WHO_2022_VA,
+        scheme_name="WHO 2022 VA",
+        scheme_description=(
+            "WHO 2022 verbal autopsy cause-of-death bucket mapping imported from "
+            "the generated ICD_Mapped workbook."
+        ),
+        source_path=workbook_path,
+    )
+    _replace_scheme_contents(scheme)
+    meta = _builtin_age_band_metadata(SCHEME_CODE_WHO_2022_VA, None)
+    _create_age_band(
+        scheme=scheme,
+        age_scope=None,
+        age_label=meta["age_label"],
+        min_age_value=meta["min_age_value"],
+        min_age_unit=meta["min_age_unit"],
+        max_age_value=meta["max_age_value"],
+        max_age_unit=meta["max_age_unit"],
+        level_count=meta["level_count"],
+        sort_order=meta["sort_order"],
+    )
+    _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
+
+    db.session.commit()
+    return scheme
+
+
 def list_cod_bucket_schemes() -> list[MasCodBucketScheme]:
     return list(
         db.session.scalars(
@@ -715,6 +828,8 @@ def reset_cod_bucket_scheme_age_band_to_source(
             return import_srs_india_scheme(workbook_path)
         if scheme.scheme_code == SCHEME_CODE_CMEA10:
             return import_cmea10_scheme(workbook_path)
+        if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
+            return import_who_2022_va_scheme(workbook_path)
         raise ValueError("This scheme does not support reset from source.")
 
     if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
@@ -758,6 +873,21 @@ def reset_cod_bucket_scheme_age_band_to_source(
             sort_order=meta["sort_order"],
         )
         _populate_cmea10_scheme(scheme=scheme, workbook_path=workbook_path)
+    elif scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
+        _replace_scheme_contents(scheme)
+        meta = _builtin_age_band_metadata(SCHEME_CODE_WHO_2022_VA, None)
+        _create_age_band(
+            scheme=scheme,
+            age_scope=None,
+            age_label=meta["age_label"],
+            min_age_value=meta["min_age_value"],
+            min_age_unit=meta["min_age_unit"],
+            max_age_value=meta["max_age_value"],
+            max_age_unit=meta["max_age_unit"],
+            level_count=meta["level_count"],
+            sort_order=meta["sort_order"],
+        )
+        _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
     else:
         raise ValueError("This scheme does not support reset from source.")
 

@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-21
+last_updated: 2026-04-27
 ---
 
 # COD Bucket Reporting
@@ -25,7 +25,8 @@ Routes:
 The reporting layer uses four tables:
 
 - `mas_cod_bucket_schemes`
-  - one row per reporting taxonomy, for example `SRS India` or `CMEA10`
+  - one row per reporting taxonomy, for example `SRS India`, `CMEA10`, or
+    `WHO 2022 VA`
 - `mas_cod_bucket_scheme_age_bands`
   - one row per scheme age band
   - stores label, display order, explicit lower and upper bounds, and level count
@@ -68,6 +69,45 @@ Characteristics:
 - hierarchy depth:
   - field only
 
+### `WHO 2022 VA`
+
+Imported from:
+
+- [`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx`](../icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx)
+
+Characteristics:
+
+- generated from the WHO 2022 VA crosswalk and ICD-10 2019 hierarchy
+- flat all-ages age scope
+- hierarchy depth:
+  - WHO VA section
+  - WHO VA cause bucket
+- includes WHO-valid three-character ICD rows and dotted detailed ICD rows
+- remains document-derived and is not narrowed by the later WHO assignability
+  disable review; disabled codes simply stop being assignable during coding
+- ambiguous ICD matches are resolved in the workbook before import; the import
+  uses the primary bucket in `ICD_Mapped`
+
+## Migration Artifacts
+
+The source workbooks under `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/` are
+working inputs. Alembic migrations use fixed copies under
+`docs/icd-causegrp-mappings/migration-artifacts/` so master-data rebuilds are
+repeatable.
+
+The 2026-04-27 rebuild migration imports:
+
+- ICD-10 2019 base hierarchy from
+  `migration-artifacts/icd10-2019-base-2026-04-27/icd10_2019_hierarchy.csv`
+- reviewed WHO 2022 assignability policy from
+  `migration-artifacts/who-2022-va-icd-cod-2026-04-27/who_2022_icd10_2019_2_policy_reviewed.json`
+- SRS India COD buckets from
+  `migration-artifacts/srs-india-cod-2026-04-27/icd-10-CODES_SRS_India.xlsx`
+- CMEA10 COD buckets from
+  `migration-artifacts/cmea10-cod-2026-04-27/icd-10-CODES_CMEA10_mapped.xlsx`
+- WHO 2022 VA COD buckets from
+  `migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`
+
 ## Import commands
 
 Run inside Docker:
@@ -75,6 +115,7 @@ Run inside Docker:
 ```bash
 docker compose exec minerva_app_service uv run flask cod-buckets import-srs-india
 docker compose exec minerva_app_service uv run flask cod-buckets import-cmea10
+docker compose exec minerva_app_service uv run flask cod-buckets import-who-2022-va
 docker compose exec minerva_app_service uv run flask cod-buckets list
 ```
 

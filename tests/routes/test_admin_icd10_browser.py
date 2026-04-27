@@ -146,7 +146,7 @@ class TestAdminIcd10Browser(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual([row["code"] for row in payload["children"]], ["A00-A09"])
-        self.assertEqual(payload["children"][0]["status_indicator"], "red")
+        self.assertEqual(payload["children"][0]["status_indicator"], "yellow")
 
     def test_admin_children_api_filter_updates_block_counts(self):
         self._login(str(self.base_admin_user.user_id))
@@ -158,7 +158,106 @@ class TestAdminIcd10Browser(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual([row["code"] for row in payload["children"]], ["A00-A09"])
-        self.assertEqual(payload["children"][0]["child_count"], 0)
+        self.assertEqual(payload["children"][0]["child_count"], 1)
+
+        response = self.client.get(
+            "/admin/api/icd10/2019-2/children?parent_code=A00-A09&coding_filter=active"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual([row["code"] for row in payload["children"]], ["A00"])
+        self.assertEqual(payload["children"][0]["status_indicator"], "yellow")
+
+    def test_admin_children_api_counts_nested_block_descendants(self):
+        now = datetime.now(timezone.utc)
+        db.session.add_all(
+            [
+                MasIcd1020192(
+                    code="B00-B99",
+                    title="Nested root block",
+                    node_type="block",
+                    semantic_level="block",
+                    sort_order=5,
+                    parent_code="I",
+                    chapter_code="I",
+                    chapter_title="Certain infectious and parasitic diseases",
+                    block_code="B00-B99",
+                    block_title="Nested root block",
+                    has_children=True,
+                    is_leaf=False,
+                    is_three_character_code=False,
+                    is_detailed_code=False,
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                MasIcd1020192(
+                    code="B00-B49",
+                    title="Nested sub-block",
+                    node_type="block",
+                    semantic_level="block",
+                    sort_order=6,
+                    parent_code="B00-B99",
+                    chapter_code="I",
+                    chapter_title="Certain infectious and parasitic diseases",
+                    block_code="B00-B99",
+                    block_title="Nested root block",
+                    has_children=True,
+                    is_leaf=False,
+                    is_three_character_code=False,
+                    is_detailed_code=False,
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                MasIcd1020192(
+                    code="B00",
+                    title="Herpesviral infections",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=7,
+                    parent_code="B00-B49",
+                    chapter_code="I",
+                    chapter_title="Certain infectious and parasitic diseases",
+                    block_code="B00-B99",
+                    block_title="Nested root block",
+                    three_character_code="B00",
+                    three_character_title="Herpesviral infections",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=True,
+                    sex_selectable="both",
+                    age_group_selectable="all",
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+        db.session.commit()
+        self._login(str(self.base_admin_user.user_id))
+
+        response = self.client.get(
+            "/admin/api/icd10/2019-2/children?parent_code=I&coding_filter=active"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        by_code = {row["code"]: row for row in payload["children"]}
+        self.assertEqual(by_code["B00-B99"]["child_count"], 1)
+        self.assertEqual(by_code["B00-B99"]["status_indicator"], "green")
 
     def test_admin_node_api_returns_details(self):
         self._login(str(self.base_admin_user.user_id))
@@ -168,6 +267,7 @@ class TestAdminIcd10Browser(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["code"], "A00")
+        self.assertEqual(payload["status_indicator"], "yellow")
         self.assertEqual([row["code"] for row in payload["ancestors"]], ["I", "A00-A09"])
 
     def test_admin_policy_patch_updates_node(self):

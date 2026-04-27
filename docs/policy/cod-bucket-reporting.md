@@ -3,7 +3,7 @@ title: COD Bucket Reporting Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-21
+last_updated: 2026-04-27
 ---
 
 # COD Bucket Reporting Policy
@@ -190,6 +190,7 @@ Supported examples:
 
 - `SRS India`
 - `CMEA10`
+- `WHO 2022 VA`
 
 ## Age scope policy
 
@@ -205,6 +206,14 @@ Current SRS scopes:
 Current CMEA10 scope:
 
 - no age scope
+
+Current WHO 2022 VA scope:
+
+- no age scope
+- primary ICD-to-bucket decisions are imported from the reviewed
+  `WHO_2022_VA_Bucket_Mapping.xlsx` workbook
+- the imported WHO 2022 VA scheme must include both valid three-character ICD
+  rows and valid dotted detailed ICD rows
 
 Age band bounds are interpreted as:
 

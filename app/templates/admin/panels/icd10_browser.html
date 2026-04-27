@@ -469,7 +469,11 @@
     if (!(child.semantic_level === 'three_character' || child.semantic_level === 'detailed_code')) {
       return true;
     }
-    if (state.filters.active === 'active' && !child.is_coding_selectable) {
+    if (
+      state.filters.active === 'active'
+      && !child.is_coding_selectable
+      && child.status_indicator !== 'yellow'
+    ) {
       return false;
     }
     if (state.filters.active === 'disabled' && child.is_coding_selectable) {
@@ -1021,15 +1025,14 @@
   panel.querySelector('#icd10-browser-clear-btn').addEventListener('click', resetBrowser);
   panel.querySelector('#icd10-browser-reset-btn').addEventListener('click', resetBrowser);
 
+  applyFiltersFromUrl();
   Promise.all([
     requestJson(apiBase + '/policy-options'),
-    requestJson(apiBase + '/children'),
+    loadChildren(null),
   ]).then(function (results) {
-    applyFiltersFromUrl();
     state.options = results[0];
     setSelectOptions(sexSelectableInput(), state.options.sex_selectable || [], true);
     setSelectOptions(ageGroupSelectableInput(), state.options.age_group_selectable || [], true);
-    state.childrenByParent.root = results[1].children || [];
     renderList(0, state.childrenByParent.root, null, 'No chapters available.');
     renderEmptyList(1, 'Select a chapter first.');
     renderEmptyList(2, 'Select a terminal block first.');

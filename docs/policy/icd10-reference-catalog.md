@@ -65,6 +65,12 @@ The stored row includes denormalized ancestry fields such as:
 - `block_code`
 - `three_character_code`
 
+The generated hierarchy CSV must include modifier-derived detailed codes from
+the ClaML XML, built from `<ModifiedBy>` and `<ModifierClass>` definitions. For
+example, transport and diabetes modifier rows such as `V01.1`, `V10.4`, and
+`E10.0` are stored as detailed-code rows even when they are not literal
+`<Class>` elements in the XML.
+
 ## Local Policy Scope
 
 DigitVA may curate coding behavior in the same table using fields such as:

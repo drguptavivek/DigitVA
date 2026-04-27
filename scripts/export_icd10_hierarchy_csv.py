@@ -18,6 +18,7 @@ from pathlib import Path
 DEFAULT_XML_PATH = Path("docs/icd-causegrp-mappings/ICD-to-VA-Buckets/icd102019en.xml")
 DEFAULT_OUTPUT_PATH = Path("docs/icd-causegrp-mappings/generated/icd10_2019_hierarchy.csv")
 THREE_CHARACTER_CODE_RE = re.compile(r"^[A-Z][0-9][0-9]$")
+ICD_CODE_RE = re.compile(r"^[A-Z][0-9][0-9](?:\.[0-9]+)?$")
 
 CSV_FIELDS = [
     "code",
@@ -111,8 +112,59 @@ def _load_classes(
             "child_codes": child_codes,
         }
 
+    modifier_classes_by_code: dict[str, list[ET.Element]] = {}
+    for modifier_node in root.findall("ModifierClass"):
+        modifier_code = modifier_node.attrib.get("modifier")
+        if not modifier_code:
+            continue
+        modifier_classes_by_code.setdefault(modifier_code, []).append(modifier_node)
+
+    for node in class_nodes:
+        parent_code = node.attrib["code"]
+        if not ICD_CODE_RE.fullmatch(parent_code):
+            continue
+        modified_by_nodes = node.findall("ModifiedBy")
+        if not modified_by_nodes:
+            continue
+
+        for modified_by_node in modified_by_nodes:
+            modifier_code = modified_by_node.attrib.get("code")
+            if not modifier_code:
+                continue
+            for modifier_class in modifier_classes_by_code.get(modifier_code, []):
+                suffix = modifier_class.attrib.get("code", "")
+                if not suffix:
+                    continue
+                code = _modified_code(parent_code, suffix)
+                if code in classes:
+                    continue
+                classes[code] = {
+                    "code": code,
+                    "title": _modified_title(node, modifier_class),
+                    "node_type": "modifiedcategory",
+                    "parent_code": parent_code,
+                    "child_codes": [],
+                }
+                classes[parent_code]["child_codes"].append(code)
+
     top_level_codes = [code for code in top_level_sort.split() if code in classes]
     return classes, top_level_codes
+
+
+def _modified_code(parent_code: str, suffix: str) -> str:
+    if suffix.startswith(".") and "." in parent_code:
+        return f"{parent_code}{suffix[1:]}"
+    if suffix and suffix[0].isdigit() and "." not in parent_code:
+        return f"{parent_code}.{suffix}"
+    return f"{parent_code}{suffix}"
+
+
+def _modified_title(parent_node: ET.Element, modifier_node: ET.Element) -> str:
+    parent_title = _preferred_title(parent_node)
+    modifier_title = _preferred_title(modifier_node)
+    if parent_title and modifier_title:
+        return f"{parent_title} : {modifier_title}"
+    return parent_title or modifier_title
 
 
 def _lineage(code: str, classes: dict[str, dict[str, object]]) -> list[str]:

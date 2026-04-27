@@ -238,18 +238,121 @@ def _status_indicator_for_row(
     *,
     direct_three_character_total: int | None = None,
     direct_three_character_selectable: int | None = None,
+    direct_three_character_navigable: int | None = None,
+    selectable_detailed_child_count: int | None = None,
 ) -> str | None:
-    if row.semantic_level in {"three_character", "detailed_code"}:
+    if row.semantic_level == "three_character":
+        if row.is_coding_selectable:
+            return "green"
+        if int(selectable_detailed_child_count or 0) > 0:
+            return "yellow"
+        return "red"
+    if row.semantic_level == "detailed_code":
         return "green" if row.is_coding_selectable else "red"
     if row.semantic_level == "block":
         total = int(direct_three_character_total or 0)
         selectable = int(direct_three_character_selectable or 0)
-        if total <= 0 or selectable <= 0:
+        navigable = int(direct_three_character_navigable or 0)
+        if total <= 0 or navigable <= 0:
             return "red"
         if selectable >= total:
             return "green"
         return "yellow"
     return None
+
+
+def _row_matches_policy_filters(
+    row: MasIcd1020192,
+    *,
+    coding_filter: str,
+    sex_filter: str,
+    age_filter: str,
+) -> bool:
+    if coding_filter == "active" and not row.is_coding_selectable:
+        return False
+    if coding_filter == "disabled" and row.is_coding_selectable:
+        return False
+    if sex_filter != "any" and row.sex_selectable != sex_filter:
+        return False
+    if age_filter != "any" and row.age_group_selectable != age_filter:
+        return False
+    return True
+
+
+def _block_descendant_stats(
+    block_codes: set[str],
+    *,
+    coding_filter: str,
+    sex_filter: str,
+    age_filter: str,
+) -> dict[str, dict[str, int]]:
+    if not block_codes:
+        return {}
+
+    rows = list(
+        db.session.scalars(
+            sa.select(MasIcd1020192).where(MasIcd1020192.is_active.is_(True))
+        )
+    )
+    children_by_parent: dict[str | None, list[MasIcd1020192]] = {}
+    selectable_detailed_by_parent: dict[str | None, int] = {}
+    filtered_detailed_by_parent: dict[str | None, int] = {}
+
+    for row in rows:
+        children_by_parent.setdefault(row.parent_code, []).append(row)
+        if row.semantic_level != "detailed_code":
+            continue
+        if row.is_coding_selectable:
+            selectable_detailed_by_parent[row.parent_code] = (
+                selectable_detailed_by_parent.get(row.parent_code, 0) + 1
+            )
+        if _row_matches_policy_filters(
+            row,
+            coding_filter=coding_filter,
+            sex_filter=sex_filter,
+            age_filter=age_filter,
+        ):
+            filtered_detailed_by_parent[row.parent_code] = (
+                filtered_detailed_by_parent.get(row.parent_code, 0) + 1
+            )
+
+    stats = {
+        code: {"total": 0, "selectable": 0, "navigable": 0, "filtered": 0}
+        for code in block_codes
+    }
+
+    def walk(block_code: str, current_code: str) -> None:
+        for child in children_by_parent.get(current_code, []):
+            if child.semantic_level == "block":
+                walk(block_code, child.code)
+            elif child.semantic_level == "three_character":
+                stats[block_code]["total"] += 1
+                if child.is_coding_selectable:
+                    stats[block_code]["selectable"] += 1
+                if child.is_coding_selectable or selectable_detailed_by_parent.get(child.code, 0):
+                    stats[block_code]["navigable"] += 1
+                if coding_filter == "disabled":
+                    if _row_matches_policy_filters(
+                        child,
+                        coding_filter=coding_filter,
+                        sex_filter=sex_filter,
+                        age_filter=age_filter,
+                    ):
+                        stats[block_code]["filtered"] += 1
+                elif (
+                    _row_matches_policy_filters(
+                        child,
+                        coding_filter=coding_filter,
+                        sex_filter=sex_filter,
+                        age_filter=age_filter,
+                    )
+                    or filtered_detailed_by_parent.get(child.code, 0)
+                ):
+                    stats[block_code]["filtered"] += 1
+
+    for block_code in block_codes:
+        walk(block_code, block_code)
+    return stats
 
 
 def _validate_policy_update(
@@ -421,6 +524,19 @@ def list_icd10_2019_2_children(
         .group_by(MasIcd1020192.parent_code)
         .subquery()
     )
+    selectable_detailed_child_count_sq = (
+        sa.select(
+            MasIcd1020192.parent_code.label("three_character_code"),
+            sa.func.count().label("selectable_detailed_child_count"),
+        )
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level == "detailed_code",
+            MasIcd1020192.is_coding_selectable.is_(True),
+        )
+        .group_by(MasIcd1020192.parent_code)
+        .subquery()
+    )
     block_status_sq = (
         sa.select(
             MasIcd1020192.parent_code.label("block_code"),
@@ -428,6 +544,20 @@ def list_icd10_2019_2_children(
             sa.func.count()
             .filter(MasIcd1020192.is_coding_selectable.is_(True))
             .label("direct_three_character_selectable"),
+            sa.func.count()
+            .filter(
+                sa.or_(
+                    MasIcd1020192.is_coding_selectable.is_(True),
+                    selectable_detailed_child_count_sq.c.selectable_detailed_child_count
+                    > 0,
+                )
+            )
+            .label("direct_three_character_navigable"),
+        )
+        .outerjoin(
+            selectable_detailed_child_count_sq,
+            selectable_detailed_child_count_sq.c.three_character_code
+            == MasIcd1020192.code,
         )
         .where(
             MasIcd1020192.is_active.is_(True),
@@ -436,19 +566,60 @@ def list_icd10_2019_2_children(
         .group_by(MasIcd1020192.parent_code)
         .subquery()
     )
-    filtered_three_character_sq = _apply_code_filters(
+    filtered_detailed_sq = _apply_code_filters(
         sa.select(
             MasIcd1020192.code,
             MasIcd1020192.parent_code,
         ).where(
             MasIcd1020192.is_active.is_(True),
-            MasIcd1020192.semantic_level == "three_character",
+            MasIcd1020192.semantic_level == "detailed_code",
         ),
         MasIcd1020192,
         coding_filter=coding_filter,
         sex_filter=sex_filter,
         age_filter=age_filter,
     ).subquery()
+    three_character_filtered_child_count_sq = (
+        sa.select(
+            filtered_detailed_sq.c.parent_code.label("three_character_code"),
+            sa.func.count().label("filtered_child_count"),
+        )
+        .group_by(filtered_detailed_sq.c.parent_code)
+        .subquery()
+    )
+    filtered_three_character_query = (
+        sa.select(
+            MasIcd1020192.code,
+            MasIcd1020192.parent_code,
+        )
+        .outerjoin(
+            three_character_filtered_child_count_sq,
+            three_character_filtered_child_count_sq.c.three_character_code
+            == MasIcd1020192.code,
+        )
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level == "three_character",
+        )
+    )
+    filtered_three_character_clause = _code_filter_clause(
+        MasIcd1020192,
+        coding_filter=coding_filter,
+        sex_filter=sex_filter,
+        age_filter=age_filter,
+    )
+    if coding_filter == "disabled":
+        filtered_three_character_query = filtered_three_character_query.where(
+            filtered_three_character_clause
+        )
+    else:
+        filtered_three_character_query = filtered_three_character_query.where(
+            sa.or_(
+                filtered_three_character_clause,
+                three_character_filtered_child_count_sq.c.filtered_child_count > 0,
+            )
+        )
+    filtered_three_character_sq = filtered_three_character_query.subquery()
     chapter_filtered_child_count_sq = (
         sa.select(
             MasIcd1020192.parent_code.label("chapter_code"),
@@ -473,34 +644,13 @@ def list_icd10_2019_2_children(
         .group_by(filtered_three_character_sq.c.parent_code)
         .subquery()
     )
-    filtered_detailed_sq = _apply_code_filters(
-        sa.select(
-            MasIcd1020192.code,
-            MasIcd1020192.parent_code,
-        ).where(
-            MasIcd1020192.is_active.is_(True),
-            MasIcd1020192.semantic_level == "detailed_code",
-        ),
-        MasIcd1020192,
-        coding_filter=coding_filter,
-        sex_filter=sex_filter,
-        age_filter=age_filter,
-    ).subquery()
-    three_character_filtered_child_count_sq = (
-        sa.select(
-            filtered_detailed_sq.c.parent_code.label("three_character_code"),
-            sa.func.count().label("filtered_child_count"),
-        )
-        .group_by(filtered_detailed_sq.c.parent_code)
-        .subquery()
-    )
-
     query = (
         sa.select(
             MasIcd1020192,
             child_count_sq.c.child_count,
             block_status_sq.c.direct_three_character_total,
             block_status_sq.c.direct_three_character_selectable,
+            block_status_sq.c.direct_three_character_navigable,
             chapter_filtered_child_count_sq.c.filtered_child_count.label(
                 "chapter_filtered_child_count"
             ),
@@ -510,6 +660,7 @@ def list_icd10_2019_2_children(
             three_character_filtered_child_count_sq.c.filtered_child_count.label(
                 "three_character_filtered_child_count"
             ),
+            selectable_detailed_child_count_sq.c.selectable_detailed_child_count,
         )
         .outerjoin(child_count_sq, child_count_sq.c.parent_code == MasIcd1020192.code)
         .outerjoin(block_status_sq, block_status_sq.c.block_code == MasIcd1020192.code)
@@ -524,6 +675,11 @@ def list_icd10_2019_2_children(
         .outerjoin(
             three_character_filtered_child_count_sq,
             three_character_filtered_child_count_sq.c.three_character_code
+            == MasIcd1020192.code,
+        )
+        .outerjoin(
+            selectable_detailed_child_count_sq,
+            selectable_detailed_child_count_sq.c.three_character_code
             == MasIcd1020192.code,
         )
         .where(MasIcd1020192.is_active.is_(True))
@@ -545,6 +701,8 @@ def list_icd10_2019_2_children(
                             sex_filter=sex_filter,
                             age_filter=age_filter,
                         ),
+                        three_character_filtered_child_count_sq.c.filtered_child_count
+                        > 0,
                     )
                 )
             elif parent.semantic_level == "three_character":
@@ -557,28 +715,69 @@ def list_icd10_2019_2_children(
                 )
 
     rows = db.session.execute(query).all()
+    block_stats = _block_descendant_stats(
+        {
+            row.code
+            for (
+                row,
+                _child_count,
+                _direct_total,
+                _direct_selectable,
+                _direct_navigable,
+                _chapter_filtered_child_count,
+                _block_filtered_child_count,
+                _three_character_filtered_child_count,
+                _selectable_detailed_child_count,
+            ) in rows
+            if row.semantic_level == "block"
+        },
+        coding_filter=coding_filter,
+        sex_filter=sex_filter,
+        age_filter=age_filter,
+    )
     payload = []
     for (
         row,
         child_count,
         direct_total,
         direct_selectable,
+        direct_navigable,
         chapter_filtered_child_count,
         block_filtered_child_count,
         three_character_filtered_child_count,
+        selectable_detailed_child_count,
     ) in rows:
         effective_child_count = int(child_count or 0)
         if parent_code is None:
             effective_child_count = int(chapter_filtered_child_count or 0)
         elif row.semantic_level == "block":
-            effective_child_count = int(block_filtered_child_count or 0)
+            stats = block_stats.get(row.code)
+            effective_child_count = (
+                int(stats["filtered"]) if stats else int(block_filtered_child_count or 0)
+            )
         elif row.semantic_level == "three_character":
             effective_child_count = int(three_character_filtered_child_count or 0)
+        if row.semantic_level == "block" and row.code in block_stats:
+            stats = block_stats[row.code]
+            direct_total = stats["total"]
+            direct_selectable = stats["selectable"]
+            direct_navigable = stats["navigable"]
+        filters_applied = (
+            coding_filter != "any" or sex_filter != "any" or age_filter != "any"
+        )
+        if (
+            filters_applied
+            and row.semantic_level in {"chapter", "block"}
+            and effective_child_count <= 0
+        ):
+            continue
         item = _serialize_row(row, child_count=effective_child_count)
         item["status_indicator"] = _status_indicator_for_row(
             row,
             direct_three_character_total=direct_total,
             direct_three_character_selectable=direct_selectable,
+            direct_three_character_navigable=direct_navigable,
+            selectable_detailed_child_count=selectable_detailed_child_count,
         )
         payload.append(item)
     return payload
@@ -591,6 +790,16 @@ def get_icd10_2019_2_node_details(code: str) -> dict | None:
         .where(
             MasIcd1020192.parent_code == code,
             MasIcd1020192.is_active.is_(True),
+        )
+    ) or 0
+    selectable_detailed_child_count = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(MasIcd1020192)
+        .where(
+            MasIcd1020192.parent_code == code,
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level == "detailed_code",
+            MasIcd1020192.is_coding_selectable.is_(True),
         )
     ) or 0
     row = db.session.get(MasIcd1020192, code)
@@ -614,7 +823,10 @@ def get_icd10_2019_2_node_details(code: str) -> dict | None:
     ancestors.reverse()
 
     payload = _serialize_row(row, child_count=int(child_count))
-    payload["status_indicator"] = _status_indicator_for_row(row)
+    payload["status_indicator"] = _status_indicator_for_row(
+        row,
+        selectable_detailed_child_count=int(selectable_detailed_child_count),
+    )
     payload["ancestors"] = ancestors
     return payload
 

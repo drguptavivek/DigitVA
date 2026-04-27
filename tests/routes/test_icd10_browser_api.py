@@ -138,6 +138,9 @@ class TestIcd10BrowserApi(BaseTestCase):
                     is_leaf=True,
                     is_three_character_code=False,
                     is_detailed_code=True,
+                    is_coding_selectable=True,
+                    sex_selectable="female",
+                    age_group_selectable="adult",
                     policy_status="unreviewed",
                     source_version="ICD-10-2019",
                     source_path="test",
@@ -170,7 +173,7 @@ class TestIcd10BrowserApi(BaseTestCase):
         payload = response.get_json()
         self.assertEqual(payload["parent_code"], "A00-A09")
         self.assertEqual([row["code"] for row in payload["children"]], ["A00"])
-        self.assertEqual(payload["children"][0]["status_indicator"], "red")
+        self.assertEqual(payload["children"][0]["status_indicator"], "yellow")
 
     def test_data_manager_can_browse_blocks_with_status_indicator(self):
         self._login(str(self.data_manager_user.user_id))
@@ -180,7 +183,7 @@ class TestIcd10BrowserApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual([row["code"] for row in payload["children"]], ["A00-A09"])
-        self.assertEqual(payload["children"][0]["status_indicator"], "red")
+        self.assertEqual(payload["children"][0]["status_indicator"], "yellow")
 
     def test_filter_updates_block_counts(self):
         self._login(str(self.data_manager_user.user_id))
@@ -192,7 +195,99 @@ class TestIcd10BrowserApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual([row["code"] for row in payload["children"]], ["A00-A09"])
-        self.assertEqual(payload["children"][0]["child_count"], 0)
+        self.assertEqual(payload["children"][0]["child_count"], 1)
+
+    def test_active_filter_hides_structural_rows_without_active_descendants(self):
+        now = datetime.now(UTC)
+        db.session.add_all(
+            [
+                MasIcd1020192(
+                    code="XIX",
+                    title="Injury, poisoning and certain other consequences of external causes",
+                    node_type="chapter",
+                    semantic_level="chapter",
+                    sort_order=19,
+                    chapter_code="XIX",
+                    chapter_title="Injury, poisoning and certain other consequences of external causes",
+                    has_children=True,
+                    is_leaf=False,
+                    is_three_character_code=False,
+                    is_detailed_code=False,
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                MasIcd1020192(
+                    code="S00-S09",
+                    title="Injuries to the head",
+                    node_type="block",
+                    semantic_level="block",
+                    sort_order=1901,
+                    parent_code="XIX",
+                    chapter_code="XIX",
+                    chapter_title="Injury, poisoning and certain other consequences of external causes",
+                    block_code="S00-S09",
+                    block_title="Injuries to the head",
+                    has_children=True,
+                    is_leaf=False,
+                    is_three_character_code=False,
+                    is_detailed_code=False,
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+                MasIcd1020192(
+                    code="S00",
+                    title="Superficial injury of head",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=1902,
+                    parent_code="S00-S09",
+                    chapter_code="XIX",
+                    chapter_title="Injury, poisoning and certain other consequences of external causes",
+                    block_code="S00-S09",
+                    block_title="Injuries to the head",
+                    three_character_code="S00",
+                    three_character_title="Superficial injury of head",
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=False,
+                    policy_status="unreviewed",
+                    source_version="ICD-10-2019",
+                    source_path="test",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+        db.session.commit()
+        self._login(str(self.data_manager_user.user_id))
+
+        root_response = self.client.get(
+            "/api/v1/icd10/2019-2/children?coding_filter=active"
+        )
+        chapter_response = self.client.get(
+            "/api/v1/icd10/2019-2/children?parent_code=XIX&coding_filter=active"
+        )
+
+        self.assertEqual(root_response.status_code, 200)
+        root_payload = root_response.get_json()
+        self.assertNotIn(
+            "XIX",
+            [row["code"] for row in root_payload["children"]],
+        )
+        self.assertEqual(chapter_response.status_code, 200)
+        chapter_payload = chapter_response.get_json()
+        self.assertEqual(chapter_payload["children"], [])
 
     def test_node_details_include_ancestors(self):
         self._login(str(self.data_manager_user.user_id))
@@ -247,8 +342,8 @@ class TestIcd10BrowserApi(BaseTestCase):
                 {
                     "code": "A00.0",
                     "is_coding_selectable": True,
-                    "sex_selectable": "female",
-                    "age_group_selectable": "adult",
+                    "sex_selectable": "both",
+                    "age_group_selectable": "all",
                 }
             ]
         }
@@ -268,7 +363,7 @@ class TestIcd10BrowserApi(BaseTestCase):
 
         refreshed = db.session.get(MasIcd1020192, "A00.0")
         self.assertTrue(refreshed.is_coding_selectable)
-        self.assertEqual(refreshed.sex_selectable, "female")
+        self.assertEqual(refreshed.sex_selectable, "both")
 
     def test_non_admin_cannot_import_policy_json(self):
         self._login(str(self.data_manager_user.user_id))

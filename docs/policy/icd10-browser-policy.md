@@ -55,6 +55,13 @@ Current implementation surfaces this browser in the admin console under
    - `updated_items`
    - `reset_items`
    - `failed_codes`, with each failed code and the reason it was not imported
+11. Browser status indicators must distinguish inherited selectability:
+   - green: the row itself is selectable, or all direct three-character children
+     in a structural block are selectable
+   - yellow: a three-character row is not selectable itself but has at least one
+     selectable detailed child; structural blocks containing such rows must also
+     remain navigable under the active filter
+   - red: neither the row nor any relevant child row is selectable
 
 ## Access Policy
 

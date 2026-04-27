@@ -32,10 +32,12 @@ from app.services.cod_bucket_mapping_service import (
     NODE_TYPE_SUBCATEGORY,
     SCHEME_CODE_CMEA10,
     SCHEME_CODE_SRS_INDIA,
+    SCHEME_CODE_WHO_2022_VA,
     aggregate_coded_submissions_by_bucket,
     create_cod_bucket_scheme,
     import_cmea10_scheme,
     import_srs_india_scheme,
+    import_who_2022_va_scheme,
     list_unmatched_coded_submission_icds_by_bucket,
     reset_cod_bucket_scheme_age_band_to_source,
     summarize_unmatched_coded_submissions_by_bucket,
@@ -210,6 +212,53 @@ class CodBucketMappingServiceTests(BaseTestCase):
             workbook.save(tmp.name)
             return tmp.name
 
+    def _make_who_2022_va_workbook(self) -> str:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "ICD_Mapped"
+        sheet.append(
+            [
+                "disease_id",
+                "icd_code",
+                "icd_to_display",
+                "category",
+                "WHO_2022_VA_section",
+                "WHO_2022_VA_code",
+                "WHO_2022_VA_cause",
+                "WHO_2022_VA_match_type",
+                "WHO_2022_VA_note",
+            ]
+        )
+        sheet.append(
+            [
+                1,
+                "A33",
+                "A33-Tetanus neonatorum",
+                "Tetanus",
+                "Neonatal causes of death",
+                "VAs-10.05",
+                "Neonatal tetanus",
+                "exact",
+                "Primary override",
+            ]
+        )
+        sheet.append(
+            [
+                2,
+                "O99.0",
+                "O99.0-Anaemia complicating pregnancy, childbirth and the puerperium",
+                "Maternal disorders",
+                "Pregnancy-, childbirth and puerperium-related disorders",
+                "VAs-09.07",
+                "Anaemia of pregnancy",
+                "exact",
+                None,
+            ]
+        )
+        with NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            workbook.save(tmp.name)
+            return tmp.name
+
     def _add_coded_submission(
         self,
         *,
@@ -312,6 +361,53 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(age_band.min_age_unit, DEFAULT_MIN_AGE_UNIT)
         self.assertEqual(age_band.max_age_value, DEFAULT_MAX_AGE_VALUE)
         self.assertEqual(age_band.max_age_unit, DEFAULT_MAX_AGE_UNIT)
+
+    def test_import_who_2022_va_scheme_creates_section_and_va_leaf_mappings(self):
+        workbook_path = self._make_who_2022_va_workbook()
+
+        scheme = import_who_2022_va_scheme(workbook_path)
+
+        self.assertEqual(scheme.scheme_code, SCHEME_CODE_WHO_2022_VA)
+        self.assertEqual(scheme.source_path, workbook_path)
+        age_band = db.session.scalar(
+            sa.select(MasCodBucketSchemeAgeBand).where(
+                MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id
+            )
+        )
+        self.assertEqual(age_band.age_label, "All Ages")
+        self.assertEqual(age_band.level_count, 2)
+        section = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_type == NODE_TYPE_CATEGORY,
+                MasCodBucketNode.node_label == "Neonatal causes of death",
+            )
+        )
+        self.assertIsNotNone(section)
+        leaf = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+                MasCodBucketNode.node_label == "Neonatal tetanus",
+            )
+        )
+        self.assertIsNotNone(leaf)
+        self.assertEqual(leaf.parent_node_id, section.node_id)
+        mapping_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id
+            )
+        )
+        self.assertEqual(mapping_count, 2)
+        mapping = db.session.scalar(
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_code == "A33",
+            )
+        )
+        self.assertEqual(mapping.node_id, leaf.node_id)
+        self.assertEqual(mapping.match_type, "exact")
+        self.assertEqual(mapping.mapping_note, "Primary override")
 
     def test_reset_srs_age_band_to_source_restores_selected_scope_only(self):
         workbook_path = self._make_srs_workbook()

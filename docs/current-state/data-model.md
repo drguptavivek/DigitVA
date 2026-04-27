@@ -223,6 +223,8 @@ Current behavior:
 - one row per ICD hierarchy node
 - includes chapters, blocks, three-character categories, and detailed dotted
   codes
+- includes modifier-derived detailed rows expanded from the WHO ClaML XML, such
+  as `V01.1`, `V10.4`, and `E10.0`
 - fresh migration creation seeds the table from the checked-in ICD hierarchy CSV
 - coder ICD search now reads from this table for selectable three-character and
   detailed-code lookup

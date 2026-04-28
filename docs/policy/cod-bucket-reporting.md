@@ -3,7 +3,7 @@ title: COD Bucket Reporting Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-27
+last_updated: 2026-04-28
 ---
 
 # COD Bucket Reporting Policy
@@ -52,6 +52,19 @@ data must be scoped.
 16. The scheme-level unmapped ICD grid must support bulk allocation by letting
     the operator choose a target age band and a target disease-level leaf
     within that scheme, then map multiple selected ICD codes in one action.
+17. The scheme-level unmapped ICD grid must support filtering to ICD codes
+    already present in finalized COD outcomes, including codes that are not
+    currently assignable during coding.
+18. The mapped ICD list for a selected disease-level leaf must support filtering
+    manual overrides separately from source-derived mappings.
+19. For the built-in WHO 2022 VA scheme, the imported XLSX workbook is the
+    source-of-truth baseline for default ICD-to-bucket mappings.
+20. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
+    only when the saved ICD-to-bucket target differs from the XLSX-derived
+    default, or when that ICD code is absent from the source workbook.
+21. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
+    bucket, the manual override marker must be cleared and the source metadata
+    restored.
 
 ## CoD Dashboard Access Policy
 
@@ -214,6 +227,9 @@ Current WHO 2022 VA scope:
   `WHO_2022_VA_Bucket_Mapping.xlsx` workbook
 - the imported WHO 2022 VA scheme must include both valid three-character ICD
   rows and valid dotted detailed ICD rows
+- manual override status is derived by comparing the current mapping target to
+  the imported workbook default; it is not merely a record of whether an admin
+  touched the mapping
 
 Age band bounds are interpreted as:
 

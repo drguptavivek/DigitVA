@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-27
+last_updated: 2026-04-28
 ---
 
 # COD Bucket Reporting
@@ -144,14 +144,26 @@ current editor supports:
 - showing a scheme-wide grid of active ICD master rows not yet mapped anywhere
   in the selected scheme, across all age groups, as a single ICD code list,
   including non-assignable rows flagged as `Currently not assignable in coding`
+- filtering that unmapped ICD grid to codes already used in finalized COD
+  outcomes, so operationally observed non-default ICDs can be reviewed and
+  manually allocated
 - bulk-allocating selected rows from that unmapped ICD list to a chosen age
   band and disease leaf in the current scheme
+- filtering the selected disease leaf's mapped ICD list to manual overrides or
+  source-derived mappings
 - unmapping an ICD code directly from the selected disease leaf
 - deleting a bucket level from the edit modal with a choice to either:
   - unmap affected ICD codes
   - move affected ICD codes to an `Unmapped` replacement branch
 - remapping an ICD code to exactly one disease leaf within the selected
   scheme + age scope
+
+For the built-in WHO 2022 VA scheme, the source XLSX imported into the scheme is
+the default mapping baseline. Admin edits are marked as manual overrides only
+when the saved ICD-to-bucket target differs from that XLSX-derived default, or
+when the ICD code is absent from the source workbook. If an admin moves a code
+back to its XLSX default bucket, the editor restores the source metadata instead
+of leaving a manual override marker.
 
 The admin ICD picker used in the COD bucket editor now searches the ICD-10
 2019 master table (`mas_icd10_2019_2`) and returns active 3-character or

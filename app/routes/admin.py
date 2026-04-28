@@ -31,6 +31,7 @@ from app.services.cod_bucket_mapping_service import (
     NODE_DELETE_DISPOSITION_MOVE_TO_UNMAPPED,
     NODE_DELETE_DISPOSITION_UNMAP,
     NODE_TYPE_FIELD,
+    apply_admin_cod_bucket_mapping_metadata,
     create_cod_bucket_scheme,
     delete_cod_bucket_node,
     export_cod_bucket_scheme_json,
@@ -4399,6 +4400,11 @@ def admin_cod_bucket_scheme_update_mapping(scheme_code, mapping_id):
 
     # One ICD code maps to exactly one leaf path per scheme + age scope.
     mapping.node_id = node.node_id
+    apply_admin_cod_bucket_mapping_metadata(
+        scheme=scheme,
+        mapping=mapping,
+        target_node=node,
+    )
     db.session.commit()
     return jsonify(
         {
@@ -4507,6 +4513,11 @@ def admin_cod_bucket_scheme_add_mappings(scheme_code):
             db.session.add(existing)
         else:
             existing.node_id = node.node_id
+        apply_admin_cod_bucket_mapping_metadata(
+            scheme=scheme,
+            mapping=existing,
+            target_node=node,
+        )
         added_codes.append(icd_code)
 
     db.session.commit()

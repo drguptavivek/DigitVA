@@ -34,10 +34,12 @@ from app.services.cod_bucket_mapping_service import (
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_WHO_2022_VA,
     aggregate_coded_submissions_by_bucket,
+    apply_admin_cod_bucket_mapping_metadata,
     create_cod_bucket_scheme,
     import_cmea10_scheme,
     import_srs_india_scheme,
     import_who_2022_va_scheme,
+    list_cod_bucket_unmapped_icd_rows,
     list_unmatched_coded_submission_icds_by_bucket,
     reset_cod_bucket_scheme_age_band_to_source,
     summarize_unmatched_coded_submissions_by_bucket,
@@ -408,6 +410,124 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(mapping.node_id, leaf.node_id)
         self.assertEqual(mapping.match_type, "exact")
         self.assertEqual(mapping.mapping_note, "Primary override")
+
+    def test_admin_mapping_metadata_clears_override_when_who_mapping_returns_to_xlsx_default(self):
+        workbook_path = self._make_who_2022_va_workbook()
+        scheme = import_who_2022_va_scheme(workbook_path)
+        default_leaf = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+                MasCodBucketNode.node_label == "Neonatal tetanus",
+            )
+        )
+        alternate_leaf = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+                MasCodBucketNode.node_label == "Anaemia of pregnancy",
+            )
+        )
+        mapping = db.session.scalar(
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_code == "A33",
+            )
+        )
+
+        mapping.node_id = alternate_leaf.node_id
+        apply_admin_cod_bucket_mapping_metadata(
+            scheme=scheme,
+            mapping=mapping,
+            target_node=alternate_leaf,
+        )
+
+        self.assertEqual(mapping.source_sheet, "admin_cod_bucket_editor")
+        self.assertIsNone(mapping.source_row_number)
+        self.assertIsNone(mapping.source_category)
+        self.assertEqual(mapping.match_type, "manual_override")
+
+        mapping.node_id = default_leaf.node_id
+        apply_admin_cod_bucket_mapping_metadata(
+            scheme=scheme,
+            mapping=mapping,
+            target_node=default_leaf,
+        )
+
+        self.assertEqual(mapping.source_sheet, "ICD_Mapped")
+        self.assertEqual(mapping.source_row_number, 2)
+        self.assertEqual(mapping.source_category, "Tetanus")
+        self.assertEqual(mapping.match_type, "exact")
+        self.assertEqual(mapping.mapping_note, "Primary override")
+
+    def test_unmapped_icd_rows_include_final_cod_usage_counts(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_UNMAPPED_USAGE",
+            scheme_name="Test Unmapped Usage",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.merge(
+            MasIcd1020192(
+                code="R54",
+                title="Senility",
+                node_type="category",
+                semantic_level="three_character",
+                sort_order=1,
+                parent_code=None,
+                chapter_code="XVIII",
+                chapter_title="Symptoms, signs and abnormal clinical and laboratory findings",
+                block_code="R50-R69",
+                block_title="General symptoms and signs",
+                three_character_code="R54",
+                three_character_title="Senility",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=True,
+                is_detailed_code=False,
+                is_coding_selectable=False,
+                sex_selectable=None,
+                age_group_selectable=None,
+                policy_status="reviewed",
+                source_version="2019-test",
+                source_path="tests",
+                is_active=True,
+            )
+        )
+        now = datetime.now(timezone.utc)
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-used-r54",
+            icd="R54",
+            submitted_at=now,
+            normalized_years=Decimal("80"),
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        payload = list_cod_bucket_unmapped_icd_rows(scheme_code="TEST_UNMAPPED_USAGE")
+
+        r54 = next(row for row in payload["rows"] if row["code"] == "R54")
+        self.assertEqual(r54["final_cod_count"], 1)
+        self.assertTrue(r54["is_utilized_in_final_cod"])
+        self.assertFalse(r54["is_assignable_in_coding"])
 
     def test_reset_srs_age_band_to_source_restores_selected_scope_only(self):
         workbook_path = self._make_srs_workbook()

@@ -61,6 +61,9 @@ SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_CMEA10,
     SCHEME_CODE_WHO_2022_VA,
 }
+MANUAL_OVERRIDE_SOURCE_SHEET = "admin_cod_bucket_editor"
+MANUAL_OVERRIDE_MATCH_TYPE = "manual_override"
+MANUAL_OVERRIDE_NOTE = "Manual override to default COD bucket scheme mapping."
 
 _LIKE_ESCAPE = "\\"
 _ICD_SEARCH_LIMIT = 30
@@ -252,6 +255,53 @@ def _load_sheet_rows(workbook_path: str | Path, sheet_name: str):
     for row_number, row in enumerate(rows[1:], start=2):
         payload = {headers[idx]: row[idx] for idx in range(len(headers))}
         yield row_number, payload
+
+
+def _who_2022_default_mapping_by_code(source_path: str | None = None) -> dict[str, dict]:
+    workbook_path = source_path or DEFAULT_WHO_2022_VA_WORKBOOK_PATH
+    defaults: dict[str, dict] = {}
+    for row_number, payload in _load_sheet_rows(workbook_path, "ICD_Mapped"):
+        icd_code = _normalize_icd_code(payload.get("icd_code"))
+        va_code = _normalize_label(payload.get("WHO_2022_VA_code"))
+        if not icd_code or not va_code or icd_code in defaults:
+            continue
+        defaults[icd_code] = {
+            "node_code": _slugify(va_code, fallback_prefix=NODE_TYPE_FIELD),
+            "source_sheet": "ICD_Mapped",
+            "source_row_number": row_number,
+            "source_category": _normalize_label(payload.get("category")),
+            "match_type": _normalize_label(payload.get("WHO_2022_VA_match_type")),
+            "mapping_note": _normalize_label(payload.get("WHO_2022_VA_note")),
+        }
+    return defaults
+
+
+def apply_admin_cod_bucket_mapping_metadata(
+    *,
+    scheme: MasCodBucketScheme,
+    mapping: MapIcdCodBucket,
+    target_node: MasCodBucketNode,
+) -> None:
+    """Stamp mapping provenance based on whether the target matches source defaults."""
+    default_mapping = None
+    if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
+        default_mapping = _who_2022_default_mapping_by_code(scheme.source_path).get(
+            mapping.icd_code
+        )
+
+    if default_mapping and target_node.node_code == default_mapping["node_code"]:
+        mapping.source_sheet = default_mapping["source_sheet"]
+        mapping.source_row_number = default_mapping["source_row_number"]
+        mapping.source_category = default_mapping["source_category"]
+        mapping.match_type = default_mapping["match_type"]
+        mapping.mapping_note = default_mapping["mapping_note"]
+        return
+
+    mapping.source_sheet = MANUAL_OVERRIDE_SOURCE_SHEET
+    mapping.source_row_number = None
+    mapping.source_category = None
+    mapping.match_type = MANUAL_OVERRIDE_MATCH_TYPE
+    mapping.mapping_note = MANUAL_OVERRIDE_NOTE
 
 
 def _get_or_create_scheme(
@@ -1854,6 +1904,39 @@ def list_cod_bucket_unmapped_icd_rows(
             MasIcd1020192.code.asc(),
         )
     ).mappings().all()
+    icd_codes = [row["code"] for row in rows]
+    final_cod_counts: dict[str, int] = {}
+    analytics_views_available = bool(
+        db.session.scalar(sa.text(f"SELECT to_regclass('{COD_MV_NAME}')"))
+        and db.session.scalar(sa.text(f"SELECT to_regclass('{DEMOGRAPHICS_MV_NAME}')"))
+    )
+    if icd_codes and analytics_views_available:
+        cod = sa.table(
+            COD_MV_NAME,
+            sa.column("va_sid"),
+            sa.column("final_icd"),
+        )
+        demo = sa.table(
+            DEMOGRAPHICS_MV_NAME,
+            sa.column("va_sid"),
+            sa.column("has_human_final_cod"),
+        )
+        final_cod_counts = {
+            row["final_icd"]: int(row["final_cod_count"])
+            for row in db.session.execute(
+                sa.select(
+                    cod.c.final_icd,
+                    sa.func.count().label("final_cod_count"),
+                )
+                .select_from(cod)
+                .join(demo, demo.c.va_sid == cod.c.va_sid)
+                .where(
+                    cod.c.final_icd.in_(icd_codes),
+                    demo.c.has_human_final_cod.is_(True),
+                )
+                .group_by(cod.c.final_icd)
+            ).mappings()
+        }
 
     return {
         "scheme": {
@@ -1874,6 +1957,8 @@ def list_cod_bucket_unmapped_icd_rows(
                 "semantic_level": row["semantic_level"],
                 "code": row["code"],
                 "title": row["title"],
+                "final_cod_count": final_cod_counts.get(row["code"], 0),
+                "is_utilized_in_final_cod": final_cod_counts.get(row["code"], 0) > 0,
                 "is_assignable_in_coding": bool(row["is_coding_selectable"]),
                 "coding_status_label": (
                     None

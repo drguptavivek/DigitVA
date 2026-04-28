@@ -615,6 +615,12 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         mapping = db.session.get(MapIcdCodBucket, self.mapping_id)
         self.assertEqual(mapping.node_id, self.field_b_id)
+        self.assertEqual(mapping.source_sheet, "admin_cod_bucket_editor")
+        self.assertEqual(mapping.match_type, "manual_override")
+        self.assertEqual(
+            mapping.mapping_note,
+            "Manual override to default COD bucket scheme mapping.",
+        )
         count = db.session.scalar(
             sa.select(sa.func.count())
             .select_from(MapIcdCodBucket)
@@ -672,3 +678,10 @@ class AdminCodBucketPanelTests(BaseTestCase):
             )
         ).all()
         self.assertEqual(sorted(row.icd_code for row in rows), ["V02", "V03"])
+        for row in rows:
+            self.assertEqual(row.source_sheet, "admin_cod_bucket_editor")
+            self.assertEqual(row.match_type, "manual_override")
+            self.assertEqual(
+                row.mapping_note,
+                "Manual override to default COD bucket scheme mapping.",
+            )

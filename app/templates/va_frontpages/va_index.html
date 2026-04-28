@@ -161,6 +161,20 @@
                 Digital VA tools include built-in logic checks, skip patterns, and can be integration with automated cause of death assignment algorithms. The digital format
                 <b>streamlines data collection, reduces manual errors, and enables faster transmission and analysis</b>, making it particularly useful in expanding cause of death ascertainment system in India.
               </p>
+              <div class="mt-4">
+                <div class="small text-uppercase text-muted fw-semibold mb-2">Related Documents</div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% for document in who_va_related_documents.conducting %}
+                    <a
+                      class="btn btn-sm btn-outline-primary"
+                      href="{{ document.href }}"
+                      {% if document.external %}target="_blank" rel="noopener noreferrer"{% endif %}
+                    >
+                      <i class="fas fa-file-pdf me-1"></i>{{ document.label }}
+                    </a>
+                  {% endfor %}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -185,6 +199,20 @@
                 <b>reducing delays and inter-rater variability</b>. Integrated into digital VA platforms, these algorithms can provide near real-time estimates of
                 <b>cause-specific mortality</b>.
               </p>
+              <div class="mt-4">
+                <div class="small text-uppercase text-muted fw-semibold mb-2">Related Documents</div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% for document in who_va_related_documents.ascertainment %}
+                    <a
+                      class="btn btn-sm btn-outline-primary"
+                      href="{{ document.href }}"
+                      {% if document.external %}target="_blank" rel="noopener noreferrer"{% endif %}
+                    >
+                      <i class="fas fa-file-pdf me-1"></i>{{ document.label }}
+                    </a>
+                  {% endfor %}
+                </div>
+              </div>
             </div>
           </div>
         </div>

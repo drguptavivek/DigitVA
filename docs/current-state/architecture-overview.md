@@ -3,7 +3,7 @@ title: Architecture Overview
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-04-28
 ---
 
 # Architecture Overview
@@ -50,6 +50,11 @@ The app is HTML-first.
 - category content is loaded through partial routes
 - some lightweight JSON endpoints exist, such as health and ICD search
 - there is no separate SPA frontend
+
+The public `/vaindex` page is rendered by `va_main` and includes links to WHO
+verbal autopsy standards and locally bundled WHO VA PDF resources. Those PDFs
+are served through `/who-va-documents/<document_slug>` from
+`docs/kb/WHO_VA_2022_Docs/`.
 
 ## Major Functional Areas
 

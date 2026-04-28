@@ -78,6 +78,8 @@ Imported from:
 Characteristics:
 
 - generated from the WHO 2022 VA crosswalk and ICD-10 2019 hierarchy
+- splits `VAs-12.01 Road traffic accident` and `VAs-12.02 Other transport
+  accident` from the reviewed RTA/non-RTA transport workbook
 - flat all-ages age scope
 - hierarchy depth:
   - WHO VA section
@@ -107,6 +109,8 @@ The 2026-04-27 rebuild migration imports:
   `migration-artifacts/cmea10-cod-2026-04-27/icd-10-CODES_CMEA10_mapped.xlsx`
 - WHO 2022 VA COD buckets from
   `migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`
+- reviewed VAs-12.01/VAs-12.02 transport decisions from
+  `migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_RTA_NonRTA_Review.xlsx`
 
 ## Import commands
 

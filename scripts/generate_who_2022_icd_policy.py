@@ -17,6 +17,9 @@ DEFAULT_ICD_CSV_PATH = Path("docs/icd-causegrp-mappings/generated/icd10_2019_hie
 DEFAULT_OUTPUT_PATH = Path(
     "docs/icd-causegrp-mappings/generated/who_2022_icd10_2019_2_policy.json"
 )
+DEFAULT_RTA_REVIEW_PATH = Path(
+    "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_RTA_NonRTA_Review.xlsx"
+)
 SOURCE_VERSION = "WHO_2022_ICD10_2019_2"
 EDITABLE_LEVELS = {"three_character", "detailed_code"}
 ICD_EXPR_RE = re.compile(r"\b[A-Z]\d{2}(?:\.\d+)?(?:\s*-\s*[A-Z]?\d{2}(?:\.\d+)?)?\b")
@@ -165,6 +168,28 @@ def _apply_rule(
         policy[code]["age_group_selectable"] = age_group
 
 
+def _load_reviewed_transport_codes(
+    review_path: Path | None,
+    *,
+    workbook_path: Path,
+    icd_rows: list[dict[str, str]],
+) -> set[str]:
+    if review_path is not None and review_path.exists():
+        codes: set[str] = set()
+        for record in _iter_sheet_records(review_path, "RTA_NonRTA_Review"):
+            code = str(record.get("icd_code") or "").strip().upper()
+            decision = str(record.get("final_decision") or "").strip()
+            if code and decision in {"VAs-12.01", "VAs-12.02"}:
+                codes.add(code)
+        return codes
+
+    road_expressions: list[str] = []
+    for record in _iter_sheet_records(workbook_path, "RoadTraffic_Footnote"):
+        for value in record.values():
+            road_expressions.extend(_extract_icd_expressions(value))
+    return _expand_expressions(road_expressions, icd_rows)
+
+
 def _item_for_row(row: dict[str, str]) -> dict[str, object]:
     return {
         "code": row["code"],
@@ -187,6 +212,7 @@ def generate_policy(
     workbook_path: Path = DEFAULT_WORKBOOK_PATH,
     icd_csv_path: Path = DEFAULT_ICD_CSV_PATH,
     output_path: Path = DEFAULT_OUTPUT_PATH,
+    rta_review_path: Path | None = DEFAULT_RTA_REVIEW_PATH,
 ) -> dict[str, object]:
     icd_rows = _load_icd_rows(icd_csv_path)
     row_by_code = {row["code"]: row for row in icd_rows}
@@ -202,12 +228,12 @@ def generate_policy(
         if code in row_by_code
     }
 
-    road_expressions: list[str] = []
-    for record in _iter_sheet_records(workbook_path, "RoadTraffic_Footnote"):
-        for value in record.values():
-            road_expressions.extend(_extract_icd_expressions(value))
-    road_codes = _expand_expressions(road_expressions, icd_rows)
-    for code in road_codes:
+    reviewed_transport_codes = _load_reviewed_transport_codes(
+        rta_review_path,
+        workbook_path=workbook_path,
+        icd_rows=icd_rows,
+    )
+    for code in reviewed_transport_codes:
         if code in row_by_code:
             policy[code] = _item_for_row(row_by_code[code])
 
@@ -298,11 +324,13 @@ def main() -> None:
     parser.add_argument("--workbook", type=Path, default=DEFAULT_WORKBOOK_PATH)
     parser.add_argument("--icd-csv", type=Path, default=DEFAULT_ICD_CSV_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument("--rta-review", type=Path, default=DEFAULT_RTA_REVIEW_PATH)
     args = parser.parse_args()
     payload = generate_policy(
         workbook_path=args.workbook,
         icd_csv_path=args.icd_csv,
         output_path=args.output,
+        rta_review_path=args.rta_review,
     )
     print(f"Wrote {payload['row_count']} policy rows to {args.output}")
 

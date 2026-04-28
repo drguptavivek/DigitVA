@@ -25,6 +25,9 @@ DEFAULT_POLICY_PATH = Path(
 DEFAULT_OUTPUT_PATH = Path(
     "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx"
 )
+DEFAULT_RTA_REVIEW_PATH = Path(
+    "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_RTA_NonRTA_Review.xlsx"
+)
 
 
 def _load_policy_items(policy_path: Path) -> list[dict[str, object]]:
@@ -48,14 +51,54 @@ def _transport_codes(icd_rows: list[dict[str, str]]) -> set[str]:
     return _expand_expressions(["V01-V99", "Y85"], icd_rows, include_descendants=True)
 
 
+def _load_transport_decisions(
+    review_path: Path | None,
+    *,
+    workbook_path: Path,
+    icd_rows: list[dict[str, str]],
+) -> dict[str, str]:
+    if review_path is None or not review_path.exists():
+        road_codes = _load_road_traffic_codes(
+            workbook_path=workbook_path,
+            icd_rows=icd_rows,
+        )
+        return {
+            code: ("VAs-12.01" if code in road_codes else "VAs-12.02")
+            for code in _transport_codes(icd_rows)
+        }
+
+    decisions: dict[str, str] = {}
+    for record in _iter_sheet_records(review_path, "RTA_NonRTA_Review"):
+        code = str(record.get("icd_code") or "").strip().upper()
+        decision = str(record.get("final_decision") or "").strip()
+        if code and decision in {"VAs-12.01", "VAs-12.02"}:
+            decisions[code] = decision
+    transport_codes = _transport_codes(icd_rows)
+    return {
+        code: decisions[code]
+        for code in transport_codes
+        if code in decisions
+    }
+
+
 def _crosswalk_rows(
     *,
     workbook_path: Path,
     icd_rows: list[dict[str, str]],
+    rta_review_path: Path | None = DEFAULT_RTA_REVIEW_PATH,
 ) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
-    road_codes = _load_road_traffic_codes(workbook_path=workbook_path, icd_rows=icd_rows)
-    transport_non_road_codes = _transport_codes(icd_rows) - road_codes
+    transport_decisions = _load_transport_decisions(
+        rta_review_path,
+        workbook_path=workbook_path,
+        icd_rows=icd_rows,
+    )
+    road_codes = {
+        code for code, decision in transport_decisions.items() if decision == "VAs-12.01"
+    }
+    transport_non_road_codes = {
+        code for code, decision in transport_decisions.items() if decision == "VAs-12.02"
+    }
 
     for source_row_number, record in enumerate(
         _iter_sheet_records(workbook_path, "VA_2022_Crosswalk"),
@@ -124,13 +167,18 @@ def generate_workbook(
     icd_csv_path: Path = DEFAULT_ICD_CSV_PATH,
     policy_path: Path = DEFAULT_POLICY_PATH,
     output_path: Path = DEFAULT_OUTPUT_PATH,
+    rta_review_path: Path | None = DEFAULT_RTA_REVIEW_PATH,
 ) -> dict[str, int]:
     policy_items = _load_policy_items(policy_path)
     policy_by_code = {str(item["code"]): item for item in policy_items}
     icd_rows = [
         row for row in _load_icd_rows(icd_csv_path) if row["code"] in policy_by_code
     ]
-    crosswalk_rows = _crosswalk_rows(workbook_path=workbook_path, icd_rows=icd_rows)
+    crosswalk_rows = _crosswalk_rows(
+        workbook_path=workbook_path,
+        icd_rows=icd_rows,
+        rta_review_path=rta_review_path,
+    )
 
     matches_by_code: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in crosswalk_rows:
@@ -280,7 +328,7 @@ def generate_workbook(
     notes_sheet.append(
         [
             "Road traffic",
-            "VAs-12.01 is expanded from the RoadTraffic_Footnote sheet; VAs-12.02 is transport codes V01-V99/Y85 not in that road-traffic set.",
+            "VAs-12.01 and VAs-12.02 transport decisions are taken from WHO_2022_VA_RTA_NonRTA_Review.xlsx final_decision when present.",
         ]
     )
 
@@ -318,12 +366,14 @@ def main() -> None:
     parser.add_argument("--icd-csv", type=Path, default=DEFAULT_ICD_CSV_PATH)
     parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument("--rta-review", type=Path, default=DEFAULT_RTA_REVIEW_PATH)
     args = parser.parse_args()
     summary = generate_workbook(
         workbook_path=args.workbook,
         icd_csv_path=args.icd_csv,
         policy_path=args.policy,
         output_path=args.output,
+        rta_review_path=args.rta_review,
     )
     print(
         f"Wrote {summary['valid_rows']} WHO 2022 ICD rows to {args.output} "

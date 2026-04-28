@@ -101,6 +101,7 @@ def test_who_2022_policy_generator_applies_allowability_rules(tmp_path):
         workbook_path=workbook_path,
         icd_csv_path=icd_csv_path,
         output_path=output_path,
+        rta_review_path=None,
     )
 
     assert output_path.exists()

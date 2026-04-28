@@ -727,6 +727,20 @@
                   </button>
                   <button
                     type="button"
+                    class="btn btn-sm btn-outline-success cb-scheme-xlsx-export-btn"
+                    data-scheme-code="${esc(scheme.scheme_code)}"
+                  >
+                    <i class="fa-solid fa-file-excel me-1"></i>Buckets XLSX
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-success cb-scheme-icd-export-btn"
+                    data-scheme-code="${esc(scheme.scheme_code)}"
+                  >
+                    <i class="fa-solid fa-file-excel me-1"></i>ICD XLSX
+                  </button>
+                  <button
+                    type="button"
                     class="btn btn-sm btn-outline-secondary cb-scheme-edit-btn"
                     data-scheme-code="${esc(scheme.scheme_code)}"
                   >
@@ -1950,6 +1964,24 @@
       if (!schemeCode) return;
       window.location.assign(
         `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/export`
+      );
+      return;
+    }
+    const xlsxExportBtn = event.target.closest('.cb-scheme-xlsx-export-btn');
+    if (xlsxExportBtn) {
+      const schemeCode = xlsxExportBtn.dataset.schemeCode || '';
+      if (!schemeCode) return;
+      window.location.assign(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/export.xlsx`
+      );
+      return;
+    }
+    const icdExportBtn = event.target.closest('.cb-scheme-icd-export-btn');
+    if (icdExportBtn) {
+      const schemeCode = icdExportBtn.dataset.schemeCode || '';
+      if (!schemeCode) return;
+      window.location.assign(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/icd-export.xlsx`
       );
       return;
     }

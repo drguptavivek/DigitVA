@@ -34,7 +34,9 @@ from app.services.cod_bucket_mapping_service import (
     apply_admin_cod_bucket_mapping_metadata,
     create_cod_bucket_scheme,
     delete_cod_bucket_node,
+    export_cod_bucket_scheme_icd_policy_xlsx,
     export_cod_bucket_scheme_json,
+    export_cod_bucket_scheme_xlsx,
     get_cod_bucket_scheme,
     get_cod_bucket_scheme_editor_payload,
     get_cod_bucket_node_mappings_payload,
@@ -4086,6 +4088,46 @@ def admin_cod_bucket_scheme_export(scheme_code):
     return current_app.response_class(
         json.dumps(payload, indent=2, ensure_ascii=False),
         mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@admin.get("/api/cod-bucket-schemes/<scheme_code>/export.xlsx")
+@role_required("admin")
+def admin_cod_bucket_scheme_export_xlsx(scheme_code):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    try:
+        workbook_bytes = export_cod_bucket_scheme_xlsx(scheme_code=scheme_code)
+    except LookupError:
+        return _json_error("COD bucket scheme not found.", 404)
+
+    filename = f"cod_bucket_scheme_{scheme_code.lower()}.xlsx"
+    return current_app.response_class(
+        workbook_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@admin.get("/api/cod-bucket-schemes/<scheme_code>/icd-export.xlsx")
+@role_required("admin")
+def admin_cod_bucket_scheme_icd_export(scheme_code):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    try:
+        workbook_bytes = export_cod_bucket_scheme_icd_policy_xlsx(
+            scheme_code=scheme_code
+        )
+    except LookupError:
+        return _json_error("COD bucket scheme not found.", 404)
+
+    filename = f"cod_bucket_icd10_{scheme_code.lower()}.xlsx"
+    return current_app.response_class(
+        workbook_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

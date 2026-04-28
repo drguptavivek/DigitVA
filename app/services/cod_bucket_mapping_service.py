@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from io import BytesIO
 import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 import sqlalchemy as sa
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font, PatternFill
 
 from app import db
 from app.models import (
@@ -1487,6 +1489,236 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
             for row in mapping_rows
         ],
     }
+
+
+def _format_xlsx_sheet(sheet) -> None:
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    header_font = Font(bold=True)
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    for column_cells in sheet.columns:
+        values = [str(cell.value or "") for cell in column_cells[:100]]
+        width = min(max(len(value) for value in values) + 2, 48)
+        sheet.column_dimensions[column_cells[0].column_letter].width = width
+
+
+def export_cod_bucket_scheme_xlsx(*, scheme_code: str) -> bytes:
+    payload = export_cod_bucket_scheme_json(scheme_code=scheme_code)
+
+    workbook = Workbook()
+    nodes_sheet = workbook.active
+    nodes_sheet.title = "Bucket Nodes"
+    nodes_headers = [
+        "Scheme Code",
+        "Scheme Name",
+        "Age Scope",
+        "Node Type",
+        "Node Code",
+        "Node Label",
+        "Bucket Path",
+        "Sort Order",
+        "Active",
+        "Parent Node ID",
+        "Node ID",
+    ]
+    nodes_sheet.append(nodes_headers)
+    for node in payload["nodes"]:
+        nodes_sheet.append(
+            [
+                payload["scheme"]["scheme_code"],
+                payload["scheme"]["scheme_name"],
+                node["age_scope"],
+                node["node_type"],
+                node["node_code"],
+                node["node_label"],
+                node["path_label"],
+                node["sort_order"],
+                "Yes" if node["is_active"] else "No",
+                node["parent_node_id"],
+                node["node_id"],
+            ]
+        )
+
+    mappings_sheet = workbook.create_sheet("ICD Mappings")
+    mappings_headers = [
+        "Scheme Code",
+        "Scheme Name",
+        "Age Scope",
+        "ICD Code",
+        "ICD Display",
+        "Bucket Path",
+        "Match Type",
+        "Manual Override",
+        "Source Sheet",
+        "Source Row Number",
+        "Source Category",
+        "Mapping Note",
+        "Active",
+        "Mapping ID",
+        "Node ID",
+    ]
+    mappings_sheet.append(mappings_headers)
+    for mapping in payload["mappings"]:
+        mappings_sheet.append(
+            [
+                payload["scheme"]["scheme_code"],
+                payload["scheme"]["scheme_name"],
+                mapping["age_scope"],
+                mapping["icd_code"],
+                mapping["icd_to_display"],
+                mapping["node_path_label"],
+                mapping["match_type"],
+                (
+                    "Yes"
+                    if mapping["match_type"] == MANUAL_OVERRIDE_MATCH_TYPE
+                    else "No"
+                ),
+                mapping["source_sheet"],
+                mapping["source_row_number"],
+                mapping["source_category"],
+                mapping["mapping_note"],
+                "Yes" if mapping["is_active"] else "No",
+                mapping["mapping_id"],
+                mapping["node_id"],
+            ]
+        )
+
+    _format_xlsx_sheet(nodes_sheet)
+    _format_xlsx_sheet(mappings_sheet)
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def export_cod_bucket_scheme_icd_policy_xlsx(*, scheme_code: str) -> bytes:
+    scheme = get_cod_bucket_scheme(scheme_code)
+    if scheme is None:
+        raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
+
+    nodes = list(
+        db.session.scalars(
+            sa.select(MasCodBucketNode).where(MasCodBucketNode.scheme_id == scheme.scheme_id)
+        )
+    )
+    nodes_by_id = {node.node_id: node for node in nodes}
+    age_band_labels = {
+        age_band.age_scope: age_band.age_label
+        for age_band in db.session.scalars(
+            sa.select(MasCodBucketSchemeAgeBand).where(
+                MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id,
+                MasCodBucketSchemeAgeBand.is_active.is_(True),
+            )
+        )
+    }
+
+    def _path_label_for_node_id(node_id) -> str | None:
+        node = nodes_by_id.get(node_id)
+        if node is None:
+            return None
+        labels = [node.node_label]
+        parent = nodes_by_id.get(node.parent_node_id)
+        while parent is not None:
+            labels.append(parent.node_label)
+            parent = nodes_by_id.get(parent.parent_node_id)
+        return " > ".join(reversed(labels))
+
+    mappings_by_code: dict[str, list[MapIcdCodBucket]] = {}
+    mapping_rows = db.session.scalars(
+        sa.select(MapIcdCodBucket)
+        .where(
+            MapIcdCodBucket.scheme_id == scheme.scheme_id,
+            MapIcdCodBucket.is_active.is_(True),
+        )
+        .order_by(
+            MapIcdCodBucket.icd_code.asc(),
+            sa.func.coalesce(MapIcdCodBucket.age_scope, "").asc(),
+        )
+    ).all()
+    for mapping in mapping_rows:
+        mappings_by_code.setdefault(mapping.icd_code, []).append(mapping)
+
+    icd_rows = db.session.scalars(
+        sa.select(MasIcd1020192)
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
+        )
+        .order_by(
+            MasIcd1020192.chapter_code.asc(),
+            MasIcd1020192.three_character_code.asc(),
+            MasIcd1020192.code.asc(),
+        )
+    ).all()
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "ICD10 Codes"
+    headers = [
+        "ICD Code",
+        "ICD Title",
+        "Semantic Level",
+        "Chapter Code",
+        "Chapter Title",
+        "Block Code",
+        "Block Title",
+        "Three Character Code",
+        "Coding Allowed",
+        "Age Selectable",
+        "Sex Selectable",
+        "Policy Status",
+        "Mapped To Scheme",
+        "Scheme Age Scope",
+        "Scheme Age Band",
+        "COD Bucket Path",
+        "Match Type",
+        "Manual Override",
+        "Source Sheet",
+        "Source Row Number",
+        "Mapping Note",
+    ]
+    sheet.append(headers)
+
+    for icd in icd_rows:
+        mappings = mappings_by_code.get(icd.code) or [None]
+        for mapping in mappings:
+            is_manual_override = (
+                mapping is not None and mapping.match_type == MANUAL_OVERRIDE_MATCH_TYPE
+            )
+            sheet.append(
+                [
+                    icd.code,
+                    icd.title,
+                    icd.semantic_level,
+                    icd.chapter_code,
+                    icd.chapter_title,
+                    icd.block_code,
+                    icd.block_title,
+                    icd.three_character_code,
+                    "Yes" if icd.is_coding_selectable else "No",
+                    icd.age_group_selectable,
+                    icd.sex_selectable,
+                    icd.policy_status,
+                    "Yes" if mapping is not None else "No",
+                    mapping.age_scope if mapping is not None else None,
+                    age_band_labels.get(mapping.age_scope) if mapping is not None else None,
+                    _path_label_for_node_id(mapping.node_id) if mapping is not None else None,
+                    mapping.match_type if mapping is not None else None,
+                    "Yes" if is_manual_override else "No",
+                    mapping.source_sheet if mapping is not None else None,
+                    mapping.source_row_number if mapping is not None else None,
+                    mapping.mapping_note if mapping is not None else None,
+                ]
+            )
+
+    _format_xlsx_sheet(sheet)
+
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 def get_cod_bucket_node_mappings_payload(

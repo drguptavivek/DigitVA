@@ -131,6 +131,9 @@ current editor supports:
 
 - selecting a scheme and age scope from top-level scheme cards
 - exporting any scheme as JSON from its scheme card
+- importing an exported JSON snapshot back into a selected scheme from its
+  scheme card; the import fully replaces that scheme's age bands, nodes, and
+  ICD mappings while keeping the selected scheme code stable
 - exporting a scheme-level bucket XLSX workbook from its scheme card, including
   bucket hierarchy rows and ICD mapping rows with manual override status
 - creating a new scheme with age bands, min/max age bounds, units, and level count

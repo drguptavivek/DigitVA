@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from io import BytesIO
 import uuid
@@ -231,6 +232,135 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertTrue(any(item["icd_code"] == "V01" for item in payload["mappings"]))
         v01_mapping = next(item for item in payload["mappings"] if item["icd_code"] == "V01")
         self.assertIn("Road Injuries", v01_mapping["node_path_label"])
+
+    def test_cod_bucket_scheme_import_json_replaces_existing_scheme(self):
+        self._login(self.base_admin_id)
+        export_response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/export"
+        )
+        self.assertEqual(export_response.status_code, 200)
+        payload = export_response.get_json()
+        payload["scheme"]["scheme_name"] = "Imported Admin COD Scheme"
+        payload["scheme"]["scheme_description"] = "Imported through admin JSON"
+
+        payload["age_bands"].append(
+            {
+                "age_band_id": str(uuid.uuid4()),
+                "value": "child_1_59m",
+                "label": "Child / 1-59 Months",
+                "min_age_value": 1,
+                "min_age_unit": "months",
+                "max_age_value": 60,
+                "max_age_unit": "months",
+                "level_count": 2,
+                "sort_order": 2,
+                "is_active": True,
+            }
+        )
+        child_category_id = str(uuid.uuid4())
+        child_field_id = str(uuid.uuid4())
+        payload["nodes"].extend(
+            [
+                {
+                    "node_id": child_category_id,
+                    "age_scope": "child_1_59m",
+                    "node_type": "category",
+                    "node_code": "child_main",
+                    "node_label": "Child Main",
+                    "sort_order": 1,
+                    "is_active": True,
+                    "parent_node_id": None,
+                },
+                {
+                    "node_id": child_field_id,
+                    "age_scope": "child_1_59m",
+                    "node_type": "field",
+                    "node_code": "child_disease",
+                    "node_label": "Child Disease",
+                    "sort_order": 1,
+                    "is_active": True,
+                    "parent_node_id": child_category_id,
+                },
+            ]
+        )
+        payload["mappings"].append(
+            {
+                "mapping_id": str(uuid.uuid4()),
+                "age_scope": "child_1_59m",
+                "icd_code": "A00",
+                "icd_to_display": "A00-Cholera",
+                "node_id": child_field_id,
+                "node_path_label": "Child Main > Child Disease",
+                "source_sheet": "admin_cod_bucket_editor",
+                "source_row_number": None,
+                "source_category": None,
+                "match_type": "manual_override",
+                "mapping_note": "Manual override to default COD bucket scheme mapping.",
+                "is_active": True,
+            }
+        )
+        payload["nodes"] = [
+            node for node in payload["nodes"] if node["node_id"] != str(self.field_b_id)
+        ]
+        payload["mappings"] = [
+            mapping for mapping in payload["mappings"] if mapping["icd_code"] != "V01"
+        ]
+
+        response = self.client.post(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/import",
+            data={
+                "file": (
+                    BytesIO(json.dumps(payload).encode("utf-8")),
+                    "cod_bucket_import.json",
+                )
+            },
+            headers=self._csrf_headers(),
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body["scheme"]["scheme_code"], self.scheme_code)
+        self.assertEqual(body["scheme"]["scheme_name"], "Imported Admin COD Scheme")
+        self.assertEqual(len(body["scheme"]["age_bands"]), 2)
+        self.assertEqual(body["scheme"]["mapping_version"], 2)
+        self.assertTrue(
+            any(item["label"] == "Child / 1-59 Months" for item in body["scheme"]["age_bands"])
+        )
+
+        scheme = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == self.scheme_code)
+        )
+        self.assertEqual(scheme.scheme_name, "Imported Admin COD Scheme")
+        self.assertEqual(scheme.mapping_version, 2)
+        self.assertIsNone(db.session.get(MasCodBucketNode, self.field_b_id))
+        child_nodes = db.session.scalars(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == self.scheme_id,
+                MasCodBucketNode.age_scope == "child_1_59m",
+            )
+        ).all()
+        self.assertEqual(
+            sorted(node.node_label for node in child_nodes),
+            ["Child Disease", "Child Main"],
+        )
+        child_mapping = db.session.scalar(
+            sa.select(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == self.scheme_id,
+                MapIcdCodBucket.age_scope == "child_1_59m",
+                MapIcdCodBucket.icd_code == "A00",
+            )
+        )
+        self.assertIsNotNone(child_mapping)
+        self.assertIsNone(
+            db.session.scalar(
+                sa.select(MapIcdCodBucket.mapping_id).where(
+                    MapIcdCodBucket.scheme_id == self.scheme_id,
+                    MapIcdCodBucket.age_scope == "adult_over5y",
+                    MapIcdCodBucket.icd_code == "V01",
+                )
+            )
+        )
 
     def test_cod_bucket_scheme_export_returns_xlsx_with_bucket_and_manual_override_status(self):
         self._login(self.base_admin_id)

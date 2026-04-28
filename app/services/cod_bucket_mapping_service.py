@@ -1491,6 +1491,240 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
     }
 
 
+def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodBucketScheme:
+    scheme = get_cod_bucket_scheme(scheme_code)
+    if scheme is None:
+        raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
+    if not isinstance(payload, dict):
+        raise ValueError("COD bucket import payload must be a JSON object.")
+
+    scheme_payload = payload.get("scheme")
+    age_band_payload = payload.get("age_bands")
+    node_payload = payload.get("nodes")
+    mapping_payload = payload.get("mappings")
+    if not isinstance(scheme_payload, dict):
+        raise ValueError("COD bucket import payload must include a scheme object.")
+    if not isinstance(age_band_payload, list) or not age_band_payload:
+        raise ValueError("COD bucket import payload must include at least one age band.")
+    if not isinstance(node_payload, list):
+        raise ValueError("COD bucket import payload must include a nodes list.")
+    if not isinstance(mapping_payload, list):
+        raise ValueError("COD bucket import payload must include a mappings list.")
+
+    normalized_name = _normalize_label(scheme_payload.get("scheme_name"))
+    if not normalized_name:
+        raise ValueError("Imported scheme name is required.")
+    normalized_description = _normalize_label(scheme_payload.get("scheme_description"))
+
+    cleaned_age_bands: list[dict] = []
+    seen_age_scopes: set[str | None] = set()
+    for index, raw_age_band in enumerate(age_band_payload, start=1):
+        age_label = _normalize_label(raw_age_band.get("label"))
+        if not age_label:
+            raise ValueError(f"Age band {index} requires a label.")
+        raw_age_scope = raw_age_band.get("value")
+        age_scope = _normalize_label(raw_age_scope)
+        age_scope = age_scope.lower() if age_scope else None
+        if age_scope in seen_age_scopes:
+            raise ValueError(f"Age band '{age_label}' duplicates an existing age scope.")
+        seen_age_scopes.add(age_scope)
+
+        try:
+            level_count = int(raw_age_band.get("level_count"))
+        except (TypeError, ValueError):
+            raise ValueError(f"Age band '{age_label}' requires a numeric level count.")
+        if level_count not in {1, 2, 3}:
+            raise ValueError(f"Age band '{age_label}' must use 1, 2, or 3 levels.")
+
+        min_age_value = raw_age_band.get("min_age_value")
+        max_age_value = raw_age_band.get("max_age_value")
+        try:
+            min_age_value = int(min_age_value)
+            max_age_value = int(max_age_value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"Age band '{age_label}' minimum and maximum ages must be integers."
+            )
+        min_age_unit = (raw_age_band.get("min_age_unit") or "").strip().lower()
+        max_age_unit = (raw_age_band.get("max_age_unit") or "").strip().lower()
+        if min_age_value < 0 or max_age_value < 0:
+            raise ValueError(f"Age band '{age_label}' ages cannot be negative.")
+        if min_age_unit not in AGE_UNITS or max_age_unit not in AGE_UNITS:
+            raise ValueError(f"Age band '{age_label}' contains an invalid age unit.")
+
+        sort_order_raw = raw_age_band.get("sort_order", index)
+        try:
+            sort_order = int(sort_order_raw)
+        except (TypeError, ValueError):
+            raise ValueError(f"Age band '{age_label}' sort order must be an integer.")
+
+        cleaned_age_bands.append(
+            {
+                "age_scope": age_scope,
+                "age_label": age_label,
+                "min_age_value": min_age_value,
+                "min_age_unit": min_age_unit,
+                "max_age_value": max_age_value,
+                "max_age_unit": max_age_unit,
+                "level_count": level_count,
+                "sort_order": sort_order,
+            }
+        )
+    cleaned_age_bands.sort(key=lambda item: (item["sort_order"], item["age_label"].lower()))
+    age_scopes = {item["age_scope"] for item in cleaned_age_bands}
+
+    cleaned_nodes: list[dict] = []
+    node_ids_by_import_id: dict[str, dict] = {}
+    for index, raw_node in enumerate(node_payload, start=1):
+        import_node_id = str(raw_node.get("node_id") or "").strip()
+        if not import_node_id:
+            raise ValueError(f"Node {index} is missing node_id.")
+        if import_node_id in node_ids_by_import_id:
+            raise ValueError(f"Node '{import_node_id}' appears more than once in the import.")
+        age_scope = _normalize_label(raw_node.get("age_scope"))
+        age_scope = age_scope.lower() if age_scope else None
+        if age_scope not in age_scopes:
+            raise ValueError(
+                f"Node '{import_node_id}' references unknown age scope '{age_scope or ''}'."
+            )
+        node_type = (raw_node.get("node_type") or "").strip().lower()
+        if node_type not in {NODE_TYPE_CATEGORY, NODE_TYPE_SUBCATEGORY, NODE_TYPE_FIELD}:
+            raise ValueError(f"Node '{import_node_id}' has an invalid node type.")
+        node_label = _normalize_label(raw_node.get("node_label"))
+        if not node_label:
+            raise ValueError(f"Node '{import_node_id}' requires a node label.")
+        node_code = _normalize_label(raw_node.get("node_code"))
+        if not node_code:
+            raise ValueError(f"Node '{import_node_id}' requires a node code.")
+        try:
+            sort_order = int(raw_node.get("sort_order"))
+        except (TypeError, ValueError):
+            raise ValueError(f"Node '{import_node_id}' sort order must be an integer.")
+        parent_node_id = str(raw_node.get("parent_node_id") or "").strip() or None
+        cleaned = {
+            "import_node_id": import_node_id,
+            "age_scope": age_scope,
+            "node_type": node_type,
+            "node_code": node_code,
+            "node_label": node_label,
+            "sort_order": sort_order,
+            "is_active": bool(raw_node.get("is_active", True)),
+            "parent_node_id": parent_node_id,
+        }
+        cleaned_nodes.append(cleaned)
+        node_ids_by_import_id[import_node_id] = cleaned
+
+    type_rank = {NODE_TYPE_CATEGORY: 1, NODE_TYPE_SUBCATEGORY: 2, NODE_TYPE_FIELD: 3}
+    for node in cleaned_nodes:
+        parent_import_id = node["parent_node_id"]
+        if not parent_import_id:
+            if node["node_type"] != NODE_TYPE_CATEGORY:
+                raise ValueError(
+                    f"Node '{node['node_label']}' must be a category when it has no parent."
+                )
+            continue
+        parent = node_ids_by_import_id.get(parent_import_id)
+        if parent is None:
+            raise ValueError(
+                f"Node '{node['node_label']}' references an unknown parent node."
+            )
+        if parent["age_scope"] != node["age_scope"]:
+            raise ValueError(
+                f"Node '{node['node_label']}' must stay within a single age scope hierarchy."
+            )
+        if type_rank[parent["node_type"]] >= type_rank[node["node_type"]]:
+            raise ValueError(
+                f"Node '{node['node_label']}' has an invalid parent hierarchy."
+            )
+
+    cleaned_mappings: list[dict] = []
+    for index, raw_mapping in enumerate(mapping_payload, start=1):
+        icd_code = _normalize_icd_code(raw_mapping.get("icd_code"))
+        if not icd_code:
+            raise ValueError(f"Mapping {index} requires an ICD code.")
+        node_import_id = str(raw_mapping.get("node_id") or "").strip()
+        target_node = node_ids_by_import_id.get(node_import_id)
+        if target_node is None:
+            raise ValueError(f"Mapping '{icd_code}' references an unknown node.")
+        if target_node["node_type"] != NODE_TYPE_FIELD:
+            raise ValueError(f"Mapping '{icd_code}' must target a disease field node.")
+        age_scope = _normalize_label(raw_mapping.get("age_scope"))
+        age_scope = age_scope.lower() if age_scope else None
+        if age_scope != target_node["age_scope"]:
+            raise ValueError(f"Mapping '{icd_code}' age scope does not match its target node.")
+        cleaned_mappings.append(
+            {
+                "age_scope": age_scope,
+                "icd_code": icd_code,
+                "node_import_id": node_import_id,
+                "source_sheet": _normalize_label(raw_mapping.get("source_sheet")),
+                "source_row_number": raw_mapping.get("source_row_number"),
+                "source_category": _normalize_label(raw_mapping.get("source_category")),
+                "match_type": _normalize_label(raw_mapping.get("match_type")),
+                "mapping_note": _normalize_label(raw_mapping.get("mapping_note")),
+                "is_active": bool(raw_mapping.get("is_active", True)),
+            }
+        )
+
+    scheme.scheme_name = normalized_name
+    scheme.scheme_description = normalized_description or f"{normalized_name} COD bucket scheme"
+    scheme.mapping_version = (scheme.mapping_version or 0) + 1
+    scheme.is_active = bool(scheme_payload.get("is_active", True))
+
+    _replace_scheme_contents(scheme)
+
+    for age_band in cleaned_age_bands:
+        _create_age_band(scheme=scheme, **age_band)
+
+    created_nodes_by_import_id: dict[str, MasCodBucketNode] = {}
+    for node in sorted(
+        cleaned_nodes,
+        key=lambda item: (
+            item["age_scope"] or "",
+            type_rank[item["node_type"]],
+            item["sort_order"],
+            item["node_label"].lower(),
+        ),
+    ):
+        parent_node = (
+            created_nodes_by_import_id.get(node["parent_node_id"])
+            if node["parent_node_id"]
+            else None
+        )
+        created_node = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=node["age_scope"],
+            node_type=node["node_type"],
+            parent=parent_node,
+            node_code=node["node_code"],
+            node_label=node["node_label"],
+            sort_order=node["sort_order"],
+            is_active=node["is_active"],
+        )
+        db.session.add(created_node)
+        db.session.flush()
+        created_nodes_by_import_id[node["import_node_id"]] = created_node
+
+    for mapping in cleaned_mappings:
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=mapping["age_scope"],
+                icd_code=mapping["icd_code"],
+                node_id=created_nodes_by_import_id[mapping["node_import_id"]].node_id,
+                source_sheet=mapping["source_sheet"],
+                source_row_number=mapping["source_row_number"],
+                source_category=mapping["source_category"],
+                match_type=mapping["match_type"],
+                mapping_note=mapping["mapping_note"],
+                is_active=mapping["is_active"],
+            )
+        )
+
+    db.session.commit()
+    return scheme
+
+
 def _format_xlsx_sheet(sheet) -> None:
     header_fill = PatternFill("solid", fgColor="D9EAF7")
     header_font = Font(bold=True)

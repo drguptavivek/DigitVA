@@ -1,3 +1,5 @@
+import json
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from tempfile import NamedTemporaryFile
@@ -36,7 +38,9 @@ from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
     apply_admin_cod_bucket_mapping_metadata,
     create_cod_bucket_scheme,
+    export_cod_bucket_scheme_json,
     import_cmea10_scheme,
+    import_cod_bucket_scheme_json,
     import_srs_india_scheme,
     import_who_2022_va_scheme,
     list_cod_bucket_unmapped_icd_rows,
@@ -679,6 +683,269 @@ class CodBucketMappingServiceTests(BaseTestCase):
 
         self.assertEqual(scheme.scheme_code, "ADJACENT_SCHEME")
         self.assertEqual(warnings, [])
+
+    def test_import_cod_bucket_scheme_json_replaces_existing_contents(self):
+        scheme = MasCodBucketScheme(
+            scheme_code="IMPORT_TARGET",
+            scheme_name="Original Scheme",
+            scheme_description="Original description",
+            mapping_version=3,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                age_label="Adult / Over 5 Years",
+                min_age_value=5,
+                min_age_unit="years",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=2,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        stale_category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="stale_category",
+            node_label="Stale Category",
+            sort_order=1,
+            is_active=True,
+        )
+        stale_field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            parent=stale_category,
+            node_code="stale_field",
+            node_label="Stale Field",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add_all([stale_category, stale_field])
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                icd_code="A00",
+                node_id=stale_field.node_id,
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        source_scheme, _warnings = create_cod_bucket_scheme(
+            scheme_name="Replacement Scheme",
+            scheme_code="IMPORT_SOURCE",
+            age_bands=[
+                {
+                    "age_label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 3,
+                },
+                {
+                    "age_label": "Child / 1-59 Months",
+                    "min_age_value": 1,
+                    "min_age_unit": "months",
+                    "max_age_value": 60,
+                    "max_age_unit": "months",
+                    "level_count": 2,
+                },
+            ],
+        )
+        source_age_bands = db.session.scalars(
+            sa.select(MasCodBucketSchemeAgeBand)
+            .where(MasCodBucketSchemeAgeBand.scheme_id == source_scheme.scheme_id)
+            .order_by(MasCodBucketSchemeAgeBand.sort_order.asc())
+        ).all()
+        source_adult = source_age_bands[0]
+        source_child = source_age_bands[1]
+        adult_category = MasCodBucketNode(
+            scheme_id=source_scheme.scheme_id,
+            age_scope=source_adult.age_scope,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="adult_main",
+            node_label="Adult Main",
+            sort_order=1,
+            is_active=True,
+        )
+        adult_field = MasCodBucketNode(
+            scheme_id=source_scheme.scheme_id,
+            age_scope=source_adult.age_scope,
+            node_type=NODE_TYPE_FIELD,
+            parent=adult_category,
+            node_code="adult_disease",
+            node_label="Adult Disease",
+            sort_order=1,
+            is_active=True,
+        )
+        child_category = MasCodBucketNode(
+            scheme_id=source_scheme.scheme_id,
+            age_scope=source_child.age_scope,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="child_main",
+            node_label="Child Main",
+            sort_order=1,
+            is_active=True,
+        )
+        child_field = MasCodBucketNode(
+            scheme_id=source_scheme.scheme_id,
+            age_scope=source_child.age_scope,
+            node_type=NODE_TYPE_FIELD,
+            parent=child_category,
+            node_code="child_disease",
+            node_label="Child Disease",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add_all([adult_category, adult_field, child_category, child_field])
+        db.session.flush()
+        db.session.add_all(
+            [
+                MapIcdCodBucket(
+                    scheme_id=source_scheme.scheme_id,
+                    age_scope=source_adult.age_scope,
+                    icd_code="I21",
+                    node_id=adult_field.node_id,
+                    is_active=True,
+                ),
+                MapIcdCodBucket(
+                    scheme_id=source_scheme.scheme_id,
+                    age_scope=source_child.age_scope,
+                    icd_code="A00",
+                    node_id=child_field.node_id,
+                    is_active=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        payload = export_cod_bucket_scheme_json(scheme_code="IMPORT_SOURCE")
+        payload["scheme"]["scheme_name"] = "Imported Replacement Scheme"
+        payload["scheme"]["scheme_description"] = "Imported from JSON"
+
+        imported_scheme = import_cod_bucket_scheme_json(
+            scheme_code="IMPORT_TARGET",
+            payload=payload,
+        )
+
+        self.assertEqual(imported_scheme.scheme_code, "IMPORT_TARGET")
+        self.assertEqual(imported_scheme.scheme_name, "Imported Replacement Scheme")
+        self.assertEqual(imported_scheme.scheme_description, "Imported from JSON")
+        self.assertEqual(imported_scheme.mapping_version, 4)
+        self.assertEqual(
+            db.session.scalar(
+                sa.select(sa.func.count())
+                .select_from(MasCodBucketSchemeAgeBand)
+                .where(MasCodBucketSchemeAgeBand.scheme_id == imported_scheme.scheme_id)
+            ),
+            2,
+        )
+        self.assertEqual(
+            db.session.scalar(
+                sa.select(sa.func.count())
+                .select_from(MasCodBucketNode)
+                .where(MasCodBucketNode.scheme_id == imported_scheme.scheme_id)
+            ),
+            4,
+        )
+        self.assertEqual(
+            db.session.scalar(
+                sa.select(sa.func.count())
+                .select_from(MapIcdCodBucket)
+                .where(MapIcdCodBucket.scheme_id == imported_scheme.scheme_id)
+            ),
+            2,
+        )
+        self.assertFalse(
+            db.session.scalar(
+                sa.select(MasCodBucketNode.node_id).where(
+                    MasCodBucketNode.scheme_id == imported_scheme.scheme_id,
+                    MasCodBucketNode.node_code == "stale_field",
+                )
+            )
+        )
+        imported_payload = export_cod_bucket_scheme_json(scheme_code="IMPORT_TARGET")
+        self.assertEqual(imported_payload["scheme"]["scheme_code"], "IMPORT_TARGET")
+        self.assertEqual(imported_payload["scheme"]["scheme_name"], "Imported Replacement Scheme")
+        self.assertEqual(
+            sorted(item["icd_code"] for item in imported_payload["mappings"]),
+            ["A00", "I21"],
+        )
+
+    def test_import_cod_bucket_scheme_json_rejects_unknown_mapping_node_reference(self):
+        scheme, _warnings = create_cod_bucket_scheme(
+            scheme_name="Import Validation Target",
+            scheme_code="IMPORT_VALIDATE",
+            age_bands=[
+                {
+                    "age_label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 2,
+                }
+            ],
+        )
+
+        payload = {
+            "scheme": {
+                "scheme_code": "SOME_OTHER_CODE",
+                "scheme_name": "Bad Import",
+                "scheme_description": "Bad Import",
+            },
+            "age_bands": [
+                {
+                    "age_band_id": str(uuid.uuid4()),
+                    "value": AGE_SCOPE_ADULT_OVER5Y,
+                    "label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 2,
+                    "sort_order": 1,
+                    "is_active": True,
+                }
+            ],
+            "nodes": [
+                {
+                    "node_id": str(uuid.uuid4()),
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "node_type": NODE_TYPE_CATEGORY,
+                    "node_code": "adult_main",
+                    "node_label": "Adult Main",
+                    "sort_order": 1,
+                    "is_active": True,
+                    "parent_node_id": None,
+                }
+            ],
+            "mappings": [
+                {
+                    "mapping_id": str(uuid.uuid4()),
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "icd_code": "A00",
+                    "node_id": str(uuid.uuid4()),
+                    "is_active": True,
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(ValueError, "references an unknown node"):
+            import_cod_bucket_scheme_json(
+                scheme_code=scheme.scheme_code,
+                payload=payload,
+            )
 
     def test_aggregate_coded_submissions_by_bucket_uses_age_scope(self):
         db.session.execute(

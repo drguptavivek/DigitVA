@@ -38,6 +38,7 @@ from app.services.cod_bucket_mapping_service import (
     export_cod_bucket_scheme_xlsx,
     get_cod_bucket_scheme,
     get_cod_bucket_scheme_editor_payload,
+    import_cod_bucket_scheme_json,
     get_cod_bucket_node_mappings_payload,
     list_cod_bucket_unmapped_icd_rows,
     list_cod_bucket_scheme_cards,
@@ -4032,6 +4033,47 @@ def admin_cod_bucket_scheme_update(scheme_code):
         {
             "scheme": card,
             "warnings": warnings,
+        }
+    )
+
+
+@admin.post("/api/cod-bucket-schemes/<scheme_code>/import")
+@role_required("admin")
+def admin_cod_bucket_scheme_import(scheme_code):
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    uploaded_file = request.files.get("file")
+    if uploaded_file is None or not uploaded_file.filename:
+        return _json_error("A JSON file is required.", 400)
+
+    try:
+        payload = json.load(uploaded_file.stream)
+    except Exception:
+        return _json_error("Uploaded file must be valid JSON.", 400)
+
+    try:
+        scheme = import_cod_bucket_scheme_json(
+            scheme_code=scheme_code,
+            payload=payload,
+        )
+    except LookupError:
+        return _json_error("COD bucket scheme not found.", 404)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+
+    card = next(
+        (
+            item
+            for item in list_cod_bucket_scheme_cards()
+            if item["scheme_code"] == scheme.scheme_code
+        ),
+        None,
+    )
+    return jsonify(
+        {
+            "scheme": card,
+            "message": "Scheme imported from JSON.",
         }
     )
 

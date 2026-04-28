@@ -417,6 +417,12 @@
       </div>
     </div>
   </div>
+  <input
+    type="file"
+    id="cb-scheme-import-input"
+    accept="application/json,.json"
+    class="d-none"
+  >
 </div>
 
 <style>
@@ -506,6 +512,20 @@
         'X-CSRFToken': csrf(),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Request failed.');
+    return payload;
+  }
+
+  async function apiMultipart(url, formData) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-CSRFToken': csrf(),
+      },
+      body: formData,
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || 'Request failed.');
@@ -637,6 +657,7 @@
     resetDefaultModalEl: document.getElementById('cb-reset-default-modal'),
     resetDefaultModalBody: document.getElementById('cb-reset-default-modal-body'),
     resetDefaultConfirmBtn: document.getElementById('cb-reset-default-confirm-btn'),
+    schemeImportInput: document.getElementById('cb-scheme-import-input'),
   };
 
   let nodeEditModal = null;
@@ -664,6 +685,34 @@
 
   function renderEditorVisibility() {
     els.editorSection.classList.toggle('d-none', !state.schemeCode);
+  }
+
+  async function importSchemeJson(schemeCode, file) {
+    if (!schemeCode || !file) return;
+    setStatus(`Importing JSON into ${schemeCode}...`, false);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const payload = await apiMultipart(
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/import`,
+        formData
+      );
+      state.schemes = (state.schemes || []).map(scheme => (
+        scheme.scheme_code === schemeCode ? payload.scheme : scheme
+      ));
+      state.schemeCode = schemeCode;
+      state.ageScope = defaultAgeScopeForScheme(schemeCode);
+      state.selectedNodeIds = [null, null, null];
+      state.suppressAutoSelection = false;
+      renderSchemeCards();
+      await loadScheme();
+      setStatus(payload.message || `Imported JSON into ${schemeCode}.`, false);
+    } catch (error) {
+      setStatus(error.message || `Failed to import JSON into ${schemeCode}.`, true);
+    } finally {
+      els.schemeImportInput.value = '';
+      delete els.schemeImportInput.dataset.schemeCode;
+    }
   }
 
   function selectedSchemeMeta() {
@@ -724,6 +773,13 @@
                     data-scheme-code="${esc(scheme.scheme_code)}"
                   >
                     <i class="fa-solid fa-download me-1"></i>Export JSON
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-primary cb-scheme-import-btn"
+                    data-scheme-code="${esc(scheme.scheme_code)}"
+                  >
+                    <i class="fa-solid fa-upload me-1"></i>Import JSON
                   </button>
                   <button
                     type="button"
@@ -1960,6 +2016,14 @@
       );
       return;
     }
+    const importBtn = event.target.closest('.cb-scheme-import-btn');
+    if (importBtn) {
+      const schemeCode = importBtn.dataset.schemeCode || '';
+      if (!schemeCode) return;
+      els.schemeImportInput.dataset.schemeCode = schemeCode;
+      els.schemeImportInput.click();
+      return;
+    }
     const xlsxExportBtn = event.target.closest('.cb-scheme-xlsx-export-btn');
     if (xlsxExportBtn) {
       const schemeCode = xlsxExportBtn.dataset.schemeCode || '';
@@ -1988,6 +2052,17 @@
     }
     renderSchemeCards();
     loadScheme();
+  });
+
+  els.schemeImportInput.addEventListener('change', function (event) {
+    const file = event.target.files && event.target.files[0];
+    const schemeCode = els.schemeImportInput.dataset.schemeCode || '';
+    if (!file || !schemeCode) {
+      els.schemeImportInput.value = '';
+      delete els.schemeImportInput.dataset.schemeCode;
+      return;
+    }
+    importSchemeJson(schemeCode, file);
   });
 
   els.resetDefaultTopBtn.addEventListener('click', function () {

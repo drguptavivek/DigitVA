@@ -13,7 +13,12 @@ def _write_workbook(path: Path) -> None:
     crosswalk.append(["section", "va_code", "va_title", "icd10_codes_raw", "notes"])
     road = workbook.create_sheet("RoadTraffic_Footnote")
     road.append(["va_code", "detail"])
-    road.append(["VAs-12.01 / VAs-12.02", "V10.4-V10.9; V90-V99; Y85.9"])
+    road.append(
+        [
+            "VAs-12.01 / VAs-12.02",
+            "V10.4-V10.9; V81.1-V81.9; V82.1-V82.9; V90-V99; Y85.9",
+        ]
+    )
     workbook.save(path)
 
 
@@ -30,9 +35,14 @@ def _write_icd_csv(path: Path) -> None:
     ]
     rows = [
         ("V10.4", "Driver injured in traffic accident", "detailed_code", 1),
-        ("V90", "Accident to watercraft causing drowning and submersion", "three_character", 2),
-        ("V90.0", "Accident to watercraft causing drowning and submersion : Merchant ship", "detailed_code", 3),
-        ("Y85.9", "Sequelae of other and unspecified transport accidents", "detailed_code", 4),
+        ("V81.1", "Occupant of railway train injured in collision with motor vehicle in traffic accident", "detailed_code", 2),
+        ("V81.2", "Occupant of railway train injured in collision with or hit by rolling stock", "detailed_code", 3),
+        ("V82.1", "Occupant of streetcar injured in collision with motor vehicle in traffic accident", "detailed_code", 4),
+        ("V82.2", "Occupant of streetcar injured in collision with or hit by rolling stock", "detailed_code", 5),
+        ("V82.5", "Occupant of streetcar injured by fall in streetcar", "detailed_code", 6),
+        ("V90", "Accident to watercraft causing drowning and submersion", "three_character", 7),
+        ("V90.0", "Accident to watercraft causing drowning and submersion : Merchant ship", "detailed_code", 8),
+        ("Y85.9", "Sequelae of other and unspecified transport accidents", "detailed_code", 9),
     ]
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
@@ -65,7 +75,7 @@ def test_review_workbook_splits_road_and_non_road_transport_codes(tmp_path):
         output_path=output_path,
     )
 
-    assert summary["transport_codes_reviewed"] == 4
+    assert summary["transport_codes_reviewed"] == 9
     assert output_path.exists()
     workbook = load_workbook(output_path, read_only=True, data_only=True)
     sheet = workbook["RTA_NonRTA_Review"]
@@ -78,6 +88,11 @@ def test_review_workbook_splits_road_and_non_road_transport_codes(tmp_path):
         )
     }
     assert rows["V10.4"]["proposed_va_code"] == "VAs-12.01"
+    assert rows["V81.1"]["proposed_va_code"] == "VAs-12.01"
+    assert rows["V81.2"]["proposed_va_code"] == "VAs-12.02"
+    assert rows["V82.1"]["proposed_va_code"] == "VAs-12.01"
+    assert rows["V82.2"]["proposed_va_code"] == "VAs-12.02"
+    assert rows["V82.5"]["proposed_va_code"] == "VAs-12.02"
     assert rows["V90"]["proposed_va_code"] == "VAs-12.02"
     assert rows["V90.0"]["proposed_va_code"] == "VAs-12.02"
     assert rows["Y85.9"]["proposed_va_code"] == "VAs-12.02"

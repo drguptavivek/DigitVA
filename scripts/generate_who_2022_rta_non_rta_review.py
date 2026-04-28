@@ -40,6 +40,26 @@ def _is_non_road_transport_code(code: str) -> bool:
     return base_code in {f"V{number:02d}" for number in range(90, 100)} or code == "Y85.9"
 
 
+def _is_rail_non_road_event(*, code: str, title: str) -> bool:
+    title_lower = title.lower()
+    if code.startswith("V81.0"):
+        return True
+    if code.startswith("V82.0"):
+        return True
+    if code.startswith("V81.") or code.startswith("V82."):
+        return "traffic accident" not in title_lower
+    return False
+
+
+def _proposed_va_code(*, code: str, title: str, in_footnote: bool) -> str:
+    if in_footnote and not _is_non_road_transport_code(code) and not _is_rail_non_road_event(
+        code=code,
+        title=title,
+    ):
+        return "VAs-12.01"
+    return "VAs-12.02"
+
+
 def _title_review_flag(*, code: str, title: str, proposed_code: str) -> str:
     title_lower = title.lower()
     if "nontraffic" in title_lower and proposed_code == "VAs-12.01":
@@ -78,11 +98,12 @@ def _append_review_rows(
 ) -> None:
     for row in rows:
         code = row["code"]
+        title = row.get("title") or ""
         in_footnote = code in road_codes
-        proposed_code = (
-            "VAs-12.01"
-            if in_footnote and not _is_non_road_transport_code(code)
-            else "VAs-12.02"
+        proposed_code = _proposed_va_code(
+            code=code,
+            title=title,
+            in_footnote=in_footnote,
         )
         proposed_cause = (
             "Road traffic accident"
@@ -97,7 +118,7 @@ def _append_review_rows(
         sheet.append(
             [
                 code,
-                row.get("title") or "",
+                title,
                 row.get("semantic_level") or "",
                 row.get("chapter_code") or "",
                 row.get("block_code") or "",
@@ -172,7 +193,12 @@ def generate_review_workbook(
     proposed_rta_count = sum(
         1
         for row in icd_rows
-        if row["code"] in road_codes and not _is_non_road_transport_code(row["code"])
+        if _proposed_va_code(
+            code=row["code"],
+            title=row.get("title") or "",
+            in_footnote=row["code"] in road_codes,
+        )
+        == "VAs-12.01"
     )
     summary_sheet.append(["metric", "value"])
     summary_sheet.append(["transport_codes_reviewed", len(icd_rows)])
@@ -182,7 +208,7 @@ def generate_review_workbook(
     summary_sheet.append(
         [
             "review_rule",
-            "Codes in RoadTraffic_Footnote are proposed as VAs-12.01 except V90-V99 and Y85.9, which are proposed as VAs-12.02. Review flags call out titles that do not explicitly say traffic.",
+            "Codes in RoadTraffic_Footnote are proposed as VAs-12.01 except V90-V99, Y85.9, and rail/streetcar events that do not explicitly say traffic accident; these are proposed as VAs-12.02. Review flags call out titles that do not explicitly say traffic.",
         ]
     )
 

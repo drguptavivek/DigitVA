@@ -129,9 +129,6 @@ current editor supports:
 - exporting any scheme as JSON from its scheme card
 - exporting a scheme-level bucket XLSX workbook from its scheme card, including
   bucket hierarchy rows and ICD mapping rows with manual override status
-- exporting a scheme-level ICD-10 policy XLSX workbook from its scheme card,
-  including coding allowed status, age and sex coding policy, mapped bucket
-  path, and manual override status
 - creating a new scheme with age bands, min/max age bounds, units, and level count
 - editing an existing scheme's name and age-band metadata from the scheme card
 - resetting a built-in source-backed age band from the editor heading bar with

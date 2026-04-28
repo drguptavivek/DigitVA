@@ -1,11 +1,20 @@
 from datetime import datetime, timezone
+from io import BytesIO
 import io
 import json
+import uuid
 
 import sqlalchemy as sa
+from openpyxl import load_workbook
 
 from app import db
-from app.models import MasIcd1020192
+from app.models import (
+    MapIcdCodBucket,
+    MasCodBucketNode,
+    MasCodBucketScheme,
+    MasCodBucketSchemeAgeBand,
+    MasIcd1020192,
+)
 from tests.base import BaseTestCase
 
 
@@ -304,6 +313,77 @@ class TestAdminIcd10Browser(BaseTestCase):
         self.assertEqual(payload["row_count"], 1)
         self.assertEqual(payload["items"][0]["code"], "A00.0")
         self.assertEqual(payload["items"][0]["sex_selectable"], "female")
+
+    def test_admin_policy_xlsx_export_returns_policy_and_cod_override_status(self):
+        scheme = MasCodBucketScheme(
+            scheme_code=f"TEST_ICD_XLSX_{uuid.uuid4().hex[:8].upper()}",
+            scheme_name="ICD XLSX Test Scheme",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope="all_ages",
+                age_label="All Ages",
+                min_age_value=0,
+                min_age_unit="days",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=1,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        node = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="all_ages",
+            node_type="field",
+            node_code="cholera",
+            node_label="Cholera bucket",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add(node)
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope="all_ages",
+                icd_code="A00.0",
+                node_id=node.node_id,
+                match_type="manual_override",
+                source_sheet="admin_cod_bucket_editor",
+                mapping_note="Manual override to default COD bucket scheme mapping.",
+                is_active=True,
+            )
+        )
+        db.session.commit()
+        self._login(str(self.base_admin_user.user_id))
+
+        response = self.client.get("/admin/api/icd10/2019-2/policy-export.xlsx")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.mimetype,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn(
+            'attachment; filename="icd10_2019_2_policy_export.xlsx"',
+            response.headers.get("Content-Disposition", ""),
+        )
+        workbook = load_workbook(BytesIO(response.data), read_only=True, data_only=True)
+        sheet = workbook["ICD10 Policy"]
+        headers = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
+        rows = [dict(zip(headers, row)) for row in sheet.iter_rows(min_row=2, values_only=True)]
+        a000 = next(row for row in rows if row["ICD Code"] == "A00.0")
+        self.assertEqual(a000["Coding Allowed"], "Yes")
+        self.assertEqual(a000["Age Selectable"], "adult")
+        self.assertEqual(a000["Sex Selectable"], "female")
+        self.assertEqual(a000["COD Manual Override"], "Yes")
+        self.assertIn("ICD XLSX Test Scheme", a000["Manual Override Schemes"])
 
     def test_admin_policy_import_updates_code_rows(self):
         self._login(str(self.base_admin_user.user_id))

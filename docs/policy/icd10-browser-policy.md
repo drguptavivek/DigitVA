@@ -3,7 +3,7 @@ title: ICD-10 Browser Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-27
+last_updated: 2026-04-28
 ---
 
 # ICD-10 Browser Policy
@@ -27,6 +27,7 @@ Current implementation surfaces this browser in the admin console under
    - the direct children of a requested node
    - allowed vocabulary options for local policy fields
    - a JSON export of curated code-policy rows
+   - an XLSX export of editable code-policy rows with COD manual override status
 4. Policy edits must update only local policy fields and must not rewrite ICD
    hierarchy structure fields loaded from source.
 5. Policy-edit responses must return the updated node payload so the browser can
@@ -45,17 +46,21 @@ Current implementation surfaces this browser in the admin console under
    - `is_coding_selectable`
    - `sex_selectable`
    - `age_group_selectable`
-9. The policy import must be overwrite-style:
+9. The XLSX policy export must expose active `three_character` and
+   `detailed_code` rows with coding allowed status, age coding policy, sex
+   coding policy, policy status, restriction note, and whether the ICD code has
+   any COD bucket manual override mappings.
+10. The policy import must be overwrite-style:
    - imported code rows are updated from the file
    - all other editable ICD code rows are reset to `is_coding_selectable=false`
    - all other editable ICD code rows are reset to `sex_selectable=NULL`
    - all other editable ICD code rows are reset to `age_group_selectable=NULL`
-10. The policy import response must include:
+11. The policy import response must include:
    - `total_items`
    - `updated_items`
    - `reset_items`
    - `failed_codes`, with each failed code and the reason it was not imported
-11. Browser status indicators must distinguish inherited selectability:
+12. Browser status indicators must distinguish inherited selectability:
    - green: the row itself is selectable, or all direct three-character children
      in a structural block are selectable
    - yellow: a three-character row is not selectable itself but has at least one

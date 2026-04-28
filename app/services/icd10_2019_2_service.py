@@ -5,12 +5,21 @@ import json
 import re
 from dataclasses import dataclass
 from decimal import Decimal
+from io import BytesIO
 from pathlib import Path
 
 import sqlalchemy as sa
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 
 from app import db
-from app.models import MasIcd1020192, VaSubmissions
+from app.models import (
+    MapIcdCodBucket,
+    MasCodBucketNode,
+    MasCodBucketScheme,
+    MasIcd1020192,
+    VaSubmissions,
+)
 
 DEFAULT_ICD10_2019_2_CSV_PATH = Path(
     "docs/icd-causegrp-mappings/generated/icd10_2019_hierarchy.csv"
@@ -905,6 +914,117 @@ def export_icd10_2019_2_policy_json() -> dict:
         "row_count": len(items),
         "items": items,
     }
+
+
+def _format_xlsx_sheet(sheet) -> None:
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    header_font = Font(bold=True)
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = sheet.dimensions
+    for column_cells in sheet.columns:
+        values = [str(cell.value or "") for cell in column_cells[:100]]
+        width = min(max(len(value) for value in values) + 2, 48)
+        sheet.column_dimensions[column_cells[0].column_letter].width = width
+
+
+def export_icd10_2019_2_policy_xlsx() -> bytes:
+    rows = db.session.scalars(
+        sa.select(MasIcd1020192)
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level.in_(tuple(POLICY_EDITABLE_LEVELS)),
+        )
+        .order_by(
+            MasIcd1020192.chapter_code.asc(),
+            MasIcd1020192.three_character_code.asc(),
+            MasIcd1020192.code.asc(),
+        )
+    ).all()
+
+    manual_override_rows = db.session.execute(
+        sa.select(
+            MapIcdCodBucket.icd_code,
+            MasCodBucketScheme.scheme_name,
+            MasCodBucketNode.node_label,
+        )
+        .select_from(MapIcdCodBucket)
+        .join(
+            MasCodBucketScheme,
+            MasCodBucketScheme.scheme_id == MapIcdCodBucket.scheme_id,
+        )
+        .join(MasCodBucketNode, MasCodBucketNode.node_id == MapIcdCodBucket.node_id)
+        .where(
+            MapIcdCodBucket.is_active.is_(True),
+            MapIcdCodBucket.match_type == "manual_override",
+        )
+        .order_by(
+            MapIcdCodBucket.icd_code.asc(),
+            MasCodBucketScheme.scheme_name.asc(),
+            MasCodBucketNode.node_label.asc(),
+        )
+    ).mappings().all()
+    manual_schemes_by_code: dict[str, list[str]] = {}
+    manual_buckets_by_code: dict[str, list[str]] = {}
+    for row in manual_override_rows:
+        manual_schemes_by_code.setdefault(row["icd_code"], [])
+        if row["scheme_name"] not in manual_schemes_by_code[row["icd_code"]]:
+            manual_schemes_by_code[row["icd_code"]].append(row["scheme_name"])
+        manual_buckets_by_code.setdefault(row["icd_code"], [])
+        if row["node_label"] not in manual_buckets_by_code[row["icd_code"]]:
+            manual_buckets_by_code[row["icd_code"]].append(row["node_label"])
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "ICD10 Policy"
+    headers = [
+        "ICD Code",
+        "ICD Title",
+        "Semantic Level",
+        "Chapter Code",
+        "Chapter Title",
+        "Block Code",
+        "Block Title",
+        "Three Character Code",
+        "Coding Allowed",
+        "Age Selectable",
+        "Sex Selectable",
+        "Policy Status",
+        "Restriction Note",
+        "COD Manual Override",
+        "Manual Override Schemes",
+        "Manual Override Buckets",
+    ]
+    sheet.append(headers)
+    for row in rows:
+        manual_schemes = manual_schemes_by_code.get(row.code, [])
+        sheet.append(
+            [
+                row.code,
+                row.title,
+                row.semantic_level,
+                row.chapter_code,
+                row.chapter_title,
+                row.block_code,
+                row.block_title,
+                row.three_character_code,
+                "Yes" if row.is_coding_selectable else "No",
+                row.age_group_selectable,
+                row.sex_selectable,
+                row.policy_status,
+                row.restriction_note,
+                "Yes" if manual_schemes else "No",
+                "; ".join(manual_schemes),
+                "; ".join(manual_buckets_by_code.get(row.code, [])),
+            ]
+        )
+
+    _format_xlsx_sheet(sheet)
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 def get_icd10_2019_2_coding_context(va_sid: str) -> dict | None:

@@ -38,38 +38,34 @@ data must be scoped.
 12. Scheme-level bucket XLSX export must include bucket hierarchy rows and ICD
     mapping rows, including source metadata and manual override status for each
     mapping.
-13. Scheme-level ICD-10 XLSX export must include active three-character and
-    detailed ICD rows with coding allowed status, age coding policy, sex coding
-    policy, scheme mapping status, mapped bucket path, and manual override
-    status.
-14. The ICD picker used while maintaining COD bucket mappings must read from
+13. The ICD picker used while maintaining COD bucket mappings must read from
     `mas_icd10_2019_2`, not legacy `va_icd_codes`.
-15. The COD bucket ICD picker must return active three-character or detailed
+14. The COD bucket ICD picker must return active three-character or detailed
     ICD rows from the master table, without applying age- or sex-based
     filtering. Rows that are not currently assignable in coding must still be
     available for COD bucket mapping and must be explicitly marked as
     `Currently not assignable in coding`.
-16. The admin COD bucket editor must expose a scheme-level grid of active
+15. The admin COD bucket editor must expose a scheme-level grid of active
     three-character or detailed ICD rows that are not mapped anywhere in the
     current scheme, across all age groups, shown as a single ICD code list
     rather than split three-character vs detailed columns.
-17. Rows in that scheme-level unmapped ICD grid that are not currently
+16. Rows in that scheme-level unmapped ICD grid that are not currently
     assignable in coding must remain bulk-mappable and must be explicitly
     marked as `Currently not assignable in coding`.
-18. The scheme-level unmapped ICD grid must support bulk allocation by letting
+17. The scheme-level unmapped ICD grid must support bulk allocation by letting
     the operator choose a target age band and a target disease-level leaf
     within that scheme, then map multiple selected ICD codes in one action.
-19. The scheme-level unmapped ICD grid must support filtering to ICD codes
+18. The scheme-level unmapped ICD grid must support filtering to ICD codes
     already present in finalized COD outcomes, including codes that are not
     currently assignable during coding.
-20. The mapped ICD list for a selected disease-level leaf must support filtering
+19. The mapped ICD list for a selected disease-level leaf must support filtering
     manual overrides separately from source-derived mappings.
-21. For the built-in WHO 2022 VA scheme, the imported XLSX workbook is the
+20. For the built-in WHO 2022 VA scheme, the imported XLSX workbook is the
     source-of-truth baseline for default ICD-to-bucket mappings.
-22. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
+21. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
     only when the saved ICD-to-bucket target differs from the XLSX-derived
     default, or when that ICD code is absent from the source workbook.
-23. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
+22. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
     bucket, the manual override marker must be cleared and the source metadata
     restored.
 

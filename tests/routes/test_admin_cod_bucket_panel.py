@@ -280,69 +280,6 @@ class AdminCodBucketPanelTests(BaseTestCase):
             any(row["Node Label"] == "Pedestrian Road Injury" for row in node_rows)
         )
 
-    def test_cod_bucket_scheme_icd_export_returns_xlsx_with_policy_and_override_status(self):
-        self._login(self.base_admin_id)
-        mapping = db.session.get(MapIcdCodBucket, self.mapping_id)
-        mapping.source_sheet = "admin_cod_bucket_editor"
-        mapping.match_type = "manual_override"
-        mapping.mapping_note = "Manual override to default COD bucket scheme mapping."
-        db.session.commit()
-
-        response = self.client.get(
-            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-export.xlsx"
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.mimetype,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-        self.assertIn(
-            f'attachment; filename="cod_bucket_icd10_{self.scheme_code.lower()}.xlsx"',
-            response.headers.get("Content-Disposition", ""),
-        )
-        workbook = load_workbook(BytesIO(response.data), read_only=True, data_only=True)
-        sheet = workbook["ICD10 Codes"]
-        headers = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
-        self.assertEqual(
-            headers,
-            [
-                "ICD Code",
-                "ICD Title",
-                "Semantic Level",
-                "Chapter Code",
-                "Chapter Title",
-                "Block Code",
-                "Block Title",
-                "Three Character Code",
-                "Coding Allowed",
-                "Age Selectable",
-                "Sex Selectable",
-                "Policy Status",
-                "Mapped To Scheme",
-                "Scheme Age Scope",
-                "Scheme Age Band",
-                "COD Bucket Path",
-                "Match Type",
-                "Manual Override",
-                "Source Sheet",
-                "Source Row Number",
-                "Mapping Note",
-            ],
-        )
-        rows = [dict(zip(headers, row)) for row in sheet.iter_rows(min_row=2, values_only=True)]
-        v01 = next(row for row in rows if row["ICD Code"] == "V01")
-        self.assertEqual(v01["Coding Allowed"], "Yes")
-        self.assertEqual(v01["Age Selectable"], "all")
-        self.assertEqual(v01["Sex Selectable"], "both")
-        self.assertEqual(v01["Mapped To Scheme"], "Yes")
-        self.assertEqual(v01["Manual Override"], "Yes")
-        self.assertIn("Road Injuries", v01["COD Bucket Path"])
-        z91 = next(row for row in rows if row["ICD Code"] == "Z91")
-        self.assertEqual(z91["Coding Allowed"], "No")
-        self.assertEqual(z91["Mapped To Scheme"], "No")
-        self.assertEqual(z91["Manual Override"], "No")
-
     def test_cod_bucket_scheme_create_returns_feedback_but_still_persists(self):
         self._login(self.base_admin_id)
         response = self.client.post(

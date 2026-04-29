@@ -93,8 +93,7 @@
             {% for row in activity_rows %}
               <tr>
                 <td class="small activity-wrap-cell">
-                  <span class="activity-when"
-                        data-iso="{{ row.created_at.isoformat() }}">
+                  <span class="activity-when">
                     {{ row.created_at | user_timezone('%Y-%m-%d %H:%M') }}
                   </span>
                 </td>
@@ -202,31 +201,3 @@
   .activity-col-actor { width: 12%; }
   .activity-col-role { width: 8%; }
 </style>
-
-<script>
-  (function () {
-    var configuredTimezone = {{ (current_user.timezone or '') | tojson }};
-    var locale = navigator.language || undefined;
-    var timezone = configuredTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-    document.querySelectorAll('.activity-when').forEach(function (el) {
-      var isoValue = el.getAttribute('data-iso');
-      if (!isoValue) return;
-      var parsed = new Date(isoValue);
-      if (Number.isNaN(parsed.getTime())) return;
-      try {
-        el.textContent = new Intl.DateTimeFormat(locale, {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-          timeZone: timezone,
-        }).format(parsed);
-      } catch (error) {
-        // Leave server-rendered fallback text in place.
-      }
-    });
-  }());
-</script>

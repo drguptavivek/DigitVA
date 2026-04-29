@@ -1,0 +1,220 @@
+<h2>Access Control Model</h2>
+
+<p>DigitVA uses a <strong>hybrid RBAC + ABAC</strong> access control model:</p>
+
+<ul>
+  <li><strong>RBAC</strong> (Role-Based Access Control) determines <em>what</em> a user can do. Your role defines your capabilities.</li>
+  <li><strong>ABAC</strong> (Attribute-Based Access Control) determines <em>where</em> a user can do it. Your scope defines the boundary of your access.</li>
+</ul>
+
+<p>Access is granted only when <strong>both</strong> the role and the scope match the requested action and target record.</p>
+
+<h2>Roles</h2>
+
+<p>DigitVA defines the following roles. Roles are additive and do not inherit from each other. Each role has a specific scope type that constrains where it can be applied.</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Description</th>
+      <th>Allowed Scope Types</th>
+      <th>Landing Page</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>admin</strong></td>
+      <td>Global system administration. May manage users, projects, sites, project-site mappings, integrations, and all application records. Admin-only workflow actions (such as override-to-recode) rely on global admin membership.</td>
+      <td><code>global</code></td>
+      <td>Admin Dashboard (<code>/admin</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>project_pi</strong></td>
+      <td>Project Principal Investigator. Project-wide oversight within assigned projects. May view data and reporting across all sites in an assigned project, and perform oversight actions allowed by workflow policy.</td>
+      <td><code>project</code></td>
+      <td>Admin panel (project-scoped management)</td>
+    </tr>
+    <tr>
+      <td><strong>site_pi</strong></td>
+      <td>Site Principal Investigator. Site-specific oversight within assigned project-site scope. May view data and reporting for assigned sites. A user may hold site_pi grants for many project-site pairs.</td>
+      <td><code>project_site</code></td>
+      <td>Site PI Dashboard (<code>/sitepi</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>data_manager</strong></td>
+      <td>Data-quality and operational triage role. May browse all submissions in scope, view them in read-only mode, mark submissions as Not Codeable, trigger resync operations, and manage coder/coding_tester/data_manager grants within scope. May not start coding, submit COD, or perform reviewer actions.</td>
+      <td><code>project</code> or <code>project_site</code></td>
+      <td>Data Manager Dashboard (<code>/data-management</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>collaborator</strong></td>
+      <td>Read-only role. May view data and reporting within assigned scope. May not code, review, perform oversight write actions, or administer configuration.</td>
+      <td><code>project</code> or <code>project_site</code></td>
+      <td>Read-only views</td>
+    </tr>
+    <tr>
+      <td><strong>coder</strong></td>
+      <td>Coding role. May start coding, resume owned coding, submit coding outcomes, and view coding records when allowed by workflow policy. Only sees submissions whose forms resolve to an active project-site mapping.</td>
+      <td><code>project</code> or <code>project_site</code></td>
+      <td>Coder Dashboard (<code>/coding</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>coding_tester</strong></td>
+      <td>A grant role that can enter non-demo coding while bypassing normal project-site gates: <code>coding_enabled</code>, coding date windows (<code>coding_start_date</code>, <code>coding_end_date</code>), and <code>daily_coder_limit</code>. Uses the coder landing page and workflow.</td>
+      <td><code>project</code> or <code>project_site</code></td>
+      <td>Coder Dashboard (<code>/coding</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>reviewer</strong></td>
+      <td>Secondary coding role. May start reviewer coding when allowed by workflow policy, resume owned reviewer coding, and submit reviewer COD outcomes. Reviewer coding opens only after the coder's 24-hour recode window closes.</td>
+      <td><code>project</code> or <code>project_site</code></td>
+      <td>Reviewer Dashboard (<code>/reviewing</code>)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Scope Types</h2>
+
+<p>Every role grant has an explicit scope type that defines the boundary of access:</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Scope Type</th>
+      <th>Meaning</th>
+      <th>Required Data</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>global</code></td>
+      <td>System-wide access with no project or site boundary.</td>
+      <td>None (no project_id or site_id needed)</td>
+    </tr>
+    <tr>
+      <td><code>project</code></td>
+      <td>Access across all sites within a specific project.</td>
+      <td><code>project_id</code> required</td>
+    </tr>
+    <tr>
+      <td><code>project_site</code></td>
+      <td>Access to a single site within a single project.</td>
+      <td><code>project_id</code> and <code>site_id</code> both required</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-warning">
+  <strong>Broad access must be granted explicitly.</strong> The system never infers broader access from missing values. A <code>NULL</code> site_id does not imply project-wide access unless the scope type is explicitly set to <code>project</code>.
+</div>
+
+<h2>Role-to-Scope Mapping Rules</h2>
+
+<p>Not every role can be combined with every scope type. The allowed combinations are:</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>global</th>
+      <th>project</th>
+      <th>project_site</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>admin</td>
+      <td>Yes</td>
+      <td>No</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>project_pi</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>site_pi</td>
+      <td>No</td>
+      <td>No</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>data_manager</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>collaborator</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>coder</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>coding_tester</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>reviewer</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Authorization Rule</h2>
+
+<p>A request is allowed only if all of the following conditions are met:</p>
+
+<ol>
+  <li>The user is <strong>authenticated and active</strong>.</li>
+  <li>The user has the <strong>required role</strong> for the requested action.</li>
+  <li>The target record falls inside one of the user's <strong>explicit grant scopes</strong>.</li>
+  <li>Any applicable <strong>workflow-specific constraints</strong> also pass (for example: allowed language, workflow state, allocation ownership, terminal status).</li>
+</ol>
+
+<p>Workflow constraints narrow access further but they do <strong>not</strong> replace role and scope checks.</p>
+
+<h2>Language Filtering</h2>
+
+<p>In addition to role and scope, visibility is also filtered by the user's configured <strong>coding language</strong> (<code>vacode_language</code>). A coder or reviewer may have form access but still not see a particular submission if the submission's narration language does not match the user's language profile.</p>
+
+<h2>Access Examples</h2>
+
+<h3>Example: Coder with project-site scope</h3>
+
+<p>A coder with grant <code>project_site(UNSW01, NC01)</code> can code submissions from site NC01 in project UNSW01. They cannot see submissions from site TR01 in the same project, because the scope does not match.</p>
+
+<h3>Example: Coder with project-wide scope</h3>
+
+<p>A coder with grant <code>project(UNSW01)</code> can code submissions from <strong>all sites</strong> within project UNSW01, because the project-level grant covers the entire project.</p>
+
+<h3>Example: Site PI with multiple grants</h3>
+
+<p>A site PI with grants for <code>project_site(UNSW01, NC01)</code> and <code>project_site(ICMR01, NC01)</code> can see site NC01 data in both projects, but cannot see other sites in those projects unless separately granted.</p>
+
+<h2>Grant Administration</h2>
+
+<p>Role grants are managed by:</p>
+
+<ul>
+  <li><strong>Admin</strong> &mdash; may manage all grants across the entire system.</li>
+  <li><strong>Project PI</strong> &mdash; may manage project-site mappings and non-global access grants only within explicitly granted projects.</li>
+  <li><strong>Data Manager</strong> &mdash; may create users and manage coder, coding_tester, and data_manager grants within their own grant scope.</li>
+</ul>
+
+<div class="help-info">
+  <strong>Note:</strong> Grant data is stored as explicit user-role-scope assignments in <code>va_user_access_grants</code>. The older JSONB permission structure on the user record (<code>va_users.permission</code>) is being phased out in favor of the grants table. During the transition, some legacy paths still reference both.
+</div>

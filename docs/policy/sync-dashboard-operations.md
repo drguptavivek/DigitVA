@@ -3,7 +3,7 @@ title: Sync Dashboard Operations Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-04-29
 ---
 
 # Sync Dashboard Operations Policy
@@ -84,3 +84,29 @@ Policy:
   form `Sync` path
 - operators should not be forced to create local submissions manually before a
   first sync can run for a mapped site
+
+## Form Repair Coverage
+
+The repair coverage section is local-only (no ODK calls) and loads
+automatically on panel load.
+
+Policy:
+
+- the coverage table must show per-form counts for: local data, metadata,
+  attachments (non-audit), audit, legacy attachment rows, and SmartVA
+- each category has explicit completeness logic:
+  - **Metadata**: all 8 fields present (`va_summary`, `va_category_list`,
+    `FormVersion`, `DeviceID`, `SubmitterID`, `instanceID`,
+    `AttachmentsExpected`, `AttachmentsPresent`)
+  - **Attachments**: present file count meets or exceeds expected, and no
+    legacy rows remain. `audit.csv` is excluded from the file count.
+  - **Audit**: `audit.csv` present on disk (informational only, does not gate
+    completeness)
+  - **Legacy**: all `exists_on_odk=true` attachment rows have a non-null
+    `storage_name`
+  - **SmartVA**: active `va_smartva_results` row for the current
+    `active_payload_version_id` with non-empty `cause1`
+- per-form Repair buttons must trigger the canonical per-submission repair
+  engine for that form
+- the Repair action is distinct from Force-resync: it operates on the current
+  payload state and does not re-download all submission data from ODK

@@ -3,14 +3,14 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-29
 ---
 
 # SmartVA Analysis
 
 SmartVA is an automated cause-of-death classification tool for Verbal Autopsy (VA) data. This document covers how DigitVA integrates SmartVA: input preparation, execution, output parsing, result storage, and operational considerations.
 
-The SmartVA source code is available at `vendor/smartva-analyze` (git submodule, pinned to v3.0.0) for troubleshooting and reference.
+SmartVA is installed as a local Python package from `vendor/smartva-analyze` (declared in `pyproject.toml` as `smartva = { path = "vendor/smartva-analyze" }`). Non-Python assets (CSV data files, HTML templates, etc. from `data/` and `res/` directories) are synced into the installed package at build time via `scripts/sync_smartva_package_data.py`, which runs during Docker image build and in the development override startup.
 
 ## Workflow-State Guards
 
@@ -61,8 +61,8 @@ policy baseline.
 
 ## Overview
 
-SmartVA is run as a Python subprocess via the vendored `smartva` package
-(`vendor/smartva-analyze`, git submodule, v3.0.0). It consumes a CSV exported
+SmartVA is run as a Python subprocess using the `smartva` package installed
+from the local vendor (`vendor/smartva-analyze`). It consumes a CSV exported
 from ODK submissions and produces a multi-age-group cause-of-death ranking per
 submission. Current runtime stores the active summary result in
 `va_smartva_results` and surfaces that record to coders in the VA coding
@@ -91,27 +91,29 @@ SmartVA runs in **Phase 2** of the data sync pipeline, after ODK submissions hav
 
 | Property | Value |
 |---|---|
-| Source | `vendor/smartva-analyze` (git submodule, pinned to v3.0.0) |
-| Install | uv path dependency (`[tool.uv.sources]` in `pyproject.toml`) |
+| Source | `vendor/smartva-analyze` (local package) |
+| Install | uv path dependency (`smartva = { path = "vendor/smartva-analyze" }` in `pyproject.toml`) |
+| Asset sync | `scripts/sync_smartva_package_data.py` copies CSV/data/res assets into installed package |
 | CLI entry point | `python -m smartva.va_cli` |
 | Execution environment | `minerva_celery_worker` container |
 | Required deps | `click`, `numpy`, `pandas`, `progressbar2`, `stemming`, `python-dateutil`, `xlsxwriter`, `matplotlib`, `colorama`, `pyparsing` (all via transitive deps) |
 
-SmartVA runs natively as a Python module — no PyInstaller binary or `/tmp/_MEI*`
-extraction overhead. It is installed as a uv path dependency, meaning `uv sync`
-installs it from the local `vendor/smartva-analyze` directory. GUI-only
-dependencies (`wxpython`, `tornado`) are excluded via
+SmartVA is installed as a local uv path dependency. Non-Python assets (CSV data
+files from `data/`, HTML/templates from `res/`) are **not** included in the pip
+install, so `scripts/sync_smartva_package_data.py` copies them from the vendor
+source into the installed package directory. This runs during Docker image build
+and in the development `docker-compose.override.yml` startup.
+
+GUI-only dependencies (`wxpython`, `tornado`) are excluded via
 `[tool.uv] exclude-dependencies` in `pyproject.toml`.
 
 ### Containers
 
-SmartVA runs inside the Celery worker. Since SmartVA is now pure Python (no
-PyInstaller binary), it is architecture-independent and shares the same Python
-interpreter as the worker process. Memory overhead is reduced by ~150-300MB
-compared to the previous PyInstaller `--onefile` binary which extracted a
-temporary runtime on each invocation.
+SmartVA runs inside the Celery worker as a pure Python package. Since SmartVA
+is now a native package (no PyInstaller binary), it is architecture-independent
+and shares the same Python interpreter as the worker process.
 
-- **`minerva_celery_worker`** — runs SmartVA via Celery tasks (batch size 10)
+- **`minerva_celery_worker`** — runs SmartVA via Celery tasks (batch size 50, 2-second inter-batch sleep)
 - **`minerva_app_service`** — runs tests and admin tasks; not used for production SmartVA
 
 ---
@@ -295,7 +297,7 @@ SmartVA is invoked as a Python subprocess:
 
 ```bash
 python -m smartva.va_cli --country=Unknown \
-    --figures=False --hiv=False --malaria=False --hce=True \
+    --figures=False --hiv=False --malaria=False --hce=True --freetext=True \
     smartva_input.csv smartva_output/
 ```
 
@@ -351,42 +353,89 @@ Current storage behavior:
 
 ---
 
-## Result Storage (`va_data_sync_01_odkcentral.py`)
+## Result Storage
 
-SmartVA attempts are persisted in `va_smartva_results`. The save logic per row:
+SmartVA result storage is managed by `smartva_service.py`. The save logic per row:
 
 | Condition | Action |
 |---|---|
 | Submission was amended this sync run (Phase 1 added/updated it) | Deactivate old result, write new one |
 | Submission has no existing active result (gap fill) | Write new result regardless of Phase 1 |
 | Submission has an existing active result and was not amended | Skip — result is current |
+| Submission already has a successful result for current payload version | Skip — already generated |
 | SmartVA attempt fails for the current payload | Write an active failure row with `va_smartva_outcome = 'failed'` and failure metadata |
 
-This means every sync run — including SmartVA-only runs — fills in missing results without overwriting results for unchanged submissions.
+This means every sync run — including SmartVA-only runs — fills in missing results without overwriting results for unchanged submissions. A failed result does NOT block a later successful re-run.
 
-Current storage semantics:
+### Four-Table Architecture
 
-- successful rows use `va_smartva_outcome = 'success'`
-- failure rows use `va_smartva_outcome = 'failed'`
-- both success and failure rows now carry `payload_version_id`
-- failure rows also carry:
-  - `va_smartva_failure_stage`
-  - `va_smartva_failure_detail`
-- SmartVA quality removals found in `report.txt` now use
-  `va_smartva_failure_stage = 'smartva_rejected'`
-- both success and failure rows follow the same active/inactive lifecycle, so a
-  later payload change or successful rerun supersedes the old row cleanly
+| Table | Purpose |
+|---|---|
+| `va_smartva_form_runs` | Form-level execution metadata (trigger source, pending count, outcome, disk path) |
+| `va_smartva_runs` | Per-submission attempt history (outcome, failure stage/detail, payload version) |
+| `va_smartva_run_outputs` | Raw likelihood rows from SmartVA CSV output (full JSONB payload per row) |
+| `va_smartva_results` | Active projection layer consumed by the coding UI |
 
-Current architectural behavior:
+### Result Projection (`va_smartva_results`)
 
-- `va_smartva_form_runs` stores form-level run metadata and disk path
-- `va_smartva_results` now serves as the active projection layer
-- durable run history is stored in `va_smartva_runs`
-- emitted per-run likelihood rows are stored in `va_smartva_run_outputs`
-- exact raw SmartVA files may also be stored on disk under the configured
-  `APP_SMARTVA_RUNS` base directory at the form-run `disk_path`, but normal
-  regeneration now derives from versioned payloads and persisted DB outputs
-  rather than requiring preserved raw workspaces
+Successful rows store the normalized summary: cause1-3 (with ICD codes),
+likelihood1-3, key_symptom1-3, all_symptoms, age (formatted `.1f`), sex,
+result_for (age group), and payload_version_id.
+
+Failure rows have all cause/likelihood fields NULL, with `va_smartva_outcome =
+'failed'` and:
+
+- `va_smartva_failure_stage`: one of `"execution"` (subprocess exception),
+  `"format_output"` (no output file), `"missing_row"` (SmartVA completed but no
+  row for this SID), or `"smartva_rejected"` (quality check in report.txt)
+- `va_smartva_failure_detail`: error message or rejection reason (up to 4000 chars)
+
+Both success and failure rows follow the same active/inactive lifecycle.
+
+### Likelihood Storage (`va_smartva_run_outputs`)
+
+After SmartVA completes, `smartva_service.py` reads the raw likelihood CSVs
+from the SmartVA output directory:
+
+- `smartva_output/4-monitoring-and-quality/intermediate-files/adult-likelihoods.csv`
+- `smartva_output/4-monitoring-and-quality/intermediate-files/child-likelihoods.csv`
+- `smartva_output/4-monitoring-and-quality/intermediate-files/neonate-likelihoods.csv`
+
+Each matching SID's entire row is stored as a JSONB dict in
+`va_smartva_run_outputs.output_payload`. The schema is variable — it contains
+whatever columns SmartVA emits (cause/likelihood columns, tariff scores, etc.).
+Rows are keyed by `output_kind = 'likelihood_row'`,
+`output_source_name` (e.g. `"adult-likelihoods.csv"`), and `output_resultfor`
+(e.g. `"for_adult"`).
+
+### Disk Preservation
+
+The entire SmartVA workspace is copied to disk under `APP_SMARTVA_RUNS`:
+
+```
+{APP_SMARTVA_RUNS}/{project_id}/{form_id}/{form_run_id}/
+  smartva_input.csv
+  smartva_output.csv
+  smartva_output/
+    1-individual-cause-of-death/
+      adult-predictions.csv
+      child-predictions.csv
+      neonate-predictions.csv
+    2-csmf/
+      csmf.csv
+    4-monitoring-and-quality/
+      report.txt
+      intermediate-files/
+        adult-likelihoods.csv
+        child-likelihoods.csv
+        neonate-likelihoods.csv
+```
+
+The `disk_path` in `va_smartva_form_runs` stores the relative path.
+Normal regeneration derives from versioned payloads and persisted DB outputs
+rather than requiring preserved raw workspaces.
+
+### Audit and Isolation
 
 Each saved result or failure record creates a `va_submissions_auditlog` entry.
 Each form's results are committed independently so a failure on one form does

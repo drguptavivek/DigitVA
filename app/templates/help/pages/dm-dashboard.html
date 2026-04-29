@@ -1,0 +1,255 @@
+<h2>Overview</h2>
+
+<p>
+  The Data Manager Dashboard at <code>/data-management</code> is the primary
+  workspace for data-quality triage and operational review of verbal autopsy
+  submissions. It provides scope-based visibility into submissions before and
+  after coder allocation.
+</p>
+
+<div class="help-tip">
+  Dashboard visibility is grant-scoped, not allocation-based. You see all
+  submissions within your assigned project or project-site scope, regardless
+  of whether you have previously worked on them.
+</div>
+
+<h2>How Scope Is Determined</h2>
+
+<p>Your dashboard visibility depends on your data-manager grants:</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Grant Scope</th>
+      <th>What You See</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Project</strong></td>
+      <td>All submissions across every site in that project</td>
+    </tr>
+    <tr>
+      <td><strong>Project-Site</strong></td>
+      <td>Only submissions belonging to that specific project-site pair</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  If you hold multiple grants, your visible scope is the union of all grants.
+  The dashboard and all sync actions enforce this scope boundary.
+</p>
+
+<h2>KPI Summary Cards</h2>
+
+<p>
+  The top of the dashboard displays summary cards with key operational metrics.
+  All card counts reflect your current filter selection.
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Card</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Submissions</strong></td>
+      <td>Total submissions in scope matching current filters</td>
+    </tr>
+    <tr>
+      <td><strong>Pending Coding</strong></td>
+      <td>Coder-actionable submissions only: <code>ready_for_coding</code>, <code>coding_in_progress</code>, <code>coder_step1_saved</code></td>
+    </tr>
+    <tr>
+      <td><strong>SmartVA Queue</strong></td>
+      <td>Submissions waiting for SmartVA processing</td>
+    </tr>
+    <tr>
+      <td><strong>Coded</strong></td>
+      <td>Submissions with a finalized coding outcome</td>
+    </tr>
+    <tr>
+      <td><strong>Flagged Not Codeable</strong></td>
+      <td>Submissions marked as not codeable (by coder or data manager)</td>
+    </tr>
+    <tr>
+      <td><strong>ODK - Has Issues</strong></td>
+      <td>Submissions with ODK Central review state set to <code>hasIssues</code></td>
+    </tr>
+    <tr>
+      <td><strong>SmartVA Missing</strong></td>
+      <td>Submissions with no active SmartVA output (includes consent-refused rows when filtered)</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-info">
+  <strong>Pending Coding</strong> does not include pre-coding pipeline states
+  such as <code>screening_pending</code>, <code>attachment_sync_pending</code>,
+  or <code>smartva_pending</code>. These are separate operational queues.
+</div>
+
+<p>Clicking certain cards applies the corresponding filter directly to the submission table.</p>
+
+<h2>Submission Table</h2>
+
+<p>
+  The submission table loads lazily through the paginated API. It displays
+  all submissions in your scope with the following columns:
+</p>
+
+<ul>
+  <li>Masked submission ID</li>
+  <li>Project / Site</li>
+  <li>Submitted date</li>
+  <li>Workflow state</li>
+  <li>Coded-on / Coded-by (for coded submissions)</li>
+  <li>ODK review state (mirrored from ODK Central)</li>
+  <li>ODK sync issue state (e.g., <code>missing_in_odk</code>)</li>
+  <li>SmartVA status</li>
+  <li>Attachment count</li>
+  <li>Optional columns: project, collector, flagged-at timestamp</li>
+</ul>
+
+<h3>SmartVA Status Values</h3>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Status</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Available</strong></td>
+      <td>An active SmartVA result exists and did not fail</td>
+    </tr>
+    <tr>
+      <td><strong>Failed</strong></td>
+      <td>An active SmartVA result exists with outcome <code>failed</code></td>
+    </tr>
+    <tr>
+      <td><strong>Ineligible</strong></td>
+      <td>Workflow state is <code>consent_refused</code>; SmartVA is not required</td>
+    </tr>
+    <tr>
+      <td><strong>Missing</strong></td>
+      <td>No active SmartVA result exists for this submission</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Filters</h2>
+
+<p>
+  The filter panel opens as an offcanvas sidebar from the right edge of the
+  dashboard. Available filters include:
+</p>
+
+<ul>
+  <li>Project</li>
+  <li>Site</li>
+  <li>Language</li>
+  <li>Submitted from / to (date range)</li>
+  <li>ODK status</li>
+  <li>SmartVA status</li>
+  <li>ODK sync status</li>
+  <li>Workflow state</li>
+  <li>Free-text search</li>
+  <li>Optional column toggles</li>
+</ul>
+
+<div class="help-tip">
+  Filter state is stored in the URL, making it bookmarkable. You can share a
+  filtered dashboard view by copying the browser URL. Filters persist across
+  page reloads.
+</div>
+
+<h2>Workflow Guide</h2>
+
+<p>
+  The dashboard includes a workflow guide with a Mermaid diagram that shows the
+  actual workflow states, including pre-coding pipeline states:
+</p>
+
+<ul>
+  <li><code>screening_pending</code></li>
+  <li><code>attachment_sync_pending</code></li>
+  <li><code>smartva_pending</code></li>
+  <li><code>ready_for_coding</code></li>
+  <li><code>coding_in_progress</code></li>
+  <li><code>coder_step1_saved</code></li>
+  <li><code>coder_finalized</code></li>
+  <li><code>recode_pending</code></li>
+  <li>and subsequent states</li>
+</ul>
+
+<p>
+  The workflow distribution donut chart also reflects these real states. Clicking
+  a donut segment filters the table to that exact workflow state.
+</p>
+
+<h2>Coder Daily Statistics</h2>
+
+<p>
+  A coder-by-day output table shows first-pass coding volume. Rows are coder
+  names; columns cover the last 7 calendar days (inclusive of today, using your
+  timezone). Only <code>coder_finalized</code> events are counted.
+  <code>recode_finalized</code> events are excluded.
+</p>
+
+<p>This table responds to the same dashboard filters as the main grid and KPI cards.</p>
+
+<h2>Exports</h2>
+
+<p>The Export dropdown in the dashboard header provides these downloads:</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Export</th>
+      <th>Content</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Export Data</strong></td>
+      <td>Current workflow/coding state and filtered ODK payload data</td>
+    </tr>
+    <tr>
+      <td><strong>SmartVA Input Data</strong></td>
+      <td>Cleaned SmartVA preparation input for active payloads</td>
+    </tr>
+    <tr>
+      <td><strong>Results</strong></td>
+      <td>Active SmartVA summary result fields</td>
+    </tr>
+    <tr>
+      <td><strong>Likelihoods</strong></td>
+      <td>Raw active SmartVA likelihood rows</td>
+    </tr>
+    <tr>
+      <td><strong>Coded COD Snapshot</strong></td>
+      <td>One row per submission with coder, reviewer, authoritative, and SmartVA COD fields, plus NQA question details</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-warning">
+  All exports respect your current dashboard filters and scope. Exports omit
+  fields marked as PII in the field mapping. SmartVA exports do not include
+  the full raw VA payload. CSV files are UTF-8 with BOM for Excel compatibility.
+</div>
+
+<h2>Recent Sync Results</h2>
+
+<p>
+  A collapsed-by-default panel shows recent sync runs you initiated, including
+  the form target, start time (in your timezone), run status, records
+  added/updated, and the latest progress or error entries.
+</p>

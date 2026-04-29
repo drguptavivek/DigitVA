@@ -3,7 +3,7 @@ title: ODK Repair Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-29
 ---
 
 # ODK Repair Workflow
@@ -255,6 +255,93 @@ Batch logs also report downloaded counts separately for:
 - non-audit attachments
 - `audit.csv`
 
+## Repair coverage computation
+
+The Form Repair Coverage table (`GET /admin/api/sync/backfill-stats`) is
+local-only (no ODK calls) and loads automatically on panel load.
+
+### Per-category completeness logic
+
+| Category | Complete When | Missing Count |
+|----------|--------------|---------------|
+| **Local Data** | Always shown as total count | N/A |
+| **Metadata** | All 8 fields present: `va_summary`, `va_category_list`, `FormVersion`, `DeviceID`, `SubmitterID`, `instanceID`, `AttachmentsExpected`, `AttachmentsPresent` | `local_total - metadata_complete` |
+| **Attachments** (non-audit) | `present_file_count >= AttachmentsExpected` AND `legacy_count == 0`. `audit.csv` excluded from file count. | `expected - present` |
+| **Audit** | `audit.csv` present on disk | `audit_expected - audit_present` (informational only, does NOT gate completeness) |
+| **Legacy** | `storage_name IS NOT NULL` on all `exists_on_odk=true` attachment rows | Rows where `storage_name IS NULL` |
+| **SmartVA** | Active `va_smartva_results` row exists for `active_payload_version_id` with non-empty `cause1` | `eligible - complete - failed` |
+
+### What counts as a present attachment file
+
+File resolution order per `va_submission_attachments` row:
+
+1. `APP_DATA/<form_id>/media/<storage_name>` if `storage_name` is set
+2. `local_path` fallback if `storage_name` is NULL
+3. **Excluded**: `audit.csv` is never counted as a present file for repair-map completeness (it is shown separately in the UI for informational purposes)
+
+Legacy rows (`storage_name IS NULL`) are flagged as incomplete even if the file
+exists at the legacy `local_path`, because they need migration to opaque storage
+names.
+
+## Per-submission repair execution and save points
+
+When the canonical repair engine processes one submission
+(`repair_submission_current_payload`), it follows this sequence:
+
+### Step 1: Build repair map
+
+Calls `_build_repair_map_for_form` scoped to the single submission. If no gaps
+(metadata, attachments, SmartVA), returns early with `{"reason": "no-gaps"}`.
+
+### Step 2: Metadata enrichment
+
+1. Fetches current ODK payload by instance ID (one ODK API call)
+2. Enriches the local active payload with metadata fields
+3. Updates `va_submission_payload_versions.payload_data` and `has_required_metadata`
+4. Updates `va_submissions.va_summary` and `va_category_list`
+5. **`db.session.commit()`** — saves enriched payload
+
+### Step 3: Re-check after enrichment
+
+Calls `_refresh_batch_plan_after_enrichment` to re-evaluate repair needs. If
+the ODK payload changed and the submission is in a protected finalized state,
+transitions to `finalized_upstream_changed` and **stops** — no attachment or
+SmartVA repair proceeds.
+
+### Step 4: Attachment repair
+
+If `needs_attachments` is still true:
+
+1. Creates `APP_DATA/<form_id>/media/` directory
+2. Downloads ALL attachments from ODK (including `audit.csv`)
+3. Migrates legacy rows to opaque `storage_name`
+4. **`db.session.commit()`** — saves attachment rows and files
+
+### Step 5: Workflow advancement
+
+If attachments are now complete for the current payload:
+
+- `attachment_sync_pending` → `smartva_pending`
+- **`db.session.commit()`** — saves workflow state + audit log entry
+
+### Step 6: SmartVA (batched separately)
+
+In batch repair (`_run_canonical_repair_batches`), SmartVA is deferred per
+submission (`run_smartva=False`). After each batch of 5 submissions, all SIDs
+needing SmartVA are collected by form and run in one `smartva_service.generate_for_form()` call:
+
+1. Prepares one CSV input for all target SIDs in that form
+2. Runs SmartVA once (processes adult, child, neonate age groups)
+3. Saves `va_smartva_form_runs` (form-level run metadata + disk path)
+4. Saves `va_smartva_runs` (per-submission attempt history)
+5. Saves `va_smartva_run_outputs` (raw likelihood rows as JSONB)
+6. Saves `va_smartva_results` (active projection: cause1-3, likelihoods, ICD codes)
+7. Copies workspace to disk under `APP_SMARTVA_RUNS/{project}/{form}/{run_id}/`
+8. **`db.session.commit()`**
+
+In single-submission on-open repair, SmartVA runs immediately via
+`generate_for_submission` instead of being batched.
+
 ## Protected submissions
 
 If payload revalidation detects a newer ODK payload for a protected finalized
@@ -320,6 +407,36 @@ But this behavior is intentionally gap-gated:
 
 This makes the request-path repair a targeted safety net rather than a new
 always-on sync path.
+
+## Canonical repair iteration flow
+
+```
+Form Repair Coverage "Repair" button
+    │
+    ▼
+POST /admin/api/sync/backfill/form/<form_id>
+    │ queues Celery task
+    ▼
+run_single_form_backfill(form_id)
+    │
+    ├── 1. Fetch ODK instance IDs for this form
+    ├── 2. Find missing thin local rows → upsert in batches of 50
+    ├── 3. Build repair map for ALL local submissions
+    └── 4. If any gaps → queue _run_canonical_repair_batches()
+            │
+            ▼
+        _run_canonical_repair_batches()
+            │ Split SIDs into batches of 5
+            │ FOR EACH batch → FOR EACH va_sid:
+            │   └── repair_submission_current_payload(va_sid)
+            │       ├── a. Build repair map (no gaps → early return)
+            │       ├── b. METADATA REPAIR → db.session.commit()
+            │       ├── c. If upstream changed → STOP
+            │       ├── d. ATTACHMENT REPAIR → db.session.commit()
+            │       ├── e. WORKFLOW ADVANCEMENT → db.session.commit()
+            │       └── f. SmartVA collected, batched per form
+            └── Per form: smartva_service.generate_for_form() → commit
+```
 
 ## Dedicated implementation links
 

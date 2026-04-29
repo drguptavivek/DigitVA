@@ -1,0 +1,143 @@
+<h2>What Is Demo Coding?</h2>
+
+<p>
+  Demo coding is a training and testing mode that uses the same coding interface as
+  real production coding, but produces temporary artifacts that are automatically
+  cleaned up after a defined retention period. It allows users to practice the full
+  coding workflow without permanently affecting production data.
+</p>
+
+<h2>Who Can Access Demo Mode</h2>
+
+<p>There are two demo coding patterns:</p>
+
+<ol>
+  <li>
+    <strong>Admin-started demo sessions on ordinary projects</strong> &mdash;
+    only users with the <code>admin</code> role can start ad hoc demo coding
+    sessions on non-demo projects. This is accessed via
+    <strong>Admin Testing Coding</strong> on the admin dashboard.
+  </li>
+  <li>
+    <strong>Project-declared demo/training projects</strong> &mdash; when a
+    project has <code>demo_training_enabled = true</code>, any active
+    authenticated user may enter the coder flow for that project&rsquo;s forms.
+    No project-specific coder grant is required. These appear as a dedicated
+    <strong>DEMO-CODING</strong> shortcut on the coder dashboard.
+  </li>
+</ol>
+
+<h2>How Demo Coding Differs from Real Coding</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Aspect</th>
+      <th>Real Coding</th>
+      <th>Demo Coding</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Allocation timeout</td>
+      <td>1 hour</td>
+      <td>15 minutes</td>
+    </tr>
+    <tr>
+      <td>Artifact retention</td>
+      <td>Permanent (until superseded)</td>
+      <td>6 hours (admin-started) or project-configurable (demo projects)</td>
+    </tr>
+    <tr>
+      <td>Coder grant required</td>
+      <td>Yes</td>
+      <td>No (demo projects) / Admin role (ad hoc)</td>
+    </tr>
+    <tr>
+      <td>Counts toward output metrics</td>
+      <td>Yes</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Entry route</td>
+      <td><code>/coding/start</code> or <code>/coding/pick/&lt;va_sid&gt;</code></td>
+      <td><code>vademo_start_coding</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Allocation Timeout</h2>
+
+<p>
+  Demo coding allocations are revoked after <strong>15 minutes</strong> of
+  inactivity, compared to 1 hour for real coding. If a demo session is not
+  completed within 15 minutes, the allocation is released and the submission
+  returns to the available pool.
+</p>
+
+<h2>Artifact Retention and Cleanup</h2>
+
+<p>
+  Demo-created artifacts (Narrative Quality Assessment, Social Autopsy Analysis,
+  and final COD) are temporary:
+</p>
+
+<ul>
+  <li>
+    <strong>Admin-started demo sessions on ordinary projects</strong> &mdash;
+    artifacts are retained for <strong>6 hours</strong> after the demo coding
+    artifact timestamps.
+  </li>
+  <li>
+    <strong>Project-declared demo/training projects</strong> &mdash; retention
+    is configurable via <code>demo_retention_minutes</code>, with a default of
+    <strong>10 minutes</strong>.
+  </li>
+</ul>
+
+<div class="help-warning">
+  <strong>Automatic cleanup:</strong> When the retention window expires, the
+  system deactivates all demo-created artifacts (final COD, NQA, Social Autopsy
+  Analysis), clears any authoritative-final pointer referencing the expired demo
+  COD, and restores the submission to its normal non-demo workflow state. If no
+  non-demo terminal record remains, the submission returns to
+  <code>ready_for_coding</code>.
+</div>
+
+<h2>Isolation from Real Workflow</h2>
+
+<p>
+  Demo coding artifacts are isolated from production workflow in the following ways:
+</p>
+
+<ul>
+  <li>Demo-coded submissions do not count toward <em>Cumulative Forms Coded</em>
+      or <em>Marked Not Codeable</em> output metrics on the coder dashboard.</li>
+  <li>After cleanup, the submission no longer appears as completed in the
+      demo user&rsquo;s coder history.</li>
+  <li>Demo artifacts are deactivated rather than deleted, maintaining an audit
+      trail that clearly records the cleanup reason as demo-retention expiry.</li>
+</ul>
+
+<h2>Dashboard Indicators</h2>
+
+<p>
+  When demo/training projects are available, the coder dashboard shows:
+</p>
+
+<ul>
+  <li>A dedicated <strong>DEMO-CODING</strong> shortcut that preselects the
+      first available demo/training project.</li>
+  <li>A plain-language warning explaining that these are training forms, the
+      retention period, and the 15-minute allocation timeout.</li>
+  <li>While a demo allocation is active, the user may see
+      <strong>Continue Pending VA Coding</strong>.</li>
+</ul>
+
+<h2>Auditability</h2>
+
+<div class="help-info">
+  Demo allocation creation and cleanup are fully auditable. Cleanup writes
+  submission audit entries for each deactivated artifact, and the audit trail
+  clearly distinguishes demo-retention expiry from ordinary coding timeout.
+</div>

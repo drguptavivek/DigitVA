@@ -1,0 +1,159 @@
+<h2>Projects</h2>
+
+<p>
+  The Projects panel at <code>/admin/panels/projects</code> lets administrators
+  create and manage research projects. Projects are the top-level organizational
+  unit in DigitVA: every site, form mapping, access grant, and submission is
+  scoped to a project.
+</p>
+
+<h3>Creating a Project</h3>
+
+<p>
+  To create a new project, click <strong>New Project</strong> and provide:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Name</strong></td>
+      <td>The project name (for example, "UNSW01" or "ICMR01").</td>
+    </tr>
+    <tr>
+      <td><strong>Description</strong></td>
+      <td>An optional description of the project's purpose or scope.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  New projects default to <strong>active</strong> status. Projects can be
+  deactivated when they are no longer in active use. Deactivating a project
+  does not delete its data, but it will no longer appear in sync, allocation,
+  or coding queues.
+</p>
+
+<h3>Workflow Toggles</h3>
+
+<p>
+  Each project has several workflow-related settings that control how coding
+  operates for all forms under that project.
+</p>
+
+<h3>Coding Intake Mode</h3>
+
+<p>
+  The <strong>coding intake mode</strong> determines how coders receive work:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Mode</th>
+      <th>Behavior</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Random Allocation</strong> (<code>random_form_allocation</code>)</td>
+      <td>The system automatically assigns the next eligible submission to the coder. The coder does not choose from a browse list. This is the default for new projects.</td>
+    </tr>
+    <tr>
+      <td><strong>Pick and Choose</strong> (<code>pick_and_choose</code>)</td>
+      <td>The coder can browse a list of eligible submissions and explicitly choose which one to start coding. The list still applies all standard workflow exclusions.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-info">
+  The intake mode is a project-level setting. Changing it affects all coders
+  working on forms within that project. The mode does not change the downstream
+  coding state machine once a case enters active coder workflow.
+</div>
+
+<h3>Narrative Quality Assessment (NQA)</h3>
+
+<p>
+  When <strong>NQA enabled</strong> is turned on, coders are presented with a
+  Narrative Quality Assessment form as part of the coding workflow. NQA allows
+  coders to evaluate the quality of the verbal autopsy narrative. When disabled,
+  the NQA step is skipped entirely for all forms in the project.
+</p>
+
+<h3>Social Autopsy</h3>
+
+<p>
+  When <strong>Social Autopsy enabled</strong> is turned on, coders can complete
+  a social autopsy delay analysis as part of the coding workflow. Social autopsy
+  examines contributing social and health-system factors. When disabled, this
+  section is not shown to coders for forms in the project.
+</p>
+
+<h3>Demo / Training Settings</h3>
+
+<p>
+  A project can be flagged as a <strong>demo or training</strong> project. This
+  has several implications:
+</p>
+
+<ul>
+  <li>Demo projects are open to all active authenticated users; no explicit coder grant is required.</li>
+  <li>Coding artifacts created in demo mode are temporary and expire after the configured demo-retention window.</li>
+  <li>After demo-retention cleanup, submissions return to their pre-demo workflow state.</li>
+  <li>Demo coding artifacts do not count toward cumulative coder output metrics.</li>
+</ul>
+
+<div class="help-warning">
+  Demo coding uses the same case-viewing and coding forms as production coding.
+  Demo artifacts are visible immediately after save but are temporary. Ensure
+  that coders understand the difference between demo and production projects.
+</div>
+
+<h3>How Project Settings Affect the Coding Workflow</h3>
+
+<p>
+  Project-level settings cascade to every form mapped under the project:
+</p>
+
+<ul>
+  <li>The intake mode controls the coder dashboard layout and allocation mechanism.</li>
+  <li>NQA and Social Autopsy toggles determine which steps appear in the coding form.</li>
+  <li>Demo/training flags control access openness and artifact retention behavior.</li>
+  <li>Project active/inactive status determines whether the project's forms participate in sync and coding allocation.</li>
+</ul>
+
+<h3>Coding Access Gates</h3>
+
+<p>
+  For non-demo projects, coder workflow entry enforces additional gates. These
+  gates are configured at the <strong>project-site</strong> level in the
+  <a href="/help/project-sites">Project-Site Associations</a> panel:
+</p>
+
+<ul>
+  <li><strong>coding_enabled</strong> must be true for the project-site.</li>
+  <li>The current UTC date must be on or after <strong>coding_start_date</strong> (if set).</li>
+  <li>The current UTC date must be on or before <strong>coding_end_date</strong> (if set).</li>
+  <li>The per-site <strong>daily_coder_limit</strong> must not be exceeded.</li>
+</ul>
+
+<div class="help-tip">
+  Users with the <code>coding_tester</code> role may bypass these gates for
+  testing purposes. Project PIs and Site PIs do not automatically receive coder
+  access; they need an explicit coder or coding_tester grant to code.
+</div>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/sites">Sites</a></li>
+  <li><a href="/help/project-sites">Project-Site Associations</a></li>
+  <li><a href="/help/project-forms">Project-Form Settings</a></li>
+  <li><a href="/help/admin-overview">Administration Panel Overview</a></li>
+</ul>

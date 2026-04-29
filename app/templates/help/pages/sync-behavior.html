@@ -1,0 +1,435 @@
+<h2>Sync Behavior</h2>
+
+<p>
+  ODK sync is the process by which DigitVA downloads Verbal Autopsy submissions
+  from ODK Central, enriches them with metadata, syncs attachments, runs SmartVA
+  analysis, and prepares submissions for coding. The sync pipeline is driven by
+  Celery background tasks on a configurable schedule.
+</p>
+
+<h3>Three-Phase Pipeline</h3>
+
+<p>
+  For each mapped form, the sync pipeline runs three sequential phases:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Phase</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1. Incremental Sync</strong></td>
+      <td>
+        Runs an OData filter-gated delta check against ODK Central. If submissions have changed since the last sync, downloads and upserts them locally. If no changes are detected, runs a gap check to catch submissions missed by earlier failed syncs. All submissions from ODK are stored regardless of consent value.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>2. SmartVA Generation</strong></td>
+      <td>
+        Prepares a SmartVA input CSV from the current active payload versions, runs the SmartVA analysis subprocess, and stores cause-of-death predictions in <code>va_smartva_results</code>. SmartVA runs per-form after that form's Phase 1 completes.
+      </td>
+    </tr>
+    <tr>
+      <td><strong>3. Coding Readiness</strong></td>
+      <td>
+        Submissions with valid consent transition through <code>attachment_sync_pending</code> and <code>smartva_pending</code> to <code>ready_for_coding</code> only after both attachment syncing and SmartVA are complete for the current payload. Submissions without valid consent are stored but routed to <code>consent_refused</code>.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-info">
+  The pipeline is per-form: each form completes all three phases before the next
+  form begins. This means partial form failure does not require waiting for a
+  global second pass to understand what happened.
+</div>
+
+<h3>Celery Beat Schedule</h3>
+
+<p>
+  Sync is driven by Celery Beat using a PostgreSQL-backed scheduler. The default
+  schedule includes:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th>Default Schedule</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Full ODK Sync</td>
+      <td>Every 6 hours</td>
+      <td>Downloads and upserts changed submissions across all active form mappings.</td>
+    </tr>
+    <tr>
+      <td>Submission Analytics MV Refresh</td>
+      <td>Every 1 hour</td>
+      <td>Refreshes the submission analytics materialized view for dashboard reporting.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  The sync schedule can be changed from the admin sync dashboard without
+  restarting services. Supported range is 1 to 168 hours.
+</p>
+
+<h3>Delta Check</h3>
+
+<p>
+  Before fetching submission data, the sync runs a lightweight OData count query:
+</p>
+
+<ul>
+  <li>If <code>last_synced_at</code> is NULL (first-ever sync), all submissions are downloaded.</li>
+  <li>If the delta count is zero, a gap check compares ODK instance IDs against local rows to catch any missing submissions.</li>
+  <li>If the delta count is greater than zero, changed submissions are fetched via paginated OData JSON (250 per page).</li>
+</ul>
+
+<p>
+  A <code>snapshot_time</code> is captured before any ODK calls, and
+  <code>last_synced_at</code> is set to that snapshot time after success. This
+  ensures submissions arriving mid-run are caught on the next sync.
+</p>
+
+<h3>Language Normalization</h3>
+
+<p>
+  During upsert, raw ODK language values (from the <code>narr_language</code> or
+  <code>language</code> field) are normalized to canonical codes using the
+  <code>map_language_aliases</code> table. For example, "Bengali", "bn", and
+  "bengali" all normalize to "bangla". Unknown values pass through unchanged
+  and appear in the admin Languages panel unmapped alert for manual resolution.
+</p>
+
+<h3>Sync Dashboard</h3>
+
+<p>
+  The admin sync dashboard at <code>/admin/panels/sync</code> provides real-time
+  visibility and operational controls:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Section</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Status Bar</strong></td>
+      <td>Shows the last run outcome. Auto-refreshes every 30 seconds (every 5 seconds while a run is active).</td>
+    </tr>
+    <tr>
+      <td><strong>Sync Now</strong></td>
+      <td>Triggers a full sync. Returns 409 if a run is already in progress.</td>
+    </tr>
+    <tr>
+      <td><strong>Stop</strong></td>
+      <td>Shown only while a sync run is active. Sends a revoke/terminate signal to the Celery task and marks the run as cancelled.</td>
+    </tr>
+    <tr>
+      <td><strong>Schedule Configurator</strong></td>
+      <td>Change the sync interval (1 to 168 hours) without restarting services.</td>
+    </tr>
+    <tr>
+      <td><strong>Coverage Table</strong></td>
+      <td>Compares ODK totals against local totals per site mapping. Loaded on demand, not automatically. Includes per-form Force-resync buttons.</td>
+    </tr>
+    <tr>
+      <td><strong>Form Repair Coverage</strong></td>
+      <td>Shows project/site/form completeness for local data, metadata, attachments, and SmartVA. Includes per-form Repair triggers for targeted gap fixing.</td>
+    </tr>
+    <tr>
+      <td><strong>Legacy Attachment Rows</strong></td>
+      <td>Reports attachment rows with missing storage names and provides a dedicated Repair trigger.</td>
+    </tr>
+    <tr>
+      <td><strong>Progress Log</strong></td>
+      <td>Live timestamped entries. Clears when a new run starts.</td>
+    </tr>
+    <tr>
+      <td><strong>Run History</strong></td>
+      <td>Last 20 runs with duration, trigger source, status, and error details.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>On-Demand Coverage</h3>
+
+<div class="help-tip">
+  ODK coverage counts are expensive because they require live API calls to ODK
+  Central for every active mapping. The dashboard does not fetch coverage
+  automatically on panel load. Click the coverage load button only when you need
+  to compare ODK and local counts. Local-only sections (status, repair coverage)
+  load automatically because they do not require live ODK calls.
+</div>
+
+<h3>Per-Form Backfill</h3>
+
+<p>
+  The <strong>Repair</strong> button in the Form Repair coverage table triggers a
+  targeted backfill for one form. This is distinct from Force-resync:
+</p>
+
+<ul>
+  <li>Fetches ODK instance IDs for the selected form.</li>
+  <li>Backfills only missing thin local submissions.</li>
+  <li>Revalidates the current ODK payload for each repair candidate.</li>
+  <li>Repairs metadata enrichment, attachment sync, legacy attachment-row migration, and SmartVA gaps.</li>
+  <li>Protected submissions whose ODK payload changed follow the <code>finalized_upstream_changed</code> path rather than ordinary repair.</li>
+</ul>
+
+<h3>Repair Coverage Categories</h3>
+
+<p>
+  The Form Repair Coverage table shows per-form completeness across five
+  categories. Each category has explicit completeness logic:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Complete When</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Metadata</strong></td>
+      <td>All 8 fields present: summary, category list, form version, device ID, submitter ID, instance ID, attachments expected, attachments present.</td>
+    </tr>
+    <tr>
+      <td><strong>Attachments</strong></td>
+      <td>Present file count meets or exceeds expected count, and no legacy rows remain. <code>audit.csv</code> is excluded from the file count.</td>
+    </tr>
+    <tr>
+      <td><strong>Audit</strong></td>
+      <td><code>audit.csv</code> present on disk (informational only &mdash; does not block completeness).</td>
+    </tr>
+    <tr>
+      <td><strong>Legacy</strong></td>
+      <td>All ODK-backed attachment rows have been migrated to opaque storage names (no <code>storage_name IS NULL</code> rows remain).</td>
+    </tr>
+    <tr>
+      <td><strong>SmartVA</strong></td>
+      <td>Active SmartVA result exists for the current payload version with a non-empty cause of death prediction.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Repair Iteration Flow</h3>
+
+<p>
+  When you click <strong>Repair</strong> on a form, the system follows a
+  structured batch flow:
+</p>
+
+<ol>
+  <li>Fetch ODK instance IDs for the selected form and backfill missing thin local rows (batches of 50).</li>
+  <li>Build a repair map identifying which submissions have gaps in metadata, attachments, or SmartVA.</li>
+  <li>Process submissions in batches of 5. For each submission:
+    <ul>
+      <li>Build repair map &mdash; if no gaps, skip.</li>
+      <li>Fetch current ODK payload and enrich metadata &rarr; <strong>commit</strong>.</li>
+      <li>If the upstream payload changed on a protected submission, stop (transition to <code>finalized_upstream_changed</code>).</li>
+      <li>Download missing attachments and migrate legacy rows &rarr; <strong>commit</strong>.</li>
+      <li>Advance workflow state if attachments are now complete &rarr; <strong>commit</strong>.</li>
+    </ul>
+  </li>
+  <li>After each batch, collect submissions still needing SmartVA and run SmartVA once per form &rarr; <strong>commit</strong>.</li>
+</ol>
+
+<div class="help-info">
+  This repair flow is also used when a coder or data manager opens a submission
+  that has local gaps (single-submission on-open repair) and when the CLI
+  <code>payload-backfill enrich</code> command runs. All entrypoints share the
+  same canonical per-submission repair engine.
+</div>
+
+<h3>Force-Resync</h3>
+
+<p>
+  The <strong>Force-resync</strong> button in the Coverage table bypasses the
+  delta check entirely and redownloads all submissions for that form. Use this
+  when a form's data is suspected to be out of sync or when a previous sync run
+  reported partial failure.
+</p>
+
+<h3>Attachment Backfill</h3>
+
+<p>
+  A separate attachment-cache backfill trigger repairs only missing local
+  attachment files for already-stored submissions. This does not re-fetch
+  submission data from ODK; it only downloads attachment binaries that are
+  absent from local storage.
+</p>
+
+<h3>Stop Control</h3>
+
+<p>
+  While a sync run is in progress, the dashboard shows a <strong>Stop</strong>
+  button. Activating it:
+</p>
+
+<ul>
+  <li>Sends a revoke request with termination enabled to the running Celery task.</li>
+  <li>Marks the corresponding <code>va_sync_runs</code> row as <code>cancelled</code>.</li>
+  <li>Cancelled runs remain visible in sync history and status views.</li>
+</ul>
+
+<p>
+  The Stop control applies to all sync types: full sync, SmartVA-only sync,
+  single-form sync, and single-submission sync. The Sync button remains
+  disabled while any run is active.
+</p>
+
+<h3>Protected Finalized Submissions</h3>
+
+<p>
+  Submissions in protected workflow states are not automatically refreshed by
+  sync:
+</p>
+
+<ul>
+  <li><code>coder_finalized</code></li>
+  <li><code>reviewer_eligible</code></li>
+  <li><code>reviewer_coding_in_progress</code></li>
+  <li><code>reviewer_finalized</code></li>
+  <li><code>finalized_upstream_changed</code></li>
+  <li><code>closed</code> (legacy compatibility)</li>
+</ul>
+
+<p>
+  When ODK data changes for a protected submission, the sync:
+</p>
+
+<ol>
+  <li>Does not destroy existing coding artifacts.</li>
+  <li>Transitions the submission to <code>finalized_upstream_changed</code>.</li>
+  <li>Creates a pending upstream payload version.</li>
+  <li>Records a durable upstream-change snapshot.</li>
+  <li>Creates notifications for data managers and admins.</li>
+</ol>
+
+<p>
+  A data manager or admin must then review the changes and choose to either
+  <strong>Accept and Recode</strong> (promote the new payload, rerun SmartVA,
+  return to coding) or <strong>Keep Current ICD Decision</strong> (promote the
+  new payload while preserving the current COD and rebinding SmartVA).
+</p>
+
+<h3>Connection Health Alerts</h3>
+
+<p>
+  The sync dashboard status card shows active ODK connection cooldowns and recent
+  retryable failures. These alerts are informational and help explain why
+  coverage loads, per-form syncs, or other live ODK actions may fail fast. The
+  alerts do not trigger additional live ODK calls.
+</p>
+
+<h3>Sync Run History</h3>
+
+<p>
+  Every sync run is recorded in <code>va_sync_runs</code> with the following
+  statuses:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Status</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>running</code></td>
+      <td>Sync is in progress.</td>
+    </tr>
+    <tr>
+      <td><code>success</code></td>
+      <td>All forms succeeded or were delta-skipped.</td>
+    </tr>
+    <tr>
+      <td><code>partial</code></td>
+      <td>At least one form failed and at least one succeeded.</td>
+    </tr>
+    <tr>
+      <td><code>error</code></td>
+      <td>Task crashed or all forms failed.</td>
+    </tr>
+    <tr>
+      <td><code>cancelled</code></td>
+      <td>Operator stopped the run from the dashboard.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-warning">
+  Stale "running" rows (older than 45 minutes) are marked as errors
+  automatically on worker restart and before each new sync run. If the Celery
+  worker restarts mid-run, the sync row stays in "running" status until this
+  cleanup runs.
+</div>
+
+<h3>Manual Sync Triggers</h3>
+
+<p>
+  In addition to the scheduled sync, administrators and data managers can trigger
+  targeted syncs:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Endpoint</th>
+      <th>Who</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Full sync</td>
+      <td><code>POST /admin/api/sync/trigger</code></td>
+      <td>Admin</td>
+    </tr>
+    <tr>
+      <td>Per-form force-resync</td>
+      <td><code>POST /admin/api/sync/form/&lt;form_id&gt;</code></td>
+      <td>Admin</td>
+    </tr>
+    <tr>
+      <td>Per-form backfill</td>
+      <td><code>POST /admin/api/sync/backfill/form/&lt;form_id&gt;</code></td>
+      <td>Admin</td>
+    </tr>
+    <tr>
+      <td>Data manager single-form sync</td>
+      <td><code>POST /vadashboard/data-manager/api/forms/&lt;form_id&gt;/sync</code></td>
+      <td>Data Manager (scoped)</td>
+    </tr>
+    <tr>
+      <td>Data manager single-submission refresh</td>
+      <td><code>POST /vadashboard/data-manager/api/submissions/&lt;va_sid&gt;/sync</code></td>
+      <td>Data Manager (scoped)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/odk-connections">ODK Connections</a></li>
+  <li><a href="/help/project-forms">Project-Form Settings</a></li>
+  <li><a href="/help/admin-overview">Administration Panel Overview</a></li>
+</ul>

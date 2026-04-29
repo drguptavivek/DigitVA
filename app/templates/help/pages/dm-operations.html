@@ -1,0 +1,172 @@
+<h2>Overview</h2>
+
+<p>
+  As a data manager, your role is data-quality triage and operational review.
+  You are not a coder and not a reviewer. You cannot start coding, submit COD
+  assessments, or submit reviewer QA. Your actions focus on screening,
+  diagnosing issues, and keeping the pipeline healthy.
+</p>
+
+<div class="help-info">
+  The data manager role is separate from the coder role. Any action you take
+  is recorded under your data-manager identity, never attributed to a coder.
+</div>
+
+<h2>Browsing Submissions</h2>
+
+<p>
+  From the <a href="/data-management">Data Manager Dashboard</a>, you can
+  browse all submissions within your grant scope. This is read-only access:
+  you can open and inspect submission data, SmartVA results, ODK metadata,
+  and attachment counts, but you cannot modify the submission payload.
+</p>
+
+<p>
+  Click the <strong>View</strong> action on a submission row to open the
+  read-only detail page at <code>/data-management/view/&lt;va_sid&gt;</code>.
+  This page includes a Data Triage panel with SmartVA summary details:
+  outcome, result-for, age/gender, causes with ICD codes and likelihoods,
+  key symptoms, and failure details when applicable.
+</p>
+
+<h2>Triggering Sync</h2>
+
+<h3>Per-Form Sync</h3>
+
+<p>
+  The sync modal on the dashboard lets you queue a full sync for a scoped form.
+  To trigger a sync:
+</p>
+
+<ol>
+  <li>Click the sync button in the dashboard header</li>
+  <li>Select the project and site scope</li>
+  <li>Confirm the matched forms and review the local vs ODK count preview</li>
+  <li>Submit to queue the sync task through Celery</li>
+</ol>
+
+<div class="help-tip">
+  The sync modal reports that tasks have been queued, not that they are
+  finished. Check the Recent Sync Results panel for completion status.
+  Missing ODK records are flagged locally rather than deleted.
+</div>
+
+<h3>Single-Submission Refresh</h3>
+
+<p>
+  A targeted refresh for one submission updates the local payload, attachments,
+  SmartVA result, and local sync-issue status for the parent form. This action
+  is available through the API and from the submission detail view.
+</p>
+
+<h2>Marking a Submission as Not Codeable</h2>
+
+<p>
+  As a data manager, you can mark a submission as Not Codeable when it should
+  not enter or continue through the coder workflow. This is a data-management
+  triage decision, separate from a coder's Not Codeable outcome.
+</p>
+
+<h3>How It Works</h3>
+
+<ol>
+  <li>Open the submission detail page or use the triage action from the dashboard</li>
+  <li>Select the <strong>Not Codeable</strong> action</li>
+  <li>Provide a reason and optional notes documenting the decision</li>
+  <li>Confirm the action</li>
+</ol>
+
+<h3>What Happens After</h3>
+
+<ul>
+  <li>The decision is stored in <code>va_data_manager_review</code> as a data-manager-specific workflow record</li>
+  <li>An audit trail entry is created, clearly identifying the data manager as the actor</li>
+  <li>DigitVA attempts to write ODK Central review state <code>hasIssues</code> with a role-appropriate comment</li>
+  <li>The submission is excluded from all new coder allocation (normal and random/demo)</li>
+</ul>
+
+<div class="help-warning">
+  <strong>ODK Central write-back is a follow-up step, not a gate.</strong>
+  If the ODK Central update fails, the local Not Codeable decision is preserved.
+  You will see a warning that the local save succeeded but the ODK Central update
+  failed. The failure is logged and discoverable in admin activity views.
+</div>
+
+<h2>Viewing Upstream Changes</h2>
+
+<p>
+  When a previously finalized submission has been updated in ODK Central, it
+  enters the <code>finalized_upstream_changed</code> state. The dashboard
+  shows a <strong>View Changes</strong> action for these rows.
+</p>
+
+<h3>Change Categories</h3>
+
+<p>The View Changes modal presents three tabs:</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Category</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Data Changes</strong></td>
+      <td>Actual field value changes in the submission data</td>
+    </tr>
+    <tr>
+      <td><strong>Metadata Changes</strong></td>
+      <td>Changes to submission metadata fields</td>
+    </tr>
+    <tr>
+      <td><strong>Formatting-Only Changes</strong></td>
+      <td>Cosmetic differences with no semantic impact</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Resolution Actions</h3>
+
+<p>
+  After reviewing the changes, choose one of two resolution paths. Both
+  actions require confirmation through a second modal before execution.
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Action</th>
+      <th>Effect</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Accept And Recode</strong></td>
+      <td>Adopts the new ODK data, clears the old assigned ICD codes, and returns the submission to the <code>smartva_pending</code> state for a full recode path</td>
+    </tr>
+    <tr>
+      <td><strong>Keep Current ICD Decision</strong></td>
+      <td>Adopts the latest ODK payload locally while preserving the current finalized ICD code decision and finalized workflow state</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-info">
+  Upstream review actions from the View Changes modal are local DigitVA
+  workflow resolutions. They do not write an ODK rejection comment back to
+  ODK Central. This is distinct from the Not Codeable triage action, which
+  does write ODK <code>hasIssues</code> review state.
+</div>
+
+<h2>Links to Reporting</h2>
+
+<p>From the dashboard and navigation, you have access to two reporting views:</p>
+
+<ul>
+  <li><strong>KPI Dashboard</strong> &mdash; Key performance indicators for your scope, including coding throughput and quality metrics</li>
+  <li><strong>COD Bucket Reporting</strong> &mdash; Cause-of-death distribution and bucket analysis for coded submissions in your scope</li>
+</ul>
+
+<p>Both reports respect your grant scope and the current dashboard filter selection.</p>

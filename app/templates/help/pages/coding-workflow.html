@@ -1,0 +1,317 @@
+<h2>Overview</h2>
+
+<p>
+  The coding workflow is the core production path in DigitVA. It takes a synced
+  verbal autopsy submission from intake through coder assessment, optional
+  recode, and optional reviewer secondary coding, producing an authoritative
+  Cause of Death (COD) determination.
+</p>
+
+<h2>Step 1: Pre-Coding Pipeline</h2>
+
+<p>
+  Before a submission reaches a coder, it passes through several automated stages:
+</p>
+
+<ol>
+  <li>
+    <strong>Sync</strong> &mdash; submission data is pulled from ODK Central.
+  </li>
+  <li>
+    <strong>Consent check</strong> &mdash; submissions without valid consent are
+    marked <code>consent_refused</code> and excluded from the coding queue. If
+    ODK data is later updated with valid consent, the submission automatically
+    re-enters the pipeline.
+  </li>
+  <li>
+    <strong>Attachment sync</strong> &mdash; state becomes
+    <code>attachment_sync_pending</code> while attachments are fetched for the
+    current payload.
+  </li>
+  <li>
+    <strong>SmartVA generation</strong> &mdash; state becomes
+    <code>smartva_pending</code>. The system attempts to generate SmartVA
+    output. This gate must complete (generate, regenerate, or explicitly fail)
+    before the submission moves forward.
+  </li>
+  <li>
+    <strong>Ready for coding</strong> &mdash; state becomes
+    <code>ready_for_coding</code>. The submission is now in the coder pool.
+  </li>
+</ol>
+
+<div class="help-info">
+  <strong>Screening:</strong> Projects may optionally enable a
+  <code>screening_pending</code> gate where a data manager reviews submissions
+  before they enter the SmartVA pipeline. Screening is project-configured.
+</div>
+
+<h2>Step 2: Starting to Code</h2>
+
+<p>
+  Each project uses one of two coder-intake modes:
+</p>
+
+<ul>
+  <li>
+    <strong>Random allocation</strong> (<code>POST /coding/start</code>)
+    &mdash; the system assigns one eligible submission from the project pool.
+    The coder does not browse or choose.
+  </li>
+  <li>
+    <strong>Pick and choose</strong>
+    (<code>POST /coding/pick/&lt;va_sid&gt;</code>)
+    &mdash; the coder browses eligible submissions and explicitly starts coding
+    on a chosen case.
+  </li>
+</ul>
+
+<p>
+  Both modes exclude submissions that are not codeable, already finalized, or
+  currently allocated to another coder.
+</p>
+
+<div class="help-tip">
+  Coder entry is subject to project-level coding gates:
+  <code>coding_enabled</code>, <code>coding_start_date</code>,
+  <code>coding_end_date</code>, and per-site <code>daily_coder_limit</code>.
+  The <code>coding_tester</code> role bypasses these gates for testing.
+</div>
+
+<p>
+  Once coding starts, the submission enters
+  <code>coding_in_progress</code> and the coder receives a 1-hour allocation.
+</p>
+
+<h2>Step 3: Step 1 (Initial Assessment)</h2>
+
+<p>
+  The coding interface displays submission categories in the left sidebar.
+  The coder reviews the VA narrative and supporting data:
+</p>
+
+<ol>
+  <li>
+    <strong>Review categories</strong> &mdash; browse submission data organized
+    by category (demographics, medical history, symptoms, etc.).
+  </li>
+  <li>
+    <strong>Narrative Quality Assessment (NQA)</strong> &mdash; if the project
+    has NQA enabled, the coder must complete a scored assessment of the
+    narrative quality before proceeding.
+  </li>
+  <li>
+    <strong>Social Autopsy Analysis</strong> &mdash; if the project has Social
+    Autopsy enabled, the coder must complete a three-level delay factor
+    assessment (decision, reaching care, receiving care) before proceeding.
+  </li>
+  <li>
+    <strong>Submit Step 1</strong> &mdash; the coder submits an initial COD
+    assessment via the Step 1 button. The workflow state becomes
+    <code>coder_step1_saved</code>.
+  </li>
+</ol>
+
+<div class="help-warning">
+  <strong>Step 1 is not the final COD.</strong> It is an intermediate
+  assessment. The submission remains allocated to the coder for completion of
+  Step 2.
+</div>
+
+<h2>Step 4: Step 2 (Final Assessment)</h2>
+
+<p>
+  After Step 1 is saved:
+</p>
+
+<ol>
+  <li>
+    <strong>Review all categories and initial assessment</strong> &mdash; the
+    coder revisits the submission data and their Step 1 assessment.
+  </li>
+  <li>
+    <strong>Select ICD-10 cause of death code</strong> &mdash; the coder
+    searches and selects a specific ICD-10 code. Only codes allowed by WHO VA
+    coding allowability rules are available (see <em>ICD-10 Codes</em> help
+    page).
+  </li>
+  <li>
+    <strong>Submit final COD</strong> &mdash; the coder submits the final
+    assessment. The workflow state becomes <code>coder_finalized</code>.
+  </li>
+</ol>
+
+<p>
+  Upon finalization, the coding allocation is released and the submission is
+  marked as complete from the coder workflow perspective. Step 1 is preserved
+  alongside the final COD for audit purposes.
+</p>
+
+<h2>Step 5: Recode Window (24 Hours)</h2>
+
+<p>
+  After coder finalization, there is a <strong>24-hour recode window</strong>
+  during which the coder may reopen the case and change their COD determination.
+</p>
+
+<ul>
+  <li>The existing finalized COD remains authoritative until a replacement is
+      saved.</li>
+  <li>NQA and Social Autopsy artifacts persist across recode attempts.</li>
+  <li>Incomplete recode work does not replace the existing finalized COD.</li>
+</ul>
+
+<p>
+  After 24 hours, the submission transitions to
+  <code>reviewer_eligible</code> and the coder can no longer recode.
+</p>
+
+<h2>Step 6: Reviewer Pipeline</h2>
+
+<p>
+  Reviewer coding is <strong>optional and sample-based</strong>. Not every
+  coder-finalized case enters the reviewer track.
+</p>
+
+<ol>
+  <li>
+    <strong>Reviewer eligible</strong> &mdash; after the 24-hour recode window
+    closes, the state becomes <code>reviewer_eligible</code>.
+  </li>
+  <li>
+    <strong>Reviewer coding</strong> &mdash; a reviewer picks up the case and
+    codes independently. The state becomes
+    <code>reviewer_coding_in_progress</code>.
+  </li>
+  <li>
+    <strong>Reviewer finalization</strong> &mdash; the reviewer submits their
+    own COD. The state becomes <code>reviewer_finalized</code>.
+  </li>
+</ol>
+
+<div class="help-info">
+  <strong>Reviewer authority:</strong> The reviewer final COD takes precedence
+  over the coder final COD. The original coder decision is preserved in history
+  as a superseded record.
+</div>
+
+<h2>Not Codeable</h2>
+
+<p>
+  At any point during active coding (states
+  <code>coding_in_progress</code>, <code>coder_step1_saved</code>), the coder
+  can mark a submission as <strong>Not Codeable</strong>:
+</p>
+
+<ul>
+  <li>A structured reason is required.</li>
+  <li>The submission enters <code>not_codeable_by_coder</code> and is excluded
+      from the coder allocation pool.</li>
+  <li>A best-effort update is sent to ODK Central
+      (<code>hasIssues</code> flag).</li>
+</ul>
+
+<p>
+  Separately, a data manager may mark a submission as
+  <code>not_codeable_by_data_manager</code> from the screening or ready pool.
+  This is a data-quality exclusion, not a coding outcome.
+</p>
+
+<h2>Stale Allocation Timeout</h2>
+
+<p>
+  Active coding and reviewing allocations older than <strong>1 hour</strong> are
+  considered stale and are automatically released:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Session Type</th>
+      <th>On Timeout</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>First-pass coder</td>
+      <td>Deactivates incomplete artifacts (NQA, Social Autopsy). Resets to
+          <code>ready_for_coding</code>.</td>
+    </tr>
+    <tr>
+      <td>Recode session</td>
+      <td>Abandons the recode episode. Preserves the currently authoritative
+          final COD. Resets to <code>coder_finalized</code>.</td>
+    </tr>
+    <tr>
+      <td>Reviewer session</td>
+      <td>Deactivates all reviewer artifacts (reviews, NQA, Social Autopsy).
+          Resets to <code>reviewer_eligible</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  Timeout cleanup runs hourly as a scheduled background task and also
+  opportunistically when a coder or reviewer starts a new session.
+</p>
+
+<h2>Protected States</h2>
+
+<p>
+  The following states are protected from automatic ODK data changes. When ODK
+  data changes for a submission in one of these states, the system does not
+  automatically overwrite the existing COD:
+</p>
+
+<ul>
+  <li><code>coder_finalized</code></li>
+  <li><code>reviewer_eligible</code></li>
+  <li><code>reviewer_coding_in_progress</code></li>
+  <li><code>reviewer_finalized</code></li>
+  <li><code>finalized_upstream_changed</code></li>
+</ul>
+
+<p>
+  For finalized cases where ODK data has changed, the submission enters
+  <code>finalized_upstream_changed</code> and requires manual resolution by a
+  data manager or admin:
+</p>
+
+<ul>
+  <li><strong>Accept And Recode</strong> &mdash; promotes new ODK data, transitions to
+      <code>smartva_pending</code> to rerun SmartVA, then returns to
+      <code>ready_for_coding</code> for recoding.</li>
+  <li><strong>Keep Current ICD Decision</strong> &mdash; promotes new ODK data
+      but preserves the current COD determination.</li>
+</ul>
+
+<h2>Complete Workflow States</h2>
+
+<p>The canonical workflow states in order (15 total, including legacy compatibility):</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>State</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td><code>consent_refused</code></td><td>No valid consent; excluded from coding</td></tr>
+    <tr><td>2</td><td><code>screening_pending</code></td><td>Awaiting data manager screening (optional)</td></tr>
+    <tr><td>3</td><td><code>attachment_sync_pending</code></td><td>Attachments being synced for current payload</td></tr>
+    <tr><td>4</td><td><code>smartva_pending</code></td><td>Awaiting SmartVA generation</td></tr>
+    <tr><td>5</td><td><code>ready_for_coding</code></td><td>In the coder allocation pool</td></tr>
+    <tr><td>6</td><td><code>coding_in_progress</code></td><td>Coder has an active allocation</td></tr>
+    <tr><td>7</td><td><code>coder_step1_saved</code></td><td>Initial COD assessment saved</td></tr>
+    <tr><td>8</td><td><code>coder_finalized</code></td><td>Final COD submitted by coder</td></tr>
+    <tr><td>9</td><td><code>reviewer_eligible</code></td><td>Recode window closed; eligible for reviewer</td></tr>
+    <tr><td>10</td><td><code>reviewer_coding_in_progress</code></td><td>Reviewer has an active allocation</td></tr>
+    <tr><td>11</td><td><code>reviewer_finalized</code></td><td>Reviewer final COD submitted</td></tr>
+    <tr><td>12</td><td><code>finalized_upstream_changed</code></td><td>ODK data changed after finalization</td></tr>
+    <tr><td>13</td><td><code>not_codeable_by_coder</code></td><td>Coder marked as not codeable</td></tr>
+    <tr><td>14</td><td><code>not_codeable_by_data_manager</code></td><td>Data manager marked as not codeable</td></tr>
+    <tr><td>15</td><td><code>partial_coding_saved</code></td><td>Legacy compatibility state for older partial saves</td></tr>
+  </tbody>
+</table>

@@ -1,0 +1,250 @@
+<h2>COD Bucket Reporting</h2>
+
+<p>
+  The COD Bucket Reporting page at <code>/data-management/cod-buckets</code> provides
+  cause-of-death aggregates by grouping individual ICD-coded submissions into broader
+  reporting categories (buckets). This is a reporting-only layer: it does not modify the
+  authoritative final COD stored on each submission.
+</p>
+
+<div class="help-info">
+  <strong>Key principle:</strong> Changing a bucket mapping or reporting scheme never
+  rewrites a coder's or reviewer's final COD record. The reporting layer is versioned
+  separately from coding data.
+</div>
+
+<h3>What Are COD Buckets?</h3>
+
+<p>
+  A COD bucket is a grouped category that maps one or more ICD-10 codes to a broader
+  cause-of-death label for public health reporting. For example, individual ICD codes for
+  different types of heart disease can be grouped into a single "Cardiovascular Diseases"
+  bucket. Each mapping connects an ICD code (and optionally an age scope) to a leaf-level
+  bucket node in a scheme hierarchy.
+</p>
+
+<h3>Available Schemes</h3>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Scheme</th>
+      <th>Age Scope</th>
+      <th>Hierarchy Depth</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>SRS India</strong></td>
+      <td>Age-scoped: adult_over5y, child_1_59m, neonate</td>
+      <td>Category &rarr; Subcategory &rarr; Disease</td>
+    </tr>
+    <tr>
+      <td><strong>CMEA10</strong></td>
+      <td>No age scope (flat)</td>
+      <td>Disease only</td>
+    </tr>
+    <tr>
+      <td><strong>WHO 2022 VA</strong></td>
+      <td>Flat all-ages scope</td>
+      <td>WHO VA Section &rarr; WHO VA Cause Bucket</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  The page defaults to the <strong>WHO 2022 VA</strong> scheme when it is available.
+</p>
+
+<h3>Filters</h3>
+
+<p>The reporting page supports the following filters:</p>
+
+<ul>
+  <li><strong>Scheme</strong> &mdash; choose which COD bucket scheme to display</li>
+  <li><strong>Project</strong> &mdash; filter to a specific project within your scope</li>
+  <li><strong>Site</strong> &mdash; filter to a specific site within your scope</li>
+  <li><strong>Form</strong> &mdash; filter to a specific ODK form</li>
+  <li><strong>Submission date range</strong> &mdash; narrow results to a date window</li>
+  <li><strong>Gender</strong> &mdash; filter by All, Male, Female, or Unknown</li>
+</ul>
+
+<div class="help-tip">
+  <strong>Scoping:</strong> All data is scoped to your data-manager grants. You only see
+  projects and sites you have been explicitly granted access to. Form filters are a
+  convenience within your allowed scope and cannot expand visibility beyond it.
+</div>
+
+<h3>Dashboard Sections</h3>
+
+<h3>Key Indicators</h3>
+
+<p>
+  At the top, the page shows summary indicators: total coded submissions in scope, the
+  active reporting scheme, and the current filter context.
+</p>
+
+<h3>Top-10 Causes</h3>
+
+<p>
+  A ranked table and horizontal bar chart showing the ten most frequent causes of death
+  for the filtered population. This section uses the matched, in-scope, authoritative
+  final-ICD reporting population.
+</p>
+
+<h3>Cause-Group Counts</h3>
+
+<p>
+  First-level cause-group counts with percentages, giving an overview of how deaths
+  distribute across major categories in the selected scheme.
+</p>
+
+<h3>Demographic Summaries</h3>
+
+<p>
+  Three demographic visualizations for the filtered population:
+</p>
+
+<ul>
+  <li><strong>Age-sex table</strong> &mdash; cross-tabulation of age bands against sex</li>
+  <li><strong>Age pyramid</strong> &mdash; population pyramid showing age distribution by sex</li>
+  <li><strong>Sex pie chart</strong> &mdash; proportional breakdown by sex</li>
+</ul>
+
+<p>
+  Age bands for demographic summaries depend on the selected scheme:
+</p>
+
+<ul>
+  <li><strong>SRS India</strong> uses the scheme's own defined age bands</li>
+  <li><strong>WHO 2022 VA</strong> and <strong>CMEA10</strong> use fixed bands:
+    0-&lt;28 days, 28 days-&lt;365 days, 365 days-&lt;12 years, 12 years-&lt;50 years,
+    &gt;=50 years
+  </li>
+</ul>
+
+<h3>Heatmap</h3>
+
+<p>
+  A top-10 cause heatmap that pivots across country, year, sex, and age dimensions.
+  Country is derived from the form's SmartVA country field. Year uses the submission date
+  year. Sex uses normalized deceased gender. Age uses the demographic age-band policy.
+</p>
+
+<h3>Treemap</h3>
+
+<p>
+  An all-causes treemap visualization for the same filtered matched population, showing
+  proportional distribution of all bucketed causes.
+</p>
+
+<h3>Detailed COD Hierarchy Tables</h3>
+
+<p>
+  The bottom section shows the full scheme hierarchy with the following columns for each
+  row: Male n (%), Female n (%), Unknown n (%), and Total n (%).
+</p>
+
+<ul>
+  <li>The "All Ages" table appears first</li>
+  <li>For WHO 2022 VA and CMEA10, additional detailed tables follow for each reporting
+    age band</li>
+  <li>Tables follow the scheme-defined sort order, not label-based sorting</li>
+</ul>
+
+<p>
+  If coded submissions have a final ICD that does not map to any active node in the
+  selected scheme for a given age group, a note appears beneath that table showing how
+  many CODs were dropped. The note includes a link to a modal with two sections:
+</p>
+
+<ul>
+  <li>ICD codes not included in the selected scheme's categories for that age group</li>
+  <li>ICD codes not eligible for coding</li>
+</ul>
+
+<h3>CSV Export</h3>
+
+<p>
+  The page supports CSV export of the current scoped data. The export includes SID, age,
+  age group, sex, final authoritative COD, scheme hierarchy levels, project, site, form
+  code, and year. Exports default to aggregate outputs, not row-level submission dumps.
+</p>
+
+<div class="help-warning">
+  <strong>PII protection:</strong> CSV exports are designed to avoid exposing personally
+  identifiable information. Exports contain coded cause-of-death data and demographic
+  aggregates, not raw submission payloads or narrative text.
+</div>
+
+<h3>Printing</h3>
+
+<p>
+  The reporting page is styled for printing and does not rely on internal card or table
+  scrolling to expose data. All summary and detailed sections render fully when printed.
+</p>
+
+<h2>Admin COD Bucket Editor</h2>
+
+<p>
+  Administrators can manage reporting schemes at <code>/admin/panels/cod-buckets</code>.
+  This panel supports:
+</p>
+
+<ul>
+  <li>Selecting a scheme and age scope from top-level scheme cards</li>
+  <li>Exporting any scheme as JSON or XLSX</li>
+  <li>Importing an exported JSON snapshot back into a scheme (fully replaces age bands,
+    nodes, and mappings)</li>
+  <li>Creating new schemes with age bands, bounds, units, and level count</li>
+  <li>Editing scheme names, age-band metadata, and display sort order</li>
+  <li>Resetting built-in schemes (SRS India, CMEA10, WHO 2022 VA) to their
+    migration-artifact defaults</li>
+  <li>Adding or removing ICD mappings at the disease-leaf level via an ICD search modal</li>
+  <li>Bulk-allocating unmapped ICD codes to a target age band and disease leaf</li>
+  <li>Viewing a scheme-wide unmapped ICD grid with finalized COD and SmartVA usage
+    counts</li>
+  <li>Deleting bucket nodes with a choice to unmap or move affected ICD codes to an
+    "Unmapped" replacement</li>
+</ul>
+
+<div class="help-info">
+  <strong>Mapping uniqueness:</strong> Within a scheme, each ICD code maps to at most one
+  active target leaf for a given age scope. The ICD picker in the admin editor searches
+  the ICD-10 2019 master table and shows codes regardless of coding allowability, with a
+  "Currently not assignable in coding" marker for restricted codes.
+</div>
+
+<h2>COD Snapshot Export</h2>
+
+<p>
+  The COD Snapshot Export captures a point-in-time snapshot of final COD authority for
+  analysis. It is a submission-granular export (one row per <code>va_sid</code>) that
+  reports only active/current COD-facing records.
+</p>
+
+<p>The snapshot preserves three distinct human-COD views when available:</p>
+
+<ul>
+  <li>Latest active coder data</li>
+  <li>Latest active reviewer data</li>
+  <li>Authoritative final COD outcome</li>
+</ul>
+
+<p>
+  The export also includes SmartVA results, Narrative Quality Assessment scores, Social
+  Autopsy fields, and WHO 2022 VA bucket mappings derived independently for each ICD
+  source (coder, reviewer, authoritative, and SmartVA causes 1-3).
+</p>
+
+<div class="help-tip">
+  <strong>Scope:</strong> The COD snapshot export is scoped to your data-manager
+  project/site grants, the same as other data-management reporting features.
+</div>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/dm-dashboard">Data Manager Dashboard</a></li>
+  <li><a href="/help/admin-overview">Admin Panel Overview</a></li>
+</ul>

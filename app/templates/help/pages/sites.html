@@ -1,0 +1,139 @@
+<h2>Sites</h2>
+
+<p>
+  The Sites panel at <code>/admin/panels/sites</code> lets administrators manage
+  site master data. Sites represent physical data-collection locations (such as
+  hospitals or research centers) and are a core organizational unit in DigitVA's
+  access control and data-partitioning model.
+</p>
+
+<h3>Creating a Site</h3>
+
+<p>
+  To create a new site, click <strong>New Site</strong> and provide:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Site Identifier</strong></td>
+      <td>A short, unique code for the site (for example, "NC01", "KA01"). This identifier is used throughout the system in form IDs, allocation, and reporting.</td>
+    </tr>
+    <tr>
+      <td><strong>Site Name</strong></td>
+      <td>A human-readable name for the site.</td>
+    </tr>
+    <tr>
+      <td><strong>Active Status</strong></td>
+      <td>Whether the site is currently active. Inactive sites do not participate in sync or coding allocation.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Site Identifiers</h3>
+
+<p>
+  Site identifiers are embedded in several derived values across the application:
+</p>
+
+<ul>
+  <li>Form IDs combine the project code and site identifier (for example, "UNSW01KA0101").</li>
+  <li>Submission identifiers include the form ID, which carries the site.</li>
+  <li>Access grants can be scoped to a specific project-site combination using the site identifier.</li>
+</ul>
+
+<div class="help-tip">
+  Choose stable, short site identifiers at creation time. The identifier becomes
+  part of stored form IDs and submission references that are difficult to rename
+  later without data migration.
+</div>
+
+<h3>How Sites Relate to Projects and Forms</h3>
+
+<p>
+  Sites do not belong to a single project. Instead, sites are mapped to projects
+  through the <strong>Project-Site</strong> association panel:
+</p>
+
+<ul>
+  <li>A site can be associated with multiple projects.</li>
+  <li>Each project-site combination can have at most one ODK form mapping configured through the <strong>Project Forms</strong> panel.</li>
+  <li>When a project-site mapping is active and has an ODK form linked, the sync pipeline downloads submissions for that combination.</li>
+</ul>
+
+<p>
+  The relationship chain is:
+</p>
+
+<ol>
+  <li><strong>Site</strong> &mdash; the physical location (managed here).</li>
+  <li><strong>Project-Site</strong> &mdash; links a site to a project (see <a href="/help/project-sites">Project-Site Associations</a>).</li>
+  <li><strong>Project-Form</strong> &mdash; links an ODK form to a project-site pair (see <a href="/help/project-forms">Project-Form Settings</a>).</li>
+</ol>
+
+<h3>Site Maintenance Mode</h3>
+
+<p>
+  The admin sync dashboard includes a global <strong>Site Maintenance</strong>
+  control that activates a maintenance mode with a fixed 15-minute grace
+  window followed by enforced shutdown.
+</p>
+
+<h4>Grace Period (First 15 Minutes)</h4>
+
+<ul>
+  <li>A bottom-centered maintenance banner appears for all authenticated users.</li>
+  <li>Non-admin users see a countdown timer showing time remaining before cutoff.</li>
+  <li>During the grace period, non-admin users <strong>may continue working normally</strong>.</li>
+  <li>An optional admin-supplied message can be displayed to explain the reason for maintenance.</li>
+</ul>
+
+<h4>After Cutoff</h4>
+
+<ul>
+  <li>Non-admin users are automatically logged out.</li>
+  <li>Non-admin login is blocked.</li>
+  <li>Admin users can still log in and access the full admin panel.</li>
+  <li>The banner and countdown are pushed into already-open pages through a shared status poller, so users do not need to manually refresh.</li>
+</ul>
+
+<div class="help-warning">
+  The grace window is fixed at 15 minutes. Plan maintenance activities
+  within this window. After cutoff, all non-admin sessions are terminated.
+  Admin users remain fully operational throughout.
+</div>
+
+<h3>Editing and Deactivating Sites</h3>
+
+<p>
+  Existing sites can be edited to update their name or other attributes.
+  Deactivating a site:
+</p>
+
+<ul>
+  <li>Removes the site's forms from the sync pipeline.</li>
+  <li>Excludes the site's submissions from coder allocation.</li>
+  <li>Does not delete the site's data, submissions, or historical coding artifacts.</li>
+</ul>
+
+<div class="help-info">
+  If a site is moved between projects and the old project-site row is
+  deactivated, old forms from that deactivated pair are excluded from coder
+  access and random allocation. Ensure that project-site associations are
+  updated before deactivating old mappings.
+</div>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/projects">Projects</a></li>
+  <li><a href="/help/project-sites">Project-Site Associations</a></li>
+  <li><a href="/help/project-forms">Project-Form Settings</a></li>
+  <li><a href="/help/admin-overview">Administration Panel Overview</a></li>
+</ul>

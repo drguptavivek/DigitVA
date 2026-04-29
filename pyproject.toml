@@ -37,6 +37,7 @@ dependencies = [
     "click>=8.0.0",
     "smartva",
     "flask-mail>=0.10.0",
+    "markdown2>=2.5.5",
 ]
 
 [project.optional-dependencies]

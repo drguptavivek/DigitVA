@@ -1,0 +1,368 @@
+<h2>KPI Dashboard</h2>
+
+<p>
+  The KPI Dashboard at <code>/data-management/dashboard</code> provides operational
+  metrics for data managers to monitor the health of the coding pipeline. It is scoped
+  to your data-manager grants: you see only the projects and sites you have been
+  explicitly granted access to.
+</p>
+
+<div class="help-info">
+  <strong>Scoping:</strong> Every KPI denominator is filtered through your grant scope.
+  Project-level grants show all sites within that project. Project-site grants show only
+  that specific pair. The dashboard never exposes data outside your authorized scope.
+</div>
+
+<h2>Data Sources</h2>
+
+<p>The dashboard uses a hybrid storage model:</p>
+
+<ul>
+  <li><strong>Pre-computed daily grid</strong> &mdash; the <code>va_daily_kpi_aggregates</code>
+    table stores one row per (snapshot_date, project_id, site_id) with daily counts of
+    synced, coded, pending, refused, and not-codeable submissions, plus coding duration
+    percentiles. This table is populated by a daily Celery task and refreshed after each
+    sync run.</li>
+  <li><strong>Event-sourced detail</strong> &mdash; detailed KPIs (reason breakdowns,
+    language gaps, per-coder stats) are computed on-demand from
+    <code>va_submission_workflow_events</code> and supporting tables.</li>
+</ul>
+
+<h2>Denominator Scopes</h2>
+
+<p>
+  KPIs are computed against defined scopes that exclude or include certain workflow
+  states:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Scope</th>
+      <th>Definition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>ALL-SYNCED</strong></td>
+      <td>Every submission in your scope, regardless of state</td>
+    </tr>
+    <tr>
+      <td><strong>CONSENT-VALID</strong></td>
+      <td>ALL-SYNCED minus consent-refused submissions (hard gate)</td>
+    </tr>
+    <tr>
+      <td><strong>CODING-POOL</strong></td>
+      <td>CONSENT-VALID minus DM-not-codeable submissions (soft gate)</td>
+    </tr>
+    <tr>
+      <td><strong>CODED</strong></td>
+      <td>Submissions that reached coder_finalized or beyond</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-tip">
+  <strong>Hard vs. soft gates:</strong> Consent refusal is a hard gate (permanent
+  exclusion). DM-not-codeable is a soft gate (reversible if ODK data is corrected).
+  Both are tracked separately so data managers can act on soft-gated forms.
+</div>
+
+<h2>KPI Categories</h2>
+
+<h3>Daily Operations</h3>
+
+<p>
+  The primary view is a daily operations grid showing the last 8 days (today plus 7 prior
+  days). Each row shows:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Total</td>
+      <td>Cumulative count of all synced submissions as of that day</td>
+    </tr>
+    <tr>
+      <td>New from ODK</td>
+      <td>Submissions newly added from ODK sync runs on that day</td>
+    </tr>
+    <tr>
+      <td>Updated in ODK</td>
+      <td>Submissions updated by ODK sync runs on that day</td>
+    </tr>
+    <tr>
+      <td>Coded</td>
+      <td>Submissions reaching coder_finalized or recode_finalized on that day</td>
+    </tr>
+    <tr>
+      <td>Pending Coding</td>
+      <td>Submissions in ready_for_coding, coding_in_progress, or coder_step1_saved states</td>
+    </tr>
+    <tr>
+      <td>Consent Refused</td>
+      <td>Submissions transitioned to consent_refused on that day</td>
+    </tr>
+    <tr>
+      <td>Not Codeable</td>
+      <td>Submissions marked not codeable (by coder or DM) on that day</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Additional daily operation metrics include:</p>
+
+<ul>
+  <li><strong>Sync status</strong> &mdash; status, start time, and finish time of the
+    most recent ODK sync run</li>
+  <li><strong>Sync error rate</strong> &mdash; percentage of sync runs that resulted in
+    error or partial status over 7-day and cumulative windows</li>
+  <li><strong>% Uncoded</strong> &mdash; fraction of the coding pool that has not yet
+    been coded</li>
+  <li><strong>% Not Codeable</strong> &mdash; fraction of all synced submissions that
+    are in a not-codeable state</li>
+  <li><strong>Consent refusal rate</strong> &mdash; fraction of all synced submissions
+    where consent was refused</li>
+  <li><strong>Pipeline aging</strong> &mdash; count of submissions stuck in
+    ready_for_coding beyond 48 hours, 7 days, and 30 days</li>
+</ul>
+
+<h3>Timing Metrics</h3>
+
+<ul>
+  <li><strong>Time to Code</strong> &mdash; for each finalized submission, the elapsed
+    time from coding_started to coder_finalized. Reported as minimum, maximum, median
+    (P50), and P90 percentile. Covers both first-pass coding and recode episodes.</li>
+  <li><strong>Sync latency</strong> &mdash; time between the ODK submission timestamp
+    and the local database insert. Reported as P50, P90, and P99.</li>
+  <li><strong>Predicted days to clear backlog</strong> &mdash; estimated days to code
+    all currently pending forms, computed as pending_count divided by the mean daily
+    coding rate over the trailing 7 days. Also reported per language.</li>
+</ul>
+
+<h3>Coder Metrics</h3>
+
+<ul>
+  <li><strong>Coder throughput</strong> &mdash; count of coder_finalized events in the
+    selected window, with per-coder breakdown</li>
+  <li><strong>Coder utilization rate</strong> &mdash; percentage of active coders who
+    have at least one active allocation. Low utilization (&lt;70%) suggests idle coders;
+    high utilization (&gt;95%) suggests saturation.</li>
+  <li><strong>Coder output by language</strong> &mdash; a heatmap showing how many forms
+    each coder has produced in each language, with per-language backlog totals</li>
+  <li><strong>Coder pool</strong> &mdash; list of active coders, their assigned languages,
+    total forms coded, and currently allocated count</li>
+</ul>
+
+<h3>Quality Metrics</h3>
+
+<ul>
+  <li><strong>% Forms reviewed</strong> &mdash; fraction of coded submissions that have
+    at least one active reviewer final assessment. Excludes coder_finalized forms less
+    than 24 hours old (the recode window).</li>
+  <li><strong>Upstream change queue</strong> &mdash; count of submissions currently in
+    the finalized_upstream_changed state, indicating ODK data changed after coding</li>
+  <li><strong>Upstream change resolution time</strong> &mdash; median time to resolve
+    upstream changes over the trailing 7 days</li>
+  <li><strong>Coder-reviewer disagreement rate</strong> &mdash; among submissions with
+    both coder and reviewer final assessments, the percentage where the conclusive COD
+    differs</li>
+  <li><strong>NQA completion rate</strong> &mdash; percentage of coded submissions (in
+    projects where Narrative Quality Assessment is enabled) that have an active NQA
+    record</li>
+  <li><strong>Social Autopsy completion rate</strong> &mdash; percentage of coded
+    submissions (in projects where Social Autopsy is enabled) that have an active
+    Social Autopsy record</li>
+</ul>
+
+<h3>Backlog Metrics</h3>
+
+<ul>
+  <li><strong>Coding backlog trend</strong> &mdash; daily time-series of the count of
+    submissions in ready_for_coding, shown as a line chart over a configurable window
+    (default 90 days)</li>
+  <li><strong>Burndown chart</strong> &mdash; compares the projected completion
+    trajectory against actual cumulative coding progress. Requires an admin-configured
+    target completion date for the project.</li>
+  <li><strong>Daily inflow vs outflow</strong> &mdash; side-by-side bar chart comparing
+    new forms entering the coding pipeline against forms coded each day. Consistent
+    positive net delta means the backlog is growing.</li>
+  <li><strong>Reopen rate</strong> &mdash; fraction of finalized forms that were
+    re-opened for recoding (via upstream change acceptance or admin override)</li>
+</ul>
+
+<h3>Infrastructure Metrics</h3>
+
+<ul>
+  <li><strong>Attachment health</strong> &mdash; percentage of submissions past the
+    SmartVA gate that have zero attachments. A high rate indicates attachment sync
+    problems.</li>
+  <li><strong>Attachment completeness</strong> &mdash; ratio of successfully downloaded
+    attachments to total attachment attempts in the latest sync run</li>
+  <li><strong>SmartVA failure rate</strong> &mdash; percentage of SmartVA runs that
+    failed over 7-day and cumulative windows</li>
+</ul>
+
+<h3>Language Metrics</h3>
+
+<ul>
+  <li><strong>Language gap alert</strong> &mdash; count of submissions in
+    ready_for_coding where the narration language has zero active coders who know that
+    language. Includes a breakdown of which languages are affected and how many
+    submissions are blocked.</li>
+  <li><strong>Language bottleneck</strong> &mdash; table ranking languages by pendency
+    (pending count descending), showing available coders and predicted days to clear for
+    each language</li>
+  <li><strong>Language-not-codeable correlation</strong> &mdash; percentage of
+    language-related not-codeable decisions that correspond to languages in the gap set</li>
+  <li><strong>Missing/unmapped language forms</strong> &mdash; count of submissions in
+    the coding pool where the narration language is blank, null, or not present in the
+    language alias mapping table. These forms cannot be language-matched to coders.</li>
+</ul>
+
+<h2>API Endpoints</h2>
+
+<p>
+  The dashboard loads all data asynchronously via JSON API endpoints under
+  <code>/api/v1/analytics/dm-kpi/</code>. No full-page reloads are needed for
+  filter changes. Key endpoints include:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Endpoint</th>
+      <th>Returns</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/grid/</code></td>
+      <td>Daily operations grid rows from pre-computed aggregates</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/scope/</code></td>
+      <td>KPI card counts and summary metrics</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/language/gap</code></td>
+      <td>Language gap analysis and bottleneck data</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/exclusions/rates</code></td>
+      <td>Not-codeable reason breakdowns by actor</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/exclusions/blocked</code></td>
+      <td>Blocked forms alert data</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/coders/utilization</code></td>
+      <td>Coder utilization statistics</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/coders/output</code></td>
+      <td>Coder output breakdown by language</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/burndown/</code></td>
+      <td>Predicted vs achieved time-series for burndown chart</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/pipeline/</code></td>
+      <td>Pipeline aging and workflow state distribution</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/analytics/dm-kpi/workflow/</code></td>
+      <td>Workflow transitions and state velocity</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/data-management/kpi</code></td>
+      <td>Legacy KPI card counts (DM dashboard)</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/data-management/filter-options</code></td>
+      <td>Available filter values (projects, sites, languages, states)</td>
+    </tr>
+    <tr>
+      <td><code>GET /api/v1/data-management/submissions</code></td>
+      <td>Paginated submission table (infinite scroll)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  All endpoints accept query parameters for filtering (<code>project</code>,
+  <code>site</code>, <code>lang</code>, <code>range</code>, <code>state</code>).
+  Filter state is stored in the URL query string so dashboard views can be bookmarked
+  and shared.
+</p>
+
+<h2>Blocked Forms Alert</h2>
+
+<p>
+  The dashboard identifies submissions in the coding pool that cannot be routed to a
+  coder right now, grouped by blockage reason:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Blockage Reason</th>
+      <th>Action Required</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Awaiting DM screening</td>
+      <td>Pass or reject screening</td>
+    </tr>
+    <tr>
+      <td>Attachments not synced</td>
+      <td>Trigger attachment sync</td>
+    </tr>
+    <tr>
+      <td>Missing attachments</td>
+      <td>Re-trigger attachment sync; check ODK Central</td>
+    </tr>
+    <tr>
+      <td>SmartVA not run</td>
+      <td>Check SmartVA queue</td>
+    </tr>
+    <tr>
+      <td>Upstream change pending</td>
+      <td>Accept or reject the upstream change</td>
+    </tr>
+    <tr>
+      <td>Missing or unmapped language</td>
+      <td>Fix language mapping or add alias</td>
+    </tr>
+    <tr>
+      <td>Language gap (no coders)</td>
+      <td>Recruit or reassign coders</td>
+    </tr>
+    <tr>
+      <td>ODK flagged (hasIssues)</td>
+      <td>Coordinate with field team</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-tip">
+  This alert list is the data manager's action queue. Working through blocked forms
+  directly increases pipeline throughput.
+</div>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/dm-dashboard">Data Manager Dashboard</a></li>
+  <li><a href="/help/cod-buckets">COD Buckets &amp; Reports</a></li>
+  <li><a href="/help/dm-operations">Data Manager Operations</a></li>
+</ul>

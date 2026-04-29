@@ -1,0 +1,92 @@
+<h2>How to Log In</h2>
+
+<p>Navigate to the login page. Enter your registered email address and password, then click the login button.</p>
+
+<h3>Email + Password Authentication</h3>
+
+<p>DigitVA uses email and password authentication. There are no third-party login providers (such as Google or GitHub). Your email address is your unique account identifier.</p>
+
+<ul>
+  <li>Email addresses are case-insensitive during login.</li>
+  <li>Your password is never stored in plaintext. It is hashed using a secure one-way algorithm.</li>
+  <li>If you have forgotten your password, use the <a href="/help/password-reset">Password Reset</a> flow.</li>
+</ul>
+
+<h2>Email Verification Required</h2>
+
+<p>You <strong>cannot log in</strong> until your email address has been verified. When an administrator creates your account, DigitVA sends a verification link to your email address. You must click that link before you can authenticate.</p>
+
+<div class="help-warning">
+  <strong>Unverified accounts are blocked at login.</strong> If you see the message "Please verify your email address before logging in," check your inbox and spam folder for the verification email. You can also request a new verification link from the Resend Verification page.
+</div>
+
+<h2>Rate Limiting</h2>
+
+<p>Login attempts are rate-limited to protect against brute-force attacks:</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Limit</th>
+      <th>Scope</th>
+      <th>Applies To</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>10 requests per minute</td>
+      <td>Per IP address</td>
+      <td>POST requests to the login endpoint</td>
+    </tr>
+    <tr>
+      <td>20 requests per hour</td>
+      <td>Per email address</td>
+      <td>POST requests to the login endpoint</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>If you exceed these limits, you will be temporarily unable to submit login attempts. Wait a few minutes and try again.</p>
+
+<h2>Remember Me</h2>
+
+<p>The login page includes a <strong>"Remember Me"</strong> checkbox. By default, your session lasts 30 minutes. If you check "Remember Me," a persistent login cookie is set that keeps you logged in for 30 days, even across browser restarts.</p>
+
+<div class="help-tip">
+  <strong>Tip:</strong> On shared or public computers, do not check "Remember Me." Always log out explicitly using the logout option when you are finished.
+</div>
+
+<h2>Automatic Redirect After Login</h2>
+
+<p>After a successful login, DigitVA automatically redirects you to the dashboard appropriate for your role:</p>
+
+<ul>
+  <li><strong>Admin</strong> &rarr; Admin Dashboard (<code>/admin</code>)</li>
+  <li><strong>Coder</strong> &rarr; Coder Dashboard (<code>/coding</code>)</li>
+  <li><strong>Reviewer</strong> &rarr; Reviewer Dashboard (<code>/reviewing</code>)</li>
+  <li><strong>Data Manager</strong> &rarr; Data Manager Dashboard (<code>/data-management</code>)</li>
+  <li><strong>Site PI</strong> &rarr; Site PI Dashboard (<code>/sitepi</code>)</li>
+</ul>
+
+<p>If you were redirected to the login page from a specific URL (for example, a bookmarked coding page), you will be returned to that URL after login instead.</p>
+
+<h2>Site Maintenance Mode</h2>
+
+<p>Administrators can enable site maintenance mode. When maintenance is active:</p>
+
+<ul>
+  <li><strong>Admin users</strong> can still log in normally.</li>
+  <li><strong>All other users</strong> are blocked from logging in and see a message: "Site is under maintenance. Only admin login is allowed right now."</li>
+</ul>
+
+<p>A maintenance notice banner is also displayed on the login page when maintenance is active, showing any message the administrator has configured.</p>
+
+<div class="help-info">
+  <strong>Note:</strong> If you see a maintenance message and you are not an administrator, wait for the maintenance window to end. Contact your project administrator for details on the maintenance schedule.
+</div>
+
+<h2>First Login Password Change</h2>
+
+<p>New users must set their own password after verifying their email. After your first login, DigitVA may require you to accept terms and conditions and set a new password before you can access any dashboard. This is a one-time requirement.</p>
+
+<p>See <a href="/help/password-reset">Password Reset</a> for details on password strength requirements.</p>

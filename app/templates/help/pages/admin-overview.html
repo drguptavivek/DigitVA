@@ -1,0 +1,133 @@
+<h2>Administration Panel Overview</h2>
+
+<p>
+  The DigitVA administration panel at <code>/admin</code> is the central hub for managing
+  master data, users, access grants, ODK connections, and project configuration.
+  It is an HTMX-driven single-page interface where selecting a panel from the
+  left sidebar dynamically loads its content into the main area without a full
+  page reload.
+</p>
+
+<h3>Accessing the Admin Panel</h3>
+
+<p>
+  The admin panel is available to authenticated users who hold the
+  <strong>admin</strong> or <strong>project_pi</strong> role. Not all panels are
+  visible to every role. After the page loads, a JavaScript bootstrap call
+  determines the user's role and reveals or hides panels client-side.
+</p>
+
+<h3>Panel Layout</h3>
+
+<p>
+  The interface uses a Bootstrap-based two-column layout. The left sidebar lists
+  all panels the current user is authorized to see. Clicking a panel name loads
+  its content into the right-hand content area using HTMX partial responses.
+  The active panel is highlighted in the sidebar.
+</p>
+
+<h3>Admin-Only Panels</h3>
+
+<p>
+  The following panels are restricted to users with the <strong>admin</strong> role:
+</p>
+
+<ul>
+  <li><strong>ODK Connections</strong> &mdash; manage ODK Central server connections, encrypted credentials, and connection health. See <a href="/help/odk-connections">ODK Connections</a>.</li>
+  <li><strong>Users</strong> &mdash; create, deactivate, and reset user accounts; assign coder languages.</li>
+  <li><strong>Sites</strong> &mdash; manage site master data. See <a href="/help/sites">Sites</a>.</li>
+  <li><strong>Projects</strong> &mdash; create and configure projects. See <a href="/help/projects">Projects</a>.</li>
+  <li><strong>Languages</strong> &mdash; manage canonical languages and ODK alias mappings.</li>
+  <li><strong>COD Buckets</strong> &mdash; edit COD reporting schemes and ICD-to-disease remapping.</li>
+  <li><strong>ICD-10 Browser</strong> &mdash; browse the ICD-10 code hierarchy with local policy curation.</li>
+  <li><strong>Field Mapping</strong> &mdash; configure how ODK fields are displayed in the coding form.</li>
+  <li><strong>Data Sync</strong> &mdash; trigger, monitor, and troubleshoot ODK data sync. See <a href="/help/sync-behavior">Sync Behavior</a>.</li>
+  <li><strong>Activity</strong> &mdash; view a workflow activity log of state-changing actions.</li>
+</ul>
+
+<h3>Project-PI-Accessible Panels</h3>
+
+<p>
+  Users with the <strong>project_pi</strong> role can access the following panels,
+  scoped to their own assigned project:
+</p>
+
+<ul>
+  <li><strong>Access Grants</strong> &mdash; manage user-to-project/site role assignments.</li>
+  <li><strong>Project Sites</strong> &mdash; map sites to projects. See <a href="/help/project-sites">Project-Site Associations</a>.</li>
+  <li><strong>Project Forms</strong> &mdash; configure per-site ODK form mappings and SmartVA settings. See <a href="/help/project-forms">Project-Form Settings</a>.</li>
+  <li><strong>Project PIs</strong> &mdash; manage PI assignments scoped to a project.</li>
+</ul>
+
+<h3>CSRF Protection</h3>
+
+<div class="help-tip">
+  All state-changing routes in the admin panel enforce CSRF protection via the
+  <code>X-CSRFToken</code> request header. This applies to both traditional
+  form submissions and HTMX-driven partial updates.
+</div>
+
+<h3>Common Tasks</h3>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th>Panel</th>
+      <th>Required Role</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Add a new ODK Central server</td>
+      <td><a href="/admin/panels/odk-connections">ODK Connections</a></td>
+      <td>admin</td>
+    </tr>
+    <tr>
+      <td>Create a new project</td>
+      <td><a href="/admin/panels/projects">Projects</a></td>
+      <td>admin</td>
+    </tr>
+    <tr>
+      <td>Add a new site</td>
+      <td><a href="/admin/panels/sites">Sites</a></td>
+      <td>admin</td>
+    </tr>
+    <tr>
+      <td>Assign a coder to a project-site</td>
+      <td>Access Grants</td>
+      <td>admin or project_pi</td>
+    </tr>
+    <tr>
+      <td>Map a site to a project</td>
+      <td><a href="/admin/panels/project-sites">Project Sites</a></td>
+      <td>admin or project_pi</td>
+    </tr>
+    <tr>
+      <td>Link an ODK form to a project-site</td>
+      <td><a href="/admin/panels/project-forms">Project Forms</a></td>
+      <td>admin or project_pi</td>
+    </tr>
+    <tr>
+      <td>Trigger an ODK data sync</td>
+      <td>Data Sync</td>
+      <td>admin</td>
+    </tr>
+    <tr>
+      <td>Manage language aliases</td>
+      <td>Languages</td>
+      <td>admin</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/odk-connections">ODK Connections</a></li>
+  <li><a href="/help/projects">Projects</a></li>
+  <li><a href="/help/sites">Sites</a></li>
+  <li><a href="/help/project-sites">Project-Site Associations</a></li>
+  <li><a href="/help/project-forms">Project-Form Settings</a></li>
+  <li><a href="/help/sync-behavior">Sync Behavior</a></li>
+</ul>

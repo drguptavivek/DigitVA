@@ -1,0 +1,189 @@
+<h2>Project-Form Settings</h2>
+
+<p>
+  The Project Forms panel at <code>/admin/panels/project-forms</code> configures
+  the mapping between a DigitVA project-site pair and a specific ODK Central form.
+  It also provides per-form SmartVA analysis settings and form type registration.
+</p>
+
+<h3>Per-Site ODK Form Mapping</h3>
+
+<p>
+  Each project-site pair can be linked to at most one ODK form. This mapping tells
+  DigitVA which ODK Central project and form to sync submissions from for that
+  site. The mapping is stored in the <code>map_project_site_odk</code> table.
+</p>
+
+<h3>Configuring a Form Mapping</h3>
+
+<p>
+  To configure a mapping, open a site row in the panel and click
+  <strong>Configure</strong>. The site table renders immediately from local
+  database state, but the ODK project and form dropdowns are populated lazily
+  from ODK Central only when you open a row for configuration.
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Setting</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>ODK Project</strong></td>
+      <td>Select the ODK Central project from the live dropdown. This dropdown is populated by querying the assigned ODK Central connection.</td>
+    </tr>
+    <tr>
+      <td><strong>ODK Form</strong></td>
+      <td>Select the specific XML form within that ODK project. Dropdown values come from live ODK Central data.</td>
+    </tr>
+    <tr>
+      <td><strong>Form Type</strong></td>
+      <td>Select the VA form type from <code>mas_form_types</code> (for example, "WHO_2022_VA" or "WHO_2022_VA_SOCIAL"). This determines how fields are rendered during coding.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-tip">
+  The ODK project and form dropdowns are fetched live from ODK Central when you
+  open a configuration row. If the assigned ODK connection is in cooldown or
+  experiencing failures, an inline error message appears instead of blocking the
+  entire panel. The connection bar shows the assigned connection's current
+  health state before you attempt live lookups.
+</div>
+
+<h3>Form Type Registration</h3>
+
+<p>
+  Form types are registered in <code>mas_form_types</code> through the seed
+  command or the Field Mapping admin panel. The default form type is
+  <strong>WHO_2022_VA</strong>, which includes all 414 fields and 1196 choice
+  mappings loaded from the Excel mapping spreadsheets.
+</p>
+
+<p>
+  If the Field Mapping panel shows "No form types registered yet", run:
+</p>
+
+<pre><code>docker compose exec minerva_app_service uv run flask seed run</code></pre>
+
+<p>
+  This bootstraps the default form type without affecting existing users,
+  languages, or submissions.
+</p>
+
+<h3>SmartVA Configuration Per Form</h3>
+
+<p>
+  In the same configuration row, you can edit SmartVA execution settings for
+  the project-site form. These settings control how SmartVA analyzes submissions
+  from this form:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Setting</th>
+      <th>Description</th>
+      <th>Effect on Analysis</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>HIV Prevalence</strong></td>
+      <td>Whether the population has significant HIV prevalence.</td>
+      <td>When enabled, SmartVA includes HIV-related cause-of-death tariffs in its scoring algorithm.</td>
+    </tr>
+    <tr>
+      <td><strong>Malaria Endemic</strong></td>
+      <td>Whether the population is in a malaria-endemic region.</td>
+      <td>When enabled, SmartVA includes malaria-related cause-of-death tariffs in its scoring algorithm.</td>
+    </tr>
+    <tr>
+      <td><strong>HCE Enabled</strong></strong></td>
+      <td>Whether Health Care Encounter data should be used.</td>
+      <td>When enabled, SmartVA incorporates health care encounter information into the cause-of-death prediction.</td>
+    </tr>
+    <tr>
+      <td><strong>Freetext Enabled</strong></td>
+      <td>Whether free-text narrative fields should be processed.</td>
+      <td>When enabled, SmartVA uses open-ended narrative responses as additional input for cause-of-death classification.</td>
+    </tr>
+    <tr>
+      <td><strong>Country Code</strong></td>
+      <td>The country code for the study population.</td>
+      <td>Used by SmartVA to apply country-specific cause-of-death parameters and adjustments.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-warning">
+  Changing SmartVA settings does not automatically regenerate results for
+  existing submissions. New settings apply to the next SmartVA run. To
+  regenerate results for existing submissions, trigger a SmartVA-only resync
+  or a force-resync from the sync dashboard.
+</div>
+
+<h3>How SmartVA Settings Affect Analysis</h3>
+
+<p>
+  SmartVA is an automated cause-of-death classification tool that processes VA
+  data in batches. It produces a ranked list of likely causes of death for each
+  submission based on the configured parameters. The SmartVA pipeline runs inside
+  the Celery worker as a Python subprocess using the vendored SmartVA-Analyze
+  v3.0.0 package.
+</p>
+
+<p>
+  Key analysis behaviors:
+</p>
+
+<ul>
+  <li>Submissions are classified into age groups (neonate, child, adult) based on age at death.</li>
+  <li>Cause-of-death tariffs are scored per age group using the WHO VA 2022 questionnaire fields.</li>
+  <li>At least 80% of form headers must match the <code>Id####</code> pattern for SmartVA to recognize the form as a WHO questionnaire. Extra non-standard columns are filtered out during input preparation.</li>
+  <li>Results are stored as an active projection in <code>va_smartva_results</code> and linked to the submission's current active payload version.</li>
+</ul>
+
+<h3>Saving a Mapping</h3>
+
+<p>
+  When you save a form mapping, DigitVA immediately ensures the runtime
+  <code>va_forms</code> row exists so that SmartVA settings can be persisted
+  even before the first sync run. This means:
+</p>
+
+<ul>
+  <li>The mapping is recorded in <code>map_project_site_odk</code>.</li>
+  <li>A compatibility <code>va_forms</code> row is created if it does not already exist.</li>
+  <li>The next sync run will begin downloading submissions for this mapping.</li>
+</ul>
+
+<h3>Connection Health in the Panel</h3>
+
+<p>
+  The connection bar at the top of the Project Forms panel shows the assigned
+  ODK connection's current state, including:
+</p>
+
+<ul>
+  <li>Whether cooldown is active and when it expires.</li>
+  <li>Recent retryable failure count.</li>
+  <li>Recent failure message.</li>
+</ul>
+
+<p>
+  This helps operators understand why live ODK dropdown fetches may be failing
+  before attempting further lookups.
+</p>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/odk-connections">ODK Connections</a></li>
+  <li><a href="/help/project-sites">Project-Site Associations</a></li>
+  <li><a href="/help/sync-behavior">Sync Behavior</a></li>
+  <li><a href="/help/admin-overview">Administration Panel Overview</a></li>
+</ul>

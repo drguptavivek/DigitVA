@@ -1,0 +1,131 @@
+<h2>What Is the Coding Tester Role?</h2>
+
+<p>
+  The <code>coding_tester</code> role is a specialized coder variant designed for
+  testing and verifying the coding workflow on a small set of forms. It uses the
+  same coding interface as a regular coder but is intended for quality assurance
+  and workflow validation rather than production coding throughput.
+</p>
+
+<h2>How Coding Tester Differs from Regular Coder</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Aspect</th>
+      <th>Coder</th>
+      <th>Coding Tester</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Purpose</td>
+      <td>Production coding</td>
+      <td>Testing and verification of coding workflow</td>
+    </tr>
+    <tr>
+      <td>Coding interface</td>
+      <td>Full coding interface</td>
+      <td>Same full coding interface</td>
+    </tr>
+    <tr>
+      <td>Coding gates enforced</td>
+      <td>Yes &mdash; all project gates must pass</td>
+      <td>Bypasses most coding gates</td>
+    </tr>
+    <tr>
+      <td>Scope</td>
+      <td>Project or project_site</td>
+      <td>Project or project_site</td>
+    </tr>
+    <tr>
+      <td>Workflow state machine</td>
+      <td>Standard coder track</td>
+      <td>Standard coder track</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Coding Gate Bypass</h2>
+
+<p>
+  A regular <code>coder</code> must satisfy all non-demo coding gates before
+  entering the coding workflow:
+</p>
+
+<ul>
+  <li><code>coding_enabled = true</code></li>
+  <li>Current date is on or after <code>coding_start_date</code> (when set)</li>
+  <li>Current date is on or before <code>coding_end_date</code> (when set)</li>
+  <li>Per-site <code>daily_coder_limit</code> is not exceeded</li>
+</ul>
+
+<p>
+  A <code>coding_tester</code> may enter non-demo coding even when:
+</p>
+
+<ul>
+  <li><code>coding_enabled = false</code></li>
+  <li>The current UTC date is before <code>coding_start_date</code></li>
+  <li>The current UTC date is after <code>coding_end_date</code></li>
+  <li>The per-site <code>daily_coder_limit</code> has been reached</li>
+</ul>
+
+<div class="help-tip">
+  All coding gate checks use <strong>UTC date</strong> regardless of user
+  timezone.
+</div>
+
+<h2>Scope and Access</h2>
+
+<p>
+  The <code>coding_tester</code> role follows the same scope model as
+  <code>coder</code>:
+</p>
+
+<ul>
+  <li><strong>Project scope</strong> &mdash; can test coding across all sites
+      within the assigned project.</li>
+  <li><strong>Project-site scope</strong> &mdash; can test coding only at a
+      specific site within the assigned project.</li>
+</ul>
+
+<p>
+  Access is granted through explicit role-scope assignments. The tester must be
+  authenticated and active, and the target submission must fall within the
+  tester&rsquo;s assigned scope.
+</p>
+
+<h2>Workflow State Machine</h2>
+
+<p>
+  Once a <code>coding_tester</code> enters the coding workflow, the submission
+  follows the same state transitions as a regular coder:
+</p>
+
+<ol>
+  <li><code>ready_for_coding</code> &rarr; <code>coding_in_progress</code></li>
+  <li><code>coding_in_progress</code> &rarr; <code>coder_step1_saved</code></li>
+  <li><code>coder_step1_saved</code> &rarr; <code>coder_finalized</code></li>
+</ol>
+
+<p>
+  The same 1-hour allocation timeout and 24-hour recode window apply to
+  coding_tester sessions. Test coding produces the same artifacts (Step 1 COD,
+  final COD, NQA, Social Autopsy) as regular coding.
+</p>
+
+<h2>Important Notes</h2>
+
+<div class="help-warning">
+  <strong>Project PI and Site PI roles do not grant coding access.</strong>
+  Users holding oversight roles must also have an explicit
+  <code>coder</code> or <code>coding_tester</code> grant to enter the coding
+  workflow.
+</div>
+
+<div class="help-info">
+  <strong>Role scope:</strong> DigitVA uses a hybrid RBAC and ABAC model.
+  Roles define capabilities (what you can do), and scopes define boundaries
+  (where you can do it). Both must match for access to be granted.
+</div>

@@ -9,6 +9,7 @@ from app.routes.data_management import data_management
 from app.routes.health import health
 from app.routes.profile import profile
 from app.routes.api import api_v1
+from app.routes.help import help_bp
 
 
 def register_blueprints(app):
@@ -23,3 +24,4 @@ def register_blueprints(app):
     app.register_blueprint(admin, url_prefix="/admin")
     app.register_blueprint(data_management, url_prefix="/data-management")
     app.register_blueprint(api_v1, url_prefix="/api/v1")
+    app.register_blueprint(help_bp)

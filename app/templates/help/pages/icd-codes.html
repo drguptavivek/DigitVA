@@ -1,0 +1,186 @@
+<h2>ICD-10 Code Selection in DigitVA</h2>
+
+<p>
+  During Step 2 of the coding workflow, coders select an ICD-10 cause of death
+  code for the verbal autopsy submission. The ICD code selection system is built
+  on the WHO ICD-10 2019 revision and enforces WHO VA 2022 coding allowability
+  rules.
+</p>
+
+<h2>WHO ICD-10 Browser (Admin)</h2>
+
+<p>
+  Administrators can browse and curate the ICD-10 hierarchy via the admin panel
+  at <code>/admin/panels/icd10-browser</code>, backed by API routes under
+  <code>/admin/api/icd10/2019-2/*</code>.
+</p>
+
+<p>Key features:</p>
+
+<ul>
+  <li>
+    <strong>Lazy hierarchy traversal</strong> &mdash; the browser loads one node
+    and its direct children at a time, not the full tree in one response.
+  </li>
+  <li>
+    <strong>Policy-field curation</strong> &mdash; admins can edit local policy
+    fields (<code>is_coding_selectable</code>, <code>sex_selectable</code>,
+    <code>age_group_selectable</code>, <code>restriction_note</code>) on
+    three-character and detailed-code rows. Chapters and blocks are structural
+    only and cannot carry policy edits.
+  </li>
+  <li>
+    <strong>Status indicators</strong> &mdash; the browser uses color-coded
+    indicators:
+    <ul>
+      <li><strong>Green:</strong> the row or all direct children are selectable.</li>
+      <li><strong>Yellow:</strong> the row itself is not selectable but has at
+          least one selectable detailed child.</li>
+      <li><strong>Red:</strong> neither the row nor any child is selectable.</li>
+    </ul>
+  </li>
+  <li>
+    <strong>JSON and XLSX export</strong> &mdash; admins and data managers can
+    export curated code-policy rows for review or backup.
+  </li>
+</ul>
+
+<h2>Local VA Codes (Reference Catalog)</h2>
+
+<p>
+  DigitVA stores the ICD-10 2019 hierarchy as master reference data in
+  <code>mas_icd10_2019_2</code>, loaded from the checked-in WHO ICD-10 2019
+  ClaML XML snapshot and generated hierarchy CSV. This catalog includes:
+</p>
+
+<ul>
+  <li>Chapters</li>
+  <li>Blocks</li>
+  <li>Three-character categories</li>
+  <li>Detailed dotted codes (including modifier-derived codes like
+      <code>V01.1</code>, <code>E10.0</code>)</li>
+</ul>
+
+<p>
+  Coding-time lookup reads from this catalog and returns only selectable
+  <code>three_character</code> and <code>detailed_code</code> rows. The legacy
+  <code>va_icd_codes</code> table is deprecated and must not be used for new
+  ICD lookup features.
+</p>
+
+<h2>ICD Code Restrictions</h2>
+
+<p>
+  Not all ICD-10 codes are available during coding. Selectable codes are
+  restricted based on WHO VA 2022 manual coding allowability rules:
+</p>
+
+<ul>
+  <li>
+    <strong>Submission age classification</strong> determines which age-group
+    codes are available:
+    <ul>
+      <li><code>neonate</code>: 0 to fewer than 28 days</li>
+      <li><code>infant</code>: 28 days to fewer than 365 days</li>
+      <li><code>child</code>: 365 days to fewer than 12 years</li>
+      <li><code>adult</code>: 12 years and older</li>
+    </ul>
+  </li>
+  <li>
+    <strong>Deceased gender</strong> restricts sex-specific codes:
+    <ul>
+      <li>Maternal <code>O</code> codes: female-only, adult-only</li>
+      <li><code>C51-C58</code>: female-only</li>
+      <li><code>C60-C63</code>: male-only</li>
+      <li><code>D25-D28</code>: female-only</li>
+      <li><code>D29</code>: male-only</li>
+      <li><code>C50</code>: both sexes</li>
+    </ul>
+  </li>
+  <li>
+    <strong>Never selectable:</strong> codes in the range
+    <code>S00-T99</code> (injury codes) are never available for selection.
+  </li>
+</ul>
+
+<div class="help-tip">
+  A code marked <code>all</code> for age group is available to every age
+  classification. A code marked for a specific group (e.g.,
+  <code>neonate</code>) is available only to that group. The same applies to
+  sex: <code>both</code> is universal; <code>male</code> or
+  <code>female</code> restricts accordingly.
+</div>
+
+<h2>Coding Allowability Rules</h2>
+
+<p>
+  The WHO 2022 VA crosswalk workbook defines the baseline set of allowed ICD
+  codes. DigitVA generates a policy JSON from this crosswalk that controls which
+  codes appear during coding. Key rules:
+</p>
+
+<ol>
+  <li>
+    Default allowed rows use <code>is_coding_selectable=true</code>,
+    <code>sex_selectable=both</code>, and
+    <code>age_group_selectable=all</code>.
+  </li>
+  <li>
+    Exception rules override defaults for neonate-only, infant-only, and
+    female-only conditions.
+  </li>
+  <li>
+    Expansion preserves WHO granularity: three-character codes select only that
+    code; dotted codes select only that exact dotted code.
+  </li>
+  <li>
+    Overlap rules: never-selectable wins over all. Age and sex exceptions win
+    over default allowability. The most restrictive applicable rule wins.
+  </li>
+</ol>
+
+<h2>Validation on Submission</h2>
+
+<p>
+  When a coder submits a final COD with an ICD-10 code, the system validates the
+  selection against the coding allowability rules for that specific submission:
+</p>
+
+<ul>
+  <li>The code must be active and marked <code>is_coding_selectable</code>.</li>
+  <li>The code must be allowed for the submission&rsquo;s age group.</li>
+  <li>The code must be allowed for the deceased&rsquo;s gender.</li>
+</ul>
+
+<div class="help-warning">
+  <strong>Not all ICD-10 codes are available.</strong> Only codes relevant to
+  verbal autopsy coding, as defined by the WHO 2022 instrument and local policy
+  curation, can be selected. Codes for low-fatality or implausible conditions
+  may be disabled through clinical review even when included in broad WHO
+  residual ranges.
+</div>
+
+<h2>Policy Import and Export</h2>
+
+<p>
+  ICD coding policy can be exported and re-imported:
+</p>
+
+<ul>
+  <li>
+    <strong>Export:</strong> Includes all three-character and detailed-code rows
+    where at least one policy field is set. Available in JSON and XLSX formats.
+  </li>
+  <li>
+    <strong>Import:</strong> Overwrite-style. Imported rows are updated from the
+    file. All other editable ICD rows not present in the import are reset to
+    <code>is_coding_selectable=false</code> and
+    <code>sex_selectable=NULL</code>.
+  </li>
+</ul>
+
+<div class="help-info">
+  The import response includes counts of updated items, reset items, and any
+  failed codes with reasons, so operators can verify the effect of a policy
+  change.
+</div>

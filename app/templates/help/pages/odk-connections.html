@@ -1,0 +1,194 @@
+<h2>ODK Connections</h2>
+
+<p>
+  The ODK Connections panel at <code>/admin/panels/odk-connections</code> lets
+  administrators manage connections to ODK Central servers. Each connection stores
+  the details needed to communicate with an ODK Central instance for data sync,
+  attachment downloads, live form lookups, and review-state write-back.
+</p>
+
+<h3>What Is ODK Central</h3>
+
+<p>
+  ODK Central is the server application that collects Verbal Autopsy form
+  submissions from field devices. DigitVA connects to ODK Central over its REST
+  API to download submissions, sync attachments, and write back review states.
+  Each DigitVA project can be linked to one ODK Central connection, and one
+  connection can serve multiple projects.
+</p>
+
+<h3>Creating a Connection</h3>
+
+<p>
+  To create a new ODK Central connection, click <strong>New Connection</strong>
+  in the panel and provide:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Name</strong></td>
+      <td>A descriptive label for this connection (for example, "Production Central").</td>
+    </tr>
+    <tr>
+      <td><strong>Base URL</strong></td>
+      <td>The full URL of the ODK Central instance (for example, <code>https://odk.example.com</code>).</td>
+    </tr>
+    <tr>
+      <td><strong>Email</strong></td>
+      <td>The ODK Central user account email used for authentication.</td>
+    </tr>
+    <tr>
+      <td><strong>Password</strong></td>
+      <td>The password for that ODK Central account.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Encrypted Credential Storage</h3>
+
+<div class="help-info">
+  Credentials (email and password) are encrypted using Fernet AES-128 before
+  being stored in the database. Each credential field has its own per-row salt,
+  and a shared pepper is read from the environment at runtime. Plaintext
+  credentials are never persisted to the database.
+</div>
+
+<h3>Testing a Connection</h3>
+
+<p>
+  After creating or editing a connection, use the <strong>Test Connection</strong>
+  button to verify that DigitVA can reach the ODK Central server and
+  authenticate successfully. This sends a lightweight API request to ODK Central
+  and reports success or failure inline.
+</p>
+
+<h3>Assigning Projects to a Connection</h3>
+
+<p>
+  Each project must be linked to an ODK Central connection so that sync knows
+  which server to contact. In the ODK Connections panel, you can assign one or
+  more projects to a connection. This mapping is stored in the
+  <code>map_project_odk</code> table.
+</p>
+
+<h3>SSRF Protection</h3>
+
+<div class="help-warning">
+  The base URL field is validated to prevent Server-Side Request Forgery (SSRF).
+  Only valid external HTTP/HTTPS URLs are accepted. Internal network addresses
+  and non-HTTP protocols are rejected at validation time.
+</div>
+
+<h3>Per-Connection Pacing and Failure Tracking</h3>
+
+<p>
+  DigitVA applies outbound request pacing on each ODK connection to avoid
+  sending bursts of requests to the same ODK Central instance. This is enforced
+  per connection, not globally.
+</p>
+
+<p>
+  When connectivity or authentication errors occur, DigitVA tracks consecutive
+  retryable failures per connection. After a configurable number of consecutive
+  failures, the connection enters <strong>cooldown</strong>.
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Setting</th>
+      <th>Default</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Minimum request interval</td>
+      <td>0.5 seconds</td>
+      <td>Enforced delay between consecutive ODK calls on the same connection.</td>
+    </tr>
+    <tr>
+      <td>Failure threshold</td>
+      <td>3 consecutive failures</td>
+      <td>Number of retryable failures before cooldown activates.</td>
+    </tr>
+    <tr>
+      <td>Cooldown duration</td>
+      <td>300 seconds (5 minutes)</td>
+      <td>How long the connection refuses new requests after hitting the failure threshold.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Cooldown Behavior</h3>
+
+<p>
+  While a connection is in cooldown:
+</p>
+
+<ul>
+  <li>All outbound ODK requests for that connection fail fast without contacting the server.</li>
+  <li>Admin connection tests and live ODK lookups return a cooldown error inline.</li>
+  <li>Background sync skips forms that use the cooled-down connection and logs them as skipped.</li>
+  <li>Forms on other connections continue syncing normally.</li>
+</ul>
+
+<p>
+  A single successful ODK call resets the failure counter to zero and clears
+  cooldown.
+</p>
+
+<h3>Connection Health Visibility</h3>
+
+<p>
+  The current health state of each connection is visible in three places:
+</p>
+
+<ul>
+  <li><strong>ODK Connections panel</strong> &mdash; shows consecutive failure count, active cooldown flag, remaining cooldown time, and last failure message.</li>
+  <li><strong>Project Forms panel</strong> &mdash; shows a cooldown warning banner when the assigned connection is degraded.</li>
+  <li><strong>Sync Dashboard</strong> &mdash; surfaces active cooldowns and recent failures in the status card so operators can understand why live ODK actions may fail.</li>
+</ul>
+
+<h3>Retryable Errors</h3>
+
+<p>
+  The following error types count toward the failure threshold:
+</p>
+
+<ul>
+  <li>Connection timeouts and connection errors</li>
+  <li>Request timeouts</li>
+  <li>HTTP 401 or 403 responses (authentication or authorization failures)</li>
+  <li>Errors containing keywords such as "token", "expired", "Unauthorized", or "Forbidden"</li>
+</ul>
+
+<div class="help-tip">
+  Cooldown errors themselves are not retryable. They propagate immediately to
+  signal that the connection is being protected, rather than being counted as
+  another failure.
+</div>
+
+<h3>Legacy TOML Fallback</h3>
+
+<p>
+  Projects that were configured before the DB-managed connection system was
+  introduced may still use a legacy <code>odk_config.toml</code> file. These
+  projects continue to work, but shared cooldown and pacing are guaranteed only
+  for DB-managed connections. Migrating legacy projects to DB-managed connections
+  is recommended.
+</p>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/project-forms">Project-Form Settings</a></li>
+  <li><a href="/help/sync-behavior">Sync Behavior</a></li>
+</ul>

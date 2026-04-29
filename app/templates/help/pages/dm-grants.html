@@ -1,0 +1,237 @@
+<h2>Overview</h2>
+
+<p>
+  The grant management interface at <code>/data-management/users</code> lets
+  you create users and manage coder, coding-tester, and data-manager grants
+  within your own scope, without requiring admin intervention.
+</p>
+
+<p>
+  Access this page through the <strong>Manage Users</strong> button in the
+  Data Manager Dashboard header.
+</p>
+
+<div class="help-info">
+  This interface is separate from the admin panel at <code>/admin/</code>.
+  Admins can also use this interface, but they already have the full admin
+  panel available for broader role management.
+</div>
+
+<h2>Who Can Use This Interface</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Access Level</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>data_manager</strong></td>
+      <td>Scoped by own grants &mdash; can only assign within own project/site scope</td>
+    </tr>
+    <tr>
+      <td><strong>admin</strong></td>
+      <td>Full access, bypasses all scope restrictions</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Assignable Roles</h2>
+
+<p>Through this interface, you may assign only these three roles:</p>
+
+<ul>
+  <li><strong>coder</strong> &mdash; coding role within assigned scope</li>
+  <li><strong>coding_tester</strong> &mdash; coding test role within assigned scope</li>
+  <li><strong>data_manager</strong> &mdash; data-quality triage role within assigned scope</li>
+</ul>
+
+<div class="help-warning">
+  You cannot assign <code>admin</code>, <code>project_pi</code>,
+  <code>site_pi</code>, <code>reviewer</code>, or <code>collaborator</code>
+  roles through this interface. Those require admin panel access.
+</div>
+
+<h2>Scope Rules</h2>
+
+<p>The grants you can assign depend on your own grant scope:</p>
+
+<h3>Project-Scoped Data Manager</h3>
+
+<p>If you hold a project-level data-manager grant, you may assign grants at:</p>
+
+<ul>
+  <li><strong>Project level</strong> &mdash; for the project where you hold your grant</li>
+  <li><strong>Project-Site level</strong> &mdash; for any site within that project</li>
+</ul>
+
+<h3>Site-Scoped Data Manager</h3>
+
+<p>If you hold only project-site-level data-manager grants, you may assign grants at:</p>
+
+<ul>
+  <li><strong>Project-Site level only</strong> &mdash; and only for the specific project-site pairs where you hold a grant</li>
+</ul>
+
+<div class="help-warning">
+  A site-scoped data manager may <strong>not</strong> assign project-level
+  grants, even for the project that contains their assigned sites.
+</div>
+
+<h3>Admin</h3>
+
+<p>Admins bypass all scope restrictions and can assign grants at any project or site level.</p>
+
+<h2>Grant Scope Types</h2>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Scope Type</th>
+      <th>Requirements</th>
+      <th>Coverage</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>project</strong></td>
+      <td>Requires a project selection</td>
+      <td>All sites within that project</td>
+    </tr>
+    <tr>
+      <td><strong>project_site</strong></td>
+      <td>Requires both a project and a site selection</td>
+      <td>Only the specified site within that project</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Managing Grants</h2>
+
+<h3>Viewing Grants</h3>
+
+<p>
+  The <strong>Grants</strong> tab shows all coder, coding-tester, and
+  data-manager grants within your scope. You can filter by user email to
+  find a specific user's grants. Grants for other roles (admin, project PI,
+  site PI, reviewer, collaborator) are never shown in this view, even if
+  they exist within your scope.
+</p>
+
+<h3>Creating a Grant</h3>
+
+<ol>
+  <li>Go to the <strong>Grants</strong> tab</li>
+  <li>In the new-grant form, select a user (or type an email to search)</li>
+  <li>Select the project (must be within your manageable scope)</li>
+  <li>Optionally select a site (required for site-scoped data managers; optional for project-scoped)</li>
+  <li>Select the role: <code>coder</code>, <code>coding_tester</code>, or <code>data_manager</code></li>
+  <li>Submit the form</li>
+</ol>
+
+<div class="help-tip">
+  If an inactive grant with the same user, role, and scope already exists, the
+  system reactivates it instead of creating a duplicate.
+</div>
+
+<h3>Activating / Deactivating Grants</h3>
+
+<p>
+  Use the toggle action next to each grant to activate or deactivate it.
+  You may toggle any grant that meets all of these conditions:
+</p>
+
+<ul>
+  <li>The grant role is <code>coder</code>, <code>coding_tester</code>, or <code>data_manager</code></li>
+  <li>The grant falls within your scope</li>
+  <li>The grant is not your own data-manager grant</li>
+</ul>
+
+<div class="help-warning">
+  You cannot revoke your own data-manager grant through this interface. This
+  prevents accidental lockout.
+</div>
+
+<h2>Creating Users</h2>
+
+<h3>User Creation Form</h3>
+
+<p>
+  From the <strong>Users</strong> tab, you can create new users. The form
+  requires:
+</p>
+
+<ul>
+  <li><strong>Email</strong> and <strong>Confirm Email</strong> (must match)</li>
+  <li><strong>Name</strong></li>
+  <li><strong>Phone</strong></li>
+  <li><strong>VA Language</strong> (at least one must be selected)</li>
+  <li><strong>Initial Grant</strong> &mdash; you must assign at least one grant during creation:
+    <ul>
+      <li>Project selection first (must be within your manageable scope)</li>
+      <li>Role: <code>coder</code>, <code>coding_tester</code>, or <code>data_manager</code></li>
+      <li>Scope: project or project-site, depending on your own scope</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>New User Onboarding Flow</h3>
+
+<p>After you create a user, the following happens automatically:</p>
+
+<ol>
+  <li>The user account is created with <code>active</code> status</li>
+  <li>The user receives a verification email and a password-setup email</li>
+  <li>The password-setup email uses invite wording ("set your password")</li>
+  <li>When the user verifies their email for the first time, they are redirected to the password setup page</li>
+  <li>After setting their password, the first login shows a terms-and-conditions gate</li>
+  <li>The user's default landing page is set to the coder dashboard</li>
+</ol>
+
+<div class="help-info">
+  You do not set a password for the user. The user sets their own password
+  through the invite email flow.
+</div>
+
+<h2>User Details</h2>
+
+<p>
+  From the Users tab, click on a user to open their details panel. This shows:
+</p>
+
+<ul>
+  <li>Account status (active / deactive)</li>
+  <li>Email verification status</li>
+  <li>User VA language list</li>
+  <li>In-scope active grant breakdown:
+    <ul>
+      <li>Project-level grants</li>
+      <li>Project-site-level grants</li>
+    </ul>
+  </li>
+  <li>Resend verification action (for unverified users)</li>
+  <li>Email update action (only for users you created)</li>
+  <li>Language update action</li>
+  <li><strong>Manage Grants</strong> shortcut &mdash; switches to the Grants tab with this user's email pre-filled in the search filter and the user preselected in the new-grant form</li>
+</ul>
+
+<h2>Scope Validation</h2>
+
+<p>
+  Every grant creation and toggle action validates scope against your own
+  grants. The system ensures that:
+</p>
+
+<ul>
+  <li>The target project is one where you hold a data-manager grant</li>
+  <li>The target site (if applicable) belongs to a project where you hold a project-level grant, or matches one of your project-site grants</li>
+  <li>Site-scoped data managers cannot assign at the project level</li>
+</ul>
+
+<p>
+  If you attempt to create or toggle a grant outside your scope, the request
+  is rejected. All mutating endpoints require a valid CSRF token in the
+  <code>X-CSRFToken</code> header.
+</p>

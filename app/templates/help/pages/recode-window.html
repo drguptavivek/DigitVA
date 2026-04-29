@@ -1,0 +1,167 @@
+<h2>What Is the Recode Window?</h2>
+
+<p>
+  The recode window is a <strong>24-hour period</strong> after a coder finalizes
+  a Cause of Death (COD) determination. During this window, the coder may reopen
+  the case and submit a replacement COD. After 24 hours, the window closes and
+  the coder can no longer recode the submission.
+</p>
+
+<h2>How It Works</h2>
+
+<ol>
+  <li>
+    <strong>Coder submits final COD.</strong> The submission enters
+    <code>coder_finalized</code> state. The 24-hour recode timer starts.
+  </li>
+  <li>
+    <strong>During the 24-hour window</strong>, the coder can reopen the case
+    from their coding history table and submit a new COD. The existing finalized
+    COD remains authoritative until the replacement is successfully saved.
+  </li>
+  <li>
+    <strong>After 24 hours</strong>, the submission automatically transitions to
+    <code>reviewer_eligible</code>. The coder can no longer recode the case.
+  </li>
+</ol>
+
+<div class="help-tip">
+  <strong>Incomplete recode work does not replace the existing COD.</strong>
+  The original finalized COD remains authoritative until a replacement final COD
+  is successfully saved. If the coder starts a recode but does not finish, the
+  original COD stands.
+</div>
+
+<h2>Supporting Artifacts During Recode</h2>
+
+<p>
+  Supporting artifacts behave differently during recode compared to first-pass
+  coding:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Artifact</th>
+      <th>First-Pass Timeout</th>
+      <th>Recode Session</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Narrative Quality Assessment (NQA)</td>
+      <td>Deactivated on timeout</td>
+      <td>Persists across recode attempts</td>
+    </tr>
+    <tr>
+      <td>Social Autopsy Analysis</td>
+      <td>Deactivated on timeout</td>
+      <td>Persists across recode attempts</td>
+    </tr>
+    <tr>
+      <td>Final COD</td>
+      <td>N/A (not yet submitted)</td>
+      <td>Preserved; replaced only on successful save</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  NQA and Social Autopsy artifacts may be updated independently during recode,
+  even if the VA code itself is not re-saved.
+</p>
+
+<h2>Allocation Timeout During Recode</h2>
+
+<p>
+  Recode sessions follow the same <strong>1-hour stale allocation timeout</strong>
+  as first-pass coding and reviewer sessions. If a recode allocation becomes
+  stale:
+</p>
+
+<ul>
+  <li>The active allocation row is deactivated.</li>
+  <li>Unfinished initial assessment rows are deactivated.</li>
+  <li>The recode episode is abandoned.</li>
+  <li>The currently authoritative final COD is preserved.</li>
+  <li>Saved NQA and Social Autopsy artifacts from the recode window are
+      preserved.</li>
+  <li>The submission returns to <code>coder_finalized</code>.</li>
+</ul>
+
+<div class="help-warning">
+  <strong>Different timeout reset behavior:</strong> An incomplete first-pass
+  coding session resets to <code>ready_for_coding</code> and all supporting
+  artifacts are deactivated. An incomplete recode session resets to
+  <code>coder_finalized</code> and the existing authoritative COD is preserved.
+</div>
+
+<h2>After the Recode Window</h2>
+
+<p>
+  Once the 24-hour recode window closes:
+</p>
+
+<ol>
+  <li>
+    The submission transitions to <code>reviewer_eligible</code>.
+  </li>
+  <li>
+    The coder can no longer reopen or recode the case.
+  </li>
+  <li>
+    The submission becomes available for optional reviewer secondary coding.
+  </li>
+  <li>
+    The coder&rsquo;s finalized COD remains authoritative unless and until a
+    reviewer submits a reviewer final COD that supersedes it.
+  </li>
+</ol>
+
+<h2>Time Available to Coders</h2>
+
+<p>
+  The time constraints for coders are:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Constraint</th>
+      <th>Duration</th>
+      <th>Effect</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Allocation timeout</td>
+      <td>1 hour</td>
+      <td>If the coder does not complete the coding session within 1 hour, the
+          allocation is released and the submission returns to the pool.</td>
+    </tr>
+    <tr>
+      <td>Recode window</td>
+      <td>24 hours</td>
+      <td>After finalization, the coder has 24 hours to change the COD. After
+          that, the case is locked for the coder.</td>
+    </tr>
+    <tr>
+      <td>Recode session timeout</td>
+      <td>1 hour</td>
+      <td>If a recode session is not completed within 1 hour, it is abandoned.
+          The existing COD is preserved.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Authority Chain</h2>
+
+<div class="help-info">
+  The authoritative COD for a submission follows this precedence:
+  <ol>
+    <li>Reviewer finalized COD (if one exists and is active)</li>
+    <li>Coder finalized COD (if active and not superseded)</li>
+  </ol>
+  Initial COD (Step 1) is never the authoritative final COD. It is an
+  intermediate working assessment only.
+</div>

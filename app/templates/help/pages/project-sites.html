@@ -1,0 +1,183 @@
+<h2>Project-Site Associations</h2>
+
+<p>
+  The Project Sites panel at <code>/admin/panels/project-sites</code> manages
+  the mapping between sites and projects. This association is a prerequisite for
+  configuring ODK form mappings, running data sync, and enabling coder access.
+</p>
+
+<h3>Why Project-Site Associations Matter</h3>
+
+<p>
+  DigitVA uses a scope-based access control model where permissions are granted
+  at the project or project-site level. Before a user can code submissions from a
+  particular site, the following must be in place:
+</p>
+
+<ol>
+  <li>The site must exist in the <a href="/help/sites">Sites</a> master table.</li>
+  <li>The site must be associated with a project through this panel.</li>
+  <li>An ODK form must be mapped to that project-site pair through the <a href="/help/project-forms">Project Forms</a> panel.</li>
+  <li>The user must have an access grant scoped to that project or project-site combination.</li>
+</ol>
+
+<p>
+  Without the project-site association, there is no sync target, no form mapping,
+  and no scope boundary for access grants.
+</p>
+
+<h3>Access Control Implications</h3>
+
+<p>
+  Access grants in DigitVA follow a hybrid RBAC and ABAC model:
+</p>
+
+<ul>
+  <li><strong>Role</strong> defines what a user can do (for example, coder, reviewer, data_manager).</li>
+  <li><strong>Scope</strong> defines where the user can do it (global, project, or project-site).</li>
+</ul>
+
+<p>
+  Supported scope types:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Scope Type</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Global</strong></td>
+      <td>System-wide access. Only the admin role uses global scope.</td>
+    </tr>
+    <tr>
+      <td><strong>Project</strong></td>
+      <td>Access across all sites within that project. Used by project_pi and some coder/reviewer grants.</td>
+    </tr>
+    <tr>
+      <td><strong>Project-Site</strong></td>
+      <td>Access to one specific site within one specific project. Used by site_pi, coder, reviewer, and data_manager grants.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="help-tip">
+  The system does not infer broader access from missing values. A grant at the
+  project-site level does not automatically grant access to other sites in the
+  same project. Broader access must be granted explicitly.
+</div>
+
+<h3>Mapping Sites to Projects</h3>
+
+<p>
+  In the Project Sites panel:
+</p>
+
+<ol>
+  <li>Select a project from the project list.</li>
+  <li>Add one or more sites to associate with that project.</li>
+  <li>Each association can be activated or deactivated independently.</li>
+</ol>
+
+<p>
+  A single site can be associated with multiple projects. For example, site "NC01"
+  might be part of both project "UNSW01" and project "ICMR01", with different
+  ODK form mappings and different access grants for each combination.
+</p>
+
+<h3>Who Can Manage Project-Site Associations</h3>
+
+<p>
+  This panel is accessible to both <strong>admin</strong> and
+  <strong>project_pi</strong> users:
+</p>
+
+<ul>
+  <li><strong>Admin</strong> users can manage associations for all projects.</li>
+  <li><strong>Project PI</strong> users can manage associations only for their own assigned project.</li>
+</ul>
+
+<h3>Effect on the Sync Pipeline</h3>
+
+<p>
+  The sync pipeline uses <code>map_project_site_odk</code> as the source of truth
+  for what gets synced. Only active project-site associations with a configured
+  ODK form mapping participate in data sync. If a project-site association is
+  deactivated:
+</p>
+
+<ul>
+  <li>The corresponding forms are excluded from the sync loop.</li>
+  <li>Submissions from the deactivated pair are excluded from coder allocation.</li>
+  <li>Existing data and coding artifacts are preserved.</li>
+</ul>
+
+<h3>Grant Roles</h3>
+
+<p>
+  The following grant roles are available in the system:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Scope</th>
+      <th>Capability</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>admin</code></td>
+      <td>Global</td>
+      <td>Full system administration.</td>
+    </tr>
+    <tr>
+      <td><code>project_pi</code></td>
+      <td>Project</td>
+      <td>Project-wide oversight, reporting, and configuration.</td>
+    </tr>
+    <tr>
+      <td><code>site_pi</code></td>
+      <td>Project-Site</td>
+      <td>Site-specific oversight within assigned projects.</td>
+    </tr>
+    <tr>
+      <td><code>coder</code></td>
+      <td>Project or Project-Site</td>
+      <td>Start coding, submit COD assessments.</td>
+    </tr>
+    <tr>
+      <td><code>reviewer</code></td>
+      <td>Project or Project-Site</td>
+      <td>Optional secondary coding after coder recode window.</td>
+    </tr>
+    <tr>
+      <td><code>coding_tester</code></td>
+      <td>Project or Project-Site</td>
+      <td>Test coding workflow; bypasses coding access gates.</td>
+    </tr>
+    <tr>
+      <td><code>data_manager</code></td>
+      <td>Project or Project-Site</td>
+      <td>Browse submissions, triage, mark not codeable.</td>
+    </tr>
+    <tr>
+      <td><code>collaborator</code></td>
+      <td>Project or Project-Site</td>
+      <td>Read-only access to data and reporting.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/sites">Sites</a></li>
+  <li><a href="/help/projects">Projects</a></li>
+  <li><a href="/help/project-forms">Project-Form Settings</a></li>
+  <li><a href="/help/admin-overview">Administration Panel Overview</a></li>
+</ul>

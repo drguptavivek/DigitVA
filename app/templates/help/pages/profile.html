@@ -1,0 +1,145 @@
+<h2>My Profile</h2>
+
+<p>
+  The My Profile page at <code>/profile</code> lets you view your account information,
+  change your password, and update your display timezone. Access this page from the
+  user menu in the navigation bar after logging in.
+</p>
+
+<h3>Viewing Your Information</h3>
+
+<p>
+  The profile page loads your personal details via the API at
+  <code>GET /api/v1/profile/</code>. This returns your name, email, assigned coding
+  languages, and current timezone. You can also update your coding language
+  preferences via <code>PATCH /api/v1/profile/language</code>.
+</p>
+
+<h3>Changing Your Password</h3>
+
+<p>
+  Use the "Change Password" card on the profile page to update your password. You must
+  provide:
+</p>
+
+<ul>
+  <li><strong>Current password</strong> &mdash; to verify your identity</li>
+  <li><strong>New password</strong> &mdash; must meet strength requirements</li>
+  <li><strong>Confirm new password</strong> &mdash; must match the new password</li>
+</ul>
+
+<p>
+  Password changes are submitted via <code>PATCH /api/v1/profile/password</code>. The
+  endpoint is rate-limited to 5 requests per minute.
+</p>
+
+<h3>Password Strength Requirements</h3>
+
+<p>Your new password must satisfy all of the following rules:</p>
+
+<ul>
+  <li>At least 12 characters</li>
+  <li>At least one uppercase letter (A-Z)</li>
+  <li>At least one digit (0-9)</li>
+  <li>At least one special character</li>
+  <li>The new password must differ from your current password</li>
+</ul>
+
+<div class="help-tip">
+  If any rule is not met, the system tells you which requirements are missing. All
+  rules must pass before the password is accepted.
+</div>
+
+<h3>Breach Check (Have I Been Pwned)</h3>
+
+<p>
+  After your password passes the strength rules, DigitVA checks it against the
+  <strong>Have I Been Pwned (HIBP)</strong> breach database. If your chosen password
+  appears in known breach data, it will be rejected and you must choose a different one.
+</p>
+
+<div class="help-info">
+  <strong>Privacy:</strong> DigitVA never transmits your full password to the breach
+  service. Only the first 5 characters of the password's SHA-1 hash prefix are sent
+  to the HIBP k-anonymity API. No raw password, full hash, or account identity leaves
+  the application.
+</div>
+
+<div class="help-warning">
+  <strong>Service unavailable:</strong> If the breach check service cannot be reached,
+  the password change will fail with a retryable error. DigitVA does not silently
+  bypass the breach check. Try again in a few moments.
+</div>
+
+<h3>First Login: Terms and Conditions</h3>
+
+<p>
+  When you log in for the first time after your password is set (for example, after
+  account creation or a password reset by an administrator), you may be required to
+  accept terms and conditions before accessing your dashboard.
+</p>
+
+<p>
+  This happens when your account has not yet accepted the terms (tracked by the
+  <code>pw_reset_t_and_c</code> flag). The system redirects you to the
+  <strong>Terms &amp; Conditions</strong> page at
+  <code>/profile/force-password-change</code>, where you must:
+</p>
+
+<ol>
+  <li>Read the terms and conditions, which cover data confidentiality and responsible
+    use</li>
+  <li>Check the box to confirm agreement</li>
+  <li>Click "Continue" to proceed to your dashboard</li>
+</ol>
+
+<p>
+  Once accepted, you will not be prompted again. The acceptance is recorded on your
+  account.
+</p>
+
+<h3>Time Zone</h3>
+
+<p>
+  The profile page lets you set your preferred time zone. All timestamps displayed in
+  the system (submission dates, coding times, sync times) will be shown in your chosen
+  time zone.
+</p>
+
+<p>
+  Timezone changes are submitted via <code>PATCH /api/v1/profile/timezone</code>. The
+  default timezone is Asia/Kolkata. You can select from the standard IANA timezone
+  database.
+</p>
+
+<h3>Viewing Your Assigned Roles and Scopes</h3>
+
+<p>
+  Your active grants (role assignments to specific projects and sites) determine what
+  you can see and do in DigitVA. These grants are managed by administrators or project
+  PIs through the access grants panel.
+</p>
+
+<p>To understand your access:</p>
+
+<ul>
+  <li>Your <strong>role</strong> (coder, reviewer, data manager, site PI, project PI,
+    admin) determines which pages and actions are available to you</li>
+  <li>Your <strong>scope</strong> (which projects and sites) determines whose data you
+    can access within those pages</li>
+  <li>If you cannot see a project or site you expect, contact your administrator to
+    verify your grant is active and scoped correctly</li>
+</ul>
+
+<p>
+  For a detailed breakdown of each role and its permissions, see
+  <a href="/help/user-roles">User Roles &amp; Permissions</a>.
+</p>
+
+<h3>Related Help Topics</h3>
+
+<ul>
+  <li><a href="/help/authentication">Logging In &amp; Authentication</a></li>
+  <li><a href="/help/password-reset">Password Reset</a></li>
+  <li><a href="/help/user-roles">User Roles &amp; Permissions</a></li>
+</ul>

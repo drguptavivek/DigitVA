@@ -1,0 +1,199 @@
+<h2>What Is the Coding History Table?</h2>
+
+<p>
+  The coding history table on the coder dashboard shows all submissions that the
+  current coder has previously coded or finalized. It provides a record of past
+  work and access to view, and in some cases recode, completed submissions.
+</p>
+
+<h2>Table Columns</h2>
+
+<p>
+  The history table displays the following information for each submission:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Project Code</td>
+      <td>The project associated with the submission.</td>
+    </tr>
+    <tr>
+      <td>Site Code</td>
+      <td>The site where the verbal autopsy was conducted.</td>
+    </tr>
+    <tr>
+      <td>VA Form ID</td>
+      <td>A masked identifier for the verbal autopsy submission.</td>
+    </tr>
+    <tr>
+      <td>Age / Gender</td>
+      <td>Combined column showing the deceased's age and gender, used in ICD-10 code filtering.</td>
+    </tr>
+    <tr>
+      <td>VA Code Status</td>
+      <td>Display label for the current state: "In Progress", "VA Coding Completed", or "Not Codeable".</td>
+    </tr>
+    <tr>
+      <td>VA Coding Date</td>
+      <td>Date and time when the coder finalized the COD, displayed in the
+          user&rsquo;s timezone.</td>
+    </tr>
+    <tr>
+      <td>Actions</td>
+      <td>Continue (for in-progress), View (read-only), or Recode (during 24-hour window) buttons.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>View Button</h2>
+
+<p>
+  Each row in the history table has a <strong>View</strong> button that opens the
+  submission in read-only mode. This allows the coder to review their previous
+  coding work, including:
+</p>
+
+<ul>
+  <li>All submission categories and narrative data</li>
+  <li>Narrative Quality Assessment (if applicable)</li>
+  <li>Social Autopsy Analysis (if applicable)</li>
+  <li>Step 1 initial COD assessment</li>
+  <li>Final COD with ICD-10 code</li>
+</ul>
+
+<h2>Recode Button</h2>
+
+<p>
+  Submissions that are still within the <strong>24-hour recode window</strong>
+  display a <strong>Recode</strong> button. Clicking it reopens the submission
+  for the coder to change their COD determination.
+</p>
+
+<ul>
+  <li>
+    The recode button is available only while the submission is in
+    <code>coder_finalized</code> state and within 24 hours of finalization.
+  </li>
+  <li>
+    Once the submission transitions to <code>reviewer_eligible</code> (after the
+    24-hour window), the recode button is no longer shown.
+  </li>
+  <li>
+    The existing finalized COD remains authoritative until a replacement final
+    COD is successfully saved.
+  </li>
+</ul>
+
+<div class="help-tip">
+  <strong>Supporting artifacts persist during recode.</strong> NQA and Social
+  Autopsy artifacts are preserved when reopening a case for recode, unlike
+  first-pass coding where they are deactivated on timeout.
+</div>
+
+<h2>Workflow State Transitions</h2>
+
+<p>
+  The workflow state column reflects the current position of each submission in
+  the state machine. Common states visible in the history table:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>State</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>coder_finalized</code></td>
+      <td>Final COD submitted. Recode button may be available if within 24
+          hours.</td>
+    </tr>
+    <tr>
+      <td><code>reviewer_eligible</code></td>
+      <td>Recode window has closed. Waiting for optional reviewer coding.</td>
+    </tr>
+    <tr>
+      <td><code>reviewer_coding_in_progress</code></td>
+      <td>A reviewer is currently coding the submission.</td>
+    </tr>
+    <tr>
+      <td><code>reviewer_finalized</code></td>
+      <td>A reviewer has submitted a reviewer final COD.</td>
+    </tr>
+    <tr>
+      <td><code>finalized_upstream_changed</code></td>
+      <td>ODK data changed after finalization. Pending resolution by data
+          manager or admin.</td>
+    </tr>
+    <tr>
+      <td><code>not_codeable_by_coder</code></td>
+      <td>The coder marked the submission as not codeable.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Workflow History</h2>
+
+<p>
+  Each submission maintains a detailed workflow event history that records all
+  state transitions and their timestamps. This includes:
+</p>
+
+<ul>
+  <li>When coding was started</li>
+  <li>When Social Autopsy analysis was saved</li>
+  <li>When Narrative Quality Assessment was saved</li>
+  <li>When Step 1 COD was submitted</li>
+  <li>When final COD was submitted</li>
+  <li>When the recode window expired</li>
+  <li>When reviewer became eligible</li>
+  <li>When reviewer coding started and finalized</li>
+  <li>When stale allocations were released</li>
+</ul>
+
+<h2>Admin Activity Log</h2>
+
+<p>
+  Administrators have access to an additional activity log panel that provides an
+  audit trail of all workflow actions across all submissions. This log is sourced
+  from <code>va_submissions_auditlog</code> and is visible only to users with
+  the <code>admin</code> role.
+</p>
+
+<div class="help-info">
+  The admin activity log records milestone events for each submission, making it
+  possible to reconstruct the full coding timeline including who performed each
+  action and when.
+</div>
+
+<h2>Output Metrics</h2>
+
+<p>
+  The coder dashboard also displays authored-output metrics separately from the
+  history table:
+</p>
+
+<ul>
+  <li>
+    <strong>Cumulative Forms Coded</strong> &mdash; counts active coder-authored
+    final assessments on non-demo projects. This count includes cases that have
+    advanced to <code>reviewer_eligible</code>.
+  </li>
+  <li>
+    <strong>Marked Not Codeable</strong> &mdash; counts active coder-authored
+    Not Codeable reviews.
+  </li>
+</ul>
+
+<div class="help-warning">
+  Demo-training project coding does not contribute to these output metrics.
+</div>

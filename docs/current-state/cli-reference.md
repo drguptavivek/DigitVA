@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-29
 ---
 
 # CLI Reference
@@ -98,3 +98,17 @@ Additional `users create` options: `--landing-page` (default: `coder`), `--timez
 `payload-backfill enrich` now shares the same per-submission repair engine used
 by coding-route on-demand repair, but it still chooses candidates using the CLI
 backfill scope rather than the admin form backfill scheduler.
+
+---
+
+## `repair` — Targeted administrative repairs
+
+| Command | Description |
+|---------|-------------|
+| `repair reactivate-step1-after-final` | Dry-run the historical Step 1 reactivation repair for active coder-final chains. |
+| `repair reactivate-step1-after-final --apply` | Reactivate the linked Step 1 row when it was deactivated by the old final-COD behavior and no conflicting active Step 1 exists for the same SID/author. |
+
+Optional filters:
+
+- `--sid=...` to restrict to one submission
+- `--limit=N` to cap inspected candidates

@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-04-29
 ---
 
 # Runtime And Operations
@@ -193,6 +193,8 @@ Operational implication:
 
 - the app now has a shell-safe fallback for user bootstrap and admin recovery
 - admin access created through the CLI still writes the same explicit global grant row used by runtime authorization
+- targeted operational repairs are also exposed through Flask CLI commands, including
+  historical Step 1 reactivation after the old final-COD deactivation behavior
 
 ## Logging
 

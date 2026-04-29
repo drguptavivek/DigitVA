@@ -174,6 +174,9 @@ def create_app(config_class=None):
     from app.commands.icd10 import init_app as init_icd10_commands
     init_icd10_commands(app)
 
+    from app.commands.repair import init_app as init_repair_commands
+    init_repair_commands(app)
+
     @app.context_processor
     def inject_template_globals():
         from app.services.site_maintenance_service import get_site_maintenance_banner_context

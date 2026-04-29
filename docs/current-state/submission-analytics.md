@@ -171,7 +171,7 @@ reporting cleanup is outside the view.
 `va_submission_cod_snapshot_mv` centralizes the active COD-facing reporting
 state for a submission. It includes:
 
-- latest active coder Step 1 data
+- latest coder Step 1 data preserved across final COD submission
 - latest active coder final COD data
 - latest active reviewer final COD data
 - authoritative final COD data

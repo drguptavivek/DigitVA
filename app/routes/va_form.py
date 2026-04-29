@@ -1122,25 +1122,6 @@ def renderpartial(va_sid, va_partial):
                     )
                 )
 
-            for existing_initial in db.session.scalars(
-                sa.select(VaInitialAssessments).where(
-                    VaInitialAssessments.va_sid == va_sid,
-                    VaInitialAssessments.va_iniassess_by == current_user.user_id,
-                    VaInitialAssessments.va_iniassess_status == VaStatuses.active,
-                )
-            ).all():
-                existing_initial.va_iniassess_status = VaStatuses.deactive
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=va_sid,
-                        va_audit_byrole="vacoder",
-                        va_audit_by=current_user.user_id,
-                        va_audit_operation="d",
-                        va_audit_action="superseded initial cod draft",
-                        va_audit_entityid=existing_initial.va_iniassess_id,
-                    )
-                )
-
             db.session.add(
                 VaSubmissionsAuditlog(
                     va_sid = va_sid,

@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-15
+last_updated: 2026-04-29
 ---
 
 # Coding Workflow State Machine Policy
@@ -124,6 +124,19 @@ Current baseline:
 - demo-training projects must not contribute to these authored-output counts
 - these authored-output queries may be cached, but the cache must be busted
   whenever a coder submits a final COD or marks a case Not Codeable
+
+## Step 1 Preservation
+
+Current baseline:
+
+- Step 1 COD is part of the traceable coding record for a submission
+- submitting final COD must not deactivate or erase the coder's latest active
+  Step 1 assessment for the same payload
+- Step 1 may still be deactivated when a coder saves a newer Step 1 draft, when
+  a stale coding session is reverted, or when data-manager upstream-change
+  resolution explicitly invalidates the coding chain for recoding
+- reporting surfaces may show the preserved Step 1 assessment alongside final
+  COD for the same submission
 
 ## Coding Access Gates
 

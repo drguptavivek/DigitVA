@@ -54,6 +54,12 @@ WHO 2022 VA COD bucket mapping must be derived independently for:
 If no WHO 2022 mapping exists for a given ICD, the export must leave the bucket
 fields empty rather than infer a fallback.
 
+For Step 1 reporting:
+
+- the export should include the preserved latest coder Step 1 assessment for the
+  submission when one exists
+- final COD submission does not itself invalidate Step 1 reporting data
+
 When a historical ICD is present in coding data and
 `map_icd10_legacy_reporting_aliases` defines a reporting-code replacement, the
 bucket lookup must use that reporting ICD. This reporting-only normalization

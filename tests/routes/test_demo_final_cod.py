@@ -248,6 +248,15 @@ class TestDemoFinalCodRoute(BaseTestCase):
         self.assertEqual(workflow.workflow_state, WORKFLOW_CODER_FINALIZED)
         self.assertEqual(allocation.va_allocation_status, VaStatuses.deactive)
 
+        initial_row = db.session.scalar(
+            db.select(VaInitialAssessments).where(
+                VaInitialAssessments.va_sid == self.sid,
+                VaInitialAssessments.va_iniassess_by == self.base_admin_user.user_id,
+            )
+        )
+        self.assertIsNotNone(initial_row)
+        self.assertEqual(initial_row.va_iniassess_status, VaStatuses.active)
+
     def test_initial_cod_save_rejects_icd_outside_submission_age_sex_policy(self):
         self._login(self.base_admin_id)
         self._activate_coding_session(with_initial=False)

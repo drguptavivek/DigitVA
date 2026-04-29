@@ -46,7 +46,7 @@ from app.services.data_management_service import (
     dm_scoped_forms,
 )
 from app.services.cod_bucket_mapping_service import (
-    SCHEME_CODE_SRS_INDIA,
+    SCHEME_CODE_WHO_2022_VA,
     list_cod_bucket_schemes,
 )
 from app.utils.va_permission.va_permission_01_abortwithflash import (
@@ -236,8 +236,8 @@ def cod_bucket_reporting():
         if scheme.is_active
     ]
     default_scheme_code = (
-        SCHEME_CODE_SRS_INDIA
-        if any(scheme["scheme_code"] == SCHEME_CODE_SRS_INDIA for scheme in schemes)
+        SCHEME_CODE_WHO_2022_VA
+        if any(scheme["scheme_code"] == SCHEME_CODE_WHO_2022_VA for scheme in schemes)
         else (schemes[0]["scheme_code"] if schemes else None)
     )
     return render_template(

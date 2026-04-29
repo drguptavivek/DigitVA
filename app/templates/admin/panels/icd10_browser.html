@@ -202,7 +202,8 @@
         </div>
         <div class="col-md-2">
           <label for="icd10-reporting-alias-reporting" class="form-label small text-muted text-uppercase">Report As</label>
-          <input type="text" class="form-control form-control-sm" id="icd10-reporting-alias-reporting" maxlength="16" placeholder="A97">
+          <input type="text" class="form-control form-control-sm" id="icd10-reporting-alias-reporting" maxlength="16" placeholder="Search ICD-10 2019 code">
+          <div id="icd10-reporting-alias-search-results" class="list-group mt-1 d-none"></div>
         </div>
         <div class="col-md-6">
           <label for="icd10-reporting-alias-note" class="form-label small text-muted text-uppercase">Notes</label>
@@ -297,6 +298,12 @@
   #panel-icd10-browser .icd10-browser-item.active .icd10-browser-item-title {
     color: #0a58ca;
   }
+
+  #panel-icd10-browser #icd10-reporting-alias-search-results .list-group-item {
+    cursor: pointer;
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
 </style>
 
 <script>
@@ -310,6 +317,7 @@
   var state = {
     options: null,
     reportingAliasRows: {{ reporting_icd_alias_rows|tojson }},
+    reportingAliasSearchResults: [],
     chapterCode: null,
     blockPath: [],
     code: null,
@@ -470,6 +478,14 @@
     return panel.querySelector('#icd10-reporting-alias-empty');
   }
 
+  function reportingAliasSearchInputEl() {
+    return panel.querySelector('#icd10-reporting-alias-reporting');
+  }
+
+  function reportingAliasSearchResultsEl() {
+    return panel.querySelector('#icd10-reporting-alias-search-results');
+  }
+
   async function requestJson(url, options) {
     var response = await fetch(url, options || {});
     var payload = await response.json().catch(function () { return {}; });
@@ -516,6 +532,38 @@
     }).join('');
   }
 
+  function renderReportingAliasSearchResults() {
+    var el = reportingAliasSearchResultsEl();
+    var results = state.reportingAliasSearchResults || [];
+    if (!results.length) {
+      el.classList.add('d-none');
+      el.innerHTML = '';
+      return;
+    }
+    el.classList.remove('d-none');
+    el.innerHTML = results.map(function (row) {
+      return (
+        '<button type="button" class="list-group-item list-group-item-action icd10-reporting-alias-search-result" ' +
+        'data-icd-code="' + escapeHtml(row.icd_code) + '">' +
+        '<strong>' + escapeHtml(row.icd_code) + '</strong> ' +
+        '<span class="text-muted">' + escapeHtml(row.icd_to_display || '') + '</span>' +
+        '</button>'
+      );
+    }).join('');
+  }
+
+  async function searchReportingAliasTargets() {
+    var query = reportingAliasSearchInputEl().value || '';
+    if (query.trim().length < 2) {
+      state.reportingAliasSearchResults = [];
+      renderReportingAliasSearchResults();
+      return;
+    }
+    var payload = await requestJson('/api/v1/icd10/search?q=' + encodeURIComponent(query));
+    state.reportingAliasSearchResults = payload || [];
+    renderReportingAliasSearchResults();
+  }
+
   async function loadReportingAliases() {
     var payload = await requestJson(apiBase + '/reporting-aliases');
     state.reportingAliasRows = payload.rows || [];
@@ -525,7 +573,7 @@
   async function createReportingAlias(event) {
     event.preventDefault();
     var legacyInput = panel.querySelector('#icd10-reporting-alias-legacy');
-    var reportingInput = panel.querySelector('#icd10-reporting-alias-reporting');
+    var reportingInput = reportingAliasSearchInputEl();
     var noteInput = panel.querySelector('#icd10-reporting-alias-note');
     var payload = {
       legacy_code: legacyInput.value || '',
@@ -543,6 +591,8 @@
     legacyInput.value = '';
     reportingInput.value = '';
     noteInput.value = '';
+    state.reportingAliasSearchResults = [];
+    renderReportingAliasSearchResults();
     await loadReportingAliases();
     showStatus('Legacy reporting alias added.', 'success');
   }
@@ -1105,6 +1155,13 @@
   }
 
   panel.addEventListener('click', function (event) {
+    var searchResultButton = event.target.closest('.icd10-reporting-alias-search-result');
+    if (searchResultButton) {
+      reportingAliasSearchInputEl().value = searchResultButton.dataset.icdCode || '';
+      state.reportingAliasSearchResults = [];
+      renderReportingAliasSearchResults();
+      return;
+    }
     var deleteAliasButton = event.target.closest('.icd10-reporting-alias-delete-btn');
     if (deleteAliasButton) {
       deleteReportingAlias(deleteAliasButton.dataset.legacyCode).catch(function (error) {
@@ -1153,6 +1210,18 @@
     createReportingAlias(event).catch(function (error) {
       showStatus(error.message, 'danger');
     });
+  });
+  reportingAliasSearchInputEl().addEventListener('input', function () {
+    searchReportingAliasTargets().catch(function () {
+      state.reportingAliasSearchResults = [];
+      renderReportingAliasSearchResults();
+    });
+  });
+  reportingAliasSearchInputEl().addEventListener('blur', function () {
+    window.setTimeout(function () {
+      state.reportingAliasSearchResults = [];
+      renderReportingAliasSearchResults();
+    }, 150);
   });
   codingSelectableInput().addEventListener('change', function () {
     if (codingSelectableInput().checked) {

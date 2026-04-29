@@ -455,6 +455,12 @@ active_reviewer_allocation AS (
       AND va_allocation_for = 'reviewing'
     ORDER BY va_sid, va_allocation_updatedat DESC, va_allocation_id DESC
 ),
+legacy_reporting_alias AS (
+    SELECT
+        upper(legacy_code) AS legacy_code,
+        upper(reporting_code) AS reporting_code
+    FROM map_icd10_legacy_reporting_aliases
+),
 who_2022_buckets AS (
     SELECT DISTINCT ON (upper(map.icd_code))
         upper(map.icd_code) AS icd_code,
@@ -657,12 +663,12 @@ LEFT JOIN va_users nqa_user ON nqa_user.user_id = nqa.va_nqa_by
 LEFT JOIN va_users saa_user ON saa_user.user_id = saa.va_saa_by
 LEFT JOIN va_users coding_alloc_user ON coding_alloc_user.user_id = coding_alloc.va_allocated_to
 LEFT JOIN va_users reviewing_alloc_user ON reviewing_alloc_user.user_id = reviewing_alloc.va_allocated_to
-LEFT JOIN who_2022_buckets coder_bucket
-    ON coder_bucket.icd_code = substring(cf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
-LEFT JOIN who_2022_buckets reviewer_bucket
-    ON reviewer_bucket.icd_code = substring(rf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
-LEFT JOIN who_2022_buckets auth_bucket
-    ON auth_bucket.icd_code = substring(
+LEFT JOIN legacy_reporting_alias coder_icd_alias
+    ON coder_icd_alias.legacy_code = substring(cf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+LEFT JOIN legacy_reporting_alias reviewer_icd_alias
+    ON reviewer_icd_alias.legacy_code = substring(rf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+LEFT JOIN legacy_reporting_alias auth_icd_alias
+    ON auth_icd_alias.legacy_code = substring(
         CASE
             WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
             WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
@@ -672,12 +678,42 @@ LEFT JOIN who_2022_buckets auth_bucket
         END
         from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
     )
+LEFT JOIN legacy_reporting_alias smartva1_icd_alias
+    ON smartva1_icd_alias.legacy_code = upper(ls.va_smartva_cause1icd)
+LEFT JOIN legacy_reporting_alias smartva2_icd_alias
+    ON smartva2_icd_alias.legacy_code = upper(ls.va_smartva_cause2icd)
+LEFT JOIN legacy_reporting_alias smartva3_icd_alias
+    ON smartva3_icd_alias.legacy_code = upper(ls.va_smartva_cause3icd)
+LEFT JOIN who_2022_buckets coder_bucket
+    ON coder_bucket.icd_code = COALESCE(
+        coder_icd_alias.reporting_code,
+        substring(cf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+    )
+LEFT JOIN who_2022_buckets reviewer_bucket
+    ON reviewer_bucket.icd_code = COALESCE(
+        reviewer_icd_alias.reporting_code,
+        substring(rf.va_conclusive_cod from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)')
+    )
+LEFT JOIN who_2022_buckets auth_bucket
+    ON auth_bucket.icd_code = COALESCE(
+        auth_icd_alias.reporting_code,
+        substring(
+            CASE
+                WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
+                WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
+                WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.va_conclusive_cod
+                WHEN cf.va_finassess_id IS NOT NULL THEN cf.va_conclusive_cod
+                ELSE NULL
+            END
+            from '^([A-Z][0-9][0-9A-Z](?:\\.[0-9A-Z]+)?)'
+        )
+    )
 LEFT JOIN who_2022_buckets smartva1_bucket
-    ON smartva1_bucket.icd_code = upper(ls.va_smartva_cause1icd)
+    ON smartva1_bucket.icd_code = COALESCE(smartva1_icd_alias.reporting_code, upper(ls.va_smartva_cause1icd))
 LEFT JOIN who_2022_buckets smartva2_bucket
-    ON smartva2_bucket.icd_code = upper(ls.va_smartva_cause2icd)
+    ON smartva2_bucket.icd_code = COALESCE(smartva2_icd_alias.reporting_code, upper(ls.va_smartva_cause2icd))
 LEFT JOIN who_2022_buckets smartva3_bucket
-    ON smartva3_bucket.icd_code = upper(ls.va_smartva_cause3icd)
+    ON smartva3_bucket.icd_code = COALESCE(smartva3_icd_alias.reporting_code, upper(ls.va_smartva_cause3icd))
 WITH DATA
 """
 

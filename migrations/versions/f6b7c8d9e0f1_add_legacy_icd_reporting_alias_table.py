@@ -1,7 +1,7 @@
 """add legacy icd reporting alias table
 
 Revision ID: f6b7c8d9e0f1
-Revises: f5c6d7e8f9a0
+Revises: f4b5c6d7e8f9
 Create Date: 2026-04-29 12:30:00.000000
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "f6b7c8d9e0f1"
-down_revision = "f5c6d7e8f9a0"
+down_revision = "f4b5c6d7e8f9"
 branch_labels = None
 depends_on = None
 

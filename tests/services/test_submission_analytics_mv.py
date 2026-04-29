@@ -5,6 +5,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapIcd10LegacyReportingAlias,
     MapIcdCodBucket,
     MasCodBucketNode,
     MasCodBucketScheme,
@@ -1078,6 +1079,119 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(row_count, 1)
         self.assertEqual(row["authoritative_icd"], "R57")
         self.assertEqual(row["authoritative_who_bucket"], "Cause of death unknown")
+
+    def test_cod_snapshot_mv_uses_legacy_reporting_alias_for_bucket_assignment(self):
+        sid = "uuid:mv-snapshot-legacy-alias-bucket"
+        self._add_submission(
+            sid,
+            {
+                "Id10476": "Legacy ICD alias narrative",
+                "ageInYears": "44",
+                "ageInYears2": "44",
+                "finalAgeInYears": "44",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            gender="female",
+            normalized_days=Decimal("44") * Decimal("365.25"),
+            normalized_years=Decimal("44"),
+            normalized_source="ageInYears",
+            workflow_state="coder_finalized",
+        )
+        coder_final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="A90-Dengue fever",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(coder_final)
+        db.session.flush()
+        upsert_final_cod_authority(
+            sid,
+            coder_final,
+            reason="snapshot_alias_authority",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        scheme = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA"
+            )
+        )
+        if scheme is None:
+            scheme = MasCodBucketScheme(
+                scheme_code="WHO_2022_VA",
+                scheme_name="WHO 2022 VA",
+                is_active=True,
+            )
+            db.session.add(scheme)
+            db.session.flush()
+        parent = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            node_code="SEC_DENGUE",
+            node_label="Vector-borne infections",
+            sort_order=1,
+            is_active=True,
+        )
+        leaf = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=parent,
+            node_code="BUCKET_DENGUE",
+            node_label="Dengue",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add_all([parent, leaf])
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                icd_code="A97",
+                node_id=leaf.node_id,
+                is_active=True,
+            )
+        )
+        db.session.add(
+            MapIcd10LegacyReportingAlias(
+                legacy_code="A90",
+                reporting_code="A97",
+                note="Legacy dengue code normalized for reporting.",
+            )
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        row = db.session.execute(
+            sa.text(
+                f"""
+                SELECT
+                    coder_final_icd,
+                    coder_final_who_bucket_section,
+                    coder_final_who_bucket,
+                    authoritative_icd,
+                    authoritative_who_bucket_section,
+                    authoritative_who_bucket
+                FROM {COD_SNAPSHOT_MV_NAME}
+                WHERE va_sid = :sid
+                """
+            ),
+            {"sid": sid},
+        ).mappings().one()
+
+        self.assertEqual(row["coder_final_icd"], "A90")
+        self.assertEqual(row["coder_final_who_bucket_section"], "Vector-borne infections")
+        self.assertEqual(row["coder_final_who_bucket"], "Dengue")
+        self.assertEqual(row["authoritative_icd"], "A90")
+        self.assertEqual(row["authoritative_who_bucket_section"], "Vector-borne infections")
+        self.assertEqual(row["authoritative_who_bucket"], "Dengue")
 
     def test_pending_coding_kpi_excludes_pre_coding_pipeline_states(self):
         # Use a separate project to avoid data leakage from prior tests

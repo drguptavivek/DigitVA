@@ -20,6 +20,16 @@ Routes:
 - admin editor:
   - `/admin/panels/cod-buckets`
 
+## Reporting UI
+
+The data-management report page at `/data-management/cod-buckets` now:
+
+- defaults to the `WHO_2022_VA` scheme when available
+- shows a top-level main-heading pie chart above the detailed tables using the
+  same filtered aggregate payload returned by `/api/v1/cod-buckets/aggregates`
+- keeps the detailed age-scope tables and dropped-COD drilldown modal below the
+  chart
+
 ## Storage model
 
 The reporting layer uses four tables:

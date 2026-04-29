@@ -15,6 +15,16 @@
   box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.08);
 }
 
+.cod-bucket-chart-wrap {
+  position: relative;
+  min-height: 340px;
+}
+
+.cod-bucket-chart-wrap canvas {
+  width: 100% !important;
+  height: 340px !important;
+}
+
 .cod-bucket-filter-grid .form-label {
   font-size: 0.78rem;
   font-weight: 600;
@@ -94,5 +104,23 @@
 @media print {
   .cod-bucket-filters-card {
     display: none !important;
+  }
+
+  .cod-bucket-chart-wrap {
+    min-height: 280px;
+  }
+
+  .cod-bucket-chart-wrap canvas {
+    height: 280px !important;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .cod-bucket-chart-wrap {
+    min-height: 420px;
+  }
+
+  .cod-bucket-chart-wrap canvas {
+    height: 420px !important;
   }
 }

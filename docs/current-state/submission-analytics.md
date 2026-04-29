@@ -57,6 +57,7 @@ including:
 - `va_social_autopsy_analysis_options`
 - `va_allocations`
 - `map_icd_cod_buckets`
+- `map_icd10_legacy_reporting_aliases`
 - `mas_cod_bucket_nodes`
 - `mas_cod_bucket_schemes`
 - `va_submission_payload_versions`
@@ -177,6 +178,10 @@ state for a submission. It includes:
 - active SmartVA causes and ICDs
 - WHO 2022 VA bucket mapping for coder, reviewer, authoritative, and SmartVA
   ICDs
+  - bucket lookup is alias-aware for historical ICDs through
+    `map_icd10_legacy_reporting_aliases`
+  - the MV keeps the raw ICD fields unchanged and uses the alias only for
+    reporting-bucket assignment
 - active NQA projection
 - active Social Autopsy projection
 - active coder/reviewer assignment names where available

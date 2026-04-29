@@ -15,6 +15,7 @@ from app.services.cod_bucket_mapping_service import (
     aggregate_coded_submissions_by_bucket,
     list_unmatched_coded_submission_icds_by_bucket,
     list_cod_bucket_schemes,
+    SCHEME_CODE_WHO_2022_VA,
     summarize_unmatched_coded_submissions_by_bucket,
 )
 from app.services.data_management_service import dm_scoped_forms
@@ -74,7 +75,7 @@ def aggregates():
         return jsonify({"error": "Form is outside your data-manager scope."}), 403
 
     rows = aggregate_coded_submissions_by_bucket(
-        scheme_code=request.args.get("scheme_code", "").strip() or "SRS_INDIA",
+        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
@@ -84,7 +85,7 @@ def aggregates():
         collapse_scope=True,
     )
     unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
-        scheme_code=request.args.get("scheme_code", "").strip() or "SRS_INDIA",
+        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
@@ -94,7 +95,7 @@ def aggregates():
         collapse_scope=True,
     )
     unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
-        scheme_code=request.args.get("scheme_code", "").strip() or "SRS_INDIA",
+        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
         project_id=project_id,
         site_id=site_id,
         form_id=form_id,
@@ -111,7 +112,7 @@ def aggregates():
                 "unmatched_icd_breakdown": unmatched_icd_rows,
             },
             "filters": {
-                "scheme_code": request.args.get("scheme_code", "").strip() or "SRS_INDIA",
+                "scheme_code": request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
                 "project_id": project_id,
                 "site_id": site_id,
                 "form_id": form_id,

@@ -4,6 +4,13 @@
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/cod_bucket_reporting.css') }}"/>
+<script>
+window.COD_BUCKET_REPORTING_BOOTSTRAP = {
+  forms: {{ cod_bucket_forms|tojson }},
+  schemes: {{ cod_bucket_schemes|tojson }},
+  chartJsSrc: {{ url_for('static', filename='vendor/chartjs/chart.umd.min.js')|tojson }},
+};
+</script>
 
 <div class="content-section cod-bucket-hero mb-4">
   <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-3">
@@ -87,24 +94,35 @@
   <div class="col-md-3">
     <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
       <div class="card-body">
-        <div class="text-muted small">Rows</div>
-        <div id="cod-bucket-kpi-rows" class="fs-3 fw-semibold">0</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-3">
-    <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
-      <div class="card-body">
         <div class="text-muted small">Coded Count</div>
         <div id="cod-bucket-kpi-coded" class="fs-3 fw-semibold">0</div>
       </div>
     </div>
   </div>
-  <div class="col-md-6">
+  <div class="col-md-9">
     <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
       <div class="card-body">
         <div class="text-muted small">Current Scope</div>
         <div id="cod-bucket-kpi-scope" class="fw-semibold">All in-scope coded submissions</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3 mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <h5 class="mb-1">Main Heading Distribution</h5>
+        <div class="small cod-bucket-muted">
+          Pie chart of top-level cause-group headings for the current filtered scope.
+        </div>
+      </div>
+    </div>
+    <div class="cod-bucket-chart-wrap">
+      <canvas id="cod-bucket-main-heading-chart" aria-label="Main heading distribution pie chart"></canvas>
+      <div id="cod-bucket-main-heading-chart-empty" class="text-center text-muted py-4 d-none">
+        No matched category rows for the current filters.
       </div>
     </div>
   </div>
@@ -115,10 +133,6 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
       <div>
         <h5 class="mb-1">Causes of Death</h5>
-        <div class="small cod-bucket-muted">
-          Each age group is summarized separately and sorted by the scheme display order for
-          main group, subgroup, and disease.
-        </div>
         <div class="small mt-2">
           <strong>Scheme:</strong> <span id="cod-bucket-selected-scheme">—</span>
         </div>
@@ -151,14 +165,10 @@
 </div>
 
 <script>
-window.COD_BUCKET_REPORTING_BOOTSTRAP = {
-  forms: {{ cod_bucket_forms|tojson }},
-  schemes: {{ cod_bucket_schemes|tojson }},
-};
-
 (function () {
   const bootstrapData = window.COD_BUCKET_REPORTING_BOOTSTRAP || { forms: [], schemes: [] };
   const forms = bootstrapData.forms || [];
+  const chartJsSrc = bootstrapData.chartJsSrc || '';
   const els = {
     scheme: document.getElementById('cod-bucket-scheme'),
     project: document.getElementById('cod-bucket-project'),
@@ -168,10 +178,11 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
     dateTo: document.getElementById('cod-bucket-date-to'),
     apply: document.getElementById('cod-bucket-apply'),
     ageTables: document.getElementById('cod-bucket-age-tables'),
-    rows: document.getElementById('cod-bucket-kpi-rows'),
     coded: document.getElementById('cod-bucket-kpi-coded'),
     scope: document.getElementById('cod-bucket-kpi-scope'),
     selectedScheme: document.getElementById('cod-bucket-selected-scheme'),
+    mainHeadingChart: document.getElementById('cod-bucket-main-heading-chart'),
+    mainHeadingChartEmpty: document.getElementById('cod-bucket-main-heading-chart-empty'),
     droppedModal: document.getElementById('cod-bucket-dropped-modal'),
     droppedModalScope: document.getElementById('cod-bucket-dropped-modal-scope'),
     droppedModalBody: document.getElementById('cod-bucket-dropped-modal-body'),
@@ -185,9 +196,26 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
   const ageScopeOrder = ['adult_over5y', 'child_1_59m', 'neonate'];
   const droppedIcdRowsByScope = new Map();
   let droppedModal = null;
+  let mainHeadingChart = null;
+  let chartJsPromise = null;
 
   function uniq(values) {
     return Array.from(new Set(values.filter(Boolean)));
+  }
+
+  function loadChartJs() {
+    if (window.Chart) return Promise.resolve(window.Chart);
+    if (!chartJsPromise) {
+      chartJsPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = chartJsSrc;
+        script.async = true;
+        script.onload = () => resolve(window.Chart);
+        script.onerror = () => reject(new Error('Failed to load Chart.js'));
+        document.head.appendChild(script);
+      });
+    }
+    return chartJsPromise;
   }
 
   function optionHtml(value, label, selected) {
@@ -376,6 +404,96 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
     return hierarchyRows;
   }
 
+  function buildMainHeadingSeries(rows) {
+    const totalsByHeading = new Map();
+    rows.forEach(row => {
+      const heading = displayLabel(row.bucket_category);
+      if (heading === '—') return;
+      totalsByHeading.set(heading, (totalsByHeading.get(heading) || 0) + (row.coded_count || 0));
+    });
+    return Array.from(totalsByHeading.entries())
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value);
+  }
+
+  async function renderMainHeadingChart(rows) {
+    const series = buildMainHeadingSeries(rows);
+    if (mainHeadingChart) {
+      mainHeadingChart.destroy();
+      mainHeadingChart = null;
+    }
+    if (!series.length) {
+      els.mainHeadingChart.classList.add('d-none');
+      els.mainHeadingChartEmpty.classList.remove('d-none');
+      return;
+    }
+    els.mainHeadingChart.classList.remove('d-none');
+    els.mainHeadingChartEmpty.classList.add('d-none');
+
+    let Chart = null;
+    try {
+      Chart = await loadChartJs();
+    } catch (error) {
+      console.error(error);
+      els.mainHeadingChart.classList.add('d-none');
+      els.mainHeadingChartEmpty.textContent = 'Pie chart could not be loaded.';
+      els.mainHeadingChartEmpty.classList.remove('d-none');
+      return;
+    }
+    const palette = [
+      '#0d6efd',
+      '#198754',
+      '#fd7e14',
+      '#dc3545',
+      '#20c997',
+      '#6f42c1',
+      '#ffc107',
+      '#0dcaf0',
+      '#6610f2',
+      '#d63384',
+      '#495057',
+      '#84cc16',
+    ];
+    const ctx = els.mainHeadingChart.getContext('2d');
+    mainHeadingChart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: series.map(item => item.label),
+        datasets: [{
+          data: series.map(item => item.value),
+          backgroundColor: series.map((_, index) => palette[index % palette.length]),
+          borderColor: '#ffffff',
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'right',
+            labels: {
+              boxWidth: 14,
+              boxHeight: 14,
+              padding: 14,
+              font: {
+                size: 12,
+              },
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label(context) {
+                const total = context.dataset.data.reduce((sum, value) => sum + value, 0);
+                return `${context.label}: ${formatCountPercent(context.raw, total)}`;
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
   function renderRows(rows, unmatchedSummary, unmatchedIcdBreakdown) {
     const unmatchedByScope = new Map(
       (unmatchedSummary || []).map(row => [normalizeScopeKey(row.age_scope), row.unmatched_count || 0])
@@ -535,6 +653,7 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
 
   async function loadAggregates() {
     els.ageTables.innerHTML = '<div class="text-center text-muted py-4">Loading...</div>';
+    els.mainHeadingChartEmpty.textContent = 'No matched category rows for the current filters.';
     updateScopeText();
     const params = new URLSearchParams();
     if (els.scheme.value) params.set('scheme_code', els.scheme.value);
@@ -550,17 +669,17 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
     const payload = await response.json();
     if (!response.ok) {
       els.ageTables.innerHTML = `<div class="text-center text-danger py-4">${payload.error || 'Failed to load aggregates.'}</div>`;
-      els.rows.textContent = '0';
       els.coded.textContent = '0';
+      await renderMainHeadingChart([]);
       return;
     }
     const rows = payload.data || [];
+    await renderMainHeadingChart(rows);
     renderRows(
       rows,
       payload.summary?.unmatched_by_age_scope || [],
       payload.summary?.unmatched_icd_breakdown || [],
     );
-    els.rows.textContent = String(rows.length);
     els.coded.textContent = String(rows.reduce((sum, row) => sum + (row.coded_count || 0), 0));
   }
 

@@ -3,8 +3,8 @@
 Add a submission-level COD snapshot materialized view used by the
 data-management coded COD export.
 
-Revision ID: f5c6d7e8f9a0
-Revises: f4b5c6d7e8f9
+Revision ID: f7c8d9e0f1a2
+Revises: f6b7c8d9e0f1
 Create Date: 2026-04-29
 
 """
@@ -16,8 +16,8 @@ from app.services.submission_analytics_mv import build_submission_cod_snapshot_m
 
 
 # revision identifiers, used by Alembic.
-revision = "f5c6d7e8f9a0"
-down_revision = "f4b5c6d7e8f9"
+revision = "f7c8d9e0f1a2"
+down_revision = "f6b7c8d9e0f1"
 branch_labels = None
 depends_on = None
 

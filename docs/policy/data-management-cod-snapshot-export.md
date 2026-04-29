@@ -52,6 +52,12 @@ WHO 2022 VA COD bucket mapping must be derived independently for:
 If no WHO 2022 mapping exists for a given ICD, the export must leave the bucket
 fields empty rather than infer a fallback.
 
+When a historical ICD is present in coding data and
+`map_icd10_legacy_reporting_aliases` defines a reporting-code replacement, the
+bucket lookup must use that reporting ICD. This reporting-only normalization
+must not overwrite the raw coder, reviewer, authoritative, or SmartVA ICD
+columns exposed by the snapshot export.
+
 ## Authority Semantics
 
 - authoritative COD follows the existing final-COD authority model

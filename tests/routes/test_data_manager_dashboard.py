@@ -46,12 +46,14 @@ from app.services.workflow.definition import (
 )
 from app.services.submission_analytics_mv import refresh_submission_analytics_mv
 from app.services.submission_analytics_mv import (
+    COD_SNAPSHOT_MV_NAME,
     CORE_MV_NAME,
     COD_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
     build_submission_analytics_core_mv_sql,
     build_submission_analytics_demographics_mv_sql,
     build_submission_cod_detail_mv_sql,
+    build_submission_cod_snapshot_mv_sql,
 )
 from tests.base import BaseTestCase
 
@@ -289,6 +291,16 @@ class DataManagerDashboardTests(BaseTestCase):
             )
         )
         db.session.commit()
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            db.session.execute(
+                sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {COD_SNAPSHOT_MV_NAME} CASCADE")
+            )
+            db.session.commit()
+        finally:
+            super().tearDownClass()
 
     def setUp(self):
         super().setUp()
@@ -1334,6 +1346,48 @@ class DataManagerDashboardTests(BaseTestCase):
             )
         )
         mocked_export.assert_called_once()
+
+    @patch(
+        "app.routes.api.data_management.dm_coded_cod_snapshot_export_csv",
+        return_value="va_sid,authoritative_cod_text\nuuid:data-manager-dashboard,I21-Acute myocardial infarction\n",
+    )
+    def test_coded_cod_snapshot_export_csv_route_returns_excel_safe_csv(
+        self,
+        mocked_export,
+    ):
+        self._login(self.dm_user_id)
+
+        response = self.client.get(
+            "/api/v1/data-management/submissions/export-coded-cod-snapshot.csv"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
+        self.assertTrue(
+            response.get_data(as_text=True).startswith(
+                "\ufeffva_sid,authoritative_cod_text"
+            )
+        )
+        mocked_export.assert_called_once()
+
+    def test_coded_cod_snapshot_export_csv_returns_real_snapshot_rows(self):
+        self._login(self.dm_user_id)
+
+        db.session.execute(
+            sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {COD_SNAPSHOT_MV_NAME} CASCADE")
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            "/api/v1/data-management/submissions/export-coded-cod-snapshot.csv"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("authoritative_cod_text", body)
+        self.assertIn("workflow_state", body)
+        self.assertIn("uuid:data-manager-dashboard", body)
 
     @patch(
         "app.routes.api.data_management.dm_smartva_input_export_csv",

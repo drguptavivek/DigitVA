@@ -5,13 +5,22 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapIcdCodBucket,
+    MasCodBucketNode,
+    MasCodBucketScheme,
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
+    VaNarrativeAssessment,
+    VaProjectMaster,
+    VaProjectSites,
     VaResearchProjects,
     VaReviewerFinalAssessments,
+    VaSiteMaster,
     VaSites,
     VaSmartvaResults,
+    VaSocialAutopsyAnalysis,
+    VaSocialAutopsyAnalysisOption,
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissions,
@@ -25,12 +34,14 @@ from app.services.submission_analytics_mv import (
     build_submission_analytics_core_mv_sql,
     build_submission_analytics_demographics_mv_sql,
     build_submission_cod_detail_mv_sql,
+    build_submission_cod_snapshot_mv_sql,
     get_dm_kpi_from_mv,
     get_dm_project_site_stats_from_mv,
     refresh_submission_analytics_mv,
     CORE_MV_NAME,
     DEMOGRAPHICS_MV_NAME,
     COD_MV_NAME,
+    COD_SNAPSHOT_MV_NAME,
 )
 from tests.base import BaseTestCase
 
@@ -57,9 +68,32 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         )
         db.session.flush()
         db.session.add(
+            VaProjectMaster(
+                project_id=cls.PROJECT_ID,
+                project_code=cls.PROJECT_ID,
+                project_name="Analytics MV Project",
+                project_nickname="AnalyticsMV",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
             VaSites(
                 site_id=cls.SITE_ID,
                 project_id=cls.PROJECT_ID,
+                site_name="Analytics MV Site",
+                site_abbr=cls.SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSiteMaster(
+                site_id=cls.SITE_ID,
                 site_name="Analytics MV Site",
                 site_abbr=cls.SITE_ID,
                 site_status=VaStatuses.active,
@@ -81,6 +115,15 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 form_updated_at=now,
             )
         )
+        db.session.add(
+            VaProjectSites(
+                project_id=cls.PROJECT_ID,
+                site_id=cls.SITE_ID,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
         db.session.commit()
 
         # Drop any old/existing MVs and create the three new ones
@@ -88,6 +131,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             COD_MV_NAME,
             DEMOGRAPHICS_MV_NAME,
             CORE_MV_NAME,
+            COD_SNAPSHOT_MV_NAME,
             "va_submission_analytics_mv",
         ):
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
@@ -107,6 +151,13 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             f"CREATE UNIQUE INDEX ix_test_cod_va_sid ON {COD_MV_NAME} (va_sid)"
         ))
 
+        db.session.execute(sa.text(build_submission_cod_snapshot_mv_sql()))
+        db.session.execute(
+            sa.text(
+                f"CREATE UNIQUE INDEX ix_test_cod_snapshot_va_sid ON {COD_SNAPSHOT_MV_NAME} (va_sid)"
+            )
+        )
+
         db.session.commit()
 
     @classmethod
@@ -116,6 +167,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 COD_MV_NAME,
                 DEMOGRAPHICS_MV_NAME,
                 CORE_MV_NAME,
+                COD_SNAPSHOT_MV_NAME,
                 "va_submission_analytics_mv",
             ):
                 db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
@@ -402,15 +454,112 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(nonmatching_kpi["total_submissions"], 0)
 
     def test_mv_prefers_reviewer_authority_and_counts_reviewer_states_as_coded(self):
+        project_id = "RVMV01"
+        site_id = "RV01"
+        form_id = "RVMV01RV0101"
         sid = "uuid:mv-reviewer-final"
+        now = datetime.now(timezone.utc)
 
-        self._add_submission(
-            sid,
-            {
-                "age_neonate_days": "",
-                "age_neonate_hours": "",
-                "ageInDays": "",
-                "ageInMonths": "",
+        db.session.add(
+            VaResearchProjects(
+                project_id=project_id,
+                project_code=project_id,
+                project_name="Reviewer MV Project",
+                project_nickname="ReviewerMV",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectMaster(
+                project_id=project_id,
+                project_code=project_id,
+                project_name="Reviewer MV Project",
+                project_nickname="ReviewerMV",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSites(
+                site_id=site_id,
+                project_id=project_id,
+                site_name="Reviewer MV Site",
+                site_abbr=site_id,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSiteMaster(
+                site_id=site_id,
+                site_name="Reviewer MV Site",
+                site_abbr=site_id,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaForms(
+                form_id=form_id,
+                project_id=project_id,
+                site_id=site_id,
+                odk_form_id="REVIEWER_MV_FORM",
+                odk_project_id="55",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaProjectSites(
+                project_id=project_id,
+                site_id=site_id,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
+        db.session.commit()
+
+        submitted_at = datetime.now(timezone.utc)
+        db.session.add(
+            VaSubmissions(
+                va_sid=sid,
+                va_form_id=form_id,
+                va_submission_date=submitted_at,
+                va_odk_updatedat=submitted_at,
+                va_data_collector="analytics",
+                va_odk_reviewstate="reviewed",
+                va_instance_name=sid,
+                va_uniqueid_real=sid,
+                va_uniqueid_masked=sid,
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=0,
+                va_deceased_age_normalized_days=Decimal("52") * Decimal("365.25"),
+                va_deceased_age_normalized_years=Decimal("52"),
+                va_deceased_age_source="ageInYears",
+                va_deceased_gender="male",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        submission = db.session.get(VaSubmissions, sid)
+        ensure_active_payload_version(
+            submission,
+            payload_data={
                 "ageInYears": "52",
                 "ageInYears2": "52",
                 "finalAgeInYears": "52",
@@ -419,11 +568,16 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 "isChild": "0",
                 "isAdult": "1",
             },
-            gender="male",
-            normalized_days=Decimal("52") * Decimal("365.25"),
-            normalized_years=Decimal("52"),
-            normalized_source="ageInYears",
-            workflow_state="reviewer_finalized",
+            source_updated_at=None,
+            created_by_role="vasystem",
+        )
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=sid,
+                workflow_state="reviewer_finalized",
+                workflow_reason="test",
+                workflow_updated_by_role="vasystem",
+            )
         )
         coder_final = VaFinalAssessments(
             va_sid=sid,
@@ -496,9 +650,434 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         )
         self.assertEqual(cod_row["final_icd"], "J18")
 
-        kpi = get_dm_kpi_from_mv([self.PROJECT_ID], [], workflow="reviewer_finalized")
+        kpi = get_dm_kpi_from_mv([project_id], [], workflow="reviewer_finalized")
         self.assertEqual(kpi["total_submissions"], 1)
         self.assertEqual(kpi["coded_submissions"], 1)
+
+    def test_cod_snapshot_mv_preserves_coder_reviewer_authoritative_and_bucket_data(self):
+        sid = "uuid:mv-cod-snapshot"
+
+        self._add_submission(
+            sid,
+            {
+                "Id10476": "Free text narrative for export",
+                "ageInYears": "52",
+                "ageInYears2": "52",
+                "finalAgeInYears": "52",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            gender="male",
+            normalized_days=Decimal("52") * Decimal("365.25"),
+            normalized_years=Decimal("52"),
+            normalized_source="ageInYears",
+            workflow_state="reviewer_finalized",
+        )
+        reviewer_user = self._make_user(
+            "snapshot.reviewer@test.local",
+            "SnapshotReviewer123",
+        )
+        db.session.add(
+            VaInitialAssessments(
+                va_sid=sid,
+                va_iniassess_by=self.base_coder_user.user_id,
+                va_immediate_cod="I21-Acute myocardial infarction",
+                va_antecedent_cod="I10-Essential hypertension",
+                va_other_conditions="E11-Type 2 diabetes mellitus",
+                va_iniassess_status=VaStatuses.active,
+            )
+        )
+        coder_final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="I21-Acute myocardial infarction",
+            va_finassess_remark="Coder final remark",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(coder_final)
+        db.session.flush()
+        upsert_final_cod_authority(
+            sid,
+            coder_final,
+            reason="snapshot_coder_authority",
+            source_role="vacoder",
+            updated_by=self.base_coder_user.user_id,
+        )
+        reviewer_final = VaReviewerFinalAssessments(
+            va_sid=sid,
+            va_rfinassess_by=reviewer_user.user_id,
+            va_conclusive_cod="J18-Pneumonia, unspecified organism",
+            va_rfinassess_remark="Reviewer final remark",
+            supersedes_coder_final_assessment_id=coder_final.va_finassess_id,
+            va_rfinassess_status=VaStatuses.active,
+        )
+        db.session.add(reviewer_final)
+        db.session.flush()
+        upsert_reviewer_final_cod_authority(
+            sid,
+            reviewer_final,
+            reason="snapshot_reviewer_authority",
+            updated_by=reviewer_user.user_id,
+        )
+        db.session.add(
+            VaSmartvaResults(
+                va_sid=sid,
+                va_smartva_age="52",
+                va_smartva_gender="male",
+                va_smartva_resultfor="adult",
+                va_smartva_cause1="Sepsis",
+                va_smartva_cause1icd="A41",
+                va_smartva_cause2="HIV disease",
+                va_smartva_cause2icd="B20",
+                va_smartva_cause3="Lung cancer",
+                va_smartva_cause3icd="C34",
+                va_smartva_status=VaStatuses.active,
+            )
+        )
+        db.session.add(
+            VaNarrativeAssessment(
+                va_sid=sid,
+                va_nqa_by=self.base_coder_user.user_id,
+                payload_version_id=db.session.get(VaSubmissions, sid).active_payload_version_id,
+                va_nqa_length=3,
+                va_nqa_pos_symptoms=3,
+                va_nqa_neg_symptoms=1,
+                va_nqa_chronology=1,
+                va_nqa_doc_review=1,
+                va_nqa_comorbidity=1,
+                va_nqa_score=10,
+                va_nqa_cannot_grade=False,
+                va_nqa_status=VaStatuses.active,
+            )
+        )
+        social = VaSocialAutopsyAnalysis(
+            va_sid=sid,
+            va_saa_by=self.base_coder_user.user_id,
+            payload_version_id=db.session.get(VaSubmissions, sid).active_payload_version_id,
+            va_saa_remark="Social autopsy remark",
+            va_saa_status=VaStatuses.active,
+        )
+        db.session.add(social)
+        db.session.flush()
+        db.session.add_all(
+            [
+                VaSocialAutopsyAnalysisOption(
+                    va_saa_id=social.va_saa_id,
+                    delay_level="delay_1_decision",
+                    option_code="recognition",
+                ),
+                VaSocialAutopsyAnalysisOption(
+                    va_saa_id=social.va_saa_id,
+                    delay_level="delay_2_reaching",
+                    option_code="transport_logistics",
+                ),
+            ]
+        )
+        scheme = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA"
+            )
+        )
+        if scheme is None:
+            scheme = MasCodBucketScheme(
+                scheme_code="WHO_2022_VA",
+                scheme_name="WHO 2022 VA",
+                is_active=True,
+            )
+            db.session.add(scheme)
+            db.session.flush()
+        parent_heart = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            parent_node_id=None,
+            node_code="SEC1",
+            node_label="Cardiovascular diseases",
+            sort_order=1,
+            is_active=True,
+        )
+        leaf_heart = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=parent_heart,
+            node_code="BUCKET1",
+            node_label="Acute myocardial infarction",
+            sort_order=1,
+            is_active=True,
+        )
+        parent_resp = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            parent_node_id=None,
+            node_code="SEC2",
+            node_label="Respiratory infections",
+            sort_order=2,
+            is_active=True,
+        )
+        leaf_resp = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=parent_resp,
+            node_code="BUCKET2",
+            node_label="Pneumonia",
+            sort_order=1,
+            is_active=True,
+        )
+        parent_inf = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            parent_node_id=None,
+            node_code="SEC3",
+            node_label="Systemic infections",
+            sort_order=3,
+            is_active=True,
+        )
+        leaf_inf = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=parent_inf,
+            node_code="BUCKET3",
+            node_label="Sepsis",
+            sort_order=1,
+            is_active=True,
+        )
+        parent_hiv = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            parent_node_id=None,
+            node_code="SEC4",
+            node_label="HIV and related",
+            sort_order=4,
+            is_active=True,
+        )
+        leaf_hiv = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=parent_hiv,
+            node_code="BUCKET4",
+            node_label="HIV disease",
+            sort_order=1,
+            is_active=True,
+        )
+        parent_cancer = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            parent_node_id=None,
+            node_code="SEC5",
+            node_label="Cancers",
+            sort_order=5,
+            is_active=True,
+        )
+        leaf_cancer = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=parent_cancer,
+            node_code="BUCKET5",
+            node_label="Lung cancer",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add_all(
+            [
+                parent_heart,
+                leaf_heart,
+                parent_resp,
+                leaf_resp,
+                parent_inf,
+                leaf_inf,
+                parent_hiv,
+                leaf_hiv,
+                parent_cancer,
+                leaf_cancer,
+            ]
+        )
+        db.session.flush()
+        db.session.add_all(
+            [
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code="I21", node_id=leaf_heart.node_id, is_active=True),
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code="J18", node_id=leaf_resp.node_id, is_active=True),
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code="A41", node_id=leaf_inf.node_id, is_active=True),
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code="B20", node_id=leaf_hiv.node_id, is_active=True),
+                MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code="C34", node_id=leaf_cancer.node_id, is_active=True),
+            ]
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        row = db.session.execute(
+            sa.text(
+                f"""
+                SELECT
+                    narrative_text,
+                    coder_name,
+                    coder_final_cod_text,
+                    coder_final_who_bucket_section,
+                    coder_final_who_bucket,
+                    reviewer_name,
+                    reviewer_final_cod_text,
+                    reviewer_final_who_bucket_section,
+                    reviewer_final_who_bucket,
+                    authoritative_source,
+                    authoritative_cod_text,
+                    authoritative_icd,
+                    authoritative_who_bucket_section,
+                    authoritative_who_bucket,
+                    smartva_cause1_icd,
+                    smartva_cause1_who_bucket,
+                    smartva_cause2_icd,
+                    smartva_cause2_who_bucket,
+                    smartva_cause3_icd,
+                    smartva_cause3_who_bucket,
+                    nqa_score,
+                    nqa_rating,
+                    social_autopsy_remark,
+                    social_autopsy_option_pairs
+                FROM {COD_SNAPSHOT_MV_NAME}
+                WHERE va_sid = :sid
+                """
+            ),
+            {"sid": sid},
+        ).mappings().one()
+
+        self.assertEqual(row["narrative_text"], "Free text narrative for export")
+        self.assertEqual(row["coder_name"], "base.coder@test.local")
+        self.assertEqual(row["coder_final_cod_text"], "I21-Acute myocardial infarction")
+        self.assertEqual(row["coder_final_who_bucket_section"], "Cardiovascular diseases")
+        self.assertEqual(row["coder_final_who_bucket"], "Acute myocardial infarction")
+        self.assertEqual(row["reviewer_name"], "snapshot.reviewer@test.local")
+        self.assertEqual(row["reviewer_final_cod_text"], "J18-Pneumonia, unspecified organism")
+        self.assertEqual(row["reviewer_final_who_bucket"], "Pneumonia")
+        self.assertEqual(row["authoritative_source"], "reviewer")
+        self.assertEqual(row["authoritative_cod_text"], "J18-Pneumonia, unspecified organism")
+        self.assertEqual(row["authoritative_icd"], "J18")
+        self.assertEqual(row["authoritative_who_bucket"], "Pneumonia")
+        self.assertEqual(row["smartva_cause1_icd"], "A41")
+        self.assertEqual(row["smartva_cause1_who_bucket"], "Sepsis")
+        self.assertEqual(row["smartva_cause2_icd"], "B20")
+        self.assertEqual(row["smartva_cause2_who_bucket"], "HIV disease")
+        self.assertEqual(row["smartva_cause3_icd"], "C34")
+        self.assertEqual(row["smartva_cause3_who_bucket"], "Lung cancer")
+        self.assertEqual(row["nqa_score"], 10)
+        self.assertEqual(row["nqa_rating"], "Good")
+        self.assertEqual(row["social_autopsy_remark"], "Social autopsy remark")
+        self.assertIn("delay_1_decision::recognition", row["social_autopsy_option_pairs"])
+        self.assertIn("delay_2_reaching::transport_logistics", row["social_autopsy_option_pairs"])
+
+    def test_cod_snapshot_mv_tolerates_duplicate_who_bucket_mapping_rows(self):
+        sid = "uuid:mv-snapshot-duplicate-bucket"
+        self._add_submission(
+            sid,
+            {
+                "Id10476": "Duplicate bucket test narrative",
+                "ageInYears": "63",
+                "ageInYears2": "63",
+                "finalAgeInYears": "63",
+                "age_group": "adult",
+                "isNeonatal": "0",
+                "isChild": "0",
+                "isAdult": "1",
+            },
+            gender="male",
+            normalized_days=Decimal("63") * Decimal("365.25"),
+            normalized_years=Decimal("63"),
+            normalized_source="ageInYears",
+            workflow_state="reviewer_finalized",
+        )
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=sid,
+                va_finassess_by=self.base_coder_user.user_id,
+                va_conclusive_cod="R57-Shock, not elsewhere classified",
+                va_finassess_status=VaStatuses.active,
+            )
+        )
+        db.session.flush()
+        scheme = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(
+                MasCodBucketScheme.scheme_code == "WHO_2022_VA"
+            )
+        )
+        if scheme is None:
+            scheme = MasCodBucketScheme(
+                scheme_code="WHO_2022_VA",
+                scheme_name="WHO 2022 VA",
+                is_active=True,
+            )
+            db.session.add(scheme)
+            db.session.flush()
+        parent = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            node_code="SEC_UNKNOWN",
+            node_label="Cause of death unknown",
+            sort_order=1,
+            is_active=True,
+        )
+        leaf = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=parent,
+            node_code="BUCKET_UNKNOWN",
+            node_label="Cause of death unknown",
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add_all([parent, leaf])
+        db.session.flush()
+        db.session.add_all(
+            [
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=None,
+                    icd_code="R57",
+                    node_id=leaf.node_id,
+                    is_active=True,
+                ),
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=None,
+                    icd_code="R57",
+                    node_id=leaf.node_id,
+                    is_active=True,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        row_count = db.session.execute(
+            sa.text(f"SELECT COUNT(*) FROM {COD_SNAPSHOT_MV_NAME} WHERE va_sid = :sid"),
+            {"sid": sid},
+        ).scalar_one()
+        row = db.session.execute(
+            sa.text(
+                f"""
+                SELECT authoritative_icd, authoritative_who_bucket
+                FROM {COD_SNAPSHOT_MV_NAME}
+                WHERE va_sid = :sid
+                """
+            ),
+            {"sid": sid},
+        ).mappings().one()
+
+        self.assertEqual(row_count, 1)
+        self.assertEqual(row["authoritative_icd"], "R57")
+        self.assertEqual(row["authoritative_who_bucket"], "Cause of death unknown")
 
     def test_pending_coding_kpi_excludes_pre_coding_pipeline_states(self):
         # Use a separate project to avoid data leakage from prior tests
@@ -508,6 +1087,18 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         now = datetime.now(timezone.utc)
         db.session.add(
             VaResearchProjects(
+                project_id=kpi_project,
+                project_code=kpi_project,
+                project_name="KPI Isolation Project",
+                project_nickname="KPIIsolation",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectMaster(
                 project_id=kpi_project,
                 project_code=kpi_project,
                 project_name="KPI Isolation Project",
@@ -531,6 +1122,17 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         )
         db.session.flush()
         db.session.add(
+            VaSiteMaster(
+                site_id=kpi_site,
+                site_name="KPI Isolation Site",
+                site_abbr=kpi_site,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
             VaForms(
                 form_id=kpi_form,
                 project_id=kpi_project,
@@ -541,6 +1143,15 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 form_status=VaStatuses.active,
                 form_registered_at=now,
                 form_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaProjectSites(
+                project_id=kpi_project,
+                site_id=kpi_site,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
             )
         )
         db.session.commit()
@@ -674,54 +1285,147 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(kpi["smartva_pending_submissions"], 0)
 
     def test_smartva_missing_includes_consent_refused_workflow(self):
+        project_id = "SMMV01"
+        site_id = "SM01"
+        form_id = "SMMV01SM0101"
         sid_missing = "uuid:mv-kpi-smartva-missing"
         sid_consent_refused = "uuid:mv-kpi-consent-refused"
+        now = datetime.now(timezone.utc)
 
-        self._add_submission(
-            sid_missing,
-            {
-                "ageInYears": "41",
-                "ageInYears2": "41",
-                "finalAgeInYears": "41",
-                "age_group": "adult",
-                "isNeonatal": "0",
-                "isChild": "0",
-                "isAdult": "1",
-            },
-            gender="female",
-            normalized_days=Decimal("41") * Decimal("365.25"),
-            normalized_years=Decimal("41"),
-            normalized_source="ageInYears",
-            workflow_state="ready_for_coding",
+        db.session.add(
+            VaResearchProjects(
+                project_id=project_id,
+                project_code=project_id,
+                project_name="SmartVA Missing Project",
+                project_nickname="SmartVAMissing",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
         )
-        self._add_submission(
-            sid_consent_refused,
-            {
-                "ageInYears": "39",
-                "ageInYears2": "39",
-                "finalAgeInYears": "39",
-                "age_group": "adult",
-                "isNeonatal": "0",
-                "isChild": "0",
-                "isAdult": "1",
-            },
-            gender="male",
-            normalized_days=Decimal("39") * Decimal("365.25"),
-            normalized_years=Decimal("39"),
-            normalized_source="ageInYears",
-            workflow_state="consent_refused",
+        db.session.flush()
+        db.session.add(
+            VaProjectMaster(
+                project_id=project_id,
+                project_code=project_id,
+                project_name="SmartVA Missing Project",
+                project_nickname="SmartVAMissing",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
         )
+        db.session.flush()
+        db.session.add(
+            VaSites(
+                site_id=site_id,
+                project_id=project_id,
+                site_name="SmartVA Missing Site",
+                site_abbr=site_id,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSiteMaster(
+                site_id=site_id,
+                site_name="SmartVA Missing Site",
+                site_abbr=site_id,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaForms(
+                form_id=form_id,
+                project_id=project_id,
+                site_id=site_id,
+                odk_form_id="SMARTVA_MISSING_FORM",
+                odk_project_id="88",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaProjectSites(
+                project_id=project_id,
+                site_id=site_id,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
+        db.session.commit()
+
+        for sid, years, gender, workflow_state in (
+            (sid_missing, "41", "female", "ready_for_coding"),
+            (sid_consent_refused, "39", "male", "consent_refused"),
+        ):
+            submitted_at = datetime.now(timezone.utc)
+            db.session.add(
+                VaSubmissions(
+                    va_sid=sid,
+                    va_form_id=form_id,
+                    va_submission_date=submitted_at,
+                    va_odk_updatedat=submitted_at,
+                    va_data_collector="analytics",
+                    va_odk_reviewstate="reviewed",
+                    va_instance_name=sid,
+                    va_uniqueid_real=sid,
+                    va_uniqueid_masked=sid,
+                    va_consent="yes",
+                    va_narration_language="English",
+                    va_deceased_age=0,
+                    va_deceased_age_normalized_days=Decimal(years) * Decimal("365.25"),
+                    va_deceased_age_normalized_years=Decimal(years),
+                    va_deceased_age_source="ageInYears",
+                    va_deceased_gender=gender,
+                    va_summary=[],
+                    va_catcount={},
+                    va_category_list=[],
+                )
+            )
+            db.session.flush()
+            submission = db.session.get(VaSubmissions, sid)
+            ensure_active_payload_version(
+                submission,
+                payload_data={
+                    "ageInYears": years,
+                    "ageInYears2": years,
+                    "finalAgeInYears": years,
+                    "age_group": "adult",
+                    "isNeonatal": "0",
+                    "isChild": "0",
+                    "isAdult": "1",
+                },
+                source_updated_at=None,
+                created_by_role="vasystem",
+            )
+            db.session.add(
+                VaSubmissionWorkflow(
+                    va_sid=sid,
+                    workflow_state=workflow_state,
+                    workflow_reason="test",
+                    workflow_updated_by_role="vasystem",
+                )
+            )
         db.session.commit()
 
         refresh_submission_analytics_mv(concurrently=False)
 
-        kpi = get_dm_kpi_from_mv([], [(self.PROJECT_ID, self.SITE_ID)])
+        kpi = get_dm_kpi_from_mv([], [(project_id, site_id)])
         self.assertEqual(kpi["smartva_missing_submissions"], 2)
         self.assertEqual(kpi["consent_refused_submissions"], 1)
 
         missing_filter_kpi = get_dm_kpi_from_mv(
             [],
-            [(self.PROJECT_ID, self.SITE_ID)],
+            [(project_id, site_id)],
             smartva="missing",
         )
         self.assertEqual(missing_filter_kpi["total_submissions"], 2)

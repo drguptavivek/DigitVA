@@ -131,6 +131,16 @@ docker compose exec minerva_app_service uv run flask cod-buckets list
 Each import replaces the scheme's nodes and ICD mappings and increments that
 scheme's `mapping_version`.
 
+Mapping integrity rules:
+
+- `map_icd_cod_buckets` is logically one row per `(scheme, age_scope, icd_code)`
+- all-ages mappings are stored with `age_scope = NULL`, but they are still
+  treated as unique per ICD inside a scheme
+- JSON import now coalesces exact duplicate mapping rows and rejects
+  conflicting duplicate ICD targets within the same age scope
+- a null-safe unique index backs that rule at the database level so duplicate
+  all-ages mappings cannot be reinserted
+
 Imported schemes can then be maintained in the admin COD Buckets panel. The
 current editor supports:
 
@@ -222,6 +232,14 @@ The aggregate query uses:
 - authoritative `final_icd`
 - demographics-derived age band
 - the active scheme mapping
+- a small reporting-only legacy ICD normalization layer before bucket lookup
+  for selected historical codes that no longer exist in the ICD-10 2019 master
+
+Current normalization baseline:
+
+- `A90` -> `A97`
+- `A91` -> `A97`
+- `I84` -> `K64`
 
 Current command-line aggregation:
 
@@ -256,6 +274,9 @@ sorting or count sorting.
 ## Important behavior
 
 - submission COD rows remain unchanged when reporting mappings change
+- selected historical ICD codes may normalize to current ICD-10 2019
+  three-character equivalents for reporting only; this does not rewrite stored
+  final COD values
 - reporting schemes are versioned separately from coding data
 - SRS chooses a mapping branch by age scope
 - CMEA10 does not branch by age scope

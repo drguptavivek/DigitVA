@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-29
 ---
 
 # Submission Analytics Materialized Views
@@ -16,6 +16,10 @@ DigitVA now provides three focused PostgreSQL materialized views:
 - `va_submission_analytics_demographics_mv`
 - `va_submission_cod_detail_mv`
 
+It also now provides one export/reporting snapshot MV:
+
+- `va_submission_cod_snapshot_mv`
+
 Together they support analytics, trend charts, and reporting queries without
 running repeated live joins across operational workflow and coding tables.
 
@@ -25,6 +29,12 @@ The materialized-view layer is:
 - additive to the current operational schema
 - read-only from application code
 - refreshed asynchronously
+
+The COD snapshot MV is also:
+
+- one row per `va_sid`
+- active/current-state only
+- intended for export/reporting rather than KPI counting
 
 ## Source Tables
 
@@ -38,6 +48,18 @@ The materialized view reads from:
 - `va_reviewer_final_assessments`
 - `va_final_cod_authority`
 - `va_smartva_results`
+
+The COD snapshot MV additionally reads from active coding/reporting artifacts,
+including:
+
+- `va_narrative_assessments`
+- `va_social_autopsy_analyses`
+- `va_social_autopsy_analysis_options`
+- `va_allocations`
+- `map_icd_cod_buckets`
+- `mas_cod_bucket_nodes`
+- `mas_cod_bucket_schemes`
+- `va_submission_payload_versions`
 
 ## Included Dimensions
 
@@ -142,6 +164,25 @@ Not all existing dashboard endpoints have been migrated to use the view yet.
 Some current operational dashboard queries still read directly from live tables.
 The analytics MV itself is now reviewer-authority-aware; remaining legacy
 reporting cleanup is outside the view.
+
+## COD Snapshot MV
+
+`va_submission_cod_snapshot_mv` centralizes the active COD-facing reporting
+state for a submission. It includes:
+
+- latest active coder Step 1 data
+- latest active coder final COD data
+- latest active reviewer final COD data
+- authoritative final COD data
+- active SmartVA causes and ICDs
+- WHO 2022 VA bucket mapping for coder, reviewer, authoritative, and SmartVA
+  ICDs
+- active NQA projection
+- active Social Autopsy projection
+- active coder/reviewer assignment names where available
+
+The snapshot MV is intended for the coded COD export surface and similar
+submission-level reporting workloads. It is not a history store.
 
 ## Verification
 

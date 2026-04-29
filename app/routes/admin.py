@@ -32,11 +32,14 @@ from app.services.cod_bucket_mapping_service import (
     NODE_DELETE_DISPOSITION_UNMAP,
     NODE_TYPE_FIELD,
     apply_admin_cod_bucket_mapping_metadata,
+    create_reporting_icd_alias,
+    delete_reporting_icd_alias,
     create_cod_bucket_scheme,
     delete_cod_bucket_node,
     export_cod_bucket_scheme_json,
     export_cod_bucket_scheme_xlsx,
     get_cod_bucket_scheme,
+    get_reporting_icd_alias_rows,
     get_cod_bucket_scheme_editor_payload,
     import_cod_bucket_scheme_json,
     get_cod_bucket_node_mappings_payload,
@@ -1914,7 +1917,41 @@ def admin_panel_odk_connections():
 @admin.get("/panels/icd10-browser")
 @role_required("admin")
 def admin_panel_icd10_browser():
-    return render_template("admin/panels/icd10_browser.html")
+    return render_template(
+        "admin/panels/icd10_browser.html",
+        reporting_icd_alias_rows=get_reporting_icd_alias_rows(),
+    )
+
+
+@admin.get("/api/icd10/2019-2/reporting-aliases")
+@role_required("admin")
+def admin_icd10_2019_2_reporting_aliases():
+    return jsonify({"rows": get_reporting_icd_alias_rows()})
+
+
+@admin.post("/api/icd10/2019-2/reporting-aliases")
+@role_required("admin")
+def admin_icd10_2019_2_create_reporting_alias():
+    data = request.get_json(silent=True) or {}
+    try:
+        row = create_reporting_icd_alias(
+            legacy_code=data.get("legacy_code"),
+            reporting_code=data.get("reporting_code"),
+            note=data.get("note"),
+        )
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    return jsonify(row), 201
+
+
+@admin.delete("/api/icd10/2019-2/reporting-aliases/<legacy_code>")
+@role_required("admin")
+def admin_icd10_2019_2_delete_reporting_alias(legacy_code):
+    try:
+        payload = delete_reporting_icd_alias(legacy_code=legacy_code)
+    except LookupError:
+        return _json_error("Legacy ICD reporting alias not found.", 404)
+    return jsonify(payload)
 
 
 @admin.get("/api/icd10/2019-2/children")

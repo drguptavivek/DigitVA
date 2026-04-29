@@ -27,6 +27,7 @@ from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.services.data_management_service import (
     audit_dm_submission_action,
     dm_accept_upstream_change,
+    dm_coded_cod_snapshot_export_csv,
     dm_coder_daily_statistics,
     dm_filter_options,
     dm_form_in_scope,
@@ -296,6 +297,17 @@ def submissions_export_smartva_likelihoods_csv():
         export_kind="smartva_likelihoods",
         filename_prefix="data-management-smartva-likelihoods",
         export_fn=dm_smartva_likelihoods_export_csv,
+    )
+
+
+@bp.get("/submissions/export-coded-cod-snapshot.csv")
+@role_required("data_manager")
+@limiter.limit("30 per minute")
+def submissions_export_coded_cod_snapshot_csv():
+    return _serve_cached_export_csv(
+        export_kind="coded_cod_snapshot",
+        filename_prefix="data-management-coded-cod-snapshot",
+        export_fn=dm_coded_cod_snapshot_export_csv,
     )
 
 

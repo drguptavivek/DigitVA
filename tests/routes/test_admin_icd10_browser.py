@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 from app import db
 from app.models import (
     MapIcdCodBucket,
+    MapIcd10LegacyReportingAlias,
     MasCodBucketNode,
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
@@ -21,6 +22,7 @@ from tests.base import BaseTestCase
 class TestAdminIcd10Browser(BaseTestCase):
     def setUp(self):
         super().setUp()
+        db.session.execute(sa.delete(MapIcd10LegacyReportingAlias))
         db.session.execute(sa.delete(MasIcd1020192))
         db.session.flush()
 
@@ -119,6 +121,16 @@ class TestAdminIcd10Browser(BaseTestCase):
                     created_at=now,
                     updated_at=now,
                 ),
+                MapIcd10LegacyReportingAlias(
+                    legacy_code="A90",
+                    reporting_code="A00",
+                    note="Legacy dengue example for browser rendering.",
+                ),
+                MapIcd10LegacyReportingAlias(
+                    legacy_code="I84",
+                    reporting_code="A00.0",
+                    note="Legacy haemorrhoids example for browser rendering.",
+                ),
             ]
         )
         db.session.commit()
@@ -129,7 +141,60 @@ class TestAdminIcd10Browser(BaseTestCase):
         response = self.client.get("/admin/panels/icd10-browser")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("ICD-10 2019 Browser", response.get_data(as_text=True))
+        body = response.get_data(as_text=True)
+        self.assertIn("ICD-10 2019 Browser", body)
+        self.assertIn("Legacy ICD Reporting Aliases", body)
+        self.assertIn("A90", body)
+        self.assertIn("A00", body)
+        self.assertIn("I84", body)
+        self.assertIn("A00.0", body)
+
+    def test_admin_reporting_alias_create_rejects_current_master_code_as_legacy(self):
+        self._login(str(self.base_admin_user.user_id))
+
+        response = self.client.post(
+            "/admin/api/icd10/2019-2/reporting-aliases",
+            json={
+                "legacy_code": "A00",
+                "reporting_code": "A00.0",
+                "note": "should fail",
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already exists in the ICD-10 2019 master", response.get_json()["error"])
+
+    def test_admin_reporting_alias_create_and_delete(self):
+        self._login(str(self.base_admin_user.user_id))
+
+        response = self.client.post(
+            "/admin/api/icd10/2019-2/reporting-aliases",
+            json={
+                "legacy_code": "A91",
+                "reporting_code": "A00",
+                "note": "Legacy dengue alias",
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 201)
+        payload = response.get_json()
+        self.assertEqual(payload["legacy_code"], "A91")
+        self.assertEqual(payload["reporting_code"], "A00")
+        self.assertEqual(payload["reporting_title"], "Cholera")
+
+        saved = db.session.get(MapIcd10LegacyReportingAlias, "A91")
+        self.assertIsNotNone(saved)
+        self.assertEqual(saved.reporting_code, "A00")
+
+        delete_response = self.client.delete(
+            "/admin/api/icd10/2019-2/reporting-aliases/A91",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertIsNone(db.session.get(MapIcd10LegacyReportingAlias, "A91"))
 
     def test_admin_panel_denied_for_project_pi(self):
         self._login(str(self.base_project_pi_user.user_id))

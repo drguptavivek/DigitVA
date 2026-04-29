@@ -11,6 +11,7 @@ from openpyxl import Workbook, load_workbook
 from app import db
 from app.models import (
     MapIcdCodBucket,
+    MapIcd10LegacyReportingAlias,
     MasCodBucketNode,
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
@@ -538,6 +539,54 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertTrue(r54["is_utilized_in_final_cod"])
         self.assertFalse(r54["is_assignable_in_coding"])
 
+    def test_unmapped_icd_rows_include_utilized_final_cod_codes_missing_from_master_catalog(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_UNMAPPED_ORPHAN_USAGE",
+            scheme_name="Test Unmapped Orphan Usage",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        now = datetime.now(timezone.utc)
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-used-a90",
+            icd="A90",
+            submitted_at=now,
+            normalized_years=Decimal("25"),
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        payload = list_cod_bucket_unmapped_icd_rows(
+            scheme_code="TEST_UNMAPPED_ORPHAN_USAGE"
+        )
+
+        a90 = next(row for row in payload["rows"] if row["code"] == "A90")
+        self.assertEqual(a90["title"], "")
+        self.assertEqual(a90["chapter"], "")
+        self.assertEqual(a90["semantic_level"], "unknown")
+        self.assertEqual(a90["final_cod_count"], 1)
+        self.assertTrue(a90["is_utilized_in_final_cod"])
+        self.assertFalse(a90["is_assignable_in_coding"])
+        self.assertEqual(a90["coding_status_label"], "Currently not assignable in coding")
+
     def test_reset_srs_age_band_to_source_restores_selected_scope_only(self):
         workbook_path = self._make_srs_workbook()
         scheme = import_srs_india_scheme(workbook_path)
@@ -1000,6 +1049,197 @@ class CodBucketMappingServiceTests(BaseTestCase):
                 scheme_code=scheme.scheme_code,
                 payload=payload,
             )
+
+    def test_import_cod_bucket_scheme_json_coalesces_exact_duplicate_mappings(self):
+        scheme, _warnings = create_cod_bucket_scheme(
+            scheme_name="Import Duplicate Coalesce Target",
+            scheme_code="IMPORT_DUP_COALESCE",
+            age_bands=[
+                {
+                    "age_label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 2,
+                }
+            ],
+        )
+
+        category_id = str(uuid.uuid4())
+        field_id = str(uuid.uuid4())
+        payload = {
+            "scheme": {
+                "scheme_code": scheme.scheme_code,
+                "scheme_name": "Import Duplicate Coalesce Target",
+                "scheme_description": "Exact duplicates should be collapsed",
+            },
+            "age_bands": [
+                {
+                    "age_band_id": str(uuid.uuid4()),
+                    "value": AGE_SCOPE_ADULT_OVER5Y,
+                    "label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 2,
+                    "sort_order": 1,
+                    "is_active": True,
+                }
+            ],
+            "nodes": [
+                {
+                    "node_id": category_id,
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "node_type": NODE_TYPE_CATEGORY,
+                    "node_code": "adult_main",
+                    "node_label": "Adult Main",
+                    "sort_order": 1,
+                    "is_active": True,
+                    "parent_node_id": None,
+                },
+                {
+                    "node_id": field_id,
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "node_type": NODE_TYPE_FIELD,
+                    "node_code": "adult_field",
+                    "node_label": "Adult Field",
+                    "sort_order": 1,
+                    "is_active": True,
+                    "parent_node_id": category_id,
+                },
+            ],
+            "mappings": [
+                {
+                    "mapping_id": str(uuid.uuid4()),
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "icd_code": "R57",
+                    "node_id": field_id,
+                    "source_sheet": "admin_cod_bucket_editor",
+                    "match_type": "manual_override",
+                    "mapping_note": "Manual override",
+                    "is_active": True,
+                },
+                {
+                    "mapping_id": str(uuid.uuid4()),
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "icd_code": "R57",
+                    "node_id": field_id,
+                    "source_sheet": "admin_cod_bucket_editor",
+                    "match_type": "manual_override",
+                    "mapping_note": "Manual override",
+                    "is_active": True,
+                },
+            ],
+        }
+
+        import_cod_bucket_scheme_json(scheme_code=scheme.scheme_code, payload=payload)
+
+        self.assertEqual(
+            db.session.scalar(
+                sa.select(sa.func.count())
+                .select_from(MapIcdCodBucket)
+                .where(
+                    MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                    MapIcdCodBucket.age_scope == AGE_SCOPE_ADULT_OVER5Y,
+                    MapIcdCodBucket.icd_code == "R57",
+                )
+            ),
+            1,
+        )
+
+    def test_import_cod_bucket_scheme_json_rejects_conflicting_duplicate_icd_mappings(self):
+        scheme, _warnings = create_cod_bucket_scheme(
+            scheme_name="Import Duplicate Reject Target",
+            scheme_code="IMPORT_DUP_REJECT",
+            age_bands=[
+                {
+                    "age_label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 2,
+                }
+            ],
+        )
+
+        category_id = str(uuid.uuid4())
+        field_a_id = str(uuid.uuid4())
+        field_b_id = str(uuid.uuid4())
+        payload = {
+            "scheme": {
+                "scheme_code": scheme.scheme_code,
+                "scheme_name": "Import Duplicate Reject Target",
+                "scheme_description": "Conflicting duplicates should fail",
+            },
+            "age_bands": [
+                {
+                    "age_band_id": str(uuid.uuid4()),
+                    "value": AGE_SCOPE_ADULT_OVER5Y,
+                    "label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 2,
+                    "sort_order": 1,
+                    "is_active": True,
+                }
+            ],
+            "nodes": [
+                {
+                    "node_id": category_id,
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "node_type": NODE_TYPE_CATEGORY,
+                    "node_code": "adult_main",
+                    "node_label": "Adult Main",
+                    "sort_order": 1,
+                    "is_active": True,
+                    "parent_node_id": None,
+                },
+                {
+                    "node_id": field_a_id,
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "node_type": NODE_TYPE_FIELD,
+                    "node_code": "adult_field_a",
+                    "node_label": "Adult Field A",
+                    "sort_order": 1,
+                    "is_active": True,
+                    "parent_node_id": category_id,
+                },
+                {
+                    "node_id": field_b_id,
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "node_type": NODE_TYPE_FIELD,
+                    "node_code": "adult_field_b",
+                    "node_label": "Adult Field B",
+                    "sort_order": 2,
+                    "is_active": True,
+                    "parent_node_id": category_id,
+                },
+            ],
+            "mappings": [
+                {
+                    "mapping_id": str(uuid.uuid4()),
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "icd_code": "R57",
+                    "node_id": field_a_id,
+                    "is_active": True,
+                },
+                {
+                    "mapping_id": str(uuid.uuid4()),
+                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
+                    "icd_code": "R57",
+                    "node_id": field_b_id,
+                    "is_active": True,
+                },
+            ],
+        }
+
+        with self.assertRaisesRegex(ValueError, "mapped more than once"):
+            import_cod_bucket_scheme_json(scheme_code=scheme.scheme_code, payload=payload)
 
     def test_import_cod_bucket_scheme_json_rejects_icd_policy_json_with_actionable_error(self):
         scheme, _warnings = create_cod_bucket_scheme(
@@ -1469,4 +1709,203 @@ class CodBucketMappingServiceTests(BaseTestCase):
                     "is_master_coding_eligible": True,
                 }
             ],
+        )
+
+    def test_cod_bucket_reporting_normalizes_selected_legacy_icd_codes(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        now = datetime.now(timezone.utc)
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_LEGACY_ALIAS",
+            scheme_name="Test Legacy Alias Reporting",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                age_label="Adult / Over 5 Years",
+                min_age_value=5,
+                min_age_unit="years",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=1,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        dengue_field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            node_code="dengue_field",
+            node_label="Dengue Bucket",
+            sort_order=1,
+        )
+        hemorrhoid_field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            node_code="hemorrhoid_field",
+            node_label="Haemorrhoids Bucket",
+            sort_order=2,
+        )
+        db.session.add_all([dengue_field, hemorrhoid_field])
+        db.session.flush()
+        db.session.add_all(
+            [
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                    icd_code="A97",
+                    node_id=dengue_field.node_id,
+                    is_active=True,
+                ),
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                    icd_code="K64",
+                    node_id=hemorrhoid_field.node_id,
+                    is_active=True,
+                ),
+            ]
+        )
+        db.session.add_all(
+            [
+                MapIcd10LegacyReportingAlias(
+                    legacy_code="A90",
+                    reporting_code="A97",
+                    note="Legacy dengue code normalized for reporting.",
+                ),
+                MapIcd10LegacyReportingAlias(
+                    legacy_code="A91",
+                    reporting_code="A97",
+                    note="Legacy dengue haemorrhagic fever code normalized for reporting.",
+                ),
+                MapIcd10LegacyReportingAlias(
+                    legacy_code="I84",
+                    reporting_code="K64",
+                    note="Legacy haemorrhoids code normalized for reporting.",
+                ),
+            ]
+        )
+        db.session.add_all(
+            [
+                MasIcd1020192(
+                    code="A97",
+                    title="Dengue",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=1,
+                    parent_code=None,
+                    chapter_code="I",
+                    chapter_title="Certain infectious and parasitic diseases",
+                    block_code="A92-A99",
+                    block_title="Arthropod-borne viral fevers and viral haemorrhagic fevers",
+                    three_character_code="A97",
+                    three_character_title="Dengue",
+                    has_children=True,
+                    is_leaf=False,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=True,
+                    sex_selectable="both",
+                    age_group_selectable="all",
+                    policy_status="allowed",
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
+                ),
+                MasIcd1020192(
+                    code="K64",
+                    title="Haemorrhoids and perianal venous thrombosis",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=2,
+                    parent_code=None,
+                    chapter_code="XI",
+                    chapter_title="Diseases of the digestive system",
+                    block_code="K55-K64",
+                    block_title="Other diseases of intestines",
+                    three_character_code="K64",
+                    three_character_title="Haemorrhoids and perianal venous thrombosis",
+                    has_children=True,
+                    is_leaf=False,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    is_coding_selectable=True,
+                    sex_selectable="both",
+                    age_group_selectable="all",
+                    policy_status="allowed",
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
+                ),
+            ]
+        )
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-legacy-a90",
+            icd="A90",
+            submitted_at=now,
+            normalized_years=Decimal("40"),
+        )
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-legacy-a91",
+            icd="A91",
+            submitted_at=now,
+            normalized_years=Decimal("41"),
+        )
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-legacy-i84",
+            icd="I84",
+            submitted_at=now,
+            normalized_years=Decimal("42"),
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code="TEST_LEGACY_ALIAS",
+            form_id=self.FORM_ID,
+            collapse_scope=True,
+        )
+        unmatched_rows = summarize_unmatched_coded_submissions_by_bucket(
+            scheme_code="TEST_LEGACY_ALIAS",
+            form_id=self.FORM_ID,
+            collapse_scope=True,
+        )
+        unmatched_icd_rows = list_unmatched_coded_submission_icds_by_bucket(
+            scheme_code="TEST_LEGACY_ALIAS",
+            form_id=self.FORM_ID,
+            collapse_scope=True,
+        )
+        unmapped_icd_payload = list_cod_bucket_unmapped_icd_rows(
+            scheme_code="TEST_LEGACY_ALIAS"
+        )
+
+        row_by_field = {row["bucket_field"]: row for row in rows}
+        self.assertEqual(row_by_field["Dengue Bucket"]["coded_count"], 2)
+        self.assertEqual(row_by_field["Haemorrhoids Bucket"]["coded_count"], 1)
+        self.assertEqual(unmatched_rows, [])
+        self.assertEqual(unmatched_icd_rows, [])
+        self.assertFalse(
+            any(row["code"] in {"A90", "A91", "I84"} for row in unmapped_icd_payload["rows"])
         )

@@ -3,7 +3,7 @@ title: ICD-10 Browser Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-28
+last_updated: 2026-04-29
 ---
 
 # ICD-10 Browser Policy
@@ -67,6 +67,10 @@ Current implementation surfaces this browser in the admin console under
      selectable detailed child; structural blocks containing such rows must also
      remain navigable under the active filter
    - red: neither the row nor any relevant child row is selectable
+13. The admin ICD browser page must show a read-only list of reporting-only
+    legacy ICD normalization aliases used by COD bucket reporting so operators
+    can see how selected historical finalized ICD values are bucketed against
+    the ICD-10 2019 master.
 
 ## Access Policy
 

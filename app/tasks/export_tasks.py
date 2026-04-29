@@ -21,6 +21,7 @@ def _get_export_fn(kind: str):
     """Lazy-import to avoid circulars at module level."""
     if kind not in _EXPORT_FUNCTIONS:
         from app.services.data_management_service import (
+            dm_coded_cod_snapshot_export_csv,
             dm_submissions_export_csv,
             dm_smartva_input_export_csv,
             dm_smartva_likelihoods_export_csv,
@@ -30,6 +31,7 @@ def _get_export_fn(kind: str):
         _EXPORT_FUNCTIONS.update(
             {
                 "data": dm_submissions_export_csv,
+                "coded_cod_snapshot": dm_coded_cod_snapshot_export_csv,
                 "smartva_input": dm_smartva_input_export_csv,
                 "smartva_results": dm_smartva_results_export_csv,
                 "smartva_likelihoods": dm_smartva_likelihoods_export_csv,

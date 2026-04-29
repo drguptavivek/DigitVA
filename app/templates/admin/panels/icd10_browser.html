@@ -170,6 +170,50 @@
       </div>
     </div>
   </div>
+
+  <div class="card mt-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <div class="fw-semibold">Legacy ICD Reporting Aliases</div>
+      <div class="small text-muted">Reporting-only normalization for historical finalized CoD values.</div>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th class="px-3 py-2">Legacy ICD</th>
+              <th class="px-3 py-2">Report As</th>
+              <th class="px-3 py-2">Notes</th>
+              <th class="px-3 py-2 text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="icd10-reporting-alias-body"></tbody>
+        </table>
+      </div>
+      <div id="icd10-reporting-alias-empty" class="px-3 py-3 text-muted small d-none">
+        No legacy reporting aliases configured.
+      </div>
+    </div>
+    <div class="card-footer">
+      <form id="icd10-reporting-alias-form" class="row g-2 align-items-end">
+        <div class="col-md-2">
+          <label for="icd10-reporting-alias-legacy" class="form-label small text-muted text-uppercase">Legacy ICD</label>
+          <input type="text" class="form-control form-control-sm" id="icd10-reporting-alias-legacy" maxlength="16" placeholder="A90">
+        </div>
+        <div class="col-md-2">
+          <label for="icd10-reporting-alias-reporting" class="form-label small text-muted text-uppercase">Report As</label>
+          <input type="text" class="form-control form-control-sm" id="icd10-reporting-alias-reporting" maxlength="16" placeholder="A97">
+        </div>
+        <div class="col-md-6">
+          <label for="icd10-reporting-alias-note" class="form-label small text-muted text-uppercase">Notes</label>
+          <input type="text" class="form-control form-control-sm" id="icd10-reporting-alias-note" maxlength="255" placeholder="Why this historical code normalizes to the current master">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="submit" class="btn btn-sm btn-primary" id="icd10-reporting-alias-add-btn">Add Legacy Alias</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -265,6 +309,7 @@
   var apiBase = '/admin/api/icd10/2019-2';
   var state = {
     options: null,
+    reportingAliasRows: {{ reporting_icd_alias_rows|tojson }},
     chapterCode: null,
     blockPath: [],
     code: null,
@@ -417,6 +462,14 @@
     return panel.querySelector('#icd10-browser-policy-readonly');
   }
 
+  function reportingAliasBodyEl() {
+    return panel.querySelector('#icd10-reporting-alias-body');
+  }
+
+  function reportingAliasEmptyEl() {
+    return panel.querySelector('#icd10-reporting-alias-empty');
+  }
+
   async function requestJson(url, options) {
     var response = await fetch(url, options || {});
     var payload = await response.json().catch(function () { return {}; });
@@ -433,6 +486,76 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function renderReportingAliases() {
+    var body = reportingAliasBodyEl();
+    var rows = state.reportingAliasRows || [];
+    if (!rows.length) {
+      body.innerHTML = '';
+      reportingAliasEmptyEl().classList.remove('d-none');
+      return;
+    }
+    reportingAliasEmptyEl().classList.add('d-none');
+    body.innerHTML = rows.map(function (row) {
+      var reportingLabel = row.reporting_title
+        ? escapeHtml(row.reporting_code + ' ' + row.reporting_title)
+        : escapeHtml(row.reporting_code);
+      return (
+        '<tr>' +
+          '<td class="px-3 py-2"><code>' + escapeHtml(row.legacy_code) + '</code></td>' +
+          '<td class="px-3 py-2"><code>' + reportingLabel + '</code></td>' +
+          '<td class="px-3 py-2 small text-muted">' + escapeHtml(row.note || '') + '</td>' +
+          '<td class="px-3 py-2 text-end">' +
+            '<button type="button" class="btn btn-sm btn-outline-danger icd10-reporting-alias-delete-btn" data-legacy-code="' + escapeHtml(row.legacy_code) + '">' +
+              'Delete' +
+            '</button>' +
+          '</td>' +
+        '</tr>'
+      );
+    }).join('');
+  }
+
+  async function loadReportingAliases() {
+    var payload = await requestJson(apiBase + '/reporting-aliases');
+    state.reportingAliasRows = payload.rows || [];
+    renderReportingAliases();
+  }
+
+  async function createReportingAlias(event) {
+    event.preventDefault();
+    var legacyInput = panel.querySelector('#icd10-reporting-alias-legacy');
+    var reportingInput = panel.querySelector('#icd10-reporting-alias-reporting');
+    var noteInput = panel.querySelector('#icd10-reporting-alias-note');
+    var payload = {
+      legacy_code: legacyInput.value || '',
+      reporting_code: reportingInput.value || '',
+      note: noteInput.value || '',
+    };
+    await requestJson(apiBase + '/reporting-aliases', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrf(),
+      },
+      body: JSON.stringify(payload),
+    });
+    legacyInput.value = '';
+    reportingInput.value = '';
+    noteInput.value = '';
+    await loadReportingAliases();
+    showStatus('Legacy reporting alias added.', 'success');
+  }
+
+  async function deleteReportingAlias(legacyCode) {
+    await requestJson(apiBase + '/reporting-aliases/' + encodeURIComponent(legacyCode), {
+      method: 'DELETE',
+      headers: {
+        'X-CSRFToken': csrf(),
+      },
+    });
+    await loadReportingAliases();
+    showStatus('Legacy reporting alias deleted.', 'success');
   }
 
   function setColumnHeader(depth, label) {
@@ -982,6 +1105,13 @@
   }
 
   panel.addEventListener('click', function (event) {
+    var deleteAliasButton = event.target.closest('.icd10-reporting-alias-delete-btn');
+    if (deleteAliasButton) {
+      deleteReportingAlias(deleteAliasButton.dataset.legacyCode).catch(function (error) {
+        showStatus(error.message, 'danger');
+      });
+      return;
+    }
     var button = event.target.closest('.icd10-browser-item');
     if (!button) return;
     handleSelection(Number(button.dataset.depth), button.dataset.code).catch(function (error) {
@@ -1018,6 +1148,12 @@
   });
 
   panel.querySelector('#icd10-browser-policy-form').addEventListener('submit', savePolicy);
+  panel.querySelector('#icd10-reporting-alias-form').addEventListener('submit', function (event) {
+    clearStatus();
+    createReportingAlias(event).catch(function (error) {
+      showStatus(error.message, 'danger');
+    });
+  });
   codingSelectableInput().addEventListener('change', function () {
     if (codingSelectableInput().checked) {
       applyCodingSelectableDefaults();
@@ -1035,6 +1171,7 @@
   Promise.all([
     requestJson(apiBase + '/policy-options'),
     loadChildren(null),
+    loadReportingAliases(),
   ]).then(function (results) {
     state.options = results[0];
     setSelectOptions(sexSelectableInput(), state.options.sex_selectable || [], true);

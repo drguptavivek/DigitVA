@@ -44,6 +44,7 @@ from app.models.mas_cod_bucket import (
     MapIcdCodBucket,
 )
 from app.models.mas_icd10_2019_2 import MasIcd1020192
+from app.models.map_icd10_legacy_reporting_alias import MapIcd10LegacyReportingAlias
 from app.models.mas_languages import MasLanguages, MapLanguageAliases
 from app.models.map_project_odk import MapProjectOdk
 from app.models.map_project_site_odk import MapProjectSiteOdk
@@ -111,6 +112,7 @@ __all__ = [
     "MasCodBucketNode",
     "MapIcdCodBucket",
     "MasIcd1020192",
+    "MapIcd10LegacyReportingAlias",
     "MapProjectOdk",
     "MapProjectSiteOdk",
     "MasFormTypes",

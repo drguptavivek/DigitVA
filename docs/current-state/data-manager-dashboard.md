@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-20
+last_updated: 2026-04-29
 ---
 
 # Data Manager Dashboard
@@ -40,6 +40,13 @@ Current dashboard sections include:
 - browse/search filters
 - submission table with ODK, workflow, SmartVA, and attachment visibility
 - export dropdown for filtered CSV exports
+
+The export dropdown now also includes a coded COD snapshot CSV:
+
+- `/api/v1/data-management/submissions/export-coded-cod-snapshot.csv`
+
+This export is one row per submission and is backed by
+`va_submission_cod_snapshot_mv`.
 
 ## Summary Cards
 

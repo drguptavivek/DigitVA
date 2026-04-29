@@ -1061,6 +1061,7 @@
   function buildExportUrl(kind) {
     const exportPathByKind = {
       data: '/api/v1/data-management/submissions/export.csv',
+      coded_cod_snapshot: '/api/v1/data-management/submissions/export-coded-cod-snapshot.csv',
       smartva_input: '/api/v1/data-management/submissions/export-smartva-input.csv',
       smartva_results: '/api/v1/data-management/submissions/export-smartva-results.csv',
       smartva_likelihoods: '/api/v1/data-management/submissions/export-smartva-likelihoods.csv',

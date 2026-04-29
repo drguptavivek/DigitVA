@@ -13,6 +13,7 @@ from openpyxl.styles import Font, PatternFill
 from app import db
 from app.models import (
     MapIcdCodBucket,
+    MapIcd10LegacyReportingAlias,
     MasCodBucketNode,
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
@@ -121,6 +122,84 @@ def _normalize_label(value) -> str | None:
 
 def _normalize_search_query(value: str | None) -> str:
     return " ".join((value or "").strip().lower().split())
+
+
+def _normalize_reporting_icd_code(value) -> str | None:
+    normalized = _normalize_icd_code(value)
+    if normalized is None:
+        return None
+    alias = db.session.get(MapIcd10LegacyReportingAlias, normalized)
+    return alias.reporting_code if alias else normalized
+
+
+def _reporting_icd_sql(column, alias_column):
+    return sa.func.coalesce(alias_column, column)
+
+
+def get_reporting_icd_alias_rows() -> list[dict]:
+    rows = db.session.execute(
+        sa.select(
+            MapIcd10LegacyReportingAlias.legacy_code,
+            MapIcd10LegacyReportingAlias.reporting_code,
+            MapIcd10LegacyReportingAlias.note,
+            MasIcd1020192.title.label("reporting_title"),
+        )
+        .select_from(MapIcd10LegacyReportingAlias)
+        .join(MasIcd1020192, MasIcd1020192.code == MapIcd10LegacyReportingAlias.reporting_code)
+        .order_by(MapIcd10LegacyReportingAlias.legacy_code.asc())
+    ).mappings().all()
+    return [dict(row) for row in rows]
+
+
+def create_reporting_icd_alias(*, legacy_code: str, reporting_code: str, note: str | None = None) -> dict:
+    normalized_legacy_code = _normalize_icd_code(legacy_code)
+    normalized_reporting_code = _normalize_icd_code(reporting_code)
+    normalized_note = _normalize_label(note)
+
+    if not normalized_legacy_code or not normalized_reporting_code:
+        raise ValueError("legacy_code and reporting_code are required.")
+    if normalized_legacy_code == normalized_reporting_code:
+        raise ValueError("legacy_code and reporting_code must differ.")
+    if db.session.get(MapIcd10LegacyReportingAlias, normalized_legacy_code):
+        raise ValueError(f"Legacy ICD alias '{normalized_legacy_code}' already exists.")
+    if db.session.get(MasIcd1020192, normalized_legacy_code):
+        raise ValueError(
+            f"Legacy ICD code '{normalized_legacy_code}' already exists in the ICD-10 2019 master."
+        )
+
+    master_row = db.session.get(MasIcd1020192, normalized_reporting_code)
+    if (
+        master_row is None
+        or not master_row.is_active
+        or master_row.semantic_level not in {"three_character", "detailed_code"}
+    ):
+        raise ValueError(
+            f"Reporting ICD code '{normalized_reporting_code}' must be an active ICD-10 2019 three-character or detailed code."
+        )
+
+    alias = MapIcd10LegacyReportingAlias(
+        legacy_code=normalized_legacy_code,
+        reporting_code=normalized_reporting_code,
+        note=normalized_note,
+    )
+    db.session.add(alias)
+    db.session.commit()
+    return next(
+        row
+        for row in get_reporting_icd_alias_rows()
+        if row["legacy_code"] == normalized_legacy_code
+    )
+
+
+def delete_reporting_icd_alias(*, legacy_code: str) -> dict:
+    normalized_legacy_code = _normalize_icd_code(legacy_code)
+    alias = db.session.get(MapIcd10LegacyReportingAlias, normalized_legacy_code)
+    if alias is None:
+        raise LookupError(f"Legacy ICD alias '{normalized_legacy_code}' not found.")
+
+    db.session.delete(alias)
+    db.session.commit()
+    return {"deleted": normalized_legacy_code}
 
 
 def _escape_like(value: str) -> str:
@@ -1663,7 +1742,7 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
                 f"Node '{node['node_label']}' has an invalid parent hierarchy."
             )
 
-    cleaned_mappings: list[dict] = []
+    cleaned_mappings_by_key: dict[tuple[str | None, str], dict] = {}
     for index, raw_mapping in enumerate(mapping_payload, start=1):
         icd_code = _normalize_icd_code(raw_mapping.get("icd_code"))
         if not icd_code:
@@ -1678,19 +1757,28 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
         age_scope = age_scope.lower() if age_scope else None
         if age_scope != target_node["age_scope"]:
             raise ValueError(f"Mapping '{icd_code}' age scope does not match its target node.")
-        cleaned_mappings.append(
-            {
-                "age_scope": age_scope,
-                "icd_code": icd_code,
-                "node_import_id": node_import_id,
-                "source_sheet": _normalize_label(raw_mapping.get("source_sheet")),
-                "source_row_number": raw_mapping.get("source_row_number"),
-                "source_category": _normalize_label(raw_mapping.get("source_category")),
-                "match_type": _normalize_label(raw_mapping.get("match_type")),
-                "mapping_note": _normalize_label(raw_mapping.get("mapping_note")),
-                "is_active": bool(raw_mapping.get("is_active", True)),
-            }
-        )
+        cleaned_mapping = {
+            "age_scope": age_scope,
+            "icd_code": icd_code,
+            "node_import_id": node_import_id,
+            "source_sheet": _normalize_label(raw_mapping.get("source_sheet")),
+            "source_row_number": raw_mapping.get("source_row_number"),
+            "source_category": _normalize_label(raw_mapping.get("source_category")),
+            "match_type": _normalize_label(raw_mapping.get("match_type")),
+            "mapping_note": _normalize_label(raw_mapping.get("mapping_note")),
+            "is_active": bool(raw_mapping.get("is_active", True)),
+        }
+        mapping_key = (age_scope, icd_code)
+        existing = cleaned_mappings_by_key.get(mapping_key)
+        if existing is None:
+            cleaned_mappings_by_key[mapping_key] = cleaned_mapping
+            continue
+        if existing["node_import_id"] != node_import_id:
+            scope_label = age_scope or "all_ages"
+            raise ValueError(
+                f"ICD '{icd_code}' is mapped more than once for age scope "
+                f"'{scope_label}' in the import payload."
+            )
 
     scheme.scheme_name = normalized_name
     scheme.scheme_description = normalized_description or f"{normalized_name} COD bucket scheme"
@@ -1731,7 +1819,7 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
         db.session.flush()
         created_nodes_by_import_id[node["import_node_id"]] = created_node
 
-    for mapping in cleaned_mappings:
+    for mapping in cleaned_mappings_by_key.values():
         db.session.add(
             MapIcdCodBucket(
                 scheme_id=scheme.scheme_id,
@@ -2269,13 +2357,12 @@ def list_cod_bucket_unmapped_icd_rows(
             MasIcd1020192.code.asc(),
         )
     ).mappings().all()
-    icd_codes = [row["code"] for row in rows]
     final_cod_counts: dict[str, int] = {}
     analytics_views_available = bool(
         db.session.scalar(sa.text(f"SELECT to_regclass('{COD_MV_NAME}')"))
         and db.session.scalar(sa.text(f"SELECT to_regclass('{DEMOGRAPHICS_MV_NAME}')"))
     )
-    if icd_codes and analytics_views_available:
+    if analytics_views_available:
         cod = sa.table(
             COD_MV_NAME,
             sa.column("va_sid"),
@@ -2286,6 +2373,7 @@ def list_cod_bucket_unmapped_icd_rows(
             sa.column("va_sid"),
             sa.column("has_human_final_cod"),
         )
+        reporting_alias = sa.orm.aliased(MapIcd10LegacyReportingAlias)
         final_cod_counts = {
             row["final_icd"]: int(row["final_cod_count"])
             for row in db.session.execute(
@@ -2295,45 +2383,75 @@ def list_cod_bucket_unmapped_icd_rows(
                 )
                 .select_from(cod)
                 .join(demo, demo.c.va_sid == cod.c.va_sid)
+                .outerjoin(reporting_alias, reporting_alias.legacy_code == cod.c.final_icd)
+                .outerjoin(
+                    mapped_codes_sq,
+                    mapped_codes_sq.c.icd_code == sa.func.coalesce(
+                        reporting_alias.reporting_code,
+                        cod.c.final_icd,
+                    ),
+                )
                 .where(
-                    cod.c.final_icd.in_(icd_codes),
+                    cod.c.final_icd.is_not(None),
                     demo.c.has_human_final_cod.is_(True),
+                    mapped_codes_sq.c.icd_code.is_(None),
                 )
                 .group_by(cod.c.final_icd)
             ).mappings()
         }
+
+    payload_rows = [
+        {
+            "chapter": (
+                f'{row["chapter_code"]} {row["chapter_title"]}'
+                if row["chapter_code"] and row["chapter_title"]
+                else (row["chapter_code"] or "")
+            ),
+            "three_character_code": row["three_character_code"] or "",
+            "three_character_title": row["three_character_title"] or "",
+            "detailed_code": row["code"] if row["semantic_level"] == "detailed_code" else "",
+            "detailed_title": row["title"] if row["semantic_level"] == "detailed_code" else "",
+            "semantic_level": row["semantic_level"],
+            "code": row["code"],
+            "title": row["title"],
+            "final_cod_count": final_cod_counts.get(row["code"], 0),
+            "is_utilized_in_final_cod": final_cod_counts.get(row["code"], 0) > 0,
+            "is_assignable_in_coding": bool(row["is_coding_selectable"]),
+            "coding_status_label": (
+                None
+                if row["is_coding_selectable"]
+                else "Currently not assignable in coding"
+            ),
+        }
+        for row in rows
+    ]
+    known_codes = {row["code"] for row in payload_rows}
+    orphan_final_cod_codes = sorted(code for code in final_cod_counts if code not in known_codes)
+    for icd_code in orphan_final_cod_codes:
+        payload_rows.append(
+            {
+                "chapter": "",
+                "three_character_code": "",
+                "three_character_title": "",
+                "detailed_code": "",
+                "detailed_title": "",
+                "semantic_level": "unknown",
+                "code": icd_code,
+                "title": "",
+                "final_cod_count": final_cod_counts[icd_code],
+                "is_utilized_in_final_cod": True,
+                "is_assignable_in_coding": False,
+                "coding_status_label": "Currently not assignable in coding",
+            }
+        )
 
     return {
         "scheme": {
             "scheme_code": scheme.scheme_code,
             "scheme_name": scheme.scheme_name,
         },
-        "rows": [
-            {
-                "chapter": (
-                    f'{row["chapter_code"]} {row["chapter_title"]}'
-                    if row["chapter_code"] and row["chapter_title"]
-                    else (row["chapter_code"] or "")
-                ),
-                "three_character_code": row["three_character_code"] or "",
-                "three_character_title": row["three_character_title"] or "",
-                "detailed_code": row["code"] if row["semantic_level"] == "detailed_code" else "",
-                "detailed_title": row["title"] if row["semantic_level"] == "detailed_code" else "",
-                "semantic_level": row["semantic_level"],
-                "code": row["code"],
-                "title": row["title"],
-                "final_cod_count": final_cod_counts.get(row["code"], 0),
-                "is_utilized_in_final_cod": final_cod_counts.get(row["code"], 0) > 0,
-                "is_assignable_in_coding": bool(row["is_coding_selectable"]),
-                "coding_status_label": (
-                    None
-                    if row["is_coding_selectable"]
-                    else "Currently not assignable in coding"
-                ),
-            }
-            for row in rows
-        ],
-        "total_rows": len(rows),
+        "rows": payload_rows,
+        "total_rows": len(payload_rows),
     }
 
 
@@ -2460,7 +2578,7 @@ def aggregate_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_code == base_rows.c.final_icd,
+                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -2538,7 +2656,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_code == base_rows.c.final_icd,
+                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -2583,11 +2701,13 @@ def list_unmatched_coded_submission_icds_by_bucket(
     select_columns = [
         base_rows.c.age_scope,
         base_rows.c.final_icd.label("icd_code"),
+        base_rows.c.reporting_icd,
         sa.func.count().label("unmatched_count"),
     ]
     group_by_columns = [
         base_rows.c.age_scope,
         base_rows.c.final_icd,
+        base_rows.c.reporting_icd,
     ]
     order_by_columns = [
         base_rows.c.age_scope.asc().nullsfirst(),
@@ -2622,7 +2742,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
-                MapIcdCodBucket.icd_code == base_rows.c.final_icd,
+                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -2637,18 +2757,18 @@ def list_unmatched_coded_submission_icds_by_bucket(
         .order_by(*order_by_columns)
     )
     rows = db.session.execute(query).mappings().all()
-    icd_codes = [row["icd_code"] for row in rows if row["icd_code"]]
+    reporting_icd_codes = [row["reporting_icd"] for row in rows if row["reporting_icd"]]
     master_rows = {
         row.code: row
         for row in db.session.scalars(
-            sa.select(MasIcd1020192).where(MasIcd1020192.code.in_(icd_codes))
+            sa.select(MasIcd1020192).where(MasIcd1020192.code.in_(reporting_icd_codes))
         )
-    } if icd_codes else {}
+    } if reporting_icd_codes else {}
 
     classified_rows = []
     for row in rows:
         item = dict(row)
-        master_row = master_rows.get(item["icd_code"])
+        master_row = master_rows.get(item["reporting_icd"])
         is_master_coding_eligible = bool(
             master_row
             and master_row.is_active
@@ -2666,6 +2786,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
             else "ICD codes not eligible for coding"
         )
         item["is_master_coding_eligible"] = is_master_coding_eligible
+        item.pop("reporting_icd", None)
         classified_rows.append(item)
     return classified_rows
 
@@ -2709,6 +2830,7 @@ def _cod_bucket_aggregate_base_subquery(
         sa.column("va_sid"),
         sa.column("final_icd"),
     )
+    reporting_alias = sa.orm.aliased(MapIcd10LegacyReportingAlias)
 
     submission_age_days = sa.cast(demo.c.analytics_age_normalized_days, sa.Numeric())
     age_band = sa.orm.aliased(MasCodBucketSchemeAgeBand)
@@ -2739,11 +2861,16 @@ def _cod_bucket_aggregate_base_subquery(
             VaSubmissions.va_form_id.label("form_id"),
             age_band.age_scope.label("age_scope"),
             cod.c.final_icd.label("final_icd"),
+            _reporting_icd_sql(
+                cod.c.final_icd,
+                reporting_alias.reporting_code,
+            ).label("reporting_icd"),
         )
         .select_from(core)
         .join(demo, demo.c.va_sid == core.c.va_sid)
         .join(cod, cod.c.va_sid == core.c.va_sid)
         .join(VaSubmissions, VaSubmissions.va_sid == core.c.va_sid)
+        .outerjoin(reporting_alias, reporting_alias.legacy_code == cod.c.final_icd)
         .join(
             age_band,
             sa.and_(

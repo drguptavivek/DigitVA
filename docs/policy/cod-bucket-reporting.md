@@ -49,29 +49,53 @@ data must be scoped.
     three-character or detailed ICD rows that are not mapped anywhere in the
     current scheme, across all age groups, shown as a single ICD code list
     rather than split three-character vs detailed columns.
-16. Rows in that scheme-level unmapped ICD grid that are not currently
+16. That same unmapped ICD grid must also include finalized COD ICD codes that
+    are operationally present in submission data but absent from
+    `mas_icd10_2019_2`, as long as those codes are not already mapped in the
+    current scheme.
+17. Rows in that scheme-level unmapped ICD grid that are not currently
     assignable in coding must remain bulk-mappable and must be explicitly
     marked as `Currently not assignable in coding`.
-17. The scheme-level unmapped ICD grid must support bulk allocation by letting
+18. The scheme-level unmapped ICD grid must support bulk allocation by letting
     the operator choose a target age band and a target disease-level leaf
     within that scheme, then map multiple selected ICD codes in one action.
-18. The scheme-level unmapped ICD grid must support filtering to ICD codes
+19. The scheme-level unmapped ICD grid must support filtering to ICD codes
     already present in finalized COD outcomes, including codes that are not
     currently assignable during coding.
-19. The mapped ICD list for a selected disease-level leaf must support filtering
+20. The mapped ICD list for a selected disease-level leaf must support filtering
     manual overrides separately from source-derived mappings.
-20. For built-in reporting schemes (`SRS India`, `CMEA10`, and `WHO 2022 VA`),
+21. COD bucket aggregation may apply a reporting-only legacy ICD normalization
+    layer before scheme bucket lookup, as long as the authoritative submission
+    `final_icd` value is preserved unchanged in stored workflow data.
+22. The initial reporting-only legacy ICD normalization baseline is:
+    - `A90` -> `A97`
+    - `A91` -> `A97`
+    - `I84` -> `K64`
+23. When a legacy ICD normalization is applied for reporting, dropped-code
+    drilldowns may continue to display the original authoritative `final_icd`
+    while using the normalized ICD code to decide whether the submission can be
+    bucketed by the current scheme.
+24. For built-in reporting schemes (`SRS India`, `CMEA10`, and `WHO 2022 VA`),
     the migration-artifact workbook copies are the source-of-truth baseline for
     reset-default behavior.
-21. For the built-in WHO 2022 VA scheme, the migration-artifact workbook copy
+25. For the built-in WHO 2022 VA scheme, the migration-artifact workbook copy
     is also the source-of-truth baseline for default ICD-to-bucket mappings
     when evaluating whether an admin edit is a manual override.
-22. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
+26. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
     only when the saved ICD-to-bucket target differs from the XLSX-derived
     default, or when that ICD code is absent from the source workbook.
-23. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
+27. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
     bucket, the manual override marker must be cleared and the source metadata
     restored.
+28. Within a reporting scheme, an ICD code may map to at most one active target
+    leaf for a given age scope.
+29. That uniqueness rule also applies when the age scope is logically
+    all-ages; `NULL` age-scope storage must not permit duplicate active
+    mappings for the same ICD within a scheme.
+30. COD bucket JSON import must coalesce exact duplicate mapping rows that
+    repeat the same `(scheme, age_scope, icd_code, target leaf)` and must
+    reject conflicting duplicate rows that map the same ICD to different target
+    leaves within the same age scope.
 
 ## CoD Dashboard Access Policy
 

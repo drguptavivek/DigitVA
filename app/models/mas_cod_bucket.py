@@ -183,6 +183,13 @@ class MapIcdCodBucket(db.Model):
             "icd_code",
             name="uq_map_icd_cod_buckets_scheme_scope_icd",
         ),
+        sa.Index(
+            "ux_map_icd_cod_buckets_scheme_scope_icd_norm",
+            "scheme_id",
+            sa.text("COALESCE(age_scope, '')"),
+            sa.text("upper(icd_code)"),
+            unique=True,
+        ),
         sa.Index("ix_map_icd_cod_buckets_scheme", "scheme_id"),
         sa.Index("ix_map_icd_cod_buckets_node", "node_id"),
         sa.Index("ix_map_icd_cod_buckets_icd_code", "icd_code"),

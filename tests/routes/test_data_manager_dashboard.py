@@ -1,3 +1,5 @@
+import csv
+import io
 import uuid
 import re
 import tempfile
@@ -878,6 +880,8 @@ class DataManagerDashboardTests(BaseTestCase):
             [
                 {
                     "age_scope": "adult_over5y",
+                    "age_scope_label": "Adult / Over 5 Years",
+                    "age_scope_sort_order": 1,
                     "unmatched_count": 1,
                 }
             ],
@@ -887,6 +891,8 @@ class DataManagerDashboardTests(BaseTestCase):
             [
                 {
                     "age_scope": "adult_over5y",
+                    "age_scope_label": "Adult / Over 5 Years",
+                    "age_scope_sort_order": 1,
                     "icd_code": "I22",
                     "unmatched_count": 1,
                     "category": "not_included_in_scheme",
@@ -895,29 +901,185 @@ class DataManagerDashboardTests(BaseTestCase):
                 }
             ],
         )
+        self.assertEqual(payload["summary"]["scheme_used"], "Scope Test Scheme")
         self.assertEqual(payload["summary"]["matched_total"], 1)
         self.assertEqual(
             payload["summary"]["top_causes"],
             [
                 {
                     "rank": 1,
-                    "bucket_category": "Scope Main",
+                    "bucket_category": None,
                     "bucket_subcategory": None,
                     "bucket_field": "Scope Field",
-                    "display_label": "Scope Main / Scope Field",
+                    "display_label": "Scope Field",
                     "coded_count": 1,
                     "percent": 100.0,
                 }
             ],
         )
         self.assertEqual(
-            payload["summary"]["age_band_distribution"],
+            payload["summary"]["first_level_counts"],
+            [
+                {
+                    "label": "Scope Field",
+                    "coded_count": 1,
+                    "percent": 100.0,
+                }
+            ],
+        )
+
+    def test_cod_bucket_export_csv_respects_dm_scope_and_includes_scheme_levels(self):
+        self._login(self.dm_user_id)
+        now = datetime.now(timezone.utc)
+
+        for mv in (COD_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
+            db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_export_core_va_sid ON {CORE_MV_NAME} (va_sid)")
+        )
+        db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_export_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
+        )
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_export_detail_va_sid ON {COD_MV_NAME} (va_sid)")
+        )
+        db.session.commit()
+
+        scheme = MasCodBucketScheme(
+            scheme_code=f"TEST_EXPORT_{uuid.uuid4().hex[:8].upper()}",
+            scheme_name="Export Test Scheme",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                age_label="All Ages",
+                min_age_value=0,
+                min_age_unit="days",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=2,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="category",
+            node_code="export_category",
+            node_label="Export Category",
+            sort_order=1,
+        )
+        field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type="field",
+            parent=category,
+            node_code="export_field",
+            node_label="Export Cause",
+            sort_order=1,
+        )
+        db.session.add_all([category, field])
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                icd_code="I21",
+                node_id=field.node_id,
+                is_active=True,
+            )
+        )
+
+        in_scope_sid = f"uuid:bucket-export-{uuid.uuid4().hex[:8]}"
+        out_scope_sid = f"uuid:bucket-export-{uuid.uuid4().hex[:8]}"
+        for sid, form_id in (
+            (in_scope_sid, self.FORM_ID),
+            (out_scope_sid, self.OUT_FORM_ID),
+        ):
+            db.session.add(
+                VaSubmissions(
+                    va_sid=sid,
+                    va_form_id=form_id,
+                    va_submission_date=now,
+                    va_odk_updatedat=now,
+                    va_odk_reviewstate="approved",
+                    va_data_collector="Collector",
+                    va_instance_name=sid,
+                    va_uniqueid_real=sid,
+                    va_uniqueid_masked=sid,
+                    va_consent="yes",
+                    va_narration_language="English",
+                    va_deceased_age=50,
+                    va_deceased_age_normalized_days=Decimal("18262.5"),
+                    va_deceased_age_normalized_years=Decimal("50"),
+                    va_deceased_age_source="test",
+                    va_deceased_gender="male",
+                    va_summary=[],
+                    va_catcount={},
+                    va_category_list=[],
+                )
+            )
+            db.session.flush()
+            db.session.add(
+                VaSubmissionWorkflow(
+                    va_sid=sid,
+                    workflow_state=WORKFLOW_CODER_FINALIZED,
+                    workflow_reason="test_seed",
+                    workflow_updated_by_role="vasystem",
+                )
+            )
+            db.session.add(
+                VaFinalAssessments(
+                    va_sid=sid,
+                    va_finassess_by=uuid.UUID(self.dm_user_id),
+                    va_conclusive_cod="I21",
+                    va_finassess_status=VaStatuses.active,
+                    va_finassess_createdat=now,
+                    va_finassess_updatedat=now,
+                )
+            )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        response = self.client.get(
+            f"/api/v1/cod-buckets/export.csv?scheme_code={scheme.scheme_code}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        decoded = response.data.decode("utf-8-sig")
+        rows = list(csv.DictReader(io.StringIO(decoded)))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["SID"], in_scope_sid)
+        self.assertEqual(rows[0]["Final authoritative COD"], "I21")
+        self.assertEqual(rows[0]["Scheme level 1"], "Export Category")
+        self.assertEqual(rows[0]["Scheme level 2"], "Export Cause")
+        self.assertEqual(rows[0]["Project"], self.BASE_PROJECT_ID)
+        self.assertEqual(rows[0]["Site"], self.BASE_SITE_ID)
+        self.assertEqual(rows[0]["Form code"], self.FORM_ID)
+        self.assertEqual(
+            payload["summary"]["age_sex_distribution"],
             [
                 {
                     "age_band": ">=50 years",
                     "sort_order": 5,
-                    "coded_count": 1,
-                    "percent": 100.0,
+                    "male_count": 1,
+                    "female_count": 0,
+                    "unknown_count": 0,
+                    "total_count": 1,
+                    "male_percent": 100.0,
+                    "female_percent": 0.0,
+                    "unknown_percent": 0.0,
+                    "total_percent": 100.0,
                 }
             ],
         )
@@ -931,6 +1093,8 @@ class DataManagerDashboardTests(BaseTestCase):
                 }
             ],
         )
+        self.assertIn("heatmap", payload["summary"])
+        self.assertIn("treemap", payload["summary"])
 
     @patch(
         "app.routes.api.data_management.get_dm_kpi_from_mv",

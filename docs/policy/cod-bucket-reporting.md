@@ -107,20 +107,46 @@ data must be scoped.
     leaves within the same age scope.
 31. The data-management COD reporting page may summarize matched coded deaths
     beyond the scheme hierarchy tables, including:
-    - a top-10 causes ranking for the current filtered scope
-    - a custom age-band breakdown using:
-      - `0-<28 days`
-      - `28 days-<365 days`
-      - `365 days-<12 years`
-      - `12 years-<50 years`
-      - `>=50 years`
-    - a gender breakdown for the current filtered scope
+    - key indicators for `Total coded` and `Scheme used`
+    - a top-10 causes ranking as both table and chart
+    - first-level cause-group counts as both table and chart
+    - a combined age-sex table
+    - an age pyramid
+    - a sex pie chart
+    - a top-10 cause heatmap across country, year, sex, and age
+    - an all-causes treemap
 32. Those additional summaries must use the same matched, in-scope,
     authoritative final-ICD reporting population as the main COD bucket tables.
-33. The bottom COD hierarchy tables on the reporting page must show gender-wise
-    counts alongside the total matched count for each rendered scheme row.
-34. Those bottom COD hierarchy tables must follow the scheme-defined sort-order
+33. The dashboard must support an additional gender filter with the values
+    `All`, `Male`, `Female`, and `Unknown`.
+34. SRS demographic summaries must use the scheme's defined age bands.
+35. WHO 2022 VA and CMEA10 demographic summaries must use these custom age bands:
+    - `0-<28 days`
+    - `28 days-<365 days`
+    - `365 days-<12 years`
+    - `12 years-<50 years`
+    - `>=50 years`
+36. The heatmap `Country` dimension must use the form's `form_smartvacountry`
+    value. The `Year` dimension must use the submission date year. The `Sex`
+    dimension must use normalized deceased gender. The `Age` dimension must use
+    the demographic age-band policy defined above.
+37. The bottom COD hierarchy tables on the reporting page must show `Male n (%)`,
+    `Female n (%)`, `Unknown n (%)`, and `Total n (%)` for each rendered scheme row.
+38. Those bottom COD hierarchy tables must follow the scheme-defined sort-order
     fields only and must not introduce separate label-based ordering.
+39. For WHO 2022 VA and CMEA10, the bottom detailed COD hierarchy section must
+    render an `All Ages` table first and then render additional detailed tables
+    for each reporting age band:
+    - `0-<28 days`
+    - `28 days-<365 days`
+    - `365 days-<12 years`
+    - `12 years-<50 years`
+    - `>=50 years`
+40. The reporting page must support CSV export of the current in-scope filtered
+    coded-submission population, including SID, age, age group, sex, final
+    authoritative COD, scheme hierarchy levels, project, site, form code, and year.
+41. The reporting page must remain printable and must not rely on internal card
+    or table scrolling to expose summary or detailed data.
 
 ## CoD Dashboard Access Policy
 

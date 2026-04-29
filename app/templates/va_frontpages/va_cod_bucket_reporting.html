@@ -1,6 +1,6 @@
 {% extends 'va_frontpages/va_base.html' %}
 
-{% block title %}DigitVA | COD Bucket Reporting{% endblock %}
+{% block title %}DigitVA | Cause of Death Report{% endblock %}
 
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/cod_bucket_reporting.css') }}"/>
@@ -17,26 +17,26 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
     <div>
       <h4 class="content-section-title mb-0">
         <i class="fas fa-layer-group"></i>
-        COD Bucket Reporting
+        Cause of Death Report
       </h4>
       <div class="cod-bucket-muted small mt-2">
-        Aggregate coded submissions by active reporting scheme without mutating coder or reviewer ICD outcomes.
+        View causes of death for the forms in your scope.
       </div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
-      <span class="cod-bucket-chip">
-        <i class="fas fa-shield-halved"></i>
-        Authoritative final ICD only
-      </span>
       <a href="{{ url_for('data_management.dashboard') }}" class="btn btn-outline-primary">
         <i class="fas fa-arrow-left me-1"></i> Back to Data Management
       </a>
     </div>
   </div>
   <p class="mb-0 cod-bucket-muted">
-    Use this page to compare coded output under different cause-grouping schemes such as
-    <strong>SRS India</strong> and <strong>CMEA10</strong>. Scheme changes affect reporting only.
+    The selected scheme changes how results are grouped in this report.
   </p>
+</div>
+
+<div id="cod-bucket-print-summary" class="cod-bucket-print-summary d-none">
+  <div class="cod-bucket-print-title">Cause of Death Report</div>
+  <div id="cod-bucket-print-summary-line" class="cod-bucket-print-line">Coded: 0, Scheme: -, Filters: -</div>
 </div>
 
 <div class="card shadow-sm border-0 rounded-3 mb-4 cod-bucket-filters-card">
@@ -74,11 +74,6 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
         </select>
       </div>
       <div class="col-md-2">
-        <button id="cod-bucket-apply" class="btn btn-primary w-100">
-          <i class="fas fa-filter me-1"></i> Apply
-        </button>
-      </div>
-      <div class="col-md-2">
         <label class="form-label">Date from</label>
         <input id="cod-bucket-date-from" class="form-control" type="date">
       </div>
@@ -86,61 +81,62 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
         <label class="form-label">Date to</label>
         <input id="cod-bucket-date-to" class="form-control" type="date">
       </div>
+      <div class="col-md-2">
+        <button id="cod-bucket-apply" class="btn btn-primary w-100">
+          <i class="fas fa-filter me-1"></i> Apply
+        </button>
+      </div>
+      <div class="col-md-2">
+        <button id="cod-bucket-export" class="btn btn-outline-secondary w-100">
+          <i class="fas fa-download me-1"></i> Export data
+        </button>
+      </div>
     </div>
   </div>
 </div>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-3">
+  <div class="col-md-4">
     <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
       <div class="card-body">
-        <div class="text-muted small">Coded Count</div>
+        <div class="text-muted small">Total coded</div>
         <div id="cod-bucket-kpi-coded" class="fs-3 fw-semibold">0</div>
       </div>
     </div>
   </div>
-  <div class="col-md-9">
+  <div class="col-md-4">
     <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
       <div class="card-body">
-        <div class="text-muted small">Current Scope</div>
+        <div class="text-muted small">Scheme used</div>
+        <div id="cod-bucket-kpi-scheme" class="fw-semibold">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100 cod-bucket-kpi-card">
+      <div class="card-body">
+        <div class="text-muted small">Current filters</div>
         <div id="cod-bucket-kpi-scope" class="fw-semibold">All in-scope coded submissions</div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="card shadow-sm border-0 rounded-3 mb-4">
+<div class="card shadow-sm border-0 rounded-3 mb-4 cod-bucket-print-page-1">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
       <div>
-        <h5 class="mb-1">Main Heading Distribution</h5>
-        <div class="small cod-bucket-muted">
-          Pie chart of top-level cause-group headings for the current filtered scope.
-        </div>
+        <h5 class="mb-1"><span id="cod-bucket-top-causes-title">Top 10 Causes of Death</span></h5>
       </div>
-    </div>
-    <div class="cod-bucket-chart-wrap">
-      <canvas id="cod-bucket-main-heading-chart" aria-label="Main heading distribution pie chart"></canvas>
-      <div id="cod-bucket-main-heading-chart-empty" class="text-center text-muted py-4 d-none">
-        No matched category rows for the current filters.
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="card shadow-sm border-0 rounded-3 mb-4">
-  <div class="card-body">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
       <div>
-        <h5 class="mb-1">Top 10 Causes of Death</h5>
-        <div class="small cod-bucket-muted">
-          Current filtered scope ranked by matched cause buckets.
-        </div>
+        <select id="cod-bucket-top-causes-age-filter" class="form-select">
+          <option value="all">All ages</option>
+        </select>
       </div>
     </div>
     <div class="row g-4">
-      <div class="col-lg-7">
-        <div class="cod-bucket-chart-wrap cod-bucket-chart-wrap-compact">
+      <div class="col-lg-7 d-flex">
+        <div class="cod-bucket-chart-wrap cod-bucket-chart-wrap-fill w-100">
           <canvas id="cod-bucket-top-causes-chart" aria-label="Top 10 causes of death bar chart"></canvas>
           <div id="cod-bucket-top-causes-chart-empty" class="text-center text-muted py-4 d-none">
             No matched cause rows for the current filters.
@@ -169,64 +165,37 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
   </div>
 </div>
 
-<div class="card shadow-sm border-0 rounded-3 mb-4">
+<div class="card shadow-sm border-0 rounded-3 mb-4 cod-bucket-print-page-2">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
       <div>
-        <h5 class="mb-1">Demographic Analysis</h5>
-        <div class="small cod-bucket-muted">
-          Matched coded deaths summarized by custom age bands and gender.
-        </div>
+        <h5 class="mb-1"><span id="cod-bucket-first-level-title">Main Cause Groups</span></h5>
+      </div>
+      <div>
+        <select id="cod-bucket-first-level-age-filter" class="form-select">
+          <option value="all">All ages</option>
+        </select>
       </div>
     </div>
     <div class="row g-4">
-      <div class="col-lg-7">
-        <h6 class="mb-2">Age Groups</h6>
-        <div class="cod-bucket-chart-wrap cod-bucket-chart-wrap-compact">
-          <canvas id="cod-bucket-age-band-chart" aria-label="Age group distribution bar chart"></canvas>
-          <div id="cod-bucket-age-band-chart-empty" class="text-center text-muted py-4 d-none">
-            No age-group rows for the current filters.
+      <div class="col-lg-7 d-flex">
+        <div class="cod-bucket-chart-wrap cod-bucket-chart-wrap-fill w-100">
+          <canvas id="cod-bucket-first-level-chart" aria-label="Main cause groups bar chart"></canvas>
+          <div id="cod-bucket-first-level-chart-empty" class="text-center text-muted py-4 d-none">
+            No grouped cause rows for the current filters.
           </div>
         </div>
       </div>
       <div class="col-lg-5">
-        <h6 class="mb-2">Age Groups Table</h6>
         <div class="table-responsive cod-bucket-summary-table-wrap">
           <table class="table table-sm align-middle mb-0">
             <thead>
               <tr>
-                <th>Age Group</th>
+                <th>Main group</th>
                 <th class="text-end">N (%)</th>
               </tr>
             </thead>
-            <tbody id="cod-bucket-age-band-body">
-              <tr>
-                <td colspan="2" class="text-center text-muted py-3">Loading...</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div class="col-lg-7">
-        <h6 class="mb-2">Gender</h6>
-        <div class="cod-bucket-chart-wrap cod-bucket-chart-wrap-compact">
-          <canvas id="cod-bucket-gender-chart" aria-label="Gender distribution bar chart"></canvas>
-          <div id="cod-bucket-gender-chart-empty" class="text-center text-muted py-4 d-none">
-            No gender rows for the current filters.
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-5">
-        <h6 class="mb-2">Gender Table</h6>
-        <div class="table-responsive cod-bucket-summary-table-wrap">
-          <table class="table table-sm align-middle mb-0">
-            <thead>
-              <tr>
-                <th>Gender</th>
-                <th class="text-end">N (%)</th>
-              </tr>
-            </thead>
-            <tbody id="cod-bucket-gender-body">
+            <tbody id="cod-bucket-first-level-body">
               <tr>
                 <td colspan="2" class="text-center text-muted py-3">Loading...</td>
               </tr>
@@ -238,14 +207,104 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
   </div>
 </div>
 
-<div class="card shadow-sm border-0 rounded-3">
+<div class="card shadow-sm border-0 rounded-3 mb-4 cod-bucket-print-page-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <h5 class="mb-1">Age and Sex Distribution</h5>
+      </div>
+    </div>
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <h6 class="mb-2">Age Pyramid</h6>
+        <div class="cod-bucket-chart-wrap cod-bucket-chart-wrap-tall">
+          <canvas id="cod-bucket-age-pyramid-chart" aria-label="Age pyramid chart"></canvas>
+          <div id="cod-bucket-age-pyramid-chart-empty" class="text-center text-muted py-4 d-none">
+            No age and sex rows for the current filters.
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <h6 class="mb-2">Sex Distribution</h6>
+        <div class="cod-bucket-chart-wrap cod-bucket-chart-wrap-compact">
+          <canvas id="cod-bucket-gender-pie-chart" aria-label="Sex distribution pie chart"></canvas>
+          <div id="cod-bucket-gender-pie-chart-empty" class="text-center text-muted py-4 d-none">
+            No sex rows for the current filters.
+          </div>
+        </div>
+      </div>
+      <div class="col-12">
+        <h6 class="mb-2">Age and Sex Table</h6>
+        <div class="table-responsive cod-bucket-summary-table-wrap">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Age group</th>
+                <th class="text-end">Male</th>
+                <th class="text-end">Female</th>
+                <th class="text-end">Unknown</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+            <tbody id="cod-bucket-age-sex-body">
+              <tr>
+                <td colspan="5" class="text-center text-muted py-3">Loading...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3 mb-4 cod-bucket-print-page-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <h5 class="mb-1">Top 10 Causes by Dimension</h5>
+        <div class="small cod-bucket-muted">Compare the top 10 causes across country, year, sex, or age group.</div>
+      </div>
+      <div>
+        <select id="cod-bucket-heatmap-view" class="form-select mb-2">
+          <option value="top_causes">Top 10 causes</option>
+          <option value="first_level_counts">Main cause groups</option>
+        </select>
+        <select id="cod-bucket-heatmap-dimension" class="form-select">
+          <option value="country">Country</option>
+          <option value="year">Year</option>
+          <option value="sex">Sex</option>
+          <option value="age">Age</option>
+        </select>
+      </div>
+    </div>
+    <div id="cod-bucket-heatmap-empty" class="text-center text-muted py-4 d-none">
+      No heatmap data for the current filters.
+    </div>
+    <div id="cod-bucket-heatmap-wrap" class="cod-bucket-heatmap-wrap"></div>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3 mb-4 cod-bucket-print-page-5">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <h5 class="mb-1">All Causes Treemap</h5>
+        <div class="small cod-bucket-muted">A visual overview of all matched causes of death in the filtered view.</div>
+      </div>
+    </div>
+    <div id="cod-bucket-treemap-empty" class="text-center text-muted py-4 d-none">
+      No treemap data for the current filters.
+    </div>
+    <div id="cod-bucket-treemap" class="cod-bucket-treemap"></div>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0 rounded-3 cod-bucket-print-page-6">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
       <div>
         <h5 class="mb-1">Causes of Death</h5>
-        <div class="small mt-2">
-          <strong>Scheme:</strong> <span id="cod-bucket-selected-scheme">—</span>
-        </div>
       </div>
     </div>
     <div id="cod-bucket-age-tables" class="d-flex flex-column gap-4">

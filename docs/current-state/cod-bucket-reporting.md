@@ -25,18 +25,39 @@ Routes:
 The data-management report page at `/data-management/cod-buckets` now:
 
 - defaults to the `WHO_2022_VA` scheme when available
-- shows a top-level main-heading pie chart above the detailed tables using the
-  same filtered aggregate payload returned by `/api/v1/cod-buckets/aggregates`
-- shows a top-10 causes section with a bar chart and ranked table for the
-  current filtered scope
-- shows demographic summaries for custom age bands and gender using the same
-  matched coded-death population
-- shows the bottom COD hierarchy tables with `Male`, `Female`, `Unknown`, and
-  `Total N (%)` columns for each scheme row
+- exposes filters for scheme, project, site, form, submission date, and gender
+- scopes all page bootstrap data and aggregate API results to the caller's
+  data-manager project/site grants
+- shows key indicators first for `Total coded`, `Scheme used`, and the current
+  filter scope
+- shows a top-10 causes section with a ranked table and horizontal bar chart
+- shows a first-level cause-group section with counts and percentages
+- shows demographic summaries as:
+  - an age-sex table
+  - an age pyramid
+  - a sex pie chart
+- uses SRS scheme age bands for SRS demographic summaries
+- uses these custom age bands for WHO 2022 VA and CMEA10 demographic summaries:
+  - `0-<28 days`
+  - `28 days-<365 days`
+  - `365 days-<12 years`
+  - `12 years-<50 years`
+  - `>=50 years`
+- keeps `All Ages` first in the bottom detailed COD hierarchy section and, for
+  WHO 2022 VA and CMEA10, adds additional detailed tables for each reporting
+  age band after the all-ages table
+- shows a top-10 cause heatmap that can pivot across country, year, sex, and age
+- shows an all-causes treemap for the same filtered matched population
+- shows the bottom COD hierarchy tables with `Male n (%)`, `Female n (%)`,
+  `Unknown n (%)`, and `Total n (%)` columns for each scheme row
+- supports CSV export of the current scoped page data, including SID, age, age
+  group, sex, final authoritative COD, scheme hierarchy levels, project, site,
+  form code, and year
 - keeps the bottom COD hierarchy tables ordered by the scheme-defined sort
   order fields rather than applying separate label-based sorting
 - keeps the detailed age-scope tables and dropped-COD drilldown modal below the
   chart
+- is styled for printing without internal table/card scroll regions
 
 ## Storage model
 
@@ -258,6 +279,9 @@ The aggregate query uses:
 - authoritative `final_icd`
 - demographics-derived age band
 - the active scheme mapping
+- optional reporting-only legacy ICD alias normalization before scheme lookup
+- the caller's allowed `(project_id, site_id)` scope pairs from
+  `dm_scoped_forms(...)`
 - a small reporting-only legacy ICD normalization layer before bucket lookup
   for selected historical codes that no longer exist in the ICD-10 2019 master
 

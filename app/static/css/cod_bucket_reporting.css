@@ -33,6 +33,17 @@
   height: 280px !important;
 }
 
+.cod-bucket-chart-wrap-fill {
+  min-height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.cod-bucket-chart-wrap-fill canvas {
+  flex: 1 1 auto;
+  height: 100% !important;
+}
+
 .cod-bucket-summary-table-wrap {
   max-height: none;
   overflow: visible;
@@ -40,6 +51,10 @@
 
 .cod-bucket-summary-table-wrap th {
   white-space: nowrap;
+}
+
+.cod-bucket-summary-table-wrap td {
+  vertical-align: middle;
 }
 
 .cod-bucket-filter-grid .form-label {
@@ -90,12 +105,16 @@
 }
 
 .cod-bucket-code-col {
-  width: 7rem;
+  width: 4.5rem;
   white-space: nowrap;
 }
 
 .cod-bucket-label-cell {
   min-width: 20rem;
+}
+
+.cod-bucket-col-metric {
+  width: 10rem;
 }
 
 .cod-bucket-tree-label {
@@ -118,25 +137,394 @@
   padding-left: 3rem;
 }
 
+.cod-bucket-row-level-0 td {
+  font-weight: 700;
+}
+
+.cod-bucket-value-cell {
+  font-size: 1rem;
+  line-height: 1.12;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.cod-bucket-metric-inline {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  width: 100%;
+  gap: 0.16rem;
+}
+
+.cod-bucket-metric-count {
+  font-weight: 600;
+  font-size: 1em;
+}
+
+.cod-bucket-metric-percent {
+  font-size: 1em;
+  line-height: 1.05;
+}
+
+.cod-bucket-heatmap-wrap {
+  overflow: visible;
+}
+
+.cod-bucket-heatmap-table th,
+.cod-bucket-heatmap-table td {
+  white-space: nowrap;
+  text-align: center;
+  min-width: 6rem;
+}
+
+.cod-bucket-heatmap-table thead th:first-child,
+.cod-bucket-heatmap-table tbody th {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: #f8fafc;
+  z-index: 1;
+  min-width: 14rem;
+  max-width: 18rem;
+  white-space: normal;
+}
+
+.cod-bucket-heatmap-cell {
+  color: #0f172a;
+  font-weight: 600;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.cod-bucket-heatmap-cell .small {
+  color: rgba(15, 23, 42, 0.76);
+}
+
+.cod-bucket-treemap {
+  position: relative;
+  min-height: 44rem;
+  width: 100%;
+  background: #f8fafc;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.cod-bucket-treemap-node {
+  position: absolute;
+  color: #fff;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+  overflow: hidden;
+  border: 3px solid #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.cod-bucket-treemap-group {
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.92;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cod-bucket-treemap-label {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+
+.cod-bucket-treemap-value {
+  font-size: 0.84rem;
+  opacity: 0.95;
+}
+
+.cod-bucket-treemap-tooltip {
+  position: fixed;
+  z-index: 1085;
+  max-width: 18rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  background: rgba(15, 23, 42, 0.94);
+  color: #fff;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  white-space: pre-line;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+}
+
+.cod-bucket-treemap-tooltip.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.cod-bucket-print-summary {
+  display: none;
+}
+
+.cod-bucket-print-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.cod-bucket-print-line {
+  font-size: 0.98rem;
+  color: #334155;
+}
+
 @media print {
+  @page {
+    margin: 16mm 12mm 16mm;
+  }
+
+  html,
+  body,
+  #main-content,
+  .card,
+  .card-body,
+  table,
+  th,
+  td,
+  .small,
+  .cod-bucket-muted,
+  .cod-bucket-tree-label,
+  .cod-bucket-value-cell,
+  .cod-bucket-metric-inline,
+  .cod-bucket-metric-count,
+  .cod-bucket-metric-percent {
+    font-size: 12px !important;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  .navbar,
+  footer,
+  #app-toast-container {
+    display: none !important;
+  }
+
+  #main-content.container {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  .cod-bucket-hero,
+  .cod-bucket-kpi-card,
+  .cod-bucket-summary-table-wrap,
+  .cod-bucket-table-wrap,
+  .cod-bucket-heatmap-wrap,
+  .cod-bucket-treemap {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .card,
+  .card-body {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .cod-bucket-age-section {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  #cod-bucket-age-tables,
+  #cod-bucket-age-tables .cod-bucket-age-section,
+  #cod-bucket-age-tables .cod-bucket-table-wrap {
+    break-before: auto;
+    page-break-before: auto;
+  }
+
+  #cod-bucket-age-tables .cod-bucket-age-section:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  #cod-bucket-age-tables .cod-bucket-age-section h6 {
+    margin-top: 0 !important;
+  }
+
+  #cod-bucket-age-tables .cod-bucket-age-section .d-flex {
+    margin-bottom: 0.35rem !important;
+  }
+
+  #cod-bucket-age-tables {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  #cod-bucket-age-tables .card,
+  #cod-bucket-age-tables .card-body {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .card:has(#cod-bucket-age-tables) {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .cod-bucket-age-section > .d-flex {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .cod-bucket-age-section table {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .cod-bucket-age-section thead {
+    display: table-header-group;
+  }
+
+  .cod-bucket-age-section tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .card,
+  .content-section {
+    margin-top: 0.75rem !important;
+    margin-bottom: 1rem !important;
+  }
+
   .cod-bucket-filters-card {
     display: none !important;
   }
 
+  .cod-bucket-hero,
+  .row.g-3.mb-4 {
+    display: none !important;
+  }
+
+  .cod-bucket-print-summary {
+    display: block !important;
+    margin: 0 0 0.75rem 0 !important;
+    padding: 0 0 0.5rem 0 !important;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  }
+
+  .cod-bucket-print-page-1,
+  .cod-bucket-print-page-2,
+  .cod-bucket-print-page-3,
+  .cod-bucket-print-page-4,
+  .cod-bucket-print-page-5,
+  .cod-bucket-print-page-6 {
+    break-before: page;
+    page-break-before: always;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .cod-bucket-print-page-1 {
+    break-before: auto;
+    page-break-before: auto;
+  }
+
+  .cod-bucket-print-page-6 {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .cod-bucket-print-page-6 > .card-body > .d-flex:first-child {
+    display: none !important;
+  }
+
+  .cod-bucket-print-page-6 #cod-bucket-age-tables {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  .cod-bucket-print-page-6 #cod-bucket-age-tables .cod-bucket-age-section:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  .btn,
+  .btn-close,
+  .cod-bucket-treemap-tooltip {
+    display: none !important;
+  }
+
   .cod-bucket-chart-wrap {
-    min-height: 280px;
+    min-height: 440px;
   }
 
   .cod-bucket-chart-wrap canvas {
-    height: 280px !important;
+    height: 440px !important;
   }
 
   .cod-bucket-chart-wrap-compact {
-    min-height: 240px;
+    min-height: 340px;
   }
 
   .cod-bucket-chart-wrap-compact canvas {
-    height: 240px !important;
+    height: 340px !important;
+  }
+
+  .cod-bucket-chart-wrap-tall {
+    min-height: 460px;
+  }
+
+  .cod-bucket-chart-wrap-tall canvas {
+    height: 460px !important;
+  }
+
+  .cod-bucket-chart-wrap-fill {
+    min-height: 440px !important;
+  }
+
+  .cod-bucket-chart-wrap-fill canvas {
+    height: 440px !important;
+  }
+
+  .cod-bucket-kpi-card,
+  .card {
+    box-shadow: none !important;
+  }
+
+  .cod-bucket-heatmap-table thead th:first-child,
+  .cod-bucket-heatmap-table tbody th {
+    position: static;
+  }
+
+  .cod-bucket-treemap {
+    min-height: 30rem;
+  }
+
+  .cod-bucket-age-section + .cod-bucket-age-section {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 1rem;
+  }
+
+  .cod-bucket-value-cell {
+    font-size: 12px !important;
+    line-height: 1.02;
+  }
+
+  .cod-bucket-code-col {
+    width: 3.5rem;
+  }
+
+  .cod-bucket-col-metric {
+    width: 8.5rem;
   }
 }
 
@@ -155,5 +543,30 @@
 
   .cod-bucket-chart-wrap-compact canvas {
     height: 320px !important;
+  }
+
+  .cod-bucket-heatmap-table th,
+  .cod-bucket-heatmap-table td {
+    min-width: 4.75rem;
+    font-size: 0.82rem;
+  }
+
+  .cod-bucket-heatmap-table thead th:first-child,
+  .cod-bucket-heatmap-table tbody th {
+    min-width: 10rem;
+    max-width: 12rem;
+  }
+
+  .cod-bucket-treemap {
+    min-height: 32rem;
+  }
+
+  .cod-bucket-treemap-node {
+    padding: 0.55rem;
+    border-width: 2px;
+  }
+
+  .cod-bucket-treemap-label {
+    font-size: 0.92rem;
   }
 }

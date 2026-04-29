@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import uuid
 from datetime import datetime, timezone
@@ -35,12 +37,17 @@ from app.services.cod_bucket_mapping_service import (
     NODE_TYPE_CATEGORY,
     NODE_TYPE_FIELD,
     NODE_TYPE_SUBCATEGORY,
+    REPORTING_AGE_BAND_0_27_DAYS,
+    REPORTING_AGE_BAND_28_364_DAYS,
+    REPORTING_AGE_BAND_12_49_YEARS,
+    REPORTING_AGE_BAND_50_PLUS_YEARS,
     SCHEME_CODE_CMEA10,
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_WHO_2022_VA,
     aggregate_coded_submissions_by_bucket,
     apply_admin_cod_bucket_mapping_metadata,
     create_cod_bucket_scheme,
+    export_cod_bucket_reporting_csv,
     export_cod_bucket_scheme_json,
     import_cmea10_scheme,
     import_cod_bucket_scheme_json,
@@ -1689,7 +1696,208 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(rows[1]["coded_count"], 2)
         self.assertEqual(rows[1]["male_count"], 2)
 
-    def test_summarize_cod_bucket_reporting_breakdowns_returns_top_causes_age_bands_and_gender(self):
+    def test_aggregate_coded_submissions_by_bucket_expands_who_all_ages_into_reporting_bands(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        now = datetime.now(timezone.utc)
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_WHO_DETAIL_BANDS",
+            scheme_name="WHO Detail Bands Test",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                age_label="All Ages",
+                min_age_value=0,
+                min_age_unit="days",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=2,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="who_main",
+            node_label="WHO Section",
+            sort_order=1,
+        )
+        field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_FIELD,
+            parent=category,
+            node_code="who_field",
+            node_label="WHO Cause",
+            sort_order=1,
+        )
+        db.session.add_all([category, field])
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                icd_code="A33",
+                node_id=field.node_id,
+                is_active=True,
+            )
+        )
+        self._add_coded_submission(
+            sid="uuid:who-detail-neonate",
+            icd="A33",
+            submitted_at=now,
+            normalized_years=Decimal("0.02"),
+        )
+        self._add_coded_submission(
+            sid="uuid:who-detail-child",
+            icd="A33",
+            submitted_at=now,
+            normalized_years=Decimal("0.5"),
+        )
+        self._add_coded_submission(
+            sid="uuid:who-detail-adult",
+            icd="A33",
+            submitted_at=now,
+            normalized_years=Decimal("20"),
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code="TEST_WHO_DETAIL_BANDS",
+            form_id=self.FORM_ID,
+            collapse_scope=True,
+        )
+
+        row_by_scope = {row["age_scope"]: row for row in rows}
+        self.assertEqual(row_by_scope[None]["age_scope_label"], "All Ages")
+        self.assertEqual(row_by_scope[None]["coded_count"], 3)
+        self.assertEqual(
+            row_by_scope[REPORTING_AGE_BAND_0_27_DAYS]["age_scope_sort_order"],
+            2,
+        )
+        self.assertEqual(row_by_scope[REPORTING_AGE_BAND_0_27_DAYS]["coded_count"], 1)
+        self.assertEqual(row_by_scope[REPORTING_AGE_BAND_28_364_DAYS]["coded_count"], 1)
+        self.assertEqual(row_by_scope[REPORTING_AGE_BAND_12_49_YEARS]["coded_count"], 1)
+
+    def test_export_cod_bucket_reporting_csv_includes_scheme_levels(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        now = datetime.now(timezone.utc)
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_EXPORT_LEVELS",
+            scheme_name="Export Levels Test",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                age_label="All Ages",
+                min_age_value=0,
+                min_age_unit="days",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=2,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="export_main",
+            node_label="Export Main",
+            sort_order=1,
+        )
+        field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_FIELD,
+            parent=category,
+            node_code="export_field",
+            node_label="Export Field",
+            sort_order=1,
+        )
+        db.session.add_all([category, field])
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                icd_code="I21",
+                node_id=field.node_id,
+                is_active=True,
+            )
+        )
+        self._add_coded_submission(
+            sid="uuid:export-levels",
+            icd="I21",
+            submitted_at=now,
+            normalized_years=Decimal("50"),
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        csv_text = export_cod_bucket_reporting_csv(
+            scheme_code="TEST_EXPORT_LEVELS",
+            form_id=self.FORM_ID,
+        )
+        rows = list(csv.DictReader(io.StringIO(csv_text)))
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["SID"], "uuid:export-levels")
+        self.assertEqual(rows[0]["Age group"], REPORTING_AGE_BAND_50_PLUS_YEARS)
+        self.assertEqual(rows[0]["Final authoritative COD"], "I21")
+        self.assertEqual(rows[0]["Scheme level 1"], "Export Main")
+        self.assertEqual(rows[0]["Scheme level 2"], "Export Field")
+        self.assertEqual(rows[0]["Project"], self.PROJECT_ID)
+        self.assertEqual(rows[0]["Site"], self.SITE_ID)
+        self.assertEqual(rows[0]["Form code"], self.FORM_ID)
+
+    def test_summarize_cod_bucket_reporting_breakdowns_returns_dashboard_summaries(self):
         db.session.execute(
             sa.delete(VaFinalAssessments).where(
                 VaFinalAssessments.va_sid.in_(
@@ -1838,6 +2046,7 @@ class CodBucketMappingServiceTests(BaseTestCase):
         )
 
         self.assertEqual(summary["matched_total"], 5)
+        self.assertEqual(summary["scheme_used"], "Test Breakdowns")
         self.assertEqual(summary["top_causes"][0]["bucket_field"], "Heart Failure")
         self.assertEqual(summary["top_causes"][0]["coded_count"], 3)
         self.assertEqual(summary["top_causes"][0]["percent"], 60.0)
@@ -1845,13 +2054,75 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(summary["top_causes"][1]["coded_count"], 2)
 
         self.assertEqual(
-            summary["age_band_distribution"],
+            summary["first_level_counts"],
             [
-                {"age_band": "0-<28 days", "sort_order": 1, "coded_count": 1, "percent": 20.0},
-                {"age_band": "28 days-<365 days", "sort_order": 2, "coded_count": 1, "percent": 20.0},
-                {"age_band": "365 days-<12 years", "sort_order": 3, "coded_count": 1, "percent": 20.0},
-                {"age_band": "12 years-<50 years", "sort_order": 4, "coded_count": 1, "percent": 20.0},
-                {"age_band": ">=50 years", "sort_order": 5, "coded_count": 1, "percent": 20.0},
+                {"label": "Alpha", "coded_count": 3, "percent": 60.0},
+                {"label": "Beta", "coded_count": 2, "percent": 40.0},
+            ],
+        )
+        self.assertEqual(
+            summary["age_sex_distribution"],
+            [
+                {
+                    "age_band": "0-<28 days",
+                    "sort_order": 1,
+                    "male_count": 0,
+                    "female_count": 1,
+                    "unknown_count": 0,
+                    "total_count": 1,
+                    "male_percent": 0.0,
+                    "female_percent": 20.0,
+                    "unknown_percent": 0.0,
+                    "total_percent": 20.0,
+                },
+                {
+                    "age_band": "28 days-<365 days",
+                    "sort_order": 2,
+                    "male_count": 1,
+                    "female_count": 0,
+                    "unknown_count": 0,
+                    "total_count": 1,
+                    "male_percent": 20.0,
+                    "female_percent": 0.0,
+                    "unknown_percent": 0.0,
+                    "total_percent": 20.0,
+                },
+                {
+                    "age_band": "365 days-<12 years",
+                    "sort_order": 3,
+                    "male_count": 0,
+                    "female_count": 1,
+                    "unknown_count": 0,
+                    "total_count": 1,
+                    "male_percent": 0.0,
+                    "female_percent": 20.0,
+                    "unknown_percent": 0.0,
+                    "total_percent": 20.0,
+                },
+                {
+                    "age_band": "12 years-<50 years",
+                    "sort_order": 4,
+                    "male_count": 1,
+                    "female_count": 0,
+                    "unknown_count": 0,
+                    "total_count": 1,
+                    "male_percent": 20.0,
+                    "female_percent": 0.0,
+                    "unknown_percent": 0.0,
+                    "total_percent": 20.0,
+                },
+                {
+                    "age_band": ">=50 years",
+                    "sort_order": 5,
+                    "male_count": 0,
+                    "female_count": 1,
+                    "unknown_count": 0,
+                    "total_count": 1,
+                    "male_percent": 0.0,
+                    "female_percent": 20.0,
+                    "unknown_percent": 0.0,
+                    "total_percent": 20.0,
+                },
             ],
         )
         self.assertEqual(
@@ -1861,6 +2132,9 @@ class CodBucketMappingServiceTests(BaseTestCase):
                 {"gender": "Male", "coded_count": 2, "percent": 40.0},
             ],
         )
+        self.assertEqual(summary["heatmap"]["dimension"], "country")
+        self.assertIn("country", summary["heatmap"]["dimensions"])
+        self.assertTrue(summary["treemap"])
 
     def test_summarize_unmatched_coded_submissions_by_bucket_counts_dropped_icds(self):
         db.session.execute(
@@ -1983,28 +2257,21 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["bucket_field"], "Matched Disease")
         self.assertEqual(rows[0]["coded_count"], 1)
+        self.assertEqual(unmatched_rows[0]["age_scope"], AGE_SCOPE_ADULT_OVER5Y)
+        self.assertEqual(unmatched_rows[0]["age_scope_label"], "Adult / Over 5 Years")
+        self.assertEqual(unmatched_rows[0]["age_scope_sort_order"], 1)
+        self.assertEqual(unmatched_rows[0]["unmatched_count"], 1)
+        self.assertEqual(unmatched_icd_rows[0]["age_scope"], AGE_SCOPE_ADULT_OVER5Y)
+        self.assertEqual(unmatched_icd_rows[0]["age_scope_label"], "Adult / Over 5 Years")
+        self.assertEqual(unmatched_icd_rows[0]["age_scope_sort_order"], 1)
+        self.assertEqual(unmatched_icd_rows[0]["icd_code"], "I22")
+        self.assertEqual(unmatched_icd_rows[0]["unmatched_count"], 1)
+        self.assertEqual(unmatched_icd_rows[0]["category"], "not_included_in_scheme")
         self.assertEqual(
-            unmatched_rows,
-            [
-                {
-                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
-                    "unmatched_count": 1,
-                }
-            ],
+            unmatched_icd_rows[0]["category_label"],
+            "ICD codes not included in CoD Categories",
         )
-        self.assertEqual(
-            unmatched_icd_rows,
-            [
-                {
-                    "age_scope": AGE_SCOPE_ADULT_OVER5Y,
-                    "icd_code": "I22",
-                    "unmatched_count": 1,
-                    "category": "not_included_in_scheme",
-                    "category_label": "ICD codes not included in CoD Categories",
-                    "is_master_coding_eligible": True,
-                }
-            ],
-        )
+        self.assertTrue(unmatched_icd_rows[0]["is_master_coding_eligible"])
 
     def test_cod_bucket_reporting_normalizes_selected_legacy_icd_codes(self):
         db.session.execute(

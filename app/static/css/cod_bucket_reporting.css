@@ -25,6 +25,23 @@
   height: 340px !important;
 }
 
+.cod-bucket-chart-wrap-compact {
+  min-height: 280px;
+}
+
+.cod-bucket-chart-wrap-compact canvas {
+  height: 280px !important;
+}
+
+.cod-bucket-summary-table-wrap {
+  max-height: none;
+  overflow: visible;
+}
+
+.cod-bucket-summary-table-wrap th {
+  white-space: nowrap;
+}
+
 .cod-bucket-filter-grid .form-label {
   font-size: 0.78rem;
   font-weight: 600;
@@ -34,8 +51,8 @@
 }
 
 .cod-bucket-table-wrap {
-  max-height: 68vh;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .cod-bucket-table thead th {
@@ -113,6 +130,14 @@
   .cod-bucket-chart-wrap canvas {
     height: 280px !important;
   }
+
+  .cod-bucket-chart-wrap-compact {
+    min-height: 240px;
+  }
+
+  .cod-bucket-chart-wrap-compact canvas {
+    height: 240px !important;
+  }
 }
 
 @media (max-width: 991.98px) {
@@ -122,5 +147,13 @@
 
   .cod-bucket-chart-wrap canvas {
     height: 420px !important;
+  }
+
+  .cod-bucket-chart-wrap-compact {
+    min-height: 320px;
+  }
+
+  .cod-bucket-chart-wrap-compact canvas {
+    height: 320px !important;
   }
 }

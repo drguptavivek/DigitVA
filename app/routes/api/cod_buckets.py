@@ -16,6 +16,7 @@ from app.services.cod_bucket_mapping_service import (
     list_unmatched_coded_submission_icds_by_bucket,
     list_cod_bucket_schemes,
     SCHEME_CODE_WHO_2022_VA,
+    summarize_cod_bucket_reporting_breakdowns,
     summarize_unmatched_coded_submissions_by_bucket,
 )
 from app.services.data_management_service import dm_scoped_forms
@@ -104,12 +105,26 @@ def aggregates():
         allowed_project_site_pairs=allowed_pairs,
         collapse_scope=True,
     )
+    reporting_breakdowns = summarize_cod_bucket_reporting_breakdowns(
+        scheme_code=request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,
+        project_id=project_id,
+        site_id=site_id,
+        form_id=form_id,
+        submission_date_from=_parse_iso_date(request.args.get("date_from")),
+        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        allowed_project_site_pairs=allowed_pairs,
+        top_n=10,
+    )
     return jsonify(
         {
             "data": rows,
             "summary": {
                 "unmatched_by_age_scope": unmatched_rows,
                 "unmatched_icd_breakdown": unmatched_icd_rows,
+                "top_causes": reporting_breakdowns["top_causes"],
+                "age_band_distribution": reporting_breakdowns["age_band_distribution"],
+                "gender_distribution": reporting_breakdowns["gender_distribution"],
+                "matched_total": reporting_breakdowns["matched_total"],
             },
             "filters": {
                 "scheme_code": request.args.get("scheme_code", "").strip() or SCHEME_CODE_WHO_2022_VA,

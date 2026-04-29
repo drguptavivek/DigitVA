@@ -27,6 +27,14 @@ The data-management report page at `/data-management/cod-buckets` now:
 - defaults to the `WHO_2022_VA` scheme when available
 - shows a top-level main-heading pie chart above the detailed tables using the
   same filtered aggregate payload returned by `/api/v1/cod-buckets/aggregates`
+- shows a top-10 causes section with a bar chart and ranked table for the
+  current filtered scope
+- shows demographic summaries for custom age bands and gender using the same
+  matched coded-death population
+- shows the bottom COD hierarchy tables with `Male`, `Female`, `Unknown`, and
+  `Total N (%)` columns for each scheme row
+- keeps the bottom COD hierarchy tables ordered by the scheme-defined sort
+  order fields rather than applying separate label-based sorting
 - keeps the detailed age-scope tables and dropped-COD drilldown modal below the
   chart
 
@@ -184,9 +192,17 @@ current editor supports:
 - showing a scheme-wide grid of active ICD master rows not yet mapped anywhere
   in the selected scheme, across all age groups, as a single ICD code list,
   including non-assignable rows flagged as `Currently not assignable in coding`
+- showing finalized COD and SmartVA usage counts in that unmapped ICD grid so
+  operators can see whether an unmapped ICD is already present in active
+  outcome data
+- including the SmartVA pseudo-codes `UU1` and `UU2` in that reporting-side
+  unmapped/searchable ICD catalog so schemes can map them explicitly even
+  though they do not exist in the ICD-10 master
 - filtering that unmapped ICD grid to codes already used in finalized COD
   outcomes, so operationally observed non-default ICDs can be reviewed and
   manually allocated
+- filtering that unmapped ICD grid independently by finalized COD usage and by
+  SmartVA usage
 - bulk-allocating selected rows from that unmapped ICD list to a chosen age
   band and disease leaf in the current scheme
 - filtering the selected disease leaf's mapped ICD list to manual overrides or

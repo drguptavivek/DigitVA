@@ -193,6 +193,8 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"COD Bucket Mapping", response.data)
         self.assertIn(b"New Scheme", response.data)
+        self.assertIn(b"Utilized In SmartVA", response.data)
+        self.assertIn(b"cb-unmapped-smartva-filter", response.data)
 
     def test_cod_bucket_scheme_detail_returns_editor_payload(self):
         self._login(self.base_admin_id)
@@ -610,6 +612,22 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertFalse(z91["is_assignable_in_coding"])
         self.assertEqual(z91["coding_status_label"], "Currently not assignable in coding")
 
+    def test_cod_bucket_icd_search_includes_smartva_pseudo_codes(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/icd-search"
+            "?age_scope=adult_over5y&q=UU"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        uu1 = next(item for item in payload["results"] if item["icd_code"] == "UU1")
+        uu2 = next(item for item in payload["results"] if item["icd_code"] == "UU2")
+        self.assertEqual(uu1["icd_to_display"], "Other Non-communicable Diseases")
+        self.assertEqual(uu2["icd_to_display"], "Other Defined Causes of Child Deaths")
+        self.assertFalse(uu1["is_assignable_in_coding"])
+        self.assertFalse(uu2["is_assignable_in_coding"])
+
     def test_cod_bucket_unmapped_icd_grid_payload_lists_active_scheme_unmapped_codes(self):
         self._login(self.base_admin_id)
         db.session.merge(
@@ -651,8 +669,35 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertTrue(any(item["code"] == "XY01" for item in payload["rows"]))
         self.assertFalse(any(item["code"] == "V01" for item in payload["rows"]))
         z91 = next(item for item in payload["rows"] if item["code"] == "Z91")
+        self.assertIn("smartva_count", z91)
+        self.assertIn("is_utilized_in_smartva", z91)
         self.assertFalse(z91["is_assignable_in_coding"])
         self.assertEqual(z91["coding_status_label"], "Currently not assignable in coding")
+
+    def test_cod_bucket_node_mappings_render_smartva_pseudo_codes_with_labels(self):
+        self._login(self.base_admin_id)
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=self.scheme_id,
+                age_scope="adult_over5y",
+                icd_code="UU1",
+                node_id=self.field_a_id,
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/nodes/{self.field_a_id}/mappings"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(any(
+            mapping["icd_code"] == "UU1"
+            and mapping["icd_to_display"] == "UU1-Other Non-communicable Diseases"
+            for mapping in payload["mappings"]
+        ))
 
     def test_cod_bucket_node_patch_updates_label_and_sort_order(self):
         self._login(self.base_admin_id)

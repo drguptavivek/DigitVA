@@ -19,6 +19,7 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaResearchProjects,
+    VaSmartvaResults,
     VaSites,
     VaStatuses,
     VaSubmissionWorkflow,
@@ -48,6 +49,7 @@ from app.services.cod_bucket_mapping_service import (
     list_cod_bucket_unmapped_icd_rows,
     list_unmatched_coded_submission_icds_by_bucket,
     reset_cod_bucket_scheme_age_band_to_source,
+    summarize_cod_bucket_reporting_breakdowns,
     summarize_unmatched_coded_submissions_by_bucket,
 )
 from app.services.submission_analytics_mv import refresh_submission_analytics_mv
@@ -537,6 +539,8 @@ class CodBucketMappingServiceTests(BaseTestCase):
         r54 = next(row for row in payload["rows"] if row["code"] == "R54")
         self.assertEqual(r54["final_cod_count"], 1)
         self.assertTrue(r54["is_utilized_in_final_cod"])
+        self.assertEqual(r54["smartva_count"], 0)
+        self.assertFalse(r54["is_utilized_in_smartva"])
         self.assertFalse(r54["is_assignable_in_coding"])
 
     def test_unmapped_icd_rows_include_utilized_final_cod_codes_missing_from_master_catalog(self):
@@ -584,8 +588,118 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(a90["semantic_level"], "unknown")
         self.assertEqual(a90["final_cod_count"], 1)
         self.assertTrue(a90["is_utilized_in_final_cod"])
+        self.assertEqual(a90["smartva_count"], 0)
+        self.assertFalse(a90["is_utilized_in_smartva"])
         self.assertFalse(a90["is_assignable_in_coding"])
         self.assertEqual(a90["coding_status_label"], "Currently not assignable in coding")
+
+    def test_unmapped_icd_rows_include_utilized_smartva_codes(self):
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_UNMAPPED_SMARTVA_USAGE",
+            scheme_name="Test Unmapped SmartVA Usage",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.add(
+            MasIcd1020192(
+                code="R99",
+                title="Other ill-defined and unspecified causes of mortality",
+                node_type="category",
+                semantic_level="three_character",
+                sort_order=1,
+                parent_code=None,
+                chapter_code="XVIII",
+                chapter_title="Symptoms, signs and abnormal clinical and laboratory findings",
+                block_code="R95-R99",
+                block_title="Ill-defined and unknown causes of mortality",
+                three_character_code="R99",
+                three_character_title="Other ill-defined and unspecified causes of mortality",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=True,
+                is_detailed_code=False,
+                is_coding_selectable=False,
+                sex_selectable=None,
+                age_group_selectable=None,
+                policy_status="reviewed",
+                source_version="2019-test",
+                source_path="tests",
+                is_active=True,
+            )
+        )
+        sid = "uuid:smartva-unmapped-r99"
+        submitted_at = datetime.now(timezone.utc)
+        db.session.add(
+            VaSubmissions(
+                va_sid=sid,
+                va_form_id=self.FORM_ID,
+                va_submission_date=submitted_at,
+                va_odk_updatedat=submitted_at,
+                va_data_collector="collector",
+                va_odk_reviewstate="approved",
+                va_instance_name=sid,
+                va_uniqueid_real=sid,
+                va_uniqueid_masked=sid,
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=0,
+                va_deceased_age_normalized_days=Decimal("65") * Decimal("365.25"),
+                va_deceased_age_normalized_years=Decimal("65"),
+                va_deceased_age_source="test",
+                va_deceased_gender="male",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=sid,
+                workflow_state="smartva_pending",
+                workflow_reason="test",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.add(
+            VaSmartvaResults(
+                va_sid=sid,
+                va_smartva_resultfor="adult",
+                va_smartva_cause1="Unknown cause",
+                va_smartva_cause1icd="R99",
+                va_smartva_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        payload = list_cod_bucket_unmapped_icd_rows(scheme_code="TEST_UNMAPPED_SMARTVA_USAGE")
+
+        r99 = next(row for row in payload["rows"] if row["code"] == "R99")
+        self.assertEqual(r99["final_cod_count"], 0)
+        self.assertFalse(r99["is_utilized_in_final_cod"])
+        self.assertEqual(r99["smartva_count"], 1)
+        self.assertTrue(r99["is_utilized_in_smartva"])
+
+    def test_unmapped_icd_rows_include_smartva_pseudo_codes_for_explicit_mapping(self):
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_UNMAPPED_SMARTVA_PSEUDO",
+            scheme_name="Test Unmapped SmartVA Pseudo",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.commit()
+
+        payload = list_cod_bucket_unmapped_icd_rows(scheme_code="TEST_UNMAPPED_SMARTVA_PSEUDO")
+
+        uu1 = next(row for row in payload["rows"] if row["code"] == "UU1")
+        uu2 = next(row for row in payload["rows"] if row["code"] == "UU2")
+        self.assertEqual(uu1["title"], "Other Non-communicable Diseases")
+        self.assertEqual(uu2["title"], "Other Defined Causes of Child Deaths")
+        self.assertFalse(uu1["is_assignable_in_coding"])
+        self.assertFalse(uu2["is_assignable_in_coding"])
 
     def test_reset_srs_age_band_to_source_restores_selected_scope_only(self):
         workbook_path = self._make_srs_workbook()
@@ -1428,12 +1542,18 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(adult_row["bucket_subcategory"], "Adult Sub")
         self.assertEqual(adult_row["bucket_field"], "Adult Disease")
         self.assertEqual(adult_row["coded_count"], 1)
+        self.assertEqual(adult_row["male_count"], 1)
+        self.assertEqual(adult_row["female_count"], 0)
+        self.assertEqual(adult_row["unknown_count"], 0)
 
         child_row = next(row for row in rows if row["age_scope"] == AGE_SCOPE_CHILD_1_59M)
         self.assertEqual(child_row["bucket_category"], "Child Main")
         self.assertIsNone(child_row["bucket_subcategory"])
         self.assertEqual(child_row["bucket_field"], "Child Disease")
         self.assertEqual(child_row["coded_count"], 1)
+        self.assertEqual(child_row["male_count"], 1)
+        self.assertEqual(child_row["female_count"], 0)
+        self.assertEqual(child_row["unknown_count"], 0)
 
     def test_aggregate_coded_submissions_by_bucket_preserves_display_order(self):
         db.session.execute(
@@ -1563,9 +1683,184 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(rows[0]["bucket_category_sort_order"], 1)
         self.assertEqual(rows[0]["bucket_field_sort_order"], 1)
         self.assertEqual(rows[0]["coded_count"], 1)
+        self.assertEqual(rows[0]["male_count"], 1)
         self.assertEqual(rows[1]["bucket_category_sort_order"], 2)
         self.assertEqual(rows[1]["bucket_field_sort_order"], 2)
         self.assertEqual(rows[1]["coded_count"], 2)
+        self.assertEqual(rows[1]["male_count"], 2)
+
+    def test_summarize_cod_bucket_reporting_breakdowns_returns_top_causes_age_bands_and_gender(self):
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+                )
+            )
+        )
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        now = datetime.now(timezone.utc)
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_BREAKDOWNS",
+            scheme_name="Test Breakdowns",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                age_label="All Ages",
+                min_age_value=0,
+                min_age_unit="days",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=2,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+
+        category_alpha = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="alpha",
+            node_label="Alpha",
+            sort_order=1,
+        )
+        cause_heart = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_FIELD,
+            parent=category_alpha,
+            node_code="heart",
+            node_label="Heart Failure",
+            sort_order=1,
+        )
+        category_beta = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="beta",
+            node_label="Beta",
+            sort_order=2,
+        )
+        cause_sepsis = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=None,
+            node_type=NODE_TYPE_FIELD,
+            parent=category_beta,
+            node_code="sepsis",
+            node_label="Sepsis",
+            sort_order=1,
+        )
+        db.session.add_all([category_alpha, cause_heart, category_beta, cause_sepsis])
+        db.session.flush()
+
+        db.session.add_all(
+            [
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=None,
+                    icd_code="I21",
+                    node_id=cause_heart.node_id,
+                    is_active=True,
+                ),
+                MapIcdCodBucket(
+                    scheme_id=scheme.scheme_id,
+                    age_scope=None,
+                    icd_code="A41",
+                    node_id=cause_sepsis.node_id,
+                    is_active=True,
+                ),
+            ]
+        )
+
+        self._add_coded_submission(
+            sid="uuid:breakdown-neonate",
+            icd="A41",
+            submitted_at=now,
+            normalized_years=Decimal("0.02"),
+        )
+        self._add_coded_submission(
+            sid="uuid:breakdown-infant",
+            icd="A41",
+            submitted_at=now,
+            normalized_years=Decimal("0.5"),
+        )
+        self._add_coded_submission(
+            sid="uuid:breakdown-child",
+            icd="I21",
+            submitted_at=now,
+            normalized_years=Decimal("4"),
+        )
+        self._add_coded_submission(
+            sid="uuid:breakdown-adult",
+            icd="I21",
+            submitted_at=now,
+            normalized_years=Decimal("20"),
+        )
+        self._add_coded_submission(
+            sid="uuid:breakdown-older",
+            icd="I21",
+            submitted_at=now,
+            normalized_years=Decimal("60"),
+        )
+
+        db.session.execute(
+            sa.update(VaSubmissions)
+            .where(VaSubmissions.va_sid.in_(["uuid:breakdown-neonate", "uuid:breakdown-child", "uuid:breakdown-older"]))
+            .values(va_deceased_gender="female")
+        )
+        db.session.execute(
+            sa.update(VaSubmissions)
+            .where(VaSubmissions.va_sid.in_(["uuid:breakdown-infant", "uuid:breakdown-adult"]))
+            .values(va_deceased_gender="male")
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        summary = summarize_cod_bucket_reporting_breakdowns(
+            scheme_code="TEST_BREAKDOWNS",
+            form_id=self.FORM_ID,
+            top_n=10,
+        )
+
+        self.assertEqual(summary["matched_total"], 5)
+        self.assertEqual(summary["top_causes"][0]["bucket_field"], "Heart Failure")
+        self.assertEqual(summary["top_causes"][0]["coded_count"], 3)
+        self.assertEqual(summary["top_causes"][0]["percent"], 60.0)
+        self.assertEqual(summary["top_causes"][1]["bucket_field"], "Sepsis")
+        self.assertEqual(summary["top_causes"][1]["coded_count"], 2)
+
+        self.assertEqual(
+            summary["age_band_distribution"],
+            [
+                {"age_band": "0-<28 days", "sort_order": 1, "coded_count": 1, "percent": 20.0},
+                {"age_band": "28 days-<365 days", "sort_order": 2, "coded_count": 1, "percent": 20.0},
+                {"age_band": "365 days-<12 years", "sort_order": 3, "coded_count": 1, "percent": 20.0},
+                {"age_band": "12 years-<50 years", "sort_order": 4, "coded_count": 1, "percent": 20.0},
+                {"age_band": ">=50 years", "sort_order": 5, "coded_count": 1, "percent": 20.0},
+            ],
+        )
+        self.assertEqual(
+            summary["gender_distribution"],
+            [
+                {"gender": "Female", "coded_count": 3, "percent": 60.0},
+                {"gender": "Male", "coded_count": 2, "percent": 40.0},
+            ],
+        )
 
     def test_summarize_unmatched_coded_submissions_by_bucket_counts_dropped_icds(self):
         db.session.execute(

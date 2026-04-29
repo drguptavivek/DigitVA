@@ -870,6 +870,9 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(payload["data"][0]["age_scope"], "adult_over5y")
         self.assertEqual(payload["data"][0]["bucket_field"], "Scope Field")
         self.assertEqual(payload["data"][0]["coded_count"], 1)
+        self.assertEqual(payload["data"][0]["male_count"], 1)
+        self.assertEqual(payload["data"][0]["female_count"], 0)
+        self.assertEqual(payload["data"][0]["unknown_count"], 0)
         self.assertEqual(
             payload["summary"]["unmatched_by_age_scope"],
             [
@@ -889,6 +892,42 @@ class DataManagerDashboardTests(BaseTestCase):
                     "category": "not_included_in_scheme",
                     "category_label": "ICD codes not included in CoD Categories",
                     "is_master_coding_eligible": True,
+                }
+            ],
+        )
+        self.assertEqual(payload["summary"]["matched_total"], 1)
+        self.assertEqual(
+            payload["summary"]["top_causes"],
+            [
+                {
+                    "rank": 1,
+                    "bucket_category": "Scope Main",
+                    "bucket_subcategory": None,
+                    "bucket_field": "Scope Field",
+                    "display_label": "Scope Main / Scope Field",
+                    "coded_count": 1,
+                    "percent": 100.0,
+                }
+            ],
+        )
+        self.assertEqual(
+            payload["summary"]["age_band_distribution"],
+            [
+                {
+                    "age_band": ">=50 years",
+                    "sort_order": 5,
+                    "coded_count": 1,
+                    "percent": 100.0,
+                }
+            ],
+        )
+        self.assertEqual(
+            payload["summary"]["gender_distribution"],
+            [
+                {
+                    "gender": "Male",
+                    "coded_count": 1,
+                    "percent": 100.0,
                 }
             ],
         )

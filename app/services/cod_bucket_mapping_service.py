@@ -18,6 +18,7 @@ from app.models import (
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
+    VaSmartvaResults,
     VaSubmissions,
 )
 from app.services.submission_analytics_mv import (
@@ -34,9 +35,38 @@ AGE_SCOPE_ADULT_OVER5Y = "adult_over5y"
 AGE_SCOPE_CHILD_1_59M = "child_1_59m"
 AGE_SCOPE_NEONATE = "neonate"
 
+REPORTING_AGE_BAND_0_27_DAYS = "0-<28 days"
+REPORTING_AGE_BAND_28_364_DAYS = "28 days-<365 days"
+REPORTING_AGE_BAND_365_DAYS_TO_11_YEARS = "365 days-<12 years"
+REPORTING_AGE_BAND_12_49_YEARS = "12 years-<50 years"
+REPORTING_AGE_BAND_50_PLUS_YEARS = ">=50 years"
+
 AGE_UNIT_DAYS = "days"
 AGE_UNIT_MONTHS = "months"
 AGE_UNIT_YEARS = "years"
+
+SMARTVA_PSEUDO_ICD_ROWS = (
+    {
+        "code": "UU1",
+        "title": "Other Non-communicable Diseases",
+        "semantic_level": "three_character",
+        "is_coding_selectable": False,
+        "chapter_code": "",
+        "chapter_title": "SmartVA pseudo-codes",
+        "three_character_code": "UU1",
+        "three_character_title": "Other Non-communicable Diseases",
+    },
+    {
+        "code": "UU2",
+        "title": "Other Defined Causes of Child Deaths",
+        "semantic_level": "three_character",
+        "is_coding_selectable": False,
+        "chapter_code": "",
+        "chapter_title": "SmartVA pseudo-codes",
+        "three_character_code": "UU2",
+        "three_character_title": "Other Defined Causes of Child Deaths",
+    },
+)
 AGE_UNITS = (AGE_UNIT_DAYS, AGE_UNIT_MONTHS, AGE_UNIT_YEARS)
 DEFAULT_MIN_AGE_VALUE = 0
 DEFAULT_MIN_AGE_UNIT = AGE_UNIT_DAYS
@@ -136,6 +166,20 @@ def _reporting_icd_sql(column, alias_column):
     return sa.func.coalesce(alias_column, column)
 
 
+def _normalize_gender_label(value: str | None) -> str:
+    normalized = _normalize_label(value)
+    if normalized is None:
+        return "Unknown"
+    lowered = normalized.lower()
+    if lowered == "male":
+        return "Male"
+    if lowered == "female":
+        return "Female"
+    if lowered in {"other", "non-binary", "non binary"}:
+        return "Other"
+    return "Unknown"
+
+
 def get_reporting_icd_alias_rows() -> list[dict]:
     rows = db.session.execute(
         sa.select(
@@ -210,16 +254,50 @@ def _escape_like(value: str) -> str:
     )
 
 
+def _reporting_icd_catalog_subquery():
+    master_rows = (
+        sa.select(
+            MasIcd1020192.code.label("code"),
+            MasIcd1020192.title.label("title"),
+            MasIcd1020192.semantic_level.label("semantic_level"),
+            MasIcd1020192.is_coding_selectable.label("is_coding_selectable"),
+            MasIcd1020192.chapter_code.label("chapter_code"),
+            MasIcd1020192.chapter_title.label("chapter_title"),
+            MasIcd1020192.three_character_code.label("three_character_code"),
+            MasIcd1020192.three_character_title.label("three_character_title"),
+        )
+        .where(
+            MasIcd1020192.is_active.is_(True),
+            MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
+        )
+    )
+    pseudo_rows = [
+        sa.select(
+            sa.literal(row["code"]).label("code"),
+            sa.literal(row["title"]).label("title"),
+            sa.literal(row["semantic_level"]).label("semantic_level"),
+            sa.literal(row["is_coding_selectable"]).label("is_coding_selectable"),
+            sa.literal(row["chapter_code"]).label("chapter_code"),
+            sa.literal(row["chapter_title"]).label("chapter_title"),
+            sa.literal(row["three_character_code"]).label("three_character_code"),
+            sa.literal(row["three_character_title"]).label("three_character_title"),
+        )
+        for row in SMARTVA_PSEUDO_ICD_ROWS
+    ]
+    return sa.union_all(master_rows, *pseudo_rows).subquery()
+
+
 def _icd_master_display_subquery():
+    catalog_sq = _reporting_icd_catalog_subquery()
     return (
         sa.select(
-            MasIcd1020192.code.label("icd_code"),
+            catalog_sq.c.code.label("icd_code"),
             sa.func.min(
-                sa.func.concat(MasIcd1020192.code, sa.literal("-"), MasIcd1020192.title)
+                sa.func.concat(catalog_sq.c.code, sa.literal("-"), catalog_sq.c.title)
             ).label("icd_to_display"),
         )
-        .where(MasIcd1020192.is_active.is_(True))
-        .group_by(MasIcd1020192.code)
+        .select_from(catalog_sq)
+        .group_by(catalog_sq.c.code)
         .subquery()
     )
 
@@ -2234,12 +2312,13 @@ def search_cod_bucket_icd_candidates(
     if len(normalized_query) < 2:
         return []
 
+    reporting_catalog_sq = _reporting_icd_catalog_subquery()
     escaped_query = _escape_like(normalized_query)
     code_prefix = f"{escaped_query}%"
     title_prefix = f"{escaped_query}%"
     title_contains = f"%{escaped_query}%"
-    lower_code = sa.func.lower(MasIcd1020192.code)
-    lower_title = sa.func.lower(MasIcd1020192.title)
+    lower_code = sa.func.lower(reporting_catalog_sq.c.code)
+    lower_title = sa.func.lower(reporting_catalog_sq.c.title)
 
     rank_expr = sa.case(
         (lower_code == normalized_query, 0),
@@ -2251,31 +2330,29 @@ def search_cod_bucket_icd_candidates(
 
     stmt = (
         sa.select(
-            MasIcd1020192.code.label("icd_code"),
-            MasIcd1020192.title.label("icd_to_display"),
-            MasIcd1020192.is_coding_selectable.label("is_coding_selectable"),
+            reporting_catalog_sq.c.code.label("icd_code"),
+            reporting_catalog_sq.c.title.label("icd_to_display"),
+            reporting_catalog_sq.c.is_coding_selectable.label("is_coding_selectable"),
             MapIcdCodBucket.mapping_id,
             MapIcdCodBucket.node_id,
         )
-        .select_from(MasIcd1020192)
+        .select_from(reporting_catalog_sq)
         .outerjoin(
             MapIcdCodBucket,
             sa.and_(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.age_scope == age_scope,
-                MapIcdCodBucket.icd_code == MasIcd1020192.code,
+                MapIcdCodBucket.icd_code == reporting_catalog_sq.c.code,
             ),
         )
         .where(
-            MasIcd1020192.is_active.is_(True),
-            MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
             sa.or_(
                 lower_code.like(code_prefix, escape=_LIKE_ESCAPE),
                 lower_title.like(title_prefix, escape=_LIKE_ESCAPE),
                 lower_title.like(title_contains, escape=_LIKE_ESCAPE),
             )
         )
-        .order_by(rank_expr, MasIcd1020192.code.asc())
+        .order_by(rank_expr, reporting_catalog_sq.c.code.asc())
         .limit(limit)
     )
     if unmapped_only:
@@ -2333,31 +2410,31 @@ def list_cod_bucket_unmapped_icd_rows(
         .subquery()
     )
 
+    reporting_catalog_sq = _reporting_icd_catalog_subquery()
     rows = db.session.execute(
         sa.select(
-            MasIcd1020192.code,
-            MasIcd1020192.title,
-            MasIcd1020192.semantic_level,
-            MasIcd1020192.is_coding_selectable,
-            MasIcd1020192.chapter_code,
-            MasIcd1020192.chapter_title,
-            MasIcd1020192.three_character_code,
-            MasIcd1020192.three_character_title,
+            reporting_catalog_sq.c.code,
+            reporting_catalog_sq.c.title,
+            reporting_catalog_sq.c.semantic_level,
+            reporting_catalog_sq.c.is_coding_selectable,
+            reporting_catalog_sq.c.chapter_code,
+            reporting_catalog_sq.c.chapter_title,
+            reporting_catalog_sq.c.three_character_code,
+            reporting_catalog_sq.c.three_character_title,
         )
-        .select_from(MasIcd1020192)
-        .outerjoin(mapped_codes_sq, mapped_codes_sq.c.icd_code == MasIcd1020192.code)
+        .select_from(reporting_catalog_sq)
+        .outerjoin(mapped_codes_sq, mapped_codes_sq.c.icd_code == reporting_catalog_sq.c.code)
         .where(
-            MasIcd1020192.is_active.is_(True),
-            MasIcd1020192.semantic_level.in_(("three_character", "detailed_code")),
             mapped_codes_sq.c.icd_code.is_(None),
         )
         .order_by(
-            MasIcd1020192.chapter_code.asc(),
-            MasIcd1020192.three_character_code.asc(),
-            MasIcd1020192.code.asc(),
+            reporting_catalog_sq.c.chapter_code.asc(),
+            reporting_catalog_sq.c.three_character_code.asc(),
+            reporting_catalog_sq.c.code.asc(),
         )
     ).mappings().all()
     final_cod_counts: dict[str, int] = {}
+    smartva_counts: dict[str, int] = {}
     analytics_views_available = bool(
         db.session.scalar(sa.text(f"SELECT to_regclass('{COD_MV_NAME}')"))
         and db.session.scalar(sa.text(f"SELECT to_regclass('{DEMOGRAPHICS_MV_NAME}')"))
@@ -2399,6 +2476,95 @@ def list_cod_bucket_unmapped_icd_rows(
                 .group_by(cod.c.final_icd)
             ).mappings()
         }
+        latest_smartva_sq = (
+            sa.select(
+                VaSmartvaResults.va_sid.label("va_sid"),
+                sa.func.upper(VaSmartvaResults.va_smartva_cause1icd).label("cause1_icd"),
+                sa.func.upper(VaSmartvaResults.va_smartva_cause2icd).label("cause2_icd"),
+                sa.func.upper(VaSmartvaResults.va_smartva_cause3icd).label("cause3_icd"),
+            )
+            .where(VaSmartvaResults.va_smartva_status == "active")
+            .distinct(VaSmartvaResults.va_sid)
+            .order_by(
+                VaSmartvaResults.va_sid,
+                VaSmartvaResults.va_smartva_updatedat.desc(),
+                VaSmartvaResults.va_smartva_id.desc(),
+            )
+            .subquery()
+        )
+        smartva_alias1 = sa.orm.aliased(MapIcd10LegacyReportingAlias)
+        smartva_alias2 = sa.orm.aliased(MapIcd10LegacyReportingAlias)
+        smartva_alias3 = sa.orm.aliased(MapIcd10LegacyReportingAlias)
+        smartva_codes_sq = sa.union_all(
+            sa.select(
+                latest_smartva_sq.c.va_sid,
+                latest_smartva_sq.c.cause1_icd.label("smartva_icd"),
+                sa.func.coalesce(
+                    smartva_alias1.reporting_code,
+                    latest_smartva_sq.c.cause1_icd,
+                ).label("mapped_icd"),
+            )
+            .select_from(latest_smartva_sq)
+            .outerjoin(
+                smartva_alias1,
+                smartva_alias1.legacy_code == latest_smartva_sq.c.cause1_icd,
+            )
+            .where(latest_smartva_sq.c.cause1_icd.is_not(None)),
+            sa.select(
+                latest_smartva_sq.c.va_sid,
+                latest_smartva_sq.c.cause2_icd.label("smartva_icd"),
+                sa.func.coalesce(
+                    smartva_alias2.reporting_code,
+                    latest_smartva_sq.c.cause2_icd,
+                ).label("mapped_icd"),
+            )
+            .select_from(latest_smartva_sq)
+            .outerjoin(
+                smartva_alias2,
+                smartva_alias2.legacy_code == latest_smartva_sq.c.cause2_icd,
+            )
+            .where(latest_smartva_sq.c.cause2_icd.is_not(None)),
+            sa.select(
+                latest_smartva_sq.c.va_sid,
+                latest_smartva_sq.c.cause3_icd.label("smartva_icd"),
+                sa.func.coalesce(
+                    smartva_alias3.reporting_code,
+                    latest_smartva_sq.c.cause3_icd,
+                ).label("mapped_icd"),
+            )
+            .select_from(latest_smartva_sq)
+            .outerjoin(
+                smartva_alias3,
+                smartva_alias3.legacy_code == latest_smartva_sq.c.cause3_icd,
+            )
+            .where(latest_smartva_sq.c.cause3_icd.is_not(None)),
+        ).subquery()
+        smartva_counts = {
+            row["smartva_icd"]: int(row["smartva_count"])
+            for row in db.session.execute(
+                sa.select(
+                    smartva_codes_sq.c.smartva_icd,
+                    sa.func.count(
+                        sa.distinct(
+                            sa.tuple_(
+                                smartva_codes_sq.c.va_sid,
+                                smartva_codes_sq.c.smartva_icd,
+                            )
+                        )
+                    ).label("smartva_count"),
+                )
+                .select_from(smartva_codes_sq)
+                .outerjoin(
+                    mapped_codes_sq,
+                    mapped_codes_sq.c.icd_code == smartva_codes_sq.c.mapped_icd,
+                )
+                .where(
+                    smartva_codes_sq.c.smartva_icd.is_not(None),
+                    mapped_codes_sq.c.icd_code.is_(None),
+                )
+                .group_by(smartva_codes_sq.c.smartva_icd)
+            ).mappings()
+        }
 
     payload_rows = [
         {
@@ -2416,6 +2582,8 @@ def list_cod_bucket_unmapped_icd_rows(
             "title": row["title"],
             "final_cod_count": final_cod_counts.get(row["code"], 0),
             "is_utilized_in_final_cod": final_cod_counts.get(row["code"], 0) > 0,
+            "smartva_count": smartva_counts.get(row["code"], 0),
+            "is_utilized_in_smartva": smartva_counts.get(row["code"], 0) > 0,
             "is_assignable_in_coding": bool(row["is_coding_selectable"]),
             "coding_status_label": (
                 None
@@ -2426,8 +2594,13 @@ def list_cod_bucket_unmapped_icd_rows(
         for row in rows
     ]
     known_codes = {row["code"] for row in payload_rows}
-    orphan_final_cod_codes = sorted(code for code in final_cod_counts if code not in known_codes)
-    for icd_code in orphan_final_cod_codes:
+    orphan_codes = sorted(
+        set(code for code in final_cod_counts if code not in known_codes)
+        | set(code for code in smartva_counts if code not in known_codes)
+    )
+    for icd_code in orphan_codes:
+        final_count = final_cod_counts.get(icd_code, 0)
+        smartva_count = smartva_counts.get(icd_code, 0)
         payload_rows.append(
             {
                 "chapter": "",
@@ -2438,8 +2611,10 @@ def list_cod_bucket_unmapped_icd_rows(
                 "semantic_level": "unknown",
                 "code": icd_code,
                 "title": "",
-                "final_cod_count": final_cod_counts[icd_code],
-                "is_utilized_in_final_cod": True,
+                "final_cod_count": final_count,
+                "smartva_count": smartva_count,
+                "is_utilized_in_final_cod": final_count > 0,
+                "is_utilized_in_smartva": smartva_count > 0,
                 "is_assignable_in_coding": False,
                 "coding_status_label": "Currently not assignable in coding",
             }
@@ -2521,6 +2696,25 @@ def aggregate_coded_submissions_by_bucket(
         (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.sort_order),
         else_=0,
     ).label("bucket_subcategory_sort_order")
+    gender_normalized = sa.func.lower(sa.func.coalesce(base_rows.c.gender, "unknown"))
+    male_count = sa.func.sum(
+        sa.case((gender_normalized == "male", 1), else_=0)
+    ).label("male_count")
+    female_count = sa.func.sum(
+        sa.case((gender_normalized == "female", 1), else_=0)
+    ).label("female_count")
+    unknown_count = sa.func.sum(
+        sa.case(
+            (
+                sa.and_(
+                    gender_normalized != "male",
+                    gender_normalized != "female",
+                ),
+                1,
+            ),
+            else_=0,
+        )
+    ).label("unknown_count")
 
     select_columns = [
         base_rows.c.age_scope,
@@ -2530,6 +2724,9 @@ def aggregate_coded_submissions_by_bucket(
         subcategory_sort_order,
         field_node.node_label.label("bucket_field"),
         field_node.sort_order.label("bucket_field_sort_order"),
+        male_count,
+        female_count,
+        unknown_count,
         sa.func.count().label("coded_count"),
     ]
     group_by_columns = [
@@ -2546,9 +2743,6 @@ def aggregate_coded_submissions_by_bucket(
         category_sort_order.asc(),
         subcategory_sort_order.asc(),
         field_node.sort_order.asc(),
-        category_label.asc().nullslast(),
-        subcategory_label.asc().nullslast(),
-        field_node.node_label.asc(),
     ]
 
     if not collapse_scope:
@@ -2791,6 +2985,225 @@ def list_unmatched_coded_submission_icds_by_bucket(
     return classified_rows
 
 
+def _matched_cod_bucket_rows_subquery(*, scheme, base_rows):
+    field_node = sa.orm.aliased(MasCodBucketNode)
+    parent_node = sa.orm.aliased(MasCodBucketNode)
+    grandparent_node = sa.orm.aliased(MasCodBucketNode)
+
+    category_label = sa.case(
+        (field_node.parent_node_id.is_(None), sa.null()),
+        (parent_node.node_type == NODE_TYPE_CATEGORY, parent_node.node_label),
+        else_=grandparent_node.node_label,
+    ).label("bucket_category")
+    subcategory_label = sa.case(
+        (field_node.parent_node_id.is_(None), sa.null()),
+        (parent_node.node_type == NODE_TYPE_SUBCATEGORY, parent_node.node_label),
+        else_=sa.null(),
+    ).label("bucket_subcategory")
+
+    query = (
+        sa.select(
+            base_rows.c.age_scope,
+            base_rows.c.age_normalized_days,
+            base_rows.c.gender,
+            category_label,
+            subcategory_label,
+            field_node.node_label.label("bucket_field"),
+        )
+        .select_from(base_rows)
+        .join(
+            MapIcdCodBucket,
+            sa.and_(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                sa.or_(
+                    sa.and_(
+                        MapIcdCodBucket.age_scope.is_(None),
+                        base_rows.c.age_scope.is_(None),
+                    ),
+                    MapIcdCodBucket.age_scope == base_rows.c.age_scope,
+                ),
+            ),
+        )
+        .join(field_node, field_node.node_id == MapIcdCodBucket.node_id)
+        .outerjoin(parent_node, parent_node.node_id == field_node.parent_node_id)
+        .outerjoin(grandparent_node, grandparent_node.node_id == parent_node.parent_node_id)
+    )
+    return query.subquery("matched_cod_bucket_rows")
+
+
+def summarize_cod_bucket_reporting_breakdowns(
+    *,
+    scheme_code: str,
+    project_id: str | None = None,
+    site_id: str | None = None,
+    form_id: str | None = None,
+    submission_date_from=None,
+    submission_date_to=None,
+    allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    top_n: int = 10,
+) -> dict:
+    """Return top-cause, age-band, and gender summaries for the current scope."""
+    if allowed_project_site_pairs is not None and not allowed_project_site_pairs:
+        return {
+            "top_causes": [],
+            "age_band_distribution": [],
+            "gender_distribution": [],
+            "matched_total": 0,
+        }
+
+    scheme, base_rows = _cod_bucket_aggregate_base_subquery(
+        scheme_code=scheme_code,
+        project_id=project_id,
+        site_id=site_id,
+        form_id=form_id,
+        submission_date_from=submission_date_from,
+        submission_date_to=submission_date_to,
+        allowed_project_site_pairs=allowed_project_site_pairs,
+    )
+    matched_rows = _matched_cod_bucket_rows_subquery(scheme=scheme, base_rows=base_rows)
+
+    matched_total = int(
+        db.session.scalar(sa.select(sa.func.count()).select_from(matched_rows)) or 0
+    )
+    if matched_total == 0:
+        return {
+            "top_causes": [],
+            "age_band_distribution": [],
+            "gender_distribution": [],
+            "matched_total": 0,
+        }
+
+    top_cause_rows = db.session.execute(
+        sa.select(
+            matched_rows.c.bucket_category,
+            matched_rows.c.bucket_subcategory,
+            matched_rows.c.bucket_field,
+            sa.func.count().label("coded_count"),
+        )
+        .group_by(
+            matched_rows.c.bucket_category,
+            matched_rows.c.bucket_subcategory,
+            matched_rows.c.bucket_field,
+        )
+        .order_by(
+            sa.func.count().desc(),
+            matched_rows.c.bucket_field.asc(),
+            matched_rows.c.bucket_category.asc().nullslast(),
+            matched_rows.c.bucket_subcategory.asc().nullslast(),
+        )
+        .limit(top_n)
+    ).mappings().all()
+
+    age_band_label = sa.case(
+        (
+            matched_rows.c.age_normalized_days < sa.literal(28),
+            REPORTING_AGE_BAND_0_27_DAYS,
+        ),
+        (
+            matched_rows.c.age_normalized_days < sa.literal(365),
+            REPORTING_AGE_BAND_28_364_DAYS,
+        ),
+        (
+            matched_rows.c.age_normalized_days < sa.literal(12 * 365),
+            REPORTING_AGE_BAND_365_DAYS_TO_11_YEARS,
+        ),
+        (
+            matched_rows.c.age_normalized_days < sa.literal(50 * 365),
+            REPORTING_AGE_BAND_12_49_YEARS,
+        ),
+        else_=REPORTING_AGE_BAND_50_PLUS_YEARS,
+    ).label("reporting_age_band")
+    age_band_sort_order = sa.case(
+        (
+            matched_rows.c.age_normalized_days < sa.literal(28),
+            1,
+        ),
+        (
+            matched_rows.c.age_normalized_days < sa.literal(365),
+            2,
+        ),
+        (
+            matched_rows.c.age_normalized_days < sa.literal(12 * 365),
+            3,
+        ),
+        (
+            matched_rows.c.age_normalized_days < sa.literal(50 * 365),
+            4,
+        ),
+        else_=5,
+    ).label("reporting_age_band_sort_order")
+
+    age_band_rows = db.session.execute(
+        sa.select(
+            age_band_label,
+            age_band_sort_order,
+            sa.func.count().label("coded_count"),
+        )
+        .group_by(age_band_label, age_band_sort_order)
+        .order_by(age_band_sort_order.asc())
+    ).mappings().all()
+
+    gender_rows = db.session.execute(
+        sa.select(
+            matched_rows.c.gender,
+            sa.func.count().label("coded_count"),
+        )
+        .group_by(matched_rows.c.gender)
+        .order_by(sa.func.count().desc(), matched_rows.c.gender.asc().nullslast())
+    ).mappings().all()
+
+    top_causes = []
+    for index, row in enumerate(top_cause_rows, start=1):
+        category = row["bucket_category"]
+        subcategory = row["bucket_subcategory"]
+        field = row["bucket_field"]
+        label_parts = [part for part in (category, subcategory, field) if part]
+        coded_count = int(row["coded_count"] or 0)
+        top_causes.append(
+            {
+                "rank": index,
+                "bucket_category": category,
+                "bucket_subcategory": subcategory,
+                "bucket_field": field,
+                "display_label": " / ".join(label_parts) if label_parts else field,
+                "coded_count": coded_count,
+                "percent": round((coded_count / matched_total) * 100, 1),
+            }
+        )
+
+    age_band_distribution = []
+    for row in age_band_rows:
+        coded_count = int(row["coded_count"] or 0)
+        age_band_distribution.append(
+            {
+                "age_band": row["reporting_age_band"],
+                "sort_order": int(row["reporting_age_band_sort_order"] or 0),
+                "coded_count": coded_count,
+                "percent": round((coded_count / matched_total) * 100, 1),
+            }
+        )
+
+    gender_distribution = []
+    for row in gender_rows:
+        coded_count = int(row["coded_count"] or 0)
+        gender_label = _normalize_gender_label(row["gender"])
+        gender_distribution.append(
+            {
+                "gender": gender_label,
+                "coded_count": coded_count,
+                "percent": round((coded_count / matched_total) * 100, 1),
+            }
+        )
+
+    return {
+        "top_causes": top_causes,
+        "age_band_distribution": age_band_distribution,
+        "gender_distribution": gender_distribution,
+        "matched_total": matched_total,
+    }
+
+
 def _cod_bucket_aggregate_base_subquery(
     *,
     scheme_code: str,
@@ -2860,6 +3273,8 @@ def _cod_bucket_aggregate_base_subquery(
             core.c.site_id.label("site_id"),
             VaSubmissions.va_form_id.label("form_id"),
             age_band.age_scope.label("age_scope"),
+            submission_age_days.label("age_normalized_days"),
+            VaSubmissions.va_deceased_gender.label("gender"),
             cod.c.final_icd.label("final_icd"),
             _reporting_icd_sql(
                 cod.c.final_icd,

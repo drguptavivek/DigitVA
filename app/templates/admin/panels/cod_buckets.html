@@ -136,6 +136,14 @@
               <option value="no">No</option>
             </select>
           </div>
+          <div class="col-lg-2">
+            <label for="cb-unmapped-smartva-filter" class="form-label small text-muted text-uppercase">Utilized In SmartVA</label>
+            <select id="cb-unmapped-smartva-filter" class="form-select form-select-sm">
+              <option value="">All</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
           <div class="col-lg-1">
             <label for="cb-unmapped-page-size" class="form-label small text-muted text-uppercase">Rows</label>
             <select id="cb-unmapped-page-size" class="form-select form-select-sm">
@@ -564,6 +572,7 @@
     unmappedIcdLoading: false,
     unmappedAssignableFilter: 'yes',
     unmappedUtilizedFilter: '',
+    unmappedSmartvaFilter: '',
     unmappedPage: 1,
     unmappedPageSize: 100,
     selectedUnmappedCodes: [],
@@ -606,6 +615,7 @@
     unmappedIcdBody: document.getElementById('cb-unmapped-icd-body'),
     unmappedAssignableFilter: document.getElementById('cb-unmapped-assignable-filter'),
     unmappedUtilizedFilter: document.getElementById('cb-unmapped-utilized-filter'),
+    unmappedSmartvaFilter: document.getElementById('cb-unmapped-smartva-filter'),
     unmappedPageSize: document.getElementById('cb-unmapped-page-size'),
     unmappedPageSummary: document.getElementById('cb-unmapped-page-summary'),
     unmappedPrevPage: document.getElementById('cb-unmapped-prev-page'),
@@ -1058,6 +1068,8 @@
     if (state.unmappedAssignableFilter === 'no' && row.is_assignable_in_coding) return false;
     if (state.unmappedUtilizedFilter === 'yes' && !row.is_utilized_in_final_cod) return false;
     if (state.unmappedUtilizedFilter === 'no' && row.is_utilized_in_final_cod) return false;
+    if (state.unmappedSmartvaFilter === 'yes' && !row.is_utilized_in_smartva) return false;
+    if (state.unmappedSmartvaFilter === 'no' && row.is_utilized_in_smartva) return false;
     return true;
   }
 
@@ -1070,7 +1082,10 @@
     }
     const pageStart = (state.unmappedPage - 1) * state.unmappedPageSize;
     const pageRows = filteredRows.slice(pageStart, pageStart + state.unmappedPageSize);
-    els.unmappedIcdCount.textContent = state.unmappedAssignableFilter
+    const hasActiveUnmappedFilters = Boolean(
+      state.unmappedAssignableFilter || state.unmappedUtilizedFilter || state.unmappedSmartvaFilter
+    );
+    els.unmappedIcdCount.textContent = hasActiveUnmappedFilters
       ? `${filteredRows.length} / ${rows.length}`
       : String(rows.length);
     els.unmappedPageSummary.textContent = filteredRows.length
@@ -1104,6 +1119,7 @@
             <th>Chapter</th>
             <th>ICD Code</th>
             <th>Final COD Uses</th>
+            <th>SmartVA Uses</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -1126,6 +1142,11 @@
               <td class="small">
                 ${row.is_utilized_in_final_cod
                   ? `<span class="badge text-bg-primary">${esc(String(row.final_cod_count || 0))}</span>`
+                  : '<span class="text-muted">0</span>'}
+              </td>
+              <td class="small">
+                ${row.is_utilized_in_smartva
+                  ? `<span class="badge text-bg-info">${esc(String(row.smartva_count || 0))}</span>`
                   : '<span class="text-muted">0</span>'}
               </td>
               <td class="small">
@@ -2222,6 +2243,12 @@
 
   els.unmappedUtilizedFilter.addEventListener('change', function () {
     state.unmappedUtilizedFilter = this.value || '';
+    state.unmappedPage = 1;
+    renderUnmappedIcdSection();
+  });
+
+  els.unmappedSmartvaFilter.addEventListener('change', function () {
+    state.unmappedSmartvaFilter = this.value || '';
     state.unmappedPage = 1;
     renderUnmappedIcdSection();
   });

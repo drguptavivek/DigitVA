@@ -59,43 +59,68 @@ data must be scoped.
 18. The scheme-level unmapped ICD grid must support bulk allocation by letting
     the operator choose a target age band and a target disease-level leaf
     within that scheme, then map multiple selected ICD codes in one action.
-19. The scheme-level unmapped ICD grid must support filtering to ICD codes
-    already present in finalized COD outcomes, including codes that are not
-    currently assignable during coding.
-20. The mapped ICD list for a selected disease-level leaf must support filtering
+19. The scheme-level unmapped ICD grid must show utilization counts for both
+    finalized COD outcomes and active SmartVA cause slots, including ICD codes
+    that are not currently assignable during coding.
+20. The scheme-level unmapped ICD grid must support separate utilization
+    filters for finalized COD usage and active SmartVA usage, including codes
+    that are not currently assignable during coding.
+21. The mapped ICD list for a selected disease-level leaf must support filtering
     manual overrides separately from source-derived mappings.
-21. COD bucket aggregation may apply a reporting-only legacy ICD normalization
+22. COD bucket aggregation may apply a reporting-only legacy ICD normalization
     layer before scheme bucket lookup, as long as the authoritative submission
     `final_icd` value is preserved unchanged in stored workflow data.
-22. The initial reporting-only legacy ICD normalization baseline is:
+23. The initial reporting-only legacy ICD normalization baseline is:
     - `A90` -> `A97`
     - `A91` -> `A97`
     - `I84` -> `K64`
-23. When a legacy ICD normalization is applied for reporting, dropped-code
+24. When a legacy ICD normalization is applied for reporting, dropped-code
     drilldowns may continue to display the original authoritative `final_icd`
     while using the normalized ICD code to decide whether the submission can be
     bucketed by the current scheme.
-24. For built-in reporting schemes (`SRS India`, `CMEA10`, and `WHO 2022 VA`),
+25. SmartVA pseudo-codes that are emitted by the built-in SmartVA cause table
+    but do not exist in `mas_icd10_2019_2` must remain explicitly mappable in
+    COD bucket schemes through a reporting-side pseudo-code catalog.
+26. The initial SmartVA pseudo-code catalog is:
+    - `UU1` -> `Other Non-communicable Diseases`
+    - `UU2` -> `Other Defined Causes of Child Deaths`
+27. For built-in reporting schemes (`SRS India`, `CMEA10`, and `WHO 2022 VA`),
     the migration-artifact workbook copies are the source-of-truth baseline for
     reset-default behavior.
-25. For the built-in WHO 2022 VA scheme, the migration-artifact workbook copy
+28. For the built-in WHO 2022 VA scheme, the migration-artifact workbook copy
     is also the source-of-truth baseline for default ICD-to-bucket mappings
     when evaluating whether an admin edit is a manual override.
-26. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
+29. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
     only when the saved ICD-to-bucket target differs from the XLSX-derived
     default, or when that ICD code is absent from the source workbook.
-27. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
+30. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
     bucket, the manual override marker must be cleared and the source metadata
     restored.
-28. Within a reporting scheme, an ICD code may map to at most one active target
+31. Within a reporting scheme, an ICD code may map to at most one active target
     leaf for a given age scope.
-29. That uniqueness rule also applies when the age scope is logically
+32. That uniqueness rule also applies when the age scope is logically
     all-ages; `NULL` age-scope storage must not permit duplicate active
     mappings for the same ICD within a scheme.
 30. COD bucket JSON import must coalesce exact duplicate mapping rows that
     repeat the same `(scheme, age_scope, icd_code, target leaf)` and must
     reject conflicting duplicate rows that map the same ICD to different target
     leaves within the same age scope.
+31. The data-management COD reporting page may summarize matched coded deaths
+    beyond the scheme hierarchy tables, including:
+    - a top-10 causes ranking for the current filtered scope
+    - a custom age-band breakdown using:
+      - `0-<28 days`
+      - `28 days-<365 days`
+      - `365 days-<12 years`
+      - `12 years-<50 years`
+      - `>=50 years`
+    - a gender breakdown for the current filtered scope
+32. Those additional summaries must use the same matched, in-scope,
+    authoritative final-ICD reporting population as the main COD bucket tables.
+33. The bottom COD hierarchy tables on the reporting page must show gender-wise
+    counts alongside the total matched count for each rendered scheme row.
+34. Those bottom COD hierarchy tables must follow the scheme-defined sort-order
+    fields only and must not introduce separate label-based ordering.
 
 ## CoD Dashboard Access Policy
 

@@ -35,6 +35,47 @@ DEMOGRAPHICS_MV_NAME = "va_submission_analytics_demographics_mv"
 COD_MV_NAME = "va_submission_cod_detail_mv"
 COD_SNAPSHOT_MV_NAME = "va_submission_cod_snapshot_mv"
 
+NQA_EXPORT_DETAIL_COLUMNS = (
+    "nqa_length",
+    "nqa_pos_symptoms",
+    "nqa_neg_symptoms",
+    "nqa_chronology",
+    "nqa_doc_review",
+    "nqa_comorbidity",
+)
+
+SOCIAL_AUTOPSY_PAYLOAD_FIELDS = (
+    "sa01",
+    "sa06",
+    "sa06_a",
+    "sa02",
+    "sa03",
+    "sa04",
+    "sa05",
+    "sa05_a",
+    "sa07",
+    "sa07_a",
+    "sa09",
+    "sa10",
+    "sa11",
+    "sa12",
+    "sa08",
+    "sa13",
+    "sa_tu13",
+    "sa14",
+    "sa_tu14",
+    "sa15",
+    "sa_tu15",
+    "sa16",
+    "sa_tu16",
+    "sa17",
+    "sa_tu17",
+    "sa18",
+    "sa_tu18",
+    "sa19",
+    "sa_tu19",
+)
+
 # Legacy alias so existing imports don't break immediately.
 MV_NAME = CORE_MV_NAME
 
@@ -275,6 +316,10 @@ def build_submission_cod_snapshot_mv_sql(
     view_name: str = COD_SNAPSHOT_MV_NAME,
 ) -> str:
     """Return the CREATE MATERIALIZED VIEW statement for the COD snapshot MV."""
+    social_autopsy_payload_projection = ",\n".join(
+        f"    ap.payload_data ->> '{field_id}' AS {field_id}"
+        for field_id in SOCIAL_AUTOPSY_PAYLOAD_FIELDS
+    )
     return f"""
 CREATE MATERIALIZED VIEW {view_name} AS
 WITH active_payload AS (
@@ -626,6 +671,7 @@ SELECT
     saa.option_pairs AS social_autopsy_option_pairs,
     saa.va_saa_createdat AS social_autopsy_saved_at,
     saa.va_saa_updatedat AS social_autopsy_updated_at,
+{social_autopsy_payload_projection},
     coding_alloc.va_allocated_to AS active_coder_assigned_user_id,
     coding_alloc_user.name AS active_coder_assigned_name,
     reviewing_alloc.va_allocated_to AS active_reviewer_assigned_user_id,

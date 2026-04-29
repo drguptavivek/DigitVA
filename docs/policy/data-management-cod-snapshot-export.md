@@ -34,8 +34,10 @@ The reporting snapshot may include:
 - latest active reviewer final COD fields
 - authoritative final COD fields
 - active SmartVA result fields
-- active Narrative Quality Assessment fields
-- active Social Autopsy fields
+- active Narrative Quality Assessment fields, including the individual scored
+  NQA question columns
+- active Social Autopsy fields, including the app-owned analysis summary and
+  the active payload's raw `sa*` questionnaire fields
 - active coder/reviewer assignment names where available
 
 ## WHO 2022 Bucket Mapping

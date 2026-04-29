@@ -1341,6 +1341,8 @@ def dm_coded_cod_snapshot_export_csv(
     """Return the active COD snapshot CSV for all filtered DM submissions."""
     from app.services.submission_analytics_mv import (
         COD_SNAPSHOT_MV_NAME,
+        NQA_EXPORT_DETAIL_COLUMNS,
+        SOCIAL_AUTOPSY_PAYLOAD_FIELDS,
         ensure_submission_cod_snapshot_mv,
     )
 
@@ -1362,157 +1364,80 @@ def dm_coded_cod_snapshot_export_csv(
         workflow=workflow,
     )
 
+    snapshot_columns = [
+        "va_sid",
+        "project_id",
+        "site_id",
+        "form_id",
+        "submission_at",
+        "submission_date",
+        "workflow_state",
+        "narration_language",
+        "sex",
+        "age_raw",
+        "age_normalized_days",
+        "age_normalized_years",
+        "age_source",
+        "narrative_text",
+        "coded_at_authoritative",
+        "coder_name",
+        "coder_step1_immediate_cod",
+        "coder_step1_antecedent_cod",
+        "coder_step1_other_conditions",
+        "coder_step1_saved_at",
+        "coder_final_cod_text",
+        "coder_final_icd",
+        "coder_final_remark",
+        "coder_final_saved_at",
+        "coder_final_who_bucket_section",
+        "coder_final_who_bucket",
+        "reviewer_name",
+        "reviewer_final_cod_text",
+        "reviewer_final_icd",
+        "reviewer_final_remark",
+        "reviewer_final_saved_at",
+        "reviewer_final_who_bucket_section",
+        "reviewer_final_who_bucket",
+        "authoritative_source",
+        "authoritative_cod_text",
+        "authoritative_icd",
+        "authoritative_saved_at",
+        "authoritative_who_bucket_section",
+        "authoritative_who_bucket",
+        "smartva_result_for",
+        "smartva_age",
+        "smartva_gender",
+        "smartva_cause1",
+        "smartva_cause1_icd",
+        "smartva_cause1_who_bucket_section",
+        "smartva_cause1_who_bucket",
+        "smartva_cause2",
+        "smartva_cause2_icd",
+        "smartva_cause2_who_bucket_section",
+        "smartva_cause2_who_bucket",
+        "smartva_cause3",
+        "smartva_cause3_icd",
+        "smartva_cause3_who_bucket_section",
+        "smartva_cause3_who_bucket",
+        "nqa_name",
+        *NQA_EXPORT_DETAIL_COLUMNS,
+        "nqa_score",
+        "nqa_rating",
+        "nqa_cannot_grade",
+        "nqa_saved_at",
+        "social_autopsy_name",
+        "social_autopsy_remark",
+        "social_autopsy_option_pairs",
+        "social_autopsy_saved_at",
+        *SOCIAL_AUTOPSY_PAYLOAD_FIELDS,
+        "active_coder_assigned_name",
+        "active_reviewer_assigned_name",
+    ]
     snapshot = sa.table(
         COD_SNAPSHOT_MV_NAME,
-        sa.column("va_sid"),
-        sa.column("project_id"),
-        sa.column("site_id"),
-        sa.column("form_id"),
-        sa.column("submission_at"),
-        sa.column("submission_date"),
-        sa.column("workflow_state"),
-        sa.column("narration_language"),
-        sa.column("sex"),
-        sa.column("age_raw"),
-        sa.column("age_normalized_days"),
-        sa.column("age_normalized_years"),
-        sa.column("age_source"),
-        sa.column("narrative_text"),
-        sa.column("coded_at_authoritative"),
-        sa.column("coder_name"),
-        sa.column("coder_step1_immediate_cod"),
-        sa.column("coder_step1_antecedent_cod"),
-        sa.column("coder_step1_other_conditions"),
-        sa.column("coder_step1_saved_at"),
-        sa.column("coder_final_cod_text"),
-        sa.column("coder_final_icd"),
-        sa.column("coder_final_remark"),
-        sa.column("coder_final_saved_at"),
-        sa.column("coder_final_who_bucket_section"),
-        sa.column("coder_final_who_bucket"),
-        sa.column("reviewer_name"),
-        sa.column("reviewer_final_cod_text"),
-        sa.column("reviewer_final_icd"),
-        sa.column("reviewer_final_remark"),
-        sa.column("reviewer_final_saved_at"),
-        sa.column("reviewer_final_who_bucket_section"),
-        sa.column("reviewer_final_who_bucket"),
-        sa.column("authoritative_source"),
-        sa.column("authoritative_cod_text"),
-        sa.column("authoritative_icd"),
-        sa.column("authoritative_saved_at"),
-        sa.column("authoritative_who_bucket_section"),
-        sa.column("authoritative_who_bucket"),
-        sa.column("smartva_result_for"),
-        sa.column("smartva_age"),
-        sa.column("smartva_gender"),
-        sa.column("smartva_cause1"),
-        sa.column("smartva_cause1_icd"),
-        sa.column("smartva_cause1_who_bucket_section"),
-        sa.column("smartva_cause1_who_bucket"),
-        sa.column("smartva_cause2"),
-        sa.column("smartva_cause2_icd"),
-        sa.column("smartva_cause2_who_bucket_section"),
-        sa.column("smartva_cause2_who_bucket"),
-        sa.column("smartva_cause3"),
-        sa.column("smartva_cause3_icd"),
-        sa.column("smartva_cause3_who_bucket_section"),
-        sa.column("smartva_cause3_who_bucket"),
-        sa.column("nqa_name"),
-        sa.column("nqa_score"),
-        sa.column("nqa_rating"),
-        sa.column("nqa_cannot_grade"),
-        sa.column("nqa_saved_at"),
-        sa.column("social_autopsy_name"),
-        sa.column("social_autopsy_remark"),
-        sa.column("social_autopsy_option_pairs"),
-        sa.column("social_autopsy_saved_at"),
-        sa.column("active_coder_assigned_name"),
-        sa.column("active_reviewer_assigned_name"),
+        *(sa.column(name) for name in snapshot_columns),
     )
 
-    query = (
-        sa.select(
-            snapshot.c.va_sid,
-            snapshot.c.project_id,
-            snapshot.c.site_id,
-            snapshot.c.form_id,
-            snapshot.c.submission_at,
-            snapshot.c.submission_date,
-            snapshot.c.workflow_state,
-            snapshot.c.narration_language,
-            snapshot.c.sex,
-            snapshot.c.age_raw,
-            snapshot.c.age_normalized_days,
-            snapshot.c.age_normalized_years,
-            snapshot.c.age_source,
-            snapshot.c.narrative_text,
-            snapshot.c.coded_at_authoritative,
-            snapshot.c.active_coder_assigned_name,
-            snapshot.c.active_reviewer_assigned_name,
-            snapshot.c.coder_name,
-            snapshot.c.coder_step1_immediate_cod,
-            snapshot.c.coder_step1_antecedent_cod,
-            snapshot.c.coder_step1_other_conditions,
-            snapshot.c.coder_step1_saved_at,
-            snapshot.c.coder_final_cod_text,
-            snapshot.c.coder_final_icd,
-            snapshot.c.coder_final_remark,
-            snapshot.c.coder_final_saved_at,
-            snapshot.c.coder_final_who_bucket_section,
-            snapshot.c.coder_final_who_bucket,
-            snapshot.c.reviewer_name,
-            snapshot.c.reviewer_final_cod_text,
-            snapshot.c.reviewer_final_icd,
-            snapshot.c.reviewer_final_remark,
-            snapshot.c.reviewer_final_saved_at,
-            snapshot.c.reviewer_final_who_bucket_section,
-            snapshot.c.reviewer_final_who_bucket,
-            snapshot.c.authoritative_source,
-            snapshot.c.authoritative_cod_text,
-            snapshot.c.authoritative_icd,
-            snapshot.c.authoritative_saved_at,
-            snapshot.c.authoritative_who_bucket_section,
-            snapshot.c.authoritative_who_bucket,
-            snapshot.c.smartva_result_for,
-            snapshot.c.smartva_age,
-            snapshot.c.smartva_gender,
-            snapshot.c.smartva_cause1,
-            snapshot.c.smartva_cause1_icd,
-            snapshot.c.smartva_cause1_who_bucket_section,
-            snapshot.c.smartva_cause1_who_bucket,
-            snapshot.c.smartva_cause2,
-            snapshot.c.smartva_cause2_icd,
-            snapshot.c.smartva_cause2_who_bucket_section,
-            snapshot.c.smartva_cause2_who_bucket,
-            snapshot.c.smartva_cause3,
-            snapshot.c.smartva_cause3_icd,
-            snapshot.c.smartva_cause3_who_bucket_section,
-            snapshot.c.smartva_cause3_who_bucket,
-            snapshot.c.nqa_name,
-            snapshot.c.nqa_score,
-            snapshot.c.nqa_rating,
-            snapshot.c.nqa_cannot_grade,
-            snapshot.c.nqa_saved_at,
-            snapshot.c.social_autopsy_name,
-            snapshot.c.social_autopsy_remark,
-            snapshot.c.social_autopsy_option_pairs,
-            snapshot.c.social_autopsy_saved_at,
-        )
-        .select_from(VaSubmissions)
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-        .join(snapshot, snapshot.c.va_sid == VaSubmissions.va_sid)
-        .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
-        .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
-        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
-        .where(sa.and_(*conditions))
-        .order_by(snapshot.c.submission_at.desc(), snapshot.c.va_sid.asc())
-    )
-    if _mv_ref is not None:
-        query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
-
-    rows = db.session.execute(query).mappings().all()
     headers = [
         "va_sid",
         "project_id",
@@ -1571,6 +1496,7 @@ def dm_coded_cod_snapshot_export_csv(
         "smartva_cause3_who_bucket_section",
         "smartva_cause3_who_bucket",
         "nqa_name",
+        *NQA_EXPORT_DETAIL_COLUMNS,
         "nqa_score",
         "nqa_rating",
         "nqa_cannot_grade",
@@ -1579,7 +1505,25 @@ def dm_coded_cod_snapshot_export_csv(
         "social_autopsy_remark",
         "social_autopsy_option_pairs",
         "social_autopsy_saved_at",
+        *SOCIAL_AUTOPSY_PAYLOAD_FIELDS,
     ]
+
+    query = (
+        sa.select(*(getattr(snapshot.c, header) for header in headers))
+        .select_from(VaSubmissions)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .join(snapshot, snapshot.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(attachment_counts, attachment_counts.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_sids, smartva_sids.c.va_sid == VaSubmissions.va_sid)
+        .outerjoin(smartva_failed_sids, smartva_failed_sids.c.va_sid == VaSubmissions.va_sid)
+        .where(sa.and_(*conditions))
+        .order_by(snapshot.c.submission_at.desc(), snapshot.c.va_sid.asc())
+    )
+    if _mv_ref is not None:
+        query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
+
+    rows = db.session.execute(query).mappings().all()
 
     handle = io.StringIO()
     writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")

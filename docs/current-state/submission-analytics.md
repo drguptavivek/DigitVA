@@ -182,8 +182,9 @@ state for a submission. It includes:
     `map_icd10_legacy_reporting_aliases`
   - the MV keeps the raw ICD fields unchanged and uses the alias only for
     reporting-bucket assignment
-- active NQA projection
-- active Social Autopsy projection
+- active NQA projection, including individual NQA question columns
+- active Social Autopsy projection, including analysis summary fields and raw
+  active-payload `sa*` questionnaire fields
 - active coder/reviewer assignment names where available
 
 The snapshot MV is intended for the coded COD export surface and similar

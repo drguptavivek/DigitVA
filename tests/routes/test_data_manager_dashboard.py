@@ -1590,6 +1590,11 @@ class DataManagerDashboardTests(BaseTestCase):
         body = response.get_data(as_text=True)
         self.assertIn("authoritative_cod_text", body)
         self.assertIn("workflow_state", body)
+        self.assertIn("nqa_length", body)
+        self.assertIn("nqa_pos_symptoms", body)
+        self.assertIn("social_autopsy_option_pairs", body)
+        self.assertIn("sa01", body)
+        self.assertIn("sa_tu14", body)
         self.assertIn("uuid:data-manager-dashboard", body)
 
     @patch(

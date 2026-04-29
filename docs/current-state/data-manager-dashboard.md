@@ -48,6 +48,14 @@ The export dropdown now also includes a coded COD snapshot CSV:
 This export is one row per submission and is backed by
 `va_submission_cod_snapshot_mv`.
 
+The coded COD snapshot export currently includes:
+
+- coder, reviewer, authoritative, and SmartVA COD fields
+- individual NQA question columns alongside score/rating
+- Social Autopsy analysis summary fields
+- raw Social Autopsy questionnaire payload fields (`sa*`) from the active
+  submission payload
+
 ## Summary Cards
 
 Current cards include:

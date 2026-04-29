@@ -669,6 +669,11 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 "isNeonatal": "0",
                 "isChild": "0",
                 "isAdult": "1",
+                "sa01": "1",
+                "sa06": "2",
+                "sa06_a": "Visited local healer first",
+                "sa14": "1",
+                "sa_tu14": "Transport strike delayed referral",
             },
             gender="male",
             normalized_days=Decimal("52") * Decimal("365.25"),
@@ -941,10 +946,21 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                     smartva_cause2_who_bucket,
                     smartva_cause3_icd,
                     smartva_cause3_who_bucket,
+                    nqa_length,
+                    nqa_pos_symptoms,
+                    nqa_neg_symptoms,
+                    nqa_chronology,
+                    nqa_doc_review,
+                    nqa_comorbidity,
                     nqa_score,
                     nqa_rating,
                     social_autopsy_remark,
-                    social_autopsy_option_pairs
+                    social_autopsy_option_pairs,
+                    sa01,
+                    sa06,
+                    sa06_a,
+                    sa14,
+                    sa_tu14
                 FROM {COD_SNAPSHOT_MV_NAME}
                 WHERE va_sid = :sid
                 """
@@ -970,11 +986,22 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(row["smartva_cause2_who_bucket"], "HIV disease")
         self.assertEqual(row["smartva_cause3_icd"], "C34")
         self.assertEqual(row["smartva_cause3_who_bucket"], "Lung cancer")
+        self.assertEqual(row["nqa_length"], 3)
+        self.assertEqual(row["nqa_pos_symptoms"], 3)
+        self.assertEqual(row["nqa_neg_symptoms"], 1)
+        self.assertEqual(row["nqa_chronology"], 1)
+        self.assertEqual(row["nqa_doc_review"], 1)
+        self.assertEqual(row["nqa_comorbidity"], 1)
         self.assertEqual(row["nqa_score"], 10)
         self.assertEqual(row["nqa_rating"], "Good")
         self.assertEqual(row["social_autopsy_remark"], "Social autopsy remark")
         self.assertIn("delay_1_decision::recognition", row["social_autopsy_option_pairs"])
         self.assertIn("delay_2_reaching::transport_logistics", row["social_autopsy_option_pairs"])
+        self.assertEqual(row["sa01"], "1")
+        self.assertEqual(row["sa06"], "2")
+        self.assertEqual(row["sa06_a"], "Visited local healer first")
+        self.assertEqual(row["sa14"], "1")
+        self.assertEqual(row["sa_tu14"], "Transport strike delayed referral")
 
     def test_cod_snapshot_mv_tolerates_duplicate_who_bucket_mapping_rows(self):
         sid = "uuid:mv-snapshot-duplicate-bucket"

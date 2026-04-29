@@ -42,7 +42,7 @@ The reporting layer uses four tables:
 
 Imported from:
 
-- [`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/icd-10-CODES_SRS_India.xlsx`](../icd-causegrp-mappings/ICD-to-VA-Buckets/icd-10-CODES_SRS_India.xlsx)
+- [`docs/icd-causegrp-mappings/migration-artifacts/srs-india-cod-2026-04-27/icd-10-CODES_SRS_India.xlsx`](../icd-causegrp-mappings/migration-artifacts/srs-india-cod-2026-04-27/icd-10-CODES_SRS_India.xlsx)
 
 Characteristics:
 
@@ -60,7 +60,7 @@ Characteristics:
 
 Imported from:
 
-- [`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/icd-10-CODES_CMEA10_mapped.xlsx`](../icd-causegrp-mappings/ICD-to-VA-Buckets/icd-10-CODES_CMEA10_mapped.xlsx)
+- [`docs/icd-causegrp-mappings/migration-artifacts/cmea10-cod-2026-04-27/icd-10-CODES_CMEA10_mapped.xlsx`](../icd-causegrp-mappings/migration-artifacts/cmea10-cod-2026-04-27/icd-10-CODES_CMEA10_mapped.xlsx)
 
 Characteristics:
 
@@ -73,7 +73,7 @@ Characteristics:
 
 Imported from:
 
-- [`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx`](../icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx)
+- [`docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`](../icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx)
 
 Characteristics:
 
@@ -113,8 +113,9 @@ The 2026-04-27 rebuild migration imports:
   `migration-artifacts/cmea10-cod-2026-04-27/icd-10-CODES_CMEA10_mapped.xlsx`
 - WHO 2022 VA COD buckets from
   `migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`
-- reviewed VAs-12.01/VAs-12.02 transport decisions from
-  `migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_RTA_NonRTA_Review.xlsx`
+- reviewed VAs-12.01/VAs-12.02 transport decisions from the archived support
+  workbook
+  `archive/migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_RTA_NonRTA_Review.xlsx`
 
 ## Import commands
 

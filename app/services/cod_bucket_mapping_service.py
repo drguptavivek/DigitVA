@@ -49,15 +49,6 @@ NODE_TYPE_FIELD = "field"
 NODE_DELETE_DISPOSITION_UNMAP = "unmap"
 NODE_DELETE_DISPOSITION_MOVE_TO_UNMAPPED = "move_to_unmapped"
 
-DEFAULT_SRS_WORKBOOK_PATH = (
-    "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/icd-10-CODES_SRS_India.xlsx"
-)
-DEFAULT_CMEA10_WORKBOOK_PATH = (
-    "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/icd-10-CODES_CMEA10_mapped.xlsx"
-)
-DEFAULT_WHO_2022_VA_WORKBOOK_PATH = (
-    "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx"
-)
 MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "srs-india-cod-2026-04-27/icd-10-CODES_SRS_India.xlsx"
@@ -70,6 +61,9 @@ MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx"
 )
+DEFAULT_SRS_WORKBOOK_PATH = MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH
+DEFAULT_CMEA10_WORKBOOK_PATH = MIGRATION_ARTIFACT_CMEA10_WORKBOOK_PATH
+DEFAULT_WHO_2022_VA_WORKBOOK_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH
 SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_CMEA10,

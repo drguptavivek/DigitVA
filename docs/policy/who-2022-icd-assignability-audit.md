@@ -3,7 +3,7 @@ title: WHO 2022 ICD Assignability Audit
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-27
+last_updated: 2026-04-29
 ---
 
 # WHO 2022 ICD Assignability Audit
@@ -20,9 +20,9 @@ starting source of truth for assignable ICD-10 codes.
 
 This source is represented in:
 
-- `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Crosswalk.xlsx`
+- `docs/icd-causegrp-mappings/archive/ICD-to-VA-Buckets/WHO_2022_VA_Crosswalk.xlsx`
 - `docs/icd-causegrp-mappings/generated/who_2022_icd10_2019_2_policy.json`
-- `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx`
+- `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`
 
 The generated policy includes WHO-listed three-character ICD codes and the
 WHO-listed dotted detailed ICD codes that are needed for categories such as
@@ -43,9 +43,9 @@ identify codes that may need review.
 
 The audit artifact is:
 
-- `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/CMEA10_Blank_WHO_2022_Assignable_Audit.xlsx`
+- `docs/icd-causegrp-mappings/archive/ICD-to-VA-Buckets/CMEA10_Blank_WHO_2022_Assignable_Audit.xlsx`
 - reviewed decisions:
-  `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/CMEA10_Blank_WHO_2022_Assignable_Audit- decision.xlsx`
+  `docs/icd-causegrp-mappings/archive/ICD-to-VA-Buckets/CMEA10_Blank_WHO_2022_Assignable_Audit- decision.xlsx`
 
 This workbook lists CMEA10 blank ICD rows that are still assignable under the
 WHO 2022 ICD policy and provides review columns for:

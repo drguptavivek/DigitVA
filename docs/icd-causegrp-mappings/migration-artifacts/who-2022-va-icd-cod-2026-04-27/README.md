@@ -3,7 +3,7 @@ title: WHO 2022 VA ICD And COD Migration Artifacts
 doc_type: migration-artifact
 status: active
 owner: engineering
-last_updated: 2026-04-28
+last_updated: 2026-04-29
 ---
 
 # WHO 2022 VA ICD And COD Migration Artifacts
@@ -21,12 +21,15 @@ Files:
   - document-derived WHO 2022 VA COD bucket mapping
   - generated from the reviewed WHO 2022 assignability policy so every policy
     row has a COD bucket mapping at import time
-  - uses `WHO_2022_VA_RTA_NonRTA_Review.xlsx` for final VAs-12.01 road traffic
-    versus VAs-12.02 other transport decisions
-- `WHO_2022_VA_RTA_NonRTA_Review.xlsx`
+  - was derived using archived review workbooks for final transport and
+    assignability decisions
+
+Archived supporting inputs:
+
+- `docs/icd-causegrp-mappings/archive/migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_RTA_NonRTA_Review.xlsx`
   - frozen review workbook for transport ICD code assignment to
     `VAs-12.01 Road traffic accident` or `VAs-12.02 Other transport accident`
-- `CMEA10_Blank_WHO_2022_Assignable_Audit_decision.xlsx`
+- `docs/icd-causegrp-mappings/archive/migration-artifacts/who-2022-va-icd-cod-2026-04-27/CMEA10_Blank_WHO_2022_Assignable_Audit_decision.xlsx`
   - reviewed source for codes disabled from WHO 2022 coding assignability
 
 The migration should read from this folder only. Source/review workbooks outside

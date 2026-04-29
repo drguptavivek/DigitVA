@@ -33323,6 +33323,6 @@
       "age_group_selectable": "all"
     }
   ],
-  "assignability_decision_source": "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/CMEA10_Blank_WHO_2022_Assignable_Audit- decision.xlsx",
+  "assignability_decision_source": "docs/icd-causegrp-mappings/archive/ICD-to-VA-Buckets/CMEA10_Blank_WHO_2022_Assignable_Audit- decision.xlsx",
   "disabled_by_assignability_review_count": 78
 }

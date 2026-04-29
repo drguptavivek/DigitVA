@@ -3,9 +3,10 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from tempfile import NamedTemporaryFile
+from unittest.mock import patch
 
 import sqlalchemy as sa
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from app import db
 from app.models import (
@@ -452,11 +453,15 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(mapping.match_type, "manual_override")
 
         mapping.node_id = default_leaf.node_id
-        apply_admin_cod_bucket_mapping_metadata(
-            scheme=scheme,
-            mapping=mapping,
-            target_node=default_leaf,
-        )
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            apply_admin_cod_bucket_mapping_metadata(
+                scheme=scheme,
+                mapping=mapping,
+                target_node=default_leaf,
+            )
 
         self.assertEqual(mapping.source_sheet, "ICD_Mapped")
         self.assertEqual(mapping.source_row_number, 2)
@@ -555,10 +560,14 @@ class CodBucketMappingServiceTests(BaseTestCase):
         child_field.node_label = "Changed Child Disease"
         db.session.commit()
 
-        reset_cod_bucket_scheme_age_band_to_source(
-            scheme_code=scheme.scheme_code,
-            age_scope=AGE_SCOPE_ADULT_OVER5Y,
-        )
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_cod_bucket_scheme_age_band_to_source(
+                scheme_code=scheme.scheme_code,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            )
 
         restored_adult = db.session.scalar(
             sa.select(MasCodBucketNode).where(
@@ -599,11 +608,15 @@ class CodBucketMappingServiceTests(BaseTestCase):
         child_field.node_label = "Changed Child Disease"
         db.session.commit()
 
-        reset_cod_bucket_scheme_age_band_to_source(
-            scheme_code=scheme.scheme_code,
-            age_scope=None,
-            reset_entire_scheme=True,
-        )
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            reset_cod_bucket_scheme_age_band_to_source(
+                scheme_code=scheme.scheme_code,
+                age_scope=None,
+                reset_entire_scheme=True,
+            )
 
         restored_adult = db.session.scalar(
             sa.select(MasCodBucketNode).where(
@@ -621,6 +634,47 @@ class CodBucketMappingServiceTests(BaseTestCase):
         )
         self.assertEqual(restored_adult.node_label, "Adult Disease")
         self.assertEqual(restored_child.node_label, "Child Disease")
+
+    def test_reset_srs_scheme_uses_migration_artifact_source_of_truth(self):
+        imported_path = self._make_srs_workbook()
+        artifact_path = self._make_srs_workbook()
+        workbook = load_workbook(artifact_path)
+        sheet = workbook["ICD_Mapped"]
+        sheet["G2"] = "Artifact Adult Disease"
+        workbook.save(artifact_path)
+
+        scheme = import_srs_india_scheme(imported_path)
+        scheme.source_path = imported_path
+        adult_field = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.age_scope == AGE_SCOPE_ADULT_OVER5Y,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+            )
+        )
+        adult_field.node_label = "Changed Adult Disease"
+        db.session.commit()
+
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            artifact_path,
+        ):
+            reset_cod_bucket_scheme_age_band_to_source(
+                scheme_code=scheme.scheme_code,
+                age_scope=None,
+                reset_entire_scheme=True,
+            )
+
+        restored_adult = db.session.scalar(
+            sa.select(MasCodBucketNode).where(
+                MasCodBucketNode.scheme_id == scheme.scheme_id,
+                MasCodBucketNode.age_scope == AGE_SCOPE_ADULT_OVER5Y,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+            )
+        )
+        refreshed_scheme = db.session.get(MasCodBucketScheme, scheme.scheme_id)
+        self.assertEqual(restored_adult.node_label, "Artifact Adult Disease")
+        self.assertEqual(refreshed_scheme.source_path, artifact_path)
 
     def test_create_cod_bucket_scheme_returns_non_blocking_gap_feedback(self):
         scheme, warnings = create_cod_bucket_scheme(

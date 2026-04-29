@@ -58,6 +58,18 @@ DEFAULT_CMEA10_WORKBOOK_PATH = (
 DEFAULT_WHO_2022_VA_WORKBOOK_PATH = (
     "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_Bucket_Mapping.xlsx"
 )
+MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH = (
+    "docs/icd-causegrp-mappings/migration-artifacts/"
+    "srs-india-cod-2026-04-27/icd-10-CODES_SRS_India.xlsx"
+)
+MIGRATION_ARTIFACT_CMEA10_WORKBOOK_PATH = (
+    "docs/icd-causegrp-mappings/migration-artifacts/"
+    "cmea10-cod-2026-04-27/icd-10-CODES_CMEA10_mapped.xlsx"
+)
+MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH = (
+    "docs/icd-causegrp-mappings/migration-artifacts/"
+    "who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx"
+)
 SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_CMEA10,
@@ -175,8 +187,18 @@ def _scheme_source_path(scheme: MasCodBucketScheme) -> Path | None:
     return Path(candidate)
 
 
+def _scheme_reset_source_path(scheme: MasCodBucketScheme) -> Path | None:
+    if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
+        return Path(MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH)
+    if scheme.scheme_code == SCHEME_CODE_CMEA10:
+        return Path(MIGRATION_ARTIFACT_CMEA10_WORKBOOK_PATH)
+    if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
+        return Path(MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH)
+    return None
+
+
 def scheme_can_reset_from_source(scheme: MasCodBucketScheme) -> bool:
-    path = _scheme_source_path(scheme)
+    path = _scheme_reset_source_path(scheme)
     return scheme.scheme_code in SOURCE_RESETTABLE_SCHEME_CODES and path is not None and path.exists()
 
 
@@ -287,9 +309,10 @@ def apply_admin_cod_bucket_mapping_metadata(
     """Stamp mapping provenance based on whether the target matches source defaults."""
     default_mapping = None
     if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
-        default_mapping = _who_2022_default_mapping_by_code(scheme.source_path).get(
-            mapping.icd_code
-        )
+        source_path = _scheme_reset_source_path(scheme)
+        default_mapping = _who_2022_default_mapping_by_code(
+            str(source_path) if source_path else None
+        ).get(mapping.icd_code)
 
     if default_mapping and target_node.node_code == default_mapping["node_code"]:
         mapping.source_sheet = default_mapping["source_sheet"]
@@ -871,7 +894,7 @@ def reset_cod_bucket_scheme_age_band_to_source(
     if not scheme_can_reset_from_source(scheme):
         raise ValueError("This scheme cannot be reset from source.")
 
-    workbook_path = _scheme_source_path(scheme)
+    workbook_path = _scheme_reset_source_path(scheme)
     if workbook_path is None:
         raise ValueError("No source workbook is configured for this scheme.")
 

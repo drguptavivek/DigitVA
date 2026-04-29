@@ -3,7 +3,7 @@ title: COD Bucket Reporting Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-28
+last_updated: 2026-04-29
 ---
 
 # COD Bucket Reporting Policy
@@ -60,12 +60,16 @@ data must be scoped.
     currently assignable during coding.
 19. The mapped ICD list for a selected disease-level leaf must support filtering
     manual overrides separately from source-derived mappings.
-20. For the built-in WHO 2022 VA scheme, the imported XLSX workbook is the
-    source-of-truth baseline for default ICD-to-bucket mappings.
-21. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
+20. For built-in reporting schemes (`SRS India`, `CMEA10`, and `WHO 2022 VA`),
+    the migration-artifact workbook copies are the source-of-truth baseline for
+    reset-default behavior.
+21. For the built-in WHO 2022 VA scheme, the migration-artifact workbook copy
+    is also the source-of-truth baseline for default ICD-to-bucket mappings
+    when evaluating whether an admin edit is a manual override.
+22. An admin-created or admin-remapped WHO 2022 VA mapping is a manual override
     only when the saved ICD-to-bucket target differs from the XLSX-derived
     default, or when that ICD code is absent from the source workbook.
-22. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
+23. If a WHO 2022 VA mapping is changed back to its XLSX-derived default
     bucket, the manual override marker must be cleared and the source metadata
     restored.
 

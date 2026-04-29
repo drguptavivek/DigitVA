@@ -3,7 +3,7 @@ title: COD Bucket Reporting
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-28
+last_updated: 2026-04-29
 ---
 
 # COD Bucket Reporting
@@ -97,6 +97,10 @@ working inputs. Alembic migrations use fixed copies under
 `docs/icd-causegrp-mappings/migration-artifacts/` so master-data rebuilds are
 repeatable.
 
+For the built-in schemes (`SRS India`, `CMEA10`, and `WHO 2022 VA`), those
+same migration-artifact workbook copies are also the source of truth for
+`Reset Default` in the admin COD bucket editor.
+
 The 2026-04-27 rebuild migration imports:
 
 - ICD-10 2019 base hierarchy from
@@ -145,6 +149,9 @@ current editor supports:
   confirmation
 - resetting an entire built-in source-backed scheme from the `Edit COD Scheme`
   modal with confirmation
+  - built-in reset-default always reloads from the frozen migration-artifact
+    workbook copy, not from mutable working workbooks under
+    `docs/icd-causegrp-mappings/ICD-to-VA-Buckets/`
 - editing category/subcategory/field labels
 - editing display `sort_order`
 - loading ICD mappings on demand only for the selected last-level disease leaf
@@ -170,12 +177,12 @@ current editor supports:
 - remapping an ICD code to exactly one disease leaf within the selected
   scheme + age scope
 
-For the built-in WHO 2022 VA scheme, the source XLSX imported into the scheme is
-the default mapping baseline. Admin edits are marked as manual overrides only
-when the saved ICD-to-bucket target differs from that XLSX-derived default, or
-when the ICD code is absent from the source workbook. If an admin moves a code
-back to its XLSX default bucket, the editor restores the source metadata instead
-of leaving a manual override marker.
+For the built-in WHO 2022 VA scheme, the migration-artifact source XLSX is the
+default mapping baseline. Admin edits are marked as manual overrides only when
+the saved ICD-to-bucket target differs from that XLSX-derived default, or when
+the ICD code is absent from the source workbook. If an admin moves a code back
+to its XLSX default bucket, the editor restores the source metadata instead of
+leaving a manual override marker.
 
 The admin ICD picker used in the COD bucket editor now searches the ICD-10
 2019 master table (`mas_icd10_2019_2`) and returns active 3-character or

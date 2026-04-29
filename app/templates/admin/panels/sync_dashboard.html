@@ -29,6 +29,39 @@
     </div>
   </div>
 
+  <div class="card mb-3" id="site-maintenance-card">
+    <div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="small fw-semibold text-secondary">
+          <i class="fa-solid fa-screwdriver-wrench me-1"></i>Site Maintenance
+        </span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" id="site-maintenance-end-btn">
+            <i class="fa-solid fa-power-off me-1"></i>End Maintenance
+          </button>
+          <button class="btn btn-sm btn-warning" id="site-maintenance-start-btn">
+            <i class="fa-solid fa-hourglass-start me-1"></i>Start Maintenance
+          </button>
+        </div>
+      </div>
+      <div class="small text-muted mb-2">
+        Non-admin users keep working for 15 minutes, see a countdown at the bottom of the page, then are logged out. Only admin login is allowed right now.
+      </div>
+      <div class="mb-2">
+        <label for="site-maintenance-message" class="form-label small text-muted text-uppercase mb-1">User Message</label>
+        <textarea
+          id="site-maintenance-message"
+          class="form-control form-control-sm"
+          rows="2"
+          placeholder="Optional message shown to non-admin users during maintenance."
+        ></textarea>
+      </div>
+      <div id="site-maintenance-status-wrap" class="small text-muted">
+        <i class="fa-solid fa-spinner fa-spin me-1"></i>Loading maintenance status…
+      </div>
+    </div>
+  </div>
+
   {# Schedule configurator #}
   <div class="card mb-3">
     <div class="card-body py-3">
@@ -307,6 +340,43 @@
     } catch (e) {
       return fmtLocalDateTime(isoStr);
     }
+  }
+
+  function renderSiteMaintenanceStatus(maintenance) {
+    var wrap = document.getElementById('site-maintenance-status-wrap');
+    var msg = document.getElementById('site-maintenance-message');
+    var startBtn = document.getElementById('site-maintenance-start-btn');
+    var endBtn = document.getElementById('site-maintenance-end-btn');
+    if (!wrap || !msg || !startBtn || !endBtn) return;
+
+    if (!maintenance || !maintenance.enabled) {
+      wrap.innerHTML = '<span class="badge text-bg-secondary me-2">Inactive</span><span>No active maintenance window.</span>';
+      startBtn.disabled = false;
+      endBtn.disabled = true;
+      return;
+    }
+
+    if (maintenance.message && !msg.value) {
+      msg.value = maintenance.message;
+    }
+    startBtn.disabled = false;
+    endBtn.disabled = false;
+    wrap.innerHTML =
+      '<span class="badge text-bg-warning text-dark me-2">Active</span>'
+      + '<span>Cutoff at <strong>' + esc(fmtLocalDateTimeWithZone(maintenance.cutoff_at)) + '</strong>.</span>'
+      + (maintenance.message ? '<div class="mt-1 text-muted">' + esc(maintenance.message) + '</div>' : '');
+  }
+
+  function loadSiteMaintenanceStatus() {
+    apiJson('/admin/api/site-maintenance').then(function (res) {
+      if (!res.ok) {
+        renderSiteMaintenanceStatus(null);
+        return;
+      }
+      renderSiteMaintenanceStatus(res.data.maintenance);
+    }).catch(function () {
+      renderSiteMaintenanceStatus(null);
+    });
   }
 
   // Convert UTC ISO timestamp to local time string (HH:MM:SS)
@@ -1159,6 +1229,31 @@
   document.getElementById('sync-coverage-refresh-btn').addEventListener('click', loadCoverage);
   document.getElementById('sync-backfill-refresh-btn').addEventListener('click', loadBackfillStats);
   document.getElementById('sync-revoked-refresh-btn').addEventListener('click', loadRevokedStats);
+  document.getElementById('site-maintenance-start-btn').addEventListener('click', function () {
+    var message = document.getElementById('site-maintenance-message').value || '';
+    apiJson('/admin/api/site-maintenance', 'POST', { message: message }).then(function (res) {
+      if (!res.ok) {
+        showToast(res.data.error || 'Failed to start maintenance.', 'danger');
+        return;
+      }
+      showToast('Site maintenance started. Non-admin users have 15 minutes before logout.', 'warning');
+      renderSiteMaintenanceStatus(res.data.maintenance);
+    }).catch(function () {
+      showToast('Network error.', 'danger');
+    });
+  });
+  document.getElementById('site-maintenance-end-btn').addEventListener('click', function () {
+    apiJson('/admin/api/site-maintenance', 'DELETE').then(function (res) {
+      if (!res.ok) {
+        showToast(res.data.error || 'Failed to end maintenance.', 'danger');
+        return;
+      }
+      showToast('Site maintenance ended.', 'success');
+      renderSiteMaintenanceStatus(res.data.maintenance);
+    }).catch(function () {
+      showToast('Network error.', 'danger');
+    });
+  });
   // ── Toast helper ───────────────────────────────────────────────────────────
 
   function showToast(msg, type) {
@@ -1175,6 +1270,7 @@
   loadHistory();
   loadRevokedStats();
   loadBackfillStats();
+  loadSiteMaintenanceStatus();
 
 }());
 </script>

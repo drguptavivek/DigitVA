@@ -10,6 +10,7 @@ from app.models.va_submission_workflow_events import VaSubmissionWorkflowEvent
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 from app.models.va_submission_upstream_changes import VaSubmissionUpstreamChange
 from app.models.va_submission_notifications import VaSubmissionNotification
+from app.models.va_site_maintenance import VaSiteMaintenance
 from app.models.va_coding_episodes import VaCodingEpisode
 from app.models.va_research_projects import VaResearchProjects
 from app.models.va_project_sites import VaProjectSites
@@ -79,6 +80,7 @@ __all__ = [
     "VaSubmissionPayloadVersion",
     "VaSubmissionUpstreamChange",
     "VaSubmissionNotification",
+    "VaSiteMaintenance",
     "VaCodingEpisode",
     "VaUsernotesFor",
     "VaUsernotes",

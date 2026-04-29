@@ -46,6 +46,12 @@ The sync dashboard also includes ODK-backed backfill tooling:
 - a legacy-attachment `Repair` trigger that populates deterministic
   `storage_name` values for legacy non-`audit.csv` media rows and renames the
   local files to their opaque storage tokens
+- a global `Site Maintenance` control that starts a fixed 15-minute
+  maintenance window, shows all authenticated users a bottom-centered
+  maintenance banner, shows non-admin users a countdown, logs non-admin users
+  out at cutoff, blocks non-admin login while still allowing admin login, and
+  pushes the banner/countdown into already-open pages through a shared status
+  poller without requiring a manual refresh
 
 ### Admin-Only Panels
 

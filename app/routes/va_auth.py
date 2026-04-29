@@ -3,9 +3,15 @@ from app.models import VaUsers
 from app.forms import LoginForm, ForgotPasswordForm, ResetPasswordForm
 import sqlalchemy as sa
 import uuid
-from flask import Blueprint, render_template, redirect, url_for, flash, session, request
+from flask import Blueprint, render_template, redirect, url_for, flash, session, request, jsonify
 from flask_login import login_user, logout_user, current_user
 from urllib.parse import urlparse
+
+from app.services.site_maintenance_service import (
+    get_active_site_maintenance,
+    serialize_site_maintenance,
+    should_block_non_admin_after_cutoff,
+)
 
 va_auth = Blueprint("va_auth", __name__)
 
@@ -18,6 +24,15 @@ def va_login():
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
     form = LoginForm()
+    maintenance_notice = None
+    if should_block_non_admin_after_cutoff():
+        maintenance = get_active_site_maintenance()
+        if maintenance is not None:
+            maintenance_notice = {
+                "title": "Site is under maintenance.",
+                "body": "Only admin login is allowed right now.",
+                "message": maintenance.message or "",
+            }
     if form.validate_on_submit():
         user = db.session.scalar(
             sa.select(VaUsers).where(VaUsers.email == form.email.data)
@@ -34,6 +49,13 @@ def va_login():
             flash("Please verify your email address before logging in.", "email_unverified")
             return redirect(url_for("va_auth.va_login"))
 
+        if not user.is_admin() and should_block_non_admin_after_cutoff():
+            flash(
+                "Site is under maintenance. Only admin login is allowed right now.",
+                "warning",
+            )
+            return redirect(url_for("va_auth.va_login"))
+
         session.permanent = True
         login_user(user, remember=form.remember_me.data)
 
@@ -42,7 +64,11 @@ def va_login():
             next_page = current_user.landing_url()
 
         return redirect(next_page)
-    return render_template("va_frontpages/va_login.html", form=form)
+    return render_template(
+        "va_frontpages/va_login.html",
+        form=form,
+        maintenance_notice=maintenance_notice,
+    )
 
 
 @va_auth.route("/valogout", methods=["POST"])
@@ -52,6 +78,12 @@ def va_logout():
     logout_user()
     flash("You have been successfully logged out.", "primary")
     return redirect(url_for("va_main.va_index"))
+
+
+@va_auth.route("/site-maintenance-status", methods=["GET"])
+def site_maintenance_status():
+    maintenance = get_active_site_maintenance()
+    return jsonify({"maintenance": serialize_site_maintenance(maintenance)})
 
 
 # ---------------------------------------------------------------------------

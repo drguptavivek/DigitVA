@@ -52,6 +52,172 @@
     <main id="main-content" class="container py-4">
       {% block content %}{% endblock %}
     </main>
+    {% if site_maintenance_watcher_enabled %}
+      <div
+        id="site-maintenance-root"
+        data-status-url="{{ url_for('va_auth.site_maintenance_status') }}"
+        data-login-url="{{ url_for('va_auth.va_login') }}"
+        data-is-admin="{{ 'true' if site_maintenance_user_is_admin else 'false' }}"
+        data-initial-cutoff-at="{{ site_maintenance_banner.cutoff_at if site_maintenance_banner else '' }}"
+        data-initial-message="{{ site_maintenance_banner.message if site_maintenance_banner else '' }}"
+        data-initial-enabled="{{ 'true' if site_maintenance_banner else 'false' }}"
+        data-initial-show-countdown="{{ 'true' if site_maintenance_banner and site_maintenance_banner.show_countdown else 'false' }}"
+      ></div>
+      <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          var root = document.getElementById("site-maintenance-root");
+          if (!root) return;
+          var banner = null;
+          var isAdmin = root.dataset.isAdmin === "true";
+
+          function ensureBanner() {
+            if (banner && banner.parentNode) {
+              return banner;
+            }
+            banner = document.createElement("div");
+            banner.id = "site-maintenance-banner";
+            banner.className = "site-maintenance-banner";
+            banner.innerHTML = [
+              '<div class="site-maintenance-banner__title">Site is under maintenance</div>',
+              '<div class="site-maintenance-banner__message" style="display:none;"></div>',
+              '<div class="site-maintenance-banner__timer" style="display:none;">You will be logged out in <span id="site-maintenance-countdown">15:00</span></div>'
+            ].join("");
+            document.body.appendChild(banner);
+            return banner;
+          }
+
+          function removeBanner() {
+            if (banner && banner.parentNode) {
+              banner.parentNode.removeChild(banner);
+            }
+            banner = null;
+          }
+
+          function formatRemaining(totalSeconds) {
+            var minutes = Math.floor(totalSeconds / 60);
+            var seconds = totalSeconds % 60;
+            return String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+          }
+
+          function redirectToLogin() {
+            window.location.href = root.dataset.loginUrl;
+          }
+
+          function renderMaintenance(maintenance) {
+            if (!maintenance || !maintenance.enabled || !maintenance.is_grace_period) {
+              removeBanner();
+              return;
+            }
+            var activeBanner = ensureBanner();
+            if (maintenance.cutoff_at) {
+              activeBanner.dataset.cutoffAt = maintenance.cutoff_at;
+            }
+            var messageEl = activeBanner.querySelector(".site-maintenance-banner__message");
+            var timerEl = activeBanner.querySelector(".site-maintenance-banner__timer");
+            if (maintenance.message) {
+              messageEl.textContent = maintenance.message;
+              messageEl.style.display = "";
+            } else {
+              messageEl.textContent = "";
+              messageEl.style.display = "none";
+            }
+            if (maintenance.show_countdown) {
+              timerEl.style.display = "";
+            } else {
+              timerEl.style.display = "none";
+            }
+          }
+
+          function updateCountdownFromCutoff() {
+            if (!banner || !banner.dataset.cutoffAt) return;
+            var timerEl = banner.querySelector(".site-maintenance-banner__timer");
+            if (!timerEl || timerEl.style.display === "none") return;
+            var cutoffAt = new Date(banner.dataset.cutoffAt).getTime();
+            var remaining = Math.max(0, Math.floor((cutoffAt - Date.now()) / 1000));
+            var countdownEl = document.getElementById("site-maintenance-countdown");
+            if (countdownEl) {
+              countdownEl.textContent = formatRemaining(remaining);
+            }
+            if (remaining <= 0) {
+              redirectToLogin();
+            }
+          }
+
+          function pollMaintenanceStatus() {
+            fetch(root.dataset.statusUrl, {
+              headers: { "Accept": "application/json" },
+              credentials: "same-origin",
+            })
+              .then(function (response) {
+                if (!response.ok) {
+                  throw new Error("status request failed");
+                }
+                return response.json();
+              })
+              .then(function (payload) {
+                var maintenance = payload.maintenance || {};
+                maintenance.show_countdown = Boolean(!isAdmin && maintenance.is_grace_period);
+                if (maintenance.is_cutoff_passed && !isAdmin) {
+                  redirectToLogin();
+                  return;
+                }
+                renderMaintenance(maintenance);
+              })
+              .catch(function () {});
+          }
+
+          var initialEnabled = root.dataset.initialEnabled === "true";
+          if (initialEnabled) {
+            renderMaintenance({
+              enabled: true,
+              is_grace_period: root.dataset.initialShowCountdown === "true",
+              is_cutoff_passed: false,
+              cutoff_at: root.dataset.initialCutoffAt,
+              message: root.dataset.initialMessage || "",
+              show_countdown: root.dataset.initialShowCountdown === "true"
+            });
+          }
+
+          pollMaintenanceStatus();
+          window.setInterval(updateCountdownFromCutoff, 1000);
+          window.setInterval(pollMaintenanceStatus, 10000);
+          document.addEventListener("visibilitychange", function () {
+            if (!document.hidden) {
+              pollMaintenanceStatus();
+            }
+          });
+        });
+      </script>
+      <style>
+        .site-maintenance-banner {
+          position: fixed;
+          left: 50%;
+          bottom: 1rem;
+          transform: translateX(-50%);
+          z-index: 1085;
+          min-width: 320px;
+          max-width: min(640px, calc(100vw - 2rem));
+          padding: 0.9rem 1.1rem;
+          border-radius: 0.85rem;
+          background: rgba(33, 37, 41, 0.94);
+          color: #fff;
+          box-shadow: 0 14px 32px rgba(0, 0, 0, 0.2);
+          text-align: center;
+        }
+        .site-maintenance-banner__title {
+          font-weight: 700;
+        }
+        .site-maintenance-banner__message {
+          margin-top: 0.25rem;
+          font-size: 0.92rem;
+          color: rgba(255, 255, 255, 0.88);
+        }
+        .site-maintenance-banner__timer {
+          margin-top: 0.35rem;
+          font-size: 0.95rem;
+        }
+      </style>
+    {% endif %}
     <div id="app-toast-container"
          class="position-fixed bottom-0 end-0 p-3"
          style="z-index: 1090; pointer-events: none;"></div>

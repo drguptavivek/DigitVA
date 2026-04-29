@@ -8,7 +8,7 @@ import warnings
 # Suppress deprecation warnings from libraries until they update to modern datetime APIs
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-from flask import Flask, g, request, redirect, session, url_for, jsonify
+from flask import Flask, g, request, redirect, session, url_for, jsonify, flash
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -176,10 +176,22 @@ def create_app(config_class=None):
 
     @app.context_processor
     def inject_template_globals():
+        from app.services.site_maintenance_service import get_site_maintenance_banner_context
+
+        is_authenticated = bool(current_user and current_user.is_authenticated)
+        is_admin = bool(
+            current_user and current_user.is_authenticated and current_user.is_admin()
+        )
         return {
             "current_year": datetime.now(pytz.UTC).astimezone(
                 _current_user_timezone()
-            ).year
+            ).year,
+            "site_maintenance_banner": get_site_maintenance_banner_context(
+                is_authenticated=is_authenticated,
+                is_admin=is_admin,
+            ),
+            "site_maintenance_watcher_enabled": is_authenticated,
+            "site_maintenance_user_is_admin": is_admin,
         }
 
     @app.template_filter('user_timezone')
@@ -207,6 +219,9 @@ def create_app(config_class=None):
 
     @app.before_request
     def force_password_update():
+        if request.path.startswith("/static") or request.path == "/health":
+            return
+
         if request.path.startswith(timed_prefixes):
             g._request_started_at = perf_counter()
 
@@ -215,30 +230,29 @@ def create_app(config_class=None):
             get_temporary_ban,
         )
 
-        if not request.path.startswith("/static") and request.path != "/health":
-            temporary_ban = get_temporary_ban(request.remote_addr)
-            if temporary_ban is not None:
-                app.logger.warning(
-                    "blocked_temporarily_banned_ip ip=%s method=%s path=%s remaining_seconds=%s",
-                    request.remote_addr,
-                    request.method,
-                    request.path,
-                    temporary_ban["remaining_seconds"],
+        temporary_ban = get_temporary_ban(request.remote_addr)
+        if temporary_ban is not None:
+            app.logger.warning(
+                "blocked_temporarily_banned_ip ip=%s method=%s path=%s remaining_seconds=%s",
+                request.remote_addr,
+                request.method,
+                request.path,
+                temporary_ban["remaining_seconds"],
+            )
+            message = abuse_ban_message()
+            if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
+                response = jsonify({"error": message})
+            else:
+                response = app.response_class(
+                    f"{message}\n",
+                    status=403,
+                    mimetype="text/plain",
                 )
-                message = abuse_ban_message()
-                if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
-                    response = jsonify({"error": message})
-                else:
-                    response = app.response_class(
-                        f"{message}\n",
-                        status=403,
-                        mimetype="text/plain",
-                    )
-                response.status_code = 403
-                response.headers["Retry-After"] = str(
-                    temporary_ban["remaining_seconds"]
-                )
-                return response
+            response.status_code = 403
+            response.headers["Retry-After"] = str(
+                temporary_ban["remaining_seconds"]
+            )
+            return response
 
         current_user_id = session.get("_user_id")
         if not current_user_id:
@@ -253,6 +267,27 @@ def create_app(config_class=None):
         fresh_user = db.session.get(VaUsers, current_user_id)
         if fresh_user is None:
             return
+
+        from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
+        from flask_login import logout_user
+
+        if not fresh_user.is_admin() and should_block_non_admin_after_cutoff():
+            logout_user()
+            flash(
+                "Site is under maintenance. Only admin login is allowed right now.",
+                "warning",
+            )
+            if (
+                request.path.startswith("/api/")
+                or request.path.startswith("/admin/api/")
+                or request.path.startswith("/api/v1/")
+            ):
+                return jsonify(
+                    {
+                        "error": "Site is under maintenance. Only admin login is allowed right now."
+                    }
+                ), 401
+            return redirect(url_for("va_auth.va_login"))
 
         allowed_endpoints = {
             'static',

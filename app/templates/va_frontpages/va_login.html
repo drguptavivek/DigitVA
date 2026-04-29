@@ -23,6 +23,17 @@
       </div>
     {% endif %}
     {% endwith %}
+    {% if maintenance_notice %}
+      <div class="container mt-4">
+        <div class="alert alert-warning shadow-sm" role="alert">
+          <div class="fw-semibold">{{ maintenance_notice.title }}</div>
+          <div>{{ maintenance_notice.body }}</div>
+          {% if maintenance_notice.message %}
+            <div class="small mt-2">{{ maintenance_notice.message }}</div>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
     <div class="row justify-content-center">
       <div class="col-md-6">
         <div class="card shadow">

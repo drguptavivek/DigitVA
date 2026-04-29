@@ -31,6 +31,7 @@ Current policy docs:
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [Password Breach Check Policy](password-breach-checks.md)
 - [Request Method Abuse Control Policy](request-method-abuse-control.md)
+- [Site Maintenance Mode Policy](site-maintenance-mode.md)
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [Test Harness Policy](test-harness.md) — session-scoped schema, savepoint isolation, fixture rules
 - [UI Notification Policy](ui-notifications.md)

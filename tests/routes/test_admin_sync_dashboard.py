@@ -191,3 +191,13 @@ class AdminSyncDashboardTests(BaseTestCase):
             "Active runtime mapping not found",
             response.get_json()["error"],
         )
+
+    def test_sync_panel_renders_site_maintenance_controls(self):
+        self._login(self.base_admin_id)
+
+        response = self.client.get("/admin/panels/sync")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Start Maintenance", response.data)
+        self.assertIn(b"End Maintenance", response.data)
+        self.assertIn(b"Only admin login is allowed right now.", response.data)

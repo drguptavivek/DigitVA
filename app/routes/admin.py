@@ -26,6 +26,12 @@ from app.services.odk_connection_guard_service import (
     guarded_odk_call,
     serialize_connection_guard_state,
 )
+from app.services.site_maintenance_service import (
+    end_site_maintenance,
+    get_active_site_maintenance,
+    serialize_site_maintenance,
+    start_site_maintenance,
+)
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.services.cod_bucket_mapping_service import (
     NODE_DELETE_DISPOSITION_MOVE_TO_UNMAPPED,
@@ -62,6 +68,7 @@ from app.services.icd10_2019_2_service import (
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaSiteMaintenance,
     MapIcdCodBucket,
     MasOdkConnections,
     MasCodBucketNode,
@@ -4651,6 +4658,34 @@ def admin_cod_bucket_scheme_add_mappings(scheme_code):
 @role_required("admin")
 def admin_panel_sync():
     return render_template("admin/panels/sync_dashboard.html")
+
+
+@admin.get("/api/site-maintenance")
+@role_required("admin")
+def admin_site_maintenance_status():
+    maintenance = get_active_site_maintenance()
+    return jsonify({"maintenance": serialize_site_maintenance(maintenance)})
+
+
+@admin.post("/api/site-maintenance")
+@role_required("admin")
+def admin_site_maintenance_start():
+    payload = request.get_json(silent=True) or {}
+    message = (payload.get("message") or "").strip() or None
+    maintenance = start_site_maintenance(
+        actor_user_id=current_user.user_id,
+        message=message,
+    )
+    return jsonify({"maintenance": serialize_site_maintenance(maintenance)})
+
+
+@admin.delete("/api/site-maintenance")
+@role_required("admin")
+def admin_site_maintenance_end():
+    maintenance = end_site_maintenance(actor_user_id=current_user.user_id)
+    if maintenance is None:
+        return jsonify({"maintenance": serialize_site_maintenance(None)})
+    return jsonify({"maintenance": serialize_site_maintenance(maintenance)})
 
 
 @admin.get("/panels/activity")

@@ -362,6 +362,33 @@ class AdminCodBucketPanelTests(BaseTestCase):
             )
         )
 
+    def test_cod_bucket_scheme_import_json_rejects_icd_policy_json_with_actionable_error(self):
+        self._login(self.base_admin_id)
+        payload = {
+            "source_version": "2019-test",
+            "assignability_decision_source": "reviewed",
+            "row_count": 1,
+            "disabled_by_assignability_review_count": 0,
+            "items": [],
+        }
+
+        response = self.client.post(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/import",
+            data={
+                "file": (
+                    BytesIO(json.dumps(payload).encode("utf-8")),
+                    "who_2022_icd10_2019_2_policy_reviewed.json",
+                )
+            },
+            headers=self._csrf_headers(),
+            content_type="multipart/form-data",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        body = response.get_json()
+        self.assertIn("ICD policy JSON", body["error"])
+        self.assertIn("COD bucket scheme export", body["error"])
+
     def test_cod_bucket_scheme_export_returns_xlsx_with_bucket_and_manual_override_status(self):
         self._login(self.base_admin_id)
         mapping = db.session.get(MapIcdCodBucket, self.mapping_id)

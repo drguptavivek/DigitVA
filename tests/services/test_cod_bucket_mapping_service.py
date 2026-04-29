@@ -947,6 +947,39 @@ class CodBucketMappingServiceTests(BaseTestCase):
                 payload=payload,
             )
 
+    def test_import_cod_bucket_scheme_json_rejects_icd_policy_json_with_actionable_error(self):
+        scheme, _warnings = create_cod_bucket_scheme(
+            scheme_name="Import Policy Validation Target",
+            scheme_code="IMPORT_POLICY_VALIDATE",
+            age_bands=[
+                {
+                    "age_label": "Adult / Over 5 Years",
+                    "min_age_value": 5,
+                    "min_age_unit": "years",
+                    "max_age_value": 120,
+                    "max_age_unit": "years",
+                    "level_count": 2,
+                }
+            ],
+        )
+
+        payload = {
+            "source_version": "2019-test",
+            "assignability_decision_source": "reviewed",
+            "row_count": 1,
+            "disabled_by_assignability_review_count": 0,
+            "items": [],
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "ICD policy JSON, not a COD bucket scheme export",
+        ):
+            import_cod_bucket_scheme_json(
+                scheme_code=scheme.scheme_code,
+                payload=payload,
+            )
+
     def test_aggregate_coded_submissions_by_bucket_uses_age_scope(self):
         db.session.execute(
             sa.delete(VaFinalAssessments).where(

@@ -1497,6 +1497,15 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
         raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
     if not isinstance(payload, dict):
         raise ValueError("COD bucket import payload must be a JSON object.")
+    if {
+        "items",
+        "source_version",
+        "assignability_decision_source",
+    }.issubset(payload.keys()):
+        raise ValueError(
+            "This file looks like an ICD policy JSON, not a COD bucket scheme export. "
+            "Use Export JSON from the COD bucket scheme card, or use the COD bucket workbook import/reset flow."
+        )
 
     scheme_payload = payload.get("scheme")
     age_band_payload = payload.get("age_bands")

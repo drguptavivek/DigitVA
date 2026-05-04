@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-05-04
 ---
 
 # Admin And Setup Model
@@ -95,7 +95,7 @@ Current project master data now includes:
 - project identity fields
 - active/inactive status
 - Narrative Quality Assessment enablement
-- Social Autopsy analysis enablement
+- coder and reviewer Social Autopsy analysis enablement
 - coding intake mode (`random_form_allocation` or `pick_and_choose`)
 
 Current admin behavior:

@@ -98,6 +98,52 @@ class TestCategoryTableSectionsTemplate(unittest.TestCase):
         self.assertIn("Social Autopsy Analysis", rendered)
         self.assertIn("Recognition", rendered)
 
+    def test_social_autopsy_category_renders_editable_reviewer_analysis_panel(self):
+        category_config = SimpleNamespace(
+            display_label="Social Autopsy",
+            icon_name="fa-users",
+        )
+
+        rendered = self.env.get_template(
+            "va_formcategory_partials/category_table_sections.html"
+        ).render(
+            category_config=category_config,
+            category_data={"social-autopsy": {"Question One": "Yes"}},
+            subcategory_labels={"social-autopsy": "Social Autopsy"},
+            social_autopsy_enabled=True,
+            social_autopsy_analysis_questions=[
+                {
+                    "delay_level": "delay_1_decision",
+                    "title": "Delay 1",
+                    "options": [
+                        {
+                            "option_code": "recognition",
+                            "label": "Recognition",
+                            "description": "Recognised late",
+                        }
+                    ],
+                }
+            ],
+            social_autopsy_selected_pairs=[],
+            va_social_autopsy_analysis=None,
+            flip_list=[],
+            info_list=[],
+            instance_name="CASE-1",
+            va_previouscategory=None,
+            va_nextcategory=None,
+            va_action="vareview",
+            va_actiontype="vastartreviewing",
+            va_sid="SID-1",
+            va_partial="social_autopsy",
+            csrf_token=lambda: "token",
+            url_for=lambda *args, **kwargs: "/review/SID-1/social-autopsy",
+        )
+
+        self.assertIn("Social Autopsy Analysis", rendered)
+        self.assertIn("Save Analysis", rendered)
+        self.assertNotIn("disabled\n                >", rendered)
+        self.assertNotIn("disabled\n      >", rendered)
+
     def test_social_autopsy_category_renders_none_option(self):
         category_config = SimpleNamespace(
             display_label="Social Autopsy",

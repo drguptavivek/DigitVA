@@ -16,6 +16,7 @@ from app.models.va_research_projects import VaResearchProjects
 from app.models.va_project_sites import VaProjectSites
 from app.models.va_initial_assessments import VaInitialAssessments
 from app.models.va_final_assessments import VaFinalAssessments
+from app.models.va_reviewer_initial_assessments import VaReviewerInitialAssessments
 from app.models.va_reviewer_final_assessments import VaReviewerFinalAssessments
 from app.models.va_final_cod_authority import VaFinalCodAuthority
 # Deprecated as of 2026-04-20: legacy ICD catalog model export.
@@ -93,6 +94,7 @@ __all__ = [
     "VaSmartvaRun",
     "VaSmartvaRunOutput",
     "VaFinalAssessments",
+    "VaReviewerInitialAssessments",
     "VaReviewerFinalAssessments",
     "VaFinalCodAuthority",
     "VaIcdCodes",

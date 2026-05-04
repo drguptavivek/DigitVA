@@ -31,7 +31,7 @@ class TestCategoryRenderingService(BaseTestCase):
                     render_mode="table_sections",
                     show_to_coder=False,
                     show_to_reviewer=False,
-                    show_to_site_pi=True,
+                    show_to_site_pi_datamanager=True,
                     always_include=False,
                     is_default_start=False,
                     is_active=True,
@@ -46,7 +46,7 @@ class TestCategoryRenderingService(BaseTestCase):
                     render_mode="table_sections",
                     show_to_coder=True,
                     show_to_reviewer=True,
-                    show_to_site_pi=True,
+                    show_to_site_pi_datamanager=True,
                     always_include=False,
                     is_default_start=True,
                     is_active=True,
@@ -61,8 +61,23 @@ class TestCategoryRenderingService(BaseTestCase):
                     render_mode="attachments",
                     show_to_coder=True,
                     show_to_reviewer=True,
-                    show_to_site_pi=True,
+                    show_to_site_pi_datamanager=True,
                     always_include=True,
+                    is_default_start=False,
+                    is_active=True,
+                ),
+                MasCategoryDisplayConfig(
+                    form_type_id=cls.form_type.form_type_id,
+                    category_code="social_autopsy",
+                    display_label="Social Autopsy",
+                    nav_label="Social Autopsy",
+                    icon_name="fa-users",
+                    display_order=4,
+                    render_mode="table_sections",
+                    show_to_coder=True,
+                    show_to_reviewer=True,
+                    show_to_site_pi_datamanager=True,
+                    always_include=False,
                     is_default_start=False,
                     is_active=True,
                 ),
@@ -133,6 +148,17 @@ class TestCategoryRenderingService(BaseTestCase):
         self.assertEqual(previous_code, "vademographicdetails")
         self.assertEqual(next_code, "vacodassessment")
 
+    def test_cod_assessment_is_final_reviewer_workflow_item_after_social_autopsy(self):
+        previous_code, next_code = get_category_rendering_service().get_category_neighbours(
+            "TEST_RENDERING_FORM",
+            "vareview",
+            ["vademographicdetails", "social_autopsy"],
+            "social_autopsy",
+        )
+
+        self.assertEqual(previous_code, "vanarrationanddocuments")
+        self.assertEqual(next_code, "vacodassessment")
+
     def test_all_active_categories_returns_only_configured_categories(self):
         items = get_category_rendering_service().get_all_active_categories(
             "TEST_RENDERING_FORM"
@@ -144,5 +170,6 @@ class TestCategoryRenderingService(BaseTestCase):
                 "vainterviewdetails",
                 "vademographicdetails",
                 "vanarrationanddocuments",
+                "social_autopsy",
             ],
         )

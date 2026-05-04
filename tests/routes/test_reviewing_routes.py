@@ -10,6 +10,7 @@ from app.models import (
     VaForms,
     VaProjectSites,
     VaResearchProjects,
+    VaSiteMaster,
     VaSites,
     VaStatuses,
     VaSubmissionWorkflow,
@@ -178,6 +179,125 @@ class ReviewingRoutesTests(BaseTestCase):
             )
         )
         self.assertIsNotNone(legacy_audit)
+
+    def test_reviewing_dashboard_exposes_scope_fields_for_grid_filters(self):
+        sid = "uuid:reviewer-dashboard-grid-fields"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._login(self.base_reviewer_id)
+
+        response = self.client.get("/reviewing/")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("reviewer-grid", body)
+        self.assertIn("reviewer-filter-project", body)
+        self.assertIn("reviewer-filter-site", body)
+        self.assertIn("reviewer-filter-coded-date", body)
+        self.assertIn("reviewer-filter-language", body)
+        self.assertIn("va_reviewer_dashboard.js", body)
+        self.assertIn('"project_id": "RR01"', body)
+        self.assertIn('"site_id": "RS01"', body)
+        self.assertIn('"va_narration_language": "English"', body)
+        self.assertIn('"va_coded_at": ""', body)
+
+    def test_reviewing_dashboard_excludes_inactive_project_site_forms(self):
+        now = datetime.now(timezone.utc)
+        inactive_site_id = "RS02"
+        inactive_form_id = "RRTFORM002"
+        inactive_sid = "uuid:reviewer-dashboard-inactive-site"
+        db.session.add(
+            VaSiteMaster(
+                site_id=inactive_site_id,
+                site_name="Inactive Reviewer Route Site",
+                site_abbr=inactive_site_id,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaSites(
+                site_id=inactive_site_id,
+                project_id=self.BASE_PROJECT_ID,
+                site_name="Inactive Reviewer Route Site",
+                site_abbr=inactive_site_id,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id=self.BASE_PROJECT_ID,
+                site_id=inactive_site_id,
+                project_site_status=VaStatuses.deactive,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaForms(
+                form_id=inactive_form_id,
+                project_id=self.BASE_PROJECT_ID,
+                site_id=inactive_site_id,
+                odk_form_id="REVIEWER_ROUTE_INACTIVE_FORM",
+                odk_project_id="1",
+                form_type="WHO_2022_VA",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=self.base_reviewer_user.user_id,
+                role=VaAccessRoles.reviewer,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=self.BASE_PROJECT_ID,
+                notes="project-scope reviewer route grant",
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissions(
+                va_sid=inactive_sid,
+                va_form_id=inactive_form_id,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_data_collector="inactive-site",
+                va_instance_name=inactive_sid,
+                va_uniqueid_real=inactive_sid,
+                va_uniqueid_masked=inactive_sid,
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=42,
+                va_deceased_gender="male",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=inactive_sid,
+                workflow_state=WORKFLOW_REVIEWER_ELIGIBLE,
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.commit()
+        self._login(self.base_reviewer_id)
+
+        response = self.client.get("/reviewing/")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertNotIn(f'"site_id": "{inactive_site_id}"', body)
+        self.assertNotIn(f'"va_form_id": "{inactive_form_id}"', body)
+        self.assertNotIn(inactive_sid, body)
 
     def test_admin_revoked_stats_uses_canonical_workflow_state(self):
         sid = "uuid:admin-revoked-stats"

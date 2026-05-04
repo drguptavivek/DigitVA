@@ -1,4 +1,6 @@
 {% set is_coding_mode = va_action == "vacode" and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+{% set is_reviewing_mode = va_action == "vareview" and (va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing") %}
+{% set is_editable_mode = is_coding_mode or is_reviewing_mode %}
 {% set analysis = va_social_autopsy_analysis %}
 {% set selected_pairs = social_autopsy_selected_pairs or [] %}
 
@@ -19,7 +21,7 @@
         <div class="d-flex flex-column gap-2">
           {% for option in question.options %}
             {% set pair_key = question.delay_level ~ '::' ~ option.option_code %}
-            <label class="border rounded p-2 {% if is_coding_mode %}bg-light-subtle{% endif %}">
+            <label class="border rounded p-2 {% if is_editable_mode %}bg-light-subtle{% endif %}">
               <div class="form-check mb-1">
                 <input
                   class="form-check-input saa-checkbox"
@@ -29,7 +31,7 @@
                   data-none-option="{% if option.option_code == 'none' %}1{% else %}0{% endif %}"
                   id="saa_{{ question.delay_level }}_{{ option.option_code }}"
                   {% if pair_key in selected_pairs %}checked{% endif %}
-                  {% if not is_coding_mode %}disabled{% endif %}
+                  {% if not is_editable_mode %}disabled{% endif %}
                 >
                 <label class="form-check-label fw-semibold" for="saa_{{ question.delay_level }}_{{ option.option_code }}">
                   {{ option.label }}
@@ -49,11 +51,11 @@
         class="form-control"
         rows="3"
         placeholder="Optional remarks about delay factors in this case"
-        {% if not is_coding_mode %}disabled{% endif %}
+        {% if not is_editable_mode %}disabled{% endif %}
       >{{ analysis.va_saa_remark if analysis else '' }}</textarea>
     </div>
 
-    {% if is_coding_mode %}
+    {% if is_editable_mode %}
       <div class="d-flex align-items-center gap-3 mt-3 flex-wrap">
         <div class="small text-muted">
           Saved selections: <span id="saa-selection-count" class="fw-semibold">{{ selected_pairs|length }}</span>
@@ -69,13 +71,13 @@
       </div>
     {% elif analysis %}
       <div class="alert alert-secondary mt-3 mb-0 py-2">
-        Social Autopsy analysis saved for this coder view.
+        Social Autopsy analysis saved.
       </div>
     {% endif %}
   </div>
 </div>
 
-{% if is_coding_mode %}
+{% if is_editable_mode %}
 <script>
   document.querySelectorAll('.saa-checkbox').forEach(function (input) {
     input.addEventListener('change', function () {

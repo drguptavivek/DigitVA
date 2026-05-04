@@ -38,6 +38,10 @@ from app.services.payload_bound_coding_artifact_service import (
     get_current_payload_social_autopsy_analysis,
     get_submission_with_current_payload,
 )
+from app.services.reviewer_final_assessment_service import (
+    get_latest_active_reviewer_initial_assessment,
+    get_latest_active_reviewer_final_assessment,
+)
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_summary_service import build_submission_summary
 from app.services.workflow.definition import (
@@ -78,7 +82,7 @@ def _section_data_cache_key(va_sid: str, va_partial: str) -> str:
 
 def _response_contains_user_specific_artifacts(va_partial: str, va_action: str) -> bool:
     """Return whether a rendered partial includes user-specific coding artifacts."""
-    if va_action != "vacode":
+    if va_action not in {"vacode", "vareview"}:
         return False
     return va_partial in {"vanarrationanddocuments", "social_autopsy"}
 
@@ -141,11 +145,13 @@ def _get_display_initial_assessment(va_sid: str):
     )
 
 
-def _is_social_autopsy_enabled_for_submission(va_sid: str) -> bool:
+def _is_social_autopsy_enabled_for_submission(va_sid: str, va_action: str = "vacode") -> bool:
     """Return whether the app-owned Social Autopsy analysis form is enabled."""
     project = _get_project_for_submission(va_sid)
     if project is None:
         return True
+    if va_action == "vareview":
+        return bool(project.reviewer_social_autopsy_enabled)
     return bool(project.social_autopsy_enabled)
 adult = [
     "I10 - Essential Hypertension",
@@ -588,6 +594,16 @@ def renderpartial(va_sid, va_partial):
         vainiexists = db.session.scalar(sa.select(VaInitialAssessments.va_sid).where(*_ini_filter))
         va_final_assess = authoritative_final_assess
         va_initial_assess = _get_display_initial_assessment(va_sid)
+        va_reviewer_initial_assess = None
+        va_reviewer_final_assess = None
+        if va_action == "vareview":
+            va_reviewer_initial_assess = get_latest_active_reviewer_initial_assessment(
+                va_sid,
+                current_user.user_id,
+            )
+            va_reviewer_final_assess = get_latest_active_reviewer_final_assessment(
+                va_sid
+            )
         va_coder_review = db.session.scalar(sa.select(VaCoderReview).where((VaCoderReview.va_creview_status == VaStatuses.active)&(VaCoderReview.va_sid == va_sid)))
         da_va_final_assess = db.session.scalar(sa.select(VaFinalAssessments).where((VaFinalAssessments.va_finassess_status == VaStatuses.deactive)&(VaFinalAssessments.va_sid == va_sid)&(VaFinalAssessments.va_finassess_by == current_user.user_id)))
         da_va_initial_assess = None
@@ -601,16 +617,16 @@ def renderpartial(va_sid, va_partial):
         #     va_mappingflip = va_mapping_flip,
         #     va_mappinginfo = va_mapping_info,
         # )
-        # NQA context (only relevant for vanarrationanddocuments + vacode)
+        # NQA context (only relevant for vanarrationanddocuments in coding/reviewing)
         _nqa_project = _get_project_for_submission(va_sid) if va_partial == "vanarrationanddocuments" else None
         narrative_qa_enabled = bool(_nqa_project and _nqa_project.narrative_qa_enabled)
         social_autopsy_enabled = (
-            _is_social_autopsy_enabled_for_submission(va_sid)
+            _is_social_autopsy_enabled_for_submission(va_sid, va_action)
             if va_partial == "social_autopsy"
             else False
         )
         va_narrative_assessment = None
-        if narrative_qa_enabled and va_action == "vacode":
+        if narrative_qa_enabled and va_action in {"vacode", "vareview"}:
             va_narrative_assessment = get_current_payload_narrative_assessment(
                 va_sid,
                 current_user.user_id,
@@ -623,7 +639,7 @@ def renderpartial(va_sid, va_partial):
                 VaUsernotes.note_status == VaStatuses.active,
             )
         )
-        if va_partial == "social_autopsy" and va_action == "vacode" and social_autopsy_enabled:
+        if va_partial == "social_autopsy" and va_action in {"vacode", "vareview"} and social_autopsy_enabled:
             va_social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
                 va_sid,
                 current_user.user_id,
@@ -668,6 +684,8 @@ def renderpartial(va_sid, va_partial):
             vainiexists = vainiexists,
             va_final_assess = va_final_assess,
             va_initial_assess = va_initial_assess,
+            va_reviewer_initial_assess=va_reviewer_initial_assess,
+            va_reviewer_final_assess=va_reviewer_final_assess,
             va_coder_review = va_coder_review,
             smartva = smartva,
             da_va_final_assess = da_va_final_assess,
@@ -1049,7 +1067,7 @@ def renderpartial(va_sid, va_partial):
             )
             _category_service = get_category_rendering_service()
             if (
-                _is_social_autopsy_enabled_for_submission(va_sid)
+                _is_social_autopsy_enabled_for_submission(va_sid, va_action)
                 and _category_service.is_category_enabled(
                 _form_type_code,
                 "vacode",
@@ -1309,6 +1327,7 @@ def renderpartial(va_sid, va_partial):
                 response.headers["HX-Redirect"] = url_for('coding.dashboard')
                 return response
         return _render_coder_review_form()
+    abort(404)
         
         
         
@@ -1598,12 +1617,19 @@ def serve_media(va_form_id, va_filename):
 
 def _get_required_completion_block(va_sid: str, va_partial: str, va_action: str, va_actiontype: str):
     """Return a blocking message if the current category has an incomplete required form."""
-    if va_action != "vacode":
+    if va_action not in {"vacode", "vareview"}:
         return None
-    if va_actiontype not in {"vastartcoding", "vapickcoding", "varesumecoding", "vademo_start_coding"}:
+    if va_actiontype not in {
+        "vastartcoding",
+        "vapickcoding",
+        "varesumecoding",
+        "vademo_start_coding",
+        "vastartreviewing",
+        "varesumereviewing",
+    }:
         return None
 
-    if va_partial == "social_autopsy" and _is_social_autopsy_enabled_for_submission(va_sid):
+    if va_partial == "social_autopsy" and _is_social_autopsy_enabled_for_submission(va_sid, va_action):
         analysis = get_current_payload_social_autopsy_analysis(
             va_sid,
             current_user.user_id,

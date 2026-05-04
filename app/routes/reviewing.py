@@ -3,7 +3,10 @@ from app import db
 from app.models import (
     VaAllocations,
     VaAllocation,
+    VaFinalAssessments,
     VaReviewerFinalAssessments,
+    VaForms,
+    VaProjectSites,
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissions,
@@ -28,9 +31,29 @@ reviewing = Blueprint("reviewing", __name__)
 def dashboard():
     va_form_access = current_user.get_reviewer_va_forms()
     if va_form_access:
+        active_final = (
+            sa.select(
+                VaFinalAssessments.va_sid.label("va_sid"),
+                sa.func.max(VaFinalAssessments.va_finassess_createdat).label(
+                    "va_coded_at"
+                ),
+            )
+            .where(VaFinalAssessments.va_finassess_status == VaStatuses.active)
+            .group_by(VaFinalAssessments.va_sid)
+            .subquery()
+        )
         va_total_forms = db.session.scalar(
             sa.select(sa.func.count())
             .select_from(VaSubmissions)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .join(
+                VaProjectSites,
+                sa.and_(
+                    VaProjectSites.project_id == VaForms.project_id,
+                    VaProjectSites.site_id == VaForms.site_id,
+                    VaProjectSites.project_site_status == VaStatuses.active,
+                ),
+            )
             .where(
                 sa.sql.and_(
                     VaSubmissions.va_form_id.in_(va_form_access),
@@ -58,12 +81,16 @@ def dashboard():
                     sa.func.date(VaSubmissions.va_submission_date).label(
                         "va_submission_date"
                     ),
+                    VaForms.project_id.label("project_id"),
+                    VaForms.site_id.label("site_id"),
                     VaSubmissions.va_form_id,
                     VaSubmissions.va_sid,
                     VaSubmissions.va_uniqueid_masked,
                     VaSubmissions.va_data_collector,
+                    VaSubmissions.va_narration_language,
                     VaSubmissions.va_deceased_age,
                     VaSubmissions.va_deceased_gender,
+                    sa.func.date(active_final.c.va_coded_at).label("va_coded_at"),
                     # Workflow state is the canonical source for review status.
                     # reviewer_finalized  → terminal, final COD submitted
                     # reviewer_coding_in_progress → session active
@@ -84,6 +111,19 @@ def dashboard():
                     sa.func.date(
                         VaReviewerFinalAssessments.va_rfinassess_createdat
                     ).label("va_reviewed_at"),
+                )
+                .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+                .join(
+                    VaProjectSites,
+                    sa.and_(
+                        VaProjectSites.project_id == VaForms.project_id,
+                        VaProjectSites.site_id == VaForms.site_id,
+                        VaProjectSites.project_site_status == VaStatuses.active,
+                    ),
+                )
+                .outerjoin(
+                    active_final,
+                    active_final.c.va_sid == VaSubmissions.va_sid,
                 )
                 .outerjoin(
                     VaSubmissionWorkflow,
@@ -109,7 +149,7 @@ def dashboard():
             .mappings()
             .all()
         )
-        va_date_fields = ["va_submission_date", "va_reviewed_at"]
+        va_date_fields = ["va_submission_date", "va_coded_at", "va_reviewed_at"]
         va_forms = [
             va_render_serialisedates(row, va_date_fields) for row in va_forms_raw
         ]

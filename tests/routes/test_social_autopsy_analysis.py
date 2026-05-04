@@ -2,15 +2,21 @@ from datetime import datetime, timezone
 
 from app import db
 from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaAllocation,
+    VaAllocations,
     MasFormTypes,
     VaForms,
     VaProjectMaster,
+    VaProjectSites,
     VaResearchProjects,
     VaSites,
     VaSocialAutopsyAnalysis,
     VaStatuses,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaUserAccessGrants,
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
@@ -84,6 +90,20 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
                 )
             )
         db.session.flush()
+        project_site = db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
+                VaProjectSites.site_id == cls.BASE_SITE_ID,
+            )
+        )
+        if not project_site:
+            project_site = VaProjectSites(
+                project_id=cls.BASE_PROJECT_ID,
+                site_id=cls.BASE_SITE_ID,
+                project_site_status=VaStatuses.active,
+            )
+            db.session.add(project_site)
+            db.session.flush()
 
         form = VaForms(
             form_id="SAA01SA0101",
@@ -122,6 +142,23 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         ensure_active_payload_version(submission, payload_data={"sa01": 1.0}, source_updated_at=None, created_by_role="vasystem")
         db.session.commit()
         cls.social_sid = submission.va_sid
+        cls.reviewer_user = cls._make_user(
+            "social.reviewer@test.local",
+            "SocialReviewer123",
+        )
+        cls.reviewer_user.landing_page = "reviewer"
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.reviewer_user.user_id,
+                role=VaAccessRoles.reviewer,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site.project_site_id,
+                grant_status=VaStatuses.active,
+                notes="social autopsy reviewer grant",
+            )
+        )
+        db.session.commit()
+        cls.reviewer_id = str(cls.reviewer_user.user_id)
 
     def test_save_social_autopsy_analysis_creates_parent_and_options(self):
         self._login(self.base_admin_id)
@@ -197,8 +234,92 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(
             resp.get_json()["error"],
-            "Social Autopsy is disabled for this project.",
+            "Coder Social Autopsy is disabled for this project.",
         )
+
+    def test_reviewer_can_save_social_autopsy_with_active_reviewing_allocation(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.reviewer_social_autopsy_enabled = True
+        for allocation in db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_sid == self.social_sid,
+                VaAllocations.va_allocated_to == self.reviewer_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all():
+            allocation.va_allocation_status = VaStatuses.deactive
+        db.session.add(
+            VaAllocations(
+                va_sid=self.social_sid,
+                va_allocated_to=self.reviewer_user.user_id,
+                va_allocation_for=VaAllocation.reviewing,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        self._login(self.reviewer_id)
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={
+                "va_actiontype": "vastartreviewing",
+                "selected_options": [
+                    {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                    {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
+                    {"delay_level": "delay_3_receiving", "option_code": "delay_in_referral"},
+                ],
+                "remark": "reviewer social autopsy",
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        analysis = db.session.scalar(
+            db.select(VaSocialAutopsyAnalysis).where(
+                VaSocialAutopsyAnalysis.va_sid == self.social_sid,
+                VaSocialAutopsyAnalysis.va_saa_by == self.reviewer_user.user_id,
+                VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNotNone(analysis)
+        audit = db.session.scalar(
+            db.select(VaSubmissionsAuditlog).where(
+                VaSubmissionsAuditlog.va_sid == self.social_sid,
+                VaSubmissionsAuditlog.va_audit_byrole == "reviewer",
+                VaSubmissionsAuditlog.va_audit_action == "social autopsy analysis saved",
+            )
+        )
+        self.assertIsNotNone(audit)
+
+    def test_reviewer_save_requires_active_reviewing_allocation(self):
+        for allocation in db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_sid == self.social_sid,
+                VaAllocations.va_allocated_to == self.reviewer_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all():
+            allocation.va_allocation_status = VaStatuses.deactive
+        db.session.commit()
+
+        self._login(self.reviewer_id)
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={
+                "va_actiontype": "varesumereviewing",
+                "selected_options": [
+                    {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                    {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
+                    {"delay_level": "delay_3_receiving", "option_code": "delay_in_referral"},
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.get_json()["error"], "Active reviewer allocation required.")
 
     def test_none_option_is_saved_and_overrides_other_options_in_same_delay(self):
         self._login(self.base_admin_id)

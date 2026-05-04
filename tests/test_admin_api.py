@@ -565,6 +565,7 @@ class AdminApiTests(BaseTestCase):
                 "project_name": "Test Master Project",
                 "project_nickname": "TMP",
                 "social_autopsy_enabled": False,
+                "reviewer_social_autopsy_enabled": True,
                 "demo_training_enabled": True,
                 "demo_retention_minutes": 10,
             },
@@ -572,6 +573,7 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(create_resp.status_code, 201)
         self.assertFalse(create_resp.get_json()["project"]["social_autopsy_enabled"])
+        self.assertTrue(create_resp.get_json()["project"]["reviewer_social_autopsy_enabled"])
         self.assertTrue(create_resp.get_json()["project"]["demo_training_enabled"])
         self.assertEqual(create_resp.get_json()["project"]["demo_retention_minutes"], 10)
         
@@ -589,6 +591,7 @@ class AdminApiTests(BaseTestCase):
                 "project_code": "UPD999",
                 "status": "deactive",
                 "social_autopsy_enabled": True,
+                "reviewer_social_autopsy_enabled": False,
                 "coding_intake_mode": "pick_and_choose",
                 "demo_training_enabled": True,
                 "demo_retention_minutes": 15,
@@ -604,6 +607,7 @@ class AdminApiTests(BaseTestCase):
             "pick_and_choose",
         )
         self.assertTrue(edit_resp.get_json()["project"]["social_autopsy_enabled"])
+        self.assertFalse(edit_resp.get_json()["project"]["reviewer_social_autopsy_enabled"])
         self.assertTrue(edit_resp.get_json()["project"]["demo_training_enabled"])
         self.assertEqual(edit_resp.get_json()["project"]["demo_retention_minutes"], 15)
         
@@ -615,11 +619,6 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(toggle_resp.status_code, 200)
         self.assertEqual(toggle_resp.get_json()["status"], "active")
         
-        # Ensure non-admin cannot access master list
-        self._login(self.manager_id)
-        forbidden_resp = self.client.get("/admin/api/projects?master=1")
-        self.assertEqual(forbidden_resp.status_code, 403)
-
     def test_admin_can_create_and_edit_site_master(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()

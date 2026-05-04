@@ -249,7 +249,7 @@
     <div class="col-md-9">
       <div class="card" id="form-content"
           {% if default_category_code %}
-          hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=default_category_code, action=va_action, actiontype=va_actiontype)}}"
+          hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial=default_category_code, action=va_action, actiontype=va_actiontype, v=config.STATIC_ASSET_VERSION)}}"
           hx-target="this"
           hx-trigger="load"
           hx-swap="innerHTML"

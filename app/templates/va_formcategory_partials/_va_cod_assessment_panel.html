@@ -1,5 +1,7 @@
-{% if va_action == "vacode" %}
-  {% if va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" %}
+{% set is_active_coding_session = va_action == "vacode" and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+{% set is_active_reviewing_session = va_action == "vareview" and (va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing") %}
+
+{% if is_active_coding_session %}
     {% include 'va_formcategory_partials/_cod_evidence_panel.html' %}
     <div id="form-container2">
       {% if not vaerrexists and not vainiexists %}
@@ -8,7 +10,379 @@
         <div hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vafinalasses', action=va_action, actiontype=va_actiontype) }}" hx-trigger="load" hx-swap="innerHTML" hx-target="this"></div>
       {% endif %}
     </div>
-  {% elif va_actiontype == "vaview" %}
+{% elif is_active_reviewing_session %}
+  {% include 'va_formcategory_partials/_cod_evidence_panel.html' %}
+
+  <div class="content-section-title mb-3 mt-4">
+    <i class="fas fa-comment-dots text-primary me-2"></i>
+    Reviewer Cause of Death Assessment
+  </div>
+
+  {% if va_final_assess %}
+    <div class="card bg-light border-0 mb-4">
+      <div class="card-body p-3">
+        <h6 class="card-title text-secondary mb-2">Coder Final COD - Read-only Reference</h6>
+        <div class="small text-muted mb-3">
+          This is the COD submitted by the coder. Your reviewer COD below is stored separately and will not overwrite this coder record.
+        </div>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Coder Step 1 Immediate COD</small>
+              <div class="fw-semibold">{{ va_initial_assess.va_immediate_cod if va_initial_assess else "-" }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Coder Step 1 Antecedent COD</small>
+              <div class="fw-semibold">{{ va_initial_assess.va_antecedent_cod if va_initial_assess else "-" }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Coder Step 1 Other Conditions</small>
+              <div class="fw-semibold">{{ va_initial_assess.va_other_conditions if va_initial_assess and va_initial_assess.va_other_conditions else "-" }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Coder Final Underlying / Antecedent COD</small>
+              <div class="fw-semibold">{{ va_final_assess.va_conclusive_cod or "-" }}</div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Coder Remarks</small>
+              <div class="fw-semibold">{{ va_final_assess.va_finassess_remark or "-" }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <form id="reviewerInitialCodForm"
+        data-initial-url="{{ url_for('api_v1.reviewing_api.initial', va_sid=va_sid) }}"
+        data-csrf="{{ csrf_token() }}"
+        data-pre-immediate="{{ va_reviewer_initial_assess.va_immediate_cod if va_reviewer_initial_assess else '' }}"
+        data-pre-antecedent="{{ va_reviewer_initial_assess.va_antecedent_cod if va_reviewer_initial_assess else '' }}">
+    <div class="content-section-title mb-3 mt-4">
+      <i class="fas fa-notes-medical text-primary me-2"></i>
+      Reviewer Cause of Death Ascertainment - Step 1
+    </div>
+    <div class="row mb-4">
+      <div class="col-md-6 mb-3 mb-md-0">
+        <div class="card bg-light border-0 h-100">
+          <div class="card-body p-3">
+            <label for="reviewer-immediate-cod-select" class="form-label fw-bold">
+              Immediate Cause of Death <span style="color: red">*</span>
+            </label>
+            <select id="reviewer-immediate-cod-select" class="form-select"></select>
+            <input type="hidden" id="reviewer-immediate-cod" name="immediate_cod">
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card bg-light border-0 h-100">
+          <div class="card-body p-3">
+            <label for="reviewer-antecedent-cod-select" class="form-label fw-bold">
+              Antecedent Cause of Death <span style="color: red">*</span>
+            </label>
+            <select id="reviewer-antecedent-cod-select" class="form-select"></select>
+            <input type="hidden" id="reviewer-antecedent-cod" name="antecedent_cod">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card bg-light border-0">
+          <div class="card-body p-3">
+            <label for="reviewer-other-conditions" class="form-label fw-bold">
+              Other significant conditions (if any)
+            </label>
+            <textarea class="form-control" id="reviewer-other-conditions" name="other_conditions" rows="3">{{ va_reviewer_initial_assess.va_other_conditions if va_reviewer_initial_assess else '' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="text-danger small mt-1 d-none" id="reviewer-initial-cod-error"></div>
+    <div class="d-flex justify-content-center gap-3 my-4">
+      <button type="submit" class="btn btn-outline-primary px-4 py-2" id="reviewer-initial-cod-submit">
+        Save Reviewer Step 1
+      </button>
+    </div>
+  </form>
+
+  {% if va_reviewer_initial_assess %}
+  <form id="reviewerFinalCodForm"
+        data-finalize-url="{{ url_for('api_v1.reviewing_api.finalize', va_sid=va_sid) }}"
+        data-dashboard-url="{{ url_for('reviewing.dashboard') }}"
+        data-csrf="{{ csrf_token() }}"
+        data-initial-cod="{{ va_reviewer_final_assess.va_conclusive_cod if va_reviewer_final_assess else '' }}">
+    <div class="content-section-title mb-3 mt-4">
+      <i class="fas fa-gavel text-primary me-2"></i>
+      Reviewer Cause of Death Ascertainment - Step 2
+    </div>
+    <div class="card bg-light border-0 mb-4">
+      <div class="card-body p-3">
+        <h6 class="card-title text-secondary mb-3">Reviewer Step 1 Assigned Causes</h6>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Immediate COD</small>
+              <div class="fw-semibold">{{ va_reviewer_initial_assess.va_immediate_cod }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Antecedent COD</small>
+              <div class="fw-semibold">{{ va_reviewer_initial_assess.va_antecedent_cod }}</div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="p-2 border rounded bg-white">
+              <small class="text-secondary d-block mb-1">Other Conditions</small>
+              <div class="fw-semibold">{{ va_reviewer_initial_assess.va_other_conditions or '-' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card bg-light border-0">
+          <div class="card-body p-3">
+            <label for="reviewer-conclusive-cod-select" class="form-label fw-bold">
+              Reviewer Final Underlying / Antecedent Cause of Death <span style="color: red">*</span>
+              <a href="https://icd.who.int/browse10/2019/en"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="btn btn-sm btn-outline-secondary ms-2"
+                 title="Open ICD-10 Browser">
+                <i class="fas fa-book-medical me-1"></i>ICD-10 Browser
+              </a>
+              <button type="button"
+                      class="btn btn-sm btn-outline-secondary ms-2"
+                      data-bs-toggle="modal"
+                      data-bs-target="#reviewerIcdCodesModal"
+                      title="Selected ICD-10 Codes">
+                <i class="fas fa-file-pdf me-1"></i>Selected ICD-10 Codes
+              </button>
+            </label>
+            <select id="reviewer-conclusive-cod-select" class="form-select form-select-lg mb-2"></select>
+            <input type="hidden" id="reviewer-conclusive-cod" name="conclusive_cod">
+            <div class="text-danger small mt-1 d-none" id="reviewer-final-cod-error"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card bg-light border-0">
+          <div class="card-body p-3">
+            <label for="reviewer-final-cod-remark" class="form-label fw-bold">Remarks</label>
+            <textarea class="form-control" id="reviewer-final-cod-remark" name="remark" rows="4"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-center gap-3 my-5">
+      <button type="submit" class="btn btn-primary px-4 py-2" id="reviewer-final-cod-submit">
+        Save Reviewer COD
+      </button>
+    </div>
+  </form>
+  {% else %}
+    <div class="alert alert-light border">
+      <i class="fas fa-info-circle me-2"></i>
+      Save reviewer Step 1 to assign the reviewer final COD.
+    </div>
+  {% endif %}
+
+  <div id="reviewer-select2-root"
+       data-icd-url="{{ url_for('api_v1.icd10_api.icd10_2019_2_coding_search', va_sid=va_sid) }}"></div>
+  <script>
+    (function () {
+      var initialForm = document.getElementById('reviewerInitialCodForm');
+      var finalForm = document.getElementById('reviewerFinalCodForm');
+      var root = document.getElementById('reviewer-select2-root');
+      if (!root || !window.jQuery) return;
+
+      function showError(element, message) {
+        if (!element) return;
+        element.textContent = message || '';
+        element.classList.toggle('d-none', !message);
+      }
+
+      function initSelect(selector, hiddenId, presetValue) {
+        var $select = window.jQuery(selector);
+        var hidden = document.getElementById(hiddenId);
+        if (!$select.length || !hidden) return;
+        if ($select.data('select2')) {
+          $select.select2('destroy');
+        }
+        $select.select2({
+          ajax: {
+            url: root.dataset.icdUrl,
+            dataType: 'json',
+            delay: 250,
+            data: function (params) { return { q: params.term }; },
+            processResults: function (data) {
+              return {
+                results: data.map(function (item) {
+                  return { id: item.icd_to_display, text: item.icd_to_display };
+                })
+              };
+            },
+            cache: true
+          },
+          placeholder: 'Search ICD codes...',
+          minimumInputLength: 2,
+          width: '100%'
+        });
+
+        if (presetValue) {
+          var option = new Option(presetValue, presetValue, true, true);
+          $select.append(option).trigger('change');
+          hidden.value = presetValue;
+        }
+
+        $select.on('select2:select', function (event) {
+          hidden.value = event.params.data.id;
+        });
+      }
+
+      setTimeout(function () {
+        if (initialForm) {
+          initSelect(
+            '#reviewer-immediate-cod-select',
+            'reviewer-immediate-cod',
+            initialForm.dataset.preImmediate || ''
+          );
+          initSelect(
+            '#reviewer-antecedent-cod-select',
+            'reviewer-antecedent-cod',
+            initialForm.dataset.preAntecedent || ''
+          );
+        }
+        if (finalForm) {
+          initSelect(
+            '#reviewer-conclusive-cod-select',
+            'reviewer-conclusive-cod',
+            finalForm.dataset.initialCod || ''
+          );
+        }
+      }, 50);
+
+      if (initialForm) {
+        initialForm.addEventListener('submit', function (event) {
+          event.preventDefault();
+          var immediateCod = (document.getElementById('reviewer-immediate-cod').value || '').trim();
+          var antecedentCod = (document.getElementById('reviewer-antecedent-cod').value || '').trim();
+          var error = document.getElementById('reviewer-initial-cod-error');
+          var submitButton = document.getElementById('reviewer-initial-cod-submit');
+          if (!immediateCod || !antecedentCod) {
+            showError(error, 'Reviewer immediate and antecedent COD are required.');
+            return;
+          }
+          submitButton.disabled = true;
+          fetch(initialForm.dataset.initialUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': initialForm.dataset.csrf
+            },
+            body: JSON.stringify({
+              immediate_cod: immediateCod,
+              antecedent_cod: antecedentCod,
+              other_conditions: (document.getElementById('reviewer-other-conditions').value || '').trim()
+            })
+          })
+            .then(function (response) {
+              return response.json().then(function (data) {
+                return { ok: response.ok, data: data };
+              });
+            })
+            .then(function (result) {
+              if (!result.ok) {
+                throw new Error(result.data.error || 'Reviewer Step 1 could not be saved.');
+              }
+              window.location.reload();
+            })
+            .catch(function (err) {
+              submitButton.disabled = false;
+              showError(error, err.message);
+              if (window.showAppToast) {
+                window.showAppToast(err.message, 'warning', { timeoutMs: 5000 });
+              }
+            });
+        });
+      }
+
+      if (!finalForm) return;
+      finalForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var conclusiveCod = (document.getElementById('reviewer-conclusive-cod').value || '').trim();
+        var error = document.getElementById('reviewer-final-cod-error');
+        var submitButton = document.getElementById('reviewer-final-cod-submit');
+        if (!conclusiveCod) {
+          showError(error, 'Reviewer final COD is required.');
+          return;
+        }
+        submitButton.disabled = true;
+        fetch(finalForm.dataset.finalizeUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': finalForm.dataset.csrf
+          },
+          body: JSON.stringify({
+            conclusive_cod: conclusiveCod,
+            remark: (document.getElementById('reviewer-final-cod-remark').value || '').trim()
+          })
+        })
+          .then(function (response) {
+            return response.json().then(function (data) {
+              return { ok: response.ok, data: data };
+            });
+          })
+          .then(function (result) {
+            if (!result.ok) {
+              throw new Error(result.data.error || 'Reviewer final COD could not be saved.');
+            }
+            window.location.href = finalForm.dataset.dashboardUrl;
+          })
+          .catch(function (err) {
+            submitButton.disabled = false;
+            showError(error, err.message);
+            if (window.showAppToast) {
+              window.showAppToast(err.message, 'warning', { timeoutMs: 5000 });
+            }
+          });
+      });
+    }());
+  </script>
+
+  <div class="modal fade" id="reviewerIcdCodesModal" tabindex="-1" data-bs-keyboard="true" aria-labelledby="reviewerIcdCodesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content" style="height:85vh;">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="reviewerIcdCodesModalLabel">Selected ICD-10 Codes</h6>
+          <a href="/static/WHO_2022_VA_CODES.pdf" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-link me-2" title="Open in new tab">
+            <i class="fas fa-external-link-alt"></i>
+          </a>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0">
+          <iframe src="/static/WHO_2022_VA_CODES.pdf" style="width:100%;height:100%;border:none;" title="Selected ICD-10 Codes PDF"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+{% elif va_action == "vacode" and va_actiontype == "vaview" %}
     {% if va_initial_assess or va_final_assess %}
       <div class="content-section-title mt-4">
         <i class="fas fa-chart-pie"></i>
@@ -77,5 +451,4 @@
         </tbody></table></div>
       {% endif %}
     {% endif %}
-  {% endif %}
 {% endif %}

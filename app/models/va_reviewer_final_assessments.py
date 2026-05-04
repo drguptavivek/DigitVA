@@ -44,6 +44,17 @@ class VaReviewerFinalAssessments(db.Model):
             nullable=True,
         )
     )
+    source_reviewer_initial_assessment_id: so.Mapped[uuid.UUID | None] = (
+        so.mapped_column(
+            sa.Uuid(as_uuid=True),
+            sa.ForeignKey(
+                "va_reviewer_initial_assessments.va_riniassess_id",
+                ondelete="SET NULL",
+            ),
+            index=True,
+            nullable=True,
+        )
+    )
     va_rfinassess_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),
         default=VaStatuses.active,

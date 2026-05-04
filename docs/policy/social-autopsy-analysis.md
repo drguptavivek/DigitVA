@@ -3,7 +3,7 @@ title: Social Autopsy Analysis Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-05-04
 ---
 
 # Social Autopsy Analysis Policy
@@ -22,14 +22,18 @@ Current baseline:
 
 - it is rendered inside the `social_autopsy` category after the mapped Social
   Autopsy submission questions
-- the app-owned Social Autopsy analysis form is controlled by the project-level
+- coder Social Autopsy is controlled by the project-level
   `social_autopsy_enabled` flag
+- reviewer Social Autopsy is controlled by the project-level
+  `reviewer_social_autopsy_enabled` flag
 - when `social_autopsy_enabled = false`, the mapped `social_autopsy` category
   may still render its synced submission fields, but the app-owned Social
   Autopsy analysis form must not be shown
-- it is available only in coder-facing coding flows
+- it is available in coder-facing coding flows when coder Social Autopsy is
+  enabled, and reviewer-facing review flows when reviewer Social Autopsy is
+  enabled
 - it is payload-version aware
-- the current Social Autopsy analysis for a coder is the active row whose
+- the current Social Autopsy analysis for a coder or reviewer is the active row whose
   `payload_version_id` matches the submission's current
   `active_payload_version_id`
 - each delay factor selection is stored as a normalized child row, not flattened
@@ -114,20 +118,28 @@ Current baseline:
 
 Current baseline:
 
-- the form is shown only in coder coding flows:
+- the form is shown in coder coding flows when `social_autopsy_enabled = true`:
   - `vastartcoding`
+  - `vapickcoding`
   - `varesumecoding`
   - `vademo_start_coding`
-- it is not currently a reviewer or site-PI form
+- the form is shown in reviewer coding flows when
+  `reviewer_social_autopsy_enabled = true`:
+  - `vastartreviewing`
+  - `varesumereviewing`
+- it is not currently a site-PI form
 
 ## Completion Requirements
 
 Current baseline:
 
-- when the Social Autopsy analysis form is enabled and present, it must be completed before
-  the coder can move past the `social_autopsy` category
-- when the Social Autopsy analysis form is enabled and present, final COD submission must be
-  blocked until the coder has saved a complete analysis
+- when the Social Autopsy analysis form is enabled and present, it must be
+  completed before the coder or reviewer can move past the `social_autopsy`
+  category
+- when coder Social Autopsy is enabled and present, final COD submission must
+  be blocked until the coder has saved a complete analysis
+- when reviewer Social Autopsy is enabled and present, reviewer final COD
+  submission must be blocked until the reviewer has saved a complete analysis
 
 ## Change Control
 

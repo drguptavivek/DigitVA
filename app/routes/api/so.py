@@ -15,9 +15,12 @@ from flask_login import current_user
 from app import db
 from app.decorators import role_required
 from app.models import (
+    VaAllocation,
+    VaAllocations,
     VaStatuses,
     VaSocialAutopsyAnalysis,
     VaSocialAutopsyAnalysisOption,
+    VaSubmissions,
     VaSubmissionsAuditlog,
 )
 from app.services.social_autopsy_analysis_service import (
@@ -39,19 +42,42 @@ log = logging.getLogger(__name__)
 
 
 @bp.post("/<va_sid>/social-autopsy")
-@role_required("coder", "coding_tester", "admin")
+@role_required("coder", "coding_tester", "reviewer", "admin")
 def save_social_autopsy(va_sid: str):
-    """Save or update the Social Autopsy analysis selections for a coder."""
-    err = require_coding_access(va_sid)
-    if err:
-        return err
-
-    project = get_project_for_submission(va_sid)
-    if project is not None and not project.social_autopsy_enabled:
-        return jsonify({"error": "Social Autopsy is disabled for this project."}), 403
-
+    """Save or update Social Autopsy analysis selections."""
     data = request.get_json(force=True) or {}
     va_actiontype = data.get("va_actiontype")
+    is_reviewer_session = va_actiontype in {"vastartreviewing", "varesumereviewing"}
+    audit_byrole = "reviewer" if is_reviewer_session else "vacoder"
+
+    if is_reviewer_session:
+        submission = db.session.get(VaSubmissions, va_sid)
+        if not submission:
+            return jsonify({"error": "Submission not found."}), 404
+        if not current_user.has_va_form_access(submission.va_form_id, "reviewer"):
+            return jsonify({"error": "Reviewer access is required."}), 403
+        active_reviewing_allocation = db.session.scalar(
+            sa.select(VaAllocations.va_sid).where(
+                VaAllocations.va_allocated_to == current_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+                VaAllocations.va_sid == va_sid,
+            )
+        )
+        if not active_reviewing_allocation:
+            return jsonify({"error": "Active reviewer allocation required."}), 403
+    else:
+        err = require_coding_access(va_sid)
+        if err:
+            return err
+
+    project = get_project_for_submission(va_sid)
+    if is_reviewer_session:
+        if project is not None and not project.reviewer_social_autopsy_enabled:
+            return jsonify({"error": "Reviewer Social Autopsy is disabled for this project."}), 403
+    elif project is not None and not project.social_autopsy_enabled:
+        return jsonify({"error": "Coder Social Autopsy is disabled for this project."}), 403
+
     selected_options = data.get("selected_options") or []
     remark = (data.get("remark") or "").strip() or None
 
@@ -128,7 +154,7 @@ def save_social_autopsy(va_sid: str):
         deactivate_other_active_social_autopsy_analyses(
             va_sid,
             current_user.user_id,
-            audit_byrole="vacoder",
+            audit_byrole=audit_byrole,
             audit_by=current_user.user_id,
         )
         analysis = VaSocialAutopsyAnalysis(
@@ -157,14 +183,14 @@ def save_social_autopsy(va_sid: str):
             va_sid,
             current_user.user_id,
             keep_id=analysis.va_saa_id,
-            audit_byrole="vacoder",
+            audit_byrole=audit_byrole,
             audit_by=current_user.user_id,
         )
     db.session.flush()
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
-            va_audit_byrole="vacoder",
+            va_audit_byrole=audit_byrole,
             va_audit_by=current_user.user_id,
             va_audit_operation=audit_operation,
             va_audit_action=audit_action,

@@ -13,6 +13,7 @@ from app.models import (
     VaAllocations,
     VaFinalAssessments,
     VaReviewerFinalAssessments,
+    VaReviewerInitialAssessments,
     VaStatuses,
     VaSubmissions,
     VaSubmissionsAuditlog,
@@ -20,8 +21,13 @@ from app.models import (
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
 from app.services.icd10_2019_2_service import validate_icd10_2019_2_coding_value_for_submission
 from app.services.reviewer_final_assessment_service import (
+    create_reviewer_initial_assessment,
     create_reviewer_final_assessment,
+    get_latest_active_reviewer_initial_assessment,
     get_latest_active_reviewer_final_assessment,
+)
+from app.services.payload_bound_coding_artifact_service import (
+    get_current_payload_social_autopsy_analysis,
 )
 from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
@@ -48,6 +54,35 @@ class ReviewerCodingError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(message)
+
+
+def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) -> bool:
+    from app.services.category_rendering_service import (
+        get_category_rendering_service,
+        get_visible_category_codes,
+    )
+    from app.services.coding_service import get_project_for_submission
+    from app.services.submission_payload_version_service import get_active_payload_version
+    from app.utils.va_form.va_form_02_formtyperesolution import (
+        va_get_form_type_code_for_form,
+    )
+
+    project = get_project_for_submission(va_sid)
+    if not project or not project.reviewer_social_autopsy_enabled:
+        return False
+
+    active_payload = get_active_payload_version(va_sid)
+    visible_category_codes = get_visible_category_codes(
+        active_payload.payload_data if active_payload else None,
+        submission.va_form_id,
+    )
+    form_type_code = va_get_form_type_code_for_form(submission.va_form_id)
+    return get_category_rendering_service().is_category_enabled(
+        form_type_code,
+        "vareview",
+        visible_category_codes,
+        "social_autopsy",
+    )
 
 
 def get_active_reviewing_allocation(user_id) -> str | None:
@@ -156,6 +191,27 @@ def submit_reviewer_final_cod(
             "An active reviewer allocation is required to submit reviewer final COD."
         )
 
+    reviewer_initial = get_latest_active_reviewer_initial_assessment(
+        va_sid,
+        user.user_id,
+    )
+    if not reviewer_initial:
+        raise ReviewerCodingError(
+            "Reviewer initial COD assessment must be completed before submitting reviewer final COD.",
+            400,
+        )
+
+    if _reviewer_social_autopsy_required(va_sid, submission):
+        social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
+            va_sid,
+            user.user_id,
+        )
+        if not social_autopsy_analysis:
+            raise ReviewerCodingError(
+                "Social Autopsy Analysis must be completed before submitting the reviewer final COD.",
+                400,
+            )
+
     active_payload_version_id = submission.active_payload_version_id
     prior_active_reviewer_finals = db.session.scalars(
         sa.select(VaReviewerFinalAssessments).where(
@@ -192,6 +248,7 @@ def submit_reviewer_final_cod(
         conclusive_cod=conclusive_cod,
         remark=remark,
         supersedes_coder_final_assessment=supersedes_coder_final,
+        source_reviewer_initial_assessment=reviewer_initial,
     )
     db.session.add(
         VaSubmissionsAuditlog(
@@ -228,3 +285,61 @@ def submit_reviewer_final_cod(
     )
     db.session.commit()
     return reviewer_final
+
+
+def submit_reviewer_initial_cod(
+    user,
+    va_sid: str,
+    *,
+    immediate_cod: str,
+    antecedent_cod: str,
+    other_conditions: str | None = None,
+) -> VaReviewerInitialAssessments:
+    submission = db.session.get(VaSubmissions, va_sid)
+    if not submission:
+        raise ReviewerCodingError("Submission not found.", 404)
+    if not user.has_va_form_access(submission.va_form_id, "reviewer"):
+        raise ReviewerCodingError("Reviewer access is required.", 403)
+    current_state = get_submission_workflow_state(va_sid)
+    if current_state != WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
+        raise ReviewerCodingError(
+            "Reviewer initial COD can only be submitted from reviewer_coding_in_progress."
+        )
+    active_allocation = db.session.scalar(
+        sa.select(VaAllocations).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocated_to == user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.reviewing,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    )
+    if not active_allocation:
+        raise ReviewerCodingError(
+            "An active reviewer allocation is required to submit reviewer initial COD."
+        )
+
+    for coding_value in (immediate_cod, antecedent_cod):
+        try:
+            validate_icd10_2019_2_coding_value_for_submission(va_sid, coding_value)
+        except (LookupError, ValueError) as exc:
+            raise ReviewerCodingError(str(exc), 400) from exc
+
+    reviewer_initial = create_reviewer_initial_assessment(
+        va_sid=va_sid,
+        reviewer_user_id=user.user_id,
+        immediate_cod=immediate_cod,
+        antecedent_cod=antecedent_cod,
+        other_conditions=other_conditions,
+    )
+    db.session.add(
+        VaSubmissionsAuditlog(
+            va_sid=va_sid,
+            va_audit_byrole="reviewer",
+            va_audit_by=user.user_id,
+            va_audit_operation="c",
+            va_audit_action="reviewer initial cod submitted",
+            va_audit_entityid=reviewer_initial.va_riniassess_id,
+        )
+    )
+    db.session.commit()
+    return reviewer_initial

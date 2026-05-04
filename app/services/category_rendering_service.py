@@ -58,6 +58,18 @@ class CategoryRenderingService:
                 is_default_start=False,
             )
         ],
+        "reviewer": [
+            CategoryNavItem(
+                category_code="vacodassessment",
+                display_label="VA COD Assessment",
+                nav_label="COD Assessment",
+                icon_name="fa-stethoscope",
+                render_mode="workflow_panel",
+                display_order=10_000,
+                always_include=True,
+                is_default_start=False,
+            )
+        ],
         "data_manager": [
             CategoryNavItem(
                 category_code="vadmtriage",

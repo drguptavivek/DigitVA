@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import patch
 
 from app import db
 from app.models import (
@@ -10,11 +11,13 @@ from app.models import (
     VaFinalAssessments,
     VaFinalCodAuthority,
     VaForms,
+    VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
     VaReviewerFinalAssessments,
     VaSites,
     VaStatuses,
+    VaSocialAutopsyAnalysis,
     VaSubmissionWorkflow,
     VaSubmissionWorkflowEvent,
     VaSubmissions,
@@ -24,6 +27,7 @@ from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     start_reviewer_coding,
     submit_reviewer_final_cod,
+    submit_reviewer_initial_cod,
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.workflow.definition import (
@@ -58,15 +62,22 @@ class TestReviewerCodingService(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        db.session.add(
-            VaResearchProjects(
+        if db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID) is None:
+            db.session.add(VaProjectMaster(
                 project_id=cls.BASE_PROJECT_ID,
                 project_code=cls.BASE_PROJECT_ID,
                 project_name="Reviewer Coding Project",
                 project_nickname="ReviewerCoding",
                 project_status=VaStatuses.active,
-            )
-        )
+            ))
+        if db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID) is None:
+            db.session.add(VaResearchProjects(
+                project_id=cls.BASE_PROJECT_ID,
+                project_code=cls.BASE_PROJECT_ID,
+                project_name="Reviewer Coding Project",
+                project_nickname="ReviewerCoding",
+                project_status=VaStatuses.active,
+            ))
         db.session.commit()
         db.session.add(
             VaSites(
@@ -144,6 +155,17 @@ class TestReviewerCodingService(BaseTestCase):
         db.session.commit()
         return submission
 
+    def _release_active_reviewer_allocations(self):
+        for allocation in db.session.scalars(
+            db.select(VaAllocations).where(
+                VaAllocations.va_allocated_to == self.base_reviewer_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all():
+            allocation.va_allocation_status = VaStatuses.deactive
+        db.session.commit()
+
     def test_start_reviewer_coding_requires_reviewer_eligible_state(self):
         sid = "uuid:reviewer-coding-blocked"
         self._add_submission(sid)
@@ -216,28 +238,34 @@ class TestReviewerCodingService(BaseTestCase):
             by_role="vasystem",
         )
         db.session.commit()
-        for allocation in db.session.scalars(
-            db.select(VaAllocations).where(
-                VaAllocations.va_allocated_to == self.base_reviewer_user.user_id,
-                VaAllocations.va_allocation_for == VaAllocation.reviewing,
-                VaAllocations.va_allocation_status == VaStatuses.active,
-            )
-        ).all():
-            allocation.va_allocation_status = VaStatuses.deactive
-        db.session.commit()
+        self._release_active_reviewer_allocations()
         start_reviewer_coding(self.base_reviewer_user, sid)
 
-        reviewer_final = submit_reviewer_final_cod(
-            self.base_reviewer_user,
-            sid,
-            conclusive_cod="I21",
-            remark="reviewer cod",
-        )
+        with patch(
+            "app.services.reviewer_coding_service.validate_icd10_2019_2_coding_value_for_submission"
+        ):
+            reviewer_initial = submit_reviewer_initial_cod(
+                self.base_reviewer_user,
+                sid,
+                immediate_cod="R99",
+                antecedent_cod="R99",
+                other_conditions="reviewer initial",
+            )
+            reviewer_final = submit_reviewer_final_cod(
+                self.base_reviewer_user,
+                sid,
+                conclusive_cod="R99",
+                remark="reviewer cod",
+            )
 
         self.assertIsNotNone(reviewer_final.va_rfinassess_id)
         self.assertEqual(
             reviewer_final.supersedes_coder_final_assessment_id,
             coder_final.va_finassess_id,
+        )
+        self.assertEqual(
+            reviewer_final.source_reviewer_initial_assessment_id,
+            reviewer_initial.va_riniassess_id,
         )
         workflow_state = db.session.scalar(
             db.select(VaSubmissionWorkflow.workflow_state).where(
@@ -274,3 +302,104 @@ class TestReviewerCodingService(BaseTestCase):
             reviewer_final.va_rfinassess_id,
         )
         self.assertIsNone(authority.authoritative_final_assessment_id)
+
+    def test_submit_reviewer_final_cod_requires_social_autopsy_when_enabled(self):
+        sid = "uuid:reviewer-coding-social-required"
+        submission = self._add_submission(sid)
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=sid,
+                payload_version_id=submission.active_payload_version_id,
+                va_finassess_by=self.base_coder_user.user_id,
+                va_conclusive_cod="R99",
+                va_finassess_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+        self._release_active_reviewer_allocations()
+        start_reviewer_coding(self.base_reviewer_user, sid)
+
+        with patch(
+            "app.services.reviewer_coding_service.validate_icd10_2019_2_coding_value_for_submission"
+        ), patch(
+            "app.services.reviewer_coding_service._reviewer_social_autopsy_required",
+            return_value=True,
+        ):
+            submit_reviewer_initial_cod(
+                self.base_reviewer_user,
+                sid,
+                immediate_cod="R99",
+                antecedent_cod="R99",
+            )
+            with self.assertRaises(ReviewerCodingError) as ctx:
+                submit_reviewer_final_cod(
+                    self.base_reviewer_user,
+                    sid,
+                    conclusive_cod="R99",
+                    remark="reviewer cod",
+                )
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Social Autopsy Analysis must be completed", ctx.exception.message)
+
+    def test_submit_reviewer_final_cod_succeeds_after_social_autopsy(self):
+        sid = "uuid:reviewer-coding-social-done"
+        submission = self._add_submission(sid)
+        coder_final = VaFinalAssessments(
+            va_sid=sid,
+            payload_version_id=submission.active_payload_version_id,
+            va_finassess_by=self.base_coder_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(coder_final)
+        db.session.add(
+            VaSocialAutopsyAnalysis(
+                va_sid=sid,
+                va_saa_by=self.base_reviewer_user.user_id,
+                payload_version_id=submission.active_payload_version_id,
+                va_saa_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+        self._release_active_reviewer_allocations()
+        start_reviewer_coding(self.base_reviewer_user, sid)
+
+        with patch(
+            "app.services.reviewer_coding_service.validate_icd10_2019_2_coding_value_for_submission"
+        ), patch(
+            "app.services.reviewer_coding_service._reviewer_social_autopsy_required",
+            return_value=True,
+        ):
+            reviewer_initial = submit_reviewer_initial_cod(
+                self.base_reviewer_user,
+                sid,
+                immediate_cod="R99",
+                antecedent_cod="R99",
+            )
+            reviewer_final = submit_reviewer_final_cod(
+                self.base_reviewer_user,
+                sid,
+                conclusive_cod="R99",
+                remark="reviewer cod",
+            )
+
+        self.assertIsNotNone(reviewer_final.va_rfinassess_id)
+        self.assertEqual(
+            reviewer_final.source_reviewer_initial_assessment_id,
+            reviewer_initial.va_riniassess_id,
+        )

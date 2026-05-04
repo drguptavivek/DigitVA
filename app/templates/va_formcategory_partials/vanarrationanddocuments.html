@@ -415,21 +415,12 @@
       </div>
     {% endif %}
 
-    {% if va_action == "vareview" %}
-      <div class="content-section-title mt-4">
-        <i class="fas fa-comment-dots"></i>
-        Quality Assurance
-      </div>
-      {% if va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing" %}
-        <div class="card shadow-sm">
-          <div class="card-body p-3">
-            <div id="form-container">
-              <div hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vareviewform', action=va_action, actiontype=va_actiontype) }}" hx-trigger="load" hx-swap="innerHTML"></div>
-            </div>
-          </div>
-        </div>
-      {% elif va_actiontype == "vaview" %}
+    {% if va_action == "vareview" and va_actiontype == "vaview" %}
         {% if reviewobject %}
+          <div class="content-section-title mt-4">
+            <i class="fas fa-comment-dots"></i>
+            Quality Assurance
+          </div>
           <div class="table-responsive">
             <table class="table table-hover border">
               <thead class="table-light">
@@ -525,7 +516,6 @@
             </table>
           </div>
         {% endif %}
-      {% endif %}
     {% endif %}
 
     {% if va_action == "vacode" %}
@@ -658,7 +648,7 @@
           {% endif %}
 
       {# ─── Narrative Quality Assessment (NQA) ─── #}
-      {% if narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+      {% if narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" or va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing") %}
         <div class="content-section-title mt-4">
           <i class="fas fa-star-half-alt"></i>
           Narrative Quality Assessment

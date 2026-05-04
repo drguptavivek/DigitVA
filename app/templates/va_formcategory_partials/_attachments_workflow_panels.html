@@ -1,24 +1,17 @@
 {# display submission summary #}
-{% set show_nqa_before_summary = va_action == "vacode" and narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
+{% set is_active_coding_session = va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" %}
+{% set is_active_reviewing_session = va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing" %}
+{% set show_nqa_before_summary = narrative_qa_enabled and (is_active_coding_session or is_active_reviewing_session) %}
 {% if summary_items and not show_nqa_before_summary %}
   {% include 'va_formcategory_partials/_submission_summary_panel.html' %}
 {% endif %}
 
-{% if va_action == "vareview" %}
+{% if va_action == "vareview" and va_actiontype == "vaview" %}
   <div class="content-section-title mt-4">
     <i class="fas fa-comment-dots"></i>
     Quality Assurance
   </div>
-  {% if va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing" %}
-    <div class="card shadow-sm">
-      <div class="card-body p-3">
-        <div id="form-container">
-          <div hx-get="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vareviewform', action=va_action, actiontype=va_actiontype) }}" hx-trigger="load" hx-swap="innerHTML"></div>
-        </div>
-      </div>
-    </div>
-  {% elif va_actiontype == "vaview" %}
-    {% if reviewobject %}
+  {% if reviewobject %}
       <div class="table-responsive">
         <table class="table table-hover border">
           <thead class="table-light">
@@ -105,7 +98,6 @@
           </tbody>
         </table>
       </div>
-    {% endif %}
   {% endif %}
 {% endif %}
 
@@ -197,19 +189,20 @@
       </table>
     </div>
   {% endif %}
+{% endif %}
 
-  {% if narrative_qa_enabled and (va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding") %}
-    <div class="content-section-title mt-4">
-      <i class="fas fa-star-half-alt"></i>
-      Narrative Quality Assessment
-    </div>
-    <div class="card shadow-sm border-0" id="nqa-card"
-         data-save-url="{{ url_for('api_v1.nqa_api.save_narrative_qa', va_sid=va_sid) }}"
-         data-reload-url="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vanarrationanddocuments', action=va_action, actiontype=va_actiontype) }}"
-         data-actiontype="{{ va_actiontype }}"
-         data-csrf="{{ csrf_token() }}">
-      <div class="card-body p-3">
-        {% set nqa = va_narrative_assessment %}
+{% if narrative_qa_enabled and (is_active_coding_session or is_active_reviewing_session) %}
+  <div class="content-section-title mt-4">
+    <i class="fas fa-star-half-alt"></i>
+    Narrative Quality Assessment
+  </div>
+  <div class="card shadow-sm border-0" id="nqa-card"
+       data-save-url="{{ url_for('api_v1.nqa_api.save_narrative_qa', va_sid=va_sid) }}"
+       data-reload-url="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vanarrationanddocuments', action=va_action, actiontype=va_actiontype) }}"
+       data-actiontype="{{ va_actiontype }}"
+       data-csrf="{{ csrf_token() }}">
+    <div class="card-body p-3">
+      {% set nqa = va_narrative_assessment %}
 
         {# Cannot Grade toggle #}
         <div class="col-12 mb-2">
@@ -443,10 +436,8 @@
         });
       }
     </script>
-  {% endif %}
+{% endif %}
 
-  {% if summary_items and show_nqa_before_summary %}
-    {% include 'va_formcategory_partials/_submission_summary_panel.html' %}
-  {% endif %}
-
+{% if summary_items and show_nqa_before_summary %}
+  {% include 'va_formcategory_partials/_submission_summary_panel.html' %}
 {% endif %}

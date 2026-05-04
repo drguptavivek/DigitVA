@@ -15,8 +15,11 @@ from flask_login import current_user
 from app import db
 from app.decorators import role_required
 from app.models import (
+    VaAllocation,
+    VaAllocations,
     VaStatuses,
     VaNarrativeAssessment,
+    VaSubmissions,
     VaSubmissionsAuditlog,
 )
 from app.services.coding_service import get_project_for_submission
@@ -38,19 +41,42 @@ def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comor
 
 
 @bp.post("/<va_sid>/narrative-qa")
-@role_required("coder", "coding_tester", "admin")
+@role_required("coder", "coding_tester", "reviewer", "admin")
 def save_narrative_qa(va_sid: str):
-    """Save or update the Narrative Quality Assessment for a coder on a submission."""
-    err = require_coding_access(va_sid)
-    if err:
-        return err
+    """Save or update the Narrative Quality Assessment for the current user."""
+    data = request.get_json(force=True) or {}
+    va_actiontype = data.get("va_actiontype")
+    is_reviewer_session = va_actiontype in {
+        "vastartreviewing",
+        "varesumereviewing",
+    }
+
+    audit_byrole = "reviewer" if is_reviewer_session else "vacoder"
+    if is_reviewer_session:
+        submission = db.session.get(VaSubmissions, va_sid)
+        if not submission:
+            return jsonify({"error": "Submission not found."}), 404
+        if not current_user.has_va_form_access(submission.va_form_id, "reviewer"):
+            return jsonify({"error": "Reviewer access is required."}), 403
+        active_reviewing_allocation = db.session.scalar(
+            sa.select(VaAllocations.va_allocation_id).where(
+                VaAllocations.va_sid == va_sid,
+                VaAllocations.va_allocated_to == current_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        )
+        if not active_reviewing_allocation:
+            return jsonify({"error": "Active reviewer allocation required."}), 403
+    else:
+        err = require_coding_access(va_sid)
+        if err:
+            return err
 
     project = get_project_for_submission(va_sid)
     if not project or not project.narrative_qa_enabled:
         return jsonify({"error": "Narrative QA is not enabled for this project."}), 400
 
-    data = request.get_json(force=True) or {}
-    va_actiontype = data.get("va_actiontype")
     cannot_grade = bool(data.get("cannot_grade"))
 
     def _int(key, min_val, max_val):
@@ -114,7 +140,7 @@ def save_narrative_qa(va_sid: str):
         deactivate_other_active_narrative_assessments(
             va_sid,
             current_user.user_id,
-            audit_byrole="vacoder",
+            audit_byrole=audit_byrole,
             audit_by=current_user.user_id,
         )
         nqa = VaNarrativeAssessment(
@@ -141,14 +167,14 @@ def save_narrative_qa(va_sid: str):
             va_sid,
             current_user.user_id,
             keep_id=nqa.va_nqa_id,
-            audit_byrole="vacoder",
+            audit_byrole=audit_byrole,
             audit_by=current_user.user_id,
         )
     db.session.flush()
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
-            va_audit_byrole="vacoder",
+            va_audit_byrole=audit_byrole,
             va_audit_by=current_user.user_id,
             va_audit_operation=audit_operation,
             va_audit_action=audit_action,

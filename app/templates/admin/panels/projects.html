@@ -56,10 +56,17 @@
           </select>
         </div>
         <div class="col-sm-2">
-          <label class="form-label small mb-1">Social Autopsy</label>
+          <label class="form-label small mb-1">Coder SA</label>
           <div class="form-check form-switch pt-2">
             <input class="form-check-input" type="checkbox" id="project-social-autopsy-enabled-input" role="switch" checked>
             <label class="form-check-label small" for="project-social-autopsy-enabled-input">Enabled</label>
+          </div>
+        </div>
+        <div class="col-sm-2">
+          <label class="form-label small mb-1">Reviewer SA</label>
+          <div class="form-check form-switch pt-2">
+            <input class="form-check-input" type="checkbox" id="project-reviewer-social-autopsy-enabled-input" role="switch" checked>
+            <label class="form-check-label small" for="project-reviewer-social-autopsy-enabled-input">Enabled</label>
           </div>
         </div>
         <div class="col-sm-2">
@@ -170,6 +177,7 @@
         + '</button>';
       var nqaEnabled = !!p.narrative_qa_enabled;
       var socialAutopsyEnabled = p.social_autopsy_enabled !== false;
+      var reviewerSocialAutopsyEnabled = p.reviewer_social_autopsy_enabled !== false;
       var demoEnabled = !!p.demo_training_enabled;
       var intakeLabel = p.coding_intake_mode === 'pick_and_choose'
         ? 'Pick and choose'
@@ -193,7 +201,8 @@
         + '<td class="align-middle py-2 small">' + esc(p.project_nickname) + '</td>'
         + '<td class="align-middle py-2 small">'
         +   esc(intakeLabel)
-        +   (socialAutopsyEnabled ? '<div><span class="badge text-bg-info mt-1">Social Autopsy On</span></div>' : '')
+        +   (socialAutopsyEnabled ? '<div><span class="badge text-bg-info mt-1">Coder SA On</span></div>' : '')
+        +   (reviewerSocialAutopsyEnabled ? '<div><span class="badge text-bg-primary mt-1">Reviewer SA On</span></div>' : '')
         +   (demoEnabled ? '<div><span class="badge text-bg-warning mt-1">Demo / Training</span></div>' : '')
         + '</td>'
         + '<td class="align-middle py-2">'
@@ -326,6 +335,7 @@
   var statusInput = document.getElementById('project-status-input');
   var codingIntakeModeInput = document.getElementById('project-coding-intake-mode-input');
   var socialAutopsyEnabledInput = document.getElementById('project-social-autopsy-enabled-input');
+  var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
   var demoRetentionMinutesInput = document.getElementById('project-demo-retention-minutes-input');
   var errEl = document.getElementById('project-form-error');
@@ -342,6 +352,7 @@
     statusInput.disabled = true; // New projects are always active
     codingIntakeModeInput.value = 'random_form_allocation';
     socialAutopsyEnabledInput.checked = true;
+    reviewerSocialAutopsyEnabledInput.checked = true;
     demoTrainingEnabledInput.checked = false;
     demoRetentionMinutesInput.value = '10';
     errEl.textContent = '';
@@ -362,6 +373,7 @@
     statusInput.disabled = false; // Existing projects can change status
     codingIntakeModeInput.value = project.coding_intake_mode || 'random_form_allocation';
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
+    reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
     demoRetentionMinutesInput.value = project.demo_retention_minutes || 10;
     errEl.textContent = '';
@@ -390,6 +402,7 @@
       project_nickname: nicknameInput.value.trim(),
       coding_intake_mode: codingIntakeModeInput.value,
       social_autopsy_enabled: socialAutopsyEnabledInput.checked,
+      reviewer_social_autopsy_enabled: reviewerSocialAutopsyEnabledInput.checked,
       demo_training_enabled: demoTrainingEnabledInput.checked,
       demo_retention_minutes: parseInt(demoRetentionMinutesInput.value || '10', 10)
     };

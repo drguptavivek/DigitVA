@@ -13,6 +13,7 @@ from app import db
 from app.models import (
     VaFinalAssessments,
     VaReviewerFinalAssessments,
+    VaReviewerInitialAssessments,
     VaStatuses,
     VaSubmissions,
 )
@@ -32,6 +33,66 @@ def get_latest_active_reviewer_final_assessment(
     )
 
 
+def get_latest_active_reviewer_initial_assessment(
+    va_sid: str,
+    reviewer_user_id=None,
+) -> VaReviewerInitialAssessments | None:
+    """Return the latest active reviewer initial-COD row for a submission."""
+    filters = [
+        VaReviewerInitialAssessments.va_sid == va_sid,
+        VaReviewerInitialAssessments.va_riniassess_status == VaStatuses.active,
+    ]
+    if reviewer_user_id is not None:
+        filters.append(
+            VaReviewerInitialAssessments.va_riniassess_by == reviewer_user_id
+        )
+    return db.session.scalar(
+        db.select(VaReviewerInitialAssessments)
+        .where(*filters)
+        .order_by(VaReviewerInitialAssessments.va_riniassess_createdat.desc())
+    )
+
+
+def create_reviewer_initial_assessment(
+    *,
+    va_sid: str,
+    reviewer_user_id,
+    immediate_cod: str,
+    antecedent_cod: str,
+    other_conditions: str | None = None,
+) -> VaReviewerInitialAssessments:
+    """Create a reviewer-owned initial COD row for a submission."""
+    active_payload_version_id = db.session.scalar(
+        sa.select(VaSubmissions.active_payload_version_id).where(
+            VaSubmissions.va_sid == va_sid
+        )
+    )
+    if active_payload_version_id is None:
+        raise ValueError("Submission has no active payload version.")
+
+    for existing in db.session.scalars(
+        sa.select(VaReviewerInitialAssessments).where(
+            VaReviewerInitialAssessments.va_sid == va_sid,
+            VaReviewerInitialAssessments.va_riniassess_by == reviewer_user_id,
+            VaReviewerInitialAssessments.payload_version_id
+            == active_payload_version_id,
+            VaReviewerInitialAssessments.va_riniassess_status == VaStatuses.active,
+        )
+    ).all():
+        existing.va_riniassess_status = VaStatuses.deactive
+
+    reviewer_initial = VaReviewerInitialAssessments(
+        va_sid=va_sid,
+        payload_version_id=active_payload_version_id,
+        va_riniassess_by=reviewer_user_id,
+        va_immediate_cod=immediate_cod,
+        va_antecedent_cod=antecedent_cod,
+        va_other_conditions=other_conditions,
+    )
+    db.session.add(reviewer_initial)
+    return reviewer_initial
+
+
 def create_reviewer_final_assessment(
     *,
     va_sid: str,
@@ -39,12 +100,18 @@ def create_reviewer_final_assessment(
     conclusive_cod: str,
     remark: str | None = None,
     supersedes_coder_final_assessment: VaFinalAssessments | None = None,
+    source_reviewer_initial_assessment: VaReviewerInitialAssessments | None = None,
 ) -> VaReviewerFinalAssessments:
     """Create a reviewer-owned final COD row for a submission."""
     if supersedes_coder_final_assessment is not None:
         if supersedes_coder_final_assessment.va_sid != va_sid:
             raise ValueError(
                 "supersedes_coder_final_assessment must belong to the same submission."
+            )
+    if source_reviewer_initial_assessment is not None:
+        if source_reviewer_initial_assessment.va_sid != va_sid:
+            raise ValueError(
+                "source_reviewer_initial_assessment must belong to the same submission."
             )
 
     active_payload_version_id = db.session.scalar(
@@ -64,6 +131,11 @@ def create_reviewer_final_assessment(
         supersedes_coder_final_assessment_id=(
             supersedes_coder_final_assessment.va_finassess_id
             if supersedes_coder_final_assessment
+            else None
+        ),
+        source_reviewer_initial_assessment_id=(
+            source_reviewer_initial_assessment.va_riniassess_id
+            if source_reviewer_initial_assessment
             else None
         ),
     )

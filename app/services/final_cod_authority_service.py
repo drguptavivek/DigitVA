@@ -208,7 +208,6 @@ def upsert_reviewer_final_cod_authority(
         authority = VaFinalCodAuthority(va_sid=va_sid)
         db.session.add(authority)
 
-    authority.authoritative_final_assessment_id = None
     authority.authoritative_reviewer_final_assessment_id = (
         reviewer_final_assessment.va_rfinassess_id if reviewer_final_assessment else None
     )

@@ -37,6 +37,9 @@ class VaProjectMaster(db.Model):
     social_autopsy_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=True, server_default="true"
     )
+    reviewer_social_autopsy_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=True, server_default="true"
+    )
     coding_intake_mode: so.Mapped[str] = so.mapped_column(
         sa.String(32),
         nullable=False,

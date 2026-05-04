@@ -6,13 +6,17 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     MasIcd1020192,
+    VaAccessRoles,
+    VaAccessScopeTypes,
     VaAllocation,
     VaAllocations,
     VaForms,
+    VaProjectSites,
     VaResearchProjects,
     VaSites,
     VaStatuses,
     VaSubmissions,
+    VaUserAccessGrants,
 )
 from tests.base import BaseTestCase
 
@@ -70,7 +74,38 @@ class TestIcd10CodingApi(BaseTestCase):
                 )
             )
             db.session.flush()
+        project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == cls.BASE_PROJECT_ID,
+                VaProjectSites.site_id == cls.BASE_SITE_ID,
+            )
+        )
+        cls.base_reviewer_user = cls._get_or_make_user(
+            "base.icd10.reviewer@test.local",
+            "BaseIcd10Reviewer123",
+        )
+        cls.base_reviewer_user.landing_page = "reviewer"
+        reviewer_grant = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == cls.base_reviewer_user.user_id,
+                VaUserAccessGrants.role == VaAccessRoles.reviewer,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.project_site_id == project_site.project_site_id,
+            )
+        )
+        if reviewer_grant is None:
+            db.session.add(
+                VaUserAccessGrants(
+                    user_id=cls.base_reviewer_user.user_id,
+                    role=VaAccessRoles.reviewer,
+                    scope_type=VaAccessScopeTypes.project_site,
+                    project_site_id=project_site.project_site_id,
+                    notes="base icd10 reviewer grant",
+                    grant_status=VaStatuses.active,
+                )
+            )
         db.session.commit()
+        cls.base_reviewer_id = str(cls.base_reviewer_user.user_id)
 
     def setUp(self):
         super().setUp()
@@ -360,6 +395,38 @@ class TestIcd10CodingApi(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual([row["icd_code"] for row in payload], ["A00", "A00.0"])
+
+    def test_reviewer_can_search_available_icd_codes_for_active_reviewing_allocation(self):
+        self._login(self.base_reviewer_id)
+        db.session.add(
+            VaAllocations(
+                va_sid=self.SID,
+                va_allocated_to=self.base_reviewer_user.user_id,
+                va_allocation_for=VaAllocation.reviewing,
+                va_allocation_status=VaStatuses.active,
+                va_allocation_createdat=datetime.now(UTC),
+                va_allocation_updatedat=datetime.now(UTC),
+            )
+        )
+        db.session.commit()
+
+        response = self.client.get(
+            f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=A0"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual([row["icd_code"] for row in payload], ["A00", "A00.0"])
+
+    def test_reviewer_coding_search_requires_active_reviewing_allocation(self):
+        self._login(self.base_reviewer_id)
+
+        response = self.client.get(
+            f"/api/v1/icd10/2019-2/coding-search/{self.SID}?q=A0"
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("Active reviewer allocation required.", response.get_json()["error"])
 
     def test_coding_search_applies_submission_age_and_sex_filters(self):
         self._login(self.base_coder_id)

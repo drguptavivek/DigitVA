@@ -8,6 +8,7 @@ from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
     start_reviewer_coding,
+    submit_reviewer_initial_cod,
     submit_reviewer_final_cod,
 )
 from app.services.workflow.definition import WORKFLOW_REVIEWER_FINALIZED
@@ -59,5 +60,36 @@ def finalize(va_sid):
             "va_sid": va_sid,
             "reviewer_final_assessment_id": str(reviewer_final.va_rfinassess_id),
             "workflow_state": WORKFLOW_REVIEWER_FINALIZED,
+        }
+    ), 200
+
+
+@bp.post("/initial/<va_sid>")
+@role_required("reviewer")
+def initial(va_sid):
+    body = request.get_json(silent=True) or {}
+    immediate_cod = (body.get("immediate_cod") or "").strip()
+    antecedent_cod = (body.get("antecedent_cod") or "").strip()
+    other_conditions = (body.get("other_conditions") or "").strip() or None
+    if not immediate_cod:
+        return _error("immediate_cod is required.", 400)
+    if not antecedent_cod:
+        return _error("antecedent_cod is required.", 400)
+    try:
+        reviewer_initial = submit_reviewer_initial_cod(
+            current_user,
+            va_sid,
+            immediate_cod=immediate_cod,
+            antecedent_cod=antecedent_cod,
+            other_conditions=other_conditions,
+        )
+    except ReviewerCodingError as exc:
+        return _error(exc.message, exc.status_code)
+    return jsonify(
+        {
+            "va_sid": va_sid,
+            "reviewer_initial_assessment_id": str(
+                reviewer_initial.va_riniassess_id
+            ),
         }
     ), 200

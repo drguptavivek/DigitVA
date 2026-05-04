@@ -7,10 +7,10 @@ Resources:
 import sqlalchemy as sa
 import json
 from flask import Blueprint, current_app, jsonify, request
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 from app import cache, db, limiter
-from app.models import MasIcd1020192
+from app.models import MasIcd1020192, VaAllocation, VaAllocations, VaStatuses, VaSubmissions
 from app.decorators.role_required import role_required
 from app.services.icd10_2019_2_service import (
     export_icd10_2019_2_policy_json,
@@ -100,6 +100,31 @@ def _browser_filters_from_request() -> dict[str, str]:
     }
 
 
+def _require_coding_or_reviewing_access(va_sid: str):
+    """Allow ICD search for active coder/coding-tester or reviewer sessions."""
+    coding_err = require_coding_access(va_sid)
+    if coding_err is None:
+        return None
+
+    submission = db.session.get(VaSubmissions, va_sid)
+    if not submission:
+        return _error("Submission not found.", 404)
+    if not current_user.has_va_form_access(submission.va_form_id, "reviewer"):
+        return coding_err
+
+    active_reviewing_allocation = db.session.scalar(
+        sa.select(VaAllocations.va_allocation_id).where(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocated_to == current_user.user_id,
+            VaAllocations.va_allocation_for == VaAllocation.reviewing,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        )
+    )
+    if not active_reviewing_allocation:
+        return _error("Active reviewer allocation required.", 403)
+    return None
+
+
 @bp.get("/search")
 @limiter.limit("20000 per day;5000 per hour")
 @login_required
@@ -123,9 +148,9 @@ def icd10_search():
 
 
 @bp.get("/2019-2/coding-search/<va_sid>")
-@role_required("coder", "coding_tester", "admin")
+@role_required("coder", "coding_tester", "reviewer", "admin")
 def icd10_2019_2_coding_search(va_sid: str):
-    err = require_coding_access(va_sid)
+    err = _require_coding_or_reviewing_access(va_sid)
     if err:
         return err
 
@@ -140,9 +165,9 @@ def icd10_2019_2_coding_search(va_sid: str):
 
 
 @bp.get("/2019-2/coding-children/<va_sid>")
-@role_required("coder", "coding_tester", "admin")
+@role_required("coder", "coding_tester", "reviewer", "admin")
 def icd10_2019_2_coding_children(va_sid: str):
-    err = require_coding_access(va_sid)
+    err = _require_coding_or_reviewing_access(va_sid)
     if err:
         return err
 

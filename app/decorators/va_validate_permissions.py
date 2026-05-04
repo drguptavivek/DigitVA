@@ -215,7 +215,6 @@ def _validate_vareview(actiontype, sid, partial):
             va_permission_abortwithflash(
                 "You do not have reviewer access to view this form.", 403
             )
-        va_permission_ensurereviewed(sid)
     else:
         va_permission_abortwithflash("Unknown reviewing action requested.", 404)
 

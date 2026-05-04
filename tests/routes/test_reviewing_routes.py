@@ -208,6 +208,17 @@ class ReviewingRoutesTests(BaseTestCase):
         )
         self.assertIsNone(allocation)
 
+    def test_reviewing_view_partials_do_not_require_completed_review(self):
+        sid = "uuid:reviewer-route-view-partial"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._login(self.base_reviewer_id)
+
+        response = self.client.get(
+            f"/vaform/{sid}/vademographicdetails?action=vareview&actiontype=vaview"
+        )
+
+        self.assertNotEqual(response.status_code, 403)
+
     def test_reviewing_dashboard_exposes_scope_fields_for_grid_filters(self):
         sid = "uuid:reviewer-dashboard-grid-fields"
         self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)

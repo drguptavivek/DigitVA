@@ -29,6 +29,7 @@ class Config:
     STATIC_ASSET_CACHE_MAX_AGE = int(
         os.environ.get("STATIC_ASSET_CACHE_MAX_AGE", str(60 * 60 * 24 * 30))
     )
+    STATIC_ASSET_VERSION = os.environ.get("STATIC_ASSET_VERSION", "1")
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
     SESSION_COOKIE_SECURE = True

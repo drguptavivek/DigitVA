@@ -108,4 +108,4 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/admin/users_panel.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin/users_panel.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>

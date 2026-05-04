@@ -13,8 +13,8 @@
 
 {% block content %}
 {# ── Local vendors: AG Grid 33 + Chart.js (page-scoped only) ── #}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/ag-grid/ag-theme-alpine.min.css') }}"/>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/dm_kpi_dashboard.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/ag-grid/ag-theme-alpine.min.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dm_kpi_dashboard.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"/>
 
 {% include 'va_frontpages/data_manager_kpi_partials/_header.html' %}
 {% include 'va_frontpages/data_manager_kpi_partials/_overview_cards.html' %}
@@ -29,13 +29,13 @@
 {# ════════════════════════════════════════════════════════
    JAVASCRIPT
    ════════════════════════════════════════════════════════ #}
-<script src="{{ url_for('static', filename='vendor/ag-grid/ag-grid-community.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/ag-grid/ag-grid-community.min.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 <script>
 window.DM_KPI_CONFIG = {
   csrfToken: {{ csrf_token()|tojson }},
-  chartJsSrc: {{ url_for('static', filename='vendor/chartjs/chart.umd.min.js')|tojson }}
+  chartJsSrc: {{ (url_for('static', filename='vendor/chartjs/chart.umd.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }}
 };
 </script>
-<script src="{{ url_for('static', filename='js/dm_kpi_dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dm_kpi_dashboard.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 
 {% endblock %}

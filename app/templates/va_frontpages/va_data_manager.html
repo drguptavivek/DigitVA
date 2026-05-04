@@ -13,8 +13,8 @@
 
 {% block content %}
 {# ── Local: AG Grid 33 + Tom Select 2.5 (page-scoped only) ── #}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/tom-select/tom-select.bootstrap5.min.css') }}"/>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/data_manager_dashboard.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/tom-select/tom-select.bootstrap5.min.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/data_manager_dashboard.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"/>
 
 {% include 'va_frontpages/data_manager_partials/_page_header.html' %}
 {% include 'va_frontpages/data_manager_partials/_kpi_cards.html' %}
@@ -35,17 +35,17 @@
 {# ════════════════════════════════════════════════════════
    JAVASCRIPT
    ════════════════════════════════════════════════════════ #}
-<script src="{{ url_for('static', filename='vendor/ag-grid/ag-grid-community.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/ag-grid/ag-grid-community.min.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 <script>
 window.DM_DASHBOARD_CONFIG = {
   csrfToken: {{ csrf_token()|tojson }},
-  chartJsSrc: {{ url_for('static', filename='vendor/chartjs/chart.umd.min.js')|tojson }},
-  tomSelectSrc: {{ url_for('static', filename='vendor/tom-select/tom-select.complete.min.js')|tojson }},
-  mermaidSrc: {{ url_for('static', filename='vendor/mermaid/mermaid.min.js')|tojson }}
+  chartJsSrc: {{ (url_for('static', filename='vendor/chartjs/chart.umd.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
+  tomSelectSrc: {{ (url_for('static', filename='vendor/tom-select/tom-select.complete.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
+  mermaidSrc: {{ (url_for('static', filename='vendor/mermaid/mermaid.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }}
 };
 </script>
-<script src="{{ url_for('static', filename='js/data_manager_dashboard.js') }}"></script>
-<script src="{{ url_for('static', filename='js/data_manager_workflow_guide.js') }}"></script>
+<script src="{{ url_for('static', filename='js/data_manager_dashboard.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+<script src="{{ url_for('static', filename='js/data_manager_workflow_guide.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 
 {% include 'va_frontpages/data_manager_partials/_coder_daily_stats.html' %}
 {% include 'va_frontpages/data_manager_partials/_workflow_guide.html' %}

@@ -3,12 +3,12 @@
 {% block title %}DigitVA | Cause of Death Report{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/cod_bucket_reporting.css') }}"/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cod_bucket_reporting.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"/>
 <script>
 window.COD_BUCKET_REPORTING_BOOTSTRAP = {
   forms: {{ cod_bucket_forms|tojson }},
   schemes: {{ cod_bucket_schemes|tojson }},
-  chartJsSrc: {{ url_for('static', filename='vendor/chartjs/chart.umd.min.js')|tojson }},
+  chartJsSrc: {{ (url_for('static', filename='vendor/chartjs/chart.umd.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
 };
 </script>
 
@@ -333,5 +333,5 @@ window.COD_BUCKET_REPORTING_BOOTSTRAP = {
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/cod_bucket_reporting.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cod_bucket_reporting.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 {% endblock %}

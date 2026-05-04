@@ -180,6 +180,34 @@ class ReviewingRoutesTests(BaseTestCase):
         )
         self.assertIsNotNone(legacy_audit)
 
+    def test_reviewing_view_does_not_create_allocation(self):
+        sid = "uuid:reviewer-route-view-only"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        self._login(self.base_reviewer_id)
+
+        with patch(
+            "app.routes.reviewing.render_va_coding_page",
+            return_value="reviewer-view-page",
+        ) as render_page:
+            response = self.client.get(f"/reviewing/view/{sid}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_data(as_text=True), "reviewer-view-page")
+        render_page.assert_called_once()
+        _, va_action, va_actiontype, back_dashboard_role = render_page.call_args.args
+        self.assertEqual(va_action, "vareview")
+        self.assertEqual(va_actiontype, "vaview")
+        self.assertEqual(back_dashboard_role, "reviewer")
+
+        allocation = db.session.scalar(
+            db.select(VaAllocations).where(
+                VaAllocations.va_sid == sid,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        )
+        self.assertIsNone(allocation)
+
     def test_reviewing_dashboard_exposes_scope_fields_for_grid_filters(self):
         sid = "uuid:reviewer-dashboard-grid-fields"
         self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)

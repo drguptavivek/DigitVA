@@ -15,7 +15,7 @@ from flask_login import current_user
 from flask import Blueprint, render_template
 from app.decorators import role_required
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
-from app.utils import va_permission_ensureanyallocation, va_permission_ensurereviewed
+from app.utils import va_permission_ensureanyallocation
 from app.services.coding_service import render_va_coding_page
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
@@ -202,5 +202,4 @@ def view_submission(va_sid):
         va_permission_abortwithflash("Submission not found.", 404)
     if not current_user.has_va_form_access(form.va_form_id, "reviewer"):
         va_permission_abortwithflash("Reviewer access is required.", 403)
-    va_permission_ensurereviewed(va_sid)
     return render_va_coding_page(form, "vareview", "vaview", "reviewer")

@@ -241,22 +241,24 @@
         return;
       }
 
+      const viewButton = `<a href="/reviewing/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-2">View</a>`;
       if (row.va_review_status === 'Reviewed') {
-        this.eGui.innerHTML = `<a href="/reviewing/view/${sid}" class="btn btn-sm btn-outline-primary py-0 px-2">View</a>`;
+        this.eGui.innerHTML = viewButton;
         return;
       }
 
       if (activeAllocationSid && activeAllocationSid === row.va_sid) {
-        this.eGui.innerHTML = '<a href="/reviewing/resume" class="btn btn-sm btn-warning py-0 px-2">Continue QA</a>';
+        this.eGui.innerHTML = `${viewButton}<a href="/reviewing/resume" class="btn btn-sm btn-warning py-0 px-2">Continue QA</a>`;
         return;
       }
 
       if (activeAllocationSid || row.va_review_status === 'In Progress') {
-        this.eGui.innerHTML = '<span class="text-muted small">Unavailable</span>';
+        this.eGui.innerHTML = `${viewButton}<span class="text-muted small">Unavailable</span>`;
         return;
       }
 
       this.eGui.innerHTML = `
+        ${viewButton}
         <a href="/reviewing/start/${sid}"
            class="btn btn-sm btn-primary py-0 px-2"
            onclick="return confirm('Are you sure you want to initiate QA for this form?');">Initiate QA</a>`;

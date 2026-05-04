@@ -1366,6 +1366,8 @@ def dm_coded_cod_snapshot_export_csv(
 
     snapshot_columns = [
         "va_sid",
+        "unique_id",
+        "survey_block",
         "project_id",
         "site_id",
         "form_id",
@@ -1440,6 +1442,8 @@ def dm_coded_cod_snapshot_export_csv(
 
     headers = [
         "va_sid",
+        "unique_id",
+        "survey_block",
         "project_id",
         "site_id",
         "form_id",

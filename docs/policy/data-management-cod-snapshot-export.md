@@ -3,7 +3,7 @@ title: Data Management COD Snapshot Export
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-05-04
 ---
 
 # Data Management COD Snapshot Export
@@ -29,6 +29,7 @@ snapshot export and its backing reporting materialized view.
 The reporting snapshot may include:
 
 - project, site, form, submission, workflow, and demographic context
+- active payload `unique_id` and `survey_block` values when present
 - narrative text and narration language
 - latest active coder Step 1 and Step 2 COD fields
 - latest active reviewer final COD fields

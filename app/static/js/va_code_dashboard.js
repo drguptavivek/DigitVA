@@ -115,6 +115,11 @@
   let pickTableInstance = null;
   let ALL_PICK_FORMS = [];
 
+  function selectedProjectId() {
+    const sel = document.getElementById('project-select-top');
+    return sel ? sel.value.trim().toUpperCase() || null : null;
+  }
+
   function renderPickTable(forms, hasAllocation) {
     const section = document.getElementById('pick-section');
     const badge   = document.getElementById('pick-badge');
@@ -318,11 +323,6 @@
 
       applyStats(allocData.allocation, statsData);
       applyProjectFilterToEligibility();
-
-      function selectedProjectId() {
-        const sel = document.getElementById('project-select-top');
-        return sel ? sel.value.trim().toUpperCase() || null : null;
-      }
 
       function applyProjectFilterToHistory() {
         if (!historyTableInstance) return;

@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-05-04
 ---
 
 # Data Manager Dashboard
@@ -51,6 +51,7 @@ This export is one row per submission and is backed by
 The coded COD snapshot export currently includes:
 
 - coder, reviewer, authoritative, and SmartVA COD fields
+- active payload `unique_id` and `survey_block` fields when present
 - individual NQA question columns alongside score/rating
 - Social Autopsy analysis summary fields
 - raw Social Autopsy questionnaire payload fields (`sa*`) from the active

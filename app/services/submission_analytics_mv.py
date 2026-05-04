@@ -544,6 +544,8 @@ coder_actor AS (
 )
 SELECT
     s.va_sid,
+    ap.payload_data ->> 'unique_id' AS unique_id,
+    ap.payload_data ->> 'survey_block' AS survey_block,
     f.project_id,
     f.site_id,
     s.va_form_id AS form_id,

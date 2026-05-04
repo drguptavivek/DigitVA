@@ -1588,6 +1588,9 @@ class DataManagerDashboardTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
+        header = next(csv.reader(io.StringIO(body.lstrip("\ufeff"))))
+        self.assertIn("unique_id", header)
+        self.assertIn("survey_block", header)
         self.assertIn("authoritative_cod_text", body)
         self.assertIn("workflow_state", body)
         self.assertIn("nqa_length", body)

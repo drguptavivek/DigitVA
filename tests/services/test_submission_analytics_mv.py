@@ -662,6 +662,8 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             sid,
             {
                 "Id10476": "Free text narrative for export",
+                "unique_id": "UNIQUE-MV-COD-SNAPSHOT",
+                "survey_block": "SURVEY-BLOCK-A",
                 "ageInYears": "52",
                 "ageInYears2": "52",
                 "finalAgeInYears": "52",
@@ -926,6 +928,8 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             sa.text(
                 f"""
                 SELECT
+                    unique_id,
+                    survey_block,
                     narrative_text,
                     coder_name,
                     coder_final_cod_text,
@@ -968,6 +972,8 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             {"sid": sid},
         ).mappings().one()
 
+        self.assertEqual(row["unique_id"], "UNIQUE-MV-COD-SNAPSHOT")
+        self.assertEqual(row["survey_block"], "SURVEY-BLOCK-A")
         self.assertEqual(row["narrative_text"], "Free text narrative for export")
         self.assertEqual(row["coder_name"], "base.coder@test.local")
         self.assertEqual(row["coder_final_cod_text"], "I21-Acute myocardial infarction")

@@ -42,6 +42,7 @@ from app.services.final_cod_authority_service import (
 from app.services.workflow.definition import (
     WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
@@ -364,6 +365,14 @@ class TestCodingAllocationService(BaseTestCase):
         db.session.flush()
 
         expired_at = datetime.now(timezone.utc) - timedelta(hours=7)
+        initial_assessment = VaInitialAssessments(
+            va_sid=stale_sid,
+            va_iniassess_by=self.base_admin_user.user_id,
+            va_immediate_cod="R99",
+            va_antecedent_cod="R99",
+            va_other_conditions="",
+            va_iniassess_status=VaStatuses.active,
+        )
         final_assessment = VaFinalAssessments(
             va_sid=stale_sid,
             va_finassess_by=self.base_admin_user.user_id,
@@ -392,7 +401,7 @@ class TestCodingAllocationService(BaseTestCase):
             va_saa_status=VaStatuses.active,
             demo_expires_at=expired_at,
         )
-        db.session.add_all([final_assessment, narrative, social])
+        db.session.add_all([initial_assessment, final_assessment, narrative, social])
         db.session.flush()
         social.selected_options.append(
             VaSocialAutopsyAnalysisOption(
@@ -417,7 +426,11 @@ class TestCodingAllocationService(BaseTestCase):
 
         expired = cleanup_expired_demo_coding_artifacts()
 
-        self.assertEqual(expired, 3)
+        self.assertEqual(expired, 4)
+        stored_initial = db.session.get(
+            VaInitialAssessments,
+            initial_assessment.va_iniassess_id,
+        )
         stored_final = db.session.get(VaFinalAssessments, final_assessment.va_finassess_id)
         stored_narrative = db.session.get(VaNarrativeAssessment, narrative.va_nqa_id)
         stored_social = db.session.get(VaSocialAutopsyAnalysis, social.va_saa_id)
@@ -432,12 +445,60 @@ class TestCodingAllocationService(BaseTestCase):
             )
         )
 
+        self.assertEqual(stored_initial.va_iniassess_status, VaStatuses.deactive)
         self.assertEqual(stored_final.va_finassess_status, VaStatuses.deactive)
         self.assertEqual(stored_narrative.va_nqa_status, VaStatuses.deactive)
         self.assertEqual(stored_social.va_saa_status, VaStatuses.deactive)
         self.assertIsNotNone(authority)
         self.assertIsNone(authority.authoritative_final_assessment_id)
         self.assertEqual(workflow.workflow_state, "ready_for_coding")
+
+    def test_cleanup_expired_demo_coding_artifacts_repairs_stale_step1_state(self):
+        stale_sid = "uuid:demo-expired-stale-step1"
+        self._add_submission(stale_sid)
+        db.session.flush()
+
+        expired_at = datetime.now(timezone.utc) - timedelta(hours=7)
+        initial_assessment = VaInitialAssessments(
+            va_sid=stale_sid,
+            va_iniassess_by=self.base_admin_user.user_id,
+            va_immediate_cod="R99",
+            va_antecedent_cod="R99",
+            va_other_conditions="",
+            va_iniassess_status=VaStatuses.active,
+        )
+        final_assessment = VaFinalAssessments(
+            va_sid=stale_sid,
+            va_finassess_by=self.base_admin_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_remark="already expired demo final",
+            va_finassess_status=VaStatuses.deactive,
+            demo_expires_at=expired_at,
+        )
+        db.session.add_all([initial_assessment, final_assessment])
+        set_submission_workflow_state(
+            stale_sid,
+            WORKFLOW_CODER_STEP1_SAVED,
+            by_user_id=self.base_admin_user.user_id,
+            by_role="vaadmin",
+        )
+        db.session.commit()
+
+        expired = cleanup_expired_demo_coding_artifacts()
+
+        stored_initial = db.session.get(
+            VaInitialAssessments,
+            initial_assessment.va_iniassess_id,
+        )
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == stale_sid
+            )
+        )
+
+        self.assertEqual(expired, 1)
+        self.assertEqual(stored_initial.va_iniassess_status, VaStatuses.deactive)
+        self.assertEqual(workflow.workflow_state, WORKFLOW_READY_FOR_CODING)
 
     def test_cleanup_expired_demo_coding_artifacts_keeps_live_recode_session_in_progress(self):
         stale_sid = "uuid:demo-expired-live-recode"

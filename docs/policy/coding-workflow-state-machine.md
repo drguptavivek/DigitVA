@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-05-20
 ---
 
 # Coding Workflow State Machine Policy
@@ -135,6 +135,8 @@ Current baseline:
 - Step 1 may still be deactivated when a coder saves a newer Step 1 draft, when
   a stale coding session is reverted, or when data-manager upstream-change
   resolution explicitly invalidates the coding chain for recoding
+- demo-created Step 1 COD is temporary and must be deactivated when the
+  matching completed demo final COD expires
 - reporting surfaces may show the preserved Step 1 assessment alongside final
   COD for the same submission
 
@@ -177,7 +179,8 @@ it is not a permanent production completion path.
 
 Current intended baseline:
 
-- demo coding may save NQA, Social Autopsy Analysis, and final COD artifacts
+- demo coding may save Step 1 COD, NQA, Social Autopsy Analysis, and final COD
+  artifacts
 - those demo artifacts must be visible immediately after save, including on the
   coder dashboard while they remain active
 - project-declared demo/training projects are open to all active authenticated
@@ -411,8 +414,8 @@ Desired target state machine:
     - applies only to artifacts created through `vademo_start_coding`
     - finalized demo artifacts may remain visible for the configured retention
       window before cleanup
-    - cleanup must also deactivate demo NQA and Social Autopsy artifacts tied
-      to the same completed demo coding outcome
+    - cleanup must also deactivate demo Step 1 COD, NQA, and Social Autopsy
+      artifacts tied to the same completed demo coding outcome
 
 
   Upstream data change for finalized submission:

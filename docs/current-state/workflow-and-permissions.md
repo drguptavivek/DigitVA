@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-27
+last_updated: 2026-05-20
 ---
 
 # Workflow And Permissions
@@ -285,6 +285,8 @@ Completion behavior:
 - demo final coding now keeps the saved NQA, Social Autopsy, and final COD rows
   active immediately after submission so they remain visible in the dashboard
   during the demo-retention window
+- completed demo Step 1 COD is temporary; when its matching demo final COD
+  expires, cleanup deactivates the same coder's active Step 1 row
 - reviewer final coding creates a `va_reviewer_final_assessments` row stamped
   with the submission's current `active_payload_version_id`
 - final COD authority resolution now ignores stale coder/reviewer final rows
@@ -320,6 +322,9 @@ Timeout cleanup:
 - when demo-retention cleanup deactivates an authoritative demo final COD, it
   also clears or repoints `va_final_cod_authority` and restores canonical
   workflow state based on the remaining active records
+- demo-retention cleanup deactivates the expired demo coder's active
+  `va_initial_assessments` row before restoring workflow state, so completed
+  demo/training submissions can return to `ready_for_coding`
 - demo-retention cleanup no longer emits a demo reset for submissions that
   still have an active coding allocation; in that case it prunes the expired
   demo artifacts but keeps the live coding or recode session state intact

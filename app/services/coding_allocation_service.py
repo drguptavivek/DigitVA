@@ -14,6 +14,7 @@ from app.models import (
     VaReviewerReview,
     VaSocialAutopsyAnalysis,
     VaStatuses,
+    VaSubmissionWorkflow,
     VaSubmissionsAuditlog,
 )
 from app.services.final_cod_authority_service import (
@@ -25,6 +26,7 @@ from app.services.demo_project_service import (
     get_demo_coding_allocation_timeout_minutes,
     should_use_demo_actiontype_for_submission,
 )
+from app.services.workflow.definition import WORKFLOW_CODER_STEP1_SAVED
 from app.services.workflow.transitions import (
     reset_demo_state,
     reset_incomplete_first_pass,
@@ -273,6 +275,7 @@ def cleanup_expired_demo_coding_artifacts(
     cutoff = now or _naive_utc_now()
     expired_count = 0
     affected_sids: set[str] = set()
+    expired_final_users_by_sid: dict[str, set] = {}
 
     expired_narratives = db.session.scalars(
         sa.select(VaNarrativeAssessment).where(
@@ -325,6 +328,9 @@ def cleanup_expired_demo_coding_artifacts(
     ).all()
     for final_row in expired_finals:
         final_row.va_finassess_status = VaStatuses.deactive
+        expired_final_users_by_sid.setdefault(final_row.va_sid, set()).add(
+            final_row.va_finassess_by
+        )
         replacement_final = db.session.scalar(
             sa.select(VaFinalAssessments).where(
                 VaFinalAssessments.va_sid == final_row.va_sid,
@@ -347,6 +353,76 @@ def cleanup_expired_demo_coding_artifacts(
             )
         )
         affected_sids.add(final_row.va_sid)
+        expired_count += 1
+
+    for va_sid, user_ids in expired_final_users_by_sid.items():
+        expired_initials = db.session.scalars(
+            sa.select(VaInitialAssessments).where(
+                VaInitialAssessments.va_sid == va_sid,
+                VaInitialAssessments.va_iniassess_by.in_(user_ids),
+                VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+            )
+        ).all()
+        for initial_row in expired_initials:
+            initial_row.va_iniassess_status = VaStatuses.deactive
+            db.session.add(
+                VaSubmissionsAuditlog(
+                    va_sid=initial_row.va_sid,
+                    va_audit_entityid=initial_row.va_iniassess_id,
+                    va_audit_byrole="vasystem",
+                    va_audit_operation="u",
+                    va_audit_action="initial cod expired after demo retention",
+                )
+            )
+            affected_sids.add(initial_row.va_sid)
+            expired_count += 1
+
+    stale_demo_initials = db.session.scalars(
+        sa.select(VaInitialAssessments)
+        .join(
+            VaSubmissionWorkflow,
+            VaSubmissionWorkflow.va_sid == VaInitialAssessments.va_sid,
+        )
+        .where(
+            VaInitialAssessments.va_iniassess_status == VaStatuses.active,
+            VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_STEP1_SAVED,
+            sa.exists(
+                sa.select(sa.literal(True)).where(
+                    VaFinalAssessments.va_sid == VaInitialAssessments.va_sid,
+                    VaFinalAssessments.va_finassess_by
+                    == VaInitialAssessments.va_iniassess_by,
+                    VaFinalAssessments.va_finassess_status == VaStatuses.deactive,
+                    VaFinalAssessments.demo_expires_at.is_not(None),
+                    VaFinalAssessments.demo_expires_at < cutoff,
+                )
+            ),
+            ~sa.exists(
+                sa.select(sa.literal(True)).where(
+                    VaFinalAssessments.va_sid == VaInitialAssessments.va_sid,
+                    VaFinalAssessments.va_finassess_status == VaStatuses.active,
+                )
+            ),
+            ~sa.exists(
+                sa.select(sa.literal(True)).where(
+                    VaAllocations.va_sid == VaInitialAssessments.va_sid,
+                    VaAllocations.va_allocation_for == VaAllocation.coding,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            ),
+        )
+    ).all()
+    for initial_row in stale_demo_initials:
+        initial_row.va_iniassess_status = VaStatuses.deactive
+        db.session.add(
+            VaSubmissionsAuditlog(
+                va_sid=initial_row.va_sid,
+                va_audit_entityid=initial_row.va_iniassess_id,
+                va_audit_byrole="vasystem",
+                va_audit_operation="u",
+                va_audit_action="initial cod expired after demo retention",
+            )
+        )
+        affected_sids.add(initial_row.va_sid)
         expired_count += 1
 
     for va_sid in affected_sids:

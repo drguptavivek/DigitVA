@@ -3,7 +3,7 @@ title: Demo Coding Retention Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-02
+last_updated: 2026-05-20
 ---
 
 # Demo Coding Retention Policy
@@ -43,6 +43,7 @@ It does not change normal non-demo coder workflows entered through:
 Current intended baseline:
 
 - demo/training coding saves the same first-pass artifacts as normal coding:
+  - Step 1 COD assessment
   - Narrative Quality Assessment
   - Social Autopsy Analysis
   - final COD submission
@@ -95,6 +96,8 @@ Current intended baseline:
 When the retention window expires for a demo-coded submission, the system must:
 
 - deactivate the demo-created final COD record
+- deactivate the demo-created active Step 1 COD row for the same coder whose
+  demo final COD expired
 - deactivate the demo-created Narrative Quality Assessment row
 - deactivate the demo-created Social Autopsy Analysis row
 - clear any authoritative-final pointer that references the expired demo final

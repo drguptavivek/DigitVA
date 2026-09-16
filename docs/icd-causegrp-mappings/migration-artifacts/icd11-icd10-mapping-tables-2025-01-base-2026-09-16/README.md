@@ -73,12 +73,12 @@ two files the data rows carry more cells than the header names:
   Covers 17231 of the 17231 MMS codes in chapters 01 to 25; chapters 26, V and X are not mapped. 195 distinct targets are ICD-10 block ranges such as `A15-A19`.
 - **`foundation_10To11MapToOneCategory.txt`**: 12597 rows; 8 header cells, 9 data cells per row (the last header cell is the WHO version stamp `2025-Jan-24`).
   ICD-10 side: Chapter 22, Block 274, Category 12301; 12597 distinct ICD-10 entities, of which 12301 are editable codes in our ICD-10 2019 catalog (12475 editable codes in total).
-  Rows with a blank ICD-11 code (blocks): 12597.
+  This table has no ICD-11 code column; targets are foundation URIs and titles only.
   Trailing cells: Equivalent at distance 0: 7858; Subclass at distance 0: 2472; Subclass at distance -1: 1908; Subclass at distance -2: 313; Subclass at distance -3: 42; blank at distance -1: 4.
 - **`foundation_11To10MapToOneCategory.txt`**: 48595 rows; 7 header cells, 6 data cells per row (the last header cell is the WHO version stamp `2025-Jan-24`).
   8536 distinct ICD-10 targets, 8315 of them editable codes in our ICD-10 2019 catalog; the rest are block ranges or chapters.
   ICD-11 side: 12185 distinct target strings; 0 rows postcoordinated with `&`; 0 rows offer alternatives joined by `/`; stems not found in the frozen 2025-01 code list: 25 (the chapter rows, whose code cell holds the chapter number).
-  Rows with a blank ICD-11 code (blocks): 36410.
+  Rows with a blank ICD-11 code (foundation entities that carry no MMS code): 36410.
 
 Facts that matter for anyone using the tables:
 

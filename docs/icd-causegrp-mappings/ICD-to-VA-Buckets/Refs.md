@@ -1,3 +1,11 @@
+---
+title: ICD to VA Bucket References
+doc_type: reference
+status: active
+owner: engineering
+last_updated: 2026-09-16
+---
+
 
 
 
@@ -125,4 +133,10 @@ Current counts:
 
 ## WHO-VA 2022
 
-
+- WHO target list of causes of death for VA with ICD-10 and ICD-11
+  correspondences (Annex 1, Table A1 of the 2026 WHO manual for physician
+  reviewers): [who-2022-va-cause-list-icd10-icd11.md](who-2022-va-cause-list-icd10-icd11.md).
+  Data of record: `who_2022_va_cause_list_icd10_icd11.csv` and
+  `who_2022_va_cause_list_footnotes.csv` in this folder.
+- `WHO_2022_VA_CODES.pdf` in this folder is the earlier ICD-10-only extract.
+  The document above lists where its ICD-10 ranges differ from the 2026 annex.

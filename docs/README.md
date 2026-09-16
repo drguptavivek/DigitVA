@@ -3,7 +3,7 @@ title: Docs Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-04-13
+last_updated: 2026-09-16
 ---
 
 # DigitVA Docs
@@ -24,6 +24,7 @@ These documents describe the current implementation as it exists today.
 ## Knowledge Base
 
 - [SmartVA Symptom KB](kb/smart-va/README.md)
+- [WHO 2022 VA Cause List with ICD-10 and ICD-11 Codes](icd-causegrp-mappings/ICD-to-VA-Buckets/who-2022-va-cause-list-icd10-icd11.md)
 
 ## Planning
 

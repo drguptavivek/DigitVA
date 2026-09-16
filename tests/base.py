@@ -57,7 +57,9 @@ from app.models import (
     VaAccessScopeTypes,
     VaProjectMaster,
     VaProjectSites,
+    VaResearchProjects,
     VaSiteMaster,
+    VaSites,
     VaStatuses,
     VaUserAccessGrants,
     VaUsers,
@@ -91,6 +93,12 @@ class BaseTestCase(unittest.TestCase):
         from flask import current_app
         cls.app = current_app._get_current_object()
         cls.ctx = None  # context is managed by conftest; do not push/pop per class
+
+        # Discard any transaction left dirty by a previous class's setUpClass.
+        # setUpClass runs outside the per-test savepoint, so a failed insert
+        # there would otherwise leave the scoped session in PendingRollback and
+        # cascade errors into every later test class in the session.
+        db.session.rollback()
 
         # _seed_base_fixtures is idempotent: safe to call once per class.
         # Base fixtures (BASE_PROJECT_ID, BASE_SITE_ID, 3 users) are shared across
@@ -217,6 +225,53 @@ class BaseTestCase(unittest.TestCase):
         cls.base_admin_id = str(cls.base_admin_user.user_id)
         cls.base_project_pi_id = str(cls.base_project_pi_user.user_id)
         cls.base_coder_id = str(cls.base_coder_user.user_id)
+
+    @classmethod
+    def _ensure_base_research_project_and_site(cls):
+        """
+        Get-or-create the legacy `va_research_projects` / `va_sites` rows for
+        cls.BASE_PROJECT_ID / cls.BASE_SITE_ID and return them as a tuple.
+
+        Opt-in — deliberately NOT called from _seed_base_fixtures, because many
+        test classes never touch the legacy tables. Class-level fixtures that
+        need those rows must go through this helper: an unconditional insert
+        raises UniqueViolation as soon as another class in the same session has
+        already committed the same ids, which leaves the scoped session in
+        PendingRollback and breaks every later class.
+
+        Rows are flushed, not committed — the calling setUpClass owns the commit.
+        """
+        now = datetime.now(timezone.utc)
+
+        research_project = db.session.get(VaResearchProjects, cls.BASE_PROJECT_ID)
+        if research_project is None:
+            research_project = VaResearchProjects(
+                project_id=cls.BASE_PROJECT_ID,
+                project_code=cls.BASE_PROJECT_ID,
+                project_name="Base Research Project",
+                project_nickname="BaseResearch",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+            db.session.add(research_project)
+            db.session.flush()
+
+        site = db.session.get(VaSites, cls.BASE_SITE_ID)
+        if site is None:
+            site = VaSites(
+                site_id=cls.BASE_SITE_ID,
+                project_id=cls.BASE_PROJECT_ID,
+                site_name="Base Test Site",
+                site_abbr=cls.BASE_SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+            db.session.add(site)
+            db.session.flush()
+
+        return research_project, site
 
     @classmethod
     def _get_or_make_user(cls, email, password):

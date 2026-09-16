@@ -153,7 +153,7 @@ class TestWho2022VaMigration(BaseTestCase):
         self.assertTrue(narration.always_include)
         self.assertFalse(interview.show_to_coder)
         self.assertFalse(interview.show_to_reviewer)
-        self.assertTrue(interview.show_to_site_pi)
+        self.assertTrue(interview.show_to_site_pi_datamanager)
 
     def test_06_all_field_configs_migrated(self):
         """All unique field configs from Excel are migrated.

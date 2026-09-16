@@ -36,13 +36,19 @@ class TestOdkSchemaSyncService(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.form_type = MasFormTypes(
-            form_type_id=uuid.uuid4(),
-            form_type_code="WHO_2022_VA",
-            form_type_name="WHO 2022 VA",
-            is_active=True,
+        # form_type_code is unique and shared with other test classes — reuse
+        # the row when an earlier class already committed it.
+        cls.form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
         )
-        db.session.add(cls.form_type)
+        if cls.form_type is None:
+            cls.form_type = MasFormTypes(
+                form_type_id=uuid.uuid4(),
+                form_type_code="WHO_2022_VA",
+                form_type_name="WHO 2022 VA",
+                is_active=True,
+            )
+            db.session.add(cls.form_type)
         db.session.commit()
 
     def test_01_sync_unknown_form_type_returns_error(self):

@@ -1,7 +1,9 @@
 """Tests for the /attachment/<storage_name> serving route.
 
 Covers the security contract (Option B — auth-first):
-  1. Unauthenticated → 401 (no redirect, no DB lookup)
+  1. Unauthenticated → 302 redirect to the login page (no DB lookup). The
+     role_required decorator returns JSON 401 only for /api/-style paths;
+     /vaform/attachment/... is a web path, so it redirects to va_auth.va_login.
   2. Invalid token format → 404
   3. Valid format, no DB record → 404
   4. exists_on_odk=False record → 404
@@ -134,14 +136,15 @@ class ServeAttachmentTests(BaseTestCase):
     # 1. Unauthenticated → 401
     # ------------------------------------------------------------------
 
-    def test_unauthenticated_returns_401(self):
+    def test_unauthenticated_redirects_to_login(self):
         # setUp() creates a fresh test_client() with an empty cookie jar for every
         # test — no prior session cookie exists, so no session_transaction() needed.
         # Calling session_transaction() on a new client can inadvertently open a
         # stale filesystem-backed session and corrupt the intended unauthenticated state.
         storage_name = self._make_storage_name()
         response = self.client.get(self._url(storage_name))
-        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/valogin", response.location)
 
     # ------------------------------------------------------------------
     # 2. Invalid token format → 404

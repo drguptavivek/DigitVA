@@ -24,81 +24,14 @@ class AdminCodBucketPanelTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        scheme = MasCodBucketScheme(
-            scheme_code=f"TEST_ADMIN_{uuid.uuid4().hex[:8].upper()}",
-            scheme_name="Admin COD Scheme",
-            mapping_version=1,
-            is_active=True,
-        )
-        db.session.add(scheme)
-        db.session.flush()
-        cls.scheme_code = scheme.scheme_code
-        cls.scheme_id = scheme.scheme_id
-        db.session.add(
-            MasCodBucketSchemeAgeBand(
-                scheme_id=scheme.scheme_id,
-                age_scope="adult_over5y",
-                age_label="Adult / Over 5 Years",
-                min_age_value=5,
-                min_age_unit="years",
-                max_age_value=120,
-                max_age_unit="years",
-                level_count=3,
-                sort_order=1,
-                is_active=True,
-            )
-        )
-        db.session.flush()
-        cls.adult_age_band_id = db.session.scalar(
-            sa.select(MasCodBucketSchemeAgeBand.age_band_id).where(
-                MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id,
-                MasCodBucketSchemeAgeBand.age_scope == "adult_over5y",
-            )
-        )
-
-        category = MasCodBucketNode(
-            scheme_id=scheme.scheme_id,
-            age_scope="adult_over5y",
-            node_type="category",
-            node_code="injuries",
-            node_label="Injuries",
-            sort_order=1,
-            is_active=True,
-        )
-        subcategory = MasCodBucketNode(
-            scheme_id=scheme.scheme_id,
-            age_scope="adult_over5y",
-            node_type="subcategory",
-            parent=category,
-            node_code="road_injuries",
-            node_label="Road Injuries",
-            sort_order=1,
-            is_active=True,
-        )
-        field_a = MasCodBucketNode(
-            scheme_id=scheme.scheme_id,
-            age_scope="adult_over5y",
-            node_type="field",
-            parent=subcategory,
-            node_code="pedestrian",
-            node_label="Pedestrian Road Injury",
-            sort_order=1,
-            is_active=True,
-        )
-        field_b = MasCodBucketNode(
-            scheme_id=scheme.scheme_id,
-            age_scope="adult_over5y",
-            node_type="field",
-            parent=subcategory,
-            node_code="vehicle",
-            node_label="Vehicle Occupant Injury",
-            sort_order=2,
-            is_active=True,
-        )
-        db.session.add_all([category, subcategory, field_a, field_b])
-        db.session.flush()
-        cls.field_a_id = field_a.node_id
-        cls.field_b_id = field_b.node_id
+        fixture = cls._seed_scheme_fixture(f"TEST_ADMIN_{uuid.uuid4().hex[:8].upper()}")
+        cls.scheme_code = fixture["scheme_code"]
+        cls.scheme_id = fixture["scheme_id"]
+        cls.adult_age_band_id = fixture["adult_age_band_id"]
+        cls.category_id = fixture["category_id"]
+        cls.field_a_id = fixture["field_a_id"]
+        cls.field_b_id = fixture["field_b_id"]
+        cls.mapping_id = fixture["mapping_id"]
 
         for code, title, is_selectable in (
             ("A00", "Cholera", True),
@@ -173,6 +106,83 @@ class AdminCodBucketPanelTests(BaseTestCase):
                 ),
             ]
         )
+        db.session.commit()
+
+    @classmethod
+    def _seed_scheme_fixture(cls, scheme_code):
+        """Seed one reporting scheme: adult age band, 3-level hierarchy, V01 mapping.
+
+        Rows are flushed, not committed — the caller owns the commit.
+
+        Tests that rewrite a whole scheme (for example JSON import) must seed
+        their own scheme with this helper instead of mutating the shared class
+        fixture. A route commit releases the per-test savepoint, so a
+        scheme-wide rewrite survives tearDown and would strip the age bands,
+        nodes and mappings that later tests in this class rely on.
+        """
+        scheme = MasCodBucketScheme(
+            scheme_code=scheme_code,
+            scheme_name="Admin COD Scheme",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        age_band = MasCodBucketSchemeAgeBand(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            age_label="Adult / Over 5 Years",
+            min_age_value=5,
+            min_age_unit="years",
+            max_age_value=120,
+            max_age_unit="years",
+            level_count=3,
+            sort_order=1,
+            is_active=True,
+        )
+        db.session.add(age_band)
+
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="category",
+            node_code="injuries",
+            node_label="Injuries",
+            sort_order=1,
+            is_active=True,
+        )
+        subcategory = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="subcategory",
+            parent=category,
+            node_code="road_injuries",
+            node_label="Road Injuries",
+            sort_order=1,
+            is_active=True,
+        )
+        field_a = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="field",
+            parent=subcategory,
+            node_code="pedestrian",
+            node_label="Pedestrian Road Injury",
+            sort_order=1,
+            is_active=True,
+        )
+        field_b = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope="adult_over5y",
+            node_type="field",
+            parent=subcategory,
+            node_code="vehicle",
+            node_label="Vehicle Occupant Injury",
+            sort_order=2,
+            is_active=True,
+        )
+        db.session.add_all([category, subcategory, field_a, field_b])
+        db.session.flush()
 
         mapping = MapIcdCodBucket(
             scheme_id=scheme.scheme_id,
@@ -182,9 +192,17 @@ class AdminCodBucketPanelTests(BaseTestCase):
             is_active=True,
         )
         db.session.add(mapping)
-        db.session.commit()
-        cls.mapping_id = mapping.mapping_id
-        cls.category_id = category.node_id
+        db.session.flush()
+
+        return {
+            "scheme_code": scheme.scheme_code,
+            "scheme_id": scheme.scheme_id,
+            "adult_age_band_id": age_band.age_band_id,
+            "category_id": category.node_id,
+            "field_a_id": field_a.node_id,
+            "field_b_id": field_b.node_id,
+            "mapping_id": mapping.mapping_id,
+        }
 
     def test_cod_bucket_panel_renders_for_admin(self):
         self._login(self.base_admin_id)
@@ -236,9 +254,17 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertIn("Road Injuries", v01_mapping["node_path_label"])
 
     def test_cod_bucket_scheme_import_json_replaces_existing_scheme(self):
+        # Import rewrites the whole scheme and commits, which releases the
+        # per-test savepoint, so it must run against a throwaway scheme and
+        # leave the shared class fixture intact for later tests.
+        fixture = self._seed_scheme_fixture(f"TEST_IMPORT_{uuid.uuid4().hex[:8].upper()}")
+        db.session.commit()
+        scheme_code = fixture["scheme_code"]
+        scheme_id = fixture["scheme_id"]
+        field_b_id = fixture["field_b_id"]
         self._login(self.base_admin_id)
         export_response = self.client.get(
-            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/export"
+            f"/admin/api/cod-bucket-schemes/{scheme_code}/export"
         )
         self.assertEqual(export_response.status_code, 200)
         payload = export_response.get_json()
@@ -302,14 +328,14 @@ class AdminCodBucketPanelTests(BaseTestCase):
             }
         )
         payload["nodes"] = [
-            node for node in payload["nodes"] if node["node_id"] != str(self.field_b_id)
+            node for node in payload["nodes"] if node["node_id"] != str(field_b_id)
         ]
         payload["mappings"] = [
             mapping for mapping in payload["mappings"] if mapping["icd_code"] != "V01"
         ]
 
         response = self.client.post(
-            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/import",
+            f"/admin/api/cod-bucket-schemes/{scheme_code}/import",
             data={
                 "file": (
                     BytesIO(json.dumps(payload).encode("utf-8")),
@@ -322,7 +348,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.get_json()
-        self.assertEqual(body["scheme"]["scheme_code"], self.scheme_code)
+        self.assertEqual(body["scheme"]["scheme_code"], scheme_code)
         self.assertEqual(body["scheme"]["scheme_name"], "Imported Admin COD Scheme")
         self.assertEqual(len(body["scheme"]["age_bands"]), 2)
         self.assertEqual(body["scheme"]["mapping_version"], 2)
@@ -331,14 +357,14 @@ class AdminCodBucketPanelTests(BaseTestCase):
         )
 
         scheme = db.session.scalar(
-            sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == self.scheme_code)
+            sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == scheme_code)
         )
         self.assertEqual(scheme.scheme_name, "Imported Admin COD Scheme")
         self.assertEqual(scheme.mapping_version, 2)
-        self.assertIsNone(db.session.get(MasCodBucketNode, self.field_b_id))
+        self.assertIsNone(db.session.get(MasCodBucketNode, field_b_id))
         child_nodes = db.session.scalars(
             sa.select(MasCodBucketNode).where(
-                MasCodBucketNode.scheme_id == self.scheme_id,
+                MasCodBucketNode.scheme_id == scheme_id,
                 MasCodBucketNode.age_scope == "child_1_59m",
             )
         ).all()
@@ -348,7 +374,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
         )
         child_mapping = db.session.scalar(
             sa.select(MapIcdCodBucket).where(
-                MapIcdCodBucket.scheme_id == self.scheme_id,
+                MapIcdCodBucket.scheme_id == scheme_id,
                 MapIcdCodBucket.age_scope == "child_1_59m",
                 MapIcdCodBucket.icd_code == "A00",
             )
@@ -357,7 +383,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertIsNone(
             db.session.scalar(
                 sa.select(MapIcdCodBucket.mapping_id).where(
-                    MapIcdCodBucket.scheme_id == self.scheme_id,
+                    MapIcdCodBucket.scheme_id == scheme_id,
                     MapIcdCodBucket.age_scope == "adult_over5y",
                     MapIcdCodBucket.icd_code == "V01",
                 )

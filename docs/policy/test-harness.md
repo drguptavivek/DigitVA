@@ -3,7 +3,7 @@ title: Test Harness Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-05
+last_updated: 2026-09-17
 ---
 
 # Test Harness Policy
@@ -71,13 +71,33 @@ Subclasses that add their own fixtures in `setUpClass` must use unique IDs
 (e.g. `PROJECT_ID = "MYTEST01"`) to avoid conflicts with base fixtures and
 other test classes in the same session.
 
-### 5. Keep tests that don't need DB lightweight
+### 5. Class-level fixtures that reuse shared IDs must be get-or-create
+
+`setUpClass` runs outside the per-test savepoint and its writes are committed,
+so they live for the whole session. Any class-level insert that reuses an ID
+another class may also use — `BASE_PROJECT_ID`/`BASE_SITE_ID`, a derived
+`FORM_ID`, reference rows such as `mas_languages` or `mas_form_types`, or a
+fixture shared with a subclass — must be get-or-create (`db.session.get` or a
+scalar select), never an unconditional insert. An unconditional insert raises
+`UniqueViolation` the moment another class has already committed the row, and
+the poisoned scoped session then breaks every later class.
+
+For the legacy `va_research_projects` / `va_sites` rows use the shared helper
+`BaseTestCase._ensure_base_research_project_and_site()`. It is opt-in: call it
+from `setUpClass` when the class needs those rows; `_seed_base_fixtures()` does
+not create them.
+
+Two classes must not share a site ID across different projects: the analytics
+MVs join `va_project_sites` on `site_id` alone, so a second active project-site
+row for the same site duplicates every submission row in the MV.
+
+### 6. Keep tests that don't need DB lightweight
 
 Tests for pure functions, template rendering, or fully-mocked service calls
 may use plain `unittest.TestCase` without inheriting `BaseTestCase`. Do not
 pull in database infrastructure for tests that never touch it.
 
-### 6. Use unique names for unique-constrained fields in tests
+### 7. Use unique names for unique-constrained fields in tests
 
 When creating test data inside savepoint-rollback tests, use unique names for
 fields with unique constraints (e.g. `connection_name`). This prevents

@@ -9,7 +9,7 @@ class MediaAccessTests(BaseTestCase):
     def test_media_access_requires_login(self):
         """Verify that media files cannot be accessed without logging in."""
         with self.app.test_request_context():
-            media_url = url_for("va_api.va_servemedia", va_form_id="test_form", va_filename="test.jpg")
+            media_url = url_for("va_form.serve_media", va_form_id="test_form", va_filename="test.jpg")
         
         response = self.client.get(media_url)
         # Should redirect to login
@@ -47,9 +47,9 @@ class MediaAccessTests(BaseTestCase):
         # Attempt path traversal
         # We manually construct the path because url_for or the client might normalize '..'
         traversal_paths = [
-            "/vaservemedia/../config.py",
-            "/vaservemedia/test/../../../config.py",
-            "/vaservemedia/test/%2e%2e/%2e%2e/config.py",
+            "/vaform/media/../config.py",
+            "/vaform/media/test/../../../config.py",
+            "/vaform/media/test/%2e%2e/%2e%2e/config.py",
         ]
         
         for path in traversal_paths:

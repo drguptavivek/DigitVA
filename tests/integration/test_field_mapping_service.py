@@ -333,6 +333,40 @@ class TestFieldMappingServiceStructure(BaseTestCase):
             cat_keys.index("vanarrationanddocuments"),
         )
 
+    def test_16_fieldsitepi_uses_explicit_subcategory_order(self):
+        """Subcategories are ordered by MasSubcategoryOrder, not first field order."""
+        form_type = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == self.form_type_code)
+        )
+        category_code = "vademographicdetails"
+
+        first = db.session.scalar(
+            db.select(MasSubcategoryOrder).where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == category_code,
+                MasSubcategoryOrder.subcategory_code == "general",
+            )
+        )
+        second = db.session.scalar(
+            db.select(MasSubcategoryOrder).where(
+                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
+                MasSubcategoryOrder.category_code == category_code,
+                MasSubcategoryOrder.subcategory_code == "risk_factors",
+            )
+        )
+
+        first.display_order = 2
+        second.display_order = 1
+        db.session.commit()
+
+        self.service.clear_cache()
+        result = self.service.get_fieldsitepi(self.form_type_code)
+
+        self.assertEqual(
+            list(result[category_code].keys())[:2],
+            ["risk_factors", "general"],
+        )
+
 
 class TestRenderProcessCategoryDataLegacyAttachmentFallback(BaseTestCase):
     FORM_ID = "LEGACYATT01"
@@ -439,36 +473,3 @@ class TestRenderProcessCategoryDataLegacyAttachmentFallback(BaseTestCase):
             f"/vaform/media/{self.FORM_ID}/{filename}",
         )
 
-    def test_16_fieldsitepi_uses_explicit_subcategory_order(self):
-        """Subcategories are ordered by MasSubcategoryOrder, not first field order."""
-        form_type = db.session.scalar(
-            db.select(MasFormTypes).where(MasFormTypes.form_type_code == self.form_type_code)
-        )
-        category_code = "vademographicdetails"
-
-        first = db.session.scalar(
-            db.select(MasSubcategoryOrder).where(
-                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
-                MasSubcategoryOrder.category_code == category_code,
-                MasSubcategoryOrder.subcategory_code == "general",
-            )
-        )
-        second = db.session.scalar(
-            db.select(MasSubcategoryOrder).where(
-                MasSubcategoryOrder.form_type_id == form_type.form_type_id,
-                MasSubcategoryOrder.category_code == category_code,
-                MasSubcategoryOrder.subcategory_code == "risk_factors",
-            )
-        )
-
-        first.display_order = 2
-        second.display_order = 1
-        db.session.commit()
-
-        self.service.clear_cache()
-        result = self.service.get_fieldsitepi(self.form_type_code)
-
-        self.assertEqual(
-            list(result[category_code].keys())[:2],
-            ["risk_factors", "general"],
-        )

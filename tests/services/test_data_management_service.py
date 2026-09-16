@@ -84,62 +84,76 @@ class DataManagementAcceptRejectTests(BaseTestCase):
         super().setUpClass()
         now = datetime.now(timezone.utc)
 
-        # Create project/site/form infrastructure
-        db.session.add(VaProjectMaster(
-            project_id=cls.PROJECT_ID,
-            project_code=cls.PROJECT_ID,
-            project_name="DM Test Project",
-            project_nickname="DMTest",
-            project_status=VaStatuses.active,
-            project_registered_at=now,
-            project_updated_at=now,
-        ))
-        db.session.add(VaResearchProjects(
-            project_id=cls.PROJECT_ID,
-            project_code=cls.PROJECT_ID,
-            project_name="DM Test Project",
-            project_nickname="DMTest",
-            project_status=VaStatuses.active,
-            project_registered_at=now,
-            project_updated_at=now,
-        ))
-        db.session.add(VaSiteMaster(
-            site_id=cls.SITE_ID,
-            site_name="DM Test Site",
-            site_abbr=cls.SITE_ID,
-            site_status=VaStatuses.active,
-            site_registered_at=now,
-            site_updated_at=now,
-        ))
+        # Create project/site/form infrastructure.  Subclasses re-run this
+        # setUpClass with the same ids, and the rows below are committed, so
+        # every insert must be get-or-create.
+        if db.session.get(VaProjectMaster, cls.PROJECT_ID) is None:
+            db.session.add(VaProjectMaster(
+                project_id=cls.PROJECT_ID,
+                project_code=cls.PROJECT_ID,
+                project_name="DM Test Project",
+                project_nickname="DMTest",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            ))
+        if db.session.get(VaResearchProjects, cls.PROJECT_ID) is None:
+            db.session.add(VaResearchProjects(
+                project_id=cls.PROJECT_ID,
+                project_code=cls.PROJECT_ID,
+                project_name="DM Test Project",
+                project_nickname="DMTest",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            ))
+        if db.session.get(VaSiteMaster, cls.SITE_ID) is None:
+            db.session.add(VaSiteMaster(
+                site_id=cls.SITE_ID,
+                site_name="DM Test Site",
+                site_abbr=cls.SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            ))
         db.session.flush()
-        db.session.add(VaSites(
-            site_id=cls.SITE_ID,
-            project_id=cls.PROJECT_ID,
-            site_name="DM Test Site",
-            site_abbr=cls.SITE_ID,
-            site_status=VaStatuses.active,
-            site_registered_at=now,
-            site_updated_at=now,
-        ))
+        if db.session.get(VaSites, cls.SITE_ID) is None:
+            db.session.add(VaSites(
+                site_id=cls.SITE_ID,
+                project_id=cls.PROJECT_ID,
+                site_name="DM Test Site",
+                site_abbr=cls.SITE_ID,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            ))
         db.session.flush()
-        db.session.add(VaProjectSites(
-            project_id=cls.PROJECT_ID,
-            site_id=cls.SITE_ID,
-            project_site_status=VaStatuses.active,
-            project_site_registered_at=now,
-            project_site_updated_at=now,
-        ))
-        db.session.add(VaForms(
-            form_id=cls.FORM_ID,
-            project_id=cls.PROJECT_ID,
-            site_id=cls.SITE_ID,
-            odk_form_id="DM_FORM",
-            odk_project_id="99",
-            form_type="WHO VA 2022",
-            form_status=VaStatuses.active,
-            form_registered_at=now,
-            form_updated_at=now,
-        ))
+        existing_project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == cls.PROJECT_ID,
+                VaProjectSites.site_id == cls.SITE_ID,
+            )
+        )
+        if existing_project_site is None:
+            db.session.add(VaProjectSites(
+                project_id=cls.PROJECT_ID,
+                site_id=cls.SITE_ID,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            ))
+        if db.session.get(VaForms, cls.FORM_ID) is None:
+            db.session.add(VaForms(
+                form_id=cls.FORM_ID,
+                project_id=cls.PROJECT_ID,
+                site_id=cls.SITE_ID,
+                odk_form_id="DM_FORM",
+                odk_project_id="99",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            ))
         db.session.commit()
 
     def _create_revoked_submission(

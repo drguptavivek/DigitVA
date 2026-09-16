@@ -20,24 +20,7 @@ class TestRuntimeFormSyncService(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Base Test Project",
-                project_nickname="BaseTest",
-                project_status=VaStatuses.active,
-            )
-        )
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Base Test Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-            )
-        )
+        cls._ensure_base_research_project_and_site()
         db.session.commit()
 
         cls.form_type = db.session.scalar(
@@ -52,42 +35,54 @@ class TestRuntimeFormSyncService(BaseTestCase):
             )
             db.session.add(cls.form_type)
 
-        project_master = VaProjectMaster(
-            project_id="SYNC01",
-            project_code="SYNC01",
-            project_name="Sync Test Project",
-            project_nickname="SyncTest",
-            project_status=VaStatuses.active,
-        )
-        project = VaResearchProjects(
-            project_id="SYNC01",
-            project_code="SYNC01",
-            project_name="Sync Test Project",
-            project_nickname="SyncTest",
-            project_status=VaStatuses.active,
-        )
-        site_master = VaSiteMaster(
-            site_id="S101",
-            site_name="Sync Site 1",
-            site_abbr="S101",
-            site_status=VaStatuses.active,
-        )
-        site_legacy = VaSites(
-            site_id="S101",
-            project_id="SYNC01",
-            site_name="Sync Site 1",
-            site_abbr="S101",
-            site_status=VaStatuses.active,
-        )
-        db.session.add_all([project_master, project, site_master, site_legacy])
+        # SYNC01 is also used by OdkSyncServiceTests, which commits it — reuse
+        # the project rows instead of re-inserting them.
+        if db.session.get(VaProjectMaster, "SYNC01") is None:
+            db.session.add(VaProjectMaster(
+                project_id="SYNC01",
+                project_code="SYNC01",
+                project_name="Sync Test Project",
+                project_nickname="SyncTest",
+                project_status=VaStatuses.active,
+            ))
+        if db.session.get(VaResearchProjects, "SYNC01") is None:
+            db.session.add(VaResearchProjects(
+                project_id="SYNC01",
+                project_code="SYNC01",
+                project_name="Sync Test Project",
+                project_nickname="SyncTest",
+                project_status=VaStatuses.active,
+            ))
+        if db.session.get(VaSiteMaster, "S101") is None:
+            db.session.add(VaSiteMaster(
+                site_id="S101",
+                site_name="Sync Site 1",
+                site_abbr="S101",
+                site_status=VaStatuses.active,
+            ))
+        db.session.flush()
+        if db.session.get(VaSites, "S101") is None:
+            db.session.add(VaSites(
+                site_id="S101",
+                project_id="SYNC01",
+                site_name="Sync Site 1",
+                site_abbr="S101",
+                site_status=VaStatuses.active,
+            ))
         db.session.commit()
 
-        project_site = VaProjectSites(
-            project_id="SYNC01",
-            site_id="S101",
-            project_site_status=VaStatuses.active,
+        existing_project_site = db.session.scalar(
+            db.select(VaProjectSites).where(
+                VaProjectSites.project_id == "SYNC01",
+                VaProjectSites.site_id == "S101",
+            )
         )
-        db.session.add(project_site)
+        if existing_project_site is None:
+            db.session.add(VaProjectSites(
+                project_id="SYNC01",
+                site_id="S101",
+                project_site_status=VaStatuses.active,
+            ))
         db.session.commit()
 
     def test_creates_runtime_form_for_mapped_site(self):

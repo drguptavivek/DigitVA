@@ -8,8 +8,6 @@ from app.models import (
     VaForms,
     VaNarrativeAssessment,
     VaProjectMaster,
-    VaResearchProjects,
-    VaSites,
     VaStatuses,
     VaSubmissions,
     VaSubmissionsAuditlog,
@@ -34,29 +32,7 @@ class TestNarrativeQaRoute(BaseTestCase):
         super().setUpClass()
         project = db.session.get(VaProjectMaster, cls.BASE_PROJECT_ID)
         project.narrative_qa_enabled = True
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Narrative QA Legacy Project",
-                project_nickname="NarrativeQALegacy",
-                project_status=VaStatuses.active,
-                project_registered_at=datetime.now(timezone.utc),
-                project_updated_at=datetime.now(timezone.utc),
-            )
-        )
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Narrative QA Legacy Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=datetime.now(timezone.utc),
-                site_updated_at=datetime.now(timezone.utc),
-            )
-        )
-        db.session.flush()
+        cls._ensure_base_research_project_and_site()
 
         form = VaForms(
             form_id=f"{cls.BASE_PROJECT_ID}{cls.BASE_SITE_ID}01",

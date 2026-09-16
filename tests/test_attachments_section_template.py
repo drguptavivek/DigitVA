@@ -249,15 +249,29 @@ class TestAttachmentsSectionTemplate(unittest.TestCase):
         self.assertIn("Condition A | Condition B", rendered)
 
     def test_coding_dashboard_template_filters_pick_table_by_selected_project(self):
+        """The dashboard renders and loads the JS that filters the pick table.
+
+        The filtering logic itself lives in app/static/js/va_code_dashboard.js,
+        so the behaviour is asserted against that file rather than the markup.
+        """
         rendered = self.env.get_template("va_frontpages/va_code.html").render(
+            config={"STATIC_ASSET_VERSION": "test"},
             current_user=type("User", (), {"name": "Tester", "timezone": "Asia/Kolkata"})(),
             demo_projects=["SADEMO"],
             get_flashed_messages=lambda with_categories=False: [],
             csrf_token=lambda: "token",
-            url_for=lambda *args, **kwargs: "/stub",
+            url_for=lambda endpoint, **kwargs: "/static/" + kwargs.get("filename", ""),
         )
 
-        self.assertIn("let ALL_PICK_FORMS = [];", rendered)
-        self.assertIn("function applyProjectFilterToPick(hasAllocation)", rendered)
-        self.assertIn("ALL_PICK_FORMS.filter", rendered)
-        self.assertIn("applyProjectFilterToPick(!!allocData.allocation);", rendered)
+        self.assertIn("/static/js/va_code_dashboard.js", rendered)
+        self.assertIn('id="pickCodingTable"', rendered)
+
+        dashboard_js = (
+            Path(__file__).resolve().parents[1]
+            / "app" / "static" / "js" / "va_code_dashboard.js"
+        ).read_text()
+
+        self.assertIn("let ALL_PICK_FORMS = [];", dashboard_js)
+        self.assertIn("function applyProjectFilterToPick(hasAllocation)", dashboard_js)
+        self.assertIn("ALL_PICK_FORMS.filter", dashboard_js)
+        self.assertIn("applyProjectFilterToPick(!!allocData.allocation);", dashboard_js)

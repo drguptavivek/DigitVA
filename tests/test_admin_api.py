@@ -46,18 +46,19 @@ class AdminApiTests(BaseTestCase):
     @classmethod
     def _create_fixture_rows(cls):
         now = datetime.now(timezone.utc)
+        # Reference languages are shared across test classes — get-or-create so a
+        # class that runs after another one committed them does not collide.
+        for language_code, language_name in (("english", "English"), ("hindi", "Hindi")):
+            if db.session.get(MasLanguages, language_code) is None:
+                db.session.add(
+                    MasLanguages(
+                        language_code=language_code,
+                        language_name=language_name,
+                        is_active=True,
+                    )
+                )
         db.session.add_all(
             [
-                MasLanguages(
-                    language_code="english",
-                    language_name="English",
-                    is_active=True,
-                ),
-                MasLanguages(
-                    language_code="hindi",
-                    language_name="Hindi",
-                    is_active=True,
-                ),
                 VaProjectMaster(
                     project_id=cls.project_id,
                     project_code=cls.project_id,

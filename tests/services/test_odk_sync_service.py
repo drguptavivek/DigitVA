@@ -53,28 +53,32 @@ class OdkSyncServiceTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaProjectMaster(
-                project_id=cls.PROJECT_ID,
-                project_code=cls.PROJECT_ID,
-                project_name="Sync Test Project",
-                project_nickname="SyncTest",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
+        # PROJECT_ID is shared with TestRuntimeFormSyncService, which commits
+        # the same rows — get-or-create so class order cannot break setUpClass.
+        if db.session.get(VaProjectMaster, cls.PROJECT_ID) is None:
+            db.session.add(
+                VaProjectMaster(
+                    project_id=cls.PROJECT_ID,
+                    project_code=cls.PROJECT_ID,
+                    project_name="Sync Test Project",
+                    project_nickname="SyncTest",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
             )
-        )
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.PROJECT_ID,
-                project_code=cls.PROJECT_ID,
-                project_name="Sync Test Project",
-                project_nickname="SyncTest",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
+        if db.session.get(VaResearchProjects, cls.PROJECT_ID) is None:
+            db.session.add(
+                VaResearchProjects(
+                    project_id=cls.PROJECT_ID,
+                    project_code=cls.PROJECT_ID,
+                    project_name="Sync Test Project",
+                    project_nickname="SyncTest",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
             )
-        )
         db.session.add(
             VaSiteMaster(
                 site_id=cls.SITE_ID,

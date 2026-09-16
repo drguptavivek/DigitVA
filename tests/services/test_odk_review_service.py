@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import uuid
 
 from app import db
-from app.models import VaForms, VaResearchProjects, VaSites, VaStatuses, VaSubmissions
+from app.models import VaForms, VaStatuses, VaSubmissions
 from app.services.odk_review_service import (
     ODK_REVIEW_STATE_HAS_ISSUES,
     build_not_codeable_review_comment,
@@ -30,29 +30,7 @@ class TestOdkReviewService(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="ODK Review Legacy Project",
-                project_nickname="ODKReviewLegacy",
-                project_status=VaStatuses.active,
-                project_registered_at=datetime.now(timezone.utc),
-                project_updated_at=datetime.now(timezone.utc),
-            )
-        )
-        db.session.commit()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="ODK Review Legacy Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=datetime.now(timezone.utc),
-                site_updated_at=datetime.now(timezone.utc),
-            )
-        )
+        cls._ensure_base_research_project_and_site()
         db.session.commit()
         db.session.add(
             VaForms(

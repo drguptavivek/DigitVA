@@ -21,7 +21,9 @@ from tests.base import BaseTestCase
 
 class AdminSyncDashboardTests(BaseTestCase):
     PROJECT_ID = "SADEMO"
-    SITE_ID = "SA01"
+    # Unique to this class: site SA01 belongs to TestSocialAutopsyAnalysisRoute, and
+    # sharing a site id across projects fans out the analytics MV join on site_id.
+    SITE_ID = "SD01"
 
     @classmethod
     def setUpClass(cls):

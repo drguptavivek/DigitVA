@@ -5,9 +5,7 @@ from app import db
 from app.models import (
     VaFinalAssessments,
     VaForms,
-    VaResearchProjects,
     VaReviewerFinalAssessments,
-    VaSites,
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissionWorkflowEvent,
@@ -43,30 +41,7 @@ class SitePiReportingServiceTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         now = datetime.now(timezone.utc)
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Base Reporting Project",
-                project_nickname="BaseReporting",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
-        )
-        db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Base Reporting Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
+        cls._ensure_base_research_project_and_site()
         db.session.add(
             VaForms(
                 form_id=cls.FORM_ID,

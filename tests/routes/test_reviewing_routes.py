@@ -9,7 +9,6 @@ from app.models import (
     VaAllocations,
     VaForms,
     VaProjectSites,
-    VaResearchProjects,
     VaSiteMaster,
     VaSites,
     VaStatuses,
@@ -37,30 +36,7 @@ class ReviewingRoutesTests(BaseTestCase):
         super().setUpClass()
         now = datetime.now(timezone.utc)
 
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Reviewer Route Project",
-                project_nickname="ReviewerRoute",
-                project_status=VaStatuses.active,
-                project_registered_at=now,
-                project_updated_at=now,
-            )
-        )
-        db.session.flush()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Reviewer Route Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=now,
-                site_updated_at=now,
-            )
-        )
-        db.session.flush()
+        cls._ensure_base_research_project_and_site()
         db.session.add(
             VaForms(
                 form_id=cls.FORM_ID,

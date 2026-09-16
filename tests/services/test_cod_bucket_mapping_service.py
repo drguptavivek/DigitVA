@@ -2133,7 +2133,9 @@ class CodBucketMappingServiceTests(BaseTestCase):
             ],
         )
         self.assertEqual(summary["heatmap"]["dimension"], "country")
-        self.assertIn("country", summary["heatmap"]["dimensions"])
+        self.assertEqual(summary["heatmap"]["view"], "top_causes")
+        self.assertIn("country", summary["heatmap"]["views"]["top_causes"])
+        self.assertIn("country", summary["heatmap"]["views"]["first_level_counts"])
         self.assertTrue(summary["treemap"])
 
     def test_summarize_unmatched_coded_submissions_by_bucket_counts_dropped_icds(self):

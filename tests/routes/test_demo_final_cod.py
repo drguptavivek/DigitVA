@@ -10,8 +10,6 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
-    VaResearchProjects,
-    VaSites,
     VaStatuses,
     VaSubmissions,
     VaSubmissionWorkflow,
@@ -32,29 +30,7 @@ class TestDemoFinalCodRoute(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Demo Final COD Project",
-                project_nickname="DemoFinal",
-                project_status=VaStatuses.active,
-                project_registered_at=datetime.now(UTC),
-                project_updated_at=datetime.now(UTC),
-            )
-        )
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Demo Final COD Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-                site_registered_at=datetime.now(UTC),
-                site_updated_at=datetime.now(UTC),
-            )
-        )
-        db.session.flush()
+        cls._ensure_base_research_project_and_site()
 
         form = VaForms(
             form_id=f"{cls.BASE_PROJECT_ID}{cls.BASE_SITE_ID}01",

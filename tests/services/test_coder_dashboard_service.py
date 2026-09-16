@@ -56,25 +56,7 @@ class TestCoderDashboardService(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        db.session.add(
-            VaResearchProjects(
-                project_id=cls.BASE_PROJECT_ID,
-                project_code=cls.BASE_PROJECT_ID,
-                project_name="Coder Dashboard Project",
-                project_nickname="CoderDash",
-                project_status=VaStatuses.active,
-            )
-        )
-        db.session.commit()
-        db.session.add(
-            VaSites(
-                site_id=cls.BASE_SITE_ID,
-                project_id=cls.BASE_PROJECT_ID,
-                site_name="Coder Dashboard Site",
-                site_abbr=cls.BASE_SITE_ID,
-                site_status=VaStatuses.active,
-            )
-        )
+        cls._ensure_base_research_project_and_site()
         db.session.commit()
         db.session.add_all(
             [

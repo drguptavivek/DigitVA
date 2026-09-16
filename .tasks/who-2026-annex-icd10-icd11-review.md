@@ -4,6 +4,7 @@
 - **Priority:** medium
 - **Created:** 2026-09-16
 - **Goal:** Decide whether the ICD-10 coding allowability policy and the coder-facing VA codes PDF should be regenerated from the 2026 WHO annex, and whether ICD-11 support is wanted.
+- **Plan:** [`docs/planning/icd11-self-hosted-api-and-ect-plan.md`](../docs/planning/icd11-self-hosted-api-and-ect-plan.md) (self-hosted WHO ICD API container plus Embedded Coding Tool; branch `icd-11`)
 - **Reference doc:** [`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who-2022-va-cause-list-icd10-icd11.md`](../docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who-2022-va-cause-list-icd10-icd11.md)
 
 ## Context
@@ -35,6 +36,8 @@ no ICD-11 catalog, and nothing in the app reads the new reference files.
    mapping through the existing generator rather than by hand.
 3. Replace or supplement `app/static/WHO_2022_VA_CODES.pdf` with a version that
    carries the 2026 ranges and, if wanted, the ICD-11 column.
-4. Scope ICD-11 separately: it needs an ICD-11 MMS code master (WHO ICD API), a
-   `mas_icd11_*` table with a migration plan, and expansion of the annex ranges
-   into selectable codes.
+4. ICD-11 support is planned in `docs/planning/icd11-self-hosted-api-and-ect-plan.md`:
+   self-hosted `whoicd/icd-api` container, `mas_icd11_mms` master with a
+   migration plan, Embedded Coding Tool in the coder panels behind an
+   authenticated same-origin proxy, and expansion of the annex ranges into
+   VA bucket rows. Start with the staging spike in that plan.

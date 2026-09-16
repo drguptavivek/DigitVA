@@ -52,12 +52,13 @@ prepare this plan, so facts are marked by how they were established:
   shape of the selection object. The bundled ICD-11 Terms of Use were read.
 - **Verified from Docker Hub metadata**: image `whoicd/icd-api` tags, dates,
   architectures and sizes.
-- **Verified from WHO exports checked into this repository**: two ICD-11 MMS
-  Simple Tabulation bundles under
-  `docs/icd-causegrp-mappings/migration-artifacts/` (the 2025-01 release and a
-  development snapshot), WHO's ICD-10 to ICD-11 mapping tables and WHO's
-  ICD-11 mortality tabulation list, all profiled on 2026-09-16; each folder's
-  `README.md` records columns, counts and the facts an importer depends on.
+- **Verified from WHO exports checked into this repository**: three ICD-11
+  MMS Simple Tabulation bundles under
+  `docs/icd-causegrp-mappings/migration-artifacts/` (the 2026-01 and 2025-01
+  releases and a development snapshot), WHO's change list between the two
+  releases, WHO's ICD-10 to ICD-11 mapping tables and WHO's ICD-11 mortality
+  tabulation list, all profiled on 2026-09-16; each folder's `README.md`
+  records columns, counts and the facts an importer depends on.
 - **From search snippets of the WHO pages**: container environment variables,
   default release, tool paths, service ports, and the statement that ICD-10 is
   not supported in the container. These should be re-read on the WHO pages
@@ -177,9 +178,10 @@ prepare this plan, so facts are marked by how they were established:
   chapters and blocks), `block_id`, `title` (WHO's `- ` depth prefixes
   stripped), `class_kind`, `depth_in_kind`, `chapter_no`, `is_residual`,
   `is_leaf`, `primary_tabulation` (kept as WHO supplies it, informational
-  only), `sort_order` (export row order, which is linearization order),
-  `parent_linearization_uri` (derived on import from row order and title
-  depth), plus DigitVA policy fields mirroring the ICD-10 catalog:
+  only), `coding_note`, `sort_order` (export row order, which is linearization
+  order), `parent_foundation_uri` (from the export's `Parent` column) and
+  `parent_linearization_uri` (resolved on import), plus DigitVA policy fields
+  mirroring the ICD-10 catalog:
   `is_coding_selectable`, `sex_selectable`, `age_group_selectable`,
   `restriction_note`, `is_active`. Unique on (`release`, `linearization_uri`).
   Policy fields are documented as local additions per the licence.
@@ -202,25 +204,32 @@ WHO does not publish ICD-11 as ClaML, so the ICD-10 exporter pattern does not
 apply, and no API walk is needed either: WHO's Simple Tabulation export of the
 MMS linearization already is the hierarchy table.
 
-- Source of truth: the frozen export under
-  `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2025-01-base-2026-09-16/`
+- Source of truth: the frozen 2026-01 export under
+  `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2026-01-base-2026-09-16/`
   (tab-separated text file). Its folder `README.md` documents the columns and
-  the facts below.
+  the facts below, including the parsing rule: split rows on CRLF only,
+  because coding notes contain bare line feeds, and read each row with a CSV
+  reader because title cells are quoted. The xlsx carries 66 spurious rows and
+  is not the import source.
 - A checked-in importer, kept in the tree with a test (unlike the ICD-10
   helpers that were later deleted), reads the file in one pass in
-  linearization order, strips the `- ` depth prefixes from titles, derives each
-  row's parent from row order and title depth, and upserts on
-  (`release`, `linearization_uri`). Rows missing from the source are marked
-  inactive, never deleted, and local policy fields are preserved on rerun,
-  exactly as the ICD-10 CSV importer behaves.
+  linearization order, strips the `- ` depth prefixes from titles, takes each
+  row's parent from the `Parent` column (the parent's foundation URI, verified
+  to agree with the parent derived from row order and title depth for every
+  row) while keeping the derivation as a consistency check, stores the
+  `CodingNote`, and upserts on (`release`, `linearization_uri`). Rows missing
+  from the source are marked inactive, never deleted, and local policy fields
+  are preserved on rerun, exactly as the ICD-10 CSV importer behaves.
 - A migration seeds `mas_icd11_mms` from the same frozen file in chunks, so a
   fresh schema needs no running API, matching the ICD-10 artifact layout. The
   `flask icd10 import-2019-2` command gets an ICD-11 sibling for reruns.
 - Release alignment: the catalog release and the API container's `include`
-  value must match. The checked-in export is the 2025-01 release, so the spike
-  starts with `include=2025-01_en`, or the 2026-01 export is downloaded and
-  frozen in a sibling folder first. The development snapshot folder is for
-  previewing upcoming changes only and never seeds a catalog.
+  value must match. The checked-in 2026-01 export matches the container's
+  default `include=2026-01_en`. WHO's mapping tables and mortality tabulation
+  list in the repository belong to 2025-01; WHO's change list between the two
+  releases (frozen beside the exports) is used to carry their code references
+  forward until WHO publishes 2026-01 versions. The development snapshot
+  folder is for previewing upcoming changes only and never seeds a catalog.
 - Release upgrades are a new frozen folder plus a new `release` value, never an
   in-place rewrite of existing rows.
 
@@ -313,8 +322,10 @@ MMS linearization already is the hierarchy table.
 - ICD-10 catalog policy: `docs/policy/icd10-reference-catalog.md`
 - ICD-10 coding allowability policy: `docs/policy/who-2022-icd10-coding-allowability.md`
 - Migration artifacts layout: `docs/icd-causegrp-mappings/migration-artifacts/README.md`
-- Frozen ICD-11 exports: `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2025-01-base-2026-09-16/README.md`
+- Frozen ICD-11 exports: `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2026-01-base-2026-09-16/README.md`,
+  `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2025-01-base-2026-09-16/README.md`
   and `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-dev11-snapshot-2026-09-16/README.md`
+- WHO change list 2026-01 versus 2025-01: `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-changes-2026-01-vs-2025-01-2026-09-16/README.md`
 - WHO ICD-10 to ICD-11 mapping tables: `docs/icd-causegrp-mappings/migration-artifacts/icd11-icd10-mapping-tables-2025-01-base-2026-09-16/README.md`
 - WHO ICD-11 mortality tabulation list: `docs/icd-causegrp-mappings/migration-artifacts/icd11-mortality-tabulation-list-2025-01-base-2026-09-16/README.md`
 - Follow-up task: `.tasks/who-2026-annex-icd10-icd11-review.md`

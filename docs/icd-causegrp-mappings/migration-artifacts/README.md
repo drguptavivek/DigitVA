@@ -94,6 +94,25 @@ them yet; see `docs/planning/icd11-self-hosted-api-and-ect-plan.md`.
   - called from: nothing yet
   - details: folder `README.md`
 
+### `icd11-icd10-mapping-tables-2025-01-base-2026-09-16/`
+
+- five WHO mapping tables between ICD-10 and ICD-11 MMS 2025-01, as text and
+  xlsx (`10To11MapToOneCategory`, `10To11MapToMultipleCategories`,
+  `11To10MapToOneCategory`, `foundation_10To11MapToOneCategory`,
+  `foundation_11To10MapToOneCategory`)
+  - role: WHO's official ICD-10 to ICD-11 correspondence, for trending
+    ICD-10-coded records and for cross-checking ICD-11 VA bucket assignment
+  - called from: nothing yet
+  - details: folder `README.md`
+
+### `icd11-mortality-tabulation-list-2025-01-base-2026-09-16/`
+
+- `MortalityTabulationList.xlsx`
+  - role: WHO's ICD-11 mortality tabulation list (158 value sets with expanded
+    code lists), a candidate built-in COD reporting scheme for ICD-11
+  - called from: nothing yet
+  - details: folder `README.md`
+
 ## Archived supporting inputs
 
 Some older review workbooks and helper artifacts were moved to

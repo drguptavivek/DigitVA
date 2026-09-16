@@ -43,5 +43,7 @@ no ICD-11 catalog, and nothing in the app reads the new reference files.
    VA bucket rows. The WHO Simple Tabulation exports (2025-01 release and a
    development snapshot) are frozen under
    `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-*/`; the catalog
-   is seeded from the release export, not from the API. Start with the
-   staging spike in that plan.
+   is seeded from the release export, not from the API. WHO's ICD-10 to
+   ICD-11 mapping tables and ICD-11 mortality tabulation list for the same
+   release are frozen beside them for bucket cross-checks and reporting.
+   Start with the staging spike in that plan.

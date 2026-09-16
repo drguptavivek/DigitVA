@@ -55,8 +55,9 @@ prepare this plan, so facts are marked by how they were established:
 - **Verified from WHO exports checked into this repository**: two ICD-11 MMS
   Simple Tabulation bundles under
   `docs/icd-causegrp-mappings/migration-artifacts/` (the 2025-01 release and a
-  development snapshot), profiled on 2026-09-16; each folder's `README.md`
-  records columns, counts and the facts an importer depends on.
+  development snapshot), WHO's ICD-10 to ICD-11 mapping tables and WHO's
+  ICD-11 mortality tabulation list, all profiled on 2026-09-16; each folder's
+  `README.md` records columns, counts and the facts an importer depends on.
 - **From search snippets of the WHO pages**: container environment variables,
   default release, tool paths, service ports, and the statement that ICD-10 is
   not supported in the container. These should be re-read on the WHO pages
@@ -254,6 +255,17 @@ MMS linearization already is the hierarchy table.
   deliberately unmapped, or is flagged as overlapping (`PJ20-PJ2Z` appears in
   two buckets in the annex). Overlaps are a clinical decision, recorded in a
   policy doc before rollout.
+- Cross-check the result against the existing ICD-10 bucket mappings by
+  translating each ICD-11 code back to ICD-10 with WHO's
+  `11To10MapToOneCategory` table (frozen under
+  `docs/icd-causegrp-mappings/migration-artifacts/icd11-icd10-mapping-tables-2025-01-base-2026-09-16/`)
+  and comparing the WHO VA bucket reached by each route. Disagreements go to
+  clinical review; the annex ranges stay the primary source.
+- WHO's ICD-11 Mortality Tabulation List (frozen under
+  `docs/icd-causegrp-mappings/migration-artifacts/icd11-mortality-tabulation-list-2025-01-base-2026-09-16/`)
+  is a candidate built-in reporting scheme for ICD-11-coded deaths, loaded
+  from its pre-expanded code lists in the same way the SRS India, CMEA10 and
+  WHO 2022 VA schemes are loaded from workbooks. It is a phase 4 item.
 
 ### 6. Rollout Phases
 
@@ -303,6 +315,8 @@ MMS linearization already is the hierarchy table.
 - Migration artifacts layout: `docs/icd-causegrp-mappings/migration-artifacts/README.md`
 - Frozen ICD-11 exports: `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2025-01-base-2026-09-16/README.md`
   and `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-dev11-snapshot-2026-09-16/README.md`
+- WHO ICD-10 to ICD-11 mapping tables: `docs/icd-causegrp-mappings/migration-artifacts/icd11-icd10-mapping-tables-2025-01-base-2026-09-16/README.md`
+- WHO ICD-11 mortality tabulation list: `docs/icd-causegrp-mappings/migration-artifacts/icd11-mortality-tabulation-list-2025-01-base-2026-09-16/README.md`
 - Follow-up task: `.tasks/who-2026-annex-icd10-icd11-review.md`
 - Docker Hub image: `https://hub.docker.com/r/whoicd/icd-api`
 - npm package: `https://www.npmjs.com/package/@whoicd/icd11ect`

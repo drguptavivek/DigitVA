@@ -3,7 +3,7 @@ title: ODK Central S3 Attachment Integration Plan
 doc_type: planning
 status: proposed
 owner: engineering
-last_updated: 2026-09-16
+last_updated: 2026-09-17
 ---
 
 # ODK Central S3 Attachment Integration Plan
@@ -16,9 +16,32 @@ from PostgreSQL or redirect the request to a short-lived S3 URL after the object
 has moved to external storage. DigitVA must support both responses without
 assuming that an S3 object already exists.
 
+Support both deployment modes as first-class configurations: Central without
+external storage (database-backed originals) and Central with S3-compatible
+storage (potentially mixed database/S3 backing during offloading). Enabling S3
+on Central is optional, not a prerequisite for DigitVA's attachment service.
+Resolve each response at request time; do not infer backing storage from a
+global deployment flag. DigitVA's own MP3 storage configuration is independent
+of whether Central uses S3 for originals.
+
+Central's default offload job runs every 24 hours. Therefore even an S3-enabled
+deployment routinely serves newer attachments from PostgreSQL while older ones
+redirect to S3; failed offloads remain database-backed. The same attachment may
+return `200` today and `307` after the next job, without a filename or content
+change. Both outcomes must remain supported throughout normal operation, not
+just during an initial migration. No per-attachment backend flag or completion
+gate may assume that enabling S3 means all originals are already offloaded.
+See [Central's documented offload schedule and failure handling](https://docs.getodk.org/central-install-digital-ocean/#using-s3-compatible-storage).
+
 Human coders and reviewers must continue to see authorized images and play
 authorized audio in the DigitVA interface. The S3 bucket remains private, and
 DigitVA's existing opaque attachment route remains the authorization boundary.
+
+Central documents the requirement to follow redirects in its
+[S3 setup guide](https://docs.getodk.org/central-install-digital-ocean/#using-s3-compatible-storage).
+Exact status codes and signing details were verified against source. See
+**Central API Verification** before relying on any statement in this plan about
+status codes, ETag handling, or signed-URL lifetime.
 
 ## Goals
 
@@ -69,7 +92,40 @@ DigitVA must treat either successful Central response as source availability.
 The absence of a known S3 location is not an error and must not mark an
 attachment missing.
 
-### Coder display path
+### Connection and project/form/site scope
+
+Resolve the owning submission and local form first, then that form's project,
+site, mapped ODK connection, `odk_project_id`, and `odk_form_id`. Never use a
+global/default Central connection just because an attachment token resolves.
+The current schema maps connection credentials at project level through
+[MapProjectOdk](../../app/models/map_project_odk.py#L8); the local
+[VaForms record](../../app/models/va_forms.py#L9) supplies site and remote
+project/form identity. Multiple projects may share a
+[connection](../../app/models/mas_odk_connections.py#L9). Preserve this routing
+model; this plan does not add a separate site-level credential schema.
+
+Central version, storage mode, redirect allowlist, session pool, pacing, and
+health belong to the resolved connection. Rollout flags remain scoped to the
+owning local project/form/site context. Two connections can simultaneously use
+database-only and S3-backed Central, or different Central versions. Even on
+one S3-enabled connection, each content request can take either backing path.
+
+Namespace source identity and audio validators by connection, remote project,
+remote form, submission, and attachment name; include local ownership and
+variant in caches. Resolve project/site/form authorization independently of
+remote identifiers, which may collide across servers. A mapping change must
+invalidate cached resolution and affected audio derivative freshness before
+reuse. Do not silently remap existing attachment ownership or reuse validators
+from the previous source.
+
+The existing [client setup](../../app/utils/va_odk/va_odk_01_clientsetup.py#L18)
+has a legacy TOML fallback. Phase 0 must inventory legacy-only projects and
+explicitly bind/validate their connection before enabling the new remote path;
+retain their existing local delivery until then. The new service must fail
+closed on absent, inactive, or ambiguous mapped connections rather than contact
+an unrelated default server. This does not change unrelated legacy sync paths.
+
+### Authorized delivery
 
 The existing DigitVA URL must remain the entry point presented in HTML. For
 each request, DigitVA must:
@@ -80,10 +136,12 @@ each request, DigitVA must:
 4. request the exact attachment from the configured Central connection;
 5. handle one of these outcomes:
    - Central returns `200`: stream/proxy the response to the browser;
-   - Central returns an approved redirect: validate it, then redirect the
-     browser to the short-lived signed URL;
-   - Central returns not-found or unavailable: use the local fallback during
-     migration and otherwise show a controlled unavailable state.
+   - Central returns an approved redirect (`307`): validate scheme and host,
+     then stream the signed URL's bytes to the browser. The browser is not sent
+     to S3 — see **Finding 10** for why;
+   - Central returns not-found: show a controlled unavailable state;
+   - Central has a transient failure: allow migration fallback only under the
+     explicit outcome table in Phase 4.
 
 The application must never expose the ODK service credential to the browser.
 Signed URLs must be short-lived, must not be persisted, and must not appear in
@@ -102,14 +160,15 @@ requires MP3:
    behavior.
 3. DigitVA uploads the MP3 to a DigitVA-controlled private S3 prefix or separate
    bucket.
-4. The database records the derivative object reference, source ETag/version,
+4. The database records the derivative object reference, source content validator,
    conversion status, and verification timestamp.
 5. Temporary local material is removed only after upload and integrity checks
    succeed.
 
-Ordinary images are not duplicated into the DigitVA derivative area. A future
-thumbnail feature may use the same derivative pattern, but is outside this
-phase.
+Ordinary images are not duplicated into the DigitVA derivative area, and
+thumbnails are **not** a derivative: they are generated on the fly and discarded.
+See **Delivery Design** for the access-pattern reasoning and for why audio is the
+only stored derivative.
 
 ## Storage and IAM Boundaries
 
@@ -142,12 +201,30 @@ Central without storing an S3 key or signed URL:
 
 - ODK connection/project/form identity;
 - stable submission identity and original attachment filename;
-- MIME type, size when available, and source ETag;
+- validated MIME type and size when available. The existing `mime_type` column
+  is copied from upstream and is not independently authoritative: reject a
+  literal `"null"` value and record the MP3 derivative's output MIME type
+  separately from the original AMR type (Finding 9);
 - source state such as `unknown`, `available`, `missing`, or `error`;
 - last source verification time and last error category;
 - local fallback state/path during migration;
-- derivative state, object reference, source ETag, and verified time where
-  applicable.
+- derivative state, object reference, source content identifier, and verified
+  time — **for audio only**. Thumbnails are generated per request and persist no
+  state (see **Delivery Design**), so no image derivative columns are added.
+  Derivative state must be able to record an explicit failure so a failed AMR
+  conversion is distinguishable from a successful one (Finding 5), rather than
+  being written as a mismatched `local_path`/`storage_name` pair.
+
+Persist source validators only where needed for stored MP3 freshness. Use the
+ETag supplied by the final content response, whether Central or S3, as an opaque
+validator (Finding 6). Images require identity and availability metadata, but
+no persistent content-version tracking or scheduled ETag probes.
+
+For audio validators, record the validator's backing context (Central database
+or approved object-store endpoint) so values are not assumed interchangeable.
+On a backing transition, safely retrieve/revalidate the source and refresh the
+MP3 if necessary; an occasional extra conversion is acceptable. Do not infer a
+content change solely from movement to S3 or decode an S3 key as an identifier.
 
 Exact columns should follow the existing attachment model's conventions after
 implementation discovery. All timestamps must be timezone-aware. An attachment
@@ -158,12 +235,15 @@ must not be coupled to a guessed Central S3 key.
 Current local-file checks must be replaced deliberately. The target meanings
 are:
 
-- **Source available:** Central can serve the attachment or issue an approved
-  redirect. It does not mean that DigitVA has a local file.
+- **Source available:** a successful content response was observed through
+  Central, including its approved S3 destination. A signed redirect alone proves
+  resolution, not that the destination object can be read. Listing availability
+  and the time/outcome of the last observed delivery must remain distinguishable;
+  no background image probes are required.
 - **Display ready:** an authorized browser request can obtain the original or
   required derivative.
 - **Derivative ready:** the current derivative exists and corresponds to the
-  current source ETag/version.
+  current audio source content validator.
 - **Repair needed:** Central reports the attachment missing, metadata is
   incomplete, or a required derivative is absent/stale.
 
@@ -171,24 +251,477 @@ Admin coverage, repair tasks, workflow handoffs, and KPI queries must adopt
 these definitions together. A response served directly by Central before its
 S3 migration is complete counts as available.
 
+Adopting them together is not optional. `attachments_complete` in
+`app/tasks/sync_tasks.py:865-869` still counts files on disk and feeds
+`WORKFLOW_ATTACHMENT_SYNC_PENDING`; if it is not changed in the same change as
+the new semantics, submissions whose expected attachments lack local copies
+can incorrectly acquire `needs_attachments=True`. See Finding 4.
+
+## Current-Code Findings
+
+These were confirmed by reading the live attachment path and they change the
+sequencing below. They are recorded here so the plan is not re-derived later.
+
+### Finding 1 — the opaque attachment route is weaker than the route it replaced
+
+`serve_attachment` (`app/routes/va_form.py:1335`) authorizes with a single
+form-level check, `current_user.has_va_form_access(va_form_id)`
+(`app/models/va_users.py:252`). The deprecated `serve_media` it supersedes does
+strictly more: it resolves the attachment to its `va_sid` and requires an active
+allocation for coder and reviewer roles (`app/routes/va_form.py:1420-1455`,
+marked `OW-002`).
+
+A coder with form access can therefore retrieve attachments for submissions they
+were never allocated, if they hold the token. New tokens are `uuid4`
+(`app/utils/va_odk/va_odk_07_syncattachments.py:51`) and are not guessable, but
+tokens written by the legacy backfill are
+`uuid5(RFC-4122 DNS namespace, f"{va_sid}:{filename}")`
+(`app/services/attachment_storage_name_service.py:12`) — derivable from two
+values a coder already sees. `app/routes/admin.py:5761` counts rows matching that
+deterministic value, so such rows are expected to exist.
+
+`tests/routes/test_serve_attachment.py` already contains seven route tests for
+authentication, token validation, record/file presence, form access, and delivery.
+Submission-allocation coverage is missing; several existing tests mock form
+access. Extend this suite rather than treating the route as untested.
+
+This is a live gap independent of S3, and it becomes materially worse once the
+response is a shareable signed URL. It is fixed in Phase 0, not during rollout.
+
+### Finding 2 — attachment availability is re-derived from disk in six places
+
+The same "does this attachment exist" rule is implemented independently at:
+
+| Location | Current mechanism |
+|---|---|
+| `app/routes/va_form.py:1391` | `os.path.isfile` |
+| `app/utils/va_render/va_render_06_processcategorydata.py:160` | `os.path.exists` in the `va_sid=None` branch |
+| `app/tasks/sync_tasks.py:59` | `_resolve_present_attachment_file_path` |
+| `app/routes/admin.py:5340` | `resolve_attachment_file_path` — a near-verbatim duplicate of the above |
+| `app/utils/va_odk/va_odk_07_syncattachments.py:196` | `os.path.exists` gating 304 self-heal |
+| `scripts/check_attachment_integrity.py` | independent check |
+
+This plan redefines that rule. Introducing a resolver alongside these copies
+leaves five shallow implementations of a definition that must change together.
+Phase 3 therefore converges them first, before Central is involved.
+
+### Finding 3 — the client already follows Central's redirect
+
+`client.session.get(...)` in `app/utils/va_odk/va_odk_07_syncattachments.py:184`
+relies on the `requests` default `allow_redirects=True`. Central's S3 redirect
+will be followed transparently and no `3xx` will ever be observed, so redirect
+validation and browser-redirect delivery require an explicit
+`allow_redirects=False` plus caller-side host validation. `Session.rebuild_auth`
+does strip `Authorization` across hosts, so a followed redirect does not leak the
+ODK credential.
+
+Turning redirects off is not sufficient on its own: Central also issues a
+non-S3 `redirect(301)` to the canonical submission-version URL for deprecated
+instance IDs (`lib/resources/submissions.js:450-462`). The resolver must
+distinguish "redirect back to Central, follow it" from "redirect to S3, hand it
+to the browser" rather than treating every `3xx` as an S3 handoff. See
+**Central API Verification**.
+
+### Finding 4 — completeness flips to incomplete at cutover
+
+`attachments_complete` (`app/tasks/sync_tasks.py:865-869`) is
+`present_count >= AttachmentsExpected and legacy_rows == 0`, where
+`present_count` counts files on disk. When Phase 5 stops downloading ordinary
+images, new remote-only attachments no longer contribute to `present_count`.
+Affected submissions can acquire `needs_attachments=True`, and that drives
+`WORKFLOW_ATTACHMENT_SYNC_PENDING`
+(`app/services/open_submission_repair_service.py:62-70`). This is the single
+highest-risk edit of the cutover and must land in the same change as the new
+semantics.
+
+Retained local files and submissions expecting zero attachments are exceptions;
+the cutover does not make every submission incomplete immediately.
+
+### Finding 5 — the AMR conversion failure path writes a corrupt row
+
+`_convert_amr_to_mp3` returns the *source* path on failure
+(`app/utils/va_odk/va_odk_07_syncattachments.py:698`) while the caller sets
+`tmp_path = None` immediately afterwards, so the `finally` cleanup is skipped.
+The result is a `.tmp_<uuid>` AMR blob recorded as `local_path` against a `.mp3`
+`storage_name`: wrong extension, never cleaned up, and indistinguishable from a
+successful conversion. Under this plan that must become an explicit derivative
+error state.
+
+## Central API Verification
+
+The [attachment API reference](https://docs.getodk.org/central-api-submission-management/#downloading-an-attachment) documents
+the attachment download endpoint as returning `200` with `ETag` support and
+`304` on `If-None-Match`, and says nothing about S3 or redirects. The
+`central-api-changelog` records `ETag headers on all Blobs` (v2024.1) and the
+`Content-Disposition: inline` change for images (v2026.1), but has no S3 entry.
+
+The [official S3 setup guide](https://docs.getodk.org/central-install-digital-ocean/#using-s3-compatible-storage)
+does document redirects, Central frontend CORS, daily offloading, and the lack
+of an automated migration back to PostgreSQL. Exact redirect status, signing
+lifetime, and conditional handling below were read from versioned source; pin
+the deployed version and reverify those details on upgrade.
+
+### Versions verified
+
+| Fact | Value |
+|---|---|
+| Latest Central release at time of writing | `v2026.3.0`, published 2026-09-11 |
+| External S3 blob storage first available | `v2024.2.0` (`lib/external/s3.js` does not exist at `v2024.1.0`) |
+| Minimum version for Central external S3 storage | `v2024.2.0`; not a new requirement for database-only delivery |
+| Deployed line for this project | Reported as 2025.x; not verified against the live deployment in this review |
+
+The `307`-plus-skip-ETag behaviour and the 60-second expiry were read at
+`v2024.2.0`, `v2025.1.0` and `v2026.3.0` and are **identical in all three** — the
+contract has not changed since S3 support landed. It is undocumented but stable,
+which lowers but does not remove the upgrade risk.
+
+### Finding 10 — the 2025 line forces `Content-Disposition: attachment` on both branches
+
+**The deployment this plan targets is on the 2025 line.** On that line the
+`disposition` argument does not exist at all: `getRespHeaders` calls
+`contentDisposition(filename)` with no type (`lib/external/s3.js:120` at
+`v2025.1.0`), and the DB-backed branch sets the same header directly in
+`lib/util/blob.js`. Every attachment Central serves is therefore
+`Content-Disposition: attachment`, whether it comes from PostgreSQL or from S3.
+Verified identical at `v2025.1.0`, `v2025.2.1`, `v2025.3.0` and `v2025.4.2`.
+
+The `disposition` parameter is introduced in `v2026.1.0`, where JPEG, PNG, and
+GIF submission attachments become `inline`; this is not all image MIME types.
+See [the versioned implementation](https://github.com/getodk/central-backend/blob/v2026.1.0/lib/util/blob.js#L48).
+
+This does **not** affect rendering: `<img>` and `<audio>` ignore
+`Content-Disposition` on subresource loads, which is all DigitVA's templates
+perform. It affects top-level navigation only — on the 2025 line, opening an
+image in a new tab downloads it instead of displaying it.
+
+### Consequence: proxy by default, redirect as a later optimisation
+
+Supporting both the 2025 line and `v2026.1+` from one code path is
+straightforward if DigitVA streams the bytes rather than redirecting. Proxying
+lets DigitVA set `Content-Type` from validated original/derivative metadata and
+`Content-Disposition` to its own choice, which:
+
+- makes delivery behaviour **identical on every Central version**, removing
+  version branching from the request path entirely;
+- neutralises the 60-second expiry (Finding 7) for the browser;
+- corrects a literal `"null"` content type (Finding 9);
+- fixes new-tab download behaviour on the 2025 line without waiting for an
+  upgrade.
+
+The cost is bandwidth and worker occupancy on the DigitVA app server, which must
+be measured rather than assumed — see **Performance Constraints**.
+
+Browser redirects are outside this implementation. They require a separate
+design review of cross-origin fetch, CORS, cache policy, MIME handling, and
+expiry; upgrading Central alone does not make them an invisible service switch.
+
+Either way the resolver must accept **both** a `200` and a `307` from Central for
+the same attachment, since Central's migration cron moves blobs asynchronously
+and DigitVA cannot know which branch will answer.
+
+### Finding 11 — attachment bytes lack an explicit no-store policy
+
+`_apply_partial_cache_policy` (`app/routes/va_form.py:90-98`) sets
+`Cache-Control: private, no-store, max-age=0` for the media-bearing partials —
+`_response_contains_user_specific_artifacts` (`:85-87`) matches exactly
+`vanarrationanddocuments` and `social_autopsy`. Other partials get
+`private, max-age=300`, annotated "PHI data".
+
+`serve_attachment` sets no explicit no-store policy: `send_file`
+(`app/routes/va_form.py:1401`) falls through to the Flask default. The partial is
+therefore `no-store` while the PHI image and audio bytes it references may be
+written to the browser's disk cache. This is an existing inconsistency,
+independent of S3, and it must be resolved before any caching design is layered
+on top of it.
+
+## Delivery Design
+
+This supersedes the earlier framing in **Decisions to Confirm** item 1.
+
+### Transport: proxy, not redirect
+
+DigitVA streams attachment bytes for both Central outcomes — the `200` body and
+the `307` target alike. Rationale in Finding 10: it removes Central-version
+branching from the request path, lets DigitVA set validated `Content-Type`
+and choose its own `Content-Disposition`, and keeps the
+browser away from a 60-second expiry it cannot control.
+
+The service always proxies in this plan. Future browser redirects would change
+the client contract and require their own review and verification.
+
+### Cache policy: `no-store`, with the cache in memory
+
+Attachment responses carry `Cache-Control: private, no-store`, extending the
+existing stance on the partials that reference them (Finding 11). PHI image and
+audio bytes must not reach the browser's disk cache.
+
+Caching for responsiveness therefore happens in JavaScript memory, not in the
+HTTP cache:
+
+- fetch is **same-origin** against DigitVA's own route, so no S3 bucket CORS is
+  required — see Finding 8. A design where JavaScript fetches S3 directly *would*
+  require CORS on a bucket DigitVA does not own, and is rejected;
+- cached objects are **bytes, never locators**. This design does not cache
+  signed URLs; every new DigitVA content request resolves Central server-side;
+- the cache is a **bounded LRU with an explicit byte budget**, not a TTL map. A
+  submission may carry up to 35 images — `md_im1`–`md_im30` plus `ds_im1`–`ds_im5`
+  (`app/utils/va_render/va_render_06_processcategorydata.py:14-18`) — so an
+  unbounded blob cache is a browser memory failure, not a theoretical one;
+- object URLs are revoked on eviction;
+- a five-minute working window is the target, chosen to absorb the repeats that
+  actually occur: HTMX partial swaps, back navigation, and reopening the gallery
+  within one coding session.
+
+Cache keys include user/session, submission, attachment token, and preview/full
+variant. Clear bytes, revoke object URLs, detach media, and cancel pending
+fetches on logout, account/session change, submission change, or an observed
+authorization failure/revocation. Prevent a late response from repopulating a
+cleared cache. Bound reuse to five minutes since the last successful server
+authorization, then require reauthorization before further cached reuse. This
+permits up to five minutes of unobserved revocation delay; it cannot retract
+bytes already delivered or user-saved copies. Cache expiry is an authorization
+boundary, not a background image-content freshness check.
+
+Use `no-store` for HTTP responses and do not persist attachment bytes in Cache
+Storage, IndexedDB, or service-worker caches. Verify supported browser HTTP-cache
+behaviour; do not describe this as a guarantee against OS swap or user downloads.
+
+### Two tiers, and the rule that separates them
+
+| Tier | Content | Cached | Used by |
+|---|---|---|---|
+| Preview | Server-downscaled | Yes, bounded | Gallery and 60px carousel thumbnails |
+| Full | Original bytes, unmodified | One or two deep, evicted hard | Lightbox, zoom, rotate |
+
+**Anything a coder can zoom into must be the original.** The lightbox exposes
+zoom (`app/templates/va_formcategory_partials/category_attachments.html:91-96`)
+and rotate (`:83-88`), and these images are medical certificates and death
+documents read to assign an ICD code. Compression artefacts on handwritten text
+are a clinical accuracy risk that no test in this plan would detect. Downscaled
+or re-encoded bytes must never reach the zoom path.
+
+Note also that DigitVA carries its own rotation state per `rotationKey`
+(`:157-159`). Any server-side image handling must preserve or normalise EXIF
+orientation deliberately rather than letting the two rotate independently.
+
+### Thumbnails: generated on the fly, never stored
+
+Thumbnails are generated per request and discarded. They are **not** a stored
+derivative, and the line in **Audio derivatives** deferring a future thumbnail
+feature to "the same derivative pattern" is explicitly rejected.
+
+The access pattern decides this. A submission is coded once and reviewed or
+recoded at most a few times, so a stored thumbnail would be written once, read
+one to three times, and retained indefinitely. That buys a handful of reads in
+exchange for the full derivative machinery: ETag keying, staleness detection,
+regeneration, repair, and a separate recovery obligation under
+**Backup and Recovery**. On-the-fly generation costs CPU per request and carries
+no stored bytes, no lifecycle, no state columns, no staleness, and nothing to
+back up.
+
+The cost that must be sized is CPU, not storage. See
+**Performance Constraints**.
+
+Today's templates make this worse than it needs to be:
+`app/templates/va_formcategory_partials/_attachments_section.html:66` renders
+carousel thumbnails as a full-resolution `<img>` constrained to `height: 60px`
+by CSS, so the browser downloads every full image to display a 60-pixel strip.
+Server-side downscaling for the preview tier fixes this directly.
+
+### Why audio diverges
+
+The AMR to MP3 derivative remains **stored**, as described in
+**Audio derivatives**. The reasoning above does not generalise to it:
+
+| | Thumbnails | MP3 derivative |
+|---|---|---|
+| Generation cost | Bounded in-process resize | SoX subprocess |
+| Reuse within a session | Low | High — replayed repeatedly while coding a narration |
+| Correct choice | On the fly | Stored |
+
+This split is deliberate. Do not "simplify" the audio path later by
+generalising the thumbnail decision to it.
+
+### Image freshness and the small existing dataset
+
+Images are fetched through Central on demand; previews are generated for the
+request and discarded. Do not add persistent image freshness tracking,
+background content probes, or image-version reconciliation machinery. The
+bounded browser byte cache may retain the displayed image for the working
+session; immediate propagation of an upstream replacement is not required.
+
+The existing dataset is small. Reconcile the existing attachment inventory and
+verify image delivery once at cutover, then retire local image copies through
+the existing quarantine procedure. This does not require an ongoing local-image
+freshness service. Source-change detection below applies to stored MP3s only.
+
+`central-backend/lib/util/blob.js:66-90` at `v2026.3.0` is the authority:
+
+```js
+if (blob.s3_status === 'uploaded') {
+  // > A server MUST ignore all received preconditions if its response ...
+  // I.e. don't check the ETag header if the alternative is a 307.
+  return redirect(307, await s3.urlForBlob(filename, blob, disposition));
+} else {
+  return withEtag(blob.md5, () => ...);   // DB-backed branch only
+}
+```
+
+### Finding 6 — conditional GET remains usable through the S3 redirect
+
+Central deliberately skips its own `If-None-Match` check for S3-backed blobs
+and returns `307`. That does not disable conditional GET at the destination:
+Requests preserves `If-None-Match` across the redirect, and S3 can return `304`.
+DigitVA's sync already stores the final response's ETag and handles `304`
+(`app/utils/va_odk/va_odk_07_syncattachments.py:174-233`).
+
+Reverification used Requests 2.32.3 and pyODK 1.2.1 in the running Docker
+environment. A synthetic transport confirmed `307` followed by `304`, preserved
+`If-None-Match`, and stripped cross-host authorization. This was not a live S3
+test; the selected provider must pass integration tests.
+
+For stored MP3s, explicitly resolve and validate redirects, then send the saved
+content validator to the approved content endpoint. A `304` plus an existing
+valid derivative permits reuse; a changed source requires download/conversion.
+A missing derivative requires retrieval even when the source is unchanged.
+Treat ETags as opaque and allow a fresh transfer when backing-store migration
+changes the validator or the provider supplies no usable validator.
+
+Do not use `name`/`exists` or submission version alone to infer unchanged audio:
+Central permits overwriting an attachment within the same submission version.
+No attachment version history is required. Images are fetched on demand and do
+not participate in this persistent freshness mechanism.
+
+Sources: [Central blob response implementation](https://github.com/getodk/central-backend/blob/v2025.1.0/lib/util/blob.js#L47),
+[S3 conditional GET](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html),
+and [Central version attachment semantics](https://docs.getodk.org/central-api-submission-management/#downloading-a-version-s-attachment).
+
+### Finding 7 — the signed URL lifetime is 60 seconds and is not configurable
+
+`central-backend/lib/external/s3.js:185` hardcodes `const expiry = 60;`. The
+plan's "initially targeted at one to five minutes" is not a setting that exists.
+Every timing decision — retry windows, any locator cache TTL, the acceptable gap
+between page render and image load — must be built against 60 seconds.
+
+Where a browser holds a resolved S3 URL across a longer session and issues later
+range requests against it, that URL will be expired and S3 will answer `403`.
+DigitVA-owned derivatives are served from DigitVA's own storage, so DigitVA
+controls that expiry independently; the constraint above applies to Central
+originals.
+
+### Finding 8 — CORS is not required for the current markup
+
+Attachments render as plain `<img src>`
+(`app/templates/va_formcategory_partials/_attachments_section.html:42,66,121`)
+and `<audio><source src>` (`:97-98`). Those elements are not governed by CORS:
+browsers load cross-origin images and media through them without a preflight and
+follow redirects normally. The lightbox copies `img.src`
+(`app/templates/va_formcategory_partials/category_attachments.html:241`) and
+rotation is a CSS `transform: rotate()` (`:159`, `:223`), so no canvas pixel
+read occurs and no tainted-canvas failure is possible.
+
+DigitVA's same-origin proxy fetch needs no bucket CORS. Cross-origin JavaScript
+fetch would require CORS even when its initial URL is same-origin but redirects
+to S3; not every such fetch requires a preflight. Separately, Central's own
+frontend needs the bucket CORS configuration required by its official setup
+guide. Do not remove that configuration on the strength of DigitVA's markup.
+
+### Finding 9 — Central may sign a literal `"null"` content type
+
+`central-backend/lib/external/s3.js:170-172` sets
+`'response-content-type': contentType || 'null'`, annotated in Central's own
+source as "a questionable content-type, but matches current central behaviour".
+A redirected response can therefore arrive with `Content-Type: null`. DigitVA
+already stores `mime_type` per attachment row, but sync copies upstream values
+without validation. The proxy must validate MIME metadata and distinguish MP3
+output from AMR source metadata before it can correct this reliably.
+
+## Module Boundary
+
+The complexity this plan introduces — Central versus S3 versus local fallback,
+redirect validation, feature flags, derivative freshness — must not be pushed
+into route handlers, render code, or KPI queries. It belongs behind one module
+with a narrow interface:
+
+```text
+AttachmentService
+    deliver(storage_name, user, variant="original") -> Response   (proxy only)
+    url_for_field(va_sid, form_id, name, variant="original") -> str | None
+    readiness(va_sids)                   -> dict[va_sid, Readiness]   (bulk)
+    mark_audio_derivative_stale(va_sid, filename) -> None
+```
+
+Callers learn nothing about where bytes live. The route becomes a single
+delegation. `app/routes/admin.py` and `app/tasks/sync_tasks.py` both call
+`readiness()`, and the duplicate helper at `app/routes/admin.py:5340` is deleted
+rather than ported. The `va_sid=None` disk branch and the
+`__attachment_present__` sentinel in
+`app/utils/va_render/va_render_06_processcategorydata.py` exist only because no
+readiness call is available today; both are removed once it is.
+
+Authorization stays in this module and in the route layer. It is never inferred
+from possession of a token or a signed URL.
+
+`variant` accepts only original or a fixed configured preview profile; arbitrary
+client-selected dimensions are not supported. Phase 3 implements original/local
+delivery only; preview behaviour ships in Phase 4 with its frontend changes.
+The extraction is behaviour-neutral relative to the Phase 0 security fixes.
+
+`readiness()` is a bounded bulk metadata read with no Central/S3 calls. Its result
+distinguishes unknown, listed-present, observed-available, missing, and error
+source states; audio additionally has pending, ready, stale, and error derivative
+states. Return observation timestamps and error categories so old observations
+are not presented as a current probe. Phase 3 preserves existing disk-backed
+decisions inside the service; Phase 4 uses recorded remote state. Rendering and
+dashboards do not initiate downloads or derivative generation.
+
+Retain separate tests for external behaviour and filesystem integrity; do not
+replace them solely with mocks of the new service interface. The integrity
+script's orphan inventory remains available during quarantine, behind the
+storage service where it needs attachment filesystem operations.
+
 ## Implementation Phases
 
-### Phase 0 — Policy and inventory
+### Phase 0 — Authorization fix, policy, and inventory
 
-1. Add `docs/policy/attachment-storage.md` as the implementation baseline.
-2. Inventory attachment MIME types, sizes, AMR usage, legacy rows, and all local
-   file existence checks.
-3. Confirm the Central version and external-storage configuration requirements.
-4. Record selected bucket/region, endpoint hostname allowlist, retention,
+1. Fix Finding 1 before any other work: enforce submission-level allocation in
+   `serve_attachment` for coder and reviewer roles. Define the scoped role matrix
+   explicitly, including PI and administrative roles; do not blindly copy
+   `serve_media`, whose missing-record branch skips allocation checks and whose
+   positive allocation cache lasts 300 seconds. Reject unresolved ownership and
+   enforce current authorization on every server delivery. Extend existing tests
+   covering cross-project, cross-site, cross-form, and unallocated access, plus
+   a deterministic-token derivation attempt against a legacy-backfilled row.
+2. Add `docs/policy/attachment-storage.md` as the implementation baseline.
+3. Inventory attachment MIME types, sizes, AMR usage, legacy rows, and all local
+   file existence checks listed in Finding 2.
+4. Record each mapped Central connection's exact version and storage configuration. If
+   enabling Central S3, confirm it is at least `v2024.2.0`. Verify the attachment
+   contract for the deployed database-only version too. Note whether it is
+   pre- or post-`v2026.1`, since
+   that determines the `Content-Disposition` behaviour described in Finding 10,
+   and confirm external-storage configuration requirements for that version.
+5. Record selected bucket/region, endpoint hostname allowlist, retention,
    encryption, versioning, and recovery objectives.
-5. Decide the local fallback retention window; the recommended starting point
+6. Decide the local fallback retention window; the recommended starting point
    is 30 days after verified cutover.
+7. If enabling Central S3, establish bucket versioning, independent recovery copies, and a verified
+   pre-offload database/configuration backup before Phase 1. Record that Central
+   has no automated S3-to-database rollback. Keep the combined restore drill as
+   a mandatory gate before local retirement.
 
-### Phase 1 — Enable and verify Central external storage
+### Phase 1 — Verify Central storage; optionally enable external storage
+
+For Central without S3, verify database-backed attachment delivery and existing
+database recovery, then proceed to Phase 2. Do not create a Central attachment
+bucket or enable offloading merely to use the new DigitVA service.
+
+Only when Central S3 is selected, perform the following steps after Phase 0's
+recovery prerequisites. Existing S3 deployments must verify these safeguards.
 
 1. Configure Central with its private S3 credentials and bucket settings.
 2. Apply least-privilege IAM and required Central frontend CORS settings.
-3. Verify new and existing attachments through Central while objects are in
+3. Verify new and existing attachments through each scoped connection while objects are in
    both possible backing states: PostgreSQL-backed and S3-backed.
 4. Confirm clients correctly follow Central redirects.
 5. Record Central's migration status and failure telemetry. Do not require all
@@ -203,23 +736,59 @@ S3 migration is complete counts as available.
 3. Add indexes for request-path lookups and repair candidate selection.
 4. Make the migration safe to rerun and provide downgrade/rollback guidance.
 
-### Phase 3 — Introduce an attachment resolver
+### Phase 3 — Extract the attachment module (no Central involved)
 
-Create a focused service that:
+This phase ships on its own and changes no behaviour. It exists so that Phase 4
+is a change to one module's internals rather than a coordinated edit across
+eight files.
 
-- resolves the correct Central connection and attachment endpoint;
-- performs bounded-timeout, streamed requests;
-- distinguishes Central `200`, approved redirect, not-found, authentication,
+1. Create the `AttachmentService` interface described under **Module Boundary**,
+   implemented entirely over today's local-disk semantics.
+2. Converge all six call sites from Finding 2 onto it. Delete the duplicate
+   helper at `app/routes/admin.py:5340` rather than porting it.
+3. Remove the `va_sid=None` disk branch and the `__attachment_present__`
+   sentinel from `app/utils/va_render/va_render_06_processcategorydata.py` in
+   favour of a `readiness()` call.
+4. Pin the existing behaviour with tests before the implementation changes.
+   `tests/test_check_attachment_integrity.py` and
+   `tests/test_sync_tasks_attachment_repair.py` currently encode disk semantics
+   and must be rewritten against the new interface, not merely extended.
+
+Exit criterion: no module outside `AttachmentService` performs a filesystem
+existence check for an attachment.
+
+### Phase 4 — Central-backed implementation and dual-read rollout
+
+Swap source delivery inside `AttachmentService` without exposing storage choice
+to callers. Preview/full frontend changes explicitly use the variant contract;
+they are not part of the behaviour-neutral Phase 3 extraction.
+
+The Central-facing implementation must:
+
+- resolve the correct Central connection and attachment endpoint;
+- perform bounded-timeout, streamed requests through `guarded_odk_call`
+  (`app/services/odk_connection_guard_service.py:357`) under a request-path
+  policy distinct from the sync-path one — see **Performance Constraints**;
+- set `allow_redirects=False` so Central's redirect is observable at all
+  (Finding 3), and classify the target: a redirect back to Central is followed
+  server-side, and an approved S3 target is fetched server-side and proxied;
+- explicitly support the verified Central `301` canonical-version redirect and
+  `307` S3 redirect; reject unrecognised redirects rather than accepting every
+  `3xx`. Resolve relative locations and validate every hop, with a finite limit;
+- distinguish Central `200`, approved redirect, not-found, authentication,
   throttling, and transient failures;
-- validates redirect scheme and host;
-- never logs credentials, signed query strings, or raw sensitive payloads;
-- exposes a small result contract to the route, sync, repair, and derivative
-  workers.
+- validate redirect scheme and host against the configured allowlist;
+- keep ODK credentials on the configured Central origin only; issue S3 requests
+  without ODK credentials or inherited session authentication;
+- preserve valid audio `Range` semantics through the derivative proxy, including
+  `206`, `Content-Range`, `Accept-Ranges`, and `416`; define bounded retries before
+  headers are sent, and close upstream responses on completion/disconnect;
+- never log credentials, signed query strings, or raw sensitive payloads.
 
-Keep authorization in the DigitVA route/service layer. Do not move permission
-decisions into templates or rely on possession of a signed URL.
+Authorization stays in the route and service layer. Permission decisions are
+never moved into templates and never inferred from possession of a signed URL.
 
-### Phase 4 — Dual-read coder rollout
+Rollout:
 
 1. Add a per-project/form feature flag for the remote-backed path.
 2. After authorization, try Central first and retain existing local files as a
@@ -234,24 +803,42 @@ Local fallback is a migration safety mechanism, not the final source of truth.
 It must not mask persistent Central or IAM failures indefinitely; fallback use
 needs visible telemetry and alerts.
 
+| Outcome | Migration response after user authorization |
+|---|---|
+| Central timeout, rate limit, transient 5xx | Permit a retained, reconciled local copy; record fallback use |
+| Central/S3 authentication failure | Report configuration failure; no silent fallback |
+| Confirmed absent/deleted source | Show unavailable; do not resurrect a local copy |
+| S3 403 | Classify the provider error; refresh an expired signature once, otherwise report error rather than assuming absence |
+| Invalid redirect or denied DigitVA access | Reject; no fallback |
+
+The one-time cutover inventory is sufficient for existing local images. No
+ongoing image-version service is required; temporary fallback may serve the
+reconciled copy during an outage. Close that fallback window at cutover.
+
 ### Phase 5 — Change sync and repair behavior
 
 1. Stop downloading permanent local copies of ordinary images for enabled
    forms.
 2. Sync attachment lists and metadata through Central and verify source
    availability without assuming S3 placement.
-3. Generate/reuse MP3 derivatives keyed to the current source ETag/version.
+3. Generate/reuse MP3 derivatives using the final content endpoint's validator.
 4. Update canonical repair, admin backfill, on-open repair, and KPI logic to use
    source availability plus derivative readiness.
-5. Preserve idempotency: unchanged sources and valid derivatives cause no
-   transfer or conversion.
+5. Preserve MP3 idempotency with conditional GET at the final content endpoint
+   (Finding 6). Forward the validator only after redirect validation; reuse a
+   valid MP3 on `304`, and retrieve the source if the derivative is missing.
+   Test unchanged, replaced, missing-derivative, and backing-store-transition
+   cases against the selected provider.
+6. Do not add background image freshness probes or persistent image validators.
+   Listing/availability metadata remains distinct from content-change tracking.
 
 ### Phase 6 — Cutover and local-file retirement
 
-1. Require a successful observation period with no unexplained local-fallback
-   dependence.
-2. Run a restore drill that combines the Central database/configuration and
-   external attachment storage.
+1. Reconcile the small existing attachment inventory once and verify delivery
+   through Central, with no unexplained local-fallback dependence. Do not build
+   ongoing image freshness reconciliation for this migration.
+2. Run a restore drill for Central database/configuration, including external
+   original storage when configured, and DigitVA derivatives in either mode.
 3. Move legacy local originals into a dated quarantine area; do not delete
    them during the initial cutover.
 4. After the approved retention window and reconciliation, remove quarantined
@@ -261,8 +848,11 @@ needs visible telemetry and alerts.
 
 ## Failure and Rollback Strategy
 
-- Disable the remote-backed feature flag for an affected project/form to return
-  to the preserved local path during rollout.
+- Before local downloads stop, the remote-backed feature flag can return an
+  affected project/form to its preserved local path. Afterwards, verify local
+  coverage and retrieve missing files through Central before using local-only
+  delivery. With the small dataset this is a bounded operational check, not a
+  new background reconciliation service.
 - Keep schema changes additive; rollback does not require discarding metadata.
 - If Central is available but S3 is degraded, Central's response is
   authoritative; DigitVA must not invent a direct bucket fallback for originals.
@@ -276,10 +866,19 @@ needs visible telemetry and alerts.
 
 ## Security and Privacy Requirements
 
-- Preserve all existing attachment authorization checks and test them against
-  cross-project, cross-site, cross-form, and unallocated-submission access.
-- Signed URLs must have the shortest practical lifetime, initially targeted at
-  one to five minutes.
+- Repair, then preserve, attachment authorization. Preserving today's checks is
+  not sufficient: `serve_attachment` currently enforces only form-level access
+  and must regain the submission-level allocation check (Finding 1). Test
+  against cross-project, cross-site, cross-form, and unallocated-submission
+  access.
+- Treat the opaque token as an identifier, never as a capability. Legacy tokens
+  are deterministically derivable from `va_sid` and filename, so possession of
+  a token must grant nothing on its own.
+- Signed URL lifetime is Central's, not ours: 60 seconds, hardcoded at
+  `central-backend/lib/external/s3.js:185` (Finding 7). Do not design around a
+  configurable expiry for Central originals. DigitVA-owned derivatives are
+  served from DigitVA storage, where the expiry is ours to choose and must cover
+  a realistic playback or viewing session.
 - Do not persist or log signed URLs, authorization headers, ODK credentials, S3
   credentials, or attachment payloads.
 - Use bounded streaming; do not load large media into application memory.
@@ -288,15 +887,23 @@ needs visible telemetry and alerts.
   excessive redirect chains.
 - Review browser referrer policy and cache headers so signed query strings are
   not leaked to unrelated origins.
-- Permit only the required CORS origin, methods, headers, and exposed response
-  headers. Audio playback may require `Range`/`Accept-Ranges` support.
+- CORS: DigitVA's same-origin proxy needs no bucket CORS. Preserve the bucket
+  CORS configuration required by Central's frontend when Central uses S3.
+  Browser-to-S3 redirects or fetches require a separate design review.
+- Audio range behaviour is a property of whichever store serves the bytes.
+  Verify `Range`/`Accept-Ranges` on the DigitVA derivative path, which is the
+  path that actually serves playback.
 
 ## Backup and Recovery
 
 ODK Direct Backup does not include attachments stored in external S3-compatible
 storage. Enabling Central S3 therefore creates a separate recovery obligation.
 
-Before cutover:
+For Central without S3, preserve and test database/configuration recovery;
+original attachment bytes remain in the database. When Central uses S3, the
+bucket safeguards below must exist before enabling offloading, and the combined
+restore must pass before local-file retirement. DigitVA's stored derivatives
+need their own recovery procedure in either deployment mode:
 
 1. enable bucket versioning;
 2. define lifecycle retention deliberately, without expiring current originals;
@@ -318,16 +925,65 @@ with a distinct role and consider Object Lock where required.
 - authorization succeeds only for users currently entitled to the submission;
 - Central `200` responses stream without buffering the entire object;
 - approved S3 redirects pass and unexpected schemes/hosts are rejected;
-- an attachment not yet moved to S3 still displays through Central;
+- a permanently database-only Central works without S3 configuration; a
+  mixed/S3 Central works through both `200` and validated `307` outcomes;
+- the same image works before and after the daily job changes its response from
+  database `200` to S3 `307`, without changing its DigitVA URL or metadata flag;
+- one submission with mixed database/S3 attachments renders successfully, and
+  failed offloads continue to work from the database;
+- stored MP3 freshness handles the database-to-S3 validator transition without
+  mistaking storage movement for missing content or requiring all blobs to move;
+- concurrent requests for two differently mapped project/form/site contexts use
+  their own connection, credentials, remote IDs, allowlist, and pacing, including
+  one database-only Central and one mixed/S3 Central;
+- colliding remote submission IDs/filenames across connections do not share
+  cache entries, validators, derivatives, or authorization decisions;
+- missing/inactive mappings fail closed on the new remote path; mapping changes
+  invalidate source resolution and audio freshness without remapping ownership;
+- the same attachment is delivered correctly whether Central answers `200` or
+  `307`, with no caller-visible difference;
+- delivery is verified against both a 2025-line Central and a `v2026.1+`
+  Central, confirming that `Content-Disposition` and `Content-Type` seen by the
+  browser are DigitVA's own and do not vary by Central version (Finding 10);
+- a submission-version `301` from Central is followed server-side and never
+  handed to the browser as an S3 target;
+- missing/literal `null` MIME values are handled safely, and an MP3 derivative
+  is served as MP3 rather than with its original AMR source type;
+- attachment responses carry `Cache-Control: private, no-store` and PHI bytes do
+  not appear in the browser disk cache after a coding session (Finding 11);
+- the lightbox, zoom, and rotate paths receive original bytes; no downscaled or
+  re-encoded image is reachable from the zoom path;
+- EXIF orientation is preserved or normalised so server-side handling does not
+  fight DigitVA's own rotation state;
+- the client byte cache respects its budget, evicts under pressure, and revokes
+  object URLs on eviction;
+- a 35-image gallery renders within the agreed latency and CPU budget with
+  thumbnail concurrency bounded;
 - expired signed URLs are refreshed through a new authorized request;
 - signed URLs and secrets are absent from logs and persisted records;
-- conditional/ETag behavior is idempotent;
+- stored MP3 checks reuse valid derivatives on `304` from either the database
+  endpoint or the approved S3 endpoint, retrieve missing derivatives, and
+  handle replacement content under an unchanged filename/submission version;
+- image sync/rendering performs no background content-validation requests;
+- unknown attachment ownership is denied on both routes, and server delivery
+  rejects revoked allocation even when attachment metadata is cached;
+- client caches clear on lifecycle changes, reject late responses, and require
+  reauthorization after the five-minute reuse window;
+- fallback follows the outcome table, and rollback checks local coverage;
+- readiness batches metadata without network calls and distinguishes observation
+  timestamps from current availability;
+- thumbnail size/pixel/time limits reject oversized or corrupt inputs safely;
 - missing objects, timeouts, throttling, redirect loops, and invalid MIME types
   produce controlled outcomes;
 - AMR conversion generates a current MP3 derivative once and regenerates it
   when the source ETag changes;
 - legacy `storage_name IS NULL` and existing local-path rows remain usable;
-- repair and workflow advancement use the new completeness semantics.
+- repair and workflow advancement use the new completeness semantics;
+- a coder holding a valid token for an unallocated submission is refused, and a
+  deterministically derivable legacy token grants no access (Finding 1);
+- `tests/test_check_attachment_integrity.py` and
+  `tests/test_sync_tasks_attachment_repair.py` are rewritten against the
+  `AttachmentService` interface rather than disk state.
 
 ### Integration tests
 
@@ -335,7 +991,7 @@ Use a mock Central service and S3-compatible test storage to cover:
 
 - DB-backed Central streaming;
 - Central-to-S3 redirects;
-- CORS and browser image display;
+- same-origin browser image display and, where applicable, Central frontend CORS;
 - audio byte-range requests;
 - Central or S3 outage;
 - concurrent coder requests;
@@ -346,7 +1002,8 @@ Use a mock Central service and S3-compatible test storage to cover:
 - coders can view multiple and large images on assigned submissions;
 - reviewers and data managers retain their correct scoped access;
 - copied signed URLs expire and do not grant durable access;
-- revoking allocation prevents creation of a new authorized attachment URL;
+- revoking allocation prevents new server delivery; already delivered client
+  bytes follow the documented cache lifecycle and reuse window;
 - browser refresh/back behavior and audio seeking work;
 - dashboards distinguish unavailable source from missing derivative;
 - backup/restore drill successfully reconstructs a sample submission and its
@@ -354,17 +1011,80 @@ Use a mock Central service and S3-compatible test storage to cover:
 
 ## Performance Constraints
 
+- Route Central calls through `guarded_odk_call`
+  (`app/services/odk_connection_guard_service.py:357`), but define a separate
+  request-path policy. `reserve_odk_request_slot` currently resolves contention
+  with `time.sleep()` (line 370); in a coder's image request that stalls a
+  worker. The request path needs a bounded wait and a fast controlled failure,
+  not sync-path pacing.
 - Avoid one Central authentication handshake per attachment; reuse the existing
   connection/session safely.
 - Avoid N+1 database queries when rendering a page containing multiple media
   items.
 - Do not prefetch binaries merely to render attachment links.
-- If a short server-side locator cache is introduced, it must be bounded by the
-  signed URL expiry and must not weaken authorization or persist URLs.
+- Cache the attachment *record*, never the locator. The existing `att:` cache
+  (`app/routes/va_form.py:1397`) holds `local_path` for 3600s; this is 60 times
+  Central's 60-second signed-URL lifetime and must
+  not be reused for a remote locator.
+- Do not introduce a server-side signed-URL cache in this implementation.
+- `admin_sync_legacy_attachment_stats` (`app/routes/admin.py:5750-5763`) scans
+  every non-null `storage_name` row and recomputes a uuid5 per row in Python on
+  each request. Replace it with a stored marker or a bounded query while the
+  surrounding code is being changed.
 - Measure page latency and Central request volume before deciding whether
   batching or proxy caching is necessary.
+- Proxy delivery is the default (Finding 10), so attachment bytes traverse the
+  DigitVA app server. Measure worker occupancy and egress on a page with many
+  large images before expanding the rollout, and treat a sustained regression as
+  the trigger for evaluating redirect delivery on `v2026.1+` rather than as a
+  surprise.
+- On-the-fly thumbnailing trades storage for CPU, and a 35-image gallery fires
+  its requests near-simultaneously. Decode at reduced scale rather than
+  decoding then resizing — Pillow's `img.draft('RGB', (w, h))` before `load()`
+  uses JPEG DCT scaling and is several times cheaper — and bound the concurrency
+  so one gallery render cannot saturate the workers.
+- Before preview implementation, record concrete limits for compressed input
+  bytes, decoded pixels, processing time, output size, concurrent work, and queue
+  wait. Reduced JPEG decoding is an optimisation, not a safety bound for all
+  formats. Reject corrupt/decompression-bomb inputs; use bounded temporary
+  storage and a controlled unavailable-preview state for unsupported formats.
+- Define connect/read/total request deadlines and conversion subprocess timeouts;
+  close streams and remove temporary files on errors and browser disconnects.
+  A streaming original response and a decoded preview have different memory
+  profiles and must be measured separately.
+- On-the-fly generation does not reduce Central-to-DigitVA traffic; the full
+  image is still fetched to produce the preview. At one to three views per
+  submission this is accepted deliberately, and the in-memory client cache
+  absorbs within-session repeats.
 
 ## Expected Repository Scope
+
+### Verified code references
+
+Repository-relative links below refer to the code inspected on 2026-09-17.
+Line numbers are navigation aids and should be refreshed when implementation
+changes these files. These observations are source review, not a claim that the
+full application suite or a live Central/S3 deployment was tested.
+
+| Concern | Existing implementation / test evidence |
+|---|---|
+| Opaque route and form-only permission check | [serve_attachment](../../app/routes/va_form.py#L1335), [permission check](../../app/routes/va_form.py#L1378), [form access semantics](../../app/models/va_users.py#L252) |
+| Legacy unresolved-owner branch and cached allocation | [serve_media](../../app/routes/va_form.py#L1424), [300-second allocation cache](../../app/routes/va_form.py#L1440) |
+| Deterministic legacy token | [legacy_attachment_storage_name](../../app/services/attachment_storage_name_service.py#L12) |
+| Existing seven route tests; allocation cases to add | [test_serve_attachment.py](../../tests/routes/test_serve_attachment.py#L1), [mocked access on happy path](../../tests/routes/test_serve_attachment.py#L221) |
+| Partial cache policy and byte delivery | [partial policy](../../app/routes/va_form.py#L83), [attachment record cache / send_file](../../app/routes/va_form.py#L1395) |
+| Conditional headers, redirects, 304 self-heal | [attachment download](../../app/utils/va_odk/va_odk_07_syncattachments.py#L174) |
+| Unvalidated source MIME / derivative metadata | [response metadata and AMR conversion](../../app/utils/va_odk/va_odk_07_syncattachments.py#L231), [row update](../../app/utils/va_odk/va_odk_07_syncattachments.py#L336) |
+| AMR failure leaves source path / skips caller cleanup | [caller](../../app/utils/va_odk/va_odk_07_syncattachments.py#L248), [converter](../../app/utils/va_odk/va_odk_07_syncattachments.py#L654) |
+| Duplicate disk presence rules | [sync helper](../../app/tasks/sync_tasks.py#L59), [admin helper](../../app/routes/admin.py#L5340) |
+| Disk-based completeness and repair decision | [attachments_complete](../../app/tasks/sync_tasks.py#L861) |
+| Render sentinel and disk visibility branch | [attachment rendering](../../app/utils/va_render/va_render_06_processcategorydata.py#L158) |
+| Local integrity and orphan inventory | [integrity script](../../scripts/check_attachment_integrity.py#L83) |
+| Full-image thumbnails and audio markup | [60px thumbnail](../../app/templates/va_formcategory_partials/_attachments_section.html#L63), [audio source](../../app/templates/va_formcategory_partials/_attachments_section.html#L95) |
+| pyODK session construction | [client setup](../../app/utils/va_odk/va_odk_01_clientsetup.py#L111) |
+| Project connection and form/site routing | [project mapping](../../app/models/map_project_odk.py#L8), [local/remote form identifiers](../../app/models/va_forms.py#L9), [connection master](../../app/models/mas_odk_connections.py#L9) |
+
+### Implementation areas
 
 Implementation discovery should confirm exact names, but expected areas are:
 
@@ -378,38 +1098,75 @@ Implementation discovery should confirm exact names, but expected areas are:
 | `migrations/` | Additive migration and indexes |
 | `app/utils/va_odk/va_odk_07_syncattachments.py` | Metadata-first sync and derivative trigger |
 | ODK client/service layer | Central retrieval and safe redirect handling |
-| `app/routes/va_form.py` | Authorized attachment delivery |
+| Existing project connection and form/site mappings | Preserve scoped resolution; connection-specific allowlists, caches, and validation |
+| `app/services/attachment_service.py` (new) | The module boundary; all source/readiness decisions |
+| `app/routes/va_form.py` | Submission-level authorization fix, then delegation |
+| `app/services/coding_service.py` | `_count_attachments_per_category` gallery counts vs source availability |
+| `app/services/payload_enrichment_backfill_service.py` | Attachment stages reuse the module |
+| `scripts/check_attachment_integrity.py` | Integrity check against source, not disk |
+| `tests/routes/test_serve_attachment.py` and legacy media tests | Extend existing coverage for allocation, ownership, cache, and connection scope |
 | `app/utils/va_render/va_render_06_processcategorydata.py` | Render based on records, not local-file existence |
 | `app/services/open_submission_repair_service.py` | Remote-aware completeness/repair |
 | `app/tasks/sync_tasks.py` | Bounded derivative/repair work |
 | `app/routes/admin.py` and KPI services | Revised availability telemetry |
+| `app/templates/va_formcategory_partials/_attachments_section.html` | Preview-tier thumbnails instead of CSS-constrained full images |
+| `app/templates/va_formcategory_partials/category_attachments.html` | Lightbox hydration against the full tier |
+| attachment client-side cache (new JS) | Bounded LRU, object-URL lifecycle, preload |
 | focused unit/integration/browser tests | Security, behavior, and rollout gates |
 
 ## Decisions to Confirm Before Implementation
 
 Recommended defaults are included so implementation can proceed after review:
 
-1. **Browser delivery:** validated redirect for Central's signed S3 response;
-   streaming proxy when Central itself returns bytes.
-2. **Storage isolation:** separate ODK-original, DigitVA-derivative, and backup
-   buckets; strict prefixes and IAM if one bucket is operationally required.
+1. **Browser delivery:** settled in **Delivery Design** — streaming proxy for
+   both Central responses, `Cache-Control: private, no-store`, a bounded
+   in-memory JavaScript byte cache, a preview/full tier split, and on-the-fly
+   thumbnails. What remains to confirm is the byte budget for the client cache
+   and the downscale target for the preview tier.
+2. **Storage isolation:** where configured, separate ODK-original,
+   DigitVA-derivative, and backup buckets; strict prefixes and IAM if one bucket
+   is operationally required. Database-only Central needs no original bucket.
 3. **Local fallback:** retain for the staged rollout, then quarantine for 30 days
    after verified cutover.
 4. **Audio:** retain original AMR under Central and store an MP3 derivative under
    DigitVA control.
 5. **Source health:** evaluate through Central, never by probing or guessing an
    S3 object key.
+6. **Sequencing:** the Phase 0 authorization fix and the Phase 3 module
+   extraction each ship independently before Phase 4's DigitVA integration.
+   Phase 1's optional Central offloading requires recovery safeguards first.
+7. **Freshness scope:** settled — images are fetched on demand with no persistent
+   freshness tracking. Stored MP3s use conditional GET at the final content
+   endpoint; verify provider behaviour as described in Finding 6. Reconcile the
+   small existing dataset once at cutover.
+8. **Pinned Central version:** the version whose redirect contract was verified,
+   and the re-verification step on upgrade.
+9. **Deployment modes:** settled — support Central with and without S3. External
+   storage setup and Central bucket recovery gates apply only to the S3 mode;
+   the delivery and MP3 tests must cover both.
+10. **Connection scope:** settled — resolve each attachment through its owning
+    project/form/site mapping. No global Central endpoint or global S3-mode
+    assumption; preserve existing project-level credential mapping and form/site
+    routing, with isolation tests across connections.
 
 ## Completion Criteria
 
 The migration is complete only when:
 
+- submission-level authorization is enforced on every attachment route and
+  covered by tests;
+- no module outside `AttachmentService` performs a filesystem existence check
+  for an attachment;
 - authorized human coders can reliably see all required images and play audio;
 - both Central DB-backed and S3-redirected attachments have passed tests;
 - ordinary original images are no longer permanently duplicated by DigitVA;
-- required derivatives are reproducible and independently recoverable;
+- required derivatives are reproducible and independently recoverable, and audio
+  is the only stored derivative;
+- PHI attachment bytes are not written to the browser disk cache;
 - remote-aware repair and dashboard semantics are deployed;
-- a combined Central database/configuration/S3 restore drill has succeeded;
+- a database/configuration restore drill has succeeded, including original
+  attachment objects when Central uses S3 and DigitVA derivative recovery in
+  either mode;
 - local originals have completed the approved quarantine period; and
 - documentation, monitoring, and operational runbooks reflect the deployed
   behavior.

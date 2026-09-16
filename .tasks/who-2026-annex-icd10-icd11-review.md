@@ -40,4 +40,8 @@ no ICD-11 catalog, and nothing in the app reads the new reference files.
    self-hosted `whoicd/icd-api` container, `mas_icd11_mms` master with a
    migration plan, Embedded Coding Tool in the coder panels behind an
    authenticated same-origin proxy, and expansion of the annex ranges into
-   VA bucket rows. Start with the staging spike in that plan.
+   VA bucket rows. The WHO Simple Tabulation exports (2025-01 release and a
+   development snapshot) are frozen under
+   `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-*/`; the catalog
+   is seeded from the release export, not from the API. Start with the
+   staging spike in that plan.

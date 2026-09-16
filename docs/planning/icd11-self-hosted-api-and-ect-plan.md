@@ -52,6 +52,11 @@ prepare this plan, so facts are marked by how they were established:
   shape of the selection object. The bundled ICD-11 Terms of Use were read.
 - **Verified from Docker Hub metadata**: image `whoicd/icd-api` tags, dates,
   architectures and sizes.
+- **Verified from WHO exports checked into this repository**: two ICD-11 MMS
+  Simple Tabulation bundles under
+  `docs/icd-causegrp-mappings/migration-artifacts/` (the 2025-01 release and a
+  development snapshot), profiled on 2026-09-16; each folder's `README.md`
+  records columns, counts and the facts an importer depends on.
 - **From search snippets of the WHO pages**: container environment variables,
   default release, tool paths, service ports, and the statement that ICD-10 is
   not supported in the container. These should be re-read on the WHO pages
@@ -164,15 +169,19 @@ prepare this plan, so facts are marked by how they were established:
 
 ### 2. Data Model (additive, migration-planned)
 
-- `mas_icd11_mms`: one row per linearization entity for a given release.
-  Columns: `release`, `entity_id` (foundation numeric id), `code` (null for
-  blocks and other uncoded nodes), `linearization_uri`, `foundation_uri`,
-  `title`, `parent_entity_id`, `chapter_code`, `depth`, `is_leaf`,
-  `class_kind`, `is_residual` (codes ending in Y or Z), plus DigitVA policy
-  fields mirroring the ICD-10 catalog: `is_coding_selectable`,
-  `sex_selectable`, `age_group_selectable`, `restriction_note`, `is_active`.
-  Unique on (`release`, `entity_id`). Policy fields are documented as local
-  additions per the licence.
+- `mas_icd11_mms`: one row per linearization entity for a given release,
+  loaded from the WHO Simple Tabulation export. Columns: `release`,
+  `linearization_uri` (the stable key; unique per row in the export),
+  `foundation_uri` (nullable: residual categories have none), `code` (null for
+  chapters and blocks), `block_id`, `title` (WHO's `- ` depth prefixes
+  stripped), `class_kind`, `depth_in_kind`, `chapter_no`, `is_residual`,
+  `is_leaf`, `primary_tabulation` (kept as WHO supplies it, informational
+  only), `sort_order` (export row order, which is linearization order),
+  `parent_linearization_uri` (derived on import from row order and title
+  depth), plus DigitVA policy fields mirroring the ICD-10 catalog:
+  `is_coding_selectable`, `sex_selectable`, `age_group_selectable`,
+  `restriction_note`, `is_active`. Unique on (`release`, `linearization_uri`).
+  Policy fields are documented as local additions per the licence.
 - Coder review and final assessment models gain ICD-11 counterparts for each
   ICD-10 cause field (code plus linearization URI, so the release is
   recoverable). Exact columns follow the current review model and the final COD
@@ -186,17 +195,33 @@ prepare this plan, so facts are marked by how they were established:
   during migration, idempotent re-import, missing rows marked inactive, never
   deleted).
 
-### 3. Master Load (Celery task)
+### 3. Catalog Load (from the WHO Simple Tabulation export)
 
-- Walk the linearization from the local API: root, then children via `child`
-  URIs, breadth first, in batches. Upsert on (`release`, `entity_id`), mark rows
-  absent from the source inactive, preserve local policy fields on rerun.
-- Stream and batch; never hold the whole tree in memory. Log counts only, no
-  request payload dumps.
-- Freeze the result as a generated CSV under
-  `docs/icd-causegrp-mappings/migration-artifacts/icd11-2026-01-base-<date>/`
-  so migrations can seed without a running API, matching the ICD-10 artifact
-  layout.
+WHO does not publish ICD-11 as ClaML, so the ICD-10 exporter pattern does not
+apply, and no API walk is needed either: WHO's Simple Tabulation export of the
+MMS linearization already is the hierarchy table.
+
+- Source of truth: the frozen export under
+  `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2025-01-base-2026-09-16/`
+  (tab-separated text file). Its folder `README.md` documents the columns and
+  the facts below.
+- A checked-in importer, kept in the tree with a test (unlike the ICD-10
+  helpers that were later deleted), reads the file in one pass in
+  linearization order, strips the `- ` depth prefixes from titles, derives each
+  row's parent from row order and title depth, and upserts on
+  (`release`, `linearization_uri`). Rows missing from the source are marked
+  inactive, never deleted, and local policy fields are preserved on rerun,
+  exactly as the ICD-10 CSV importer behaves.
+- A migration seeds `mas_icd11_mms` from the same frozen file in chunks, so a
+  fresh schema needs no running API, matching the ICD-10 artifact layout. The
+  `flask icd10 import-2019-2` command gets an ICD-11 sibling for reruns.
+- Release alignment: the catalog release and the API container's `include`
+  value must match. The checked-in export is the 2025-01 release, so the spike
+  starts with `include=2025-01_en`, or the 2026-01 export is downloaded and
+  frozen in a sibling folder first. The development snapshot folder is for
+  previewing upcoming changes only and never seeds a catalog.
+- Release upgrades are a new frozen folder plus a new `release` value, never an
+  in-place rewrite of existing rows.
 
 ### 4. Coding UI
 
@@ -235,8 +260,8 @@ prepare this plan, so facts are marked by how they were established:
 1. **Spike (staging only)**: run the container, measure RAM and start-up time,
    confirm the REST paths, prove the ECT works behind the authenticated proxy,
    check egress.
-2. **Catalog**: `mas_icd11_mms` migration, load task, frozen seed CSV, read-only
-   admin browser panel.
+2. **Catalog**: importer for the frozen WHO Simple Tabulation export,
+   `mas_icd11_mms` migration seeded from it, read-only admin browser panel.
 3. **Coding**: ICD-11 fields on the review models, ECT in the panels, server
    validation, behind a per-project feature flag.
 4. **Buckets and reporting**: range expansion, coverage report, ICD-11 columns
@@ -246,6 +271,8 @@ prepare this plan, so facts are marked by how they were established:
 ## Risks and Open Questions
 
 - Memory footprint of the container is unmeasured.
+- WHO leaves the export's `Primary tabulation` flag undefined; it is stored but
+  not used for policy until its meaning is confirmed.
 - ECT 1.8 behaviour changes over 1.7 are unconfirmed; the package ships no
   TypeScript types (`index.d.ts` is a stub).
 - Authenticated proxying of a browser-called API adds a moving part to the
@@ -260,8 +287,8 @@ prepare this plan, so facts are marked by how they were established:
 ## Verification Approach
 
 - Unit tests for range expansion, override handling and policy filtering.
-- Load-task tests against recorded API fixtures, so CI needs no running
-  container.
+- Importer tests against a small excerpt of the export, so CI needs no
+  running container.
 - Route tests for the ICD-11 select and search endpoints, including CSRF and
   authorization failures.
 - Manual staging checks: container sizing, egress, ECT round trip from search
@@ -274,6 +301,8 @@ prepare this plan, so facts are marked by how they were established:
 - ICD-10 catalog policy: `docs/policy/icd10-reference-catalog.md`
 - ICD-10 coding allowability policy: `docs/policy/who-2022-icd10-coding-allowability.md`
 - Migration artifacts layout: `docs/icd-causegrp-mappings/migration-artifacts/README.md`
+- Frozen ICD-11 exports: `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2025-01-base-2026-09-16/README.md`
+  and `docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-dev11-snapshot-2026-09-16/README.md`
 - Follow-up task: `.tasks/who-2026-annex-icd10-icd11-review.md`
 - Docker Hub image: `https://hub.docker.com/r/whoicd/icd-api`
 - npm package: `https://www.npmjs.com/package/@whoicd/icd11ect`

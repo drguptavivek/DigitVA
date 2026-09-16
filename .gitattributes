@@ -1,0 +1,2 @@
+# WHO ICD-11 Simple Tabulation exports are frozen upstream artifacts: keep bytes exact, no EOL conversion.
+docs/icd-causegrp-mappings/migration-artifacts/icd11-*/*.txt -text

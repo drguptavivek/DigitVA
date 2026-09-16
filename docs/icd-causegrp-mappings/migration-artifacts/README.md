@@ -3,7 +3,7 @@ title: Migration Artifacts Index
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-16
 ---
 
 # Migration Artifacts Index
@@ -72,6 +72,27 @@ Load sequence in `upgrade()`:
     - rebuild migration
     - built-in WHO reset-default in `app/services/cod_bucket_mapping_service.py`
     - CLI `flask cod-buckets import-who-2022-va`
+
+## Pending inputs (not yet used by any migration)
+
+These folders hold frozen upstream snapshots for planned work. Nothing reads
+them yet; see `docs/planning/icd11-self-hosted-api-and-ect-plan.md`.
+
+### `icd11-mms-2025-01-base-2026-09-16/`
+
+- `SimpleTabulation-ICD-11-MMS-en.txt` and `SimpleTabulation-ICD-11-MMS-en.xlsx`
+  - role: frozen WHO ICD-11 MMS 2025-01 linearization export (English), the
+    intended seed source for the planned `mas_icd11_mms` catalog
+  - called from: nothing yet
+  - details: folder `README.md`
+
+### `icd11-mms-dev11-snapshot-2026-09-16/`
+
+- `SimpleTabulation-ICD-11-MMS-en.txt` and `SimpleTabulation-ICD-11-MMS-en.xlsx`
+  - role: preview snapshot of WHO's development linearization, for diffing
+    against the 2025-01 release only; must not seed any catalog
+  - called from: nothing yet
+  - details: folder `README.md`
 
 ## Archived supporting inputs
 

@@ -199,6 +199,25 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         self.assertFalse(repair_map[va_sid]["needs_metadata"])
         self.assertFalse(repair_map[va_sid]["needs_smartva"])
 
+    def test_build_repair_map_reads_presence_through_attachment_service(self):
+        # The repair map depends on the attachment module boundary, not on disk:
+        # presence reported by the service is sufficient for completeness.
+        va_sid = self._create_submission_with_attachment(
+            filename="photo.jpg",
+            storage_name="photo-storage.jpg",
+            local_path=os.path.join(self._tmp_dir.name, self.form_id, "media", "photo.jpg"),
+        )
+
+        with patch(
+            "app.tasks.sync_tasks.present_attachment_files_by_submission",
+            return_value={va_sid: {"/remote/photo.jpg"}},
+        ) as readiness:
+            repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+
+        readiness.assert_called_once()
+        self.assertEqual(summary["attachments_missing"], 0)
+        self.assertNotIn(va_sid, repair_map)
+
     def test_build_repair_map_excludes_audit_csv_from_present_files(self):
         media_dir = os.path.join(self._tmp_dir.name, self.form_id, "media")
         os.makedirs(media_dir, exist_ok=True)

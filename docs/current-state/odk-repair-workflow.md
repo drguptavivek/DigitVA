@@ -3,7 +3,7 @@ title: ODK Repair Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-17
 ---
 
 # ODK Repair Workflow
@@ -272,6 +272,13 @@ local-only (no ODK calls) and loads automatically on panel load.
 | **SmartVA** | Active `va_smartva_results` row exists for `active_payload_version_id` with non-empty `cause1` | `eligible - complete - failed` |
 
 ### What counts as a present attachment file
+
+Presence is decided only by the attachment service
+(`resolve_local_attachment_path()` / `present_attachment_files_by_submission()`
+in [`app/services/attachment_service.py`](../../app/services/attachment_service.py));
+`_build_repair_map_for_form`, the admin backfill-stats endpoint, and the
+integrity script all call it rather than checking disk themselves. Policy:
+[Attachment Storage and Delivery Policy](../policy/attachment-storage.md).
 
 File resolution order per `va_submission_attachments` row:
 

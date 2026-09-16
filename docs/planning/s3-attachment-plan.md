@@ -43,6 +43,23 @@ Exact status codes and signing details were verified against source. See
 **Central API Verification** before relying on any statement in this plan about
 status codes, ETag handling, or signed-URL lifetime.
 
+## Implementation Status
+
+Updated 2026-09-17. Policy baseline:
+[Attachment Storage and Delivery Policy](../policy/attachment-storage.md).
+
+| Item | Status | Notes |
+|---|---|---|
+| Phase 0.1 — submission-level authorization (Finding 1) | Done | `can_access_submission_attachment()` in `app/services/attachment_service.py`; both routes; matrix tests in `tests/routes/test_serve_attachment.py`. Reviewer access is form-scoped to match the read-only reviewer section view (commit 5beaaf1); coder access requires an allocation or the coder's own outcome. |
+| Phase 0.2 — policy doc | Done | `docs/policy/attachment-storage.md` |
+| Finding 5 — AMR failure state | Done | `AmrConversionError`; no partial output, no row change |
+| Finding 9 — literal `"null"` MIME | Done | `safe_mime_type()` at sync and delivery |
+| Finding 11 — `no-store` on attachment bytes | Done | `apply_no_store_policy()` on both routes |
+| Phase 3 — `AttachmentService` extraction | Done | All six Finding 2 call sites converge on the service; admin duplicate deleted; render sentinel decided by the service. `readiness()` is currently `present_attachment_files_by_submission()`; the richer state vocabulary arrives with Phase 2 columns. |
+| Phase 0.3–0.7 — inventory, Central version record, bucket/IAM, retention, recovery gates | Open | Operational; need the deployment's connection inventory and Central version |
+| Phase 1, 2, 4, 5, 6 | Open | Depend on the Phase 0 operational decisions |
+| `admin_sync_legacy_attachment_stats` per-row uuid5 scan | Open | Noted under **Performance Constraints**; not touched |
+
 ## Goals
 
 1. Store one canonical copy of each original ODK attachment under Central's

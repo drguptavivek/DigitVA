@@ -1,6 +1,6 @@
-import os
 from collections import OrderedDict
-from flask import url_for, current_app
+from flask import url_for
+from app.services import attachment_service
 from app.utils.va_render.va_render_05_mapchoicevalue import va_render_mapchoicevalue
 from app.utils.va_render.va_render_02_standardizedate import va_render_standardizedate
 from app.utils.va_render.va_render_04_cleannumericvalue import va_render_cleannumericvalue
@@ -163,19 +163,15 @@ def va_render_processcategorydata(
                         else:
                             continue
                     else:
-                        # Visibility-check context (va_sid=None).
-                        # Do NOT assign disk path to value — callers may render it.
-                        # Use a sentinel: truthy but never a real URL or path.
-                        # IMPORTANT: callers using va_sid=None only check non-empty
-                        # dict for category visibility — they never render values.
-                        if value.lower().endswith(".amr"):
-                            value = value[: -len(".amr")] + ".mp3"
-                        disk_path = os.path.join(
-                            current_app.config["APP_DATA"], va_form_id, "media", value
-                        )
-                        if not os.path.exists(disk_path):
+                        # Visibility-check context (va_sid=None): callers only
+                        # test the category for non-emptiness and never render
+                        # the value, so a truthy non-URL marker is returned.
+                        # Presence is decided by the attachment service.
+                        if not attachment_service.is_attachment_present_for_form(
+                            va_form_id, value
+                        ):
                             continue
-                        value = "__attachment_present__"
+                        value = attachment_service.ATTACHMENT_PRESENT_MARKER
                 value = va_render_cleannumericvalue(value)
                 va_subcatresult[va_label] = value
         if va_subcatresult:

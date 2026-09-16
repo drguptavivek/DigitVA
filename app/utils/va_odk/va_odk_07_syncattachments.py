@@ -30,6 +30,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from flask import current_app, has_app_context
 
+from app.services.attachment_service import (
+    local_attachment_file_exists,
+    remove_local_file_if_present,
+    safe_mime_type,
+)
 from app.services.odk_connection_guard_service import guarded_odk_call
 
 log = logging.getLogger(__name__)
@@ -197,7 +202,7 @@ def _sync_submission_attachments_no_db(
             if dl_resp.status_code == 304:
                 etag_not_modified += 1
                 local_path = existing_local_paths.get(filename)
-                local_exists = bool(local_path and os.path.exists(local_path))
+                local_exists = local_attachment_file_exists(local_path)
                 storage_name = existing_storage_names.get(filename)
                 if local_exists and storage_name:
                     skipped += 1
@@ -231,8 +236,8 @@ def _sync_submission_attachments_no_db(
             new_etag: str | None = (
                 dl_resp.headers.get("ETag") or dl_resp.headers.get("etag")
             )
-            raw_mime: str = dl_resp.headers.get("Content-Type", "")
-            mime_type: str | None = raw_mime.split(";")[0].strip() or None
+            # Upstream MIME is copied, not trusted; a literal "null" is rejected.
+            mime_type: str | None = safe_mime_type(dl_resp.headers.get("Content-Type", ""))
 
             storage_name = _generate_storage_name(filename)
             tmp_path = os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}")
@@ -276,9 +281,9 @@ def _sync_submission_attachments_no_db(
             )
         finally:
             # Clean up temp file if it still exists (rename/conversion didn't consume it)
-            if tmp_path and os.path.exists(tmp_path):
+            if tmp_path:
                 try:
-                    os.remove(tmp_path)
+                    remove_local_file_if_present(tmp_path)
                 except OSError:
                     pass
             if dl_resp is not None and hasattr(dl_resp, "close"):
@@ -326,11 +331,10 @@ def _cleanup_replaced_attachment_files(stale_paths):
         )
         if in_use and int(in_use) > 0:
             continue
-        if os.path.exists(old_local_path):
-            try:
-                os.remove(old_local_path)
-            except OSError:
-                log.warning("Could not remove stale attachment file: %s", old_local_path, exc_info=True)
+        try:
+            remove_local_file_if_present(old_local_path)
+        except OSError:
+            log.warning("Could not remove stale attachment file: %s", old_local_path, exc_info=True)
 
 
 def _apply_submission_attachment_result(existing_records, result):
@@ -651,6 +655,10 @@ def va_odk_sync_submission_attachments(
 # AMR conversion
 # ---------------------------------------------------------------------------
 
+class AmrConversionError(RuntimeError):
+    """Raised when AMR→MP3 conversion fails; the attachment is recorded as an error."""
+
+
 def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = None) -> str:
     """Convert an .amr file to .mp3. Returns the .mp3 path.
 
@@ -661,7 +669,9 @@ def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = N
     If output_path is provided, write the .mp3 there (and delete amr_path).
     Otherwise derive the output path by replacing the .amr extension.
 
-    If conversion fails, the source file is kept and its path returned.
+    On failure raises AmrConversionError. The source file is left for the
+    caller's temp cleanup and no partial .mp3 is kept, so a failed
+    conversion can never be recorded as a successful derivative.
     """
     mp3_path = output_path or amr_path.rsplit(".", 1)[0] + ".mp3"
     try:
@@ -692,8 +702,14 @@ def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = N
         return mp3_path
     except Exception as e:
         log.error(
-            "AMR→MP3 conversion failed [%s/%s]: %s — keeping source",
+            "AMR→MP3 conversion failed [%s/%s]: %s",
             form_id, os.path.basename(amr_path), e,
             exc_info=True,
         )
-        return amr_path
+        try:
+            remove_local_file_if_present(mp3_path)
+        except OSError:
+            pass
+        raise AmrConversionError(
+            f"AMR→MP3 conversion failed for {os.path.basename(amr_path)}"
+        ) from e

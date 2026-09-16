@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-09-17
 ---
 
 # ODK Sync And Attachments
@@ -347,6 +347,14 @@ Current implementation detail:
   `response.content`
 - ODK attachment requests use explicit connect/read timeouts from
   `ODK_CONNECT_TIMEOUT_SECONDS` and `ODK_READ_TIMEOUT_SECONDS`
+- the upstream `Content-Type` is validated before it is stored; an empty,
+  malformed, or literal `"null"` value is stored as `NULL`
+- `.amr` narration is converted to MP3 with SoX; a failed conversion raises
+  `AmrConversionError`, leaves no partial `.mp3`, counts as an attachment
+  error, and leaves the existing row untouched so ordinary repair retries it
+- attachment serving (`/vaform/attachment/<storage_name>`) enforces the
+  submission-level authorization matrix and `Cache-Control: private, no-store`
+  defined in the [Attachment Storage and Delivery Policy](../policy/attachment-storage.md)
 
 Implemented in:
 

@@ -13,6 +13,8 @@ from celery.exceptions import SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 from datetime import datetime, timezone
 
+from app.services.attachment_service import present_attachment_files_by_submission
+
 log = get_task_logger(__name__)
 ANALYTICS_MV_TRIGGER = "analytics_mv"
 ENRICHMENT_SYNC_BATCH_SIZE = 5
@@ -54,73 +56,6 @@ def _batch_stage_counts(batch_plan: dict[str, dict]) -> dict[str, int]:
         "attachments": sum(1 for item in batch_plan.values() if item.get("needs_attachments")),
         "smartva": sum(1 for item in batch_plan.values() if item.get("needs_smartva")),
     }
-
-
-def _resolve_present_attachment_file_path(
-    *,
-    app_data_root: str | None,
-    form_id: str,
-    local_path: str | None,
-    storage_name: str | None,
-) -> str | None:
-    """Return a real attachment file path if the local blob exists.
-
-    Preference order:
-      1. storage_name under APP_DATA/<form_id>/media/
-      2. legacy local_path fallback
-
-    Shared artifacts like audit.csv are not treated as attachment blobs.
-    """
-    if storage_name and app_data_root:
-        disk_path = os.path.join(app_data_root, form_id, "media", storage_name)
-        if os.path.exists(disk_path):
-            return os.path.abspath(disk_path)
-    if local_path and os.path.exists(local_path):
-        if os.path.basename(local_path).lower() == "audit.csv":
-            return None
-        return os.path.abspath(local_path)
-    return None
-
-
-def _present_attachment_files_by_submission(
-    form_id: str,
-    *,
-    target_sids: list[str] | None = None,
-) -> dict[str, set[str]]:
-    """Return deduplicated local attachment file paths per submission."""
-    from flask import current_app
-    from app import db
-    from app.models import VaSubmissions, VaSubmissionAttachments
-
-    app_data_root = current_app.config.get("APP_DATA")
-    stmt = (
-        sa.select(
-            VaSubmissionAttachments.va_sid,
-            VaSubmissionAttachments.local_path,
-            VaSubmissionAttachments.storage_name,
-        )
-        .select_from(VaSubmissionAttachments)
-        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
-        .where(
-            VaSubmissions.va_form_id == form_id,
-            VaSubmissionAttachments.exists_on_odk.is_(True),
-        )
-    )
-    if target_sids:
-        stmt = stmt.where(VaSubmissionAttachments.va_sid.in_(target_sids))
-
-    present_files_by_sid: dict[str, set[str]] = {}
-    for row in db.session.execute(stmt).mappings().all():
-        resolved_path = _resolve_present_attachment_file_path(
-            app_data_root=app_data_root,
-            form_id=form_id,
-            local_path=row["local_path"],
-            storage_name=row["storage_name"],
-        )
-        if not resolved_path:
-            continue
-        present_files_by_sid.setdefault(row["va_sid"], set()).add(resolved_path)
-    return present_files_by_sid
 
 
 def _legacy_attachment_rows_by_submission(
@@ -790,7 +725,7 @@ def _build_repair_map_for_form(
         scoped_target_sids = list(raw_by_sid.keys())
     else:
         scoped_target_sids = target_sids
-    present_attachment_files = _present_attachment_files_by_submission(
+    present_attachment_files = present_attachment_files_by_submission(
         form_id,
         target_sids=scoped_target_sids,
     )

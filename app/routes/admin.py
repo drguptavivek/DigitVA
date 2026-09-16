@@ -5319,6 +5319,7 @@ def admin_sync_backfill_stats():
         from app.models.va_submissions import VaSubmissions
         from app.models.va_submission_attachments import VaSubmissionAttachments
         from app.models.va_smartva_results import VaSmartvaResults
+        from app.services.attachment_service import resolve_local_attachment_path
 
         forms = sync_runtime_forms_from_site_mappings()
         if not forms:
@@ -5336,26 +5337,6 @@ def admin_sync_backfill_stats():
             })
 
         app_data_root = current_app.config.get("APP_DATA")
-
-        def resolve_attachment_file_path(
-            form_id: str,
-            local_path: str | None,
-            storage_name: str | None,
-            *,
-            include_audit: bool = False,
-        ) -> str | None:
-            if storage_name and app_data_root:
-                disk_path = os.path.join(app_data_root, form_id, "media", storage_name)
-                if os.path.exists(disk_path):
-                    return os.path.abspath(disk_path)
-            if local_path and os.path.exists(local_path):
-                if (
-                    not include_audit
-                    and os.path.basename(local_path).lower() == "audit.csv"
-                ):
-                    return None
-                return os.path.abspath(local_path)
-            return None
 
         attachment_counts_sq = (
             sa.select(
@@ -5389,10 +5370,11 @@ def admin_sync_backfill_stats():
             attachment_filename = (row["filename"] or "").lower()
             local_path = row["local_path"]
             storage_name = row["storage_name"]
-            row_path = resolve_attachment_file_path(
-                form_id,
-                local_path,
-                storage_name,
+            row_path = resolve_local_attachment_path(
+                app_data_root=app_data_root,
+                form_id=form_id,
+                local_path=local_path,
+                storage_name=storage_name,
                 include_audit=True,
             )
             if attachment_filename == "audit.csv":

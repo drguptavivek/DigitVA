@@ -31,6 +31,7 @@ from app.services.submission_payload_version_service import ensure_active_payloa
 from app.services.field_mapping_service import get_mapping_service
 from app.services.icd10_2019_2_service import validate_icd10_2019_2_coding_value_for_submission
 from app.services.coding_service import get_project_for_submission as _get_project_for_submission
+from app.services import attachment_service
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_other_active_reviewer_reviews,
     get_current_payload_narrative_assessment,
@@ -1337,70 +1338,33 @@ def renderpartial(va_sid, va_partial):
 def serve_attachment(storage_name_raw):
     """Serve an attachment by opaque storage_name token.
 
-    Security contract:
+    Security contract (docs/policy/attachment-storage.md):
       1. @role_required handles auth + active-status + role gate
       2. Format validation → 404
-      3. DB lookup (exists_on_odk=True only) → 404
-      4. Permission check → 403
-      5. Path guard → 404
-      6. File existence → 404
-      7. Serve file
-    """
-    from app import cache as flask_cache
+      3. Record lookup (exists_on_odk=True only) → 404
+      4. Submission-level authorization for the current user → 403
+      5. Delivery (path guard, presence, no-store) → 404 / 200
 
+    Everything after the format check is delegated to the attachment service;
+    this route learns nothing about where the bytes live.
+    """
     if not re.match(r'^[a-f0-9]{32}\.[a-z0-9]{1,5}$', storage_name_raw):
         abort(404)
 
-    storage_name = storage_name_raw
+    record = attachment_service.resolve_attachment_record(storage_name_raw)
+    if record is None:
+        abort(404)
 
-    # Cache lookup
-    cached = flask_cache.get(f"att:{storage_name}")
-    if cached:
-        local_path = cached["local_path"]
-        mime_type = cached["mime_type"]
-        va_form_id = cached["va_form_id"]
-    else:
-        # DB fallback
-        row = db.session.execute(
-            sa.select(
-                VaSubmissionAttachments.local_path,
-                VaSubmissionAttachments.mime_type,
-                VaSubmissions.va_form_id,
-            )
-            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
-            .where(VaSubmissionAttachments.storage_name == storage_name)
-            .where(VaSubmissionAttachments.exists_on_odk == True)  # noqa: E712
-        ).first()
-        if not row:
-            abort(404)
-        local_path, mime_type, va_form_id = row
-
-    # Permission check
-    if not current_user.has_va_form_access(va_form_id):
+    if not attachment_service.can_access_submission_attachment(
+        current_user, va_form_id=record.va_form_id, va_sid=record.va_sid
+    ):
+        log.warning(
+            "serve_attachment: user=%s denied access to sid=%s form=%s",
+            current_user.user_id, record.va_sid, record.va_form_id,
+        )
         abort(403)
 
-    # Path guard — ensure local_path stays under APP_DATA/{va_form_id}/media/
-    media_base = os.path.realpath(
-        os.path.join(current_app.config["APP_DATA"], va_form_id, "media")
-    )
-    resolved = os.path.realpath(local_path)
-    if not resolved.startswith(media_base + os.sep) and resolved != media_base:
-        abort(404)
-
-    # File existence check
-    if not os.path.isfile(resolved):
-        flask_cache.delete(f"att:{storage_name}")
-        abort(404)
-
-    # Write cache after all checks pass (only for rows we verified exist_on_odk=True)
-    if not cached:
-        flask_cache.set(f"att:{storage_name}", {
-            "local_path": local_path,
-            "mime_type": mime_type,
-            "va_form_id": va_form_id,
-        }, timeout=3600)
-
-    return send_file(resolved, mimetype=mime_type)
+    return attachment_service.deliver_local_attachment(record)
 
 
 @va_form.route('/media/<va_form_id>/<va_filename>')
@@ -1414,49 +1378,28 @@ def serve_media(va_form_id, va_filename):
     if not va_form_id or not re.match(r'^[A-Za-z0-9_-]+$', va_form_id):
         abort(400, description="Invalid form ID format")
 
-    if not current_user.has_va_form_access(va_form_id):
+    # Ownership must resolve before any authorization decision (the previous
+    # missing-record branch skipped the allocation check entirely).
+    att_sid = db.session.execute(
+        sa.select(VaSubmissionAttachments.va_sid)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissions.va_form_id == va_form_id,
+            VaSubmissionAttachments.filename == va_filename,
+        )
+    ).scalar_one_or_none()
+    if not att_sid:
+        abort(404)
+
+    # Same role matrix as /attachment; evaluated fresh, never cached.
+    if not attachment_service.can_access_submission_attachment(
+        current_user, va_form_id=va_form_id, va_sid=att_sid
+    ):
+        log.warning(
+            "serve_media: user=%s denied access to %s/%s (sid=%s)",
+            current_user.user_id, va_form_id, va_filename, att_sid,
+        )
         va_permission_abortwithflash(f"You don't have permissions to access the media files for '{va_form_id}'", 403)
-
-    # OW-002: submission-level access check for coder/reviewer roles.
-    # Admins and data managers have form-level access (already verified above).
-    # Coders and reviewers must have an active allocation for the specific submission
-    # that owns this file — form-level access alone is insufficient.
-    if not (current_user.is_admin() or current_user.is_data_manager()):
-        # Cache the attachment → va_sid mapping (static; long TTL)
-        att_cache_key = f"media:att:{va_form_id}:{va_filename}"
-        cached_sid = flask_cache.get(att_cache_key)
-        if cached_sid is None:
-            att_row = db.session.execute(
-                sa.select(VaSubmissionAttachments.va_sid)
-                .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
-                .where(
-                    VaSubmissions.va_form_id == va_form_id,
-                    VaSubmissionAttachments.filename == va_filename,
-                )
-            ).scalar_one_or_none()
-            cached_sid = att_row or ""  # empty string = no record found
-            flask_cache.set(att_cache_key, cached_sid, timeout=300)  # 5 min
-
-        if cached_sid:  # non-empty means an attachment record exists
-            # Cache the allocation check per (sid, user); shorter TTL as allocations change
-            alloc_cache_key = f"media:alloc:{cached_sid}:{current_user.user_id}"
-            has_allocation = flask_cache.get(alloc_cache_key)
-            if has_allocation is None:
-                has_allocation = bool(db.session.scalar(
-                    sa.select(sa.func.count()).where(
-                        VaAllocations.va_sid == cached_sid,
-                        VaAllocations.va_allocated_to == current_user.user_id,
-                        VaAllocations.va_allocation_status == VaStatuses.active,
-                    )
-                ))
-                flask_cache.set(alloc_cache_key, has_allocation, timeout=300)  # 5 min
-
-            if not has_allocation:
-                log.warning(
-                    "serve_media: user=%s denied submission-level access to %s/%s (sid=%s)",
-                    current_user.user_id, va_form_id, va_filename, cached_sid,
-                )
-                abort(403)
 
     # Sanitize filename to prevent path traversal attacks
     safe_filename = secure_filename(va_filename)
@@ -1470,7 +1413,8 @@ def serve_media(va_form_id, va_filename):
     media_base = os.path.join(
         current_app.config["APP_DATA"], va_form_id, "media"
     )
-    return send_from_directory(media_base, safe_filename)
+    response = send_from_directory(media_base, safe_filename)
+    return attachment_service.apply_no_store_policy(response)
 
 
 

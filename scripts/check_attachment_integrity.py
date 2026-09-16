@@ -17,6 +17,10 @@ import sqlalchemy as sa
 
 from app import create_app, db
 from app.models import VaSubmissionAttachments, VaSubmissions
+from app.services.attachment_service import (
+    local_attachment_file_exists,
+    scan_local_media_files,
+)
 
 
 def _normalized_path(app_data: Path, raw_path: str | None) -> Path | None:
@@ -28,24 +32,9 @@ def _normalized_path(app_data: Path, raw_path: str | None) -> Path | None:
     return p.resolve(strict=False)
 
 
-def _scan_media_files(app_data: Path) -> tuple[int, list[Path]]:
-    total = 0
-    files: list[Path] = []
-    if not app_data.exists():
-        return total, files
-
-    for media_dir in app_data.glob("*/media"):
-        if not media_dir.is_dir():
-            continue
-        for root, dirs, filenames in os.walk(media_dir):
-            dirs[:] = [d for d in dirs if d != ".orphaned"]
-            root_path = Path(root)
-            if ".orphaned" in root_path.parts:
-                continue
-            for filename in filenames:
-                total += 1
-                files.append((root_path / filename).resolve(strict=False))
-    return total, files
+# Filesystem inventory lives behind the attachment service; kept as an alias
+# for existing callers and tests.
+_scan_media_files = scan_local_media_files
 
 
 def _orphan_destination(source_path: Path) -> Path:
@@ -135,7 +124,7 @@ def run_check(
                             "local_path": None,
                         }
                     )
-                elif not norm_path.exists():
+                elif not local_attachment_file_exists(str(norm_path)):
                     missing_rows.append(
                         {
                             "reason": "file_missing",

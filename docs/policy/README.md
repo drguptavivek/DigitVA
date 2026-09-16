@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-27
+last_updated: 2026-09-17
 ---
 
 # Policy Docs
@@ -15,6 +15,7 @@ Current policy docs:
 - [Access Control Model](access-control-model.md)
 - [Admin Activity Log Policy](admin-activity-log.md)
 - [Admin API Access Policy](admin-api-access.md)
+- [Attachment Storage and Delivery Policy](attachment-storage.md) — attachment authorization matrix, presence, delivery, AMR derivatives
 - [Category Navigation Visibility Policy](category-navigation-visibility.md)
 - [Coding Workflow State Machine Policy](coding-workflow-state-machine.md)
 - [Coding Allocation Timeout Policy](coding-allocation-timeouts.md)

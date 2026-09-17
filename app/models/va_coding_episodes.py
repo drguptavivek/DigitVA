@@ -10,6 +10,17 @@ from app import db
 
 class VaCodingEpisode(db.Model):
     __tablename__ = "va_coding_episodes"
+    __table_args__ = (
+        # At most one active recode episode per submission.
+        sa.Index(
+            "uq_va_coding_episodes_active_recode",
+            "va_sid",
+            unique=True,
+            postgresql_where=sa.text(
+                "episode_type = 'recode' AND episode_status = 'active'"
+            ),
+        ),
+    )
 
     episode_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True

@@ -81,6 +81,11 @@ def pytest_sessionstart(session):
         db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
     db.session.commit()
 
+    # va_icd_codes carries a trigram index (see migration d0e1f2a3b4c6), so the
+    # extension must exist before create_all builds the schema.
+    db.session.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    db.session.commit()
+
     # Ensure named enums exist before create_all
     from app.models import VaStatuses, VaAllocation, VaUsernotesFor, VaAccessRoles, VaAccessScopeTypes
 

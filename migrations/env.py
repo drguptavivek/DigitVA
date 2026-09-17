@@ -3,6 +3,8 @@ from logging.config import fileConfig
 
 from flask import current_app
 
+from app.schema_filters import include_object
+
 from alembic import context
 
 # this is the Alembic Config object, which provides
@@ -65,7 +67,10 @@ def run_migrations_offline():
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url, target_metadata=get_metadata(), literal_binds=True
+        url=url,
+        target_metadata=get_metadata(),
+        literal_binds=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -93,6 +98,8 @@ def run_migrations_online():
     conf_args = current_app.extensions['migrate'].configure_args
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
+    if conf_args.get("include_object") is None:
+        conf_args["include_object"] = include_object
 
     connectable = get_engine()
 

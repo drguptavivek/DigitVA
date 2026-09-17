@@ -34,6 +34,16 @@ class VaSubmissionPayloadVersion(db.Model):
             unique=True,
             postgresql_where=sa.text("version_status = 'active'"),
         ),
+        sa.Index(
+            "ix_va_submission_payload_versions_sid_fingerprint",
+            "va_sid",
+            "payload_fingerprint",
+        ),
+        sa.Index(
+            "ix_va_submission_payload_versions_sid_status",
+            "va_sid",
+            "version_status",
+        ),
     )
 
     payload_version_id: so.Mapped[UUID] = so.mapped_column(

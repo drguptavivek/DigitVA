@@ -9,6 +9,18 @@ class VaSyncRun(db.Model):
     """Records each ODK sync run — start time, outcome, and submission metrics."""
 
     __tablename__ = "va_sync_runs"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_sync_runs_status_started_at",
+            "status",
+            sa.text("started_at DESC"),
+        ),
+        sa.Index(
+            "ix_va_sync_runs_triggered_by_started_at",
+            "triggered_by",
+            sa.text("started_at DESC"),
+        ),
+    )
 
     sync_run_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, primary_key=True

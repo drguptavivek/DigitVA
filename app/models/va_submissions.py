@@ -16,6 +16,13 @@ class VaSubmissions(db.Model):
             name="fk_va_submissions_active_payload_version_id",
             use_alter=True,
         ),
+        # Case-insensitive language filter for the coding intake queue.
+        sa.Index(
+            "ix_va_submissions_form_lower_language_sid",
+            "va_form_id",
+            sa.text("lower(va_narration_language::text)"),
+            "va_sid",
+        ),
     )
     va_sid: so.Mapped[str] = so.mapped_column(
         sa.String(64), primary_key=True, index=True

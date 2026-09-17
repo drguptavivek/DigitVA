@@ -11,6 +11,21 @@ from app import db
 
 class VaSubmissionUpstreamChange(db.Model):
     __tablename__ = "va_submission_upstream_changes"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_submission_upstream_changes_sid_status_created",
+            "va_sid",
+            "resolution_status",
+            "created_at",
+        ),
+        # At most one pending upstream change per submission.
+        sa.Index(
+            "ux_va_submission_upstream_changes_one_pending_per_sid",
+            "va_sid",
+            unique=True,
+            postgresql_where=sa.text("resolution_status = 'pending'"),
+        ),
+    )
 
     upstream_change_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True

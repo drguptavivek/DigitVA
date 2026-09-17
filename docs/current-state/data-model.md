@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-05-04
+last_updated: 2026-09-17
 ---
 
 # Current Data Model
@@ -854,10 +854,15 @@ Key fields:
 Other important tables:
 
 - `va_users`
-- `va_project_master`
+- `va_project_master` — also carries `project_target_completion_date` (DATE, nullable), the
+  admin-set target the DM burndown KPI projects against
+  (`app/routes/api/dm_kpi/dm_kpi_burndown.py`)
 - `va_site_master`
 - `va_project_sites`
-- `va_user_access_grants`
+- `va_user_access_grants` — also carries `created_by_user_id` (UUID, nullable,
+  FK `fk_va_user_access_grants_created_by` -> `va_users.user_id`). Nothing reads or writes it
+  today; DM-created users are attributed through `va_users.other["created_by_user_id"]`
+  instead, so the column is a drop candidate rather than live state.
 - `va_usernotes`
 - `va_smartva_form_runs`
 - `va_smartva_runs`
@@ -1128,6 +1133,32 @@ Current behavior:
 - written by the `run_odk_sync` Celery task in `app/tasks/sync_tasks.py`
 - a `"running"` row is committed before sync begins so the admin dashboard can display live status
 - stale `"running"` rows older than 2 hours are marked `"error"` on worker restart
+
+## Schema Drift Guard
+
+The models must describe the live schema exactly — indexes, constraint names, foreign-key
+names and `ondelete` included — so that autogenerate has nothing to say.
+
+- **Naming convention.** `db` is constructed with a `MetaData(naming_convention=...)` in
+  `app/__init__.py`, so constraints the models leave unnamed get deterministic names. The
+  `uq` key is `%(table_name)s_%(column_0_name)s_key`, PostgreSQL's own default, rather than
+  the Alembic-standard `uq_...`: Alembic applies the convention to tables built by
+  `op.create_table` too, so the standard form would retroactively rename constraints that
+  existing migrations already created under the PostgreSQL name.
+- **Externally-owned tables.** `app/schema_filters.include_object` hides the `celery_*`
+  scheduler tables and the Flask-Session `va_sessions` table from the comparison.
+  `migrations/env.py` installs it for both the offline and online contexts.
+- **Check before committing a model change.**
+
+  ```bash
+  docker compose exec -T minerva_app_service uv run flask db check
+  ```
+
+  It is read-only and must print `No new upgrade operations detected.`
+- **Automated guard.** `tests/migrations/test_schema_drift.py` creates a throwaway database,
+  builds it with `flask db upgrade` alone (never `create_all()`), and asserts that
+  `compare_metadata` against `db.metadata` returns nothing. The rest of the suite builds its
+  schema with `create_all()` and so cannot see this class of drift.
 
 ## Key Current-State Observations
 

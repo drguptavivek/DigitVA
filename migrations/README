@@ -1,1 +1,10 @@
 Single-database configuration for Flask.
+
+Before committing a model change, run `flask db check` and confirm it prints
+"No new upgrade operations detected.":
+
+    docker compose exec -T minerva_app_service uv run flask db check
+
+The database is the source of truth. If the check reports a diff, change the models to
+match the schema rather than generating a migration, unless the schema is genuinely wrong.
+See "Schema Drift Guard" in docs/current-state/data-model.md.

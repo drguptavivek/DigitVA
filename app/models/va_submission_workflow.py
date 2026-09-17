@@ -10,6 +10,12 @@ from app import db
 
 class VaSubmissionWorkflow(db.Model):
     __tablename__ = "va_submission_workflow"
+    __table_args__ = (
+        sa.UniqueConstraint("va_sid", name="uq_va_submission_workflow_sid"),
+        sa.Index(
+            "ix_va_submission_workflow_state_va_sid", "workflow_state", "va_sid"
+        ),
+    )
 
     workflow_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True
@@ -18,7 +24,6 @@ class VaSubmissionWorkflow(db.Model):
         sa.String(64),
         sa.ForeignKey("va_submissions.va_sid", ondelete="CASCADE"),
         nullable=False,
-        unique=True,
         index=True,
     )
     workflow_state: so.Mapped[str] = so.mapped_column(

@@ -9,6 +9,13 @@ from app.models.va_selectives import VaStatuses
 
 class VaSmartvaResults(db.Model):
     __tablename__ = "va_smartva_results"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_smartva_results_sid_status_covering",
+            "va_sid",
+            "va_smartva_status",
+        ),
+    )
 
     OUTCOME_SUCCESS = "success"
     OUTCOME_FAILED = "failed"

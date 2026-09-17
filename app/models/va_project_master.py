@@ -2,7 +2,7 @@ import sqlalchemy as sa
 import sqlalchemy.orm as so
 from app import db
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from app.models.va_selectives import VaStatuses
 
 
@@ -30,6 +30,11 @@ class VaProjectMaster(db.Model):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
+    )
+    # Admin-set target date the DM burndown KPI projects against
+    # (app/routes/api/dm_kpi/dm_kpi_burndown.py).
+    project_target_completion_date: so.Mapped[Optional[date]] = so.mapped_column(
+        sa.Date(), nullable=True
     )
     narrative_qa_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"

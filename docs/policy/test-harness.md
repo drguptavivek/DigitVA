@@ -82,6 +82,11 @@ context for the entire session. Do **not** call `create_app(TestConfig)` inside
 test methods, setUp, or setUpClass. Use `from app import db` directly — the
 session-scoped context is already active.
 
+**Exception — `tests/migrations/test_schema_drift.py`.** The schema-drift guard has to
+run `flask db upgrade` against a throwaway database, which means an app whose `db` is
+bound to that database. It creates a second app deliberately, uses a nested app context,
+and never touches the shared session schema. No other test may follow it.
+
 ### 3. Tests that mock db.session do not need create_app
 
 If a test mocks `db.session` or patches `app.db`, it can use those mocks

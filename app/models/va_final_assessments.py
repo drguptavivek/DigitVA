@@ -21,7 +21,11 @@ class VaFinalAssessments(db.Model):
     )
     payload_version_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True),
-        sa.ForeignKey("va_submission_payload_versions.payload_version_id"),
+        sa.ForeignKey(
+            "va_submission_payload_versions.payload_version_id",
+            name="fk_va_final_assessments_payload_version_id",
+            ondelete="SET NULL",
+        ),
         index=True,
         nullable=True,
     )

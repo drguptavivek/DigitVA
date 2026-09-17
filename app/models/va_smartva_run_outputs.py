@@ -11,18 +11,22 @@ from app import db
 
 class VaSmartvaRunOutput(db.Model):
     __tablename__ = "va_smartva_run_outputs"
+    __table_args__ = (
+        # Legacy index names from the creating migration, kept as-is.
+        sa.Index("ix_va_smartva_run_outputs_id", "va_smartva_run_output_id"),
+        sa.Index("ix_va_smartva_run_outputs_run_id", "va_smartva_run_id"),
+        sa.Index("ix_va_smartva_run_outputs_created_at", "output_created_at"),
+    )
 
     va_smartva_run_output_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True),
         default=uuid.uuid4,
         primary_key=True,
-        index=True,
     )
     va_smartva_run_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True),
         sa.ForeignKey("va_smartva_runs.va_smartva_run_id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     output_kind: so.Mapped[str] = so.mapped_column(
         sa.String(32),
@@ -55,5 +59,4 @@ class VaSmartvaRunOutput(db.Model):
         sa.DateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
-        index=True,
     )

@@ -11,6 +11,10 @@ from app import db
 
 class VaSmartvaRun(db.Model):
     __tablename__ = "va_smartva_runs"
+    __table_args__ = (
+        # Legacy index name from the creating migration, kept as-is.
+        sa.Index("ix_va_smartva_runs_started_at", "va_smartva_run_started_at"),
+    )
 
     OUTCOME_SUCCESS = "success"
     OUTCOME_FAILED = "failed"
@@ -70,7 +74,6 @@ class VaSmartvaRun(db.Model):
         sa.DateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
-        index=True,
     )
     va_smartva_run_completed_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime,

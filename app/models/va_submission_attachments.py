@@ -15,6 +15,19 @@ class VaSubmissionAttachments(db.Model):
     """
 
     __tablename__ = "va_submission_attachments"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_submission_attachments_sid_odk",
+            "va_sid",
+            postgresql_where=sa.text("exists_on_odk IS TRUE"),
+        ),
+        sa.Index(
+            "ix_va_submission_attachments_storage_name",
+            "storage_name",
+            unique=True,
+            postgresql_where=sa.text("storage_name IS NOT NULL"),
+        ),
+    )
 
     va_sid: so.Mapped[str] = so.mapped_column(
         sa.String(64), sa.ForeignKey("va_submissions.va_sid"), primary_key=True

@@ -102,6 +102,15 @@ class VaUserAccessGrants(db.Model):
         sa.ForeignKey("va_project_sites.project_site_id"),
         nullable=True,
     )
+    # Present in the database since migration b5c6d7e8f9a0. No application code
+    # reads or writes it today — DM-created users are attributed through
+    # va_users.other["created_by_user_id"] instead. Mapped here so the models
+    # match the live schema; see docs/current-state/data-model.md.
+    created_by_user_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("va_users.user_id", name="fk_va_user_access_grants_created_by"),
+        nullable=True,
+    )
     notes: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     grant_status: so.Mapped[VaStatuses] = so.mapped_column(
         sa.Enum(VaStatuses, name="status_enum"),

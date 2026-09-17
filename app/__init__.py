@@ -12,6 +12,7 @@ from flask import Flask, g, request, redirect, session, url_for, jsonify, flash
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import MetaData
 from flask_wtf.csrf import CSRFProtect
 from flask_session import Session
 from flask_limiter import Limiter
@@ -22,7 +23,23 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from config import Config, DevelopmentConfig, TestConfig
 from celery import Celery, Task
 
-db = SQLAlchemy()
+# Deterministic names for constraints the models leave unnamed, so model metadata
+# and the live schema can be compared (see tests/migrations/test_schema_drift.py).
+#
+# Alembic also applies this convention to tables built by `op.create_table`, which
+# means it retroactively renames constraints in existing migrations. "uq" therefore
+# reproduces PostgreSQL's own default (`<table>_<column>_key`) instead of the
+# Alembic-standard `uq_...`: every unnamed unique constraint in this database
+# already carries the PostgreSQL name, and the standard form would rewrite them.
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "%(table_name)s_%(column_0_name)s_key",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+db = SQLAlchemy(metadata=MetaData(naming_convention=NAMING_CONVENTION))
 migrate = Migrate()
 login = LoginManager()
 csrf = CSRFProtect()

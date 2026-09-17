@@ -14,6 +14,9 @@ class VaSmartvaFormRun(db.Model):
             "outcome IN ('success', 'partial', 'failed')",
             name="ck_va_smartva_form_runs_outcome",
         ),
+        # Legacy index names from the creating migration, kept as-is.
+        sa.Index("ix_va_smartva_form_runs_id", "form_run_id"),
+        sa.Index("ix_va_smartva_form_runs_started_at", "run_started_at"),
     )
 
     OUTCOME_SUCCESS = "success"
@@ -24,7 +27,6 @@ class VaSmartvaFormRun(db.Model):
         sa.Uuid(as_uuid=True),
         default=uuid.uuid4,
         primary_key=True,
-        index=True,
     )
     form_id: so.Mapped[str] = so.mapped_column(
         sa.String(12),
@@ -60,7 +62,6 @@ class VaSmartvaFormRun(db.Model):
         sa.DateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
-        index=True,
     )
     run_completed_at: so.Mapped[datetime | None] = so.mapped_column(
         sa.DateTime,

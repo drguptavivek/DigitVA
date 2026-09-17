@@ -10,6 +10,24 @@ from app import db
 
 class VaSubmissionNotification(db.Model):
     __tablename__ = "va_submission_notifications"
+    __table_args__ = (
+        sa.Index(
+            "ix_va_submission_notifications_pending_lookup",
+            "upstream_change_id",
+            "notification_status",
+            "audience_role",
+            "notification_type",
+        ),
+        # At most one pending notification per (change, audience, type).
+        sa.Index(
+            "ux_va_submission_notifications_one_pending_per_audience",
+            "upstream_change_id",
+            "audience_role",
+            "notification_type",
+            unique=True,
+            postgresql_where=sa.text("notification_status = 'pending'"),
+        ),
+    )
 
     notification_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, primary_key=True, index=True

@@ -312,6 +312,7 @@ class MasPiiAccessLog(db.Model):
     __table_args__ = (
         sa.Index("idx_mas_pii_access_log_user", "user_id"),
         sa.Index("idx_mas_pii_access_log_timestamp", "accessed_at"),
+        sa.Index("ix_mas_pii_access_log_form_type_id", "form_type_id"),
     )
 
     def __repr__(self):

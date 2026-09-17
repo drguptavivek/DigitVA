@@ -9,6 +9,13 @@ from app.models.va_selectives import VaStatuses
 
 class VaReviewerFinalAssessments(db.Model):
     __tablename__ = "va_reviewer_final_assessments"
+    __table_args__ = (
+        # Legacy index name from the creating migration, kept as-is.
+        sa.Index(
+            "ix_va_reviewer_final_assessments_supersedes_coder_final_id",
+            "supersedes_coder_final_assessment_id",
+        ),
+    )
 
     va_rfinassess_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, index=True, primary_key=True
@@ -21,7 +28,11 @@ class VaReviewerFinalAssessments(db.Model):
     )
     payload_version_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True),
-        sa.ForeignKey("va_submission_payload_versions.payload_version_id"),
+        sa.ForeignKey(
+            "va_submission_payload_versions.payload_version_id",
+            name="fk_va_reviewer_final_assessments_payload_version_id",
+            ondelete="SET NULL",
+        ),
         index=True,
         nullable=True,
     )
@@ -40,7 +51,6 @@ class VaReviewerFinalAssessments(db.Model):
         so.mapped_column(
             sa.Uuid(as_uuid=True),
             sa.ForeignKey("va_final_assessments.va_finassess_id", ondelete="SET NULL"),
-            index=True,
             nullable=True,
         )
     )

@@ -56,7 +56,8 @@ Updated 2026-09-17. Policy baseline:
 | Finding 9 — literal `"null"` MIME | Done | `safe_mime_type()` at sync and delivery |
 | Finding 11 — `no-store` on attachment bytes | Done | `apply_no_store_policy()` on both routes |
 | Phase 3 — `AttachmentService` extraction | Done | All six Finding 2 call sites converge on the service; admin duplicate deleted; render sentinel decided by the service. `readiness()` is currently `present_attachment_files_by_submission()`; the richer state vocabulary arrives with Phase 2 columns. |
-| Phase 0.3–0.7 — inventory, Central version record, bucket/IAM, retention, recovery gates | Open | Operational; need the deployment's connection inventory and Central version |
+| Phase 0.4 — Central version record | Done | One mapped connection (`MINERVA`, minerva.causeofdeathindia.com): Central server `v2026.2.2`, frontend `v2026.2.4` (recorded 2026-09-17). Post-`v2026.1` line, so JPEG/PNG/GIF are `Content-Disposition: inline`; above the `v2024.2.0` S3 floor. Storage mode (database-only vs S3) still to confirm. |
+| Phase 0.3, 0.5–0.7 — inventory, bucket/IAM, retention, recovery gates | Open | Operational; need the S3-or-not decision and bucket/retention choices |
 | Phase 1, 2, 4, 5, 6 | Open | Depend on the Phase 0 operational decisions |
 | `admin_sync_legacy_attachment_stats` per-row uuid5 scan | Open | Noted under **Performance Constraints**; not touched |
 

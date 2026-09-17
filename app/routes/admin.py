@@ -5437,7 +5437,7 @@ def admin_sync_backfill_stats():
         from app.models.va_submissions import VaSubmissions
         from app.models.va_submission_attachments import VaSubmissionAttachments
         from app.models.va_smartva_results import VaSmartvaResults
-        from app.services.attachment_service import resolve_local_attachment_path
+        from app.services.attachment_service import resolve_attachment_presence
 
         forms = sync_runtime_forms_from_site_mappings()
         if not forms:
@@ -5472,6 +5472,7 @@ def admin_sync_backfill_stats():
                 VaSubmissionAttachments.filename,
                 VaSubmissionAttachments.local_path,
                 VaSubmissionAttachments.storage_name,
+                VaSubmissionAttachments.store_state,
             )
             .select_from(VaSubmissionAttachments)
             .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
@@ -5488,11 +5489,12 @@ def admin_sync_backfill_stats():
             attachment_filename = (row["filename"] or "").lower()
             local_path = row["local_path"]
             storage_name = row["storage_name"]
-            row_path = resolve_local_attachment_path(
+            row_path = resolve_attachment_presence(
                 app_data_root=app_data_root,
                 form_id=form_id,
                 local_path=local_path,
                 storage_name=storage_name,
+                store_state=row["store_state"],
                 include_audit=True,
             )
             if attachment_filename == "audit.csv":

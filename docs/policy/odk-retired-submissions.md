@@ -76,9 +76,15 @@ removed from the MV.
 Central purges a deleted submission's attachments after its trash window, so a
 retired submission usually has **no remote source**. Therefore:
 
-- local attachment copies (originals and MP3 derivatives) of retired
-  submissions are **never quarantined or retired**; they are the archival
-  copy;
+- attachment copies (originals and MP3 derivatives) of retired submissions are
+  **never deleted**; they are the archival copy. The rule is about *deleting*,
+  not about which DigitVA store holds them: a retired submission's attachments
+  are uploaded into the DigitVA S3 store like any other, and that object then
+  *is* the archive;
+- moving the now-redundant local file aside is therefore permitted but is not
+  the default. `flask attachments local-quarantine` skips
+  `local_fallback_state='retained'` rows unless `--include-retained` is given,
+  and it moves files into `media/.s3-uploaded/` rather than removing them;
 - the attachment service distinguishes source state `retired` from
   `missing`: `missing` means Central reports not-found and repair may be
   queued; `retired` means the submission is gone from ODK — do not probe, do

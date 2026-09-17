@@ -58,13 +58,21 @@ Updated 2026-09-17. Policy baseline:
 | Phase 3 — `AttachmentService` extraction | Done | All six Finding 2 call sites converge on the service; admin duplicate deleted; render sentinel decided by the service. `readiness()` is currently `present_attachment_files_by_submission()`; the richer state vocabulary arrives with Phase 2 columns. |
 | Phase 0.4 — Central version record | Done | One mapped connection (`MINERVA`, minerva.causeofdeathindia.com): Central server `v2026.2.2`, frontend `v2026.2.4` (recorded 2026-09-17). Post-`v2026.1` line, so JPEG/PNG/GIF are `Content-Disposition: inline`; above the `v2024.2.0` S3 floor. Storage mode (database-only vs S3) still to confirm. |
 | Deployment mode | Decided 2026-09-17 | **Central without S3.** Originals stay in Central's PostgreSQL; MP3 derivatives stay under DigitVA `APP_DATA`. Bucket/IAM/retention/recovery-drill gates (Phase 0.5, 0.7, Phase 1 S3 steps, Phase 6 bucket restore) do not apply. The resolver still handles a Central `307` so S3 can be enabled on Central later without a DigitVA change. |
-| Retired submissions | Decided 2026-09-17 | Source state `retired`; local copies never quarantined ([policy](../policy/odk-retired-submissions.md)). |
+| Retired submissions | Decided 2026-09-17 | Source state `retired`; their attachments are **never deleted** ([policy](../policy/odk-retired-submissions.md)). They *are* uploaded into the DigitVA S3 store — that object is the archive — and the quarantine of their now-redundant local file is opt-in (`--include-retained`). |
 | Phase 2 — source/derivative state | Done | Migration `b7e4c2a91d38`: additive `source_*`, `derivative_*`, `local_fallback_state` columns on `va_submission_attachments`, backfilled from `exists_on_odk`/AMR rows/retired submissions. Sync writes them; `readiness()` and `mark_audio_derivative_stale()` exist in the service. Nothing decides on the state until Phase 4. |
 | Storage direction | Decided 2026-09-17 | **DigitVA-owned store, two copies.** DigitVA keeps its own permanent copy of every attachment — originals and MP3 derivatives — and serves from it; Central keeps its own copy and stays the source of truth for existence/content but is not the primary read path. The DigitVA store is local files under `APP_DATA` today and a DigitVA-owned bucket next phase. This supersedes the "proxy Central on every request" framing in **Delivery Design → Transport** and the Goal 3 aim of avoiding permanent DigitVA copies of ordinary images; Central is now the *ingest and repair* path, not the read path. |
 | Phase 4a — Central-backed source and store-first delivery | Done | Migration `c9a4e17b0f52`: `va_project_master.attachment_central_fetch_enabled` (default false), the per-project switch for self-healing a store miss from Central. `app/services/attachment_source_central.py` resolves the owning connection (fail-closed), fetches with `allow_redirects=False`, bounded timeouts and a request-path `guarded_odk_call` policy, classifies the response, and records `source_*` state. `attachment_service.deliver()` reads DigitVA's store first through `_store_exists`/`_store_open`/`_store_write` and tees a Central fetch into the store. Flag surfaces: `flask attachments central-fetch`, `PUT /admin/api/projects/<id>/attachment-central-fetch`, admin Projects panel. Server side only. |
+| DigitVA S3 store | Done | Migration `a4f1c07b62d9`: `va_submission_attachments.store_state` (`local`/`s3`/`absent`, default `local`, indexed). `app/services/attachment_store.py` holds the backend interface (`key_for`/`exists`/`open_local_path`/`put`/`presigned_url`/`delete`) with a local and an S3 implementation, selected once from `ATTACHMENT_STORE` and validated fail-closed at startup. Delivery serves a store hit as a `302` to a 5-minute presigned GET with the response type, disposition and cache policy fixed inside the signature; the redirect itself is `no-store`. Sync and the Central self-heal tee upload through a bounded temp file and leave `local_path` NULL. `boto3` added; tests run against `moto`. |
 | Phase 4b — frontend | Open | Preview tier, bounded client byte cache, lightbox hydration. |
-| Phase 5, 6 | Open | Sequential after Phase 4 |
+| Phase 5 | Open | Sequential after Phase 4 |
+| Phase 6 — cutover | Ready | Rewritten below as the `s3-upload` / `local-quarantine` pair. Tools exist and are tested; the operational run has not happened. |
 | `admin_sync_legacy_attachment_stats` per-row uuid5 scan | Open | Noted under **Performance Constraints**; not touched |
+
+**Queued after the S3 store (agreed 2026-09-17), in order:** (1) attachment
+management — ingest, repair and retirement pulled into the service, admin
+panel; (2) SmartVA run archival to S3 (`smartva_runs/` prefix); (3) DB dumps to
+S3 (`db-backups/` prefix, own IAM statement); (4) exports to S3. Goal: after
+these, the only stateful thing on the VM is the Postgres volume.
 
 ## Goals
 
@@ -858,22 +866,40 @@ reconciled copy during an outage. Close that fallback window at cutover.
 6. Do not add background image freshness probes or persistent image validators.
    Listing/availability metadata remains distinct from content-change tracking.
 
-### Phase 6 — Cutover and local-file retirement
+### Phase 6 — Cutover to the DigitVA S3 store
 
-1. Reconcile the small existing attachment inventory once and verify delivery
-   through Central, with no unexplained local-fallback dependence. Do not build
-   ongoing image freshness reconciliation for this migration.
-2. Run a restore drill for Central database/configuration, including external
-   original storage when configured, and DigitVA derivatives in either mode.
-3. Move legacy local originals into a dated quarantine area; do not delete
-   them during the initial cutover.
-   Local copies belonging to submissions retired from ODK are excluded from
-   quarantine and retirement entirely; they are the archival copy
-   ([policy](../policy/odk-retired-submissions.md)).
-4. After the approved retention window and reconciliation, remove quarantined
-   originals through a separately reviewed operational action.
-5. Update laptop/server backup scope only after remote source and derivative
-   recovery are verified.
+Rewritten 2026-09-17. The earlier framing retired local files in favour of
+Central; the decided direction is the opposite — DigitVA keeps its own
+permanent copy, in its own bucket. No step deletes anything, and the only
+removal in the whole sequence is a manual one by an operator.
+
+1. Provision the bucket: private, Block Public Access on, versioning on,
+   SSE-S3, **no lifecycle expiry on current versions**, least-privilege IAM
+   scoped to the bucket and prefix. Checklist and policy JSON in
+   [runtime and operations](../current-state/runtime-and-operations.md#attachment-delivery).
+2. Set the `S3_*` keys, then `ATTACHMENT_STORE=s3`, and restart the app and
+   both Celery services. A missing key is a hard startup failure; there is no
+   silent fallback to local disk. New sync downloads now go to the bucket.
+3. `flask attachments s3-upload --dry-run`, then for real. It streams each
+   local blob into the bucket with the right content type, verifies size and
+   (for single-part uploads) ETag against the local MD5, and only then sets
+   `store_state='s3'`, `local_path=NULL`. Idempotent, resumable, keyset-paged,
+   non-zero exit on any failure, and it never deletes a local file. Retired
+   submissions' attachments are uploaded too.
+4. `python scripts/check_attachment_integrity.py --store s3` must report zero
+   missing objects and zero rows awaiting the cutover. The check lists the
+   bucket and reports orphan keys; it never deletes.
+5. `flask attachments local-quarantine` moves each verified row's local file to
+   `APP_DATA/<form_id>/media/.s3-uploaded/` and marks it `quarantined`. A row
+   whose object is not in the bucket is left alone. `retained` archival copies
+   are skipped unless `--include-retained` is given.
+6. Retention: leave the quarantined files for an agreed window — at least one
+   full backup cycle — while watching delivery outcomes and counters.
+7. Remove them by hand, after a verified backup. Deliberately not a command in
+   the application.
+8. Update backup scope: the bucket is now a primary data store and belongs in
+   the backup plan alongside the database. An app-server disk backup no longer
+   covers attachments.
 
 ## Failure and Rollback Strategy
 

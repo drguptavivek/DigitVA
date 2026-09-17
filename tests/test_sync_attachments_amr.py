@@ -127,6 +127,7 @@ class AmrSyncStateWriteTests(TestCase):
             etag="new-etag",
             last_downloaded_at=downloaded_at,
             storage_name="new-token.mp3",
+            store_state="local",
         )
 
         self._apply(record, "narration.amr", {"changes": [change]})
@@ -151,6 +152,7 @@ class AmrSyncStateWriteTests(TestCase):
             etag="new-etag",
             last_downloaded_at=datetime(2026, 9, 17, 10, 0, tzinfo=timezone.utc),
             storage_name="new-token.jpg",
+            store_state="local",
         )
 
         self._apply(record, "photo.jpg", {"changes": [change]})
@@ -169,6 +171,7 @@ class AmrSyncStateWriteTests(TestCase):
             etag=None,
             last_downloaded_at=None,
             storage_name=None,
+            store_state="local",
         )
 
         self._apply(record, "narration.amr", {"changes": [change]})
@@ -199,6 +202,7 @@ class AmrSyncStateWriteTests(TestCase):
             etag="new-etag",
             last_downloaded_at=datetime(2026, 9, 17, 10, 0, tzinfo=timezone.utc),
             storage_name="new-token.mp3",
+            store_state="local",
         )
         result = SubmissionAttachmentSyncResult(
             va_sid=self.SID,

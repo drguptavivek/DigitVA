@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 import uuid
 
@@ -12,7 +11,7 @@ from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.decorators import va_validate_permissions
 from app.decorators import role_required
 from flask_login import current_user, login_required
-from flask import Blueprint, render_template, current_app, send_file, send_from_directory, flash, redirect, url_for, jsonify, request, abort, make_response
+from flask import Blueprint, render_template, current_app, send_file, flash, redirect, url_for, jsonify, request, abort, make_response
 from werkzeug.utils import secure_filename
 from app.utils import va_get_form_type_code_for_form, va_render_processcategorydata, va_permission_abortwithflash
 from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
@@ -1380,16 +1379,22 @@ def serve_media(va_form_id, va_filename):
 
     # Ownership must resolve before any authorization decision (the previous
     # missing-record branch skipped the allocation check entirely).
-    att_sid = db.session.execute(
-        sa.select(VaSubmissionAttachments.va_sid)
+    att_row = db.session.execute(
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.mime_type,
+        )
         .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
         .where(
             VaSubmissions.va_form_id == va_form_id,
             VaSubmissionAttachments.filename == va_filename,
         )
-    ).scalar_one_or_none()
-    if not att_sid:
+    ).first()
+    if att_row is None:
         abort(404)
+    att_sid = att_row.va_sid
 
     # Same role matrix as /attachment; evaluated fresh, never cached.
     if not attachment_service.can_access_submission_attachment(
@@ -1410,11 +1415,19 @@ def serve_media(va_form_id, va_filename):
     if '..' in va_filename or va_filename.startswith('/') or va_filename.startswith('\\'):
         abort(400, description="Invalid filename")
 
-    media_base = os.path.join(
-        current_app.config["APP_DATA"], va_form_id, "media"
+    # Same store as /attachment. A legacy row has no storage_name, so the
+    # sanitized ODK filename is the object name under the form's media
+    # directory — exactly what this route used to send directly. With the S3
+    # store such a row has no object and the result is a 404, not a presign.
+    record = attachment_service.AttachmentRecord(
+        va_sid=att_sid,
+        va_form_id=va_form_id,
+        storage_name=att_row.storage_name or safe_filename,
+        filename=va_filename,
+        local_path=att_row.local_path,
+        mime_type=att_row.mime_type,
     )
-    response = send_from_directory(media_base, safe_filename)
-    return attachment_service.apply_no_store_policy(response)
+    return attachment_service.deliver_legacy_media(record)
 
 
 

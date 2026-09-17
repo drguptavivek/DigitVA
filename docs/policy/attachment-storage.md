@@ -22,9 +22,10 @@ described in [the Central S3 attachment plan](../planning/s3-attachment-plan.md)
   the MP3 derivatives it makes from `.amr` narration — in a DigitVA-owned
   store, and that store is the read path. Central is consulted only to fill a
   store miss, never on every request.
-- The store is local files under `APP_DATA/<form_id>/media/` today and a
-  DigitVA-owned bucket in a later phase. Nothing outside
-  `app/services/attachment_service.py` knows which.
+- The store is either local files under `APP_DATA/<form_id>/media/` or a
+  private DigitVA-owned S3 bucket, selected once by `ATTACHMENT_STORE` and
+  implemented in `app/services/attachment_store.py`. Nothing outside the
+  attachment module knows which.
 - The opaque `storage_name` token is an **identifier, never a capability**.
   Legacy backfilled tokens are deterministically derivable from `va_sid` and
   filename, so possession of a token grants nothing on its own.
@@ -44,7 +45,10 @@ All attachment decisions live in
 | Mark an audio derivative as needing a rebuild | `mark_audio_derivative_stale()` |
 | Visibility check without submission identity | `is_attachment_present_for_form()` |
 | Filesystem inventory for the integrity script | `scan_local_media_files()` |
+| Bulk presence identity for one row | `resolve_attachment_presence()` |
+| Store backend interface | `attachment_store.get_attachment_store()` |
 | Store lookup / read / tee-write | `_store_exists()` / `_store_open()` / `_store_write()` |
+| Store-backed delivery of a legacy `/media` row | `deliver_legacy_media()` |
 | Delivery, store first and Central self-heal | `deliver()` |
 | Store-only delivery (never reaches Central) | `deliver_local_attachment()` |
 
@@ -60,6 +64,62 @@ Rules:
   **record** — ownership, path, MIME — never a locator that can expire, and
   never an authorization decision. Cache entries lacking ownership are treated
   as misses.
+
+## Store backends
+
+`ATTACHMENT_STORE` selects one backend for the process. It is validated at
+startup: with `s3`, every one of `S3_SERVER`, `S3_BUCKET`, `S3_REGION`,
+`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` must be present or **the app refuses
+to start**. There is no silent fallback to local disk — that would scatter PHI
+across app servers that are expected to hold nothing. Secrets come from the
+environment and are never logged, echoed by a command, or sent to a client.
+
+Both backends implement the same interface in
+[`app/services/attachment_store.py`](../../app/services/attachment_store.py):
+
+| Operation | Meaning |
+|---|---|
+| `key_for(record)` | `<S3_PREFIX><form_id>/media/<storage_name>` (the prefix is empty for the local store, whose key is the path relative to `APP_DATA`). `None` for a row with no `storage_name`. |
+| `exists(record)` | Local: the file resolves inside the form's media directory. S3: `head_object` on the key. |
+| `open_local_path(record)` | The file's path for the local store; always `None` for S3. |
+| `put(record, source, *, content_type)` | Store one object from a file path, a readable stream, or an iterable of chunks. |
+| `presigned_url(record, *, content_type, filename)` | S3 only; `None` for the local store and `None` for any row without a `storage_name`. |
+| `delete(record)` | **Explicit tooling and superseded-object cleanup only.** Never called by delivery, and never by sync for anything but a key the row no longer points at. |
+
+### Key layout
+
+`<S3_PREFIX><form_id>/media/<storage_name>` — the same shape as the local
+directory layout, so an object and a file are addressed identically. The
+`storage_name` is the opaque serving token, never the original ODK filename.
+A row without a `storage_name` (legacy, pre-token) has no key and **is never
+presigned**.
+
+### Object metadata
+
+Every uploaded object carries:
+
+- `Content-Type` — DigitVA's validated MIME. `derivative_mime_type` for an
+  `.amr` row (whose blob is the MP3), `source_mime_type` otherwise, then the
+  stored `mime_type`, then a guess from the storage name's extension, then
+  `application/octet-stream`. A literal `"null"` from upstream is never stored.
+- `Cache-Control: private, no-store` — so the policy holds even for a fetch
+  this process did not sign.
+- `Content-Disposition: inline`.
+- `ServerSideEncryption: AES256` (SSE-S3), in addition to the bucket default.
+
+### Never delete
+
+- No object is ever deleted by delivery, by presence checks, by readiness, or
+  by the integrity check.
+- Sync deletes only a *superseded* object — the key under an old
+  `storage_name`, and only after the row already points at the new key and no
+  other live row references the old one. A failed delete is logged and becomes
+  an orphan key the integrity check reports; it never fails a sync.
+- Attachments of submissions retired from ODK are uploaded like any other:
+  their object **is** the archive.
+- `flask attachments s3-upload` and `local-quarantine` never delete anything.
+  The retention removal of quarantined local files is a manual step, taken by
+  an operator after a verified backup.
 
 ## Authorization matrix
 
@@ -93,7 +153,7 @@ the route; delivery only decides where the bytes come from.
 
 | Step | Condition | Result |
 |---|---|---|
-| 1 | The store holds the object | Serve it. Central is not contacted. Outcome `local`. |
+| 1 | The store holds the object | Serve it. Central is not contacted. Outcome `local`. Local store: `send_file`. S3 store: `302` to a presigned GET. |
 | 2 | Store miss, submission retired ([policy](odk-retired-submissions.md)) | `404`. Central is never contacted for a retired submission. |
 | 2 | Store miss, the row is an MP3 derivative (`.amr` original) | `404`. Central holds the AMR, not DigitVA's MP3; sync rebuilds it. |
 | 2 | Store miss, `attachment_central_fetch_enabled` is false | `404`, exactly as before the flag existed. |
@@ -146,6 +206,30 @@ Other rules:
   query strings, headers, credentials, and payloads are never logged.
   In-process counters are available through `delivery_counters()`.
 
+### Presigned delivery (S3 store)
+
+The DigitVA route stays the **only** URL that appears in any page. After
+authentication and the authorization matrix, delivery issues a `302` to a URL
+signed for that one request:
+
+- expiry `ATTACHMENT_PRESIGN_EXPIRY_SECONDS`, default **300 seconds**;
+- `ResponseContentType`, `ResponseContentDisposition`
+  (`inline; filename="<storage_name>"`) and `ResponseCacheControl`
+  (`private, no-store`) are fixed **inside the signature**, so a signed URL
+  cannot be replayed with a different type or disposition;
+- the signed URL is never rendered into a page, stored, cached, or logged. It
+  exists for the duration of one redirect;
+- the redirect response itself carries `Cache-Control: private, no-store,
+  max-age=0`, so a browser re-runs the authorized DigitVA request rather than
+  replaying a stale signature;
+- `Range` requests — what audio playback uses — are answered by S3 natively;
+- the bucket's origins are added to the `img-src` and `media-src` content
+  security policy directives when the S3 store is selected, because the browser
+  applies them to the final URL of a redirect.
+
+A row with no `storage_name` is never presigned: it has no key, `exists()` is
+false, and delivery is a `404`.
+
 ## Central self-heal
 
 `va_project_master.attachment_central_fetch_enabled` (default false) is the
@@ -180,13 +264,22 @@ The fetch itself:
 
 ## Presence and completeness
 
-Presence for a row resolves in this order and is the single definition used by
-repair maps, admin backfill telemetry, and the integrity script:
+Presence for a row is routed through the store and is the single definition
+used by repair maps, admin backfill telemetry, and the integrity script.
+
+For a `store_state='local'` row:
 
 1. `APP_DATA/<form_id>/media/<storage_name>` when `storage_name` is set;
 2. the legacy `local_path` otherwise;
 3. `audit.csv` never counts as an attachment blob unless the caller asks for
    it explicitly (admin telemetry reports it separately).
+
+For a `store_state='s3'` row, presence **is** the stored `store_state`, and the
+identity is the object key. The bulk readiness paths deliberately trust
+`store_state` and issue **no per-row `HEAD`**: one dashboard render would
+otherwise become thousands of network calls. Object-level truth is the job of
+`scripts/check_attachment_integrity.py --store s3`, which lists the bucket once
+and reports missing objects and orphan keys without ever deleting.
 
 Category visibility checks that run without a submission identity use the
 form-level presence check; `.amr` fields are visible when the `.mp3`
@@ -252,7 +345,8 @@ and never retired), `quarantined`, `absent`.
 | Phase 4a (done) | The Central-backed source writes `available`/`missing`/`error` with `source_verified_at` and `source_error_code` on every fetch, and a self-healed object sets `local_path` and `local_fallback_state='present'`. |
 | Phase 4b | Frontend preview tier, client byte cache, and lightbox. |
 | Phase 5 | Sync stops downloading ordinary images and maintains derivative freshness through `mark_audio_derivative_stale()`. |
-| Phase 6 | Local retirement moves rows to `absent`, never touching `retained` rows. |
+| S3 store (done) | `store_state` records which store holds each row's blob. Sync uploads to the bucket and writes `store_state='s3'`, `local_path=NULL`, `local_fallback_state='absent'`; the Central self-heal tee does the same. |
+| Cutover (Phase 6, rewritten) | `flask attachments s3-upload` moves the backlog into the bucket and flips `store_state`; `flask attachments local-quarantine` moves the verified local files to `media/.s3-uploaded/` and marks them `quarantined`. Neither deletes; `retained` rows are skipped by the quarantine unless `--include-retained` is given. |
 
 `readiness(va_sids)` in the attachment service is the bulk read of this state:
 one bounded query per batch of submissions, no filesystem, no Central or S3
@@ -260,9 +354,11 @@ call. It is additive in Phase 2 and becomes the presence definition in Phase 4.
 
 ## Non-goals of this baseline
 
-- No S3. Neither Central nor DigitVA uses object storage today; the resolver
-  handles a Central `307` only so that enabling it later is not a code change,
-  and rejects one in the absence of an allowlist.
+- No S3 **at ODK Central**. This deployment runs Central without object
+  storage; the resolver handles a Central `307` only so that enabling it later
+  is not a code change, and rejects one in the absence of an allowlist.
+  DigitVA's own bucket is a separate thing and is never reached through
+  Central.
 - No change to sync downloads or to repair and KPI completeness semantics yet
   (Phase 5).
 - No image derivatives or stored thumbnails.

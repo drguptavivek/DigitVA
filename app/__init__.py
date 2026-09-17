@@ -20,7 +20,12 @@ from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from flask_caching import Cache
 from werkzeug.middleware.proxy_fix import ProxyFix
-from config import Config, DevelopmentConfig, TestConfig
+from config import (
+    Config,
+    DevelopmentConfig,
+    TestConfig,
+    validate_attachment_store_config,
+)
 from celery import Celery, Task
 
 # Deterministic names for constraints the models leave unnamed, so model metadata
@@ -89,11 +94,42 @@ def _current_user_timezone():
         return pytz.timezone("Asia/Kolkata")
 
 
+
+def _content_security_policy(app):
+    """Content security policy, widened only for the attachment bucket.
+
+    Attachment delivery is a 302 from a DigitVA URL to a presigned bucket URL,
+    and the browser applies ``img-src``/``media-src`` to the *final* URL of a
+    redirect. With the S3 store the bucket's origins therefore have to be named
+    here or every image and audio player fails silently. With the local store
+    nothing is added and the policy is unchanged.
+    """
+    from app.services.attachment_store import s3_public_origins
+
+    media_origins = ""
+    if (app.config.get("ATTACHMENT_STORE") or "").strip().lower() == "s3":
+        origins = s3_public_origins(app.config)
+        media_origins = ("" .join(f" {origin}" for origin in origins))
+    return {
+        'default-src': "'self'",
+        'script-src': "'self' 'unsafe-inline'",  # unsafe-inline needed for HTMX
+        'style-src': "'self' 'unsafe-inline'",
+        'img-src': f"'self' data:{media_origins}",
+        'media-src': f"'self'{media_origins}",
+        'font-src': "'self' data:",
+        'connect-src': "'self'",
+    }
+
+
 def create_app(config_class=None):
     if config_class is None:
         config_class = _default_config_class()
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    # Fail closed before anything can serve an attachment: an S3 store with a
+    # missing key must stop the app, never quietly fall back to local disk.
+    validate_attachment_store_config(app.config)
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -126,14 +162,7 @@ def create_app(config_class=None):
         force_https=force_https,
         strict_transport_security=True,
         strict_transport_security_max_age=31536000,
-        content_security_policy={
-            'default-src': "'self'",
-            'script-src': "'self' 'unsafe-inline'",  # unsafe-inline needed for HTMX
-            'style-src': "'self' 'unsafe-inline'",
-            'img-src': "'self' data:",
-            'font-src': "'self' data:",
-            'connect-src': "'self'",
-        },
+        content_security_policy=_content_security_policy(app),
         frame_options='SAMEORIGIN',
         x_content_type_options=True,
         x_xss_protection=True,

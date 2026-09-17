@@ -76,6 +76,7 @@ class TestOdkClientReuse(TestCase):
                     etag="new-etag",
                     last_downloaded_at=None,
                     storage_name="new-token.jpg",
+                    store_state="local",
                 )
             ],
         )
@@ -188,6 +189,7 @@ class TestOdkClientReuse(TestCase):
             project_id="PROJ01",
             odk_project_id="11",
             odk_form_id="FORM_A",
+            form_id="FORM_A",
         )
 
         with tempfile.TemporaryDirectory() as media_dir, patch(
@@ -237,6 +239,7 @@ class TestOdkClientReuse(TestCase):
             project_id="PROJ01",
             odk_project_id="11",
             odk_form_id="FORM_A",
+            form_id="FORM_A",
         )
         client_factory_calls = 0
 
@@ -283,6 +286,7 @@ class TestOdkClientReuse(TestCase):
             project_id="PROJ01",
             odk_project_id="11",
             odk_form_id="FORM_A",
+            form_id="FORM_A",
         )
         events = []
 
@@ -328,6 +332,7 @@ class TestOdkClientReuse(TestCase):
             project_id="PROJ01",
             odk_project_id="11",
             odk_form_id="FORM_A",
+            form_id="FORM_A",
         )
 
         with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
@@ -341,7 +346,10 @@ class TestOdkClientReuse(TestCase):
                 storage_name="note-token.txt",
             )
             mock_db.session.execute.return_value.all.return_value = [
-                ("uuid:abc-form01", "note.txt", '"etag-old"', local_path, "note-token.txt")
+                (
+                    "uuid:abc-form01", "note.txt", '"etag-old"', local_path,
+                    "note-token.txt", "local",
+                )
             ]
             mock_db.session.scalars.return_value.all.return_value = [existing]
             mock_db.session.flush.return_value = None

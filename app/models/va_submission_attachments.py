@@ -44,6 +44,12 @@ class VaSubmissionAttachments(db.Model):
             "derivative_state",
             postgresql_where=sa.text("derivative_state IS NOT NULL"),
         ),
+        # The cutover tool and the integrity check both select by which store
+        # holds a row's object, so that column is filtered on directly.
+        sa.Index(
+            "ix_va_submission_attachments_store_state",
+            "store_state",
+        ),
     )
 
     va_sid: so.Mapped[str] = so.mapped_column(
@@ -101,6 +107,18 @@ class VaSubmissionAttachments(db.Model):
     )
     derivative_error_code: so.Mapped[str | None] = so.mapped_column(
         sa.String(32), nullable=True
+    )
+
+    # --- Which store holds this row's object ------------------------------
+    # 'local' = a file under APP_DATA/<form_id>/media/, 's3' = an object in the
+    # DigitVA bucket (``local_path`` is NULL for those rows), 'absent' = the
+    # object has not been stored anywhere yet. Vocabulary in
+    # ``app/services/attachment_service.py``.
+    store_state: so.Mapped[str] = so.mapped_column(
+        sa.String(16),
+        nullable=False,
+        default="local",
+        server_default=sa.text("'local'"),
     )
 
     # --- Local copy under APP_DATA ----------------------------------------

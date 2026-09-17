@@ -147,3 +147,30 @@ rollback with no data change. The same switch is exposed at
 `PUT /admin/api/projects/<project_id>/attachment-central-fetch` and as a toggle
 in the admin Projects panel. See
 [the attachment storage policy](../policy/attachment-storage.md).
+
+### Local -> S3 cutover
+
+Both commands require `ATTACHMENT_STORE=s3` and refuse to run otherwise.
+Neither ever deletes an attachment.
+
+| Command | Description |
+|---------|-------------|
+| `attachments s3-upload [--form-id X] [--dry-run] [--limit N] [--workers N]` | Copy every local attachment blob that is not yet recorded as S3-stored into the bucket, verify it (size, and ETag against the local MD5 for single-part uploads), then set `store_state='s3'` and `local_path=NULL`. Streams from the file, reads rows in keyset pages, idempotent and resumable, and exits non-zero if any row failed. Local files are left in place. |
+| `attachments local-quarantine [--form-id X] [--dry-run] [--include-retained]` | Move the local file of each verified `store_state='s3'` row into `APP_DATA/<form_id>/media/.s3-uploaded/` and mark it `local_fallback_state='quarantined'`. A row whose object is not in the bucket is left alone. Archival copies of submissions retired from ODK (`local_fallback_state='retained'`) are skipped unless `--include-retained` is given. |
+
+```
+docker compose exec minerva_app_service uv run flask attachments s3-upload --dry-run
+docker compose exec minerva_app_service uv run flask attachments s3-upload --workers 8
+docker compose exec minerva_app_service uv run flask attachments local-quarantine --dry-run
+docker compose exec minerva_app_service uv run flask attachments local-quarantine
+```
+
+Verify what landed with the integrity check, which reports and never deletes:
+
+```
+docker compose exec minerva_app_service uv run python scripts/check_attachment_integrity.py --store s3
+```
+
+Removing the quarantined files after the retention window is a deliberate
+manual step — see
+[the cutover runbook](runtime-and-operations.md#attachment-delivery).

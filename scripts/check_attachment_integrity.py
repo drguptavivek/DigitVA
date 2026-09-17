@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Check attachment integrity between DB and local filesystem.
+"""Check attachment integrity between the DB and DigitVA's attachment store.
 
-Reports:
+Local store (``--store local``):
 1. Missing files for DB attachment rows (exists_on_odk=true).
 2. Orphan files on disk under APP_DATA/*/media not referenced by DB.
+
+S3 store (``--store s3``):
+1. Rows recorded as ``store_state='s3'`` whose object is not in the bucket.
+2. Keys under the configured prefix that no row references.
+3. Rows still awaiting the cutover (``store_state`` other than ``s3``).
+
+The check never deletes or overwrites anything in the bucket; orphan
+quarantining is a local-store-only affordance.
 """
 
 from __future__ import annotations
@@ -18,9 +26,11 @@ import sqlalchemy as sa
 from app import create_app, db
 from app.models import VaSubmissionAttachments, VaSubmissions
 from app.services.attachment_service import (
+    STORE_STATE_S3,
     local_attachment_file_exists,
     scan_local_media_files,
 )
+from app.services.attachment_store import StoreTarget, get_attachment_store
 
 
 def _normalized_path(app_data: Path, raw_path: str | None) -> Path | None:
@@ -186,6 +196,89 @@ def run_check(
         return 0 if not missing_rows and not orphan_paths else 2
 
 
+def run_s3_check(form_id: str | None, max_report: int) -> int:
+    """Compare the rows recorded as S3-stored against what the bucket holds.
+
+    Both sides are bounded: rows are streamed with ``yield_per`` and keys are
+    read one ``list_objects_v2`` page at a time, so neither a large table nor a
+    large bucket is materialised. Nothing is written or deleted.
+    """
+    app = create_app()
+    with app.app_context():
+        store = get_attachment_store()
+        if store.name != STORE_STATE_S3:
+            print("ATTACHMENT_STORE is not 's3'; nothing to check against a bucket.")
+            return 1
+
+        stmt = (
+            sa.select(
+                VaSubmissionAttachments.va_sid,
+                VaSubmissionAttachments.filename,
+                VaSubmissionAttachments.storage_name,
+                VaSubmissionAttachments.store_state,
+                VaSubmissions.va_form_id,
+            )
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .where(VaSubmissionAttachments.exists_on_odk.is_(True))
+            .order_by(VaSubmissions.va_form_id, VaSubmissionAttachments.va_sid)
+        )
+        if form_id:
+            stmt = stmt.where(VaSubmissions.va_form_id == form_id)
+
+        expected: dict[str, tuple[str, str, str]] = {}
+        not_yet_uploaded: list[tuple[str, str, str]] = []
+        row_count = 0
+        for row in db.session.execute(stmt).yield_per(500):
+            row_count += 1
+            if not row.storage_name:
+                continue
+            key = store.key_for(
+                StoreTarget(va_form_id=row.va_form_id, storage_name=row.storage_name)
+            )
+            if row.store_state != STORE_STATE_S3:
+                not_yet_uploaded.append((row.va_form_id, row.va_sid, row.filename))
+                continue
+            expected[key] = (row.va_form_id, row.va_sid, row.filename)
+
+        present_keys: set[str] = set()
+        key_count = 0
+        for key, _size, _etag in store.iter_keys():
+            key_count += 1
+            present_keys.add(key)
+
+        missing = [(key, meta) for key, meta in expected.items() if key not in present_keys]
+        orphans = sorted(present_keys - set(expected))
+
+        print("Attachment Integrity Check (S3 store)")
+        print(f"Bucket prefix: {store.key_prefix or '(none)'}")
+        print(f"Scope form_id: {form_id or 'ALL'}")
+        print(f"DB attachment rows scanned: {row_count}")
+        print(f"Keys listed under the prefix: {key_count}")
+        print("")
+        print(f"Rows recorded as s3 with no object: {len(missing)}")
+        print(f"Orphan keys not referenced by any row: {len(orphans)}")
+        print(f"Rows still awaiting the cutover: {len(not_yet_uploaded)}")
+
+        if missing:
+            print("")
+            print(f"Sample missing objects (max {max_report}):")
+            for key, (row_form_id, va_sid, filename) in missing[:max_report]:
+                print(f"- [{row_form_id}] {va_sid} :: {filename} key={key}")
+
+        if orphans:
+            print("")
+            print(f"Sample orphan keys (max {max_report}):")
+            for key in orphans[:max_report]:
+                print(f"- {key}")
+
+        if not_yet_uploaded:
+            print("")
+            print(f"Sample rows awaiting the cutover (max {max_report}):")
+            for row_form_id, va_sid, filename in not_yet_uploaded[:max_report]:
+                print(f"- [{row_form_id}] {va_sid} :: {filename}")
+
+        return 0 if not missing and not orphans else 2
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Check missing attachment files and orphan files in APP_DATA."
@@ -206,7 +299,17 @@ def main() -> None:
         action="store_true",
         help="Move orphaned files into a .orphaned subdirectory under each media folder.",
     )
+    parser.add_argument(
+        "--store",
+        choices=("local", "s3"),
+        default="local",
+        help="Which attachment store to check (default: local).",
+    )
     args = parser.parse_args()
+    if args.store == "s3":
+        if args.quarantine_orphans:
+            parser.error("--quarantine-orphans is local-store only; the S3 check never writes.")
+        raise SystemExit(run_s3_check(args.form_id, args.max_report))
     raise SystemExit(run_check(args.form_id, args.max_report, args.quarantine_orphans))
 
 

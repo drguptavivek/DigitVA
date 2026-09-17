@@ -1,12 +1,83 @@
 import os
+import re
 import tempfile
-import redis
 from datetime import timedelta
+from urllib.parse import urlparse
+
+import redis
 from dotenv import load_dotenv
 
 load_dotenv()
 
 basedir = os.path.abspath(os.path.dirname(__file__))
+
+
+# --- Attachment object store -------------------------------------------------
+# DigitVA keeps its own permanent copy of every attachment. ``ATTACHMENT_STORE``
+# selects the backend: local files under APP_DATA (development, tests, and the
+# pre-cutover state) or a private DigitVA-owned S3 bucket.
+# Baseline: docs/policy/attachment-storage.md.
+
+ATTACHMENT_STORE_LOCAL = "local"
+ATTACHMENT_STORE_S3 = "s3"
+ATTACHMENT_STORES = (ATTACHMENT_STORE_LOCAL, ATTACHMENT_STORE_S3)
+
+# Names only — values are secrets and are never logged or echoed.
+REQUIRED_S3_CONFIG_KEYS = (
+    "S3_SERVER",
+    "S3_BUCKET",
+    "S3_REGION",
+    "S3_ACCESS_KEY_ID",
+    "S3_SECRET_ACCESS_KEY",
+)
+
+_AWS_S3_HOST_RE = re.compile(r"^s3[.-]([a-z0-9-]+)\.amazonaws\.com$", re.IGNORECASE)
+
+
+def _region_from_s3_server(server: str) -> str:
+    """Derive the region from an AWS endpoint host, else "".
+
+    ``https://s3.ap-south-1.amazonaws.com`` -> ``ap-south-1``. A non-AWS or
+    unrecognised endpoint returns "" so that S3_REGION becomes required.
+    """
+    if not server:
+        return ""
+    host = urlparse(server if "//" in server else f"https://{server}").hostname or ""
+    match = _AWS_S3_HOST_RE.match(host)
+    return match.group(1).lower() if match else ""
+
+
+def validate_attachment_store_config(config) -> None:
+    """Fail closed at startup when the selected attachment store is unusable.
+
+    Called from ``create_app``. With ``ATTACHMENT_STORE=s3`` every required key
+    must be present: a missing key is a hard startup error, never a silent
+    fallback to local disk, because that would scatter PHI across app servers
+    that are expected to hold nothing. Only key *names* appear in the message.
+    """
+    store = (config.get("ATTACHMENT_STORE") or "").strip().lower()
+    if store not in ATTACHMENT_STORES:
+        raise RuntimeError(
+            f"ATTACHMENT_STORE must be one of {', '.join(ATTACHMENT_STORES)}; got '{store}'."
+        )
+
+    expiry = config.get("ATTACHMENT_PRESIGN_EXPIRY_SECONDS")
+    if not isinstance(expiry, int) or not (1 <= expiry <= 604800):
+        raise RuntimeError(
+            "ATTACHMENT_PRESIGN_EXPIRY_SECONDS must be an integer between 1 and 604800."
+        )
+
+    if store != ATTACHMENT_STORE_S3:
+        return
+
+    missing = [key for key in REQUIRED_S3_CONFIG_KEYS if not config.get(key)]
+    if missing:
+        raise RuntimeError(
+            "ATTACHMENT_STORE=s3 requires these environment variables: "
+            + ", ".join(missing)
+            + ". Set them or switch ATTACHMENT_STORE back to 'local'; "
+            "DigitVA never falls back to local disk silently."
+        )
 
 
 def _require_env(key: str) -> str:
@@ -105,6 +176,30 @@ class Config:
     # interval before giving up (see OdkRequestSlotBusyError). 0 = never wait.
     ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS = float(
         os.environ.get("ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS", "1")
+    )
+
+    # --- Attachment object store ---------------------------------------
+    # 'local' keeps the historical files under APP_DATA/<form_id>/media/.
+    # 's3' puts every original and MP3 derivative in a private DigitVA-owned
+    # bucket and delivers each one as a short-lived presigned redirect.
+    # Validated by validate_attachment_store_config() at app startup.
+    ATTACHMENT_STORE = os.environ.get("ATTACHMENT_STORE", ATTACHMENT_STORE_LOCAL).strip().lower()
+    # Endpoint URL, e.g. https://s3.ap-south-1.amazonaws.com
+    S3_SERVER = os.environ.get("S3_SERVER", "").strip()
+    S3_BUCKET = os.environ.get("S3_BUCKET", "").strip()
+    # Derived from the endpoint host when it is an AWS one; otherwise required.
+    S3_REGION = (
+        os.environ.get("S3_REGION", "").strip() or _region_from_s3_server(S3_SERVER)
+    )
+    # Secrets: read from the environment, never logged and never sent to a client.
+    S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", "")
+    S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", "")
+    # Optional key prefix inside the bucket, e.g. "digitva/" (empty by default).
+    S3_PREFIX = os.environ.get("S3_PREFIX", "")
+    # Lifetime of a delivery presigned URL. Short by design: the URL is a
+    # bearer capability for PHI bytes and is never stored, cached or logged.
+    ATTACHMENT_PRESIGN_EXPIRY_SECONDS = int(
+        os.environ.get("ATTACHMENT_PRESIGN_EXPIRY_SECONDS", "300")
     )
 
     # Email (SMTP)
@@ -223,6 +318,21 @@ class TestConfig(Config):
     ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS = 1.0
     ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS = 5.0
     ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS = 0.0
+    # The suite runs against the local store by default so the existing
+    # attachment tests keep their disk semantics. The S3 test classes flip
+    # ATTACHMENT_STORE themselves and run entirely inside moto, which
+    # intercepts botocore before any socket is opened. The endpoint has to be
+    # AWS-shaped for moto to recognise the service; the bucket does not exist
+    # and the credentials below are obvious fakes, so a test that forgot to
+    # start the mock fails to authenticate rather than touching real data.
+    ATTACHMENT_STORE = ATTACHMENT_STORE_LOCAL
+    S3_SERVER = "https://s3.ap-south-1.amazonaws.com"
+    S3_BUCKET = "digitva-test-attachments"
+    S3_REGION = "ap-south-1"
+    S3_ACCESS_KEY_ID = "testing-access-key"
+    S3_SECRET_ACCESS_KEY = "testing-secret-key"
+    S3_PREFIX = ""
+    ATTACHMENT_PRESIGN_EXPIRY_SECONDS = 300
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = False
     HIBP_PASSWORD_BREACH_CHECK_TIMEOUT_SECONDS = 1.0
     MAIL_SUPPRESS_SEND = True

@@ -9,8 +9,10 @@ these functions; none of them touch the attachment filesystem directly.
 source changes stay inside this module. Phase 4a fills it in: DigitVA keeps its
 own permanent copy of every attachment and serves from that store, and ODK
 Central — the source of truth for existence and content — is consulted only to
-fill a store miss, per project and behind a flag. The store is local files
-today and a DigitVA-owned bucket next phase; delivery does not know which.
+fill a store miss, per project and behind a flag. The store itself lives in
+``app/services/attachment_store.py`` — local files or a DigitVA-owned S3
+bucket, selected by ``ATTACHMENT_STORE``. Only delivery knows the difference,
+and only because it must choose between sending a file and issuing a redirect.
 
 Policy baseline: ``docs/policy/attachment-storage.md``.
 """
@@ -20,6 +22,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import tempfile
 import threading
 import time
 import uuid
@@ -28,7 +31,7 @@ from datetime import datetime
 from pathlib import Path
 
 import sqlalchemy as sa
-from flask import abort, current_app, send_file, stream_with_context
+from flask import abort, current_app, g, redirect, send_file, stream_with_context
 
 from app import db, cache as flask_cache
 from app.models import (
@@ -117,6 +120,15 @@ LOCAL_ABSENT = "absent"
 LOCAL_FALLBACK_STATES = frozenset({
     LOCAL_PRESENT, LOCAL_RETAINED, LOCAL_QUARANTINED, LOCAL_ABSENT,
 })
+
+# Which store holds the row's object. ``local`` rows keep a file under
+# APP_DATA; ``s3`` rows have an object in the DigitVA bucket and a NULL
+# ``local_path``; ``absent`` rows have no object anywhere yet.
+STORE_STATE_LOCAL = "local"
+STORE_STATE_S3 = "s3"
+STORE_STATE_ABSENT = "absent"
+
+STORE_STATES = frozenset({STORE_STATE_LOCAL, STORE_STATE_S3, STORE_STATE_ABSENT})
 
 # readiness() reads whole submissions at a time; a caller passing a very long
 # sid list is batched rather than issuing one unbounded IN (...).
@@ -305,14 +317,62 @@ def resolve_local_attachment_path(
     return None
 
 
+def resolve_attachment_presence(
+    *,
+    app_data_root: str | None,
+    form_id: str,
+    local_path: str | None,
+    storage_name: str | None,
+    store_state: str | None,
+    include_audit: bool = False,
+) -> str | None:
+    """Return an opaque presence identity for one row, or None when absent.
+
+    This is the bulk-presence definition, routed through the store rather than
+    through the filesystem:
+
+    * ``store_state='s3'`` — presence is the stored state itself and the
+      identity is the object key. The bulk paths deliberately **trust
+      ``store_state`` and never HEAD each row**: a per-row HEAD would turn one
+      dashboard render into thousands of network calls. Object-level truth is
+      the integrity script's job (``--store s3``), not a request path's.
+    * anything else — the historical disk resolution, whose identity is the
+      absolute file path.
+
+    Callers only ever test the result for truthiness or deduplicate it, so the
+    identity's shape is not part of the contract.
+    """
+    if store_state == STORE_STATE_S3:
+        if not storage_name:
+            return None
+        if not include_audit and (storage_name or "").lower() == AUDIT_FILENAME:
+            return None
+        from app.services.attachment_store import get_attachment_store
+
+        return get_attachment_store().key_for(
+            AttachmentRecord(
+                va_sid="", va_form_id=form_id, storage_name=storage_name,
+                filename="", local_path=None, mime_type=None,
+            )
+        )
+    return resolve_local_attachment_path(
+        app_data_root=app_data_root,
+        form_id=form_id,
+        local_path=local_path,
+        storage_name=storage_name,
+        include_audit=include_audit,
+    )
+
+
 def present_attachment_files_by_submission(
     form_id: str,
     *,
     target_sids: list[str] | None = None,
 ) -> dict[str, set[str]]:
-    """Bulk readiness read: deduplicated present attachment file paths per submission.
+    """Bulk readiness read: deduplicated present attachment identities per submission.
 
-    Reads attachment rows once and resolves presence for each; no network calls.
+    Reads attachment rows once and resolves presence for each; no network calls
+    and no per-row store probe (see ``resolve_attachment_presence``).
     """
     app_data_root = current_app.config.get("APP_DATA")
     stmt = (
@@ -320,6 +380,7 @@ def present_attachment_files_by_submission(
             VaSubmissionAttachments.va_sid,
             VaSubmissionAttachments.local_path,
             VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.store_state,
         )
         .select_from(VaSubmissionAttachments)
         .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
@@ -333,15 +394,16 @@ def present_attachment_files_by_submission(
 
     present_files_by_sid: dict[str, set[str]] = {}
     for row in db.session.execute(stmt).mappings().all():
-        resolved_path = resolve_local_attachment_path(
+        identity = resolve_attachment_presence(
             app_data_root=app_data_root,
             form_id=form_id,
             local_path=row["local_path"],
             storage_name=row["storage_name"],
+            store_state=row["store_state"],
         )
-        if not resolved_path:
+        if not identity:
             continue
-        present_files_by_sid.setdefault(row["va_sid"], set()).add(resolved_path)
+        present_files_by_sid.setdefault(row["va_sid"], set()).add(identity)
     return present_files_by_sid
 
 
@@ -350,11 +412,49 @@ def is_attachment_present_for_form(va_form_id: str, filename: str) -> bool:
 
     Mirrors the historical render-layer rule: an ``.amr`` field is visible when
     its ``.mp3`` derivative is present under the form's media directory.
+
+    With the S3 store there is no file to stat, so presence is the stored
+    ``store_state`` of any row for that form and filename. The render loop asks
+    about a handful of distinct attachment fields per category, so the answer
+    is memoised per request and each miss costs one ``LIMIT 1`` lookup on the
+    form index rather than a query per field per row.
     """
-    if filename.lower().endswith(".amr"):
-        filename = filename[: -len(".amr")] + ".mp3"
-    disk_path = os.path.join(current_app.config["APP_DATA"], va_form_id, "media", filename)
-    return os.path.exists(disk_path)
+    from app.services.attachment_store import get_attachment_store
+
+    if get_attachment_store().name != STORE_STATE_S3:
+        if filename.lower().endswith(".amr"):
+            filename = filename[: -len(".amr")] + ".mp3"
+        disk_path = os.path.join(current_app.config["APP_DATA"], va_form_id, "media", filename)
+        return os.path.exists(disk_path)
+
+    memo_key = (va_form_id, filename)
+    memo = getattr(g, "_attachment_form_presence", None)
+    if memo is None:
+        memo = g._attachment_form_presence = {}
+    if memo_key in memo:
+        return memo[memo_key]
+
+    # An .amr field is visible through its MP3 derivative, which is stored
+    # against the .amr row: match either spelling.
+    base, _, ext = filename.rpartition(".")
+    candidates = {filename}
+    if ext.lower() in ("amr", "mp3") and base:
+        candidates |= {f"{base}.amr", f"{base}.mp3"}
+
+    present = bool(db.session.scalar(
+        sa.select(sa.literal(1))
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissions.va_form_id == va_form_id,
+            VaSubmissionAttachments.filename.in_(sorted(candidates)),
+            VaSubmissionAttachments.exists_on_odk.is_(True),
+            VaSubmissionAttachments.store_state == STORE_STATE_S3,
+        )
+        .limit(1)
+    ))
+    memo[memo_key] = present
+    return present
 
 
 def scan_local_media_files(app_data: Path) -> tuple[int, list[Path]]:
@@ -414,6 +514,7 @@ class Readiness:
     derivative_state: str | None
     derivative_verified_at: datetime | None
     local_fallback_state: str
+    store_state: str
 
 
 def readiness(va_sids: list[str]) -> dict[str, list[Readiness]]:
@@ -450,6 +551,7 @@ def readiness(va_sids: list[str]) -> dict[str, list[Readiness]]:
                 VaSubmissionAttachments.derivative_state,
                 VaSubmissionAttachments.derivative_verified_at,
                 VaSubmissionAttachments.local_fallback_state,
+                VaSubmissionAttachments.store_state,
             )
             .where(VaSubmissionAttachments.va_sid.in_(batch))
             .order_by(
@@ -517,10 +619,9 @@ def apply_no_store_policy(response):
 # Central stays the source of truth for existence and content, but it is only
 # consulted to *fill* the store, never on every request.
 #
-# The store is reached exclusively through the three functions below. Today
-# they are local files under ``APP_DATA/<form_id>/media/``; the next phase
-# replaces them with a DigitVA-owned S3 bucket without touching delivery or
-# the Central module.
+# The store is reached exclusively through ``attachment_store``. The helpers
+# below adapt it to delivery: reading one object, teeing a Central fetch into
+# it, and recording where the object landed.
 # ---------------------------------------------------------------------------
 
 # Bounded read/write size for proxied and persisted bodies; large media is
@@ -529,35 +630,25 @@ ATTACHMENT_STREAM_CHUNK_SIZE = 64 * 1024
 
 
 def _store_media_dir(record: AttachmentRecord) -> str:
-    return os.path.realpath(
-        os.path.join(current_app.config["APP_DATA"], record.va_form_id, "media")
-    )
+    from app.services.attachment_store import LocalAttachmentStore
+
+    return LocalAttachmentStore().media_dir(record)
 
 
 def _store_exists(record: AttachmentRecord) -> str | None:
-    """Return the stored object's path, or None when the store has no object.
+    """Local-store lookup: the stored file's path, or None.
 
-    Resolution order is the one in docs/policy/attachment-storage.md: the
-    opaque ``storage_name`` under the form's media directory first, then the
-    legacy ``local_path``. Both must resolve inside that directory.
+    Thin delegation to ``LocalAttachmentStore.open_local_path``; kept under its
+    original name for callers that specifically want a filesystem path.
+    Delivery asks the *selected* store instead.
     """
-    media_dir = _store_media_dir(record)
-    candidates = []
-    if record.storage_name:
-        candidates.append(os.path.join(media_dir, record.storage_name))
-    if record.local_path:
-        candidates.append(record.local_path)
-    for candidate in candidates:
-        resolved = os.path.realpath(candidate)
-        if not resolved.startswith(media_dir + os.sep):
-            continue
-        if os.path.isfile(resolved):
-            return resolved
-    return None
+    from app.services.attachment_store import LocalAttachmentStore
+
+    return LocalAttachmentStore().open_local_path(record)
 
 
 def _store_open(record: AttachmentRecord, path: str):
-    """Serve one stored object, with DigitVA's own cache policy.
+    """Serve one locally stored object, with DigitVA's own cache policy.
 
     ``send_file`` keeps ``Range`` support, which is what audio playback uses.
     """
@@ -566,55 +657,140 @@ def _store_open(record: AttachmentRecord, path: str):
     )
 
 
+def _store_redirect(record: AttachmentRecord, store):
+    """Redirect to a freshly signed, short-lived GET for the stored object.
+
+    The DigitVA route stays the only URL in any page: the signed URL exists
+    for the duration of this one redirect, is never rendered, stored, cached,
+    or logged, and carries its own ``no-store`` policy both in the signature
+    and on the object. The redirect itself is marked ``no-store`` so a browser
+    re-issues the authorized request instead of replaying a stale signature.
+    Range requests are answered by the bucket directly.
+    """
+    url = store.presigned_url(
+        record,
+        content_type=safe_mime_type(record.mime_type),
+        filename=_content_disposition_filename(record.storage_name),
+    )
+    if url is None:
+        return None
+    return apply_no_store_policy(redirect(url, code=302))
+
+
+def _serve_from_store(record: AttachmentRecord, store):
+    """Serve a store hit, however the selected store delivers bytes."""
+    path = store.open_local_path(record)
+    if path is not None:
+        return _store_open(record, path)
+    return _store_redirect(record, store)
+
+
 def _store_write(record: AttachmentRecord, chunks):
-    """Tee ``chunks`` into the store while they stream to the client.
+    """Tee ``chunks`` into the selected store while they stream to the client.
 
     Yields every chunk through unchanged, so the browser is not made to wait
-    for the write. The object is written to a temporary name in the same
-    directory and renamed only after the last chunk, so a failed or abandoned
-    fetch can never leave a partial object behind or be mistaken for a
-    complete one. The row is pointed at the new object afterwards; if that
-    write fails the object is still found by ``storage_name`` on the next
-    request, so delivery is never blocked on it.
+    for the write.
+
+    Local store: the object is written to a temporary name in the same
+    directory and renamed only after the last chunk.
+
+    S3 store: the chunks are spooled to a bounded temporary file — one
+    ``ATTACHMENT_STREAM_CHUNK_SIZE`` buffer in memory at a time, never the
+    whole body — and uploaded with a single ``put_object`` once the body is
+    complete. ``put_object`` replaces a key atomically, so an abandoned or
+    failed fetch leaves no object at all and never a partial one. The
+    temporary file is removed on both paths.
+
+    The row is pointed at the stored object afterwards; if that write fails the
+    object is still found by ``storage_name`` on the next request, so delivery
+    is never blocked on it.
     """
+    from app.services.attachment_store import AttachmentStoreError, get_attachment_store
+
     if not record.storage_name:
         yield from chunks
         return
 
-    media_dir = _store_media_dir(record)
-    target = os.path.join(media_dir, record.storage_name)
-    os.makedirs(media_dir, exist_ok=True)
-    tmp_path = os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}")
+    store = get_attachment_store()
+    if store.name != STORE_STATE_S3:
+        media_dir = _store_media_dir(record)
+        target = os.path.join(media_dir, record.storage_name)
+        os.makedirs(media_dir, exist_ok=True)
+        tmp_path = os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}")
 
-    handle = open(tmp_path, "wb")
+        handle = open(tmp_path, "wb")
+        completed = False
+        try:
+            for chunk in chunks:
+                handle.write(chunk)
+                yield chunk
+            handle.close()
+            handle = None
+            os.replace(tmp_path, target)
+            completed = True
+        finally:
+            if handle is not None:
+                handle.close()
+            if not completed:
+                remove_local_file_if_present(tmp_path)
+
+        _mark_stored(record, local_path=target, store_state=STORE_STATE_LOCAL)
+        return
+
+    spool = tempfile.NamedTemporaryFile(prefix="digitva_att_", delete=False)
+    tmp_path = spool.name
     completed = False
     try:
-        for chunk in chunks:
-            handle.write(chunk)
-            yield chunk
-        handle.close()
-        handle = None
-        os.replace(tmp_path, target)
-        completed = True
-    finally:
-        if handle is not None:
-            handle.close()
-        if not completed:
+        try:
+            for chunk in chunks:
+                spool.write(chunk)
+                yield chunk
+            spool.close()
+            spool = None
+            store.put(
+                record, tmp_path,
+                content_type=safe_mime_type(record.mime_type) or safe_mime_type(
+                    record.source_mime_type
+                ),
+            )
+            completed = True
+        finally:
+            if spool is not None:
+                spool.close()
             remove_local_file_if_present(tmp_path)
+    except AttachmentStoreError:
+        log.warning(
+            "attachment store: could not persist the fetched object for sid=%s",
+            record.va_sid,
+        )
+        return
 
-    _mark_stored(record, target)
+    if completed:
+        _mark_stored(record, local_path=None, store_state=STORE_STATE_S3)
 
 
-def _mark_stored(record: AttachmentRecord, path: str) -> None:
-    """Point the row at the newly stored object. Best effort by design."""
+def _mark_stored(record: AttachmentRecord, *, local_path: str | None,
+                 store_state: str) -> None:
+    """Point the row at the newly stored object. Best effort by design.
+
+    An S3-stored row keeps no file on this app server, so ``local_path`` is
+    NULL and the local copy is recorded as absent. A ``retained`` archival copy
+    is never downgraded here: delivery refuses to fetch for a retired
+    submission, so this path cannot reach one.
+    """
+    values = {"local_path": local_path, "store_state": store_state}
+    values["local_fallback_state"] = (
+        LOCAL_PRESENT if store_state == STORE_STATE_LOCAL else LOCAL_ABSENT
+    )
     try:
         db.session.execute(
             sa.update(VaSubmissionAttachments)
             .where(
                 VaSubmissionAttachments.va_sid == record.va_sid,
                 VaSubmissionAttachments.filename == record.filename,
+                VaSubmissionAttachments.local_fallback_state != LOCAL_RETAINED,
             )
-            .values(local_path=path, local_fallback_state=LOCAL_PRESENT)
+            .values(**values)
         )
         db.session.commit()
         invalidate_attachment_record(record.storage_name)
@@ -633,12 +809,36 @@ def deliver_local_attachment(record: AttachmentRecord):
     kept for callers that must never reach Central. A store miss evicts the
     record cache and reports not-found.
     """
-    path = _store_exists(record)
-    if path is None:
+    from app.services.attachment_store import get_attachment_store
+
+    store = get_attachment_store()
+    if not store.exists(record):
+        invalidate_attachment_record(record.storage_name)
+        abort(404)
+    response = _serve_from_store(record, store)
+    if response is None:
         invalidate_attachment_record(record.storage_name)
         abort(404)
     cache_attachment_record(record)
-    return _store_open(record, path)
+    return response
+
+
+def deliver_legacy_media(record: AttachmentRecord):
+    """Serve a pre-``storage_name`` attachment addressed by its ODK filename.
+
+    Backs the deprecated ``/media`` route: the same store and the same cache
+    policy, but nothing is written to the record cache because the key would
+    be a guessable filename rather than an opaque token.
+    """
+    from app.services.attachment_store import get_attachment_store
+
+    store = get_attachment_store()
+    if not store.exists(record):
+        abort(404)
+    response = _serve_from_store(record, store)
+    if response is None:
+        abort(404)
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -805,7 +1005,9 @@ def deliver(record: AttachmentRecord):
 
     Order (docs/policy/attachment-storage.md, *Delivery*):
 
-    1. DigitVA's store has the object -> serve it. Central is not contacted;
+    1. DigitVA's store has the object -> serve it. Central is not contacted.
+       The local store sends the file; the S3 store answers with a ``302`` to
+       a short-lived presigned GET;
     2. store miss, and the submission is retired, the row is an audio
        derivative, or the project's Central-fetch flag is off -> 404, exactly
        as before;
@@ -817,14 +1019,17 @@ def deliver(record: AttachmentRecord):
        configuration, or invalid-redirect failure is 502 — never a silent
        success, so a misconfiguration cannot look like normal operation.
     """
+    from app.services.attachment_store import get_attachment_store
+
     started_at = time.monotonic()
 
-    stored_path = _store_exists(record)
-    if stored_path is not None:
-        cache_attachment_record(record)
-        response = _store_open(record, stored_path)
-        _record_delivery(record, OUTCOME_LOCAL, started_at)
-        return response
+    store = get_attachment_store()
+    if store.exists(record):
+        response = _serve_from_store(record, store)
+        if response is not None:
+            cache_attachment_record(record)
+            _record_delivery(record, OUTCOME_LOCAL, started_at)
+            return response
 
     context = _delivery_context(record)
     if context.retired or not context.central_fetch_enabled or _is_audio_derivative(record):

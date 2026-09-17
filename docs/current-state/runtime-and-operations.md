@@ -204,19 +204,25 @@ DigitVA keeps its **own permanent copy** of every attachment — originals and t
 MP3 derivatives it makes — and that store is the read path for
 `/vaform/attachment/<storage_name>`. ODK Central keeps its own copy and remains
 the source of truth for existence and content, but it is not consulted on every
-request. The store is local files under `APP_DATA/<form_id>/media/` today and a
-DigitVA-owned bucket in a later phase; the delivery path does not know which,
-because the store is reached only through `_store_exists` / `_store_open` /
-`_store_write` in `app/services/attachment_service.py`.
+request. The store is either local files under `APP_DATA/<form_id>/media/` or a
+private DigitVA-owned S3 bucket, selected once by `ATTACHMENT_STORE` and
+implemented in `app/services/attachment_store.py`. Only delivery knows the
+difference, and only because it must choose between sending a file and issuing
+a redirect.
 
 Delivery order:
 
-1. the store has the object -> serve it (`Range` supported, `private, no-store`);
+1. the store has the object -> serve it. Local store: `send_file`, `Range`
+   supported, `private, no-store`. S3 store: `302` to a presigned GET, with
+   `private, no-store` on the redirect itself and `Range` answered by S3;
 2. store miss, and the submission is retired, the row is an MP3 derivative, or
    the project flag is off -> `404`, exactly as before;
 3. store miss otherwise -> fetch the original from the project's own ODK Central
    connection, stream it to the browser, and write it into the store on the way
-   past (temp file plus atomic rename, so a failed fetch leaves nothing behind);
+   past. Local store: temp file plus atomic rename. S3 store: the body is
+   spooled to a bounded temp file — one 64 KiB buffer in memory at a time — and
+   then uploaded with a single atomic `put_object`. Either way a failed fetch
+   leaves no object and no temp file;
 4. a failed fetch is `404` (Central says not-found), `503` with `Retry-After`
    (timeout, throttle, transient 5xx), or `502` (authentication, unmapped
    connection, rejected redirect) — never a silent success.
@@ -246,6 +252,96 @@ server. There is no global or default connection.
 | `ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS` | `5` | Connect timeout for a request-path fetch from Central. |
 | `ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS` | `30` | Read timeout for the same. Deliberately tighter than `ODK_READ_TIMEOUT_SECONDS`, which is the sync-path value. |
 | `ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS` | `1` | How long a request-path fetch may queue behind the shared ODK pacing interval before failing fast. Sync keeps sleeping out the full interval; a coder's image request must not occupy a worker doing that. |
+| `ATTACHMENT_STORE` | `local` | `local` or `s3`. With `s3`, every key below is required and the app refuses to start without them — it never falls back to local disk silently. |
+| `S3_SERVER` | _(unset)_ | Endpoint URL, e.g. `https://s3.ap-south-1.amazonaws.com`. |
+| `S3_BUCKET` | _(unset)_ | Bucket name. |
+| `S3_REGION` | derived | Derived from the endpoint host when it matches `s3.<region>.amazonaws.com`; otherwise required. |
+| `S3_ACCESS_KEY_ID` | _(unset)_ | Secret. Environment only; never logged. |
+| `S3_SECRET_ACCESS_KEY` | _(unset)_ | Secret. Environment only; never logged. |
+| `S3_PREFIX` | `` | Optional key prefix inside the bucket, e.g. `digitva/`. |
+| `ATTACHMENT_PRESIGN_EXPIRY_SECONDS` | `300` | Lifetime of a delivery presigned URL. |
+
+Add these to the environment template alongside the existing ODK keys; the
+values themselves belong only in the deployment's `.env` or secret store.
+
+### Bucket provisioning checklist
+
+Before setting `ATTACHMENT_STORE=s3`:
+
+1. Create the bucket in `ap-south-1`, **private**, with **Block Public Access**
+   fully enabled at both bucket and account level.
+2. Turn **versioning on**. A replaced or mistakenly deleted object is then
+   recoverable.
+3. Default encryption: **SSE-S3 (AES256)**. Every upload also sets
+   `ServerSideEncryption: AES256` explicitly.
+4. **No lifecycle expiry on current object versions.** Attachments of retired
+   submissions are the archive; nothing expires them. A noncurrent-version
+   transition or expiry rule may be added later, but only deliberately.
+5. Attach a least-privilege IAM policy to the application principal, scoped to
+   this bucket (and prefix, when `S3_PREFIX` is used) and nothing else:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DigitVaAttachmentObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::DIGITVA_BUCKET/*"
+    },
+    {
+      "Sid": "DigitVaAttachmentListing",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::DIGITVA_BUCKET"
+    }
+  ]
+}
+```
+
+   `s3:HeadObject` is covered by `s3:GetObject`. `s3:DeleteObject` is needed
+   only so sync can remove a *superseded* object after the row already points
+   at its replacement; no other code path deletes.
+
+6. Backup scope: the bucket is now a primary data store. Include it in the
+   backup plan alongside the database — versioning plus either cross-region
+   replication or a periodic inventory/restore drill. `local_path` no longer
+   points anywhere for `store_state='s3'` rows, so an app-server disk backup
+   does not cover attachments after the cutover.
+
+### Cutover runbook
+
+Reversible up to the retention step; nothing is deleted by any tool.
+
+1. **Provision** the bucket per the checklist and set the `S3_*` keys, leaving
+   `ATTACHMENT_STORE=local`.
+2. **Enable** the store: set `ATTACHMENT_STORE=s3` and restart
+   `minerva_app_service minerva_celery_worker minerva_celery_beat`. The app
+   refuses to start if a key is missing. From this point new sync downloads go
+   to the bucket; rows still marked `local` keep serving from disk.
+3. **Upload** the backlog:
+   `flask attachments s3-upload --dry-run`, then
+   `flask attachments s3-upload --workers 8`. Re-run until it exits `0`.
+4. **Verify**: `python scripts/check_attachment_integrity.py --store s3`
+   must report `0` missing objects and `0` rows awaiting the cutover.
+5. **Quarantine** the local copies:
+   `flask attachments local-quarantine --dry-run`, then without the flag.
+   Files move to `APP_DATA/<form_id>/media/.s3-uploaded/`; nothing is deleted.
+6. **Retention**: leave the quarantined files for an agreed window (at least
+   one full backup cycle) while watching delivery outcomes.
+7. **Remove** them by hand, after a verified backup, e.g.
+   `find data/*/media/.s3-uploaded -type f -delete`. This is deliberately not a
+   command in the application.
+
+Rollback before step 7: set `ATTACHMENT_STORE=local`, move the quarantined
+files back, and restart. Rows marked `store_state='s3'` will need
+`local_path`/`store_state` restored, so a rollback after a large upload is a
+data operation, not a config change — which is why steps 4 and 6 exist.
 
 ### What to watch
 
@@ -257,6 +353,8 @@ server. There is no global or default connection.
   A rising `central_stream` rate after the initial fill means the store is
   losing objects; any sustained `error` means a connection or redirect problem,
   not a missing attachment.
+- `va_submission_attachments.store_state`: `local` rows still hold a file on
+  the app server; `s3` rows do not and have a NULL `local_path`.
 - `va_submission_attachments.source_state` / `source_error_code`: `available`
   after an observed content response, `missing` when Central reports not-found,
   `error` with a category otherwise. A row already proved `available` is not

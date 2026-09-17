@@ -907,7 +907,13 @@ constants in `app/services/attachment_service.py`; all timestamps are timezone-a
 | `derivative_source_validator` | VARCHAR(128) | opaque source ETag the current MP3 was built from |
 | `derivative_verified_at` | TIMESTAMPTZ | last derivative verification |
 | `derivative_error_code` | VARCHAR(32) | e.g. `conversion_failed` |
-| `local_fallback_state` | VARCHAR(16) NOT NULL, default `present` | `present`, `retained` (archival copy of a retired submission — never quarantined), `quarantined`, `absent` |
+| `local_fallback_state` | VARCHAR(16) NOT NULL, default `present` | `present`, `retained` (archival copy of a retired submission — never deleted), `quarantined`, `absent` |
+
+Store location (added by migration `a4f1c07b62d9`):
+
+| Column | Type | Meaning |
+|---|---|---|
+| `store_state` | VARCHAR(16) NOT NULL, default `local` | which store holds the blob: `local` (a file under `APP_DATA/<form_id>/media/`), `s3` (an object in the DigitVA bucket; `local_path` is NULL for these rows), `absent` (not stored anywhere yet) |
 
 Indexes:
 
@@ -916,6 +922,8 @@ Indexes:
 - `ix_va_submission_attachments_source_state` — request-path readiness reads
 - `ix_va_submission_attachments_derivative_state` — partial, `derivative_state IS NOT NULL`,
   for repair candidate selection over the audio rows only
+- `ix_va_submission_attachments_store_state` — cutover tool and integrity check
+  select rows by which store holds their object
 
 Current behavior:
 
@@ -924,9 +932,13 @@ Current behavior:
   file, and the AMR derivative columns (including the ETag it was built from) when
   an MP3 is produced; a failed conversion records `derivative_state='error'`,
   `derivative_error_code='conversion_failed'` and leaves the previous blob alone
-- nothing decides on these columns yet — presence is still resolved from disk by
-  `app/services/attachment_service.present_attachment_files_by_submission()` until
-  Phase 4
+- with `ATTACHMENT_STORE=s3`, sync uploads the blob and writes `store_state='s3'`,
+  `local_path=NULL`, `local_fallback_state='absent'`; with the local store it keeps
+  writing `store_state='local'` and the file path exactly as before
+- bulk presence (`present_attachment_files_by_submission()`) resolves an `s3` row
+  from `store_state` alone and a `local` row from disk; it never probes the bucket
+  per row. Object-level truth comes from
+  `scripts/check_attachment_integrity.py --store s3`
 
 ### `map_project_site_odk`
 

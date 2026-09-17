@@ -3,7 +3,7 @@ title: Migration Artifacts Index
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-16
 ---
 
 # Migration Artifacts Index
@@ -72,6 +72,66 @@ Load sequence in `upgrade()`:
     - rebuild migration
     - built-in WHO reset-default in `app/services/cod_bucket_mapping_service.py`
     - CLI `flask cod-buckets import-who-2022-va`
+
+## Pending inputs (not yet used by any migration)
+
+These folders hold frozen upstream snapshots for planned work. Nothing reads
+them yet; see `docs/planning/icd11-self-hosted-api-and-ect-plan.md`.
+
+### `icd11-mms-2026-01-base-2026-09-16/`
+
+- `SimpleTabulation-ICD-11-MMS-en.txt` and `SimpleTabulation-ICD-11-MMS-en.xlsx`
+  - role: frozen WHO ICD-11 MMS 2026-01 linearization export (English), the
+    intended seed source for the planned `mas_icd11_mms` catalog; matches the
+    ICD API container's default release
+  - called from: nothing yet
+  - details: folder `README.md` (note the CRLF parsing rule and the new
+    `Parent` and `CodingNote` columns)
+
+### `icd11-mms-changes-2026-01-vs-2025-01-2026-09-16/`
+
+- `changes_MMS_2026-01_2025-01-main.xlsx` and `changes_MMS_2026-01_2025-01-extensions.xlsx`
+  - role: WHO's list of MMS changes between the 2025-01 and 2026-01 releases,
+    bridging the 2026-01 catalog and the 2025-01 mapping tables and mortality
+    tabulation list
+  - called from: nothing yet
+  - details: folder `README.md`
+
+### `icd11-mms-2025-01-base-2026-09-16/`
+
+- `SimpleTabulation-ICD-11-MMS-en.txt` and `SimpleTabulation-ICD-11-MMS-en.xlsx`
+  - role: frozen WHO ICD-11 MMS 2025-01 linearization export (English), kept
+    because the mapping tables and mortality tabulation list below belong to
+    this release; superseded as the catalog seed by the 2026-01 export
+  - called from: nothing yet
+  - details: folder `README.md`
+
+### `icd11-mms-dev11-snapshot-2026-09-16/`
+
+- `SimpleTabulation-ICD-11-MMS-en.txt` and `SimpleTabulation-ICD-11-MMS-en.xlsx`
+  - role: preview snapshot of WHO's development linearization, for diffing
+    against the 2025-01 release only; must not seed any catalog
+  - called from: nothing yet
+  - details: folder `README.md`
+
+### `icd11-icd10-mapping-tables-2025-01-base-2026-09-16/`
+
+- five WHO mapping tables between ICD-10 and ICD-11 MMS 2025-01, as text and
+  xlsx (`10To11MapToOneCategory`, `10To11MapToMultipleCategories`,
+  `11To10MapToOneCategory`, `foundation_10To11MapToOneCategory`,
+  `foundation_11To10MapToOneCategory`)
+  - role: WHO's official ICD-10 to ICD-11 correspondence, for trending
+    ICD-10-coded records and for cross-checking ICD-11 VA bucket assignment
+  - called from: nothing yet
+  - details: folder `README.md`
+
+### `icd11-mortality-tabulation-list-2025-01-base-2026-09-16/`
+
+- `MortalityTabulationList.xlsx`
+  - role: WHO's ICD-11 mortality tabulation list (158 value sets with expanded
+    code lists), a candidate built-in COD reporting scheme for ICD-11
+  - called from: nothing yet
+  - details: folder `README.md`
 
 ## Archived supporting inputs
 

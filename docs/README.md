@@ -32,6 +32,7 @@ These documents describe the current implementation as it exists today.
 - [Access Control Grants Technical Design](planning/access-control-grants-design.md)
 - [Incremental ODK Sync Plan](planning/incremental-sync-plan.md) — ✅ IMPLEMENTED
 - [Coding Workflow State Machine Migration](planning/coding-workflow-state-machine-migration.md)
+- [ICD-11 Coding via Self-Hosted WHO ICD API and Embedded Coding Tool](planning/icd11-self-hosted-api-and-ect-plan.md)
 
 ## Policy
 

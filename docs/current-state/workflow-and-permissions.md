@@ -625,6 +625,11 @@ For example:
 - coder access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 - site PI access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 - reviewer access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
+- unit-scoped (`org_unit`) grants exist and resolve to organization-unit sets
+  through `app/services/org_grant_service.py`, but no coding or review
+  surface consults them yet: eligibility still runs through `va_forms`, so a
+  unit grant alone grants no submission access (policy:
+  `docs/policy/organization-model.md`)
 
 ### Language as second filter
 
@@ -657,6 +662,8 @@ Current baseline:
 - `admin` may manage all admin API resources
 - `project_pi` may manage project-site mappings and non-global access grants only inside explicitly granted projects
 - `data_manager` may create users and manage coder/coding_tester/data_manager grants within their own grant scope via `/data-management/users`
+- unit-scoped grants are created only from the admin Access Grants panel; the
+  data-manager grant endpoints refuse `org_unit` scope, admins included
 - `admin` may also use the data-manager user management interface with full scope access
 - browser-originated mutating admin API requests require the `X-CSRFToken` header
 

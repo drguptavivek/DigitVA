@@ -190,15 +190,19 @@ def log_grant_action(
     scope_type: str,
     project_id=None,
     project_site_id=None,
+    org_unit_id=None,
+    cadre_id=None,
     request_ip: str | None = None,
 ):
     """Write a structured line to grants.log for every grant mutation.
 
     Fields (pipe-separated for easy grep / awk):
-      action | actor | actor_role | target | grant_id | role | scope | project | site | ip
+      action | actor | actor_role | target | grant_id | role | scope | project |
+      site | unit | cadre | ip
     """
     grant_audit_logger.info(
-        "action=%s actor=%s actor_role=%s target=%s grant_id=%s role=%s scope=%s project=%s site=%s ip=%s",
+        "action=%s actor=%s actor_role=%s target=%s grant_id=%s role=%s scope=%s "
+        "project=%s site=%s unit=%s cadre=%s ip=%s",
         action,
         actor_user_id,
         actor_role,
@@ -208,6 +212,8 @@ def log_grant_action(
         scope_type,
         project_id or "-",
         project_site_id or "-",
+        org_unit_id or "-",
+        cadre_id or "-",
         request_ip or "-",
     )
 

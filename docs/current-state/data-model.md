@@ -232,7 +232,27 @@ rows here keep the Project > Site > Form model.
   `is_active`
 - name and phone are personal data
 
-Migration: `c8d2e4f6a1b3` (additive; enables the `ltree` extension).
+### Unit-scoped access grants
+
+- `va_user_access_grants` accepts `scope_type = 'org_unit'` with
+  `org_unit_id` (FK `mas_org_unit`) and an optional descriptive `cadre_id`
+  (FK `mas_cadre`)
+- a unit grant leaves `project_id` and `project_site_id` empty; the grant's
+  project is the unit's project, resolved in queries through the unit
+- the grant covers the unit's whole subtree (`path <@ grant unit path`)
+- check constraints: the scope shape, the role/scope pairs (`site_pi`,
+  `collaborator`, `coder`, `coding_tester`, `reviewer`, `data_manager` may use
+  `org_unit`), and `cadre_id` only on unit grants
+- partial unique index `uq_va_user_access_grants_org_unit` on
+  (`user_id`, `role`, `org_unit_id`); lookup index on
+  (`org_unit_id`, `role`, `grant_status`)
+- resolution lives in `app/services/org_grant_service.py`; coding and reviewer
+  enforcement still runs off `va_forms`, so a unit grant does not yet change
+  what a coder may open
+
+Migrations: `c8d2e4f6a1b3` (additive; enables the `ltree` extension),
+`d9e3f5a7b2c4` (additive; adds the `org_unit` scope value and the two grant
+columns).
 
 ## ICD Reference Master Table
 
@@ -963,7 +983,8 @@ Other important tables:
   (`app/routes/api/dm_kpi/dm_kpi_burndown.py`)
 - `va_site_master`
 - `va_project_sites`
-- `va_user_access_grants` — also carries `created_by_user_id` (UUID, nullable,
+- `va_user_access_grants` — see [Unit-scoped access grants](#unit-scoped-access-grants)
+  for the `org_unit` scope columns. Also carries `created_by_user_id` (UUID, nullable,
   FK `fk_va_user_access_grants_created_by` -> `va_users.user_id`). Nothing reads or writes it
   today; DM-created users are attributed through `va_users.other["created_by_user_id"]`
   instead, so the column is a drop candidate rather than live state.

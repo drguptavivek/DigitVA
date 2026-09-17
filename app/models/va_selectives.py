@@ -33,3 +33,7 @@ class VaAccessScopeTypes(enum.Enum):
     global_scope = "global"
     project = "project"
     project_site = "project_site"
+    # Health-system projects scope a grant to a node of the project's own
+    # organization tree (mas_org_unit); the grant covers that unit's subtree.
+    # See docs/policy/organization-model.md.
+    org_unit = "org_unit"

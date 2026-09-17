@@ -331,6 +331,40 @@ class VaUsers(UserMixin, db.Model):
             return granted_form_ids | get_coder_demo_project_form_ids()
         return granted_form_ids
 
+    # -- unit-scoped grants (health-system projects) -----------------------
+    #
+    # These resolve grants to organization-unit ids. Coding and reviewer
+    # enforcement still runs off va_forms (see _get_granted_va_forms); routing
+    # submissions to units is phase 3 and enforcement phase 4, so nothing here
+    # widens access on its own. See app/services/org_grant_service.py.
+
+    def get_org_unit_scope_ids(self, role: str) -> set[uuid.UUID]:
+        """Active units inside the subtree of any *role* unit-grant this user holds."""
+        from app.models import VaAccessRoles
+        from app.services.org_grant_service import scope_unit_ids
+
+        return scope_unit_ids(self.user_id, VaAccessRoles(role))
+
+    def get_org_unit_grant_units(self, role: str):
+        """The units this user holds *role* at directly, without their subtrees."""
+        from app.models import VaAccessRoles
+        from app.services.org_grant_service import granted_units
+
+        return granted_units(self.user_id, VaAccessRoles(role))
+
+    def get_coder_org_unit_ids(self) -> set[uuid.UUID]:
+        return self.get_org_unit_scope_ids("coder")
+
+    def get_reviewer_org_unit_ids(self) -> set[uuid.UUID]:
+        return self.get_org_unit_scope_ids("reviewer")
+
+    def get_org_unit_projects(self, role: str) -> set[str]:
+        """Projects this user holds *role* in through a unit-scoped grant."""
+        from app.models import VaAccessRoles
+        from app.services.org_grant_service import granted_project_ids
+
+        return granted_project_ids(self.user_id, VaAccessRoles(role))
+
     def _get_granted_project_ids(self, role: str) -> set[str]:
         from app.models import (
             VaAccessRoles,

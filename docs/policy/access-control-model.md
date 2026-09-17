@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-07
+last_updated: 2026-09-17
 ---
 
 # Access Control Model
@@ -151,12 +151,17 @@ Supported scope types:
 - `global`
 - `project`
 - `project_site`
+- `org_unit`
 
 Rules:
 
 - `global` means system-wide access
 - `project` means access across all sites within that project
 - `project_site` means access only to one site within one project
+- `org_unit` means access to one node of a project's organization tree **and
+  its whole subtree**; the node's project is the grant's project. Used by
+  health-system projects — see
+  [Organization Model Policy](organization-model.md)
 
 Broad access must be granted explicitly.
 
@@ -166,11 +171,18 @@ The system must not infer broader access from missing values or partial keys.
 
 - `admin` uses `global`
 - `project_pi` uses `project`
-- `site_pi` uses `project_site`
-- `data_manager` uses `project` or `project_site`
-- `collaborator` uses `project` or `project_site`
-- `coder` uses `project` or `project_site`
-- `reviewer` uses `project` or `project_site`
+- `site_pi` uses `project_site` or `org_unit`
+- `data_manager` uses `project`, `project_site` or `org_unit`
+- `collaborator` uses `project`, `project_site` or `org_unit`
+- `coder` uses `project`, `project_site` or `org_unit`
+- `coding_tester` uses `project`, `project_site` or `org_unit`
+- `reviewer` uses `project`, `project_site` or `org_unit`
+
+A unit-scoped grant may also carry a `cadre_id`. It is descriptive, and
+nothing at runtime consults it, but it is validated on write: the cadre must
+be defined at the unit's level, and a `coder` grant requires a cadre that may
+code at that level. Cadre rules live in
+[Organization Model Policy](organization-model.md).
 
 ## Authorization Rule
 
@@ -275,13 +287,19 @@ Recommended shape:
 - `scope_type`
 - `project_id`
 - `site_id`
+- `org_unit_id`
+- `cadre_id`
 
 Rules:
 
 - `scope_type = global` is valid only for global roles such as `admin`
 - `scope_type = project` requires `project_id`
 - `scope_type = project_site` requires both `project_id` and `site_id`
+- `scope_type = org_unit` requires `org_unit_id` and must leave `project_id`
+  and `project_site_id` empty; the project is read from the unit
+- `cadre_id` is valid only when `scope_type = org_unit`
 - `site_id = NULL` must not imply project-wide access unless `scope_type = project`
+- exactly one active grant per user × role × scope target
 
 This is preferred over loosely structured JSON.
 

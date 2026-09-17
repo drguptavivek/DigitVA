@@ -5,6 +5,7 @@ import os
 import re
 import uuid
 import secrets
+from dataclasses import dataclass
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -78,6 +79,8 @@ from app.models import (
     MasOdkConnections,
     MasCodBucketNode,
     MasCodBucketSchemeAgeBand,
+    MasCadre,
+    MasOrgUnit,
     MapProjectOdk,
     MapProjectSiteOdk,
     VaForms,
@@ -277,13 +280,44 @@ def _current_user_can_manage_project(project_id):
     return current_user.is_admin() or current_user.can_manage_project(project_id)
 
 
+def _grant_unit_column(column):
+    """Correlated lookup of one mas_org_unit column for a unit-scoped grant.
+
+    A subquery rather than a join so every grant query resolves the unit
+    without having to remember an extra outerjoin; a missing join would
+    otherwise silently drop unit grants out of a project filter.
+    """
+    return (
+        sa.select(column)
+        .where(MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .scalar_subquery()
+    )
+
+
 def _grant_project_id_expression():
     return sa.case(
         (
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
             VaUserAccessGrants.project_id,
         ),
+        (
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            _grant_unit_column(MasOrgUnit.project_id),
+        ),
         else_=VaProjectSites.project_id,
+    )
+
+
+def _grant_org_unit_columns():
+    """Labelled columns describing a grant's unit and cadre, for _serialize_grant."""
+    return (
+        _grant_unit_column(MasOrgUnit.unit_code).label("resolved_unit_code"),
+        _grant_unit_column(MasOrgUnit.unit_name).label("resolved_unit_name"),
+        sa.cast(_grant_unit_column(MasOrgUnit.path), sa.Text).label("resolved_unit_path"),
+        sa.select(MasCadre.cadre_code)
+        .where(MasCadre.cadre_id == VaUserAccessGrants.cadre_id)
+        .scalar_subquery()
+        .label("resolved_cadre_code"),
     )
 
 
@@ -715,6 +749,7 @@ def _get_active_project_site(project_id: str, site_id: str):
 
 
 def _serialize_grant(row):
+    org_unit_id = getattr(row, "org_unit_id", None)
     return {
         "grant_id": str(row.grant_id),
         "user_id": str(row.user_id),
@@ -725,9 +760,26 @@ def _serialize_grant(row):
         "project_id": row.resolved_project_id,
         "site_id": row.resolved_site_id,
         "project_site_id": str(row.project_site_id) if row.project_site_id else None,
+        "org_unit_id": str(org_unit_id) if org_unit_id else None,
+        "unit_code": getattr(row, "resolved_unit_code", None),
+        "unit_name": getattr(row, "resolved_unit_name", None),
+        "unit_path": getattr(row, "resolved_unit_path", None),
+        "cadre_code": getattr(row, "resolved_cadre_code", None),
         "status": row.grant_status.value,
         "notes": row.notes,
     }
+
+
+@dataclass(frozen=True)
+class ResolvedGrantScope:
+    """One validated grant scope, as parsed from a request payload."""
+
+    role: VaAccessRoles
+    scope_type: VaAccessScopeTypes
+    project_id: str | None
+    project_site_id: uuid.UUID | None
+    org_unit_id: uuid.UUID | None = None
+    cadre_id: uuid.UUID | None = None
 
 
 def _resolve_scope_from_payload(payload):
@@ -742,15 +794,18 @@ def _resolve_scope_from_payload(payload):
     scope_type = VaAccessScopeTypes(scope_value)
     project_id = payload.get("project_id")
     project_site_id_value = payload.get("project_site_id")
+    org_unit_id_value = payload.get("org_unit_id")
     project_site_id = None
     project_site = None
 
     if scope_type == VaAccessScopeTypes.global_scope:
         if role != VaAccessRoles.admin:
             raise ValueError("Only admin may use global scope.")
-        if project_id or project_site_id_value:
-            raise ValueError("Global scope must not include project_id or project_site_id.")
-        return role, scope_type, None, None
+        if project_id or project_site_id_value or org_unit_id_value:
+            raise ValueError(
+                "Global scope must not include project_id, project_site_id or org_unit_id."
+            )
+        return ResolvedGrantScope(role, scope_type, None, None)
 
     if scope_type == VaAccessScopeTypes.project:
         if role not in {
@@ -762,9 +817,36 @@ def _resolve_scope_from_payload(payload):
             VaAccessRoles.data_manager,
         }:
             raise ValueError("This role cannot use project scope.")
-        if not project_id or project_site_id_value:
+        if not project_id or project_site_id_value or org_unit_id_value:
             raise ValueError("Project scope requires project_id only.")
-        return role, scope_type, project_id, None
+        return ResolvedGrantScope(role, scope_type, project_id, None)
+
+    if scope_type == VaAccessScopeTypes.org_unit:
+        from app.services.org_grant_service import validate_org_unit_grant
+        from app.services.organization_service import OrganizationError
+
+        if project_id or project_site_id_value:
+            raise ValueError(
+                "Unit scope must not include project_id or project_site_id."
+            )
+        if not org_unit_id_value:
+            raise ValueError("Unit scope requires org_unit_id.")
+        try:
+            unit, cadre = validate_org_unit_grant(
+                role=role,
+                org_unit_id=org_unit_id_value,
+                cadre_id=payload.get("cadre_id"),
+            )
+        except OrganizationError as exc:
+            raise ValueError(str(exc)) from exc
+        return ResolvedGrantScope(
+            role,
+            scope_type,
+            unit.project_id,
+            None,
+            org_unit_id=unit.org_unit_id,
+            cadre_id=cadre.cadre_id if cadre else None,
+        )
 
     if role not in {
         VaAccessRoles.site_pi,
@@ -777,6 +859,8 @@ def _resolve_scope_from_payload(payload):
         raise ValueError("This role cannot use project_site scope.")
     if payload.get("project_id"):
         raise ValueError("Project-site scope must not include project_id.")
+    if org_unit_id_value:
+        raise ValueError("Project-site scope must not include org_unit_id.")
     if not project_site_id_value:
         raise ValueError("Project-site scope requires project_site_id.")
     try:
@@ -787,7 +871,9 @@ def _resolve_scope_from_payload(payload):
     project_site = db.session.get(VaProjectSites, project_site_id)
     if not project_site or project_site.project_site_status != VaStatuses.active:
         raise ValueError("Active project-site mapping not found.")
-    return role, scope_type, project_site.project_id, project_site.project_site_id
+    return ResolvedGrantScope(
+        role, scope_type, project_site.project_id, project_site.project_site_id
+    )
 
 
 def _project_access_filter(project_id_expression):
@@ -1636,12 +1722,14 @@ def admin_access_grants():
             VaUserAccessGrants.role,
             VaUserAccessGrants.scope_type,
             VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.org_unit_id,
             VaUserAccessGrants.grant_status,
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
             project_id_expression.label("resolved_project_id"),
             site_id_expression.label("resolved_site_id"),
+            *_grant_org_unit_columns(),
         )
         .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
         .outerjoin(
@@ -1688,12 +1776,14 @@ def admin_orphaned_grants():
             VaUserAccessGrants.role,
             VaUserAccessGrants.scope_type,
             VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.org_unit_id,
             VaUserAccessGrants.grant_status,
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
             project_id_expression.label("resolved_project_id"),
             site_id_expression.label("resolved_site_id"),
+            *_grant_org_unit_columns(),
         )
         .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
         .outerjoin(
@@ -1740,11 +1830,14 @@ def admin_create_access_grant():
         return _json_error("Active user not found.", 404)
 
     try:
-        role, scope_type, resolved_project_id, project_site_id = _resolve_scope_from_payload(
-            payload
-        )
+        scope = _resolve_scope_from_payload(payload)
     except ValueError as exc:
         return _json_error(str(exc), 400)
+
+    role = scope.role
+    scope_type = scope.scope_type
+    resolved_project_id = scope.project_id
+    project_site_id = scope.project_site_id
 
     if scope_type == VaAccessScopeTypes.project:
         project = db.session.get(VaProjectMaster, resolved_project_id)
@@ -1776,6 +1869,15 @@ def admin_create_access_grant():
                 VaUserAccessGrants.project_id == resolved_project_id,
             )
         )
+    elif scope_type == VaAccessScopeTypes.org_unit:
+        existing = db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == user_id,
+                VaUserAccessGrants.role == role,
+                VaUserAccessGrants.scope_type == scope_type,
+                VaUserAccessGrants.org_unit_id == scope.org_unit_id,
+            )
+        )
     else:
         existing = db.session.scalar(
             sa.select(VaUserAccessGrants).where(
@@ -1789,6 +1891,10 @@ def admin_create_access_grant():
     if existing:
         existing.grant_status = VaStatuses.active
         existing.notes = payload.get("notes") or existing.notes
+        if scope_type == VaAccessScopeTypes.org_unit:
+            # Re-activating a unit grant re-states its cadre: the level's cadre
+            # permissions may have changed since the grant was first written.
+            existing.cadre_id = scope.cadre_id
         grant = existing
         status_code = 200
     else:
@@ -1800,6 +1906,8 @@ def admin_create_access_grant():
             if scope_type == VaAccessScopeTypes.project
             else None,
             project_site_id=project_site_id,
+            org_unit_id=scope.org_unit_id,
+            cadre_id=scope.cadre_id,
             notes=payload.get("notes"),
             grant_status=VaStatuses.active,
         )
@@ -1818,6 +1926,8 @@ def admin_create_access_grant():
         scope_type=scope_type.value,
         project_id=resolved_project_id,
         project_site_id=project_site_id,
+        org_unit_id=scope.org_unit_id,
+        cadre_id=scope.cadre_id,
         request_ip=request.remote_addr,
     )
 
@@ -1828,12 +1938,14 @@ def admin_create_access_grant():
             VaUserAccessGrants.role,
             VaUserAccessGrants.scope_type,
             VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.org_unit_id,
             VaUserAccessGrants.grant_status,
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
             _grant_project_id_expression().label("resolved_project_id"),
             _grant_site_id_expression().label("resolved_site_id"),
+            *_grant_org_unit_columns(),
         )
         .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
         .outerjoin(
@@ -1857,6 +1969,11 @@ def admin_toggle_access_grant(grant_id):
     elif grant.scope_type == VaAccessScopeTypes.project_site:
         project_site = db.session.get(VaProjectSites, grant.project_site_id)
         resolved_project_id = project_site.project_id if project_site else None
+    elif grant.scope_type == VaAccessScopeTypes.org_unit:
+        # A unit grant's project is the unit's project, so a project PI can
+        # revoke the unit grants inside their own project.
+        unit = db.session.get(MasOrgUnit, grant.org_unit_id)
+        resolved_project_id = unit.project_id if unit else None
     else:
         resolved_project_id = None
 
@@ -1885,6 +2002,8 @@ def admin_toggle_access_grant(grant_id):
         scope_type=grant.scope_type.value,
         project_id=resolved_project_id,
         project_site_id=grant.project_site_id,
+        org_unit_id=grant.org_unit_id,
+        cadre_id=grant.cadre_id,
         request_ip=request.remote_addr,
     )
 

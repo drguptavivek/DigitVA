@@ -82,14 +82,45 @@ reporting. Planning context:
 - The Organization panel and its API are available to `admin` and to
   `project_pi` for their own projects.
 - Cadre permissions are **metadata that gate grant creation**; they are not
-  a runtime authorization path. Runtime access continues to come from
-  explicit user × role × scope grants (see
-  [Access Control Model](access-control-model.md)). Extending grants with an
-  `org_unit` scope is a separate phase.
+  a runtime authorization path. Runtime access comes from explicit
+  user × role × scope grants (see
+  [Access Control Model](access-control-model.md)).
+
+## Unit-scoped grants
+
+- A grant may carry `scope_type = 'org_unit'` with an `org_unit_id`. The grant
+  covers that unit **and its whole subtree**, resolved through the unit's
+  ltree path.
+- Roles accepted at unit scope: `site_pi` (oversight of a subtree),
+  `collaborator`, `coder`, `coding_tester`, `reviewer`, `data_manager`.
+  `admin` stays global and `project_pi` stays project-scoped.
+- A unit grant carries no `project_id` or `project_site_id`. The grant's
+  project is the unit's project, and every project filter resolves it that way.
+- The `cadre_id` on a grant is **descriptive**: it records which cadre the
+  person holds at that unit, and nothing at runtime consults it. It is
+  validated when the grant is written:
+  - the cadre must belong to the unit's project and be active;
+  - the cadre must be defined at the unit's level in the level × cadre grid;
+  - a `coder` grant **must** name a cadre, and that cadre must have
+    `can_code_va_form` at that level.
+- A cadre may only be set on a unit-scoped grant (database constraint).
+- One active grant per user × role × unit (partial unique index).
+- Deactivating a unit removes it, and everything beneath it, from every
+  grant's resolved scope without touching the grant rows. Reactivating the
+  unit restores them.
+- Unit-scoped grants are created from the **admin user panel**, which carries
+  the unit and cadre pickers. The data-manager grant interface knows only
+  projects and sites and refuses to create or revoke a unit grant, for admins
+  too; a data manager still *sees* the unit grants of their own project in the
+  grant list, as they already see its project and site grants.
+- `flask users grant` does not create unit grants; use the admin panel or the
+  `/admin/api/access-grants` endpoint.
+- Every unit grant mutation is written to `grants.log` with the unit and cadre.
 
 ## Not yet implemented (later phases of the plan)
 
-- `org_unit` scope on access grants and cadre gating of grants
 - routing of synced submissions to units from the `org_<level>_code` fields
-- project coding-scope level and above-scope mode
+- project coding-scope level and above-scope mode; until then a unit grant
+  does not change what a coder may open — coding eligibility still resolves
+  through `va_forms`
 - unit dimensions in dashboards, exports and analytics

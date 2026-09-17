@@ -30,6 +30,7 @@ from app.models import (
     VaUsers,
 )
 from app.routes.admin import (
+    _grant_org_unit_columns,
     _grant_project_id_expression,
     _grant_site_id_expression,
     _json_error,
@@ -64,6 +65,11 @@ log = logging.getLogger(__name__)
 
 def _dm_can_manage_scope(user, role, scope_type, resolved_project_id, project_site_id):
     """Return (ok, error_message) for whether *user* can create/toggle a grant."""
+    if scope_type == VaAccessScopeTypes.org_unit:
+        # Unit-scoped grants are managed from the admin user panel, which
+        # carries the unit and cadre pickers. This interface only knows
+        # projects and sites, so it would silently drop the unit.
+        return False, "Unit-scoped grants are managed from the admin user panel."
     if user.is_admin():
         if role not in {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.data_manager}:
             return False, "Only coder, coding_tester, or data_manager roles may be assigned from this interface."
@@ -148,6 +154,10 @@ def require_dm_scope(f):
             elif grant.scope_type == VaAccessScopeTypes.project_site:
                 ps = db.session.get(VaProjectSites, grant.project_site_id)
                 resolved_project_id = ps.project_id if ps else None
+            elif grant.scope_type == VaAccessScopeTypes.org_unit:
+                return _json_error(
+                    "Unit-scoped grants are managed from the admin user panel.", 403
+                )
             else:
                 return _json_error("Invalid scope type.", 400)
             ok, err = _dm_can_manage_scope(
@@ -158,11 +168,13 @@ def require_dm_scope(f):
             # Create path — scope comes from the request payload.
             payload = request.get_json(silent=True) or {}
             try:
-                role, scope_type, resolved_project_id, project_site_id = (
-                    _resolve_scope_from_payload(payload)
-                )
+                scope = _resolve_scope_from_payload(payload)
             except ValueError as exc:
                 return _json_error(str(exc), 400)
+            role = scope.role
+            scope_type = scope.scope_type
+            resolved_project_id = scope.project_id
+            project_site_id = scope.project_site_id
             ok, err = _dm_can_manage_scope(
                 current_user, role, scope_type, resolved_project_id, project_site_id,
             )
@@ -587,12 +599,14 @@ def manage_user_detail(target_user_id):
             VaUserAccessGrants.role,
             VaUserAccessGrants.scope_type,
             VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.org_unit_id,
             VaUserAccessGrants.grant_status,
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
             project_id_expression.label("resolved_project_id"),
             site_id_expression.label("resolved_site_id"),
+            *_grant_org_unit_columns(),
         )
         .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
         .outerjoin(
@@ -749,12 +763,14 @@ def manage_access_grants():
             VaUserAccessGrants.role,
             VaUserAccessGrants.scope_type,
             VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.org_unit_id,
             VaUserAccessGrants.grant_status,
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
             project_id_expression.label("resolved_project_id"),
             site_id_expression.label("resolved_site_id"),
+            *_grant_org_unit_columns(),
         )
         .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
         .outerjoin(
@@ -873,12 +889,14 @@ def manage_create_access_grant():
             VaUserAccessGrants.role,
             VaUserAccessGrants.scope_type,
             VaUserAccessGrants.project_site_id,
+            VaUserAccessGrants.org_unit_id,
             VaUserAccessGrants.grant_status,
             VaUserAccessGrants.notes,
             VaUsers.email,
             VaUsers.name,
             _grant_project_id_expression().label("resolved_project_id"),
             _grant_site_id_expression().label("resolved_site_id"),
+            *_grant_org_unit_columns(),
         )
         .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
         .outerjoin(

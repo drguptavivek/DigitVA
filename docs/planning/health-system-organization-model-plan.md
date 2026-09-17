@@ -95,7 +95,11 @@ an explicit grant row.
   value `org_unit`, and check constraints so `project_pi` stays project-scoped,
   `site_pi` accepts `org_unit` (oversight of a unit subtree), and `coder`,
   `reviewer`, `data_manager`, `collaborator`, `coding_tester` accept
-  `org_unit`.
+  `org_unit`. **Done (phase 2, migration `d9e3f5a7b2c4`)**: grants resolve to
+  unit subtrees in `app/services/org_grant_service.py`, the admin Access
+  Grants panel has unit and cadre pickers, and the data-manager grant
+  endpoints refuse unit scope. Policy:
+  `docs/policy/organization-model.md#unit-scoped-grants`.
 - Cadre on the grant is descriptive (decision O3). Creating a grant checks
   `map_org_level_cadre` for the unit's level: the cadre must exist at that
   level, and role `coder` requires `can_code_va_form`. The runtime

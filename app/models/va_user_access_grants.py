@@ -21,9 +21,10 @@ class VaUserAccessGrants(db.Model):
     __table_args__ = (
         sa.CheckConstraint(
             """
-            (scope_type = 'global' AND project_id IS NULL AND project_site_id IS NULL) OR
-            (scope_type = 'project' AND project_id IS NOT NULL AND project_site_id IS NULL) OR
-            (scope_type = 'project_site' AND project_id IS NULL AND project_site_id IS NOT NULL)
+            (scope_type = 'global' AND project_id IS NULL AND project_site_id IS NULL AND org_unit_id IS NULL) OR
+            (scope_type = 'project' AND project_id IS NOT NULL AND project_site_id IS NULL AND org_unit_id IS NULL) OR
+            (scope_type = 'project_site' AND project_id IS NULL AND project_site_id IS NOT NULL AND org_unit_id IS NULL) OR
+            (scope_type = 'org_unit' AND project_id IS NULL AND project_site_id IS NULL AND org_unit_id IS NOT NULL)
             """,
             name="ck_va_user_access_grants_scope_shape",
         ),
@@ -31,10 +32,16 @@ class VaUserAccessGrants(db.Model):
             """
             (role = 'admin' AND scope_type = 'global') OR
             (role = 'project_pi' AND scope_type = 'project') OR
-            (role = 'site_pi' AND scope_type = 'project_site') OR
-            (role IN ('collaborator', 'coder', 'coding_tester', 'reviewer', 'data_manager') AND scope_type IN ('project', 'project_site'))
+            (role = 'site_pi' AND scope_type IN ('project_site', 'org_unit')) OR
+            (role IN ('collaborator', 'coder', 'coding_tester', 'reviewer', 'data_manager') AND scope_type IN ('project', 'project_site', 'org_unit'))
             """,
             name="ck_va_user_access_grants_role_scope",
+        ),
+        # A cadre is descriptive and only meaningful on a unit-scoped grant
+        # (decision O3 in docs/planning/health-system-organization-model-plan.md).
+        sa.CheckConstraint(
+            "cadre_id IS NULL OR scope_type = 'org_unit'",
+            name="ck_va_user_access_grants_cadre_scope",
         ),
         sa.Index(
             "ix_va_user_access_grants_user_status",
@@ -76,6 +83,20 @@ class VaUserAccessGrants(db.Model):
             unique=True,
             postgresql_where=sa.text("scope_type = 'project_site'"),
         ),
+        sa.Index(
+            "uq_va_user_access_grants_org_unit",
+            "user_id",
+            "role",
+            "org_unit_id",
+            unique=True,
+            postgresql_where=sa.text("scope_type = 'org_unit'"),
+        ),
+        sa.Index(
+            "ix_va_user_access_grants_org_unit_lookup",
+            "org_unit_id",
+            "role",
+            "grant_status",
+        ),
     )
 
     grant_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -100,6 +121,20 @@ class VaUserAccessGrants(db.Model):
     project_site_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True),
         sa.ForeignKey("va_project_sites.project_site_id"),
+        nullable=True,
+    )
+    # Unit-scoped grants (health-system projects). The grant covers the unit's
+    # own subtree; the unit's project_id is the grant's project.
+    org_unit_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_org_unit.org_unit_id", name="fk_va_user_access_grants_org_unit"),
+        nullable=True,
+    )
+    # Descriptive: which cadre the person holds at that unit. Validated against
+    # map_org_level_cadre when the grant is created, never consulted at runtime.
+    cadre_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_cadre.cadre_id", name="fk_va_user_access_grants_cadre"),
         nullable=True,
     )
     # Present in the database since migration b5c6d7e8f9a0. No application code
@@ -133,5 +168,5 @@ class VaUserAccessGrants(db.Model):
         return (
             "VA User Access Grant -> "
             f"{self.user_id} {self.role.value} {self.scope_type.value} "
-            f"{self.project_id}/{self.project_site_id}"
+            f"{self.project_id}/{self.project_site_id}/{self.org_unit_id}"
         )

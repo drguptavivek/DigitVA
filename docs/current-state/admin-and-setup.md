@@ -20,7 +20,7 @@ Shell helpers and initialization services remain available for initial bootstrap
 
 The `/admin` interface provides the following management panels:
 
-- **Access Grants** — manage user-to-project/site role assignments
+- **Access Grants** — manage user-to-project/site/unit role assignments
 - **Project Sites** — manage which sites are associated with a project
 - **Project Forms** — per-site ODK form mapping (ODK project ID and xmlFormId), with live dropdowns populated from ODK Central via pyODK
 - **Project PIs** — manage PI assignments scoped to a project
@@ -168,6 +168,20 @@ Export / Import.
   by code; nothing is deleted.
 - Routes live in `app/routes/admin_organization.py`; rules in
   `app/services/organization_service.py`.
+
+### Unit-scoped grants in the Access Grants panel
+
+Scope "Unit-level (organization tree)" adds a unit picker and a cadre picker
+to the grant form, and unit grants render in their own table with the unit
+code, path and cadre.
+
+- The grant covers the chosen unit and everything below it.
+- Cadre options are filtered to the cadres defined at that unit's level; for a
+  coder grant, to the cadres allowed to code there, and the cadre is required.
+- The data-manager grant interface refuses unit scope: it has no unit picker,
+  so unit grants are created here. This holds for admins too.
+- Rules: `app/services/org_grant_service.py`; policy:
+  `docs/policy/organization-model.md`.
 
 ## ODK Connections Panel
 

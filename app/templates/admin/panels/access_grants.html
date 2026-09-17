@@ -66,6 +66,7 @@
             <option value="">— select —</option>
             <option value="project_site">Site-level</option>
             <option value="project">Project-level</option>
+            <option value="org_unit">Unit-level (organization tree)</option>
           </select>
         </div>
 
@@ -74,6 +75,22 @@
           <select id="ag-site" class="form-select form-select-sm">
             <option value="">— select project first —</option>
           </select>
+        </div>
+
+        <div class="col-sm-4 d-none" id="ag-unit-field">
+          <label class="form-label small mb-1">Unit <span class="text-danger">*</span></label>
+          <select id="ag-unit" class="form-select form-select-sm">
+            <option value="">— select project first —</option>
+          </select>
+          <div class="form-text small">The grant covers this unit and everything below it.</div>
+        </div>
+
+        <div class="col-sm-4 d-none" id="ag-cadre-field">
+          <label class="form-label small mb-1">Cadre <span id="ag-cadre-required" class="text-danger d-none">*</span></label>
+          <select id="ag-cadre" class="form-select form-select-sm">
+            <option value="">— select unit first —</option>
+          </select>
+          <div class="form-text small" id="ag-cadre-help">Cadres defined at this unit's level.</div>
         </div>
 
         <div class="col-12">
@@ -294,8 +311,9 @@
       return;
     }
 
-    // Split into project-level and site-level
-    var projectGrants = grants.filter(function (g) { return !g.site_id; });
+    // Split into project-level, site-level and unit-level (organization tree)
+    var unitGrants    = grants.filter(function (g) { return g.scope_type === 'org_unit'; });
+    var projectGrants = grants.filter(function (g) { return !g.site_id && g.scope_type !== 'org_unit'; });
     var siteGrants    = grants.filter(function (g) { return !!g.site_id; });
 
     var html = '';
@@ -403,6 +421,38 @@
       }
     }
 
+    // ── Section 3: Unit-level grants (organization tree) ────────────────────
+    if (unitGrants.length) {
+      var unitRows = unitGrants.slice().sort(function (a, b) {
+        return (a.unit_path || '').localeCompare(b.unit_path || '')
+          || (a.user_email || '').localeCompare(b.user_email || '');
+      }).map(function (g) {
+        return '<tr>'
+          + userCell(g.user_email, g.user_name)
+          + (PROJECT_ID ? '' : '<td class="align-middle py-2"><span class="badge bg-secondary fw-normal">' + esc(g.project_id || '—') + '</span></td>')
+          + '<td class="align-middle py-2 small">'
+          + '<span class="fw-semibold">' + esc(g.unit_code || '—') + '</span>'
+          + (g.unit_name ? ' <span class="text-muted">' + esc(g.unit_name) + '</span>' : '')
+          + (g.unit_path ? '<span class="d-block text-muted" style="font-size:0.72rem;">' + esc(g.unit_path) + '</span>' : '')
+          + '</td>'
+          + '<td class="align-middle py-2 small">' + esc(g.cadre_code || '—') + '</td>'
+          + '<td class="align-middle py-2">' + roleBadge(g) + '</td>'
+          + '</tr>';
+      }).join('');
+
+      html += '<p class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em;">Unit-level grants</p>'
+        + '<p class="text-muted small mb-1">Each grant covers its unit and everything below it in the tree.</p>'
+        + '<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle mb-0">'
+        + '<thead class="table-light"><tr>'
+        + '<th class="fw-semibold small">User</th>'
+        + (PROJECT_ID ? '' : '<th class="fw-semibold small">Project</th>')
+        + '<th class="fw-semibold small">Unit</th>'
+        + '<th class="fw-semibold small">Cadre</th>'
+        + '<th class="fw-semibold small">Role</th>'
+        + '</tr></thead>'
+        + '<tbody>' + unitRows + '</tbody></table></div>';
+    }
+
     wrap.innerHTML = html;
     wrap.querySelectorAll('.ag-revoke-btn').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
@@ -422,7 +472,9 @@
     if (g) {
       body.innerHTML = 'Revoke <strong>' + esc(ROLE_LABEL[g.role] || g.role) + '</strong> for '
         + '<strong>' + esc(g.user_name || g.user_email) + '</strong>'
-        + (g.site_id ? ' at <strong>' + esc(g.site_id) + '</strong>' : ' (project level)') + '?';
+        + (g.site_id ? ' at <strong>' + esc(g.site_id) + '</strong>'
+           : g.scope_type === 'org_unit' ? ' at unit <strong>' + esc(g.unit_code || '') + '</strong> (and everything below it)'
+           : ' (project level)') + '?';
     } else {
       body.textContent = 'Are you sure you want to revoke this grant?';
     }
@@ -473,6 +525,14 @@
   document.getElementById('ag-scope').addEventListener('change', function () {
     document.getElementById('ag-site-field').style.visibility =
       this.value === 'project_site' ? 'visible' : 'hidden';
+    var unitScope = this.value === 'org_unit';
+    document.getElementById('ag-unit-field').classList.toggle('d-none', !unitScope);
+    document.getElementById('ag-cadre-field').classList.toggle('d-none', !unitScope);
+    if (unitScope) loadProjectOrganization();
+  });
+
+  document.getElementById('ag-role').addEventListener('change', function () {
+    if (document.getElementById('ag-scope').value === 'org_unit') populateCadreOptions();
   });
 
   // ── user search ───────────────────────────────────────────────────────────
@@ -556,6 +616,95 @@
     });
   }
 
+  // ── organization tree dropdowns ───────────────────────────────────────────
+  //
+  // Cadre options are filtered to the cadres defined at the selected unit's
+  // level, and for a coder grant to the ones allowed to code there — the same
+  // rule the API enforces in app/services/org_grant_service.py, so the
+  // operator does not have to discover it by being refused.
+
+  var _orgUnits = [];
+  var _orgCadres = {};
+  var _orgLevelCadres = [];
+  var _orgLoadedFor = null;
+
+  function loadProjectOrganization() {
+    if (!PROJECT_ID) {
+      document.getElementById('ag-unit').innerHTML =
+        '<option value="">— select a project from the sidebar first —</option>';
+      return;
+    }
+    if (_orgLoadedFor === PROJECT_ID) return;
+    var base = '/admin/api/organization/' + encodeURIComponent(PROJECT_ID);
+    var unitSel = document.getElementById('ag-unit');
+    unitSel.innerHTML = '<option value="">Loading…</option>';
+    Promise.all([
+      apiJson(base + '/units'),
+      apiJson(base + '/cadres'),
+      apiJson(base + '/level-cadres')
+    ]).then(function (res) {
+      _orgUnits = (res[0].data && res[0].data.units) || [];
+      _orgCadres = {};
+      (((res[1].data && res[1].data.cadres) || [])).forEach(function (c) {
+        _orgCadres[c.cadre_id] = c;
+      });
+      _orgLevelCadres = (res[2].data && res[2].data.level_cadres) || [];
+      _orgLoadedFor = PROJECT_ID;
+
+      if (!_orgUnits.length) {
+        unitSel.innerHTML = '<option value="">— no organization tree for this project —</option>';
+        return;
+      }
+      unitSel.innerHTML = '<option value="">— select unit —</option>'
+        + _orgUnits.map(function (u) {
+          var indent = new Array(Math.max(0, (u.depth || 1) - 1) + 1).join('\u00a0\u00a0');
+          return '<option value="' + esc(u.org_unit_id) + '">'
+            + indent + esc(u.unit_code) + ' — ' + esc(u.unit_name)
+            + ' (' + esc(u.level_code) + ')</option>';
+        }).join('');
+      populateCadreOptions();
+    }).catch(function () {
+      unitSel.innerHTML = '<option value="">— could not load units —</option>';
+    });
+  }
+
+  function selectedUnit() {
+    var id = document.getElementById('ag-unit').value;
+    return _orgUnits.filter(function (u) { return u.org_unit_id === id; })[0] || null;
+  }
+
+  function populateCadreOptions() {
+    var sel = document.getElementById('ag-cadre');
+    var unit = selectedUnit();
+    var role = document.getElementById('ag-role').value;
+    var codingRole = role === 'coder';
+    document.getElementById('ag-cadre-required').classList.toggle('d-none', !codingRole);
+    document.getElementById('ag-cadre-help').textContent = codingRole
+      ? "Cadres allowed to code at this unit's level."
+      : "Cadres defined at this unit's level (optional).";
+    if (!unit) {
+      sel.innerHTML = '<option value="">— select unit first —</option>';
+      return;
+    }
+    var allowed = _orgLevelCadres.filter(function (lc) {
+      if (lc.org_level_id !== unit.org_level_id || !lc.is_active) return false;
+      return codingRole ? !!lc.can_code_va_form : true;
+    });
+    if (!allowed.length) {
+      sel.innerHTML = '<option value="">— none defined at ' + esc(unit.level_code) + ' —</option>';
+      return;
+    }
+    sel.innerHTML = (codingRole ? '' : '<option value="">— none —</option>')
+      + allowed.map(function (lc) {
+        var cadre = _orgCadres[lc.cadre_id] || {};
+        return '<option value="' + esc(lc.cadre_id) + '">'
+          + esc(lc.cadre_code) + (cadre.cadre_name ? ' — ' + esc(cadre.cadre_name) : '')
+          + '</option>';
+      }).join('');
+  }
+
+  document.getElementById('ag-unit').addEventListener('change', populateCadreOptions);
+
   // ── form submit ───────────────────────────────────────────────────────────
 
   document.getElementById('ag-submit-btn').addEventListener('click', function () {
@@ -581,6 +730,16 @@
     } else if (scope === 'project') {
       if (!PROJECT_ID) { errEl.textContent = 'Select a project from the sidebar first.'; return; }
       body.project_id = PROJECT_ID;
+    } else if (scope === 'org_unit') {
+      var unitVal = document.getElementById('ag-unit').value;
+      if (!unitVal) { errEl.textContent = 'Select a unit.'; return; }
+      body.org_unit_id = unitVal;
+      var cadreVal = document.getElementById('ag-cadre').value;
+      if (cadreVal) body.cadre_id = cadreVal;
+      if (role === 'coder' && !cadreVal) {
+        errEl.textContent = 'A coder grant on a unit needs a cadre that may code at that level.';
+        return;
+      }
     }
 
     var btn = this;
@@ -605,6 +764,10 @@
     document.getElementById('ag-scope').value = '';
     document.getElementById('ag-notes').value = '';
     document.getElementById('ag-site-field').style.visibility = 'hidden';
+    document.getElementById('ag-unit-field').classList.add('d-none');
+    document.getElementById('ag-cadre-field').classList.add('d-none');
+    document.getElementById('ag-unit').value = '';
+    document.getElementById('ag-cadre').innerHTML = '<option value="">— select unit first —</option>';
     document.getElementById('ag-form-error').textContent = '';
     hideUserResults();
   }

@@ -7,13 +7,20 @@ import json
 import logging
 import os
 import traceback
+import uuid
+from contextlib import contextmanager
+
 import sqlalchemy as sa
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 from datetime import datetime, timezone
 
-from app.services.attachment_service import attachment_state_by_submission
+from app.services.attachment_service import (
+    QUARANTINE_TRIGGER,
+    S3_UPLOAD_TRIGGER,
+    attachment_state_by_submission,
+)
 
 log = get_task_logger(__name__)
 ANALYTICS_MV_TRIGGER = "analytics_mv"
@@ -26,6 +33,20 @@ ATTACHMENT_REPAIR_BATCH_LIMIT = 50
 # (and per scheduled sweep). Bounded so one job cannot run for hours: a backlog
 # is cleared by repeated presses.
 SMARTVA_ARCHIVE_TASK_LIMIT = 200
+# Attachment rows copied into the bucket per sweep of run_attachment_s3_upload
+# (and per press of the panel button). Bounded so one sweep cannot run for
+# hours; a larger backlog is cleared by the next sweep ten minutes later.
+ATTACHMENT_S3_UPLOAD_TASK_LIMIT = 500
+# Sweeps are serialised on this key so a scheduled sweep and an admin press
+# never work the same rows at the same time. Longer than the task's hard time
+# limit, so a worker killed mid-sweep still releases it by expiry.
+ATTACHMENT_S3_UPLOAD_LOCK_KEY = "digitva:lock:attachment-s3-upload"
+ATTACHMENT_S3_UPLOAD_LOCK_TTL_SECONDS = 4200
+# The beat row's name, and its identity: seeding looks the row up by name, so
+# renaming it here creates a second schedule rather than moving this one. The
+# interval is configuration, so it is not in the name.
+ATTACHMENT_S3_UPLOAD_SCHEDULE_NAME = "Attachment S3 upload sweep"
+DEFAULT_ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES = 10
 INTERRUPTED_RUN_MESSAGE = (
     "Interrupted run — the worker stopped before completion. "
     "Re-initiate Sync or Repair to continue remaining gaps."
@@ -1540,6 +1561,271 @@ def run_attachment_integrity_check(
         raise
 
 
+def _lock_client():
+    """The Redis client behind Flask-Caching, or ``None`` when there is none."""
+    from app import cache
+
+    try:
+        return cache.cache._write_client  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001 - a missing lock must not stop the work
+        return None
+
+
+@contextmanager
+def _sweep_lock(key: str, ttl_seconds: int):
+    """Hold ``key`` for the block, or yield ``False`` if someone else holds it.
+
+    A cross-worker mutex over the Redis the app already has, not a correctness
+    guarantee: every step of a sweep is idempotent, so a sweep that cannot
+    reach Redis runs anyway rather than letting the backlog grow. The value is
+    a token and release deletes the key only while it is still ours, so a lock
+    that expired and was taken over by the next sweep is never released by
+    this one.
+    """
+    client = _lock_client()
+    if client is None:
+        yield True
+        return
+
+    token = uuid.uuid4().hex
+    try:
+        acquired = bool(client.set(key, token, nx=True, ex=ttl_seconds))
+    except Exception:  # noqa: BLE001 - an unreachable lock must not stop the work
+        log.warning("lock %s is unavailable; running without it", key, exc_info=True)
+        yield True
+        return
+
+    if not acquired:
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        try:
+            current = client.get(key)
+            if current in (token, token.encode()):
+                client.delete(key)
+        except Exception:  # noqa: BLE001 - the TTL releases it either way
+            log.warning("lock %s could not be released; it expires", key, exc_info=True)
+
+
+def _finish_sweep_run(run, *, status, uploaded=0, remaining=0, error=None):
+    """Close an attachment sweep's run row with its counts. No-op without one."""
+    from app import db
+
+    if run is None:
+        return
+    run.status = status
+    run.records_updated = uploaded
+    run.records_skipped = remaining
+    run.finished_at = datetime.now(timezone.utc)
+    if error:
+        run.error_message = error[:2000]
+    db.session.commit()
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_attachment_s3_upload",
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=3600,
+)
+def run_attachment_s3_upload(
+    self,
+    form_id: str | None = None,
+    limit: int = ATTACHMENT_S3_UPLOAD_TASK_LIMIT,
+    triggered_by: str = S3_UPLOAD_TRIGGER,
+    user_id=None,
+    run_id=None,
+):
+    """Copy up to ``limit`` attachment blobs into the bucket and verify them.
+
+    The work is ``attachment_service.s3_upload_backlog()``; this task only
+    gives beat and the admin panel somewhere to call it from. It is the
+    cutover mechanism *and* the standing self-heal: any row that later ends up
+    with ``store_state='local'`` is picked up by the next sweep.
+
+    Two no-ops cost one query and write nothing: the local store, and an empty
+    backlog. A *scheduled* sweep in either state records no run row at all —
+    the sweep fires every few minutes, and 150 empty rows a day would bury the
+    real sync history the dashboard exists to show. A sweep started from the
+    panel passes its own ``run_id``, so an operator who pressed the button
+    always gets a row back, marked ``success`` with ``remaining=0``.
+
+    Never raises: a failed upload is counted on the run row, and a traceback
+    into beat would only repeat the same failure in a few minutes. The
+    progress log holds counts only — never a path, a key, or a submission id.
+    """
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services import attachment_service
+    from app.services.attachment_service import STORE_STATE_S3
+    from app.services.attachment_store import get_attachment_store
+
+    run = db.session.get(VaSyncRun, uuid.UUID(str(run_id))) if run_id else None
+    batch = max(int(limit or 0), 0) or ATTACHMENT_S3_UPLOAD_TASK_LIMIT
+
+    if get_attachment_store().name != STORE_STATE_S3:
+        log.info("attachment s3 upload: ATTACHMENT_STORE is not 's3'; nothing to do")
+        _finish_sweep_run(run, status="success")
+        return {"skipped": "local_store", "scanned": 0, "uploaded": 0,
+                "failed": 0, "remaining": 0}
+
+    remaining = attachment_service.s3_upload_pending_count(form_id=form_id)
+    if not remaining:
+        log.info("attachment s3 upload: backlog empty (scope %s)", form_id or "ALL")
+        _finish_sweep_run(run, status="success")
+        return {"skipped": "empty_backlog", "scanned": 0, "uploaded": 0,
+                "failed": 0, "remaining": 0}
+
+    with _sweep_lock(
+        ATTACHMENT_S3_UPLOAD_LOCK_KEY, ATTACHMENT_S3_UPLOAD_LOCK_TTL_SECONDS
+    ) as acquired:
+        if not acquired:
+            log.info("attachment s3 upload: another sweep is running; skipping")
+            _finish_sweep_run(run, status="success", remaining=remaining)
+            return {"skipped": "locked", "scanned": 0, "uploaded": 0,
+                    "failed": 0, "remaining": remaining}
+
+        if run is None:
+            run = VaSyncRun(
+                triggered_by=triggered_by,
+                triggered_user_id=user_id,
+                started_at=datetime.now(timezone.utc),
+                status="running",
+            )
+            db.session.add(run)
+            db.session.commit()
+        sweep_run_id = run.sync_run_id
+
+        def log_progress(msg):
+            _log_progress(db, sweep_run_id, msg)
+
+        log_progress(
+            f"attachment s3 upload: started (scope {form_id or 'ALL'}, "
+            f"limit {batch}, awaiting {remaining})"
+        )
+        try:
+            counts = attachment_service.s3_upload_backlog(
+                form_id=form_id,
+                limit=batch,
+                on_progress=log_progress,
+            )
+        except SoftTimeLimitExceeded:
+            db.session.rollback()
+            log_progress("attachment s3 upload: interrupted")
+            _finish_sweep_run(
+                run, status="error", remaining=remaining,
+                error=INTERRUPTED_RUN_MESSAGE,
+            )
+            return {"skipped": "interrupted", "scanned": 0, "uploaded": 0,
+                    "failed": 0, "remaining": remaining}
+        except Exception as exc:  # noqa: BLE001 - a sweep must not crash beat
+            db.session.rollback()
+            log.error("Attachment S3 upload sweep failed", exc_info=True)
+            log_progress("attachment s3 upload: failed")
+            _finish_sweep_run(
+                run, status="error", remaining=remaining, error=str(exc),
+            )
+            return {"skipped": "error", "scanned": 0, "uploaded": 0,
+                    "failed": 0, "remaining": remaining}
+
+        remaining = attachment_service.s3_upload_pending_count(form_id=form_id)
+        result = {
+            "scanned": counts["scanned"],
+            "uploaded": counts["uploaded"],
+            "failed": counts["failed"],
+            "remaining": remaining,
+        }
+        log_progress(
+            "attachment s3 upload: "
+            + " ".join(f"{key}={value}" for key, value in result.items())
+        )
+        # counts["failures"] names the form and the storage name of each
+        # failure; the progress log never carries either, so only the count
+        # travels. The operator's detail view is `flask attachments s3-upload`.
+        _finish_sweep_run(
+            run,
+            status="success" if not counts["failed"] else "partial",
+            uploaded=counts["uploaded"],
+            remaining=remaining,
+            error=(
+                f"{counts['failed']} attachment(s) could not be uploaded."
+                if counts["failed"] else None
+            ),
+        )
+        return result
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_attachment_local_quarantine",
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=3600,
+)
+def run_attachment_local_quarantine(
+    self,
+    form_id: str | None = None,
+    include_retained: bool = False,
+    triggered_by: str = QUARANTINE_TRIGGER,
+    user_id=None,
+):
+    """Move the local copies of verified S3-stored rows aside. Manual only.
+
+    The work is ``attachment_service.quarantine_local_copies()``. Nothing is
+    deleted: a file moves only once its object is confirmed in the bucket, and
+    removing the quarantine after the retention window stays a manual,
+    documented step — which is exactly why this task is never scheduled. A
+    no-op on the local store. Never raises; counts only in the progress log.
+    """
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services import attachment_service
+    from app.services.attachment_service import STORE_STATE_S3
+    from app.services.attachment_store import get_attachment_store
+
+    if get_attachment_store().name != STORE_STATE_S3:
+        log.info("attachment quarantine: ATTACHMENT_STORE is not 's3'; nothing to do")
+        return {"skipped": "local_store", "moved": 0}
+
+    run = VaSyncRun(
+        triggered_by=triggered_by,
+        triggered_user_id=user_id,
+        started_at=datetime.now(timezone.utc),
+        status="running",
+    )
+    db.session.add(run)
+    db.session.commit()
+    sweep_run_id = run.sync_run_id
+
+    def log_progress(msg):
+        _log_progress(db, sweep_run_id, msg)
+
+    log_progress(f"attachment quarantine: started (scope {form_id or 'ALL'})")
+    try:
+        counts = attachment_service.quarantine_local_copies(
+            form_id=form_id,
+            include_retained=bool(include_retained),
+        )
+    except Exception as exc:  # noqa: BLE001 - an operator sees the run row
+        db.session.rollback()
+        log.error("Attachment local quarantine failed", exc_info=True)
+        log_progress("attachment quarantine: failed")
+        _finish_sweep_run(run, status="error", error=str(exc))
+        return {"skipped": "error", "moved": 0}
+
+    log_progress(
+        "attachment quarantine: "
+        + " ".join(f"{key}={value}" for key, value in sorted(counts.items()))
+    )
+    _finish_sweep_run(
+        run,
+        status="success" if not counts["skipped_no_object"] else "partial",
+        uploaded=counts["moved"],
+    )
+    return counts
+
+
 @shared_task(
     name="app.tasks.sync_tasks.run_smartva_run_archive",
     bind=True,
@@ -2269,3 +2555,116 @@ def ensure_submission_analytics_mv_refresh_scheduled():
         log.info("Submission analytics MV refresh beat schedule seeded: every 1 hour.")
     except Exception as e:
         log.warning("Could not seed submission analytics MV refresh schedule: %s", e)
+
+
+def parse_sweep_minutes(value) -> int:
+    """``ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`` as a positive int, or the default.
+
+    A missing, unparseable or non-positive value is a misconfiguration, not a
+    reason to stop sweeping the upload backlog, so it is logged and the default
+    is used. Capped at a day: an interval longer than that is a typo, and the
+    sweep is also the standing self-heal for a row that drops back to local.
+    """
+    try:
+        minutes = int(value)
+        if not (1 <= minutes <= 1440):
+            raise ValueError(value)
+    except (TypeError, ValueError):
+        log.warning(
+            "ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES is not a minute count between "
+            "1 and 1440; using %s",
+            DEFAULT_ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES,
+        )
+        minutes = DEFAULT_ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES
+    return minutes
+
+
+def ensure_attachment_s3_upload_scheduled():
+    """Seed the attachment S3 upload sweep beat entry. Idempotent.
+
+    Left scheduled permanently, on every deployment: the task costs one count
+    query when the store is local or the backlog is empty, and keeping it on
+    means a row that somehow returns to ``store_state='local'`` is copied back
+    into the bucket without anyone noticing it had to be. The interval is
+    configuration, so a changed ``ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`` repoints
+    the existing row rather than adding a second one.
+    """
+    try:
+        from flask import current_app
+
+        from app import db
+
+        minutes = parse_sweep_minutes(
+            current_app.config.get("ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES")
+        )
+
+        with db.engine.begin() as conn:
+            schedule_id = conn.execute(
+                sa.text(
+                    "SELECT id FROM public.celery_intervalschedule "
+                    "WHERE every = :every AND period = 'minutes' LIMIT 1"
+                ),
+                {"every": minutes},
+            ).scalar()
+            if schedule_id is None:
+                schedule_id = conn.execute(
+                    sa.text(
+                        "INSERT INTO public.celery_intervalschedule (every, period) "
+                        "VALUES (:every, 'minutes') RETURNING id"
+                    ),
+                    {"every": minutes},
+                ).scalar()
+
+            existing_schedule_id = conn.execute(
+                sa.text(
+                    "SELECT schedule_id FROM public.celery_periodictask "
+                    "WHERE name = :name LIMIT 1"
+                ),
+                {"name": ATTACHMENT_S3_UPLOAD_SCHEDULE_NAME},
+            ).scalar()
+
+            if existing_schedule_id is None:
+                conn.execute(
+                    sa.text(
+                        """
+                        INSERT INTO public.celery_periodictask
+                            (name, task, args, kwargs, queue, exchange, routing_key, headers,
+                             priority, one_off, enabled, total_run_count, description,
+                             discriminator, schedule_id)
+                        VALUES
+                            (:name, :task, '[]', '{}', NULL, NULL, NULL, '{}',
+                             NULL, false, true, 0, '',
+                             'intervalschedule', :schedule_id)
+                        """
+                    ),
+                    {
+                        "name": ATTACHMENT_S3_UPLOAD_SCHEDULE_NAME,
+                        "task": "app.tasks.sync_tasks.run_attachment_s3_upload",
+                        "schedule_id": schedule_id,
+                    },
+                )
+            elif existing_schedule_id != schedule_id:
+                conn.execute(
+                    sa.text(
+                        "UPDATE public.celery_periodictask SET schedule_id = :schedule_id, "
+                        "discriminator = 'intervalschedule' WHERE name = :name"
+                    ),
+                    {"schedule_id": schedule_id,
+                     "name": ATTACHMENT_S3_UPLOAD_SCHEDULE_NAME},
+                )
+            else:
+                return
+
+            conn.execute(
+                sa.text(
+                    "INSERT INTO public.celery_periodictaskchanged (last_update) "
+                    "VALUES (NOW()) ON CONFLICT DO NOTHING"
+                )
+            )
+
+        log.info(
+            "Attachment S3 upload sweep beat schedule seeded: every %d minute(s).",
+            minutes,
+        )
+    except Exception as e:
+        log.warning("Could not seed attachment S3 upload schedule: %s", e)

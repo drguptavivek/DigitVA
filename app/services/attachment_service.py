@@ -1965,6 +1965,38 @@ def _overview_projects(project_ids) -> list[dict]:
     ]
 
 
+def _overview_last_s3_upload_run() -> dict | None:
+    """The most recent S3 upload sweep, as counts and a status. None if never.
+
+    Read through ``ix_va_sync_runs_triggered_by_started_at``. ``uploaded`` is
+    the run row's ``records_updated`` — rows whose blob is verified present in
+    the bucket — and no path, key or submission id is ever returned.
+    """
+    from app.models.va_sync_runs import VaSyncRun
+
+    row = db.session.execute(
+        sa.select(
+            VaSyncRun.sync_run_id,
+            VaSyncRun.status,
+            VaSyncRun.started_at,
+            VaSyncRun.finished_at,
+            VaSyncRun.records_updated,
+        )
+        .where(VaSyncRun.triggered_by == S3_UPLOAD_TRIGGER)
+        .order_by(VaSyncRun.started_at.desc())
+        .limit(1)
+    ).first()
+    if row is None:
+        return None
+    return {
+        "run_id": str(row.sync_run_id),
+        "status": row.status,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+        "uploaded": int(row.records_updated or 0),
+    }
+
+
 def attachment_management_overview(project_ids: list[str] | None = None) -> dict:
     """Everything the Attachment Management panel shows, in five bulk queries.
 
@@ -1993,6 +2025,15 @@ def attachment_management_overview(project_ids: list[str] | None = None) -> dict
         "forms": [forms[form_id] for form_id in sorted(forms)],
         "delivery_counters": delivery_counters(),
         "source_error_categories": _overview_error_categories(scope),
+        "s3_upload": {
+            "awaiting": sum(
+                int(form.get("awaiting_s3") or 0) for form in forms.values()
+            ),
+            "sweep_minutes": int(
+                current_app.config.get("ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES") or 0
+            ),
+            "last_run": _overview_last_s3_upload_run(),
+        },
     }
 
 
@@ -2264,6 +2305,13 @@ _HASH_CHUNK_SIZE = 1024 * 1024
 # here, never removed; the retention delete is a manual, documented step.
 QUARANTINE_DIRNAME = ".s3-uploaded"
 
+# ``va_sync_runs.triggered_by`` for a sweep of the upload backlog, whether beat
+# or an admin press started it. Fits varchar(16); the panel finds the last
+# sweep by it, so changing it hides every earlier run.
+S3_UPLOAD_TRIGGER = "att-s3-upload"
+# ...and for the manual-only quarantine sweep. Never scheduled.
+QUARANTINE_TRIGGER = "att-quarantine"
+
 
 def require_s3_store():
     """The selected store, or an error naming the configuration to change."""
@@ -2385,6 +2433,29 @@ def _upload_one(store, row, content_type, path):
     except Exception as exc:
         return f"upload failed ({type(exc).__name__})"
     return None
+
+
+def s3_upload_pending_count(form_id: str | None = None) -> int:
+    """How many rows still hold their blob only on the VM.
+
+    The predicate ``_upload_candidate_page`` pages over, as a single indexed
+    count, so a sweep can decide whether it has anything to do — and report
+    what is left afterwards — without opening a page of rows. Counts rows on
+    the local store too: the number is about the rows, not the configuration.
+    """
+    stmt = (
+        sa.select(sa.func.count())
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissionAttachments.exists_on_odk.is_(True),
+            VaSubmissionAttachments.storage_name.is_not(None),
+            VaSubmissionAttachments.store_state != STORE_STATE_S3,
+        )
+    )
+    if form_id:
+        stmt = stmt.where(VaSubmissions.va_form_id == form_id)
+    return int(db.session.scalar(stmt) or 0)
 
 
 def s3_upload_backlog(

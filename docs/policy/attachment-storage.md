@@ -144,6 +144,17 @@ Every uploaded object carries:
 - `flask attachments s3-upload` and `local-quarantine` never delete anything.
   The retention removal of quarantined local files is a manual step, taken by
   an operator after a verified backup.
+- The upload half also runs as a scheduled Celery sweep
+  (`run_attachment_s3_upload`, every `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`,
+  bounded per sweep), triggerable from the Attachment Management panel. It is
+  the same `s3_upload_backlog()` call with the same guarantees, so the cutover
+  needs no shell: an operator watches the panel's awaiting count reach zero.
+  The sweep stays scheduled after the cutover as the self-heal for any row
+  that later returns to `store_state='local'`.
+- The **quarantine half is never scheduled**. Moving a verified local copy
+  aside is the step before a human deletes it, so it stays a deliberate press
+  or a deliberate command — `run_attachment_local_quarantine` has a panel
+  button and no beat entry.
 
 ## Authorization matrix
 
@@ -423,6 +434,7 @@ and never retired), `quarantined`, `absent`.
 | Phase 5 | Sync stops downloading ordinary images and maintains derivative freshness through `mark_audio_derivative_stale()`. |
 | S3 store (done) | `store_state` records which store holds each row's blob. Sync uploads to the bucket and writes `store_state='s3'`, `local_path=NULL`, `local_fallback_state='absent'`; the Central self-heal tee does the same. |
 | Cutover (Phase 6, rewritten) | `flask attachments s3-upload` moves the backlog into the bucket and flips `store_state`; `flask attachments local-quarantine` moves the verified local files to `media/.s3-uploaded/` and marks them `quarantined`. Neither deletes; `retained` rows are skipped by the quarantine unless `--include-retained` is given. |
+| Cutover, unattended | `run_attachment_s3_upload` is the same upload as a bounded beat sweep plus a panel button, so the backlog clears without a shell and keeps clearing afterwards. `run_attachment_local_quarantine` is the panel button for the quarantine half and is never scheduled. |
 
 `readiness(va_sids)` in the attachment service is the bulk read of this state:
 one bounded query per batch of submissions, no filesystem, no Central or S3

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 import sqlalchemy as sa
 from moto import mock_aws
+from unittest.mock import patch
 
 from app import db
 from app.commands.attachments import QUARANTINE_DIRNAME
@@ -30,7 +31,14 @@ from app.services import attachment_store as store_mod
 from tests.base import BaseTestCase
 
 
-class AttachmentsS3CliTests(BaseTestCase):
+class S3UploadBase(BaseTestCase):
+    """Moto bucket, an S3-pinned app and one form, shared by every S3 cutover class.
+
+    Subclasses set their own ``FORM_ID`` (rule 4) and the form row is
+    get-or-create (rule 5), because more than one class seeds through here.
+    ``ATTACHMENT_STORE`` and ``APP_DATA`` are restored per test (rule 7).
+    """
+
     FORM_ID = "S3CLI_FORM"
 
     @classmethod
@@ -60,17 +68,18 @@ class AttachmentsS3CliTests(BaseTestCase):
                 site_updated_at=now,
             ))
             db.session.flush()
-        db.session.add(VaForms(
-            form_id=cls.FORM_ID,
-            project_id=cls.BASE_PROJECT_ID,
-            site_id=cls.BASE_SITE_ID,
-            odk_form_id="S3CLI_ODK",
-            odk_project_id="96",
-            form_type="WHO VA 2022",
-            form_status=VaStatuses.active,
-            form_registered_at=now,
-            form_updated_at=now,
-        ))
+        if not db.session.get(VaForms, cls.FORM_ID):
+            db.session.add(VaForms(
+                form_id=cls.FORM_ID,
+                project_id=cls.BASE_PROJECT_ID,
+                site_id=cls.BASE_SITE_ID,
+                odk_form_id=cls.FORM_ID + "_ODK",
+                odk_project_id="96",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active,
+                form_registered_at=now,
+                form_updated_at=now,
+            ))
         db.session.commit()
 
     def setUp(self):
@@ -188,6 +197,12 @@ class AttachmentsS3CliTests(BaseTestCase):
         db.session.expire_all()
         return db.session.get(VaSubmissionAttachments, (row.va_sid, row.filename))
 
+
+class AttachmentsS3CliTests(S3UploadBase):
+    """``flask attachments s3-upload`` / ``local-quarantine`` against moto."""
+
+    FORM_ID = "S3CLI_FORM"
+
     # -- s3-upload --------------------------------------------------------
 
     def test_dry_run_reports_and_writes_nothing(self):
@@ -253,6 +268,27 @@ class AttachmentsS3CliTests(BaseTestCase):
         self.assertEqual(result.exit_code, 1)
         self.assertIn("failed=1", result.output)
         self.assertIn("no local file", result.output)
+
+    def test_as_task_queues_the_sweep_instead_of_uploading_here(self):
+        storage_name = uuid.uuid4().hex + ".jpg"
+        row = self._row(storage_name=storage_name)
+        with patch(
+            "app.tasks.sync_tasks.run_attachment_s3_upload.delay"
+        ) as delay:
+            delay.return_value = type("T", (), {"id": "task-9"})()
+            result = self._upload("--as-task")
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("queued as task task-9", result.output)
+        delay.assert_called_once()
+        self.assertEqual(delay.call_args.kwargs["form_id"], self.FORM_ID)
+        # Nothing was uploaded in this process.
+        self.assertIsNone(self.store.head(self._key(storage_name)))
+        self.assertEqual(self._reload(row).store_state, svc.STORE_STATE_LOCAL)
+
+    def test_as_task_refuses_a_dry_run(self):
+        result = self._upload("--as-task", "--dry-run")
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertIn("cannot be combined", result.output)
 
     def test_the_command_refuses_to_run_on_the_local_store(self):
         self.app.config["ATTACHMENT_STORE"] = svc.STORE_STATE_LOCAL

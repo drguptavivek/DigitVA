@@ -1,9 +1,10 @@
 {#
   Attachment Management panel
 
-  A read-only view over app/services/attachment_service.py plus three actions:
-  the per-project Central self-heal switch, per-form attachment repair, and the
-  integrity check. Every number comes from
+  A read-only view over app/services/attachment_service.py plus five actions:
+  the per-project Central self-heal switch, per-form attachment repair, the
+  integrity check, the S3 upload sweep and the manual local quarantine. Every
+  number comes from
   GET /admin/api/attachments/overview — the panel computes nothing and never
   shows a path, a key, a filename or a submission id.
 
@@ -76,6 +77,34 @@
 
   {# Per-form state tables #}
   <div id="att-forms-wrap"></div>
+
+  {# S3 upload backlog — the cutover sweep and its manual trigger #}
+  <div class="card mt-3" id="att-s3-upload-card">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="card-title small text-uppercase text-muted mb-0">
+          S3 upload backlog
+        </h6>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-primary" id="att-s3-upload-btn">
+            <i class="fa-solid fa-cloud-arrow-up me-1"></i>Upload backlog to S3 now
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" id="att-quarantine-btn">
+            <i class="fa-solid fa-box-archive me-1"></i>Quarantine uploaded local files
+          </button>
+        </div>
+      </div>
+      <div id="att-s3-upload-wrap"></div>
+      <div class="text-muted small mt-2">
+        A sweep copies any blob still held only on this VM into the bucket and
+        verifies it before the row points at the object; nothing is deleted. It
+        runs on a schedule, so the backlog reaches zero on its own &mdash; the
+        button only saves the wait. Quarantine is manual by design: it moves an
+        already-uploaded local file aside so an operator can remove it by hand
+        after the retention window.
+      </div>
+    </div>
+  </div>
 
   {# SmartVA run archive — same bucket, smartva_runs/ prefix #}
   <div class="card mt-3">
@@ -303,6 +332,58 @@
     }
   }
 
+  function renderS3Upload() {
+    var wrap = document.getElementById('att-s3-upload-wrap');
+    var info = (_report && _report.s3_upload) || {};
+    if (_report && _report.store !== 's3') {
+      wrap.innerHTML = '<p class="text-muted small mb-0">'
+        + 'Local store &mdash; every blob is already where it is served from.</p>';
+      return;
+    }
+    var awaiting = Number(info.awaiting || 0);
+    var last = info.last_run;
+    var tone = awaiting ? 'warning' : 'success';
+    var lastHtml = last
+      ? '<span class="badge text-bg-light border me-1">last sweep '
+        + esc(last.status) + '</span>'
+        + '<span class="text-muted">' + esc(last.uploaded) + ' uploaded'
+        + (last.finished_at ? ' &middot; finished ' + esc(last.finished_at) : ' &middot; running')
+        + ' &middot; run ' + esc(last.run_id) + '</span>'
+      : '<span class="text-muted">no sweep recorded yet</span>';
+    wrap.innerHTML = '<div><span class="badge text-bg-' + tone + '">awaiting S3 upload '
+      + esc(awaiting) + '</span></div>'
+      + '<div class="small mt-2">' + lastHtml + '</div>'
+      + '<div class="small text-muted mt-1">sweep every '
+      + esc(info.sweep_minutes) + ' minute(s)</div>';
+  }
+
+  function queueSweep(button, url, fallbackMessage) {
+    button.disabled = true;
+    apiJson(url, 'POST', {}).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) {
+        notice('danger', res.data.error || fallbackMessage);
+        return;
+      }
+      notice('success', (res.data.message || 'Started.')
+        + (res.data.run_id ? ' Run id: ' + res.data.run_id : ''));
+      load();
+    }).catch(function () {
+      button.disabled = false;
+      notice('danger', 'Network error.');
+    });
+  }
+
+  document.getElementById('att-s3-upload-btn').addEventListener('click', function () {
+    queueSweep(this, '/admin/api/attachments/s3-upload',
+      'Failed to queue the S3 upload.');
+  });
+
+  document.getElementById('att-quarantine-btn').addEventListener('click', function () {
+    queueSweep(this, '/admin/api/attachments/local-quarantine',
+      'Failed to queue the local quarantine.');
+  });
+
   function renderProjectFilter() {
     var select = document.getElementById('att-project-filter');
     var current = select.value;
@@ -340,6 +421,7 @@
       renderProjects();
       renderCounters();
       renderErrors();
+      renderS3Upload();
       renderForms();
     }).catch(function () {
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';

@@ -6060,6 +6060,99 @@ def admin_attachments_integrity_check():
         return _json_error("Failed to queue the attachment integrity check", 500)
 
 
+@admin.post("/api/attachments/s3-upload")
+@role_required("admin")
+def admin_attachments_s3_upload():
+    """Queue a bounded sweep of the S3 upload backlog and hand back its run id.
+
+    The same sweep beat runs every ``ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES``; the
+    button is for an operator who does not want to wait. The run row is created
+    here so the id can be returned immediately, which also means a press with
+    an empty backlog still leaves a visible ``success`` row.
+    """
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services.attachment_service import S3_UPLOAD_TRIGGER
+    from app.tasks.sync_tasks import (
+        ATTACHMENT_S3_UPLOAD_TASK_LIMIT,
+        run_attachment_s3_upload,
+    )
+
+    payload = request.get_json(silent=True) or {}
+    form_id = (payload.get("form_id") or "").strip() or None
+    try:
+        run = VaSyncRun(
+            triggered_by=S3_UPLOAD_TRIGGER,
+            triggered_user_id=current_user.user_id,
+            started_at=datetime.now(timezone.utc),
+            status="running",
+        )
+        db.session.add(run)
+        db.session.commit()
+        task = run_attachment_s3_upload.delay(
+            form_id=form_id,
+            limit=ATTACHMENT_S3_UPLOAD_TASK_LIMIT,
+            triggered_by=S3_UPLOAD_TRIGGER,
+            user_id=str(current_user.user_id),
+            run_id=str(run.sync_run_id),
+        )
+        log.info(
+            "admin attachment s3 upload queued form=%s run=%s by=%s",
+            form_id or "ALL", run.sync_run_id, current_user.user_id,
+        )
+        return jsonify({
+            "message": (
+                "Attachment S3 upload started for up to "
+                f"{ATTACHMENT_S3_UPLOAD_TASK_LIMIT} attachment(s)."
+            ),
+            "form_id": form_id,
+            "limit": ATTACHMENT_S3_UPLOAD_TASK_LIMIT,
+            "run_id": str(run.sync_run_id),
+            "task_id": task.id,
+        }), 202
+    except Exception:
+        db.session.rollback()
+        log.error("admin_attachments_s3_upload failed", exc_info=True)
+        return _json_error("Failed to queue the attachment S3 upload", 500)
+
+
+@admin.post("/api/attachments/local-quarantine")
+@role_required("admin")
+def admin_attachments_local_quarantine():
+    """Queue the manual-only quarantine sweep of already-uploaded local files.
+
+    Never scheduled: moving a verified local copy aside is the step before an
+    operator deletes it by hand after the retention window, so it stays a
+    deliberate press. Nothing is deleted here either.
+    """
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.tasks.sync_tasks import run_attachment_local_quarantine
+
+    payload = request.get_json(silent=True) or {}
+    form_id = (payload.get("form_id") or "").strip() or None
+    try:
+        task = run_attachment_local_quarantine.delay(
+            form_id=form_id,
+            user_id=str(current_user.user_id),
+        )
+        log.info(
+            "admin attachment local quarantine queued form=%s by=%s",
+            form_id or "ALL", current_user.user_id,
+        )
+        return jsonify({
+            "message": "Local quarantine of uploaded attachments started.",
+            "form_id": form_id,
+            "task_id": task.id,
+        }), 202
+    except Exception:
+        log.error("admin_attachments_local_quarantine failed", exc_info=True)
+        return _json_error("Failed to queue the local quarantine", 500)
+
+
 # ---------------------------------------------------------------------------
 # SmartVA run archive  (admin-only)
 #

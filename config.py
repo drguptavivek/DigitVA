@@ -200,6 +200,14 @@ class Config:
     ATTACHMENT_PRESIGN_EXPIRY_SECONDS = int(
         os.environ.get("ATTACHMENT_PRESIGN_EXPIRY_SECONDS", "300")
     )
+    # How often the Celery sweep copies any attachment blob still held only on
+    # the VM into the bucket (``run_attachment_s3_upload``). The sweep is an
+    # instant no-op when the store is local or the backlog is empty, so it is
+    # left scheduled permanently: it is both the cutover mechanism and the
+    # self-heal for any row that later ends up with store_state='local'.
+    ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES = int(
+        os.environ.get("ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES", "10")
+    )
 
     # --- SmartVA run archive -------------------------------------------
     # A SmartVA run directory is a local working area the CLI needs while it

@@ -30,7 +30,7 @@ The `/admin` interface provides the following management panels:
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
 - **Languages** — canonical language list management with ODK alias mapping. Shows unmapped language values found in submissions.
 - **COD Buckets** — admin editor for imported COD reporting schemes, including hierarchy labels/order and single-target ICD-to-disease remapping by age scope.
-- **Attachments** — Attachment Management: per-form attachment state, the Central self-heal switch, per-form repair, and the integrity check (see below)
+- **Attachments** — Attachment Management: per-form attachment state, the Central self-heal switch, per-form repair, the integrity check, the S3 upload sweep and the manual local quarantine (see below)
 - **ICD-10 Browser** — admin browser for `mas_icd10_2019_2`, including lazy hierarchy traversal, local policy-field curation, JSON export of curated code-policy rows, XLSX export of editable ICD rows with coding policy and COD manual override status, and a read-only legacy ICD reporting alias table for historical CoD normalization used by COD bucket reporting.
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
@@ -191,6 +191,10 @@ five bulk `GROUP BY` queries with no filesystem, store or ODK Central access:
 - this worker's delivery outcome counters since start (`local`,
   `central_stream`, `central_redirect_followed`, `unavailable`, `error`)
 - the source error categories in scope, as counts
+- the S3 upload block: how many rows across the scope are still awaiting
+  upload, the sweep interval, and the latest `att-s3-upload` run's status,
+  uploaded count and finish time — so the cutover can be followed from the
+  panel instead of an SSH session
 
 The same figures are available from the CLI as
 `flask attachments overview [--project-id X]`.
@@ -202,14 +206,20 @@ The same figures are available from the CLI as
 | Turn Central self-heal on or off for a project | `PUT /admin/api/projects/<project_id>/attachment-central-fetch` (the existing flag endpoint — the panel reuses it rather than duplicating it) |
 | Repair one form's unready attachments | `POST /admin/api/attachments/forms/<form_id>/repair` — creates a `va_sync_runs` row, queues `run_form_attachment_repair`, and returns the run id |
 | Check integrity against the store | `POST /admin/api/attachments/integrity-check` — queues `run_attachment_integrity_check`, whose counts land on its own `va_sync_runs` row |
+| Upload backlog to S3 now | `POST /admin/api/attachments/s3-upload` — creates a `va_sync_runs` row, queues `run_attachment_s3_upload`, and returns the run id. The same sweep runs on a schedule (`ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`), so the button only saves the wait |
+| Quarantine uploaded local files | `POST /admin/api/attachments/local-quarantine` — queues `run_attachment_local_quarantine`, which moves the local copy of each verified S3-stored row aside. Manual only: this action is never scheduled, and it deletes nothing |
 
-Both actions are bounded: a repair takes at most
+Every action is bounded: a repair takes at most
 `ATTACHMENT_PANEL_REPAIR_MAX_SUBMISSIONS` (200) submissions per press and at
-most `ATTACHMENT_REPAIR_BATCH_LIMIT` (50) attachment rows per form per batch.
-All three endpoints are `@role_required("admin")` plus `is_admin()`, and the
-POSTs carry `X-CSRFToken` like every other admin action. These runs use their
-own `triggered_by` values (`att-repair`, `att-integrity`) so they do not appear
-in the sync dashboard's history.
+most `ATTACHMENT_REPAIR_BATCH_LIMIT` (50) attachment rows per form per batch,
+and an upload sweep takes at most `ATTACHMENT_S3_UPLOAD_TASK_LIMIT` (500)
+attachment rows. Concurrent upload sweeps are serialised on a Redis key, so a
+press during a scheduled sweep records a `success` run rather than uploading
+the same rows twice. All five endpoints are `@role_required("admin")` plus
+`is_admin()`, and the POSTs carry `X-CSRFToken` like every other admin action.
+These runs use their own `triggered_by` values (`att-repair`, `att-integrity`,
+`att-s3-upload`, `att-quarantine`) so they do not appear in the sync
+dashboard's history.
 
 ## Languages Panel
 

@@ -94,6 +94,7 @@ with flask_app.app_context():
     from app.tasks.backup_tasks import ensure_db_backup_scheduled
     from app.tasks.sync_tasks import (
         cleanup_stale_runs,
+        ensure_attachment_s3_upload_scheduled,
         ensure_coding_timeout_cleanup_scheduled,
         ensure_demo_cleanup_scheduled,
         ensure_submission_analytics_mv_refresh_scheduled,
@@ -106,3 +107,4 @@ with flask_app.app_context():
     ensure_demo_cleanup_scheduled()
     ensure_submission_analytics_mv_refresh_scheduled()
     ensure_db_backup_scheduled()
+    ensure_attachment_s3_upload_scheduled()

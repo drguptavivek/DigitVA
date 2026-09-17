@@ -103,14 +103,38 @@ def overview(project_id):
 @click.option("--dry-run", is_flag=True, help="Report what would be uploaded; write nothing.")
 @click.option("--limit", type=int, default=0, help="Stop after N rows (0 = no limit).")
 @click.option("--workers", type=int, default=4, help="Parallel uploads (default 4).")
-def s3_upload(form_id, dry_run, limit, workers):
+@click.option(
+    "--as-task",
+    is_flag=True,
+    help=(
+        "Queue the Celery sweep instead of uploading here; prints the task id "
+        "and leaves the counts on the sync run row."
+    ),
+)
+def s3_upload(form_id, dry_run, limit, workers, as_task):
     """Copy local attachment blobs into the S3 store and point the rows at them.
 
     Idempotent and resumable; local files are never deleted. Use
     ``local-quarantine`` and then a manual removal after the retention window.
+    The same work runs every few minutes as ``run_attachment_s3_upload``;
+    ``--as-task`` hands this invocation to that task rather than to this shell.
     """
     if workers < 1:
         raise click.ClickException("--workers must be at least 1.")
+    if as_task:
+        if dry_run:
+            raise click.ClickException("--as-task cannot be combined with --dry-run.")
+        from app.tasks.sync_tasks import (
+            ATTACHMENT_S3_UPLOAD_TASK_LIMIT,
+            run_attachment_s3_upload,
+        )
+
+        task = run_attachment_s3_upload.delay(
+            form_id=form_id,
+            limit=limit or ATTACHMENT_S3_UPLOAD_TASK_LIMIT,
+        )
+        click.echo(f"s3-upload queued as task {task.id}")
+        return
     try:
         counts = svc.s3_upload_backlog(
             form_id=form_id,

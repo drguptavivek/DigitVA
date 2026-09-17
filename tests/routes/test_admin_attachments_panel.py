@@ -19,6 +19,7 @@ from app.models import (
     VaSubmissions,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
+from app.models.va_sync_runs import VaSyncRun
 from app.services import attachment_service as svc
 from tests.base import BaseTestCase
 
@@ -200,8 +201,92 @@ class AdminAttachmentsPanelTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # -- S3 upload sweep ---------------------------------------------------
+
+    def test_overview_reports_the_s3_upload_block(self):
+        self._login(str(self.base_admin_id))
+        payload = self.client.get("/admin/api/attachments/overview").get_json()
+        block = payload["s3_upload"]
+        self.assertIn("awaiting", block)
+        self.assertEqual(
+            block["sweep_minutes"],
+            self.app.config["ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES"],
+        )
+        self.assertIn("last_run", block)
+
+    def test_s3_upload_action_queues_the_task_and_returns_a_run_id(self):
+        self._login(str(self.base_admin_id))
+        with patch("app.tasks.sync_tasks.run_attachment_s3_upload.delay") as delay:
+            delay.return_value = type("T", (), {"id": "task-3"})()
+            response = self.client.post(
+                "/admin/api/attachments/s3-upload",
+                json={"form_id": self.FORM_ID},
+                headers=self._csrf_headers(),
+            )
+        self.assertEqual(response.status_code, 202)
+        payload = response.get_json()
+        self.assertTrue(payload["run_id"])
+        self.assertEqual(payload["form_id"], self.FORM_ID)
+        delay.assert_called_once()
+        self.assertEqual(delay.call_args.kwargs["run_id"], payload["run_id"])
+        run = db.session.get(VaSyncRun, uuid.UUID(payload["run_id"]))
+        self.assertEqual(run.triggered_by, svc.S3_UPLOAD_TRIGGER)
+
+    def test_s3_upload_action_is_admin_only(self):
+        self._login(str(self.base_coder_id))
+        response = self.client.post(
+            "/admin/api/attachments/s3-upload",
+            json={},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_s3_upload_action_requires_csrf(self):
+        self._login(str(self.base_admin_id))
+        response = self.client.post("/admin/api/attachments/s3-upload", json={})
+        self.assertEqual(response.status_code, 400)
+
+    def test_quarantine_action_queues_the_task(self):
+        self._login(str(self.base_admin_id))
+        with patch(
+            "app.tasks.sync_tasks.run_attachment_local_quarantine.delay"
+        ) as delay:
+            delay.return_value = type("T", (), {"id": "task-4"})()
+            response = self.client.post(
+                "/admin/api/attachments/local-quarantine",
+                json={"form_id": self.FORM_ID},
+                headers=self._csrf_headers(),
+            )
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.get_json()["form_id"], self.FORM_ID)
+        delay.assert_called_once()
+
+    def test_quarantine_action_is_admin_only(self):
+        self._login(str(self.base_coder_id))
+        response = self.client.post(
+            "/admin/api/attachments/local-quarantine",
+            json={},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_quarantine_action_requires_csrf(self):
+        self._login(str(self.base_admin_id))
+        response = self.client.post(
+            "/admin/api/attachments/local-quarantine", json={}
+        )
+        self.assertEqual(response.status_code, 400)
+
     def test_panel_renders_for_an_admin(self):
         self._login(str(self.base_admin_id))
         response = self.client.get("/admin/panels/attachments")
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"panel-attachments", response.data)
+
+    def test_panel_renders_the_s3_upload_block(self):
+        self._login(str(self.base_admin_id))
+        response = self.client.get("/admin/panels/attachments")
+        self.assertIn(b"att-s3-upload-card", response.data)
+        self.assertIn(b"att-s3-upload-btn", response.data)
+        self.assertIn(b"att-quarantine-btn", response.data)
+        self.assertIn(b"/admin/api/attachments/s3-upload", response.data)

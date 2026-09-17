@@ -160,12 +160,13 @@ Neither ever deletes an attachment.
 
 | Command | Description |
 |---------|-------------|
-| `attachments s3-upload [--form-id X] [--dry-run] [--limit N] [--workers N]` | Copy every local attachment blob that is not yet recorded as S3-stored into the bucket, verify it (size, and ETag against the local MD5 for single-part uploads), then set `store_state='s3'` and `local_path=NULL`. Streams from the file, reads rows in keyset pages, idempotent and resumable, and exits non-zero if any row failed. Local files are left in place. |
+| `attachments s3-upload [--form-id X] [--dry-run] [--limit N] [--workers N] [--as-task]` | Copy every local attachment blob that is not yet recorded as S3-stored into the bucket, verify it (size, and ETag against the local MD5 for single-part uploads), then set `store_state='s3'` and `local_path=NULL`. Streams from the file, reads rows in keyset pages, idempotent and resumable, and exits non-zero if any row failed. Local files are left in place. `--as-task` queues the `run_attachment_s3_upload` Celery sweep instead of uploading in this shell and prints the task id; the counts then land on a `va_sync_runs` row and on the admin panel, and the same sweep runs on a schedule anyway (`ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`). It cannot be combined with `--dry-run`. |
 | `attachments local-quarantine [--form-id X] [--dry-run] [--include-retained]` | Move the local file of each verified `store_state='s3'` row into `APP_DATA/<form_id>/media/.s3-uploaded/` and mark it `local_fallback_state='quarantined'`. A row whose object is not in the bucket is left alone. Archival copies of submissions retired from ODK (`local_fallback_state='retained'`) are skipped unless `--include-retained` is given. |
 
 ```
 docker compose exec minerva_app_service uv run flask attachments s3-upload --dry-run
 docker compose exec minerva_app_service uv run flask attachments s3-upload --workers 8
+docker compose exec minerva_app_service uv run flask attachments s3-upload --as-task
 docker compose exec minerva_app_service uv run flask attachments local-quarantine --dry-run
 docker compose exec minerva_app_service uv run flask attachments local-quarantine
 ```

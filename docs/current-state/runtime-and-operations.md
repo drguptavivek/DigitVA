@@ -261,6 +261,7 @@ server. There is no global or default connection.
 | `S3_SECRET_ACCESS_KEY` | _(unset)_ | Secret. Environment only; never logged. |
 | `S3_PREFIX` | `` | Optional key prefix inside the bucket, e.g. `digitva/`. |
 | `ATTACHMENT_PRESIGN_EXPIRY_SECONDS` | `300` | Lifetime of a delivery presigned URL. |
+| `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES` | `10` | Interval of the `run_attachment_s3_upload` beat sweep. Seeds a `celery_intervalschedule` row; a value outside 1–1440 logs a warning and falls back to the default, and a changed value repoints the existing beat row rather than adding a second one. |
 | `SMARTVA_RUNS_KEEP_LOCAL_DAYS` | `0` | Days a *verified* SmartVA run directory stays on the VM after the run completed. `0` removes it as soon as the archive is verified. Ignored on the local store. |
 | `DB_BACKUP_DAILY_TIME` | `01:30` | UTC time of day for the nightly database dump. Seeds a `celery_crontabschedule` row; an unparseable value logs a warning and falls back to the default. |
 | `DB_BACKUP_KEEP_DAILY` | `30` | How many dumps to keep in the `db-backups/` prefix (or in `DB_BACKUP_LOCAL_DIR`). A count, not days. Clamped to at least 1. |
@@ -355,15 +356,25 @@ Reversible up to the retention step; nothing is deleted by any tool.
    `minerva_app_service minerva_celery_worker minerva_celery_beat`. The app
    refuses to start if a key is missing. From this point new sync downloads go
    to the bucket; rows still marked `local` keep serving from disk.
-3. **Upload** the backlog:
-   `flask attachments s3-upload --dry-run`, then
-   `flask attachments s3-upload --workers 8`. Re-run until it exits `0`.
-4. **Verify**: `python scripts/check_attachment_integrity.py --store s3`
+3. **Upload** the backlog. Nothing has to be done by hand: the sweep seeded in
+   step 2 clears it at 500 blobs every `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`.
+   Press *Upload backlog to S3 now* on the Attachment Management panel to start
+   immediately, or run `flask attachments s3-upload --workers 8` (or
+   `--as-task`, which hands the same work to the sweep) from a shell. Whichever
+   path, watch the panel's **awaiting S3 upload** count fall to `0`; the latest
+   sweep's status and uploaded count sit beside it, so no SSH session is needed
+   to follow the cutover. A sweep that reports `partial` names how many rows
+   failed; `flask attachments s3-upload` is the view that names *which*.
+4. **Verify**, once the awaiting count is `0`:
+   `python scripts/check_attachment_integrity.py --store s3`
    (or the panel's *Run integrity check* button, which records the same counts
    on a `va_sync_runs` row)
    must report `0` missing objects and `0` rows awaiting the cutover.
 5. **Quarantine** the local copies:
-   `flask attachments local-quarantine --dry-run`, then without the flag.
+   `flask attachments local-quarantine --dry-run`, then without the flag — or
+   the panel's *Quarantine uploaded local files* button, which queues
+   `run_attachment_local_quarantine` and records it on a `va_sync_runs` row.
+   Quarantine is manual-trigger only and is never scheduled.
    Files move to `APP_DATA/<form_id>/media/.s3-uploaded/`; nothing is deleted.
 6. **Retention**: leave the quarantined files for an agreed window (at least
    one full backup cycle) while watching delivery outcomes.
@@ -568,6 +579,20 @@ Current seeded periodic tasks:
 - database backup daily at `DB_BACKUP_DAILY_TIME` (default `01:30` UTC), a
   crontab schedule rather than an interval because the time of day matters —
   see [backup.md](backup.md)
+- attachment S3 upload sweep every `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES`
+  (default `10`), `run_attachment_s3_upload` — copies up to 500 attachment
+  blobs per sweep into the bucket and verifies each one. It is left scheduled
+  permanently on every deployment: a sweep costs one indexed count query when
+  `ATTACHMENT_STORE` is not `s3` or the backlog is empty, and keeping it on
+  means any row that later ends up with `store_state='local'` — a restored
+  backup, a manual fix — is copied back into the bucket without anyone having
+  to notice. A scheduled no-op writes no `va_sync_runs` row (144 empty rows a
+  day would bury the sync history); a sweep started from the admin panel
+  always leaves one, because someone pressed a button and is owed an answer.
+  Sweeps are serialised on a Redis key so a scheduled sweep and a press never
+  work the same rows. `run_attachment_local_quarantine` exists as the manual
+  counterpart and is **never** scheduled — moving a verified local copy aside
+  is the step before an operator deletes it by hand.
 
 Current ODK operational protection:
 

@@ -86,10 +86,12 @@ after_setup_task_logger.connect(_add_rotating_handler)
 celery_app = flask_app.extensions["celery"]
 
 # Register tasks with the worker
+import app.tasks.backup_tasks  # noqa: F401, E402
 import app.tasks.sync_tasks  # noqa: F401, E402
 
 # Seed beat schedule and clean up orphaned run rows on startup
 with flask_app.app_context():
+    from app.tasks.backup_tasks import ensure_db_backup_scheduled
     from app.tasks.sync_tasks import (
         cleanup_stale_runs,
         ensure_coding_timeout_cleanup_scheduled,
@@ -103,3 +105,4 @@ with flask_app.app_context():
     ensure_coding_timeout_cleanup_scheduled()
     ensure_demo_cleanup_scheduled()
     ensure_submission_analytics_mv_refresh_scheduled()
+    ensure_db_backup_scheduled()

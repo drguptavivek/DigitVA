@@ -216,6 +216,31 @@ class Config:
         os.environ.get("SMARTVA_RUNS_KEEP_LOCAL_DAYS", "0")
     )
 
+    # --- Database backups ----------------------------------------------
+    # The nightly ``pg_dump -Fc`` of the application database. With
+    # ATTACHMENT_STORE=s3 the dump goes straight to the DigitVA bucket under
+    # the db-backups/ prefix and the VM keeps no dump history at all; on the
+    # local store it lands in DB_BACKUP_LOCAL_DIR so development still has a
+    # useful command. Retention is a count of dumps, applied to whichever of
+    # the two the deployment uses.
+    # Baseline: docs/current-state/backup.md.
+    DB_BACKUP_DAILY_TIME = os.environ.get("DB_BACKUP_DAILY_TIME", "01:30").strip()
+    DB_BACKUP_KEEP_DAILY = int(os.environ.get("DB_BACKUP_KEEP_DAILY", "30"))
+    # Where a dump is written on the local store. Inside the container this is
+    # a directory of the project, not $HOME, so it survives neither more nor
+    # less than the rest of the bind mount.
+    DB_BACKUP_LOCAL_DIR = os.environ.get(
+        "DB_BACKUP_LOCAL_DIR", os.path.join(basedir, "dailybackups")
+    )
+    # Scratch space for the dump on its way to the bucket. One file at a time,
+    # removed in a finally: the VM never accumulates dumps.
+    DB_BACKUP_TMP_DIR = os.environ.get("DB_BACKUP_TMP_DIR", tempfile.gettempdir())
+    # Hard stop for one pg_dump. Well above the ~30 MB / few-seconds dump this
+    # database produces today; a run that hits it is a hung connection.
+    DB_BACKUP_TIMEOUT_SECONDS = int(
+        os.environ.get("DB_BACKUP_TIMEOUT_SECONDS", "1800")
+    )
+
     # Email (SMTP)
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "localhost")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
@@ -348,6 +373,11 @@ class TestConfig(Config):
     S3_PREFIX = ""
     ATTACHMENT_PRESIGN_EXPIRY_SECONDS = 300
     SMARTVA_RUNS_KEEP_LOCAL_DAYS = 0
+    # Each backup test points DB_BACKUP_LOCAL_DIR / DB_BACKUP_TMP_DIR at its own
+    # temporary directory; the timeout is short so a hung pg_dump fails the test
+    # rather than the session.
+    DB_BACKUP_TIMEOUT_SECONDS = 120
+    DB_BACKUP_KEEP_DAILY = 3
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = False
     HIBP_PASSWORD_BREACH_CHECK_TIMEOUT_SECONDS = 1.0
     MAIL_SUPPRESS_SEND = True

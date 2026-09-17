@@ -1218,6 +1218,38 @@ Current behavior:
 - a `"running"` row is committed before sync begins so the admin dashboard can display live status
 - stale `"running"` rows older than 2 hours are marked `"error"` on worker restart
 
+### `va_db_backups`
+
+Purpose:
+
+- records every database dump — where it went, how big it was, and its sha256
+
+Key fields:
+
+- `backup_id` — UUID primary key
+- `started_at` — timestamptz, indexed `DESC` (`ix_va_db_backups_started_at`)
+- `completed_at` — null while the dump is in progress
+- `triggered_by` — `"scheduled"` / `"manual"` / `"cli"`
+- `triggered_user_id` — nullable FK to `va_users.user_id` (set for admin-triggered runs)
+- `status` — `"running"` / `"success"` / `"failed"` / `"pruned"`, indexed (`ix_va_db_backups_status`)
+- `store` — `"local"` or `"s3"`
+- `object_key` — the bucket key (or the file name on the local store); the only
+  identifier a dump has outside the store
+- `size_bytes`, `sha256` — recorded on success; the sha256 is what a restore verifies against
+- `error_code` — short failure category (`pg_dump_failed`, `upload_failed`,
+  `verify_mismatch`, `dump_too_large`, …), never a message from `pg_dump` or the transport
+- `pruned_at` — set when retention removed the object
+
+Current behavior:
+
+- written by `app/services/db_backup_service.py`, driven by the `run_db_backup`
+  Celery task, the `flask backups` CLI, and the admin Database backups panel
+- a `"running"` row is committed before `pg_dump` starts, so an interrupted run
+  leaves evidence rather than nothing
+- `DB_BACKUP_KEEP_DAILY` retention flips a `"success"` row to `"pruned"` when its
+  object is deleted; the row is kept as history
+- this table is the only dump history on the VM — see [backup.md](backup.md)
+
 ## Schema Drift Guard
 
 The models must describe the live schema exactly — indexes, constraint names, foreign-key

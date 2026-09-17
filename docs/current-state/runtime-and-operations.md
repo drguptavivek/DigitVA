@@ -262,6 +262,11 @@ server. There is no global or default connection.
 | `S3_PREFIX` | `` | Optional key prefix inside the bucket, e.g. `digitva/`. |
 | `ATTACHMENT_PRESIGN_EXPIRY_SECONDS` | `300` | Lifetime of a delivery presigned URL. |
 | `SMARTVA_RUNS_KEEP_LOCAL_DAYS` | `0` | Days a *verified* SmartVA run directory stays on the VM after the run completed. `0` removes it as soon as the archive is verified. Ignored on the local store. |
+| `DB_BACKUP_DAILY_TIME` | `01:30` | UTC time of day for the nightly database dump. Seeds a `celery_crontabschedule` row; an unparseable value logs a warning and falls back to the default. |
+| `DB_BACKUP_KEEP_DAILY` | `30` | How many dumps to keep in the `db-backups/` prefix (or in `DB_BACKUP_LOCAL_DIR`). A count, not days. Clamped to at least 1. |
+| `DB_BACKUP_LOCAL_DIR` | `<repo>/dailybackups` | Where a dump goes on `ATTACHMENT_STORE=local`. Unused on the S3 store, where the VM keeps no dump at all. |
+| `DB_BACKUP_TMP_DIR` | system temp | Scratch space for one dump on its way to the bucket. Removed in a `finally`; never accumulates. |
+| `DB_BACKUP_TIMEOUT_SECONDS` | `1800` | Hard stop for one `pg_dump`. A run that hits it is a hung connection, not a slow dump. |
 
 Add these to the environment template alongside the existing ODK keys; the
 values themselves belong only in the deployment's `.env` or secret store.
@@ -315,6 +320,13 @@ Before setting `ATTACHMENT_STORE=s3`:
    and List on the bucket is everything it needs, so no policy change is
    required. Those objects are never presigned, so nothing about the delivery
    path applies to them.
+
+   The same statements also cover the **database backups** under the
+   `db-backups/` prefix. That prefix is the one place a **lifecycle rule** is
+   appropriate: bucket versioning keeps a noncurrent version of every pruned
+   dump, so expire noncurrent versions there after ~30 days. Do not scope such
+   a rule to the attachment or `smartva_runs/` prefixes — those hold primary
+   data. See [backup.md](backup.md).
 
 6. Backup scope: the bucket is now a primary data store. Include it in the
    backup plan alongside the database — versioning plus either cross-region
@@ -540,6 +552,11 @@ Current seeded periodic tasks:
 
 - ODK sync every 6 hours
 - stale coding allocation cleanup every 1 hour
+- demo coding cleanup every 15 minutes
+- submission analytics MV refresh every 1 hour
+- database backup daily at `DB_BACKUP_DAILY_TIME` (default `01:30` UTC), a
+  crontab schedule rather than an interval because the time of day matters —
+  see [backup.md](backup.md)
 
 Current ODK operational protection:
 

@@ -21,10 +21,11 @@ The backend is selected once from ``ATTACHMENT_STORE`` and nothing above this
 module branches on it except delivery, which must choose between sending a
 file and issuing a redirect.
 
-The S3 backend also exposes ``put_key``/``head_key``/``delete_key`` for callers
-that address an object by a key of their own rather than by an attachment row.
-The SmartVA run archive uses those under the ``smartva_runs/`` prefix of the
-same bucket; those objects are never presigned and never served.
+The S3 backend also exposes ``put_key``/``head_key``/``get_key``/``delete_key``
+for callers that address an object by a key of their own rather than by an
+attachment row: the SmartVA run archive under the ``smartva_runs/`` prefix of
+the same bucket, and the database backups under ``db-backups/``. Those objects
+are never presigned and never served.
 
 Policy baseline: ``docs/policy/attachment-storage.md``.
 """
@@ -293,11 +294,11 @@ class S3AttachmentStore:
     # -- Keyed access -----------------------------------------------------
     #
     # The methods above address one attachment through a ``StoredObject``. The
-    # three below address an arbitrary object by a store-relative key, so that
+    # four below address an arbitrary object by a store-relative key, so that
     # a caller holding a key of its own — the SmartVA run archive under
-    # ``smartva_runs/`` — reuses this bucket, client and object policy instead
-    # of building a second S3 client. They are S3-only on purpose: nothing
-    # archives to the local store.
+    # ``smartva_runs/``, the database backups under ``db-backups/`` — reuses
+    # this bucket, client and object policy instead of building a second S3
+    # client. They are S3-only on purpose: nothing archives to the local store.
 
     def absolute_key(self, key: str) -> str:
         """``<S3_PREFIX><key>`` — a store-relative key made bucket-absolute."""
@@ -310,6 +311,35 @@ class S3AttachmentStore:
     def head_key(self, key: str) -> dict | None:
         """HEAD one store-relative key: its metadata, or None when absent."""
         return self.head(self.absolute_key(key))
+
+    def get_key(self, key: str, dest_path: str) -> int:
+        """Stream one store-relative key to a local path. Returns bytes written.
+
+        Chunked through the botocore streaming body so a multi-gigabyte object
+        never lands in memory, and written to a neighbouring temporary name
+        that is renamed only after the last chunk, so an interrupted download
+        can never leave a file that looks complete.
+        """
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        absolute = self.absolute_key(key)
+        tmp_path = f"{dest_path}.part_{uuid.uuid4().hex}"
+        written = 0
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=absolute)
+            with open(tmp_path, "wb") as handle:
+                for chunk in response["Body"].iter_chunks(STORE_CHUNK_SIZE):
+                    handle.write(chunk)
+                    written += len(chunk)
+            os.replace(tmp_path, dest_path)
+        except (BotoCoreError, ClientError) as exc:
+            _remove_quietly(tmp_path)
+            log.warning("attachment store: GET failed")
+            raise AttachmentStoreError("Attachment store read failed.") from exc
+        except Exception:
+            _remove_quietly(tmp_path)
+            raise
+        return written
 
     def delete_key(self, key: str) -> bool:
         """Remove one store-relative key. Explicit tooling only."""

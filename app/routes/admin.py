@@ -6126,6 +6126,57 @@ def admin_smartva_run_archive_pending():
         return _json_error("Failed to queue the SmartVA run archive", 500)
 
 
+# ---------------------------------------------------------------------------
+# Database backups  (admin-only)
+#
+# The dump, the retention count and the restore checksum all belong to
+# app/services/db_backup_service.py. These handlers authorize, serialize and
+# queue; they never run pg_dump, never touch the bucket, and never return a
+# credential, a host or a connection string — only the object key an operator
+# needs for `flask backups db-download`.
+# ---------------------------------------------------------------------------
+
+@admin.get("/api/db-backups/overview")
+@role_required("admin")
+def admin_db_backups_overview():
+    """The last backups, retention, and where dumps are being written."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.db_backup_service import db_backup_overview
+
+    try:
+        return jsonify(db_backup_overview())
+    except Exception:
+        log.error("admin_db_backups_overview failed", exc_info=True)
+        return _json_error("Failed to load the database backup overview", 500)
+
+
+@admin.post("/api/db-backups/run")
+@role_required("admin")
+def admin_db_backups_run():
+    """Queue one database backup (dump plus retention) right now."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.models import VaDbBackup
+    from app.tasks.backup_tasks import run_db_backup
+
+    try:
+        task = run_db_backup.delay(
+            triggered_by=VaDbBackup.TRIGGER_MANUAL,
+            user_id=str(current_user.user_id),
+        )
+        log.info("admin database backup queued by=%s", current_user.user_id)
+        return jsonify({
+            "message": "Database backup started.",
+            "task_id": task.id,
+        }), 202
+    except Exception:
+        log.error("admin_db_backups_run failed", exc_info=True)
+        return _json_error("Failed to queue the database backup", 500)
+
+
 @admin.post("/api/sync/form/<form_id>")
 @role_required("admin")
 def admin_sync_form(form_id: str):

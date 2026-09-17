@@ -7,10 +7,12 @@
   GET /admin/api/attachments/overview — the panel computes nothing and never
   shows a path, a key, a filename or a submission id.
 
-  The SmartVA run archive block at the foot shares this panel because it shares
-  the bucket (the smartva_runs/ prefix). Its figures come from
-  GET /admin/api/smartva/run-archive/overview, and its one action queues a
-  bounded Celery sweep.
+  The SmartVA run archive and Database backups blocks at the foot share this
+  panel because they share the bucket (the smartva_runs/ and db-backups/
+  prefixes). Their figures come from
+  GET /admin/api/smartva/run-archive/overview and
+  GET /admin/api/db-backups/overview, and each has one action that queues a
+  Celery task.
 #}
 <div id="panel-attachments">
 
@@ -93,6 +95,27 @@
         same private bucket under the <code>smartva_runs/</code> prefix and
         removed from the VM only after every file is verified there. These
         objects are never presigned and never served.
+      </div>
+    </div>
+  </div>
+
+  {# Database backups — same bucket, db-backups/ prefix #}
+  <div class="card mt-3">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="card-title small text-uppercase text-muted mb-0">
+          Database backups
+        </h6>
+        <button class="btn btn-sm btn-outline-primary" id="dbb-run-btn">
+          <i class="fa-solid fa-database me-1"></i>Back up now
+        </button>
+      </div>
+      <div id="dbb-wrap"></div>
+      <div class="text-muted small mt-2">
+        A nightly <code>pg_dump</code> goes straight to the private bucket under
+        the <code>db-backups/</code> prefix; the VM keeps no dump history. A
+        dump is never presigned and never served &mdash; restore it with
+        <code>flask backups db-download</code>, which verifies the sha256 below.
       </div>
     </div>
   </div>
@@ -379,9 +402,82 @@
     });
   });
 
+  function renderDbBackups(report) {
+    var wrap = document.getElementById('dbb-wrap');
+    var rows = (report.recent || []).map(function (row) {
+      var tone = row.status === 'success' ? 'success'
+        : (row.status === 'failed' ? 'danger'
+          : (row.status === 'pruned' ? 'secondary' : 'info'));
+      return '<tr>'
+        + '<td class="small py-1">' + esc(row.started_at || '') + '</td>'
+        + '<td class="small py-1"><span class="badge text-bg-' + tone + '">'
+        + esc(row.status) + '</span>'
+        + (row.error_code
+          ? ' <span class="text-muted">' + esc(row.error_code) + '</span>' : '')
+        + '</td>'
+        + '<td class="small py-1">' + esc(row.store) + '</td>'
+        + '<td class="small py-1 text-end">' + esc(humanBytes(row.size_bytes)) + '</td>'
+        + '<td class="small py-1">' + esc(row.triggered_by) + '</td>'
+        + '<td class="small py-1"><code>' + esc(row.object_key || '') + '</code></td>'
+        + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="small text-muted mb-2">'
+      + 'store <span class="fw-semibold">' + esc(report.store) + '</span>'
+      + ' &middot; prefix <code>' + esc(report.key_prefix) + '</code>'
+      + ' &middot; keep ' + esc(report.keep_daily) + ' dump(s)'
+      + ' &middot; daily at ' + esc(report.daily_time) + ' UTC'
+      + ' &middot; ' + esc(report.successful_backups) + ' recorded ('
+      + esc(humanBytes(report.total_bytes)) + ')'
+      + '</div>'
+      + (rows
+        ? '<div class="table-responsive"><table class="table table-sm mb-0">'
+          + '<thead class="table-light"><tr>'
+          + '<th class="fw-medium small text-muted">Started</th>'
+          + '<th class="fw-medium small text-muted">Status</th>'
+          + '<th class="fw-medium small text-muted">Store</th>'
+          + '<th class="fw-medium small text-muted text-end">Size</th>'
+          + '<th class="fw-medium small text-muted">Trigger</th>'
+          + '<th class="fw-medium small text-muted">Object key</th>'
+          + '</tr></thead><tbody>' + rows + '</tbody></table></div>'
+        : '<p class="text-muted small mb-0">No backups recorded yet.</p>');
+  }
+
+  function loadDbBackups() {
+    var wrap = document.getElementById('dbb-wrap');
+    wrap.innerHTML = '<span class="text-muted small">Loading…</span>';
+    apiJson('/admin/api/db-backups/overview').then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2 mb-0">'
+          + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      renderDbBackups(res.data);
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2 mb-0">Network error.</div>';
+    });
+  }
+
+  document.getElementById('dbb-run-btn').addEventListener('click', function () {
+    var button = this;
+    button.disabled = true;
+    apiJson('/admin/api/db-backups/run', 'POST', {}).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) {
+        notice('danger', res.data.error || 'Failed to queue the database backup.');
+        return;
+      }
+      notice('success', res.data.message || 'Database backup started.');
+    }).catch(function () {
+      button.disabled = false;
+      notice('danger', 'Network error.');
+    });
+  });
+
   document.getElementById('att-refresh-btn').addEventListener('click', function () {
     load();
     loadRunArchive();
+    loadDbBackups();
   });
   document.getElementById('att-project-filter').addEventListener('change', load);
 
@@ -403,6 +499,7 @@
 
   load();
   loadRunArchive();
+  loadDbBackups();
 
 }());
 </script>

@@ -204,3 +204,33 @@ The admin equivalent is *Archive pending runs* in the Attachment Management
 panel, which queues a bounded `run_smartva_run_archive` Celery task. Archived
 objects are never presigned and never served. Baseline:
 [SmartVA Generation Policy](../policy/smartva-generation-policy.md).
+
+## `backups` — Database backups
+
+Thin wrappers over
+[`app/services/db_backup_service.py`](../../app/services/db_backup_service.py).
+A `pg_dump -Fc` of the application database goes to the DigitVA bucket under
+`db-backups/{db_name}/` and the VM keeps no dump history; on
+`ATTACHMENT_STORE=local` the same dump lands in `DB_BACKUP_LOCAL_DIR` and is
+pruned there the same way. The database password reaches `pg_dump` through
+`PGPASSWORD` and never appears in an argument vector or in any output below.
+
+| Command | Description |
+|---------|-------------|
+| `backups db-dump [--no-prune]` | Dump the database, verify it in the store, then apply `DB_BACKUP_KEEP_DAILY`. Prints status, size, object key and sha256. Exits non-zero if the dump failed. `--no-prune` keeps every existing dump. |
+| `backups db-prune [--dry-run]` | Delete every dump beyond the newest `DB_BACKUP_KEEP_DAILY`, ordered by the UTC timestamp in each dump's name. Never deletes the newest; skips entirely if the store listing fails. `--dry-run` reports the settings and deletes nothing. |
+| `backups db-list [--limit N]` | Recent backups from `va_db_backups`: time, status, store, size and object key, plus the store, prefix, retention and scheduled time. |
+| `backups db-download <object_key> <dest_path>` | Stream one dump out of the store to a local path and verify its sha256 against the value recorded when it was made. Refuses a key with no recorded checksum; removes the file on a mismatch. |
+
+```
+docker compose exec minerva_app_service uv run flask backups db-list
+docker compose exec minerva_app_service uv run flask backups db-dump
+docker compose exec minerva_app_service uv run flask backups db-prune --dry-run
+docker compose exec minerva_app_service uv run flask backups db-download \
+  db-backups/minerva/pg_dump_minerva_20260917T013000Z.dump /tmp/restore.dump
+```
+
+The admin equivalent is *Back up now* in the Database backups block of the
+Attachment Management panel, which queues the `run_db_backup` Celery task — the
+same task the daily beat entry runs. Backup objects are never presigned and
+never served. Runbook: [Backup And Restore](backup.md).

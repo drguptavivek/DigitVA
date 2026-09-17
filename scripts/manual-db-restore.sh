@@ -10,15 +10,21 @@ usage() {
   cat <<'EOF'
 Usage:
   ./scripts/manual-db-restore.sh <dump_file> [--yes]
+  ./scripts/manual-db-restore.sh --from-s3 <object_key> [--yes]
 
 Examples:
   ./scripts/manual-db-restore.sh ~/dailybackups/pg_dump_minerva_20260407T220000Z.dump
   ./scripts/manual-db-restore.sh ./dailybackups/pg_dump_minerva_20260407T220000Z.dump --yes
+  ./scripts/manual-db-restore.sh --from-s3 db-backups/minerva/pg_dump_minerva_20260407T220000Z.dump
 
 Notes:
   - Reads POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB from .env
   - This operation is destructive: it drops and recreates POSTGRES_DB
   - Stop app-side containers before continuing, then restart them and run migrations after restore
+  - --from-s3 downloads the dump with `flask backups db-download` first, which
+    verifies its recorded sha256 and refuses a key DigitVA has no record of.
+    List keys with `flask backups db-list`. The download needs
+    minerva_app_service running; the rest of the restore is unchanged.
 EOF
 }
 
@@ -162,17 +168,29 @@ WHERE sequence_last_value < max_id;
 SQL"
 }
 
-if [ $# -lt 1 ] || [ $# -gt 2 ]; then
-  usage
-  exit 1
-fi
+FROM_S3_KEY=""
+DUMP_PATH=""
+ASSUME_YES=""
 
-DUMP_PATH="$1"
-ASSUME_YES="${2:-}"
+if [ "${1:-}" = "--from-s3" ]; then
+  if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+    usage
+    exit 1
+  fi
+  FROM_S3_KEY="$2"
+  ASSUME_YES="${3:-}"
+else
+  if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+    usage
+    exit 1
+  fi
+  DUMP_PATH="$1"
+  ASSUME_YES="${2:-}"
 
-if [ ! -f "$DUMP_PATH" ]; then
-  echo "ERROR: dump file not found: $DUMP_PATH"
-  exit 1
+  if [ ! -f "$DUMP_PATH" ]; then
+    echo "ERROR: dump file not found: $DUMP_PATH"
+    exit 1
+  fi
 fi
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -203,6 +221,29 @@ BASE_NAME="$(basename "$DUMP_PATH")"
 CONTAINER_DUMP="/tmp/restore_${TS}_${BASE_NAME}"
 
 cd "$ROOT_DIR"
+
+if [ -n "$FROM_S3_KEY" ]; then
+  # Downloaded before anything destructive happens, and while the app service is
+  # still up: db-download verifies the recorded sha256 and exits non-zero on a
+  # mismatch, so a corrupt object never reaches the drop/restore below.
+  S3_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/digitva-restore-XXXXXX")"
+  trap 'rm -rf "$S3_TMP_DIR"' EXIT
+  S3_BASE_NAME="$(basename "$FROM_S3_KEY")"
+  DUMP_PATH="${S3_TMP_DIR%/}/${S3_BASE_NAME}"
+
+  echo "==> Downloading dump from the object store: $FROM_S3_KEY"
+  docker compose exec -T minerva_app_service \
+    uv run flask backups db-download "$FROM_S3_KEY" "/tmp/${S3_BASE_NAME}"
+  docker compose cp "minerva_app_service:/tmp/${S3_BASE_NAME}" "$DUMP_PATH"
+  docker compose exec -T minerva_app_service rm -f "/tmp/${S3_BASE_NAME}"
+
+  if [ ! -f "$DUMP_PATH" ]; then
+    echo "ERROR: downloaded dump not found: $DUMP_PATH"
+    exit 1
+  fi
+  BASE_NAME="$S3_BASE_NAME"
+  CONTAINER_DUMP="/tmp/restore_${TS}_${BASE_NAME}"
+fi
 
 confirm_containers_stopped
 

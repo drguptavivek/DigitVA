@@ -82,9 +82,19 @@ commits, `flask smartva archive-runs` / `archive-status`, the bounded
 Attachment Management panel. Same bucket and IAM statements; these objects are
 never presigned. Baseline:
 [SmartVA Generation Policy](../policy/smartva-generation-policy.md),
-*Run Directory Archival*; (3) DB dumps to S3 (`db-backups/` prefix, own IAM
-statement); (4) exports to S3. Goal: after these, the only stateful thing on the
-VM is the Postgres volume.
+*Run Directory Archival*; (3) DB dumps to S3 (`db-backups/` prefix) — **done**,
+migration `b7c41e0d95af`: the `va_db_backups` history table,
+`app/services/db_backup_service.py` over the existing `attachment_store` (no
+second S3 client), a nightly `run_db_backup` beat entry at
+`DB_BACKUP_DAILY_TIME` with `DB_BACKUP_KEEP_DAILY` retention, the
+`flask backups db-dump / db-prune / db-list / db-download` commands,
+`scripts/manual-db-restore.sh --from-s3` with sha256 verification, and a
+Database backups block in the Attachment Management panel. No IAM change was
+needed — the existing statements already cover the prefix — but this *is* the
+one prefix that wants a lifecycle rule, expiring noncurrent versions of pruned
+dumps after ~30 days. Runbook: [Backup And Restore](../current-state/backup.md);
+(4) exports to S3. Goal: after these, the only stateful thing on the VM is the
+Postgres volume.
 
 ## Goals
 

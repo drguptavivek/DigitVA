@@ -3905,6 +3905,7 @@ def admin_odk_site_mappings_list(project_id):
                 "odk_form_id": r.odk_form_id,
                 "form_type_id": str(r.form_type_id) if r.form_type_id else None,
                 "form_type_code": r.form_type.form_type_code if r.form_type else None,
+                "icd_classification": r.icd_classification,
                 "form_id": forms_by_site.get(r.site_id).form_id if forms_by_site.get(r.site_id) else None,
                 "form_smartvahiv": (
                     forms_by_site.get(r.site_id).form_smartvahiv
@@ -4002,9 +4003,17 @@ def admin_odk_site_mappings_save(project_id):
     form_smartvahce = (data.get("form_smartvahce") or "True").strip()
     form_smartvafreetext = (data.get("form_smartvafreetext") or "True").strip()
     form_smartvacountry = (data.get("form_smartvacountry") or "IND").strip().upper()
+    icd_classification = (data.get("icd_classification") or "icd10").strip().lower()
 
     if not site_id or odk_project_id is None or not odk_form_id:
         return _json_error("site_id, odk_project_id, and odk_form_id are required.", 400)
+
+    from app.services.icd_coding_value import ICD_CLASSIFICATIONS
+
+    if icd_classification not in ICD_CLASSIFICATIONS:
+        return _json_error(
+            f"icd_classification must be one of {', '.join(ICD_CLASSIFICATIONS)}.", 400
+        )
 
     try:
         odk_project_id = int(odk_project_id)
@@ -4067,6 +4076,7 @@ def admin_odk_site_mappings_save(project_id):
         existing.odk_project_id = odk_project_id
         existing.odk_form_id = odk_form_id
         existing.form_type_id = form_type_id
+        existing.icd_classification = icd_classification
         status_code = 200
     else:
         existing = MapProjectSiteOdk(
@@ -4075,6 +4085,7 @@ def admin_odk_site_mappings_save(project_id):
             odk_project_id=odk_project_id,
             odk_form_id=odk_form_id,
             form_type_id=form_type_id,
+            icd_classification=icd_classification,
         )
         db.session.add(existing)
         status_code = 201
@@ -4096,6 +4107,7 @@ def admin_odk_site_mappings_save(project_id):
             "odk_form_id": existing.odk_form_id,
             "form_type_id": str(existing.form_type_id) if existing.form_type_id else None,
             "form_type_code": existing.form_type.form_type_code if existing.form_type else None,
+            "icd_classification": existing.icd_classification,
             "form_id": runtime_form.form_id,
             "form_smartvahiv": runtime_form.form_smartvahiv,
             "form_smartvamalaria": runtime_form.form_smartvamalaria,
@@ -6776,3 +6788,5 @@ def admin_languages_delete_alias(language_code, alias):
 
 # Organization master-data routes extend this blueprint (kept in their own module).
 from app.routes import admin_organization  # noqa: E402,F401
+# ICD-11 MMS browser routes extend this blueprint (kept in their own module).
+from app.routes import admin_icd11  # noqa: E402,F401

@@ -17,6 +17,10 @@ class MapProjectSiteOdk(db.Model):
         sa.UniqueConstraint(
             "project_id", "site_id", name="uq_map_project_site_odk_project_site"
         ),
+        sa.CheckConstraint(
+            "icd_classification IN ('icd10', 'icd11')",
+            name="ck_map_project_site_odk_icd_classification",
+        ),
     )
 
     id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -41,6 +45,11 @@ class MapProjectSiteOdk(db.Model):
         sa.ForeignKey("mas_form_types.form_type_id"),
         nullable=True,
         index=True,
+    )
+    # Form-level ICD classification ('icd10' | 'icd11'); coders see the
+    # matching code search in the coding screens for this project-site's form.
+    icd_classification: so.Mapped[str] = so.mapped_column(
+        sa.String(8), nullable=False, server_default="icd10"
     )
 
     created_at: so.Mapped[datetime] = so.mapped_column(

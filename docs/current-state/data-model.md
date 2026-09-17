@@ -278,6 +278,52 @@ Current behavior:
   - newly introduced rows are inserted
   - source-missing rows are marked inactive rather than deleted
 
+### `mas_icd11_mms`
+
+Purpose:
+
+- stores the WHO ICD-11 MMS linearization (a given `release`, e.g. `2026-01`)
+  as master reference data, mirroring the `mas_icd10_2019_2` policy pattern.
+  See docs/policy/icd11-reference-catalog.md.
+
+Key fields:
+
+- `id` (surrogate uuid primary key)
+- `release`, `linearization_uri` (unique together — the stable key per release)
+- `foundation_uri` (nullable — residual categories have none)
+- `code` (nullable — chapters and blocks have none), `block_id`
+- `title` (WHO's `- ` depth prefixes stripped)
+- `class_kind` (`chapter` | `block` | `category`), `depth_in_kind`, `chapter_no`
+- `is_residual`, `is_leaf`, `primary_tabulation` (informational only — WHO
+  leaves its meaning undefined), `coding_note`, `sort_order`
+- `parent_foundation_uri` (from the export's `Parent` column),
+  `parent_linearization_uri` (resolved on import)
+- `is_coding_selectable`, `sex_selectable`, `age_group_selectable`,
+  `policy_status`, `restriction_note` (DigitVA-local policy fields, same
+  semantics as `mas_icd10_2019_2`)
+- `is_active`, `source_version`, `source_path`
+
+Current behavior (phases 1-2 of
+docs/planning/icd11-coding-screen-integration-plan.md):
+
+- one row per linearization entity in the frozen WHO Simple Tabulation export
+  (`docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2026-01-base-2026-09-16/`)
+- fresh migration creation seeds the table from the checked-in generated CSV
+  (`resource/icd11_mms_2026_01_hierarchy.csv`)
+- import (`app/services/icd11_mms_service.py::import_icd11_mms_from_export`,
+  `flask icd11 import`) is idempotent and streamed/batched, upserting on
+  `(release, linearization_uri)`; source-missing rows are marked inactive,
+  never deleted; policy columns are preserved on rerun unless
+  `apply_policy_columns` is set
+- read-only admin browser at `/admin/panels/icd11-browser`
+  (`app/routes/admin_icd11.py`); local policy curation for phases 1-2 happens
+  through `flask icd11 policy-export`/`policy-import`, not the panel
+- `map_project_site_odk.icd_classification` (`icd10` | `icd11`, default
+  `icd10`) selects which catalog a project-site's form uses; resolved for a
+  submission by `app/services/icd_coding_value.py::get_icd_classification_for_submission`
+- ICD-11 coding-screen search, validation, and per-code allowability policy
+  (phase 5 of the plan) are not implemented yet
+
 ## Submission Table
 
 ### `va_submissions`

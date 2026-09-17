@@ -911,6 +911,62 @@ class AdminApiTests(BaseTestCase):
         del_resp = self.client.delete(f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}", headers=headers)
         self.assertEqual(del_resp.status_code, 200)
 
+    def test_odk_site_mapping_icd_classification(self):
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        # Defaults to icd10 when omitted.
+        save_resp = self.client.post(
+            f"/admin/api/projects/{self.project_id}/odk-site-mappings",
+            json={
+                "site_id": self.site_a,
+                "odk_project_id": 11,
+                "odk_form_id": "icd_test_form",
+            },
+            headers=headers,
+        )
+        self.assertEqual(save_resp.status_code, 200)
+        self.assertEqual(save_resp.get_json()["mapping"]["icd_classification"], "icd10")
+
+        # Accepts icd11.
+        save_resp = self.client.post(
+            f"/admin/api/projects/{self.project_id}/odk-site-mappings",
+            json={
+                "site_id": self.site_a,
+                "odk_project_id": 11,
+                "odk_form_id": "icd_test_form",
+                "icd_classification": "icd11",
+            },
+            headers=headers,
+        )
+        self.assertEqual(save_resp.status_code, 200)
+        self.assertEqual(save_resp.get_json()["mapping"]["icd_classification"], "icd11")
+
+        mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.project_id,
+                MapProjectSiteOdk.site_id == self.site_a,
+            )
+        )
+        self.assertEqual(mapping.icd_classification, "icd11")
+
+        list_resp = self.client.get(f"/admin/api/projects/{self.project_id}/odk-site-mappings")
+        saved = next(m for m in list_resp.get_json()["mappings"] if m["site_id"] == self.site_a)
+        self.assertEqual(saved["icd_classification"], "icd11")
+
+        # Rejects an invalid value.
+        reject_resp = self.client.post(
+            f"/admin/api/projects/{self.project_id}/odk-site-mappings",
+            json={
+                "site_id": self.site_a,
+                "odk_project_id": 11,
+                "odk_form_id": "icd_test_form",
+                "icd_classification": "icd9",
+            },
+            headers=headers,
+        )
+        self.assertEqual(reject_resp.status_code, 400)
+
 
     # ── ODK form uniqueness (one ODK form → one project-site per connection) ──
 

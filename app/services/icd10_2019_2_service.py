@@ -20,6 +20,7 @@ from app.models import (
     MasIcd1020192,
     VaSubmissions,
 )
+from app.services.icd_coding_value import extract_icd_code
 
 DEFAULT_ICD10_2019_2_CSV_PATH = Path(
     "docs/icd-causegrp-mappings/generated/icd10_2019_hierarchy.csv"
@@ -29,7 +30,6 @@ SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "child", "adult")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
-_CODING_VALUE_CODE_RE = re.compile(r"^\s*([A-Z]\d{2}(?:\.\d+)?)\b", re.IGNORECASE)
 _CODING_ICD_MIN_QUERY_LEN = 2
 _CODING_ICD_MAX_RESULTS = 30
 _DAYS_PER_YEAR = Decimal("365.25")
@@ -165,20 +165,11 @@ def _coding_policy_clause(model, *, age_group: str | None, sex: str | None):
     return clause
 
 
-def _extract_icd_code_from_coding_value(value: str | None) -> str | None:
-    if not value:
-        return None
-    match = _CODING_VALUE_CODE_RE.match(value)
-    if not match:
-        return None
-    return match.group(1).upper()
-
-
 def validate_icd10_2019_2_coding_value_for_submission(
     va_sid: str,
     value: str | None,
 ) -> None:
-    code = _extract_icd_code_from_coding_value(value)
+    code = extract_icd_code(value, "icd10")
     if code is None:
         raise ValueError("Select a valid ICD-10 code.")
 

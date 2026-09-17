@@ -67,6 +67,23 @@ docker compose exec minerva_app_service uv run flask org import <project_id> org
 
 Policy: `docs/policy/organization-model.md`.
 
+## `icd11` — ICD-11 MMS master data
+
+```bash
+docker compose exec minerva_app_service uv run flask icd11 import [--export-path ...] [--release 2026-01] [--apply-policy-columns]
+docker compose exec minerva_app_service uv run flask icd11 generate-seed-csv [--export-path ...] [--csv-path resource/icd11_mms_2026_01_hierarchy.csv]
+docker compose exec minerva_app_service uv run flask icd11 stats [--release 2026-01]
+docker compose exec minerva_app_service uv run flask icd11 policy-export [--release 2026-01] [--output policy.json]
+docker compose exec minerva_app_service uv run flask icd11 policy-import policy.json [--release 2026-01]
+```
+
+`import` streams the frozen WHO Simple Tabulation export
+(`docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2026-01-base-2026-09-16/`),
+upserts on `(release, linearization_uri)`, marks source-missing rows inactive,
+and preserves local policy columns unless `--apply-policy-columns` is passed.
+`generate-seed-csv` regenerates the checked-in seed CSV consumed by the
+`mas_icd11_mms` migration. Policy: `docs/policy/icd11-reference-catalog.md`.
+
 ## `odk-sync` — ODK Central schema sync
 
 | Command | Description |

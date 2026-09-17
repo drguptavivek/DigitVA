@@ -1,0 +1,309 @@
+{#
+  ICD-11 MMS browser panel — admin-only, read-only.
+  Curating local coding policy for ICD-11 currently happens through the
+  `flask icd11 policy-export`/`policy-import` CLI (docs/policy/icd11-reference-catalog.md);
+  this panel is for browsing the hierarchy only.
+#}
+<div id="panel-icd11-browser">
+  <div class="mb-1">
+    <h5 class="mb-1">
+      <i class="fa-solid fa-book-medical me-2 text-secondary"></i>ICD-11 MMS Browser
+    </h5>
+    <div class="small text-muted">
+      Read-only view of the WHO ICD-11 MMS linearization ({{ stats.total_rows }} rows,
+      {{ stats.active_rows }} active). Local coding policy is curated via the
+      <code>flask icd11 policy-export</code> / <code>policy-import</code> CLI.
+    </div>
+  </div>
+  <hr class="my-2">
+
+  <div class="mb-3">
+    <input
+      type="text"
+      class="form-control form-control-sm"
+      id="icd11-browser-search"
+      placeholder="Search by code or title (min 2 characters)"
+      style="max-width:420px;"
+    >
+    <div id="icd11-browser-search-results" class="list-group mt-1 d-none" style="max-width:640px;"></div>
+  </div>
+
+  <div id="icd11-browser-status" class="alert alert-info py-2 px-3 d-none" role="status"></div>
+
+  <div class="row g-3">
+    <div class="col-xl-8">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div class="fw-semibold">Hierarchy</div>
+          <div id="icd11-browser-path" class="small text-muted">Select a chapter to start.</div>
+        </div>
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush" id="icd11-browser-tree" style="max-height:640px; overflow-y:auto;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card h-100">
+        <div class="card-header">
+          <div class="fw-semibold">Node Details</div>
+        </div>
+        <div class="card-body">
+          <div id="icd11-browser-empty-state" class="text-muted small">
+            No ICD-11 entity selected yet.
+          </div>
+          <div id="icd11-browser-details" class="d-none small">
+            <div id="icd11-browser-node-path" class="mb-3"></div>
+            <dl class="row mb-0">
+              <dt class="col-5">Code</dt><dd class="col-7" id="icd11-browser-node-code"></dd>
+              <dt class="col-5">Class kind</dt><dd class="col-7" id="icd11-browser-node-kind"></dd>
+              <dt class="col-5">Chapter</dt><dd class="col-7" id="icd11-browser-node-chapter"></dd>
+              <dt class="col-5">Residual</dt><dd class="col-7" id="icd11-browser-node-residual"></dd>
+              <dt class="col-5">Leaf</dt><dd class="col-7" id="icd11-browser-node-leaf"></dd>
+              <dt class="col-5">Coding selectable</dt><dd class="col-7" id="icd11-browser-node-selectable"></dd>
+              <dt class="col-5">Sex</dt><dd class="col-7" id="icd11-browser-node-sex"></dd>
+              <dt class="col-5">Age group</dt><dd class="col-7" id="icd11-browser-node-age"></dd>
+            </dl>
+            <div class="mt-2" id="icd11-browser-node-note"></div>
+            <div class="mt-2 text-muted" id="icd11-browser-node-coding-note"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #panel-icd11-browser .icd11-browser-item {
+    border: 0;
+    border-bottom: 1px solid #f1f3f5;
+    border-radius: 0;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+  }
+  #panel-icd11-browser .icd11-browser-item.active {
+    background: #eef5ff;
+    color: #0d6efd;
+  }
+  #panel-icd11-browser #icd11-browser-search-results .list-group-item {
+    cursor: pointer;
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
+</style>
+
+<script>
+(function () {
+  'use strict';
+
+  var panel = document.getElementById('panel-icd11-browser');
+  if (!panel) return;
+
+  var apiBase = '/admin/api/icd11/mms';
+  var state = {
+    expanded: {},       // linearization_uri -> bool
+    childrenByParent: {},
+    selectedUri: null,
+    searchResults: [],
+  };
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function statusEl() { return panel.querySelector('#icd11-browser-status'); }
+
+  function showStatus(message, tone) {
+    var el = statusEl();
+    el.className = 'alert py-2 px-3';
+    el.classList.add(tone === 'danger' ? 'alert-danger' : 'alert-info');
+    el.textContent = message;
+    el.classList.remove('d-none');
+  }
+
+  async function requestJson(url) {
+    var response = await fetch(url);
+    var payload = await response.json().catch(function () { return {}; });
+    if (!response.ok) {
+      throw new Error(payload.error || 'Request failed.');
+    }
+    return payload;
+  }
+
+  function getChildren(parentUri) {
+    var key = parentUri || 'root';
+    return state.childrenByParent[key] || [];
+  }
+
+  async function loadChildren(parentUri) {
+    var url = apiBase + '/children';
+    if (parentUri) {
+      url += '?parent_linearization_uri=' + encodeURIComponent(parentUri);
+    }
+    var payload = await requestJson(url);
+    state.childrenByParent[parentUri || 'root'] = payload.children || [];
+    return payload.children || [];
+  }
+
+  function renderNode(row, depth) {
+    var isActive = state.selectedUri === row.linearization_uri;
+    var isExpanded = !!state.expanded[row.linearization_uri];
+    var toggle = row.child_count
+      ? '<i class="fa-solid ' + (isExpanded ? 'fa-caret-down' : 'fa-caret-right') + ' me-1"></i>'
+      : '<span class="me-1" style="display:inline-block;width:0.9em;"></span>';
+    var label = row.code ? (row.code + ' ' + row.title) : row.title;
+    var badge = row.child_count ? '<span class="badge text-bg-light ms-2">' + row.child_count + '</span>' : '';
+    var html = '<button type="button" class="list-group-item list-group-item-action icd11-browser-item' +
+      (isActive ? ' active' : '') + '" data-uri="' + escapeHtml(row.linearization_uri) + '" ' +
+      'style="padding-left:' + (0.75 + depth * 1.1) + 'rem;">' +
+      toggle + escapeHtml(label) + badge +
+      '</button>';
+    if (isExpanded) {
+      html += getChildren(row.linearization_uri).map(function (child) {
+        return renderNode(child, depth + 1);
+      }).join('');
+    }
+    return html;
+  }
+
+  function renderTree() {
+    var tree = panel.querySelector('#icd11-browser-tree');
+    var roots = getChildren(null);
+    if (!roots.length) {
+      tree.innerHTML = '<div class="p-3 text-muted small">No chapters loaded.</div>';
+      return;
+    }
+    tree.innerHTML = roots.map(function (row) { return renderNode(row, 0); }).join('');
+  }
+
+  function renderNodeDetails(node) {
+    panel.querySelector('#icd11-browser-empty-state').classList.add('d-none');
+    panel.querySelector('#icd11-browser-details').classList.remove('d-none');
+    var ancestors = (node.ancestors || []).map(function (item) {
+      return '<div>' + escapeHtml(item.code ? (item.code + ' ' + item.title) : item.title) + '</div>';
+    });
+    ancestors.push('<div><strong>' + escapeHtml(node.code ? (node.code + ' ' + node.title) : node.title) + '</strong></div>');
+    panel.querySelector('#icd11-browser-node-path').innerHTML = ancestors.join('');
+    panel.querySelector('#icd11-browser-node-code').textContent = node.code || '(no code)';
+    panel.querySelector('#icd11-browser-node-kind').textContent = node.class_kind;
+    panel.querySelector('#icd11-browser-node-chapter').textContent = node.chapter_no || '';
+    panel.querySelector('#icd11-browser-node-residual').textContent = node.is_residual ? 'Yes' : 'No';
+    panel.querySelector('#icd11-browser-node-leaf').textContent = node.is_leaf ? 'Yes' : 'No';
+    panel.querySelector('#icd11-browser-node-selectable').textContent =
+      node.is_coding_selectable === true ? 'Yes' : (node.is_coding_selectable === false ? 'No' : 'Not set');
+    panel.querySelector('#icd11-browser-node-sex').textContent = node.sex_selectable || 'Not set';
+    panel.querySelector('#icd11-browser-node-age').textContent = node.age_group_selectable || 'Not set';
+    panel.querySelector('#icd11-browser-node-note').textContent = node.restriction_note
+      ? 'Restriction note: ' + node.restriction_note : '';
+    panel.querySelector('#icd11-browser-node-coding-note').textContent = node.coding_note
+      ? 'WHO coding note: ' + node.coding_note : '';
+
+    var path = [];
+    (node.ancestors || []).forEach(function (item) { path.push(item.code || item.title); });
+    path.push(node.code || node.title);
+    panel.querySelector('#icd11-browser-path').textContent = path.join(' / ');
+  }
+
+  async function selectNode(uri) {
+    state.selectedUri = uri;
+    if (!state.expanded[uri]) {
+      state.expanded[uri] = true;
+      if (!state.childrenByParent[uri]) {
+        await loadChildren(uri);
+      }
+    }
+    renderTree();
+    try {
+      var node = await requestJson(apiBase + '/node?linearization_uri=' + encodeURIComponent(uri));
+      renderNodeDetails(node);
+    } catch (error) {
+      showStatus(error.message, 'danger');
+    }
+  }
+
+  function toggleNode(uri) {
+    state.expanded[uri] = !state.expanded[uri];
+    if (state.expanded[uri] && !state.childrenByParent[uri]) {
+      loadChildren(uri).then(renderTree).catch(function (error) {
+        showStatus(error.message, 'danger');
+      });
+      return;
+    }
+    renderTree();
+  }
+
+  function renderSearchResults() {
+    var el = panel.querySelector('#icd11-browser-search-results');
+    if (!state.searchResults.length) {
+      el.classList.add('d-none');
+      el.innerHTML = '';
+      return;
+    }
+    el.classList.remove('d-none');
+    el.innerHTML = state.searchResults.map(function (row) {
+      return '<button type="button" class="list-group-item list-group-item-action icd11-browser-search-result" ' +
+        'data-uri="' + escapeHtml(row.linearization_uri) + '">' +
+        '<strong>' + escapeHtml(row.icd_code || '') + '</strong> ' +
+        '<span class="text-muted">' + escapeHtml(row.title) + '</span>' +
+        '</button>';
+    }).join('');
+  }
+
+  async function runSearch() {
+    var query = panel.querySelector('#icd11-browser-search').value || '';
+    if (query.trim().length < 2) {
+      state.searchResults = [];
+      renderSearchResults();
+      return;
+    }
+    var payload = await requestJson(apiBase + '/search?q=' + encodeURIComponent(query));
+    state.searchResults = payload.results || [];
+    renderSearchResults();
+  }
+
+  panel.querySelector('#icd11-browser-tree').addEventListener('click', function (event) {
+    var button = event.target.closest('.icd11-browser-item');
+    if (!button) return;
+    var uri = button.dataset.uri;
+    var row = getChildren(null).concat.apply(
+      [], Object.keys(state.childrenByParent).map(function (k) { return state.childrenByParent[k]; })
+    ).find(function (r) { return r.linearization_uri === uri; });
+    if (row && row.child_count) {
+      toggleNode(uri);
+    }
+    selectNode(uri).catch(function (error) { showStatus(error.message, 'danger'); });
+  });
+
+  panel.querySelector('#icd11-browser-search').addEventListener('input', function () {
+    runSearch().catch(function () {
+      state.searchResults = [];
+      renderSearchResults();
+    });
+  });
+  panel.querySelector('#icd11-browser-search').addEventListener('blur', function () {
+    window.setTimeout(function () {
+      state.searchResults = [];
+      renderSearchResults();
+    }, 150);
+  });
+  panel.addEventListener('click', function (event) {
+    var resultButton = event.target.closest('.icd11-browser-search-result');
+    if (!resultButton) return;
+    panel.querySelector('#icd11-browser-search').value = '';
+    state.searchResults = [];
+    renderSearchResults();
+    selectNode(resultButton.dataset.uri).catch(function (error) {
+      showStatus(error.message, 'danger');
+    });
+  });
+
+  loadChildren(null).then(renderTree).catch(function (error) {
+    showStatus(error.message, 'danger');
+  });
+})();
+</script>

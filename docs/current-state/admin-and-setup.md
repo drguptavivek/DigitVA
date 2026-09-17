@@ -32,6 +32,7 @@ The `/admin` interface provides the following management panels:
 - **COD Buckets** — admin editor for imported COD reporting schemes, including hierarchy labels/order and single-target ICD-to-disease remapping by age scope.
 - **Attachments** — Attachment Management: per-form attachment state, the Central self-heal switch, per-form repair, the integrity check, the S3 upload sweep and the manual local quarantine (see below)
 - **ICD-10 Browser** — admin browser for `mas_icd10_2019_2`, including lazy hierarchy traversal, local policy-field curation, JSON export of curated code-policy rows, XLSX export of editable ICD rows with coding policy and COD manual override status, and a read-only legacy ICD reporting alias table for historical CoD normalization used by COD bucket reporting.
+- **ICD-11 Browser** — read-only admin browser for `mas_icd11_mms` (WHO ICD-11 MMS linearization, 2026-01 release): expandable chapter/block/category tree, node details (code, class kind, chapter, residual/leaf flags, coding policy), and a code/title search. Local policy curation happens via the `flask icd11 policy-export`/`policy-import` CLI, not this panel (see docs/policy/icd11-reference-catalog.md).
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
 
@@ -66,6 +67,7 @@ The following panels are restricted to application-level admins:
 - Languages
 - COD Buckets
 - ICD-10 Browser
+- ICD-11 Browser
 
 ### Project-PI-Accessible Panels
 
@@ -128,7 +130,15 @@ Key behavior:
   with each target's pair status and submission count. Targets on a deactivated pair get
   a **Remove stale mapping** button; two active targets are flagged as needing a manual
   decision. `flask odk-mappings audit [--fix]` reports and repairs the same thing
-- the mapping is stored in `map_project_site_odk` (columns: `odk_project_id`, `odk_form_id`, `form_type_id`)
+- the mapping is stored in `map_project_site_odk` (columns: `odk_project_id`, `odk_form_id`, `form_type_id`, `icd_classification`)
+- an **ICD Classification** dropdown (`ICD-10` / `ICD-11`) selects which
+  catalog coders see in that project-site's coding screens; defaults to
+  ICD-10 and is shown as a badge next to the ODK form info. Stored per
+  project-site, not globally, so the same form type can be ICD-10 in one
+  project-site and ICD-11 in another (see
+  docs/planning/icd11-coding-screen-integration-plan.md). As of phases 1-2,
+  this setting is stored and exposed here, but the coding-screen search and
+  validation dispatch (phase 3 of that plan) still always use ICD-10.
 - the table summary shows the configured form type as a badge next to the ODK form info; a warning badge is shown if no form type is selected
 - the same Configure row also edits the materialized compatibility `va_forms`
   SmartVA execution settings for that project/site form:

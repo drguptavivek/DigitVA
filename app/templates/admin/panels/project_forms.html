@@ -272,6 +272,9 @@
           + (saved.form_type_code
               ? ' &nbsp;<span class="badge text-bg-secondary fw-normal">' + esc(saved.form_type_code) + '</span>'
               : ' &nbsp;<span class="badge text-bg-warning text-dark fw-normal">No form type</span>')
+          + ' &nbsp;<span class="badge text-bg-info fw-normal">'
+          + esc((saved.icd_classification || 'icd10') === 'icd11' ? 'ICD-11' : 'ICD-10')
+          + '</span>'
           + '</span>'
           + smartvaInfo
         : '<span class="text-muted small"><i class="fa-regular fa-circle me-1"></i>Not mapped</span>';
@@ -325,6 +328,7 @@
     var savedHce = saved ? (saved.form_smartvahce || 'True') : 'True';
     var savedFreetext = saved ? (saved.form_smartvafreetext || 'True') : 'True';
     var savedCountry = saved ? (saved.form_smartvacountry || 'IND') : 'IND';
+    var savedIcdClassification = saved ? (saved.icd_classification || 'icd10') : 'icd10';
 
     var projOptions = '<option value="">Loading ODK projects…</option>';
     if (_odkProjectsLoaded) {
@@ -408,6 +412,16 @@
           ? '<div class="text-warning small mt-1"><i class="fa-solid fa-triangle-exclamation me-1"></i>'
             + 'No form types registered. Create one in Field Mapping.</div>'
           : '')
+      + '</div>'
+
+      // ICD classification
+      + '<div>'
+      + '<label class="form-label small mb-1 text-muted">ICD Classification</label>'
+      + '<select class="form-select form-select-sm pf-icd-sel" data-sid="' + esc(site.site_id) + '" '
+      + 'id="pf-icd-' + esc(site.site_id) + '" style="max-width:280px;">'
+      + '<option value="icd10"' + (savedIcdClassification === 'icd10' ? ' selected' : '') + '>ICD-10</option>'
+      + '<option value="icd11"' + (savedIcdClassification === 'icd11' ? ' selected' : '') + '>ICD-11</option>'
+      + '</select>'
       + '</div>'
 
       // SmartVA configuration
@@ -617,6 +631,7 @@
     var formSmartvaHce = (document.getElementById('pf-smartva-hce-' + sid) || {}).value || 'True';
     var formSmartvaFreetext = (document.getElementById('pf-smartva-freetext-' + sid) || {}).value || 'True';
     var formSmartvaCountry = (document.getElementById('pf-smartva-country-' + sid) || {}).value || 'IND';
+    var icdClassification = (document.getElementById('pf-icd-' + sid) || {}).value || 'icd10';
 
     if (!odkProjectId || !odkFormId) {
       showError('Select both an ODK project and a form before saving.');
@@ -633,6 +648,7 @@
       form_smartvahce: formSmartvaHce,
       form_smartvafreetext: formSmartvaFreetext,
       form_smartvacountry: formSmartvaCountry,
+      icd_classification: icdClassification,
     };
 
     apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings', 'POST', payload)
@@ -647,6 +663,7 @@
           odk_form_id: m.odk_form_id,
           form_type_id: m.form_type_id || null,
           form_type_code: m.form_type_code || null,
+          icd_classification: m.icd_classification || 'icd10',
           form_id: m.form_id || null,
           form_smartvahiv: m.form_smartvahiv || 'False',
           form_smartvamalaria: m.form_smartvamalaria || 'False',

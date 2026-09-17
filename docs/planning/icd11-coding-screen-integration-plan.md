@@ -1,7 +1,7 @@
 ---
 title: ICD-11 in the Coding Screen — Form-Level Classification and Optional Step 1
 doc_type: planning
-status: proposed
+status: in-progress
 owner: engineering
 last_updated: 2026-09-17
 ---
@@ -175,8 +175,25 @@ export is read-only input.
 
 ## Phases
 
-1. Catalog table, importer, CLI, migration, admin browser (no UI change).
-2. Settings columns, admin panels, record stamp.
+1. **Done (2026-09-17).** Catalog table (`mas_icd11_mms`), importer
+   (`app/services/icd11_mms_service.py`), CLI (`flask icd11 ...`), migration
+   `b6edb1b7d01a` seeded from the checked-in generated CSV, read-only admin
+   browser (`app/routes/admin_icd11.py`,
+   `app/templates/admin/panels/icd11_browser.html`; no coding-screen UI
+   change). See docs/policy/icd11-reference-catalog.md.
+2. **Partially done (2026-09-17).** `map_project_site_odk.icd_classification`
+   (migration `f4b8dd6e3568`, decision D1 implemented as recommended) is
+   wired into the Project Forms admin panel/API, defaulting to `icd10`.
+   Decision D4 (record-level `icd_classification` stamp on the four
+   assessment tables) is implemented in spirit as a shared, classification-
+   aware helper module (`app/services/icd_coding_value.py`:
+   `ICD10_CODE_RE`/`ICD11_CODE_RE`/`extract_icd_code`/
+   `get_icd_classification_for_submission`), but the stamp columns
+   themselves are **not yet added** to `va_initial_assessments`,
+   `va_final_assessments`, `va_reviewer_initial_assessments`, or
+   `va_reviewer_final_assessments` — deferred to when phase 3 actually
+   writes ICD-11 values into those tables. D1 and D4 are implemented as
+   recommended above, pending the lead's confirmation.
 3. Shared dispatcher, ICD-11 search API, partial rendering by classification,
    validation in coder and reviewer paths.
 4. Skip Step 1 (coder, reviewer, panel, policy doc).

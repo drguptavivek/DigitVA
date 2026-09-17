@@ -1,12 +1,16 @@
 import uuid
-from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from app import db
 from app.models import VaForms
+from tests.base import BaseTestCase
 
 
-class SyncTaskBatchingTests(TestCase):
+# BaseTestCase, not plain TestCase: test_run_odk_sync_dispatcher... runs the real
+# run_odk_sync task, which creates and commits a va_sync_runs row.  On a plain
+# TestCase that row escapes to the database and later makes admin sync-status and
+# backfill tests see a foreign "running" sync run.
+class SyncTaskBatchingTests(BaseTestCase):
     def test_fetch_submissions_by_ids_applies_request_timeout(self):
         from app.utils.va_odk.va_odk_06_fetchsubmissions import (
             va_odk_fetch_submissions_by_ids,

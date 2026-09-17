@@ -224,10 +224,16 @@ class DemoRandomCodingRouteTests(BaseTestCase):
         self.assertEqual(dashboard.status_code, 200)
         self.assertIn("Start Random Allocation Coding", dashboard.get_data(as_text=True))
 
-        start = self.client.post("/coding/start", headers=self._csrf_headers())
-        self.assertEqual(start.status_code, 302)
-        self.assertIn("/coding/resume", start.headers.get("Location", ""))
-        self.assertIn(self._active_demo_allocation_sid(), {"sid-demo-1", "sid-demo-2"})
+        # Scope the pool to DMO01, whose only submission is the lowercased
+        # "english" one: a case-sensitive language match would leave nothing
+        # allocatable.  With per-test isolation this user starts with no
+        # allocation, so /coding/start allocates and renders the coding page
+        # (a 302 to /coding/resume only happens when one already exists).
+        start = self.client.post(
+            "/coding/start?project_id=DMO01", headers=self._csrf_headers()
+        )
+        self.assertEqual(start.status_code, 200)
+        self.assertEqual(self._active_demo_allocation_sid(), "sid-demo-1")
 
     def test_coder_dashboard_hides_deactivated_project_sites_from_eligibility(self):
         project_site = db.session.scalar(

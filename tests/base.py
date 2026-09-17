@@ -10,17 +10,32 @@ Schema lifecycle (session-scoped, managed by conftest.py):
 
 Per-class setup (BaseTestCase.setUpClass):
   - Re-uses the session schema and app; no drop_all/create_all per class.
-  - Seeds base fixtures idempotently (shared across all classes in the session).
-  - Subclass fixtures use unique IDs and accumulate harmlessly; schema is dropped at session end.
+  - Seeds the base fixtures for this class inside the class transaction.
 
-Per-test isolation (savepoint rollback):
-  - setUp: open a PostgreSQL SAVEPOINT via db.session.begin_nested()
-  - tearDown: ROLLBACK TO SAVEPOINT — removes all test data automatically
+Isolation (nested transactions — nothing is ever committed to the database):
+  - setUpClass: open one connection, BEGIN a transaction on it, and bind the
+    scoped db.session to that connection with
+    join_transaction_mode="create_savepoint".  Class fixtures are seeded (and
+    "committed") inside it.
+  - setUp: connection.begin_nested() — a SAVEPOINT one level inside the class
+    transaction.
+  - tearDown: end the session transaction and ROLLBACK to that savepoint, so
+    class fixtures survive for the rest of the class.
+  - tearDownClass: ROLLBACK the class transaction and close the connection, so
+    no class leaves rows behind for another class.
+
+  Because the session joins through a savepoint of its own, a
+  db.session.commit() inside a test — from test code or from a route — only
+  releases the session's savepoint.  Nothing reaches the database.
   No manual DELETE queries are needed in test setUp/tearDown methods.
 
   This works because in our pushed-app-context test environment, Flask test
   client requests share the same scoped db.session as the test body, so the
-  savepoint covers both direct ORM writes and data created through HTTP routes.
+  transactions cover both direct ORM writes and data created through HTTP
+  routes.  Code that bypasses the session and goes straight to the engine
+  (db.engine.connect()/begin(), e.g. the ODK connection guard) runs on another
+  connection and cannot see this data: such classes set
+  isolate_in_transaction = False and clean up after themselves.
 
 Standard fixtures available on every test class (via class attributes):
   - base_admin_user / base_admin_id         — global admin
@@ -48,6 +63,7 @@ from datetime import datetime, timezone
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from flask_login.utils import _create_identifier
+from flask_sqlalchemy.session import Session as FlaskSQLAlchemySession
 from itsdangerous import URLSafeTimedSerializer
 import sqlalchemy as sa
 
@@ -67,6 +83,37 @@ from app.models import (
 from config import TestConfig
 
 
+class ExternalTransactionSession(FlaskSQLAlchemySession):
+    """
+    Session class that honours an explicitly bound Connection.
+
+    Flask-SQLAlchemy's own ``Session.get_bind()`` ignores ``self.bind`` and always
+    returns ``db.engines[None]``, which defeats the standard SQLAlchemy "join a
+    session into an external transaction" recipe that per-test isolation depends
+    on.  This subclass returns the bound connection when one has been configured
+    (``db.session.configure(bind=connection)``) and otherwise falls back to
+    Flask-SQLAlchemy's bind-key routing.
+    """
+
+    def get_bind(self, mapper=None, clause=None, bind=None, **kwargs):
+        if bind is None and self.bind is not None:
+            return self.bind
+        return super().get_bind(mapper=mapper, clause=clause, bind=bind, **kwargs)
+
+
+def install_external_transaction_session():
+    """
+    Swap the scoped session factory over to ExternalTransactionSession.
+
+    Called once from conftest.pytest_sessionstart, before any session is used,
+    so that BaseTestCase.setUp can rebind db.session to a per-test connection.
+    """
+    db.session.remove()
+    # sessionmaker.configure() cannot change class_ (it would be forwarded to
+    # Session.__init__ as a keyword), so set it on the factory directly.
+    db.session.session_factory.class_ = ExternalTransactionSession
+
+
 class BaseTestCase(unittest.TestCase):
     """
     Inherit from this class instead of unittest.TestCase.
@@ -81,6 +128,14 @@ class BaseTestCase(unittest.TestCase):
     BASE_PROJECT_ID = "BASE01"
     BASE_SITE_ID = "BS01"
 
+    # Set to False only for classes whose code under test opens its own
+    # connection through db.engine (e.g. the ODK connection guard, whose state
+    # is deliberately kept outside the request transaction).  A second
+    # connection cannot see rows the class transaction has not committed, so
+    # such classes write for real and MUST delete what they created in their
+    # own tearDownClass.
+    isolate_in_transaction = True
+
     @classmethod
     def setUpClass(cls):
         # Reuse the session-scoped app and context created by conftest.pytest_sessionstart.
@@ -94,23 +149,44 @@ class BaseTestCase(unittest.TestCase):
         cls.app = current_app._get_current_object()
         cls.ctx = None  # context is managed by conftest; do not push/pop per class
 
-        # Discard any transaction left dirty by a previous class's setUpClass.
-        # setUpClass runs outside the per-test savepoint, so a failed insert
-        # there would otherwise leave the scoped session in PendingRollback and
-        # cascade errors into every later test class in the session.
+        # Discard any transaction left dirty by a previous class.
         db.session.rollback()
 
+        # Open the class-level connection and transaction, and bind the scoped
+        # session to it.  Everything this class writes — class fixtures and test
+        # data alike — lives inside this transaction and is rolled back in
+        # tearDownClass, so no class can leak committed rows into another.
+        cls._class_connection = None
+        cls._class_transaction = None
+        if cls.isolate_in_transaction:
+            cls._class_connection = db.engine.connect()
+            cls._class_transaction = cls._class_connection.begin()
+            session = db.session()
+            session.bind = cls._class_connection
+            session.join_transaction_mode = "create_savepoint"
+            session.expire_all()
+
         # _seed_base_fixtures is idempotent: safe to call once per class.
-        # Base fixtures (BASE_PROJECT_ID, BASE_SITE_ID, 3 users) are shared across
-        # all test classes and seeded once; subsequent classes find and reuse them.
+        # Base fixtures (BASE_PROJECT_ID, BASE_SITE_ID, 3 users) are re-seeded by
+        # every class because the previous class's copy was rolled back.
         # Subclass-specific fixtures use unique IDs so they never conflict.
         cls._seed_base_fixtures()
 
     @classmethod
     def tearDownClass(cls):
-        # Per-class teardown is lightweight: per-test savepoints handle data isolation.
-        # The full schema drop happens once at session end in conftest.pytest_sessionfinish.
-        db.session.expire_all()
+        # Roll the class transaction back: class fixtures exist only for the
+        # lifetime of the class that seeded them.  The schema itself is dropped
+        # once at session end in conftest.pytest_sessionfinish.
+        session = db.session()
+        session.rollback()
+        session.expunge_all()
+        if cls._class_transaction is None:
+            return
+        session.bind = None
+        try:
+            cls._class_transaction.rollback()
+        finally:
+            cls._class_connection.close()
 
     @classmethod
     def _seed_base_fixtures(cls):
@@ -300,16 +376,21 @@ class BaseTestCase(unittest.TestCase):
         return user
 
     # ------------------------------------------------------------------
-    # Per-test isolation via savepoint rollback
+    # Per-test isolation via an external transaction
     # ------------------------------------------------------------------
 
     def setUp(self):
-        # Begin a nested transaction (SAVEPOINT).  Any commit() inside this
-        # test — whether from test code or from an HTTP route — only releases
-        # the savepoint back to the outer transaction; nothing is permanently
-        # written to the DB until that outer transaction commits (which it
-        # never does in tests).  tearDown rolls back the outer transaction.
-        db.session.begin_nested()
+        session = db.session()
+        session.rollback()  # end any session transaction left over from setUpClass
+        # SAVEPOINT on the class connection, one level inside the class
+        # transaction.  The session joins it with a savepoint of its own, so a
+        # commit() during the test — from test code or from a route — only
+        # releases the session's savepoint and never escapes this one.
+        self._test_savepoint = (
+            self._class_connection.begin_nested()
+            if self._class_connection is not None
+            else None
+        )
         # Flask 3.1 keeps g attached to the session-scoped app context used in
         # tests. Flask-Login caches the loaded user in g._login_user, so clear
         # it here to prevent auth leakage between requests in different tests.
@@ -320,19 +401,32 @@ class BaseTestCase(unittest.TestCase):
         self.client = self.app.test_client()
 
     def tearDown(self):
-        # Roll back the outer transaction.  This undoes all writes made during
-        # this test regardless of whether they came from direct ORM calls or
-        # from HTTP routes that called db.session.commit() (which only released
-        # the savepoint, not the outer transaction).
-        db.session.rollback()
-        db.session.expire_all()
+        # End the session transaction and roll back to the per-test savepoint.
+        # Class fixtures seeded in setUpClass sit outside this savepoint, so
+        # they survive for the rest of the class as intended.
+        session = db.session()
+        session.rollback()
+        session.expire_all()
+        if self._test_savepoint is not None and self._test_savepoint.is_active:
+            self._test_savepoint.rollback()
 
     # ------------------------------------------------------------------
     # Shared helpers available to all test classes
     # ------------------------------------------------------------------
 
     def _login(self, user_id):
-        """Inject a user session without going through the login route."""
+        """Inject a user session without going through the login route.
+
+        Flask-Login caches the loaded user on ``g``, and the app context that
+        holds ``g`` lives for the whole pytest session, so the cache outlives a
+        request.  Drop it here or a second _login() inside one test would be a
+        silent no-op and keep serving the previous user.
+        """
+        from flask import g
+
+        if hasattr(g, "_login_user"):
+            del g._login_user
+
         user_agent = self.client.environ_base.get("HTTP_USER_AGENT", "Werkzeug/Test")
         with self.app.test_request_context(
             "/",

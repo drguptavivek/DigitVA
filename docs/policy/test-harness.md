@@ -21,29 +21,51 @@ The test suite uses pytest with a session-scoped PostgreSQL schema against the
 - **Session end** (`conftest.pytest_sessionfinish`): drop schema, dispose engine.
 - **No per-class or per-test DDL.** The schema is created once and shared.
 
-### Per-test isolation
+### Isolation: class transaction plus per-test savepoint
 
-`BaseTestCase` (in `tests/base.py`) uses PostgreSQL savepoint rollback:
+Nothing a test class writes ever reaches the database. `BaseTestCase`
+(in `tests/base.py`) joins the scoped session to an external transaction:
 
-1. `setUp()` calls `db.session.begin_nested()` (SAVEPOINT).
-2. Test code may commit freely — commits only release the savepoint.
-3. `tearDown()` calls `db.session.rollback()` — undoes all writes.
+1. `setUpClass()` opens one connection, begins a transaction on it, and binds
+   `db.session` to that connection with `join_transaction_mode="create_savepoint"`.
+   Base fixtures and class fixtures are seeded inside this transaction.
+2. `setUp()` opens a SAVEPOINT on that connection, one level inside the class
+   transaction.
+3. `tearDown()` rolls back to the per-test savepoint. Class fixtures survive for
+   the rest of the class.
+4. `tearDownClass()` rolls back the class transaction and closes the connection,
+   so no class can leak rows into another.
 
-No manual DELETE or DROP is needed. This is the standard pattern for all
-database-touching tests.
+Because the session joins through a savepoint of its own, `db.session.commit()`
+inside a test — from test code or from route code — only releases the session's
+savepoint. Committing more than once in a test is safe; DDL such as materialized
+view creation is rolled back with everything else, so a test that queries an MV
+must build it itself.
 
-**Caveat:** Production code that calls `db.session.commit()` inside a savepoint
-will release the savepoint, merging changes into the outer transaction. This
-makes those changes visible to subsequent operations in the same test, but they
-are still rolled back by `tearDown()`. Materialized view refreshes are an
-exception — because `_refresh_one` calls `db.session.commit()`, MV tests manage
-their own per-class DDL (create/drop MVs in setUpClass/tearDownClass).
+Flask-SQLAlchemy's `Session.get_bind()` ignores an explicitly bound connection,
+so `conftest.pytest_sessionstart` installs `ExternalTransactionSession`
+(`tests/base.py`) as the session class before any session is used.
+
+**Exception — code that opens its own engine connection.** Code that goes to
+`db.engine` directly (the ODK connection guard keeps its state outside the
+request transaction by design) runs on another connection and cannot see rows
+held in the class transaction. Such a class sets `isolate_in_transaction = False`,
+writes for real, and MUST delete what it created in its own `tearDownClass`.
+
+**`_login()` and Flask-Login's cache.** The app context lives for the whole
+pytest session, so `g._login_user` survives between requests. `_login()` clears
+it before injecting the new session; without that a second `_login()` inside one
+test is a silent no-op and any privilege-boundary assertion after it passes
+vacuously.
 
 ### Base fixtures
 
 `BaseTestCase._seed_base_fixtures()` creates shared reference data (admin,
-project-PI, coder users; one project; one site). Seeding is idempotent: the
-first class to call it inserts rows; subsequent classes find and reuse them.
+project-PI, coder users; one project; one site) inside each class's transaction,
+so every class gets a fresh copy. Class-level fixtures that reuse shared ids
+(the BASE research project and site, form types, languages) must still be
+get-or-create — see Rule 5 — because helper code and some tests seed the same
+rows.
 
 ## Rules
 

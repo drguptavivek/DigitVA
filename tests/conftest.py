@@ -8,7 +8,9 @@ Per-class setup (BaseTestCase.setUpClass) re-uses the session schema and
 only re-seeds base fixtures.  No drop_all/create_all per class — that was
 the main source of swap pressure on resource-constrained machines.
 
-Per-test isolation is still via savepoint rollback (see base.py setUp/tearDown).
+Per-test isolation uses an external transaction: each test gets its own
+connection with an outer transaction that is rolled back in tearDown, and the
+scoped session joins it via SAVEPOINT (see base.py setUp/tearDown).
 """
 import pytest
 import sqlalchemy as sa
@@ -62,6 +64,12 @@ def pytest_sessionstart(session):
     _session_app = create_app(TestConfig)
     _session_ctx = _session_app.app_context()
     _session_ctx.push()
+
+    # Swap in the session class that honours an explicitly bound connection, so
+    # BaseTestCase.setUp can join the scoped session to a per-test transaction.
+    from tests.base import install_external_transaction_session
+
+    install_external_transaction_session()
 
     # Drop materialized views that block drop_all
     for mv in (

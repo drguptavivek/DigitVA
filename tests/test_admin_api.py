@@ -288,21 +288,6 @@ class AdminApiTests(BaseTestCase):
         mapping.odk_form_id = "ADMIN_API_FORM_A"
         db.session.flush()
 
-    def _switch_login(self, user_id):
-        """Re-login as another user *within* a test.
-
-        BaseTestCase.setUp drops Flask-Login's g._login_user once per test
-        (tests/base.py:318), but _login() itself does not.  Because conftest
-        pushes one app context for the whole session, g survives between
-        requests, so a plain _login() after the test's first request keeps
-        serving the previous user.  Drop the cache, then switch.
-        """
-        from flask import g
-
-        if hasattr(g, "_login_user"):
-            del g._login_user
-        self._login(user_id)
-
     def _create_user(self, email):
         user = VaUsers(
             user_id=uuid.uuid4(),
@@ -709,7 +694,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(toggle_resp.get_json()["status"], "active")
         
         # Ensure non-admin cannot access master list
-        self._switch_login(self.manager_id)
+        self._login(self.manager_id)
         forbidden_resp = self.client.get("/admin/api/sites?master=1")
         self.assertEqual(forbidden_resp.status_code, 403)
 
@@ -740,14 +725,14 @@ class AdminApiTests(BaseTestCase):
         )
         
         # Ensure non-admin cannot access master list
-        self._switch_login(self.manager_id)
+        self._login(self.manager_id)
         forbidden_resp = self.client.get("/admin/api/users?master=1")
         self.assertEqual(forbidden_resp.status_code, 403)
         
         # Switch back to admin.  _login() clears the session, so the CSRF token
         # captured above is no longer valid — re-issue it for the new session
         # (X-CSRFToken stays required: docs/policy/admin-api-access.md, CSRF Baseline).
-        self._switch_login(self.admin_user_id)
+        self._login(self.admin_user_id)
         headers = self._csrf_headers()
 
         # Edit user

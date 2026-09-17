@@ -21,6 +21,23 @@ PEPPER = "test-pepper-do-not-use-in-production"
 
 
 class OdkConnectionGuardServiceTests(BaseTestCase):
+    # The guard service reads and writes its state on its own db.engine
+    # connection so that a cooldown survives a rolled-back request, which means
+    # it cannot see rows held in an uncommitted class transaction.  These tests
+    # therefore commit for real and delete their connections in tearDownClass.
+    isolate_in_transaction = False
+
+    BASE_URL = "https://guard.test"
+
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            db.session.query(MasOdkConnections).filter_by(
+                base_url=cls.BASE_URL
+            ).delete(synchronize_session=False)
+            db.session.commit()
+        finally:
+            super().tearDownClass()
 
     def _create_connection(self, name=None):
         name = name or f"Guard Test {uuid.uuid4().hex[:8]}"
@@ -29,7 +46,7 @@ class OdkConnectionGuardServiceTests(BaseTestCase):
         conn = MasOdkConnections(
             connection_id=uuid.uuid4(),
             connection_name=name,
-            base_url="https://guard.test",
+            base_url=self.BASE_URL,
             username_enc=username_enc,
             username_salt=username_salt,
             password_enc=password_enc,

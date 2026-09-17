@@ -487,8 +487,32 @@ class DataManagerDashboardTests(BaseTestCase):
         )
         self.assertEqual(run_payload["target"], self.FORM_ID)
 
+    def _create_analytics_mvs(self, index_prefix):
+        """(Re)create the analytics MVs this test needs.
+
+        Per-test isolation rolls DDL back with everything else, so a test that
+        queries the MVs must build them itself instead of relying on another
+        test having left them behind (docs/policy/test-harness.md).
+        """
+        for mv in (COD_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
+            db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX {index_prefix}_core_va_sid ON {CORE_MV_NAME} (va_sid)")
+        )
+        db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX {index_prefix}_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
+        )
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
+        db.session.execute(
+            sa.text(f"CREATE UNIQUE INDEX {index_prefix}_detail_va_sid ON {COD_MV_NAME} (va_sid)")
+        )
+        db.session.commit()
+
     def test_data_manager_can_load_project_site_submission_stats(self):
         self._login(self.dm_user_id)
+        self._create_analytics_mvs("ix_test_dm_project_site_stats")
 
         response = self.client.get("/api/v1/data-management/project-site-submissions")
 
@@ -731,21 +755,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self._login(self.dm_user_id)
         now = datetime.now(timezone.utc)
 
-        for mv in (COD_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
-            db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql()))
-        db.session.execute(
-            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_core_va_sid ON {CORE_MV_NAME} (va_sid)")
-        )
-        db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
-        db.session.execute(
-            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
-        )
-        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
-        db.session.execute(
-            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_detail_va_sid ON {COD_MV_NAME} (va_sid)")
-        )
-        db.session.commit()
+        self._create_analytics_mvs("ix_test_dm_cod_bucket")
 
         scheme = MasCodBucketScheme(
             scheme_code=f"TEST_SCOPE_{uuid.uuid4().hex[:8].upper()}",
@@ -940,21 +950,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self._login(self.dm_user_id)
         now = datetime.now(timezone.utc)
 
-        for mv in (COD_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
-            db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql()))
-        db.session.execute(
-            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_export_core_va_sid ON {CORE_MV_NAME} (va_sid)")
-        )
-        db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
-        db.session.execute(
-            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_export_demo_va_sid ON {DEMOGRAPHICS_MV_NAME} (va_sid)")
-        )
-        db.session.execute(sa.text(build_submission_cod_detail_mv_sql()))
-        db.session.execute(
-            sa.text(f"CREATE UNIQUE INDEX ix_test_dm_cod_bucket_export_detail_va_sid ON {COD_MV_NAME} (va_sid)")
-        )
-        db.session.commit()
+        self._create_analytics_mvs("ix_test_dm_cod_bucket_export")
 
         scheme = MasCodBucketScheme(
             scheme_code=f"TEST_EXPORT_{uuid.uuid4().hex[:8].upper()}",

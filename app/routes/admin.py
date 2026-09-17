@@ -6772,3 +6772,7 @@ def admin_languages_delete_alias(language_code, alias):
     db.session.delete(alias_obj)
     db.session.commit()
     return jsonify({"deleted": alias})
+
+
+# Organization master-data routes extend this blueprint (kept in their own module).
+from app.routes import admin_organization  # noqa: E402,F401

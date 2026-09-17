@@ -1,0 +1,418 @@
+{#
+  Organization panel — per-project health-system tree: levels, units, cadres,
+  level×cadre permissions, workers, export/import.
+  API: /admin/api/organization/<project_id>/...  (app/routes/admin_organization.py)
+#}
+<div id="panel-organization">
+
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <h5 class="mb-0"><i class="fa-solid fa-sitemap me-2 text-secondary"></i>Organization</h5>
+      <div class="d-flex align-items-center gap-2">
+        <label for="org-project-select" class="form-label text-muted small mb-0 text-nowrap">Project:</label>
+        <select id="org-project-select" class="form-select form-select-sm" style="min-width:160px;"></select>
+      </div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="org-show-inactive" role="switch">
+        <label class="form-check-label small text-muted" for="org-show-inactive">Show inactive</label>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" id="org-seed-btn" title="Add the District > Taluka > CHC > PHC > Sub-centre > Village template with default cadres">
+        <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Seed template
+      </button>
+    </div>
+  </div>
+
+  <div id="org-alert" class="alert d-none small py-2"></div>
+
+  <ul class="nav nav-tabs mb-3" id="org-tabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-org-tab="units" type="button">Units</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="levels" type="button">Levels</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="cadres" type="button">Cadres &amp; permissions</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="workers" type="button">Workers</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="transfer" type="button">Export / Import</button></li>
+  </ul>
+
+  {# ---- Units ---- #}
+  <div class="org-tab" data-org-pane="units">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="text-muted small">Codes are unique within the project and appear in the ODK form as <code>org_&lt;level&gt;_code</code>.</span>
+      <button class="btn btn-sm btn-primary" id="org-unit-add-btn"><i class="fa-solid fa-plus me-1"></i>Add unit</button>
+    </div>
+    <div id="org-unit-form" class="card mb-3 d-none"><div class="card-body">
+      <h6 class="card-title mb-3" id="org-unit-form-title">Add unit</h6>
+      <input type="hidden" id="ou-id">
+      <div class="row g-2">
+        <div class="col-md-3"><label class="form-label small mb-1">Level <span class="text-danger">*</span></label><select id="ou-level" class="form-select form-select-sm"></select></div>
+        <div class="col-md-3"><label class="form-label small mb-1">Parent unit</label><select id="ou-parent" class="form-select form-select-sm"><option value="">(none — top level)</option></select></div>
+        <div class="col-md-2"><label class="form-label small mb-1">Code <span class="text-danger">*</span></label><input id="ou-code" class="form-control form-control-sm" maxlength="32" placeholder="PHC01"></div>
+        <div class="col-md-4"><label class="form-label small mb-1">Name <span class="text-danger">*</span></label><input id="ou-name" class="form-control form-control-sm"></div>
+        <div class="col-md-6"><label class="form-label small mb-1">Address</label><input id="ou-address" class="form-control form-control-sm"></div>
+        <div class="col-md-2"><label class="form-label small mb-1">Phone</label><input id="ou-phone" class="form-control form-control-sm" maxlength="32"></div>
+        <div class="col-md-2"><label class="form-label small mb-1">Latitude</label><input id="ou-lat" class="form-control form-control-sm" placeholder="12.971600"></div>
+        <div class="col-md-2"><label class="form-label small mb-1">Longitude</label><input id="ou-lng" class="form-control form-control-sm" placeholder="77.594600"></div>
+        <div class="col-md-6"><label class="form-label small mb-1">Google Maps URL</label><input id="ou-map" class="form-control form-control-sm" placeholder="https://maps.app.goo.gl/..."></div>
+        <div class="col-md-6"><label class="form-label small mb-1">Remarks</label><input id="ou-remarks" class="form-control form-control-sm"></div>
+      </div>
+      <div class="mt-3 d-flex gap-2">
+        <button class="btn btn-sm btn-success" id="ou-save-btn"><i class="fa-solid fa-check me-1"></i>Save</button>
+        <button class="btn btn-sm btn-outline-secondary" id="ou-cancel-btn">Cancel</button>
+      </div>
+    </div></div>
+    <div id="org-unit-tree" class="small"></div>
+  </div>
+
+  {# ---- Levels ---- #}
+  <div class="org-tab d-none" data-org-pane="levels">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="text-muted small">Depth orders the tree (1 = top). Optional levels may be skipped when placing a unit.</span>
+      <button class="btn btn-sm btn-primary" id="org-level-add-btn"><i class="fa-solid fa-plus me-1"></i>Add level</button>
+    </div>
+    <div id="org-level-form" class="card mb-3 d-none"><div class="card-body">
+      <input type="hidden" id="ol-id">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-2"><label class="form-label small mb-1">Code <span class="text-danger">*</span></label><input id="ol-code" class="form-control form-control-sm" placeholder="phc"></div>
+        <div class="col-md-4"><label class="form-label small mb-1">Name <span class="text-danger">*</span></label><input id="ol-name" class="form-control form-control-sm"></div>
+        <div class="col-md-1"><label class="form-label small mb-1">Depth</label><input id="ol-depth" type="number" min="1" class="form-control form-control-sm"></div>
+        <div class="col-md-2"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" id="ol-optional"><label class="form-check-label small" for="ol-optional">Optional</label></div></div>
+        <div class="col-md-3 d-flex gap-2"><button class="btn btn-sm btn-success" id="ol-save-btn">Save</button><button class="btn btn-sm btn-outline-secondary" id="ol-cancel-btn">Cancel</button></div>
+      </div>
+    </div></div>
+    <div id="org-level-table"></div>
+  </div>
+
+  {# ---- Cadres & permissions ---- #}
+  <div class="org-tab d-none" data-org-pane="cadres">
+    <div class="row g-3">
+      <div class="col-lg-4">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <strong class="small">Cadres</strong>
+          <button class="btn btn-sm btn-primary" id="org-cadre-add-btn"><i class="fa-solid fa-plus me-1"></i>Add cadre</button>
+        </div>
+        <div id="org-cadre-form" class="card mb-2 d-none"><div class="card-body p-2">
+          <input type="hidden" id="oc-id">
+          <div class="row g-2">
+            <div class="col-4"><input id="oc-code" class="form-control form-control-sm" placeholder="Code"></div>
+            <div class="col-8"><input id="oc-name" class="form-control form-control-sm" placeholder="Name"></div>
+          </div>
+          <div class="mt-2 d-flex gap-2"><button class="btn btn-sm btn-success" id="oc-save-btn">Save</button><button class="btn btn-sm btn-outline-secondary" id="oc-cancel-btn">Cancel</button></div>
+        </div></div>
+        <div id="org-cadre-table"></div>
+      </div>
+      <div class="col-lg-8">
+        <strong class="small d-block mb-2">Permissions per level (F = can fill VA form, C = can code VA form)</strong>
+        <div id="org-perm-grid" class="table-responsive"></div>
+      </div>
+    </div>
+  </div>
+
+  {# ---- Workers ---- #}
+  <div class="org-tab d-none" data-org-pane="workers">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="text-muted small">Health workers attached to units. Names and phones are personal data.</span>
+      <button class="btn btn-sm btn-primary" id="org-worker-add-btn"><i class="fa-solid fa-plus me-1"></i>Add worker</button>
+    </div>
+    <div id="org-worker-form" class="card mb-3 d-none"><div class="card-body">
+      <input type="hidden" id="ow-id">
+      <div class="row g-2">
+        <div class="col-md-3"><label class="form-label small mb-1">Unit <span class="text-danger">*</span></label><select id="ow-unit" class="form-select form-select-sm"></select></div>
+        <div class="col-md-2"><label class="form-label small mb-1">Cadre <span class="text-danger">*</span></label><select id="ow-cadre" class="form-select form-select-sm"></select></div>
+        <div class="col-md-2"><label class="form-label small mb-1">Code <span class="text-danger">*</span></label><input id="ow-code" class="form-control form-control-sm" maxlength="32"></div>
+        <div class="col-md-5"><label class="form-label small mb-1">Name <span class="text-danger">*</span></label><input id="ow-name" class="form-control form-control-sm"></div>
+        <div class="col-md-3"><label class="form-label small mb-1">Phone</label><input id="ow-phone" class="form-control form-control-sm" maxlength="32"></div>
+        <div class="col-md-4"><label class="form-label small mb-1">DigitVA user (email, optional)</label><input id="ow-user" class="form-control form-control-sm"></div>
+        <div class="col-md-5"><label class="form-label small mb-1">Remarks</label><input id="ow-remarks" class="form-control form-control-sm"></div>
+      </div>
+      <div class="mt-3 d-flex gap-2"><button class="btn btn-sm btn-success" id="ow-save-btn">Save</button><button class="btn btn-sm btn-outline-secondary" id="ow-cancel-btn">Cancel</button></div>
+    </div></div>
+    <div id="org-worker-table"></div>
+  </div>
+
+  {# ---- Export / Import ---- #}
+  <div class="org-tab d-none" data-org-pane="transfer">
+    <div class="row g-3">
+      <div class="col-md-5">
+        <div class="card"><div class="card-body">
+          <h6 class="card-title">Export</h6>
+          <p class="small text-muted">Master data as one workbook (levels, units, cadres, level_cadres, workers) or one CSV per sheet. The ODK choices CSV feeds the cascading unit selects of the XLSForm.</p>
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-primary" id="org-export-xlsx" href="#"><i class="fa-solid fa-file-excel me-1"></i>Workbook (.xlsx)</a>
+            <a class="btn btn-sm btn-outline-secondary" id="org-export-choices" href="#"><i class="fa-solid fa-list me-1"></i>ODK choices (.csv)</a>
+          </div>
+          <div class="mt-2 small" id="org-export-csv-links"></div>
+        </div></div>
+      </div>
+      <div class="col-md-7">
+        <div class="card"><div class="card-body">
+          <h6 class="card-title">Import</h6>
+          <p class="small text-muted">Upload a workbook in the export layout. Rows are matched by code; nothing is deleted. Run the dry run first, then apply.</p>
+          <input type="file" id="org-import-file" class="form-control form-control-sm mb-2" accept=".xlsx">
+          <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="org-import-deactivate"><label class="form-check-label small" for="org-import-deactivate">Deactivate rows missing from the supplied sheets</label></div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" id="org-import-dry"><i class="fa-solid fa-magnifying-glass me-1"></i>Dry run</button>
+            <button class="btn btn-sm btn-danger" id="org-import-apply" disabled><i class="fa-solid fa-upload me-1"></i>Apply</button>
+          </div>
+          <pre id="org-import-result" class="small bg-light border rounded p-2 mt-2 d-none" style="max-height:260px;overflow:auto;"></pre>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var PROJECT_ID = {{ project_id | tojson }};
+  var STATE = { levels: [], units: [], tree: [], cadres: [], level_cadres: [], workers: [] };
+  var _lastDryRunOk = false;
+
+  function csrf() { return window._adminCsrf || ''; }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function api(url, method, body) {
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
+    return fetch(url, { method: method || 'GET', headers: headers, body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+  function base() { return '/admin/api/organization/' + encodeURIComponent(PROJECT_ID); }
+  function showInactive() { return document.getElementById('org-show-inactive').checked; }
+  function alertBox(kind, msg) {
+    var el = document.getElementById('org-alert');
+    if (!msg) { el.classList.add('d-none'); return; }
+    el.className = 'alert alert-' + kind + ' small py-2';
+    el.textContent = msg;
+  }
+  function $(id) { return document.getElementById(id); }
+  function show(id, on) { $(id).classList.toggle('d-none', !on); }
+  function val(id) { return $(id).value.trim(); }
+  function fail(res) { alertBox('danger', (res.data && res.data.error) || 'Request failed.'); }
+
+  // ── project selector (from bootstrap) ─────────────────────────────────────
+  api('/admin/api/bootstrap').then(function (res) {
+    var sel = $('org-project-select');
+    var projects = (res.data && res.data.accessible_projects) || [];
+    sel.innerHTML = projects.map(function (p) { return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join('');
+    if (!PROJECT_ID || projects.indexOf(PROJECT_ID) < 0) PROJECT_ID = projects[0] || null;
+    if (PROJECT_ID) sel.value = PROJECT_ID;
+    sel.addEventListener('change', function () { PROJECT_ID = this.value; loadAll(); });
+    loadAll();
+  });
+  $('org-show-inactive').addEventListener('change', loadAll);
+
+  // ── tabs ──────────────────────────────────────────────────────────────────
+  document.querySelectorAll('#org-tabs [data-org-tab]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('#org-tabs .nav-link').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      var tab = btn.getAttribute('data-org-tab');
+      document.querySelectorAll('.org-tab').forEach(function (pane) { pane.classList.toggle('d-none', pane.getAttribute('data-org-pane') !== tab); });
+    });
+  });
+
+  // ── load ──────────────────────────────────────────────────────────────────
+  function loadAll() {
+    if (!PROJECT_ID) return;
+    alertBox();
+    api(base() + '?include_inactive=' + (showInactive() ? '1' : '0')).then(function (res) {
+      if (!res.ok) { fail(res); return; }
+      STATE.levels = res.data.levels; STATE.cadres = res.data.cadres; STATE.level_cadres = res.data.level_cadres;
+      STATE.tree = res.data.units; STATE.workers = res.data.workers;
+      STATE.units = []; (function flat(nodes) { nodes.forEach(function (n) { STATE.units.push(n); flat(n.children || []); }); })(STATE.tree);
+      renderAll();
+    });
+  }
+  function renderAll() { renderLevels(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderTransfer(); }
+
+  $('org-seed-btn').addEventListener('click', function () {
+    if (!confirm('Add the template levels, cadres and permissions to project ' + PROJECT_ID + '? Existing codes are kept.')) return;
+    api(base() + '/seed-template', 'POST', {}).then(function (res) {
+      if (!res.ok) { fail(res); return; }
+      var c = res.data.seeded; alertBox('success', 'Seeded levels=' + c.levels + ' cadres=' + c.cadres + ' permissions=' + c.level_cadres + '.'); loadAll();
+    });
+  });
+
+  // ── levels ────────────────────────────────────────────────────────────────
+  function renderLevels() {
+    var rows = STATE.levels.map(function (l) {
+      return '<tr class="' + (l.is_active ? '' : 'text-muted') + '"><td>' + l.depth + '</td><td><code>' + esc(l.level_code) + '</code></td><td>' + esc(l.level_name) + '</td>'
+        + '<td>' + (l.is_optional ? '<span class="badge text-bg-secondary">optional</span>' : '') + '</td><td><code>' + esc(l.odk_field_name) + '</code></td>'
+        + '<td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2 ol-edit" data-id="' + l.org_level_id + '"><i class="fa-solid fa-pen"></i></button> '
+        + '<button class="btn btn-sm py-0 px-2 ol-toggle ' + (l.is_active ? 'btn-outline-danger' : 'btn-outline-success') + '" data-id="' + l.org_level_id + '" data-active="' + (l.is_active ? 1 : 0) + '"><i class="fa-solid ' + (l.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button></td></tr>';
+    }).join('');
+    $('org-level-table').innerHTML = rows ? '<table class="table table-sm align-middle small"><thead><tr><th>Depth</th><th>Code</th><th>Name</th><th></th><th>ODK field</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
+      : '<p class="text-muted small">No levels yet. Use “Seed template” or add levels.</p>';
+    document.querySelectorAll('.ol-edit').forEach(function (b) { b.addEventListener('click', function () { openLevelForm(findBy(STATE.levels, 'org_level_id', b.dataset.id)); }); });
+    document.querySelectorAll('.ol-toggle').forEach(function (b) { b.addEventListener('click', function () {
+      api(base() + '/levels/' + b.dataset.id, 'PATCH', { is_active: b.dataset.active !== '1' }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
+    }); });
+  }
+  function openLevelForm(l) {
+    $('ol-id').value = l ? l.org_level_id : ''; $('ol-code').value = l ? l.level_code : ''; $('ol-name').value = l ? l.level_name : '';
+    $('ol-depth').value = l ? l.depth : (STATE.levels.length ? Math.max.apply(null, STATE.levels.map(function (x) { return x.depth; })) + 1 : 1);
+    $('ol-optional').checked = !!(l && l.is_optional); show('org-level-form', true);
+  }
+  $('org-level-add-btn').addEventListener('click', function () { openLevelForm(null); });
+  $('ol-cancel-btn').addEventListener('click', function () { show('org-level-form', false); });
+  $('ol-save-btn').addEventListener('click', function () {
+    var id = val('ol-id');
+    var body = { level_code: val('ol-code'), level_name: val('ol-name'), depth: parseInt(val('ol-depth'), 10), is_optional: $('ol-optional').checked };
+    api(base() + '/levels' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { fail(res); return; } show('org-level-form', false); loadAll(); });
+  });
+
+  // ── units ─────────────────────────────────────────────────────────────────
+  function renderTree() {
+    var wrap = $('org-unit-tree');
+    if (!STATE.tree.length) { wrap.innerHTML = '<p class="text-muted small">No units yet.</p>'; return; }
+    function node(u) {
+      var meta = [];
+      if (u.phone) meta.push('<i class="fa-solid fa-phone me-1"></i>' + esc(u.phone));
+      if (u.latitude && u.longitude) meta.push('<i class="fa-solid fa-location-dot me-1"></i>' + esc(u.latitude) + ', ' + esc(u.longitude));
+      if (u.google_maps_url) meta.push('<a href="' + esc(u.google_maps_url) + '" target="_blank" rel="noopener"><i class="fa-solid fa-map me-1"></i>map</a>');
+      return '<li class="mb-1 ' + (u.is_active ? '' : 'text-muted') + '">'
+        + '<span class="badge text-bg-light border me-1">' + esc(u.level_code) + '</span><code>' + esc(u.unit_code) + '</code> ' + esc(u.unit_name)
+        + (meta.length ? ' <span class="text-muted ms-2">' + meta.join(' &middot; ') + '</span>' : '')
+        + ' <button class="btn btn-sm btn-link py-0 px-1 ou-edit" data-id="' + u.org_unit_id + '" title="Edit"><i class="fa-solid fa-pen"></i></button>'
+        + '<button class="btn btn-sm btn-link py-0 px-1 ou-add-child" data-id="' + u.org_unit_id + '" title="Add child"><i class="fa-solid fa-plus"></i></button>'
+        + '<button class="btn btn-sm btn-link py-0 px-1 ou-toggle ' + (u.is_active ? 'text-danger' : 'text-success') + '" data-id="' + u.org_unit_id + '" data-active="' + (u.is_active ? 1 : 0) + '" title="' + (u.is_active ? 'Deactivate (with subtree)' : 'Activate') + '"><i class="fa-solid ' + (u.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button>'
+        + (u.children && u.children.length ? '<ul class="list-unstyled ps-4 mt-1">' + u.children.map(node).join('') + '</ul>' : '')
+        + '</li>';
+    }
+    wrap.innerHTML = '<ul class="list-unstyled">' + STATE.tree.map(node).join('') + '</ul>';
+    document.querySelectorAll('.ou-edit').forEach(function (b) { b.addEventListener('click', function () { openUnitForm(findBy(STATE.units, 'org_unit_id', b.dataset.id), null); }); });
+    document.querySelectorAll('.ou-add-child').forEach(function (b) { b.addEventListener('click', function () { openUnitForm(null, findBy(STATE.units, 'org_unit_id', b.dataset.id)); }); });
+    document.querySelectorAll('.ou-toggle').forEach(function (b) { b.addEventListener('click', function () {
+      var on = b.dataset.active !== '1';
+      if (!on && !confirm('Deactivate this unit and everything below it?')) return;
+      api(base() + '/units/' + b.dataset.id + '/toggle', 'POST', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
+    }); });
+  }
+  function fillUnitSelect(sel, excludeId, allowNone) {
+    sel.innerHTML = (allowNone ? '<option value="">(none — top level)</option>' : '') + STATE.units.filter(function (u) { return u.is_active && u.org_unit_id !== excludeId; })
+      .map(function (u) { return '<option value="' + u.org_unit_id + '">' + esc(u.path.replace(/\./g, ' › ')) + ' — ' + esc(u.unit_name) + '</option>'; }).join('');
+  }
+  function openUnitForm(u, parent) {
+    $('org-unit-form-title').textContent = u ? 'Edit unit ' + u.unit_code : 'Add unit';
+    $('ou-level').innerHTML = STATE.levels.filter(function (l) { return l.is_active; }).map(function (l) { return '<option value="' + l.org_level_id + '">' + l.depth + ' · ' + esc(l.level_name) + '</option>'; }).join('');
+    fillUnitSelect($('ou-parent'), u ? u.org_unit_id : null, true);
+    $('ou-id').value = u ? u.org_unit_id : '';
+    $('ou-level').value = u ? u.org_level_id : (parent ? nextLevelAfter(parent.depth) : ($('ou-level').options[0] ? $('ou-level').options[0].value : ''));
+    $('ou-parent').value = u ? (u.parent_org_unit_id || '') : (parent ? parent.org_unit_id : '');
+    ['code','name','address','phone','lat','lng','map','remarks'].forEach(function (k) {
+      var map = { code: 'unit_code', name: 'unit_name', address: 'address', phone: 'phone', lat: 'latitude', lng: 'longitude', map: 'google_maps_url', remarks: 'remarks' };
+      $('ou-' + k).value = u ? (u[map[k]] || '') : '';
+    });
+    show('org-unit-form', true); $('ou-code').focus();
+  }
+  function nextLevelAfter(depth) {
+    var next = STATE.levels.filter(function (l) { return l.is_active && l.depth > depth; }).sort(function (a, b) { return a.depth - b.depth; })[0];
+    return next ? next.org_level_id : '';
+  }
+  $('org-unit-add-btn').addEventListener('click', function () { openUnitForm(null, null); });
+  $('ou-cancel-btn').addEventListener('click', function () { show('org-unit-form', false); });
+  $('ou-save-btn').addEventListener('click', function () {
+    var id = val('ou-id');
+    var body = { org_level_id: val('ou-level'), parent_org_unit_id: val('ou-parent') || null, unit_code: val('ou-code'), unit_name: val('ou-name'),
+      address: val('ou-address'), phone: val('ou-phone'), latitude: val('ou-lat'), longitude: val('ou-lng'), google_maps_url: val('ou-map'), remarks: val('ou-remarks') };
+    api(base() + '/units' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { fail(res); return; } show('org-unit-form', false); loadAll(); });
+  });
+
+  // ── cadres & permissions ──────────────────────────────────────────────────
+  function renderCadres() {
+    var rows = STATE.cadres.map(function (c) {
+      return '<tr class="' + (c.is_active ? '' : 'text-muted') + '"><td><code>' + esc(c.cadre_code) + '</code></td><td>' + esc(c.cadre_name) + '</td>'
+        + '<td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2 oc-edit" data-id="' + c.cadre_id + '"><i class="fa-solid fa-pen"></i></button> '
+        + '<button class="btn btn-sm py-0 px-2 oc-toggle ' + (c.is_active ? 'btn-outline-danger' : 'btn-outline-success') + '" data-id="' + c.cadre_id + '" data-active="' + (c.is_active ? 1 : 0) + '"><i class="fa-solid ' + (c.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button></td></tr>';
+    }).join('');
+    $('org-cadre-table').innerHTML = rows ? '<table class="table table-sm small align-middle"><tbody>' + rows + '</tbody></table>' : '<p class="text-muted small">No cadres yet.</p>';
+    document.querySelectorAll('.oc-edit').forEach(function (b) { b.addEventListener('click', function () { var c = findBy(STATE.cadres, 'cadre_id', b.dataset.id); $('oc-id').value = c.cadre_id; $('oc-code').value = c.cadre_code; $('oc-name').value = c.cadre_name; show('org-cadre-form', true); }); });
+    document.querySelectorAll('.oc-toggle').forEach(function (b) { b.addEventListener('click', function () {
+      api(base() + '/cadres/' + b.dataset.id, 'PATCH', { is_active: b.dataset.active !== '1' }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
+    }); });
+  }
+  $('org-cadre-add-btn').addEventListener('click', function () { $('oc-id').value = ''; $('oc-code').value = ''; $('oc-name').value = ''; show('org-cadre-form', true); });
+  $('oc-cancel-btn').addEventListener('click', function () { show('org-cadre-form', false); });
+  $('oc-save-btn').addEventListener('click', function () {
+    var id = val('oc-id');
+    api(base() + '/cadres' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', { cadre_code: val('oc-code'), cadre_name: val('oc-name') }).then(function (res) { if (!res.ok) { fail(res); return; } show('org-cadre-form', false); loadAll(); });
+  });
+  function renderPermGrid() {
+    var levels = STATE.levels.filter(function (l) { return l.is_active; }), cadres = STATE.cadres.filter(function (c) { return c.is_active; });
+    if (!levels.length || !cadres.length) { $('org-perm-grid').innerHTML = '<p class="text-muted small">Define levels and cadres first.</p>'; return; }
+    var lookup = {}; STATE.level_cadres.forEach(function (lc) { lookup[lc.org_level_id + '|' + lc.cadre_id] = lc; });
+    var head = '<tr><th></th>' + cadres.map(function (c) { return '<th class="text-center"><code>' + esc(c.cadre_code) + '</code></th>'; }).join('') + '</tr>';
+    var body = levels.map(function (l) {
+      return '<tr><th class="text-nowrap">' + esc(l.level_name) + '</th>' + cadres.map(function (c) {
+        var lc = lookup[l.org_level_id + '|' + c.cadre_id], on = lc && lc.is_active;
+        return '<td class="text-center text-nowrap">'
+          + '<label class="me-1" title="can fill VA form"><input type="checkbox" class="perm-box" data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '" data-k="fill" ' + (on && lc.can_fill_va_form ? 'checked' : '') + '> F</label>'
+          + '<label title="can code VA form"><input type="checkbox" class="perm-box" data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '" data-k="code" ' + (on && lc.can_code_va_form ? 'checked' : '') + '> C</label>'
+          + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+    $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+    document.querySelectorAll('.perm-box').forEach(function (box) { box.addEventListener('change', function () {
+      var l = box.dataset.l, c = box.dataset.c;
+      var fill = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="fill"]').checked;
+      var code = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="code"]').checked;
+      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, is_active: fill || code }).then(function (res) { if (!res.ok) { fail(res); loadAll(); } else { alertBox(); } });
+    }); });
+  }
+
+  // ── workers ───────────────────────────────────────────────────────────────
+  function renderWorkers() {
+    var rows = STATE.workers.map(function (w) {
+      return '<tr class="' + (w.is_active ? '' : 'text-muted') + '"><td><code>' + esc(w.worker_code) + '</code></td><td>' + esc(w.worker_name) + '</td><td>' + esc(w.cadre_code) + '</td><td>' + esc(w.unit_code) + ' ' + esc(w.unit_name) + '</td><td>' + esc(w.phone) + '</td><td>' + esc(w.user_email) + '</td>'
+        + '<td class="text-end"><button class="btn btn-sm btn-outline-secondary py-0 px-2 ow-edit" data-id="' + w.worker_id + '"><i class="fa-solid fa-pen"></i></button> '
+        + '<button class="btn btn-sm py-0 px-2 ow-toggle ' + (w.is_active ? 'btn-outline-danger' : 'btn-outline-success') + '" data-id="' + w.worker_id + '" data-active="' + (w.is_active ? 1 : 0) + '"><i class="fa-solid ' + (w.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button></td></tr>';
+    }).join('');
+    $('org-worker-table').innerHTML = rows ? '<table class="table table-sm small align-middle"><thead><tr><th>Code</th><th>Name</th><th>Cadre</th><th>Unit</th><th>Phone</th><th>User</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p class="text-muted small">No workers yet.</p>';
+    document.querySelectorAll('.ow-edit').forEach(function (b) { b.addEventListener('click', function () { openWorkerForm(findBy(STATE.workers, 'worker_id', b.dataset.id)); }); });
+    document.querySelectorAll('.ow-toggle').forEach(function (b) { b.addEventListener('click', function () {
+      api(base() + '/workers/' + b.dataset.id, 'PATCH', { is_active: b.dataset.active !== '1' }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); });
+    }); });
+  }
+  function openWorkerForm(w) {
+    fillUnitSelect($('ow-unit'), null, false);
+    $('ow-cadre').innerHTML = STATE.cadres.filter(function (c) { return c.is_active; }).map(function (c) { return '<option value="' + c.cadre_id + '">' + esc(c.cadre_code) + ' — ' + esc(c.cadre_name) + '</option>'; }).join('');
+    $('ow-id').value = w ? w.worker_id : ''; if (w) { $('ow-unit').value = w.org_unit_id; $('ow-cadre').value = w.cadre_id; }
+    $('ow-code').value = w ? w.worker_code : ''; $('ow-name').value = w ? w.worker_name : ''; $('ow-phone').value = w ? (w.phone || '') : '';
+    $('ow-user').value = w ? (w.user_email || '') : ''; $('ow-remarks').value = w ? (w.remarks || '') : '';
+    show('org-worker-form', true);
+  }
+  $('org-worker-add-btn').addEventListener('click', function () { openWorkerForm(null); });
+  $('ow-cancel-btn').addEventListener('click', function () { show('org-worker-form', false); });
+  $('ow-save-btn').addEventListener('click', function () {
+    var id = val('ow-id');
+    var body = { org_unit_id: val('ow-unit'), cadre_id: val('ow-cadre'), worker_code: val('ow-code'), worker_name: val('ow-name'), phone: val('ow-phone'), user: val('ow-user'), remarks: val('ow-remarks') };
+    api(base() + '/workers' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { fail(res); return; } show('org-worker-form', false); loadAll(); });
+  });
+
+  // ── export / import ───────────────────────────────────────────────────────
+  function renderTransfer() {
+    $('org-export-xlsx').href = base() + '/export.xlsx';
+    $('org-export-choices').href = base() + '/odk-choices.csv';
+    $('org-export-csv-links').innerHTML = 'CSV: ' + ['levels','units','cadres','level_cadres','workers'].map(function (s) { return '<a href="' + base() + '/export/' + s + '.csv">' + s + '</a>'; }).join(' · ');
+  }
+  function runImport(apply) {
+    var file = $('org-import-file').files[0];
+    if (!file) { alertBox('warning', 'Choose a workbook first.'); return; }
+    var fd = new FormData(); fd.append('file', file); fd.append('dry_run', apply ? '0' : '1'); fd.append('deactivate_missing', $('org-import-deactivate').checked ? '1' : '0');
+    api(base() + '/import', 'POST', fd).then(function (res) {
+      var out = $('org-import-result'); out.classList.remove('d-none');
+      if (!res.data || !res.data.plan) { out.textContent = (res.data && res.data.error) || 'Import failed.'; _lastDryRunOk = false; $('org-import-apply').disabled = true; return; }
+      var p = res.data.plan, lines = [];
+      Object.keys(p.counts).forEach(function (s) { var c = p.counts[s]; lines.push(s.padEnd(13) + ' rows=' + c.rows + ' create=' + c.create + ' update=' + c.update + ' deactivate=' + c.deactivate); });
+      (p.errors || []).forEach(function (e) { lines.push('ERROR: ' + e); });
+      lines.push(p.applied ? 'Applied.' : (p.errors.length ? 'Not applied.' : 'Dry run only.'));
+      out.textContent = lines.join('\n');
+      _lastDryRunOk = res.ok && !apply; $('org-import-apply').disabled = !_lastDryRunOk;
+      if (p.applied) { $('org-import-apply').disabled = true; loadAll(); }
+    });
+  }
+  $('org-import-dry').addEventListener('click', function () { runImport(false); });
+  $('org-import-apply').addEventListener('click', function () { if (confirm('Apply the import to project ' + PROJECT_ID + '?')) runImport(true); });
+  $('org-import-file').addEventListener('change', function () { $('org-import-apply').disabled = true; });
+
+  function findBy(list, key, value) { for (var i = 0; i < list.length; i++) if (list[i][key] === value) return list[i]; return null; }
+}());
+</script>

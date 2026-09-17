@@ -219,6 +219,8 @@ def create_app(config_class=None):
 
     from app.commands.icd10 import init_app as init_icd10_commands
     init_icd10_commands(app)
+    from app.commands.organization import init_app as init_org_commands
+    init_org_commands(app)
 
     from app.commands.repair import init_app as init_repair_commands
     init_repair_commands(app)

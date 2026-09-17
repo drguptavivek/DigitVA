@@ -75,6 +75,7 @@ Project PIs can access the following panels, scoped to their own project:
 - Project Sites
 - Project Forms
 - Project PIs
+- Organization
 
 Current grant roles include:
 
@@ -141,6 +142,22 @@ Key behavior:
 - the connection bar now shows the assigned connection's current cooldown or
   recent failure state so operators can see degraded ODK health before trying
   more live lookups
+
+## Organization Panel
+
+Per-project health-system tree (policy: `docs/policy/organization-model.md`).
+Tabs: Units (tree with contact and location data), Levels, Cadres and
+permissions (level × cadre grid: can fill / can code VA form), Workers, and
+Export / Import.
+
+- "Seed template" adds District > Taluka (optional) > CHC > PHC > Sub-centre >
+  Village with the default cadres; rerunning it keeps existing codes.
+- Export: workbook (`/admin/api/organization/<project_id>/export.xlsx`), one
+  CSV per sheet, and the ODK choices CSV for cascading unit selects.
+- Import: upload the workbook, run the dry run, then apply. Rows are matched
+  by code; nothing is deleted.
+- Routes live in `app/routes/admin_organization.py`; rules in
+  `app/services/organization_service.py`.
 
 ## ODK Connections Panel
 

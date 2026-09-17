@@ -84,6 +84,8 @@ def pytest_sessionstart(session):
     # va_icd_codes carries a trigram index (see migration d0e1f2a3b4c6), so the
     # extension must exist before create_all builds the schema.
     db.session.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    # mas_org_unit.path is an ltree column (see migration c8d2e4f6a1b3).
+    db.session.execute(sa.text("CREATE EXTENSION IF NOT EXISTS ltree"))
     db.session.commit()
 
     # Ensure named enums exist before create_all

@@ -194,6 +194,46 @@ Current behavior:
 
 - one ICD code can map to only one leaf per `scheme_id + age_scope`
 
+## Organization Master Tables
+
+Health-system projects describe their hierarchy with these per-project tables
+(policy: `docs/policy/organization-model.md`; plan:
+`docs/planning/health-system-organization-model-plan.md`). Projects without
+rows here keep the Project > Site > Form model.
+
+### `mas_org_level`
+
+- one row per level of a project's tree: `level_code`, `level_name`, `depth`
+  (1 = top), `is_optional`, `is_active`
+- unique on (`project_id`, `level_code`) and (`project_id`, `depth`)
+- the ODK form field for a level is `org_<level_code>_code`
+
+### `mas_org_unit`
+
+- one row per unit: `unit_code` (unique per project), `unit_name`,
+  `org_level_id`, `parent_org_unit_id`, `path` (PostgreSQL `ltree` of unit
+  codes, GiST-indexed), `address`, `phone`, `latitude`, `longitude`,
+  `google_maps_url`, `remarks`, `is_active`
+- subtree queries use `path <@ :ancestor_path`
+
+### `mas_cadre`
+
+- per-project cadres: `cadre_code` (unique per project), `cadre_name`, `is_active`
+
+### `map_org_level_cadre`
+
+- which cadres exist at a level: `org_level_id`, `cadre_id`,
+  `can_fill_va_form`, `can_code_va_form`, `is_active`; unique on (level, cadre)
+
+### `mas_org_unit_worker`
+
+- people attached to a unit: `worker_code` (unique per project), `worker_name`,
+  `org_unit_id`, `cadre_id`, `phone`, optional `user_id` (`va_users`), `remarks`,
+  `is_active`
+- name and phone are personal data
+
+Migration: `c8d2e4f6a1b3` (additive; enables the `ltree` extension).
+
 ## ICD Reference Master Table
 
 ### `mas_icd10_2019_2`

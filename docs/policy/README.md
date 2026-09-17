@@ -27,6 +27,7 @@ Current policy docs:
 - [Final COD Authority Policy](final-cod-authority.md)
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)
+- [Organization Model Policy](organization-model.md) — per-project health-system tree, unit codes, cadres, workers, export/import
 - [ODK Retired Submissions Policy](odk-retired-submissions.md) — submissions missing in ODK are kept, not codeable, not counted by default
 - [ODK Sync Policy](odk-sync-policy.md) — workflow state guards for ODK sync
 - [SmartVA Generation Policy](smartva-generation-policy.md) — when SmartVA runs

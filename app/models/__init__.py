@@ -59,6 +59,13 @@ from app.models.va_selectives import (
     VaAccessRoles,
     VaAccessScopeTypes,
 )
+from app.models.mas_organization import (
+    MasOrgLevel,
+    MasOrgUnit,
+    MasCadre,
+    MapOrgLevelCadre,
+    MasOrgUnitWorker,
+)
 from app.models.va_field_mapping import (
     MasFormTypes,
     MasCategoryOrder,
@@ -132,4 +139,9 @@ __all__ = [
     "MasPiiAccessLog",
     "MasLanguages",
     "MapLanguageAliases",
+    "MasOrgLevel",
+    "MasOrgUnit",
+    "MasCadre",
+    "MapOrgLevelCadre",
+    "MasOrgUnitWorker",
 ]

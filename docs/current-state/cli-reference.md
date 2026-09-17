@@ -55,6 +55,18 @@ Additional `users create` options: `--landing-page` (default: `coder`), `--timez
 
 ---
 
+## `org` — Organization master data
+
+```bash
+docker compose exec minerva_app_service uv run flask org seed-template <project_id> [--no-cadres]
+docker compose exec minerva_app_service uv run flask org export <project_id> --out organization.xlsx
+docker compose exec minerva_app_service uv run flask org odk-choices <project_id> [--out choices.csv]
+docker compose exec minerva_app_service uv run flask org import <project_id> organization.xlsx            # dry run
+docker compose exec minerva_app_service uv run flask org import <project_id> organization.xlsx --apply [--deactivate-missing]
+```
+
+Policy: `docs/policy/organization-model.md`.
+
 ## `odk-sync` — ODK Central schema sync
 
 | Command | Description |

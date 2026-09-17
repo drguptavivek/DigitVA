@@ -43,6 +43,17 @@
           <span class="admin-nav-label">Project Sites</span>
         </a>
 
+        <a class="nav-link admin-nav-link rounded px-2 py-1"
+           href="#"
+           title="Organization"
+           data-panel="/admin/panels/organization"
+           hx-get="/admin/panels/organization"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-sitemap admin-nav-icon"></i>
+          <span class="admin-nav-label">Organization</span>
+        </a>
+
         {# Admin-only items — revealed by JS after bootstrap fetch #}
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"

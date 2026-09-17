@@ -51,6 +51,7 @@ _core = sa.table(
     sa.column("odk_review_state"),
     sa.column("has_sync_issue"),
     sa.column("odk_sync_issue_code"),
+    sa.column("odk_missing"),
     sa.column("cod_pending_upstream_review"),
 )
 
@@ -82,25 +83,22 @@ _mv = _core
 _CACHE_TTL = 300  # 5 minutes
 
 
-def _dm_scope_filter():
+def _dm_scope_filter(*, include_retired: bool = False):
     """WHERE clause restricted to the current data-manager user's grants.
 
     Project-level grants are expanded to their currently active
     (project_id, site_id) pairs so that sites removed from a project are
-    not included.
+    not included. Submissions retired from ODK are excluded unless
+    ``include_retired`` is set (docs/policy/odk-retired-submissions.md).
     """
-    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+    from app.services.submission_analytics_mv import _mv_scope_filter
 
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
-
-    all_pairs: set[tuple[str, str]] = set(project_site_pairs)
-    all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
-
-    if not all_pairs:
-        return sa.false()
-
-    return sa.tuple_(_core.c.project_id, _core.c.site_id).in_(list(all_pairs))
+    return _mv_scope_filter(
+        _core,
+        sorted(current_user.get_data_manager_projects()),
+        current_user.get_data_manager_project_sites(),
+        include_retired=include_retired,
+    )
 
 
 def _cache_key(suffix: str) -> str:

@@ -46,6 +46,10 @@ from app.models import (
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.services.final_cod_authority_service import upsert_final_cod_authority
+from app.services.odk_retirement_service import (
+    submission_is_in_odk,
+    submission_is_retired,
+)
 from app.services.odk_review_service import resolve_odk_instance_id
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_active_reviewer_reviews_for_submission,
@@ -56,6 +60,10 @@ from app.services.payload_bound_coding_artifact_service import (
     promote_active_social_autopsy_analyses_to_payload,
 )
 from app.services.smartva_service import promote_active_smartva_to_payload
+from app.services.submission_analytics_mv import (
+    ODK_SYNC_ALL,
+    ODK_SYNC_MISSING,
+)
 from app.services.submission_payload_projection_service import (
     apply_payload_to_submission_summary,
 )
@@ -328,6 +336,20 @@ def filter_scoped_forms(
 # Stats
 # ---------------------------------------------------------------------------
 
+def _odk_sync_condition(odk_sync: str):
+    """Return the va_submissions condition for the DM "ODK Sync" filter.
+
+    ``missing_in_odk`` shows only submissions retired from ODK, ``all`` shows
+    both, and every other value — including the empty default — shows only
+    submissions still in ODK (docs/policy/odk-retired-submissions.md).
+    """
+    if odk_sync == ODK_SYNC_MISSING:
+        return submission_is_retired()
+    if odk_sync == ODK_SYNC_ALL:
+        return sa.true()
+    return submission_is_in_odk()
+
+
 def _csv_values(raw: str) -> list[str]:
     if not raw:
         return []
@@ -502,7 +524,11 @@ def dm_submissions_page(
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> dict:
-    """Return one page of submission rows for the data manager table."""
+    """Return one page of submission rows for the data manager table.
+
+    ``odk_sync`` defaults to "in sync": submissions retired from ODK are left
+    out unless it is ``"all"`` or ``"missing_in_odk"``.
+    """
     from app.utils import va_render_serialisedates
     coder_final_user = sa.orm.aliased(VaUsers)
     reviewer_final_user = sa.orm.aliased(VaUsers)
@@ -587,13 +613,7 @@ def dm_submissions_page(
             conditions.append(_mv_ref.c.analytics_age_band == age_group)
     if gender:
         conditions.append(VaSubmissions.va_deceased_gender == gender)
-    if odk_sync == "missing_in_odk":
-        conditions.append(VaSubmissions.va_sync_issue_code == "missing_in_odk")
-    elif odk_sync == "in_sync":
-        conditions.append(sa.or_(
-            VaSubmissions.va_sync_issue_code.is_(None),
-            VaSubmissions.va_sync_issue_code != "missing_in_odk",
-        ))
+    conditions.append(_odk_sync_condition(odk_sync))
     if workflow:
         if workflow == "pending_coding":
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([
@@ -761,7 +781,11 @@ def _dm_submission_query_parts(
     odk_sync: str = "",
     workflow: str = "",
 ):
-    """Return shared query pieces for the DM grid and full export."""
+    """Return shared query pieces for the DM grid and full export.
+
+    ``odk_sync`` defaults to "in sync", so every export built on these pieces
+    leaves out submissions retired from ODK unless asked for them.
+    """
     attachment_counts = (
         sa.select(VaSubmissionAttachments.va_sid, sa.func.count().label("cnt"))
         .where(VaSubmissionAttachments.exists_on_odk.is_(True))
@@ -824,13 +848,7 @@ def _dm_submission_query_parts(
             conditions.append(_mv_ref.c.analytics_age_band == age_group)
     if gender:
         conditions.append(VaSubmissions.va_deceased_gender == gender)
-    if odk_sync == "missing_in_odk":
-        conditions.append(VaSubmissions.va_sync_issue_code == "missing_in_odk")
-    elif odk_sync == "in_sync":
-        conditions.append(sa.or_(
-            VaSubmissions.va_sync_issue_code.is_(None),
-            VaSubmissions.va_sync_issue_code != "missing_in_odk",
-        ))
+    conditions.append(_odk_sync_condition(odk_sync))
     if workflow:
         if workflow == "pending_coding":
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([

@@ -4110,7 +4110,11 @@ def _cod_bucket_aggregate_base_subquery(
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
 ):
-    """Return the filtered coded submission set joined to scheme age bands."""
+    """Return the filtered coded submission set joined to scheme age bands.
+
+    Submissions retired from ODK are never part of the set
+    (docs/policy/odk-retired-submissions.md).
+    """
     scheme = db.session.scalar(
         sa.select(MasCodBucketScheme).where(
             MasCodBucketScheme.scheme_code == scheme_code,
@@ -4126,6 +4130,7 @@ def _cod_bucket_aggregate_base_subquery(
         sa.column("project_id"),
         sa.column("site_id"),
         sa.column("submission_date"),
+        sa.column("odk_missing"),
     )
     demo = sa.table(
         DEMOGRAPHICS_MV_NAME,
@@ -4148,6 +4153,9 @@ def _cod_bucket_aggregate_base_subquery(
     conditions = [
         cod.c.final_icd.is_not(None),
         demo.c.has_human_final_cod.is_(True),
+        # Submissions retired from ODK are not reported
+        # (docs/policy/odk-retired-submissions.md).
+        core.c.odk_missing.is_(False),
         _gender_filter_clause(VaSubmissions.va_deceased_gender, gender_filter),
     ]
     if project_id:

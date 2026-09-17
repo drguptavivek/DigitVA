@@ -104,10 +104,23 @@ All Synced Submissions
 
 | Scope | Definition | Inclusions | Exclusions |
 |-------|-----------|------------|------------|
-| **ALL-SYNCED** | Every row in `va_submissions` within DM scope | All submissions, all states | None |
+| **ALL-SYNCED** | Every row in `va_submissions` within DM scope that is still in ODK | All submissions, all states | `va_sync_issue_code = 'missing_in_odk'` (see below) |
 | **CONSENT-VALID** | ALL-SYNCED minus consent_refused | Everything except consent=no | `workflow_state = 'consent_refused'` only |
 | **CODING-POOL** | CONSENT-VALID minus DM-not-codeable | Submissions that entered or could enter coding | `consent_refused`, `not_codeable_by_data_manager` |
 | **CODED** | Submissions that reached coder_finalized or beyond | `coder_finalized`, `reviewer_eligible`, `reviewer_coding_in_progress`, `reviewer_finalized`, `finalized_upstream_changed` | Everything else |
+
+**Retired from ODK is a scope-wide exclusion.** A submission whose
+`va_sync_issue_code` is `missing_in_odk` no longer exists in ODK Central
+([ODK Retired Submissions Policy](odk-retired-submissions.md)). It is kept with
+all of its history but is excluded **by default** from every scope above, and
+therefore from every KPI, the KPI daily grid, analytics MV consumers, COD
+bucket and Site PI reporting, and all exports. Mechanically the core analytics
+MV carries an `odk_missing` boolean and consumers filter `odk_missing = false`;
+the rows stay in the MV. The data-manager submission list defaults to the *In
+sync* filter and still offers *Missing in ODK* and *All*.
+
+The one KPI that counts them is **D-SH-03** below, so the gap between DigitVA
+and Central is always visible rather than silently absorbed.
 
 **Key distinction:**
 - **Hard gate** (`consent_refused`): permanent, excluded from all downstream scopes
@@ -384,8 +397,13 @@ Backlog         27         8        10       25
 - Time Frame: On-demand
 
 **D-SH-03: Locally Missing in ODK**
-- Numerator: COUNT where `va_sync_issue_code = 'missing_in_odk'`
-- Denominator: ALL-SYNCED
+- Numerator: COUNT where `va_sync_issue_code = 'missing_in_odk'` (the core
+  analytics MV's `odk_missing` column)
+- Denominator: ALL-SYNCED *plus* the retired rows themselves — this KPI is the
+  one place that counts them, and it ignores the default exclusion
+- Surfaced as the "Missing in ODK" card on the data-manager dashboard
+  (`missing_in_odk_submissions`); clicking it filters the list to
+  `odk_sync=missing_in_odk`
 - Time Frame: Cumulative
 
 **D-SH-04: SmartVA Failure Rate**

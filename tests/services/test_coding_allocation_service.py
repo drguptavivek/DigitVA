@@ -34,6 +34,7 @@ from app.services.coder_workflow_service import (
     mark_reviewer_eligible_after_recode_window_submissions,
     start_recode_allocation,
 )
+from app.services.odk_retirement_service import MISSING_IN_ODK, RETIRED_MESSAGE
 from app.services.final_cod_authority_service import (
     EPISODE_STATUS_ACTIVE,
     EPISODE_TYPE_RECODE,
@@ -705,6 +706,56 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(len(active_allocations), 1)
         self.assertEqual(workflow.workflow_state, "coding_in_progress")
         self.assertEqual(len(recode_started_events), 1)
+
+    def test_start_recode_allocation_refuses_retired_submission(self):
+        """A recode is a new allocation, so a retired submission is refused.
+
+        Policy: docs/policy/odk-retired-submissions.md.
+        """
+        sid = "uuid:recode-retired"
+        recode_user = self._make_user("recode.retired@test.local", "RecodeRetired123")
+        self._add_submission(sid)
+        db.session.flush()
+
+        final_assessment = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=recode_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_remark="final",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final_assessment)
+        db.session.flush()
+        upsert_final_cod_authority(
+            sid,
+            final_assessment,
+            reason="final_cod_submitted",
+            source_role="vacoder",
+            updated_by=recode_user.user_id,
+        )
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            by_user_id=recode_user.user_id,
+            by_role="vacoder",
+        )
+        db.session.get(VaSubmissions, sid).va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+
+        with self.assertRaises(AllocationError) as ctx:
+            start_recode_allocation(recode_user, sid)
+
+        self.assertEqual(ctx.exception.message, RETIRED_MESSAGE)
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertEqual(
+            db.session.scalars(
+                db.select(VaAllocations).where(
+                    VaAllocations.va_sid == sid,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            ).all(),
+            [],
+        )
 
     def test_start_recode_allocation_returns_demo_reset_message_for_ready_demo_form(self):
         recode_user = self._make_user("demo.reset.recode@test.local", "DemoReset123")

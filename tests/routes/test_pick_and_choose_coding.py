@@ -17,6 +17,7 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
+from app.services.odk_retirement_service import MISSING_IN_ODK, RETIRED_MESSAGE
 from tests.base import BaseTestCase
 
 
@@ -548,3 +549,101 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         self.assertEqual(response.status_code, 201)
         payload = response.get_json()
         self.assertEqual(payload["va_sid"], "sid-random-1")
+
+    # ------------------------------------------------------------------
+    # Retired-from-ODK submissions never enter a new coding allocation.
+    # Policy: docs/policy/odk-retired-submissions.md.
+    # ------------------------------------------------------------------
+
+    def _retire(self, va_sid):
+        """Flag a fixture submission as retired for the rest of this test.
+
+        The flag is written with a commit (allocation routes commit too), so
+        the cleanup clears it explicitly rather than relying on the per-test
+        savepoint — see docs/policy/test-harness.md.
+        """
+        self._set_sync_issue_code(va_sid, MISSING_IN_ODK)
+        self.addCleanup(self._set_sync_issue_code, va_sid, None)
+
+    def _set_sync_issue_code(self, va_sid, code):
+        submission = db.session.get(VaSubmissions, va_sid)
+        submission.va_sync_issue_code = code
+        db.session.commit()
+
+    def test_retired_submission_is_absent_from_pick_list_and_ready_counts(self):
+        self._reset_to_ready_pool("sid-pick-1")
+        self._reset_to_ready_pool("sid-random-1")
+        self._retire("sid-pick-1")
+        self._retire("sid-random-1")
+        self._login(self.base_coder_id)
+
+        available = self.client.get("/api/v1/coding/available").get_json()
+        stats = self.client.get("/api/v1/coding/stats").get_json()
+
+        self.assertNotIn("sid-pick-1", [row["va_sid"] for row in available["forms"]])
+        self.assertEqual(stats["pick_ready"], 0)
+        self.assertEqual(stats["random_ready"], 0)
+
+    def test_clearing_the_retired_flag_restores_pool_eligibility(self):
+        self._reset_to_ready_pool("sid-pick-1")
+        self._retire("sid-pick-1")
+        self._login(self.base_coder_id)
+
+        self._set_sync_issue_code("sid-pick-1", None)
+
+        available = self.client.get("/api/v1/coding/available").get_json()
+        stats = self.client.get("/api/v1/coding/stats").get_json()
+
+        self.assertIn("sid-pick-1", [row["va_sid"] for row in available["forms"]])
+        self.assertGreaterEqual(stats["pick_ready"], 1)
+
+    def test_pick_of_retired_submission_is_refused_with_policy_message(self):
+        self._reset_to_ready_pool("sid-pick-1")
+        self._retire("sid-pick-1")
+        self._login(self.base_coder_id)
+
+        response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 409)
+        # 409 has no custom error page, so the policy message is asserted on
+        # the flash queued by va_permission_abortwithflash.
+        with self.client.session_transaction() as flask_session:
+            flashed = [message for _category, message in flask_session["_flashes"]]
+        self.assertIn(RETIRED_MESSAGE, flashed)
+        self.assertIsNone(self._active_coding_sid())
+
+    def test_random_start_skips_retired_submission(self):
+        self._reset_to_ready_pool("sid-random-1")
+        self._retire("sid-random-1")
+        self._login(self.base_coder_id)
+
+        response = self.client.post(
+            "/coding/start",
+            headers=self._csrf_headers(),
+            follow_redirects=True,
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn(b"No forms are available to you for VA coding.", response.data)
+        self.assertIsNone(self._active_coding_sid())
+
+    def test_existing_active_allocation_on_retired_submission_still_resumes(self):
+        self._reset_to_ready_pool("sid-pick-1")
+        self._login(self.base_coder_id)
+        allocate = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(allocate.status_code, 200)
+
+        # The submission is retired while the coder is mid-session: the
+        # allocation runs to its normal timeout.
+        self._retire("sid-pick-1")
+
+        resume = self.client.get("/coding/resume")
+
+        self.assertEqual(resume.status_code, 200)
+        self.assertEqual(self._active_coding_sid(), "sid-pick-1")

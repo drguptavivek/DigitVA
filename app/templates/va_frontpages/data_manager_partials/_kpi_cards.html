@@ -120,6 +120,21 @@
   </div>
 
   <div class="col-4 col-sm-4 col-md-4">
+    <div class="dm-kpi-card clickable h-100" style="background:#f8fafc;border-color:#cbd5e1;position:relative;" id="kpi-missing-in-odk-card">
+      <button class="dm-kpi-info-btn" tabindex="-1"
+              data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"
+              data-bs-content="Submissions that are no longer present in ODK Central. They are kept with all their history but are not coded and not counted in the other KPIs. Click to list them.">
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+      <div class="dm-kpi-icon text-white" style="background:#64748b;"><i class="fa-solid fa-link-slash"></i></div>
+      <div>
+        <div class="dm-kpi-value" style="color:#475569;" id="kpi-missing-in-odk">—</div>
+        <div class="dm-kpi-label">Missing in ODK</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-4 col-sm-4 col-md-4">
     <div class="dm-kpi-card card-secondary clickable h-100" id="kpi-smartva-missing-card" style="position:relative;">
       <button class="dm-kpi-info-btn" tabindex="-1"
               data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top"

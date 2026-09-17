@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 
 from app import db
+from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
     WORKFLOW_CODER_FINALIZED,
@@ -79,6 +80,12 @@ SOCIAL_AUTOPSY_PAYLOAD_FIELDS = (
 # Legacy alias so existing imports don't break immediately.
 MV_NAME = CORE_MV_NAME
 
+# Values of the data-manager "ODK Sync" filter. The default (empty) behaves as
+# ODK_SYNC_IN_SYNC: retired submissions are excluded unless asked for.
+ODK_SYNC_IN_SYNC = "in_sync"
+ODK_SYNC_MISSING = MISSING_IN_ODK
+ODK_SYNC_ALL = "all"
+
 _DAYS_PER_MONTH = "30.4375"
 _DAYS_PER_YEAR = "365.25"
 _WHO_2022_SCHEME_CODE = "WHO_2022_VA"
@@ -106,6 +113,10 @@ SELECT
     s.va_odk_reviewstate AS odk_review_state,
     s.va_sync_issue_code AS odk_sync_issue_code,
     (s.va_sync_issue_code IS NOT NULL) AS has_sync_issue,
+    -- Retired from ODK (docs/policy/odk-retired-submissions.md). IS NOT
+    -- DISTINCT FROM keeps the column NOT NULL for submissions with no sync
+    -- issue at all, so consumers can filter on odk_missing = false.
+    (s.va_sync_issue_code IS NOT DISTINCT FROM '{MISSING_IN_ODK}') AS odk_missing,
     (w.workflow_state = '{WORKFLOW_FINALIZED_UPSTREAM_CHANGED}') AS cod_pending_upstream_review
 FROM va_submissions s
 JOIN va_forms f ON f.form_id = s.va_form_id
@@ -905,12 +916,16 @@ def _expand_project_ids_to_active_pairs(project_ids: list[str]) -> set[tuple[str
     return {(row.project_id, row.site_id) for row in rows}
 
 
-def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs):
+def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs, *, include_retired: bool = False):
     """Return a WHERE clause scoped to the given project/project-site grants.
 
     Project-level grants are expanded to their currently active
     (project_id, site_id) pairs so that sites removed from a project are
     not included.
+
+    Submissions retired from ODK are excluded unless ``include_retired`` is
+    set (docs/policy/odk-retired-submissions.md); they stay in the MV so the
+    explicit "Missing in ODK" count can still find them.
     """
     all_pairs: set[tuple[str, str]] = set(project_site_pairs)
     all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
@@ -918,7 +933,10 @@ def _mv_scope_filter(mv, project_ids: list[str], project_site_pairs):
     if not all_pairs:
         return sa.false()
 
-    return sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs))
+    scope = sa.tuple_(mv.c.project_id, mv.c.site_id).in_(list(all_pairs))
+    if include_retired:
+        return scope
+    return sa.and_(scope, mv.c.odk_missing.is_(False))
 
 
 def _csv_values(raw: str | None) -> list[str]:
@@ -950,8 +968,20 @@ def build_dm_mv_filter_conditions(
     site_id, submission_date, workflow_state, odk_review_state, odk_sync_issue_code).
     ``demo`` is the table reference for the demographics MV (has sex,
     analytics_age_band, has_smartva).
+
+    ``odk_sync`` defaults to "in sync": submissions retired from ODK are left
+    out unless it is ``"all"`` or ``"missing_in_odk"``.
     """
-    conditions = [_mv_scope_filter(core, project_ids, project_site_pairs)]
+    # "all" shows both; "missing_in_odk" shows only retired rows; anything
+    # else (including the empty default) shows only rows still in ODK.
+    conditions = [
+        _mv_scope_filter(
+            core,
+            project_ids,
+            project_site_pairs,
+            include_retired=odk_sync in (ODK_SYNC_ALL, ODK_SYNC_MISSING),
+        )
+    ]
 
     project_values = _csv_values(project)
     if project_values:
@@ -979,13 +1009,8 @@ def build_dm_mv_filter_conditions(
         conditions.append(demo.c.analytics_age_band == age_group)
     if gender:
         conditions.append(demo.c.sex == gender)
-    if odk_sync == "missing_in_odk":
-        conditions.append(core.c.odk_sync_issue_code == "missing_in_odk")
-    elif odk_sync == "in_sync":
-        conditions.append(sa.or_(
-            core.c.odk_sync_issue_code.is_(None),
-            core.c.odk_sync_issue_code != "missing_in_odk",
-        ))
+    if odk_sync == ODK_SYNC_MISSING:
+        conditions.append(core.c.odk_missing.is_(True))
     if workflow:
         if workflow == "pending_coding":
             conditions.append(core.c.workflow_state.in_([
@@ -1030,6 +1055,7 @@ def get_dm_kpi_from_mv(
         sa.column("workflow_state"),
         sa.column("odk_review_state"),
         sa.column("odk_sync_issue_code"),
+        sa.column("odk_missing"),
     )
     demo = sa.table(
         DEMOGRAPHICS_MV_NAME,
@@ -1135,6 +1161,28 @@ def get_dm_kpi_from_mv(
         ]))
     ) or 0
 
+    # Retired submissions are excluded from every count above; this one
+    # names them explicitly so the gap against ODK Central is self-explaining.
+    missing_in_odk_where = sa.and_(*build_dm_mv_filter_conditions(
+        core,
+        demo,
+        project_ids=project_ids,
+        project_site_pairs=project_site_pairs,
+        project=project,
+        site=site,
+        date_from=date_from,
+        date_to=date_to,
+        odk_status=odk_status,
+        smartva=smartva,
+        age_group=age_group,
+        gender=gender,
+        odk_sync=ODK_SYNC_MISSING,
+        workflow=workflow,
+    ))
+    missing_in_odk = db.session.scalar(
+        sa.select(sa.func.count()).select_from(joined).where(missing_in_odk_where)
+    ) or 0
+
     consent_refused = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(joined)
@@ -1162,6 +1210,7 @@ def get_dm_kpi_from_mv(
         "smartva_failed_submissions": smartva_failed,
         "revoked_submissions": revoked,
         "consent_refused_submissions": consent_refused,
+        "missing_in_odk_submissions": missing_in_odk,
         "workflow_counts": workflow_counts,
     }
 
@@ -1196,6 +1245,7 @@ def get_dm_project_site_stats_from_mv(
         sa.column("workflow_state"),
         sa.column("odk_review_state"),
         sa.column("odk_sync_issue_code"),
+        sa.column("odk_missing"),
     )
     demo = sa.table(
         DEMOGRAPHICS_MV_NAME,

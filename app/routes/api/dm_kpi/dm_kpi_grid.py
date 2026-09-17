@@ -9,6 +9,8 @@ Sources:
   - va_daily_kpi_aggregates (primary, pre-computed)
   - va_submissions + va_submission_workflow_events (live fallback)
 
+  Submissions retired from ODK are excluded (docs/policy/odk-retired-submissions.md).
+
 Design notes:
   The grid reads from ``va_daily_kpi_aggregates`` which is keyed by
   ``(snapshot_date, site_id)``.  ``project_id`` is a data column (audit).
@@ -28,10 +30,14 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_grid", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 @bp.get("/")
@@ -135,79 +141,84 @@ def _grid_from_aggregates_with_live_fill(site_ids: list[str], days: int) -> dict
 
         # Coded per day from live events
         coded_rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT DATE(e.event_created_at) AS d, COUNT(*) AS coded
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND DATE(e.event_created_at) >= :from_date
                 GROUP BY DATE(e.event_created_at)
             """),
-            {"site_ids": site_ids, "from_date": min_missing},
+            {**IN_ODK_BIND, "site_ids": site_ids, "from_date": min_missing},
         ).mappings().all()
         coded_by_date = {str(r["d"]): r["coded"] for r in coded_rows}
 
         # New submissions per day
         new_rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT DATE(s.va_created_at) AS d, COUNT(*) AS cnt
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
                   AND DATE(s.va_created_at) >= :from_date
                 GROUP BY DATE(s.va_created_at)
             """),
-            {"site_ids": site_ids, "from_date": min_missing},
+            {**IN_ODK_BIND, "site_ids": site_ids, "from_date": min_missing},
         ).mappings().all()
         new_by_date = {str(r["d"]): r["cnt"] for r in new_rows}
 
         # Not-codeable per day
         nc_rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT DATE(e.event_created_at) AS d, COUNT(*) AS cnt
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
                   AND e.transition_id IN ('coder_not_codeable', 'data_manager_not_codeable')
                   AND DATE(e.event_created_at) >= :from_date
                 GROUP BY DATE(e.event_created_at)
             """),
-            {"site_ids": site_ids, "from_date": min_missing},
+            {**IN_ODK_BIND, "site_ids": site_ids, "from_date": min_missing},
         ).mappings().all()
         nc_by_date = {str(r["d"]): r["cnt"] for r in nc_rows}
 
         # Consent refused per day
         cr_rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT DATE(e.event_created_at) AS d, COUNT(*) AS cnt
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
                   AND e.current_state = 'consent_refused'
                   AND DATE(e.event_created_at) >= :from_date
                 GROUP BY DATE(e.event_created_at)
             """),
-            {"site_ids": site_ids, "from_date": min_missing},
+            {**IN_ODK_BIND, "site_ids": site_ids, "from_date": min_missing},
         ).mappings().all()
         cr_by_date = {str(r["d"]): r["cnt"] for r in cr_rows}
 
         # Current pending snapshot (attributed to today only)
         pending_now = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS pending
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
                   AND w.workflow_state IN (
                       'ready_for_coding', 'coding_in_progress', 'coder_step1_saved'
                   )
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         for d in missing_dates:
@@ -271,7 +282,7 @@ def _grid_from_live(site_ids: list[str], days: int) -> dict:
     from_date = date.today() - timedelta(days=days - 1)
 
     # Build a CTE with one row per submission, scoped to DM sites
-    scoped = sa.text("""
+    scoped = sa.text(f"""
         SELECT s.va_sid, f.site_id,
                DATE(s.va_created_at) AS created_date,
                w.workflow_state
@@ -279,88 +290,94 @@ def _grid_from_live(site_ids: list[str], days: int) -> dict:
         JOIN va_forms f ON f.form_id = s.va_form_id
         LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
         WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
     """)
 
     # Total per day (cumulative count as of each day is complex live,
     # so we return daily new counts as a simpler proxy)
     totals = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT DATE(s.va_created_at) AS date, COUNT(*) AS total
             FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
               AND DATE(s.va_created_at) >= :from_date
             GROUP BY DATE(s.va_created_at)
         """),
-        {"site_ids": site_ids, "from_date": from_date},
+        {**IN_ODK_BIND, "site_ids": site_ids, "from_date": from_date},
     ).mappings().all()
 
     total_map = {str(r["date"]): r["total"] for r in totals}
 
     # Coded per day
     coded = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT DATE(e.event_created_at) AS date, COUNT(*) AS coded
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
               AND e.transition_id IN ('coder_finalized', 'recode_finalized')
               AND DATE(e.event_created_at) >= :from_date
             GROUP BY DATE(e.event_created_at)
         """),
-        {"site_ids": site_ids, "from_date": from_date},
+        {**IN_ODK_BIND, "site_ids": site_ids, "from_date": from_date},
     ).mappings().all()
 
     coded_map = {str(r["date"]): r["coded"] for r in coded}
 
     # Not-codeable per day
     not_codeable = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT DATE(e.event_created_at) AS date, COUNT(*) AS not_codeable
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
               AND e.transition_id IN ('coder_not_codeable', 'data_manager_not_codeable')
               AND DATE(e.event_created_at) >= :from_date
             GROUP BY DATE(e.event_created_at)
         """),
-        {"site_ids": site_ids, "from_date": from_date},
+        {**IN_ODK_BIND, "site_ids": site_ids, "from_date": from_date},
     ).mappings().all()
 
     not_codeable_map = {str(r["date"]): r["not_codeable"] for r in not_codeable}
 
     # Consent refused per day
     consent = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT DATE(e.event_created_at) AS date, COUNT(*) AS consent_refused
             FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
               AND e.current_state = 'consent_refused'
               AND DATE(e.event_created_at) >= :from_date
             GROUP BY DATE(e.event_created_at)
         """),
-        {"site_ids": site_ids, "from_date": from_date},
+        {**IN_ODK_BIND, "site_ids": site_ids, "from_date": from_date},
     ).mappings().all()
 
     consent_map = {str(r["date"]): r["consent_refused"] for r in consent}
 
     # Pending snapshot (current state, attributed to today as proxy)
     pending_count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) AS pending
             FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
               AND w.workflow_state IN (
                   'ready_for_coding', 'coding_in_progress', 'coder_step1_saved'
               )
         """),
-        {"site_ids": site_ids},
+        {**IN_ODK_BIND, "site_ids": site_ids},
     ).scalar() or 0
 
     # Merge all dates

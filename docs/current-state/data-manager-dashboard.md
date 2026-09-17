@@ -68,12 +68,22 @@ Current cards include:
 - `Flagged Not Codeable`
 - `ODK - Has Issues`
 - `SmartVA Missing`
+- `Missing in ODK`
 
 `SmartVA Missing` semantics:
 
 - counts submissions with no active SmartVA output
 - includes `consent_refused` workflow rows when the dashboard is filtered to
   `smartva=missing`, so KPI cards stay aligned with the table filter results
+
+`Missing in ODK` semantics:
+
+- counts submissions retired from ODK, i.e. `va_sync_issue_code =
+  'missing_in_odk'` ([ODK Retired Submissions
+  Policy](../policy/odk-retired-submissions.md))
+- it is the only card that counts them: every other card, the table, the charts
+  and the exports exclude them by default
+- clicking it filters the table to `odk_sync=missing_in_odk`
 
 Some card counts apply filters directly to the table when clicked.
 
@@ -174,6 +184,17 @@ SmartVA status semantics in the dashboard table:
   `va_smartva_outcome = 'failed'`
 - `Ineligible`: workflow state is `consent_refused` (SmartVA not required)
 - `Missing`: no active SmartVA projection row exists for the submission
+
+ODK sync filter semantics:
+
+- `In sync (default)` — the default. Submissions retired from ODK are hidden
+  from the table, the summary cards, the charts and the exports
+- `Missing in ODK` — only the retired submissions
+- `All` — both, with no condition on sync state
+
+The default is part of the saved filter state and of the dashboard URL
+(`odk_sync=in_sync`), and clearing the filters restores it rather than blanking
+it. The read-only submission view stays reachable for retired submissions.
 
 Filter state persists across page reloads in the browser.
 

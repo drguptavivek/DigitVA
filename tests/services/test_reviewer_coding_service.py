@@ -27,6 +27,7 @@ from app.services.reviewer_coding_service import (
     submit_reviewer_final_cod,
     submit_reviewer_initial_cod,
 )
+from app.services.odk_retirement_service import MISSING_IN_ODK, RETIRED_MESSAGE
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.workflow.definition import (
     TRANSITION_REVIEWER_CODING_STARTED,
@@ -198,6 +199,85 @@ class TestReviewerCodingService(BaseTestCase):
         self.assertEqual(workflow_state, WORKFLOW_REVIEWER_CODING_IN_PROGRESS)
         self.assertIsNotNone(allocation)
         self.assertIsNotNone(event)
+
+    def test_start_reviewer_coding_refuses_retired_submission(self):
+        """A retired submission never enters a new reviewer allocation.
+
+        Policy: docs/policy/odk-retired-submissions.md.
+        """
+        sid = "uuid:reviewer-coding-retired"
+        submission = self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        submission.va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        self._release_active_reviewer_allocations()
+
+        with self.assertRaises(ReviewerCodingError) as ctx:
+            start_reviewer_coding(self.base_reviewer_user, sid)
+
+        self.assertEqual(ctx.exception.message, RETIRED_MESSAGE)
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertIsNone(
+            db.session.scalar(
+                db.select(VaAllocations).where(
+                    VaAllocations.va_sid == sid,
+                    VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            )
+        )
+
+    def test_clearing_retired_flag_restores_reviewer_eligibility(self):
+        sid = "uuid:reviewer-coding-unretired"
+        submission = self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        submission.va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        self._release_active_reviewer_allocations()
+
+        submission.va_sync_issue_code = None
+        db.session.commit()
+
+        result = start_reviewer_coding(self.base_reviewer_user, sid)
+
+        self.assertEqual(result.actiontype, "vastartreviewing")
+
+    def test_active_reviewer_allocation_on_retired_submission_still_resumes(self):
+        sid = "uuid:reviewer-coding-retired-resume"
+        submission = self._add_submission(sid)
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            reason="test_setup",
+            by_role="vasystem",
+        )
+        db.session.commit()
+        self._release_active_reviewer_allocations()
+        start_reviewer_coding(self.base_reviewer_user, sid)
+
+        # Retired mid-session: the allocation runs to its normal timeout.
+        submission.va_sync_issue_code = MISSING_IN_ODK
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_REVIEWER_ELIGIBLE,
+            reason="test_resume_entry",
+            by_role="vasystem",
+        )
+        db.session.commit()
+
+        result = start_reviewer_coding(self.base_reviewer_user, sid)
+
+        self.assertEqual(result.actiontype, "varesumereviewing")
 
     def test_submit_reviewer_final_cod_creates_artifact_and_releases_allocation(self):
         sid = "uuid:reviewer-coding-finalize"

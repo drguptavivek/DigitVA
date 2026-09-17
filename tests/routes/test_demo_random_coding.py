@@ -17,6 +17,7 @@ from app.models import (
     VaSubmissions,
     VaUserAccessGrants,
 )
+from app.services.odk_retirement_service import MISSING_IN_ODK
 from tests.base import BaseTestCase
 
 
@@ -210,6 +211,44 @@ class DemoRandomCodingRouteTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_demo_allocation_sid(), "sid-demo-2")
+
+    def test_demo_random_coding_skips_retired_submission(self):
+        """The demo/training pool never offers a retired submission.
+
+        Policy: docs/policy/odk-retired-submissions.md.
+        """
+        self._login(self.base_admin_id)
+        retired = db.session.get(VaSubmissions, "sid-demo-1")
+        retired.va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        self.addCleanup(self._clear_sync_issue_code, "sid-demo-1")
+
+        response = self.client.post(
+            "/coding/demo",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self._active_demo_allocation_sid(), "sid-demo-2")
+
+    def test_demo_random_coding_refuses_when_every_form_is_retired(self):
+        self._login(self.base_admin_id)
+        for sid in ("sid-demo-1", "sid-demo-2"):
+            db.session.get(VaSubmissions, sid).va_sync_issue_code = MISSING_IN_ODK
+            self.addCleanup(self._clear_sync_issue_code, sid)
+        db.session.commit()
+
+        response = self.client.post(
+            "/coding/demo",
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIsNone(self._active_demo_allocation_sid())
+
+    def _clear_sync_issue_code(self, va_sid):
+        db.session.get(VaSubmissions, va_sid).va_sync_issue_code = None
+        db.session.commit()
 
     def test_coder_dashboard_matches_narration_language_case_insensitively(self):
         submission = db.session.scalar(

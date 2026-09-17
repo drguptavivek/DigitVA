@@ -25,6 +25,7 @@ from app.services.workflow.definition import (
     TRANSITION_REVIEWER_FINALIZED,
     TRANSITION_UPSTREAM_CHANGE_ACCEPTED,
     TRANSITION_UPSTREAM_CHANGE_DETECTED,
+    WORKFLOW_CODER_FINALIZED,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_READY_FOR_CODING,
@@ -57,7 +58,9 @@ class SitePiReportingServiceTests(BaseTestCase):
         )
         db.session.commit()
 
-    def _add_submission(self, sid: str, workflow_state: str) -> None:
+    def _add_submission(
+        self, sid: str, workflow_state: str, *, sync_issue_code: str | None = None
+    ) -> None:
         now = datetime.now(timezone.utc)
         db.session.add(
             VaSubmissions(
@@ -73,6 +76,7 @@ class SitePiReportingServiceTests(BaseTestCase):
                 va_narration_language="English",
                 va_deceased_age=42,
                 va_deceased_gender="male",
+                va_sync_issue_code=sync_issue_code,
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],
@@ -268,3 +272,23 @@ class SitePiReportingServiceTests(BaseTestCase):
 
         coder_row = next(row for row in data["coder_kpis"] if row["coder_name"] == self.base_coder_user.name)
         self.assertEqual(coder_row["total_done"], 2)
+
+    def test_sitepi_dashboard_excludes_submissions_retired_from_odk(self):
+        """Retired submissions drop out of every Site PI count.
+
+        Policy: docs/policy/odk-retired-submissions.md.
+        """
+        self._add_submission("uuid:sitepi-in-odk", WORKFLOW_CODER_FINALIZED)
+        self._add_submission(
+            "uuid:sitepi-retired",
+            WORKFLOW_CODER_FINALIZED,
+            sync_issue_code="missing_in_odk",
+        )
+        db.session.commit()
+
+        data = get_sitepi_dashboard_data(self.BASE_SITE_ID)
+
+        self.assertEqual(data["total_submissions"], 1)
+        self.assertEqual(
+            [row["va_sid"] for row in data["submission_rows"]], ["uuid:sitepi-in-odk"]
+        )

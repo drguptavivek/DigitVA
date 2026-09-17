@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-05-20
+last_updated: 2026-09-17
 ---
 
 # Workflow And Permissions
@@ -359,6 +359,33 @@ Current remaining reader/reporting gap:
 - some older coder-participation detail slices still read coder-owned tables
   directly because they are measuring coder activity, not authoritative final
   COD
+
+### Retired submissions and coding pools
+
+A submission whose `va_sync_issue_code` is `missing_in_odk` is retired from ODK
+(see [ODK Retired Submissions Policy](../policy/odk-retired-submissions.md)).
+Every pool that can create a new allocation applies the shared predicate
+`submission_is_in_odk()`
+([`app/services/odk_retirement_service.py`](../../app/services/odk_retirement_service.py)),
+never a locally re-derived comparison:
+
+- coder random pool, pick-and-choose list, and the ready counts behind
+  `/api/v1/coding/stats`, `/api/v1/coding/available` and the `/coding/`
+  dashboard (`_available_submission_filters()` in
+  [`app/services/coder_workflow_service.py`](../../app/services/coder_workflow_service.py))
+- the demo/training pool (`start_demo_allocation()`)
+- the recode offer list (`get_coder_recodeable_sids()`)
+- the reviewer dashboard pool, which still shows a retired submission whose
+  review is already done or still in session
+
+Entry points refuse a direct URL with HTTP 409 and the policy message
+(`RETIRED_MESSAGE`): `POST /coding/pick/<sid>`, the `vapickcoding` and
+`vastartreviewing` validators, `allocate_pick_form()`,
+`start_recode_allocation()` and `start_reviewer_coding()`.
+
+Existing allocations are unaffected: a submission retired mid-session keeps its
+allocation until the normal timeout, so `varesumecoding` and
+`varesumereviewing` still work, and completed coding is untouched.
 
 ## Data Manager Workflow
 

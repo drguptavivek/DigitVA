@@ -33,6 +33,11 @@ from app.services.final_cod_authority_service import (
     get_active_recode_episode,
     start_recode_episode,
 )
+from app.services.odk_retirement_service import (
+    RETIRED_MESSAGE,
+    is_submission_retired,
+    submission_is_in_odk,
+)
 from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -167,6 +172,9 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
     filters = [
         VaSubmissions.va_form_id.in_(form_ids),
         VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+        # Retired-from-ODK submissions never enter a pool that creates a new
+        # allocation. See docs/policy/odk-retired-submissions.md.
+        submission_is_in_odk(),
     ]
     if user is not None:
         language_filter = _narration_language_filter(user)
@@ -506,6 +514,9 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
     if workflow_state not in CODER_READY_POOL_STATES:
         raise AllocationError("This submission is no longer available for coding.", 409)
 
+    if is_submission_retired(va_sid):
+        raise AllocationError(RETIRED_MESSAGE, 409)
+
     excluded = _get_excluded_sites_for_coding([form.va_form_id], user)
     if sub_row.site_id in excluded:
         raise AllocationError(_get_site_coding_error(sub_row.project_id, sub_row.site_id, user))
@@ -546,6 +557,9 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
                 db.session.commit()
             return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
         raise AllocationError("You already have an active coding allocation.")
+
+    if is_submission_retired(va_sid):
+        raise AllocationError(RETIRED_MESSAGE, 409)
 
     current_state = get_submission_workflow_state(va_sid)
     if current_state != WORKFLOW_CODER_FINALIZED:

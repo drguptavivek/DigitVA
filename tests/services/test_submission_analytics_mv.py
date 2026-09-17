@@ -33,6 +33,7 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.submission_analytics_mv import (
+    build_dm_mv_filter_conditions,
     build_submission_analytics_core_mv_sql,
     build_submission_analytics_demographics_mv_sql,
     build_submission_cod_detail_mv_sql,
@@ -187,6 +188,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         normalized_years: Decimal | None = None,
         normalized_source: str | None = None,
         workflow_state: str = "coding_in_progress",
+        sync_issue_code: str | None = None,
     ):
         now = datetime.now(timezone.utc)
         db.session.add(
@@ -207,6 +209,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 va_deceased_age_normalized_years=normalized_years,
                 va_deceased_age_source=normalized_source,
                 va_deceased_gender=gender,
+                va_sync_issue_code=sync_issue_code,
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],
@@ -1670,3 +1673,123 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(missing_filter_kpi["total_submissions"], 2)
         self.assertEqual(missing_filter_kpi["smartva_missing_submissions"], 2)
         self.assertEqual(missing_filter_kpi["consent_refused_submissions"], 1)
+
+    # ------------------------------------------------------------------
+    # Retired-from-ODK submissions (docs/policy/odk-retired-submissions.md)
+    # ------------------------------------------------------------------
+
+    def _odk_missing_flags(self) -> dict[str, bool]:
+        rows = db.session.execute(
+            sa.text(f"SELECT va_sid, odk_missing FROM {CORE_MV_NAME}")
+        ).all()
+        return {row.va_sid: row.odk_missing for row in rows}
+
+    def _seed_live_and_retired(self, suffix: str) -> tuple[str, str]:
+        live_sid = f"uuid:odk-live-{suffix}"
+        retired_sid = f"uuid:odk-retired-{suffix}"
+        payload = {"ageInYears": 40, "isAdult": "1"}
+        self._add_submission(live_sid, payload, workflow_state="coder_finalized")
+        self._add_submission(
+            retired_sid,
+            payload,
+            workflow_state="coder_finalized",
+            sync_issue_code="missing_in_odk",
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+        return live_sid, retired_sid
+
+    def test_core_mv_flags_retired_submissions_with_odk_missing(self):
+        live_sid, retired_sid = self._seed_live_and_retired("flag")
+
+        flags = self._odk_missing_flags()
+
+        self.assertIs(flags[retired_sid], True)
+        # A submission with no sync issue at all must be False, not NULL,
+        # so that `odk_missing = false` keeps it.
+        self.assertIs(flags[live_sid], False)
+
+    def test_dm_kpi_excludes_retired_submissions_by_default(self):
+        live_sid, retired_sid = self._seed_live_and_retired("kpi")
+        scope = [(self.PROJECT_ID, self.SITE_ID)]
+
+        kpi = get_dm_kpi_from_mv([], scope)
+
+        self.assertNotIn(retired_sid, self._sids_in_scope(kpi_filter=""))
+        self.assertIn(live_sid, self._sids_in_scope(kpi_filter=""))
+        self.assertEqual(kpi["total_submissions"], 1)
+        self.assertEqual(kpi["coded_submissions"], 1)
+        # The retired row stays in the MV and is still named explicitly.
+        self.assertEqual(kpi["missing_in_odk_submissions"], 1)
+
+    def test_dm_kpi_includes_retired_submissions_on_request(self):
+        self._seed_live_and_retired("include")
+        scope = [(self.PROJECT_ID, self.SITE_ID)]
+
+        all_kpi = get_dm_kpi_from_mv([], scope, odk_sync="all")
+        missing_kpi = get_dm_kpi_from_mv([], scope, odk_sync="missing_in_odk")
+
+        self.assertEqual(all_kpi["total_submissions"], 2)
+        self.assertEqual(missing_kpi["total_submissions"], 1)
+        self.assertEqual(missing_kpi["coded_submissions"], 1)
+
+    def test_project_site_stats_exclude_retired_submissions_by_default(self):
+        self._seed_live_and_retired("stats")
+
+        stats = get_dm_project_site_stats_from_mv(
+            project_ids=[],
+            project_site_pairs=[(self.PROJECT_ID, self.SITE_ID)],
+            timezone_name="UTC",
+        )
+        all_stats = get_dm_project_site_stats_from_mv(
+            project_ids=[],
+            project_site_pairs=[(self.PROJECT_ID, self.SITE_ID)],
+            timezone_name="UTC",
+            odk_sync="all",
+        )
+
+        self.assertEqual(stats[0]["total_submissions"], 1)
+        self.assertEqual(all_stats[0]["total_submissions"], 2)
+
+    def _sids_in_scope(self, *, kpi_filter: str) -> set[str]:
+        """Return the va_sids the MV filter conditions keep for this scope."""
+        core = sa.table(
+            CORE_MV_NAME,
+            sa.column("va_sid"),
+            sa.column("project_id"),
+            sa.column("site_id"),
+            sa.column("submission_date"),
+            sa.column("workflow_state"),
+            sa.column("odk_review_state"),
+            sa.column("odk_sync_issue_code"),
+            sa.column("odk_missing"),
+        )
+        demo = sa.table(
+            DEMOGRAPHICS_MV_NAME,
+            sa.column("va_sid"),
+            sa.column("analytics_age_band"),
+            sa.column("sex"),
+            sa.column("has_smartva"),
+        )
+        conditions = build_dm_mv_filter_conditions(
+            core,
+            demo,
+            project_ids=[],
+            project_site_pairs=[(self.PROJECT_ID, self.SITE_ID)],
+            odk_sync=kpi_filter,
+        )
+        rows = db.session.execute(
+            sa.select(core.c.va_sid)
+            .select_from(core.join(demo, core.c.va_sid == demo.c.va_sid))
+            .where(sa.and_(*conditions))
+        ).scalars().all()
+        return set(rows)
+
+    def test_filter_conditions_honour_each_odk_sync_choice(self):
+        live_sid, retired_sid = self._seed_live_and_retired("conditions")
+
+        self.assertEqual(self._sids_in_scope(kpi_filter="in_sync"), {live_sid})
+        self.assertEqual(self._sids_in_scope(kpi_filter="missing_in_odk"), {retired_sid})
+        self.assertEqual(
+            self._sids_in_scope(kpi_filter="all"), {live_sid, retired_sid}
+        )

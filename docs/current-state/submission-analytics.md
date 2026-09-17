@@ -88,6 +88,24 @@ Across the three views, DigitVA stores:
 - human coding outputs
 - SmartVA outputs
 
+## Core MV — ODK sync state
+
+`va_submission_analytics_core_mv` carries three sync columns:
+
+- `odk_sync_issue_code` — the raw `va_submissions.va_sync_issue_code`
+- `has_sync_issue` — true when any sync issue code is set
+- `odk_missing` — true when the submission is retired from ODK, i.e. its code
+  is `missing_in_odk`
+
+`odk_missing` is never NULL: it is built with `IS NOT DISTINCT FROM`, so a
+submission with no sync issue is `false` and `odk_missing = false` keeps it.
+
+Retired rows stay in the MV. Every consumer — the data-manager KPIs and list,
+the analytics endpoints, COD bucket reporting and the exports — filters
+`odk_missing = false` **by default**, and only the explicit "Missing in ODK"
+count and the `odk_sync` filter values `missing_in_odk` / `all` include them.
+See [ODK Retired Submissions Policy](../policy/odk-retired-submissions.md).
+
 ## Demographics MV
 
 `va_submission_analytics_demographics_mv` includes:

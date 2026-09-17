@@ -686,8 +686,10 @@ delivery only; preview behaviour ships in Phase 4 with its frontend changes.
 The extraction is behaviour-neutral relative to the Phase 0 security fixes.
 
 `readiness()` is a bounded bulk metadata read with no Central/S3 calls. Its result
-distinguishes unknown, listed-present, observed-available, missing, and error
-source states; audio additionally has pending, ready, stale, and error derivative
+distinguishes unknown, listed-present, observed-available, missing, retired, and
+error source states. `retired` applies to submissions retired from ODK
+([policy](../policy/odk-retired-submissions.md)): Central has purged the source, so
+no probe or repair is attempted and the local copy, if present, is served; audio additionally has pending, ready, stale, and error derivative
 states. Return observation timestamps and error categories so old observations
 are not presented as a current probe. Phase 3 preserves existing disk-backed
 decisions inside the service; Phase 4 uses recorded remote state. Rendering and
@@ -825,7 +827,8 @@ needs visible telemetry and alerts.
 |---|---|
 | Central timeout, rate limit, transient 5xx | Permit a retained, reconciled local copy; record fallback use |
 | Central/S3 authentication failure | Report configuration failure; no silent fallback |
-| Confirmed absent/deleted source | Show unavailable; do not resurrect a local copy |
+| Confirmed absent/deleted source (submission still in ODK) | Show unavailable; do not resurrect a local copy |
+| Submission retired from ODK | Source state `retired`: no probe, no repair; serve the retained local copy if present, else unavailable |
 | S3 403 | Classify the provider error; refresh an expired signature once, otherwise report error rather than assuming absence |
 | Invalid redirect or denied DigitVA access | Reject; no fallback |
 
@@ -859,6 +862,9 @@ reconciled copy during an outage. Close that fallback window at cutover.
    original storage when configured, and DigitVA derivatives in either mode.
 3. Move legacy local originals into a dated quarantine area; do not delete
    them during the initial cutover.
+   Local copies belonging to submissions retired from ODK are excluded from
+   quarantine and retirement entirely; they are the archival copy
+   ([policy](../policy/odk-retired-submissions.md)).
 4. After the approved retention window and reconciliation, remove quarantined
    originals through a separately reviewed operational action.
 5. Update laptop/server backup scope only after remote source and derivative

@@ -17,6 +17,11 @@ from app.decorators import role_required
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.utils import va_permission_ensureanyallocation
 from app.services.coding_service import render_va_coding_page
+from app.services.odk_retirement_service import submission_is_in_odk
+from app.services.workflow.definition import (
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_FINALIZED,
+)
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
@@ -142,6 +147,18 @@ def dashboard():
                         VaSubmissions.va_form_id.in_(va_form_access),
                         VaSubmissions.va_narration_language.in_(
                             current_user.vacode_language
+                        ),
+                        # A retired submission is not offered for review, but a
+                        # review already done or still in session stays visible.
+                        # See docs/policy/odk-retired-submissions.md.
+                        sa.or_(
+                            submission_is_in_odk(),
+                            VaSubmissionWorkflow.workflow_state.in_(
+                                (
+                                    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+                                    WORKFLOW_REVIEWER_FINALIZED,
+                                )
+                            ),
                         ),
                     )
                 )

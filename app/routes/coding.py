@@ -10,6 +10,7 @@ from app.services.coder_dashboard_service import (
     get_coder_completed_history,
     get_coder_recodeable_sids,
 )
+from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.coding_service import render_va_coding_page
@@ -48,6 +49,7 @@ def dashboard():
         total_filters = [
             VaSubmissions.va_form_id.in_(va_form_access),
             VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+            submission_is_in_odk(),
         ]
         if narration_language_filter is not None:
             total_filters.append(narration_language_filter)
@@ -65,6 +67,7 @@ def dashboard():
             random_filters = [
                 VaSubmissions.va_form_id.in_(random_form_ids),
                 VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+                submission_is_in_odk(),
             ]
             if narration_language_filter is not None:
                 random_filters.append(narration_language_filter)

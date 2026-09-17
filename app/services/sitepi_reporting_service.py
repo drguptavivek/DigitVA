@@ -1,4 +1,8 @@
-"""Site PI reporting helpers."""
+"""Site PI reporting helpers.
+
+Submissions retired from ODK are excluded from every count here
+(docs/policy/odk-retired-submissions.md).
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.services.workflow.definition import (
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
     TRANSITION_ADMIN_OVERRIDE_TO_RECODE,
@@ -39,6 +44,9 @@ _PENDING_STATES = (
     WORKFLOW_CODER_STEP1_SAVED,
 )
 
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
+
 
 def get_sitepi_dashboard_data(site_id: str) -> dict:
     """Return workflow-aware reporting for a Site PI site."""
@@ -52,6 +60,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             JOIN va_forms f ON f.form_id = s.va_form_id
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
         ),
         authority AS (
             SELECT
@@ -121,6 +130,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     kpi_row = db.session.execute(
         kpi_sql,
         {
+            **IN_ODK_BIND,
             "site_id": site_id,
             "default_ready_state": WORKFLOW_READY_FOR_CODING,
             "workflow_reviewer_eligible": WORKFLOW_REVIEWER_ELIGIBLE,
@@ -140,7 +150,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     ).mappings().one()
 
     coder_kpi_sql = sa.text(
-        """
+        f"""
         WITH site_forms AS (
             SELECT form_id
             FROM va_forms
@@ -172,6 +182,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             JOIN va_submissions s ON s.va_sid = fa.va_sid
             WHERE fa.va_finassess_status = :active_status
               AND s.va_form_id IN (SELECT form_id FROM site_forms)
+              AND {_IN_ODK_SQL}
             GROUP BY fa.va_finassess_by
         ) work ON work.user_id = u.user_id
         LEFT JOIN (
@@ -182,6 +193,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             JOIN va_submissions s ON s.va_sid = cr.va_sid
             WHERE cr.va_creview_status = :active_status
               AND s.va_form_id IN (SELECT form_id FROM site_forms)
+              AND {_IN_ODK_SQL}
             GROUP BY cr.va_creview_by
         ) review ON review.user_id = u.user_id
         ORDER BY coder_name
@@ -191,6 +203,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     coder_rows = db.session.execute(
         coder_kpi_sql,
         {
+            **IN_ODK_BIND,
             "site_id": site_id,
             "active_status": VaStatuses.active.value,
             "coder_role": VaAccessRoles.coder.value,
@@ -199,7 +212,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     ).mappings().all()
 
     submission_rows_sql = sa.text(
-        """
+        f"""
         WITH site_submissions AS (
             SELECT
                 s.va_sid,
@@ -208,6 +221,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
             JOIN va_forms f ON f.form_id = s.va_form_id
             LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
         ),
         authority AS (
             SELECT
@@ -258,6 +272,7 @@ def get_sitepi_dashboard_data(site_id: str) -> dict:
     submission_rows = db.session.execute(
         submission_rows_sql,
         {
+            **IN_ODK_BIND,
             "site_id": site_id,
             "default_ready_state": WORKFLOW_READY_FOR_CODING,
             "transition_coder_finalized": TRANSITION_CODER_FINALIZED,

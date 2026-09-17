@@ -283,6 +283,7 @@ class CodBucketMappingServiceTests(BaseTestCase):
         icd: str,
         submitted_at: datetime,
         normalized_years: Decimal,
+        sync_issue_code: str | None = None,
     ) -> None:
         db.session.add(
             VaSubmissions(
@@ -302,6 +303,7 @@ class CodBucketMappingServiceTests(BaseTestCase):
                 va_deceased_age_normalized_years=normalized_years,
                 va_deceased_age_source="test",
                 va_deceased_gender="male",
+                va_sync_issue_code=sync_issue_code,
                 va_summary=[],
                 va_catcount={},
                 va_category_list=[],
@@ -2473,3 +2475,112 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertFalse(
             any(row["code"] in {"A90", "A91", "I84"} for row in unmapped_icd_payload["rows"])
         )
+
+    def test_aggregate_coded_submissions_by_bucket_excludes_retired_submissions(self):
+        """A coded submission retired from ODK is not reported.
+
+        Policy: docs/policy/odk-retired-submissions.md.
+        """
+        db.session.execute(
+            sa.delete(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(
+                        VaSubmissions.va_form_id == self.FORM_ID
+                    )
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid.in_(
+                    sa.select(VaSubmissions.va_sid).where(
+                        VaSubmissions.va_form_id == self.FORM_ID
+                    )
+                )
+            )
+        )
+        db.session.execute(
+            sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID)
+        )
+        db.session.commit()
+
+        now = datetime.now(timezone.utc)
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_RETIRED",
+            scheme_name="Test Retired",
+            mapping_version=1,
+            is_active=True,
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(
+            MasCodBucketSchemeAgeBand(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                age_label="Adult / Over 5 Years",
+                min_age_value=5,
+                min_age_unit="years",
+                max_age_value=120,
+                max_age_unit="years",
+                level_count=2,
+                sort_order=1,
+                is_active=True,
+            )
+        )
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_CATEGORY,
+            node_code="retired_main",
+            node_label="Retired Main",
+            sort_order=1,
+        )
+        field = MasCodBucketNode(
+            scheme_id=scheme.scheme_id,
+            age_scope=AGE_SCOPE_ADULT_OVER5Y,
+            node_type=NODE_TYPE_FIELD,
+            parent=category,
+            node_code="retired_field",
+            node_label="Retired Disease",
+            sort_order=1,
+        )
+        db.session.add_all([category, field])
+        db.session.flush()
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=AGE_SCOPE_ADULT_OVER5Y,
+                icd_code="I21",
+                node_id=field.node_id,
+                is_active=True,
+            )
+        )
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-in-odk",
+            icd="I21",
+            submitted_at=now,
+            normalized_years=Decimal("52"),
+        )
+        self._add_coded_submission(
+            sid="uuid:cod-bucket-retired",
+            icd="I21",
+            submitted_at=now,
+            normalized_years=Decimal("52"),
+            sync_issue_code="missing_in_odk",
+        )
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        rows = aggregate_coded_submissions_by_bucket(
+            scheme_code="TEST_RETIRED",
+            form_id=self.FORM_ID,
+        )
+        csv_body = export_cod_bucket_reporting_csv(
+            scheme_code="TEST_RETIRED",
+            form_id=self.FORM_ID,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["coded_count"], 1)
+        self.assertIn("uuid:cod-bucket-in-odk", csv_body)
+        self.assertNotIn("uuid:cod-bucket-retired", csv_body)

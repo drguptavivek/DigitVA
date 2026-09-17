@@ -29,8 +29,10 @@
     'va_dmreview_createdat', 'va_consent'
   ]);
 
-  /* ── Filter state ── */
-  let currentFilters = {
+  /* ── Filter state ──
+     odk_sync defaults to 'in_sync': submissions retired from ODK are hidden
+     until asked for. See docs/policy/odk-retired-submissions.md. */
+  const DEFAULT_FILTERS = Object.freeze({
     search: '',
     project: '',
     site: '',
@@ -40,9 +42,10 @@
     smartva: '',
     age_group: '',
     gender: '',
-    odk_sync: '',
+    odk_sync: 'in_sync',
     workflow: '',
-  };
+  });
+  let currentFilters = { ...DEFAULT_FILTERS };
   let currentPage = 1;
   let currentPageSize = 25;
   let pendingInitialPageRestore = null;
@@ -58,6 +61,14 @@
   TOGGLEABLE_COLS.forEach(c => {
     colVisibility[c.field] = !DEFAULT_HIDDEN.has(c.field);
   });
+
+  /* Restore any filter left blank by older saved state to its default, so
+     the ODK-sync default cannot be lost by a stale localStorage entry. */
+  function applyFilterDefaults() {
+    Object.entries(DEFAULT_FILTERS).forEach(([key, value]) => {
+      if (!currentFilters[key]) currentFilters[key] = value;
+    });
+  }
 
   /* ── Load persisted state ── */
   function loadPersistedState() {
@@ -81,6 +92,7 @@
         selectedSid = saved.selected_sid.trim();
       }
     } catch (_) { /* ignore */ }
+    applyFilterDefaults();
   }
 
   function loadStateFromUrl() {
@@ -112,6 +124,7 @@
     }
     pendingInitialPageRestore = currentPage > 1 ? currentPage : null;
     pendingSelectedSidRestore = selectedSid;
+    applyFilterDefaults();
   }
 
   function saveState() {
@@ -901,6 +914,14 @@
     workflow: 'Workflow',
   };
 
+  /* Filter values whose pill text differs from the raw query value. */
+  const FILTER_VALUE_LABELS = {
+    odk_sync: {
+      missing_in_odk: 'Missing in ODK',
+      all: 'All (incl. missing in ODK)',
+    },
+  };
+
   function renderFilterPills() {
     const hosts = [
       {
@@ -916,11 +937,11 @@
     let hasAny = false;
     const renderTemplate = [];
     Object.entries(currentFilters).forEach(([key, val]) => {
-      if (!val) return;
+      if (!val || val === DEFAULT_FILTERS[key]) return;
       hasAny = true;
       renderTemplate.push({
         key,
-        value: val,
+        value: (FILTER_VALUE_LABELS[key] && FILTER_VALUE_LABELS[key][val]) || val,
         label: FILTER_LABELS[key] || key,
       });
     });
@@ -941,7 +962,7 @@
       pills.querySelectorAll('button[data-filter-key]').forEach(btn => {
         btn.addEventListener('click', () => {
           const key = btn.dataset.filterKey;
-          currentFilters[key] = '';
+          currentFilters[key] = DEFAULT_FILTERS[key];
           syncInputsFromState();
           applyFilters();
         });
@@ -974,7 +995,7 @@
     document.getElementById('dm-smartva-filter').value    = currentFilters.smartva || '';
     document.getElementById('dm-age-group-filter').value  = currentFilters.age_group || '';
     document.getElementById('dm-gender-filter').value     = currentFilters.gender || '';
-    document.getElementById('dm-odk-sync-filter').value   = currentFilters.odk_sync || '';
+    document.getElementById('dm-odk-sync-filter').value   = currentFilters.odk_sync || DEFAULT_FILTERS.odk_sync;
     document.getElementById('dm-workflow-filter').value   = currentFilters.workflow || '';
 
     if (tsProjectFilter) {
@@ -1012,7 +1033,7 @@
   }
 
   function clearAllFilters() {
-    Object.keys(currentFilters).forEach(k => { currentFilters[k] = ''; });
+    currentFilters = { ...DEFAULT_FILTERS };
     currentPage = 1;
     syncInputsFromState();
     saveState();
@@ -1192,6 +1213,7 @@
         document.getElementById('kpi-revoked').textContent         = fmt(d.revoked_submissions);
         document.getElementById('kpi-consent-refused').textContent = fmt(d.consent_refused_submissions);
         document.getElementById('kpi-smartva-pending').textContent = fmt(d.smartva_pending_submissions);
+        document.getElementById('kpi-missing-in-odk').textContent  = fmt(d.missing_in_odk_submissions);
         if (typeof __dm_update_workflow_counts === 'function') {
           __dm_update_workflow_counts(d.workflow_counts || {});
         }
@@ -1253,6 +1275,7 @@
     if (filterKey === 'workflow') currentFilters.workflow = filterValue;
     else if (filterKey === 'odk_status') currentFilters.odk_status = filterValue;
     else if (filterKey === 'smartva') currentFilters.smartva = filterValue;
+    else if (filterKey === 'odk_sync') currentFilters.odk_sync = filterValue;
     syncInputsFromState();
     applyFilters();
     bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('dm-filter-offcanvas')).hide();
@@ -1267,6 +1290,7 @@
   document.getElementById('kpi-smartva-failed-card').addEventListener('click',  () => kpiFilterClick('smartva', 'failed'));
   document.getElementById('kpi-revoked-card').addEventListener('click',         () => kpiFilterClick('workflow', 'finalized_upstream_changed'));
   document.getElementById('kpi-consent-refused-card').addEventListener('click', () => kpiFilterClick('workflow', 'consent_refused'));
+  document.getElementById('kpi-missing-in-odk-card').addEventListener('click', () => kpiFilterClick('odk_sync', 'missing_in_odk'));
 
   /* ════════════════════════════════════════════════════
      CHARTS

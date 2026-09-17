@@ -1,6 +1,9 @@
 """Celery tasks for KPI aggregation.
 
 compute_daily_kpi_snapshot: Daily task to compute and cache KPI aggregates.
+
+Submissions retired from ODK are excluded from every aggregate
+(docs/policy/odk-retired-submissions.md).
 """
 import logging
 from datetime import datetime, date, timedelta, timezone
@@ -8,7 +11,11 @@ from celery import shared_task
 from celery.utils.log import get_task_logger
 import sqlalchemy as sa
 
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+
 log = get_task_logger(__name__)
+
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 @shared_task(
@@ -174,12 +181,14 @@ def _compute_site_snapshot(db, snapshot_date: date, site_id: str) -> None:
 def _count_total_submissions(db, site_id: str, snapshot_date: date) -> int:
     """Count total submissions as of end of snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE f.site_id = :site_id AND DATE(s.va_created_at) <= :snapshot_date
+            WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
+              AND DATE(s.va_created_at) <= :snapshot_date
         """),
-        {"site_id": site_id, "snapshot_date": snapshot_date},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 
@@ -187,12 +196,14 @@ def _count_total_submissions(db, site_id: str, snapshot_date: date) -> int:
 def _count_new_from_odk(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions created on snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE f.site_id = :site_id AND DATE(s.va_created_at) = :snapshot_date
+            WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
+              AND DATE(s.va_created_at) = :snapshot_date
         """),
-        {"site_id": site_id, "snapshot_date": snapshot_date},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 
@@ -200,14 +211,15 @@ def _count_new_from_odk(db, site_id: str, snapshot_date: date) -> int:
 def _count_updated_from_odk(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions updated from ODK on snapshot_date (after initial creation)."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submissions s
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
               AND DATE(s.va_odk_updatedat) = :snapshot_date
               AND s.va_odk_updatedat > s.va_created_at
         """),
-        {"site_id": site_id, "snapshot_date": snapshot_date},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 
@@ -215,15 +227,16 @@ def _count_updated_from_odk(db, site_id: str, snapshot_date: date) -> int:
 def _count_coded(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions finalized or recoded on snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
               AND e.transition_id IN ('coder_finalized', 'recode_finalized')
               AND DATE(e.event_created_at) = :snapshot_date
         """),
-        {"site_id": site_id, "snapshot_date": snapshot_date},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 
@@ -231,17 +244,18 @@ def _count_coded(db, site_id: str, snapshot_date: date) -> int:
 def _count_pending_eod(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions in pending states as of end of snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
               AND w.workflow_state IN (
                   'ready_for_coding', 'coding_in_progress', 'coder_step1_saved',
                   'smartva_pending', 'screening_pending', 'attachment_sync_pending'
               )
         """),
-        {"site_id": site_id},
+        {**IN_ODK_BIND, "site_id": site_id},
     ).scalar() or 0
     return count
 
@@ -249,13 +263,15 @@ def _count_pending_eod(db, site_id: str, snapshot_date: date) -> int:
 def _count_consent_refused_eod(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions in consent_refused state as of end of snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE f.site_id = :site_id AND w.workflow_state = 'consent_refused'
+            WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
+              AND w.workflow_state = 'consent_refused'
         """),
-        {"site_id": site_id},
+        {**IN_ODK_BIND, "site_id": site_id},
     ).scalar() or 0
     return count
 
@@ -263,16 +279,17 @@ def _count_consent_refused_eod(db, site_id: str, snapshot_date: date) -> int:
 def _count_not_codeable_eod(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions in not_codeable states as of end of snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
               AND w.workflow_state IN (
                   'not_codeable_by_coder', 'not_codeable_by_data_manager'
               )
         """),
-        {"site_id": site_id},
+        {**IN_ODK_BIND, "site_id": site_id},
     ).scalar() or 0
     return count
 
@@ -280,15 +297,16 @@ def _count_not_codeable_eod(db, site_id: str, snapshot_date: date) -> int:
 def _count_reviewer_finalized(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions finalized by reviewer on snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
               AND e.transition_id = 'reviewer_finalized'
               AND DATE(e.event_created_at) = :snapshot_date
         """),
-        {"site_id": site_id, "snapshot_date": snapshot_date},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 
@@ -296,14 +314,15 @@ def _count_reviewer_finalized(db, site_id: str, snapshot_date: date) -> int:
 def _count_upstream_changed_eod(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions with upstream changes as of end of snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
               AND w.workflow_state = 'finalized_upstream_changed'
         """),
-        {"site_id": site_id},
+        {**IN_ODK_BIND, "site_id": site_id},
     ).scalar() or 0
     return count
 
@@ -311,15 +330,16 @@ def _count_upstream_changed_eod(db, site_id: str, snapshot_date: date) -> int:
 def _count_reopened(db, site_id: str, snapshot_date: date) -> int:
     """Count submissions reopened on snapshot_date."""
     count = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT COUNT(*) FROM va_submission_workflow_events e
             JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
               AND e.transition_id = 'reopened'
               AND DATE(e.event_created_at) = :snapshot_date
         """),
-        {"site_id": site_id, "snapshot_date": snapshot_date},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 
@@ -328,7 +348,7 @@ def _compute_coding_duration_percentiles(db, site_id: str, snapshot_date: date) 
     """Compute min, max, p50, p90 of coding duration for snapshot_date."""
     try:
         result = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     MIN(e2.event_created_at - e1.event_created_at) AS min_duration,
                     MAX(e2.event_created_at - e1.event_created_at) AS max_duration,
@@ -345,6 +365,7 @@ def _compute_coding_duration_percentiles(db, site_id: str, snapshot_date: date) 
                 JOIN va_submissions s ON s.va_sid = e2.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = :site_id
+              AND {_IN_ODK_SQL}
                   AND e2.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND DATE(e2.event_created_at) = :snapshot_date
                   AND NOT EXISTS (
@@ -352,7 +373,7 @@ def _compute_coding_duration_percentiles(db, site_id: str, snapshot_date: date) 
                       WHERE d.va_sid = e2.va_sid AND d.transition_id = 'demo_started'
                   )
             """),
-            {"site_id": site_id, "snapshot_date": snapshot_date},
+            {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
         ).mappings().first()
     except Exception as e:
         log.debug(f"Could not compute percentiles for {site_id} on {snapshot_date}: {e}")

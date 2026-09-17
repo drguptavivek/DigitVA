@@ -20,6 +20,7 @@ from app.models import (
 )
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
 from app.services.icd10_2019_2_service import validate_icd10_2019_2_coding_value_for_submission
+from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
 from app.services.reviewer_final_assessment_service import (
     create_reviewer_initial_assessment,
     create_reviewer_final_assessment,
@@ -127,6 +128,12 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
                 "You already have an active reviewer allocation.", 409
             )
         return ReviewerCodingResult(va_sid=va_sid, actiontype="varesumereviewing")
+
+    # A retired submission never enters a new reviewer allocation; an existing
+    # active allocation above still resumes.
+    # See docs/policy/odk-retired-submissions.md.
+    if is_submission_retired(va_sid):
+        raise ReviewerCodingError(RETIRED_MESSAGE, 409)
 
     allocation_id = uuid.uuid4()
     db.session.add(

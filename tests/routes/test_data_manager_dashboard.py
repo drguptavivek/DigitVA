@@ -124,9 +124,6 @@ class DataManagerDashboardTests(BaseTestCase):
                 va_submission_date=now,
                 va_odk_updatedat=now,
                 va_odk_reviewstate="hasIssues",
-                va_sync_issue_code="missing_in_odk",
-                va_sync_issue_detail="test issue",
-                va_sync_issue_updated_at=now,
                 va_data_collector="Collector",
                 va_instance_name=cls.SID,
                 va_uniqueid_real=cls.SID,
@@ -1691,3 +1688,90 @@ class DataManagerDashboardTests(BaseTestCase):
                 )
 
         mocked_client.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # Retired-from-ODK submissions (docs/policy/odk-retired-submissions.md)
+    # ------------------------------------------------------------------
+
+    def _add_retired_submission(self) -> str:
+        """Add an in-scope submission that sync has flagged as gone from ODK."""
+        now = datetime.now(timezone.utc)
+        retired_sid = f"uuid:retired-{uuid.uuid4().hex[:8]}"
+        db.session.add(
+            VaSubmissions(
+                va_sid=retired_sid,
+                va_form_id=self.FORM_ID,
+                va_submission_date=now,
+                va_odk_updatedat=now,
+                va_odk_reviewstate="approved",
+                va_sync_issue_code="missing_in_odk",
+                va_sync_issue_detail="absent from the active ODK list",
+                va_sync_issue_updated_at=now,
+                va_data_collector="Collector",
+                va_instance_name=retired_sid,
+                va_uniqueid_real=retired_sid,
+                va_uniqueid_masked="retired-masked-id",
+                va_consent="yes",
+                va_narration_language="English",
+                va_deceased_age=61,
+                va_deceased_gender="female",
+                va_summary=[],
+                va_catcount={},
+                va_category_list=[],
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaSubmissionWorkflow(
+                va_sid=retired_sid,
+                workflow_state=WORKFLOW_CODER_FINALIZED,
+                workflow_reason="test_seed",
+                workflow_updated_by_role="vasystem",
+            )
+        )
+        db.session.commit()
+        return retired_sid
+
+    def _submission_sids(self, query: str = "") -> set[str]:
+        response = self.client.get(f"/api/v1/data-management/submissions{query}")
+        self.assertEqual(response.status_code, 200)
+        return {row["va_sid"] for row in response.get_json()["data"]}
+
+    def test_submission_list_excludes_retired_submissions_by_default(self):
+        self._login(self.dm_user_id)
+        retired_sid = self._add_retired_submission()
+
+        sids = self._submission_sids()
+
+        self.assertIn(self.SID, sids)
+        self.assertNotIn(retired_sid, sids)
+
+    def test_submission_list_includes_retired_submissions_when_asked(self):
+        self._login(self.dm_user_id)
+        retired_sid = self._add_retired_submission()
+
+        all_sids = self._submission_sids("?odk_sync=all")
+        missing_sids = self._submission_sids("?odk_sync=missing_in_odk")
+
+        self.assertEqual({self.SID, retired_sid}, all_sids & {self.SID, retired_sid})
+        self.assertIn(retired_sid, all_sids)
+        self.assertEqual(missing_sids, {retired_sid})
+
+    def test_submissions_export_excludes_retired_submissions_by_default(self):
+        self._login(self.dm_user_id)
+        retired_sid = self._add_retired_submission()
+
+        response = self.client.get("/api/v1/data-management/submissions/export.csv")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn(self.SID, body)
+        self.assertNotIn(retired_sid, body)
+
+    def test_read_only_view_stays_reachable_for_retired_submissions(self):
+        self._login(self.dm_user_id)
+        retired_sid = self._add_retired_submission()
+
+        response = self.client.get(f"/data-management/view/{retired_sid}")
+
+        self.assertEqual(response.status_code, 200)

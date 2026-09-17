@@ -18,6 +18,7 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaUserAccessGrants,
 )
+from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
@@ -317,6 +318,57 @@ class ReviewingRoutesTests(BaseTestCase):
         self.assertNotIn(f'"site_id": "{inactive_site_id}"', body)
         self.assertNotIn(f'"va_form_id": "{inactive_form_id}"', body)
         self.assertNotIn(inactive_sid, body)
+
+    def test_reviewing_dashboard_drops_retired_submission_from_the_pool(self):
+        """A retired submission is not offered for review.
+
+        Policy: docs/policy/odk-retired-submissions.md.
+        """
+        sid = "uuid:reviewer-dashboard-retired"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        submission = db.session.get(VaSubmissions, sid)
+        submission.va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        self._login(self.base_reviewer_id)
+
+        response = self.client.get("/reviewing/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(sid, response.get_data(as_text=True))
+
+    def test_reviewing_dashboard_keeps_retired_submission_under_active_review(self):
+        sid = "uuid:reviewer-dashboard-retired-in-session"
+        self._add_submission(sid, WORKFLOW_REVIEWER_CODING_IN_PROGRESS)
+        submission = db.session.get(VaSubmissions, sid)
+        submission.va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        self._login(self.base_reviewer_id)
+
+        response = self.client.get("/reviewing/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(sid, response.get_data(as_text=True))
+
+    def test_reviewing_start_of_retired_submission_is_refused(self):
+        sid = "uuid:reviewer-route-retired-start"
+        self._add_submission(sid, WORKFLOW_REVIEWER_ELIGIBLE)
+        submission = db.session.get(VaSubmissions, sid)
+        submission.va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        self._login(self.base_reviewer_id)
+
+        response = self.client.get(f"/reviewing/start/{sid}")
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIsNone(
+            db.session.scalar(
+                db.select(VaAllocations.va_sid).where(
+                    VaAllocations.va_sid == sid,
+                    VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+            )
+        )
 
     def test_admin_revoked_stats_uses_canonical_workflow_state(self):
         sid = "uuid:admin-revoked-stats"

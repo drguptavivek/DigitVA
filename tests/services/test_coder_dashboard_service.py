@@ -20,6 +20,7 @@ from app.services.coder_dashboard_service import (
     get_coder_output_summary,
     get_coder_recodeable_sids,
 )
+from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
@@ -371,3 +372,40 @@ class TestCoderDashboardService(BaseTestCase):
         self.assertIn(recent_final_sid, recodeable)
         self.assertNotIn(old_review_sid, recodeable)
         self.assertNotIn(mismatched_sid, recodeable)
+
+    def test_recodeable_sids_exclude_retired_submissions(self):
+        """A recode creates a new allocation, so retired cases are not offered.
+
+        Policy: docs/policy/odk-retired-submissions.md.
+        """
+        sid = "uuid:coderdash-recode-retired"
+        self._add_submission(sid)
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=sid,
+                va_finassess_by=self.dashboard_user.user_id,
+                va_conclusive_cod="R99",
+                va_finassess_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            by_user_id=self.dashboard_user.user_id,
+            by_role="vacoder",
+        )
+        db.session.commit()
+
+        self.assertIn(
+            sid,
+            get_coder_recodeable_sids(self.dashboard_user.user_id, [self.FORM_ID]),
+        )
+
+        db.session.get(VaSubmissions, sid).va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+
+        self.assertNotIn(
+            sid,
+            get_coder_recodeable_sids(self.dashboard_user.user_id, [self.FORM_ID]),
+        )

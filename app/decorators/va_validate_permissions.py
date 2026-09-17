@@ -10,6 +10,7 @@ from app.services.workflow.intake_modes import (
     get_project_coding_intake_mode,
 )
 from app.services.demo_project_service import is_demo_training_submission
+from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
 from app.utils import (
     va_permission_abortwithflash,
     va_permission_ensureallocation,
@@ -148,6 +149,11 @@ def _validate_vacode(actiontype, sid, partial):
             va_permission_abortwithflash(
                 "This submission is no longer available for coding.", 409
             )
+        # Retired-from-ODK submissions are not codeable; existing allocations
+        # are handled by the resume actions above and are left untouched.
+        # See docs/policy/odk-retired-submissions.md.
+        if is_submission_retired(sid):
+            va_permission_abortwithflash(RETIRED_MESSAGE, 409)
     elif actiontype == "vademo_start_coding":
         if current_user.is_admin():
             return
@@ -198,6 +204,8 @@ def _validate_vareview(actiontype, sid, partial):
                     f"Your profile does not support reviewing forms in {form_lang}.",
                     403,
                 )
+            if is_submission_retired(sid):
+                va_permission_abortwithflash(RETIRED_MESSAGE, 409)
             va_permission_ensurenotreviewed(sid)
         else:
             va_permission_ensureallocation(sid, "reviewing")

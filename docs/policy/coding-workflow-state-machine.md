@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-05-20
+last_updated: 2026-09-17
 ---
 
 # Coding Workflow State Machine Policy
@@ -166,6 +166,13 @@ Role and bypass semantics:
   - per-site `daily_coder_limit` has been reached
 - project PI and site PI roles do not implicitly grant coder workflow entry;
   explicit coder or coding_tester access is still required to code
+
+Retired-from-ODK gate:
+
+- a submission retired from ODK (`va_sync_issue_code = missing_in_odk`) is not
+  eligible for any new coding, recode, demo, or reviewer allocation, whatever
+  its workflow state; existing active allocations run to their normal timeout.
+  See [ODK Retired Submissions Policy](odk-retired-submissions.md).
 
 ## Demo Coding Mode
 

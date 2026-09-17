@@ -30,6 +30,7 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     start_recode_allocation,
 )
+from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
@@ -314,6 +315,7 @@ def debug_stats():
         ready_filters = [
             VaSubmissions.va_form_id.in_(form_ids),
             VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
+            submission_is_in_odk(),
         ]
         if narration_language_filter is not None:
             ready_filters.append(narration_language_filter)

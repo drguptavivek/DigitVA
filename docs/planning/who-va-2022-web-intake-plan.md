@@ -3,7 +3,7 @@ title: WHO VA 2022 Web Intake — Integrating the who-2022-va Questionnaire Pack
 doc_type: planning
 status: proposed
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # WHO VA 2022 Web Intake — Integrating the who-2022-va Questionnaire Package
@@ -165,16 +165,34 @@ with submissions routed to the right organization unit by the standard
 | W5 | Unique id format | Reuse the ODK `unique_id` convention, generated server-side from unit code, date and sequence. |
 | W6 | Mandatory media | Same as the ODK form today (audio narration expected); confirm with the field lead. |
 
-## Spike (before phase 1)
+## Spike results (2026-09-18, run on the host with Node 24 in a scratch project)
 
-1. Build the web-component bundle; confirm whether React is bundled and the
-   bundle size; load it in a Jinja page.
-2. Diff the instrument's question ids against DigitVA's 414 mapped field
-   names; list which age helpers the package computes.
-3. Run `validateSubmission()` in a Node container against a sample payload;
-   measure latency.
-4. Confirm that `normalize_who_2022_age`, the category display service and
-   the SmartVA preparation step accept a web payload built per §3.
+1. **Bundle.** `esbuild` on the `/web-component` entry needs `react`,
+   `react-dom` and `react-native-web` installed (the entry imports all
+   three; none are bundled by the package). Output as a single minified ESM
+   file: 1.38 MB raw, 314 KB gzipped, with pdfjs included. Fit for vendoring
+   under `app/static/vendor/who-va-2022/0.1.0/`; the build recipe goes into
+   `tooling/who-va-2022/` with pinned versions.
+2. **Field contract.** The instrument has 450 questions, 38 calculated. All
+   372 WHO ids that DigitVA maps exist in the package under the same names,
+   including every age helper DigitVA reads (`isNeonatal`, `isChild`,
+   `isAdult`, `ageInDays`, `ageInDays2`, `ageInYears`, `ageInYears2`,
+   `ageInMonths`, `age_group`, `age_neonate_days`, `age_neonate_hours`). The
+   42 DigitVA fields absent from the package are exactly the ones §3 supplies
+   server-side: `Site`, `unique_id`, `site_individual_id`, `survey_state`,
+   `survey_district`, `narr_language`, `imagenarr`, `md_im1..30`,
+   `ds_im1..5`. No Python re-computation of age helpers is needed. The
+   package also carries 82 ids DigitVA does not map (sub-fields such as
+   `Id10023_a/_b`, unit selectors, `custom_medical_certificate_upload`,
+   `audit`); they pass through into the payload unharmed.
+3. **Validation.** `validateSubmission()` returns `{valid, data, issues}` in
+   0.2 ms per call after a 2 ms first call; a Node validator sidecar is
+   cheap. Issues carry `question`, `code`, `message`. (The version fields the
+   docs mention are not on the 0.1.0 result object; the sidecar adds them
+   from the instrument constants.)
+4. **Still to confirm in phase 1:** the category display service and SmartVA
+   preparation on a web payload (expected to work since names match), and the
+   ODK `unique_id` convention for W5.
 
 ## Phases
 

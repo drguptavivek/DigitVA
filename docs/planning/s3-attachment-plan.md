@@ -57,8 +57,10 @@ Updated 2026-09-17. Policy baseline:
 | Finding 11 — `no-store` on attachment bytes | Done | `apply_no_store_policy()` on both routes |
 | Phase 3 — `AttachmentService` extraction | Done | All six Finding 2 call sites converge on the service; admin duplicate deleted; render sentinel decided by the service. `readiness()` is currently `present_attachment_files_by_submission()`; the richer state vocabulary arrives with Phase 2 columns. |
 | Phase 0.4 — Central version record | Done | One mapped connection (`MINERVA`, minerva.causeofdeathindia.com): Central server `v2026.2.2`, frontend `v2026.2.4` (recorded 2026-09-17). Post-`v2026.1` line, so JPEG/PNG/GIF are `Content-Disposition: inline`; above the `v2024.2.0` S3 floor. Storage mode (database-only vs S3) still to confirm. |
-| Phase 0.3, 0.5–0.7 — inventory, bucket/IAM, retention, recovery gates | Open | Operational; need the S3-or-not decision and bucket/retention choices |
-| Phase 1, 2, 4, 5, 6 | Open | Depend on the Phase 0 operational decisions |
+| Deployment mode | Decided 2026-09-17 | **Central without S3.** Originals stay in Central's PostgreSQL; MP3 derivatives stay under DigitVA `APP_DATA`. Bucket/IAM/retention/recovery-drill gates (Phase 0.5, 0.7, Phase 1 S3 steps, Phase 6 bucket restore) do not apply. The resolver still handles a Central `307` so S3 can be enabled on Central later without a DigitVA change. |
+| Retired submissions | Decided 2026-09-17 | Source state `retired`; local copies never quarantined ([policy](../policy/odk-retired-submissions.md)). |
+| Phase 2 — source/derivative state | In progress | |
+| Phase 4, 5, 6 | Open | Sequential after Phase 2 |
 | `admin_sync_legacy_attachment_stats` per-row uuid5 scan | Open | Noted under **Performance Constraints**; not touched |
 
 ## Goals
@@ -1150,6 +1152,9 @@ Recommended defaults are included so implementation can proceed after review:
 2. **Storage isolation:** where configured, separate ODK-original,
    DigitVA-derivative, and backup buckets; strict prefixes and IAM if one bucket
    is operationally required. Database-only Central needs no original bucket.
+   **Settled 2026-09-17: database-only Central; no buckets.** MP3 derivatives
+   remain local under `APP_DATA/<form_id>/media/` with the existing recovery
+   (file backup) procedure.
 3. **Local fallback:** retain for the staged rollout, then quarantine for 30 days
    after verified cutover.
 4. **Audio:** retain original AMR under Central and store an MP3 derivative under

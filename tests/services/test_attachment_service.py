@@ -374,3 +374,80 @@ class AttachmentServiceDbTests(BaseTestCase):
             with self.assertRaises(NotFound):
                 svc.deliver_local_attachment(record)
             self.assertIsNone(flask_cache.get(f"att:{name}"))
+
+    def _state_row(self, va_sid, filename, **state):
+        row = self._row(va_sid, filename, uuid.uuid4().hex + ".jpg")
+        for attr, value in state.items():
+            setattr(row, attr, value)
+        db.session.flush()
+        return row
+
+    def test_readiness_reports_stored_state_without_touching_disk(self):
+        sub = self._submission()
+        verified = datetime.now(timezone.utc)
+        self._state_row(
+            sub.va_sid, "photo.jpg",
+            source_state=svc.SOURCE_AVAILABLE,
+            source_verified_at=verified,
+            source_mime_type="image/jpeg",
+        )
+        self._state_row(
+            sub.va_sid, "narration.amr",
+            source_state=svc.SOURCE_LISTED,
+            derivative_state=svc.DERIVATIVE_READY,
+            derivative_verified_at=verified,
+            local_fallback_state=svc.LOCAL_RETAINED,
+        )
+
+        result = svc.readiness([sub.va_sid])
+
+        rows = result[sub.va_sid]
+        self.assertEqual([r.filename for r in rows], ["narration.amr", "photo.jpg"])
+        audio, image = rows
+        self.assertEqual(image.source_state, svc.SOURCE_AVAILABLE)
+        self.assertEqual(image.source_verified_at, verified)
+        self.assertIsNone(image.derivative_state)
+        self.assertEqual(image.local_fallback_state, svc.LOCAL_PRESENT)
+        self.assertEqual(audio.derivative_state, svc.DERIVATIVE_READY)
+        self.assertEqual(audio.local_fallback_state, svc.LOCAL_RETAINED)
+
+    def test_readiness_is_bulk_and_skips_empty_input(self):
+        first = self._submission()
+        second = self._submission()
+        without_rows = self._submission()
+        self._state_row(first.va_sid, "a.jpg")
+        self._state_row(second.va_sid, "b.jpg")
+
+        statements = []
+
+        def _record(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", _record)
+        try:
+            result = svc.readiness(
+                [first.va_sid, second.va_sid, without_rows.va_sid, first.va_sid, ""]
+            )
+        finally:
+            sa.event.remove(db.engine, "before_cursor_execute", _record)
+
+        self.assertEqual(len(statements), 1, statements)
+        self.assertEqual(set(result), {first.va_sid, second.va_sid})
+        self.assertEqual(svc.readiness([]), {})
+
+    def test_mark_audio_derivative_stale_only_touches_rows_with_a_derivative(self):
+        sub = self._submission()
+        audio = self._state_row(
+            sub.va_sid, "narration.amr",
+            derivative_state=svc.DERIVATIVE_READY,
+            derivative_verified_at=datetime.now(timezone.utc),
+        )
+        image = self._state_row(sub.va_sid, "photo.jpg")
+
+        svc.mark_audio_derivative_stale(sub.va_sid, "narration.amr")
+        svc.mark_audio_derivative_stale(sub.va_sid, "photo.jpg")
+        db.session.expire_all()
+
+        self.assertEqual(audio.derivative_state, svc.DERIVATIVE_STALE)
+        self.assertIsNone(audio.derivative_verified_at)
+        self.assertIsNone(image.derivative_state)

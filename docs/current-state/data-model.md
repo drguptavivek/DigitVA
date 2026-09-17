@@ -874,6 +874,60 @@ Other important tables:
 - `va_sites`
 - `va_research_projects`
 
+### `va_submission_attachments`
+
+Purpose:
+
+- one row per (`va_sid`, `filename`) ODK submission attachment
+- ETag cache for conditional GET, plus the local blob's opaque `storage_name`
+- readiness state for the Central-backed attachment work
+
+Key fields:
+
+- `va_sid`, `filename` — composite primary key
+- `local_path` — actual path on disk; differs from `filename` for `.amr`, which is
+  stored as its `.mp3` derivative
+- `mime_type` — copied from upstream, not authoritative (may be the derivative's
+  type for AMR rows)
+- `etag`, `last_downloaded_at`, `exists_on_odk`
+- `storage_name` — opaque serving token (unique where not null)
+
+Source/derivative state (added by migration `b7e4c2a91d38`, Phase 2 of the
+[Central attachment plan](../planning/s3-attachment-plan.md)). Vocabularies are
+constants in `app/services/attachment_service.py`; all timestamps are timezone-aware:
+
+| Column | Type | Meaning |
+|---|---|---|
+| `source_state` | VARCHAR(16) NOT NULL, default `unknown` | `unknown`, `listed`, `available`, `missing`, `retired`, `error` |
+| `source_verified_at` | TIMESTAMPTZ | last observed Central content response |
+| `source_error_code` | VARCHAR(32) | `not_found`, `auth`, `throttled`, `transient`, `invalid_redirect`, `unknown` — category only, never free text |
+| `source_mime_type` | VARCHAR(64) | validated MIME of the **original**; `mime_type` is not repurposed |
+| `derivative_state` | VARCHAR(16) | audio only: `pending`, `ready`, `stale`, `error`; NULL for non-audio rows |
+| `derivative_mime_type` | VARCHAR(64) | e.g. `audio/mpeg` |
+| `derivative_source_validator` | VARCHAR(128) | opaque source ETag the current MP3 was built from |
+| `derivative_verified_at` | TIMESTAMPTZ | last derivative verification |
+| `derivative_error_code` | VARCHAR(32) | e.g. `conversion_failed` |
+| `local_fallback_state` | VARCHAR(16) NOT NULL, default `present` | `present`, `retained` (archival copy of a retired submission — never quarantined), `quarantined`, `absent` |
+
+Indexes:
+
+- `ix_va_submission_attachments_sid_odk` — partial, `exists_on_odk IS TRUE`
+- `ix_va_submission_attachments_storage_name` — unique, partial, `storage_name IS NOT NULL`
+- `ix_va_submission_attachments_source_state` — request-path readiness reads
+- `ix_va_submission_attachments_derivative_state` — partial, `derivative_state IS NOT NULL`,
+  for repair candidate selection over the audio rows only
+
+Current behavior:
+
+- sync writes `source_state='available'` with the observed time and the original's
+  validated MIME on a successful download, `'missing'` when ODK no longer lists the
+  file, and the AMR derivative columns (including the ETag it was built from) when
+  an MP3 is produced; a failed conversion records `derivative_state='error'`,
+  `derivative_error_code='conversion_failed'` and leaves the previous blob alone
+- nothing decides on these columns yet — presence is still resolved from disk by
+  `app/services/attachment_service.present_attachment_files_by_submission()` until
+  Phase 4
+
 ### `map_project_site_odk`
 
 Purpose:

@@ -31,6 +31,12 @@ from sqlalchemy.exc import IntegrityError
 from flask import current_app, has_app_context
 
 from app.services.attachment_service import (
+    DERIVATIVE_ERROR,
+    DERIVATIVE_ERROR_CONVERSION_FAILED,
+    DERIVATIVE_MIME_TYPE,
+    DERIVATIVE_READY,
+    SOURCE_AVAILABLE,
+    SOURCE_MISSING,
     local_attachment_file_exists,
     remove_local_file_if_present,
     safe_mime_type,
@@ -113,6 +119,9 @@ class SubmissionAttachmentSyncResult:
     local_present_on_etag: int
     local_missing_on_etag: int
     changes: list[AttachmentChange]
+    # Filenames whose AMR→MP3 conversion failed; the row keeps its previous
+    # blob and is marked with an explicit derivative error (plan Finding 5).
+    derivative_failures: list[str] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +174,7 @@ def _sync_submission_attachments_no_db(
     local_present_on_etag = 0
     local_missing_on_etag = 0
     changes: list[AttachmentChange] = []
+    derivative_failures: list[str] = []
 
     for attachment in attachments:
         filename: str = attachment.get("name", "")
@@ -276,6 +286,8 @@ def _sync_submission_attachments_no_db(
                 non_audit_downloaded += 1
         except Exception as exc:
             errors += 1
+            if isinstance(exc, AmrConversionError):
+                derivative_failures.append(filename)
             log.warning(
                 "Attachment sync error [%s/%s]: %s", va_sid, filename, exc, exc_info=True
             )
@@ -300,6 +312,7 @@ def _sync_submission_attachments_no_db(
         local_present_on_etag=local_present_on_etag,
         local_missing_on_etag=local_missing_on_etag,
         changes=changes,
+        derivative_failures=derivative_failures,
     )
 
 
@@ -337,6 +350,35 @@ def _cleanup_replaced_attachment_files(stale_paths):
             log.warning("Could not remove stale attachment file: %s", old_local_path, exc_info=True)
 
 
+def _attachment_state_values(change: AttachmentChange) -> dict:
+    """Phase 2 source/derivative state implied by one applied change.
+
+    Vocabularies and their meanings live in ``app/services/attachment_service``.
+    A successful download is the only evidence that the source is *available*;
+    the MP3 written for an ``.amr`` attachment is recorded against the source
+    ETag it was built from so later syncs can tell a stale derivative apart.
+    """
+    if not change.exists_on_odk:
+        return {"source_state": SOURCE_MISSING}
+
+    values = {
+        "source_state": SOURCE_AVAILABLE,
+        "source_verified_at": change.last_downloaded_at,
+        "source_error_code": None,
+        # The ORIGINAL's validated MIME; ``mime_type`` is left as sync stored it.
+        "source_mime_type": change.mime_type,
+    }
+    if change.filename.lower().endswith(".amr"):
+        values.update({
+            "derivative_state": DERIVATIVE_READY,
+            "derivative_mime_type": DERIVATIVE_MIME_TYPE,
+            "derivative_source_validator": change.etag,
+            "derivative_verified_at": change.last_downloaded_at,
+            "derivative_error_code": None,
+        })
+    return values
+
+
 def _apply_submission_attachment_result(existing_records, result):
     """Apply a network-only attachment sync result using PK-safe upserts."""
     from app import db
@@ -358,6 +400,8 @@ def _apply_submission_attachment_result(existing_records, result):
                 rec.etag = change.etag
                 rec.last_downloaded_at = change.last_downloaded_at
                 rec.storage_name = change.storage_name
+                for attr, value in _attachment_state_values(change).items():
+                    setattr(rec, attr, value)
                 if old_storage_name is not None:
                     _invalidate_attachment_cache(
                         old_storage_name,
@@ -370,6 +414,8 @@ def _apply_submission_attachment_result(existing_records, result):
                 # File removed on ODK — update flag and invalidate cache
                 old_storage_name = rec.storage_name
                 rec.exists_on_odk = change.exists_on_odk
+                for attr, value in _attachment_state_values(change).items():
+                    setattr(rec, attr, value)
                 _invalidate_attachment_cache(old_storage_name, result.va_sid, change.filename)
             continue
 
@@ -386,6 +432,8 @@ def _apply_submission_attachment_result(existing_records, result):
             ),
             "storage_name": change.storage_name if change.exists_on_odk else None,
         }
+        state_values = _attachment_state_values(change)
+        values.update(state_values)
 
         for attempt in range(3):
             try:
@@ -403,6 +451,10 @@ def _apply_submission_attachment_result(existing_records, result):
                             "etag": insert_stmt.excluded.etag,
                             "last_downloaded_at": insert_stmt.excluded.last_downloaded_at,
                             "storage_name": insert_stmt.excluded.storage_name,
+                            **{
+                                column: getattr(insert_stmt.excluded, column)
+                                for column in state_values
+                            },
                         },
                     )
                 )
@@ -419,6 +471,16 @@ def _apply_submission_attachment_result(existing_records, result):
                     raise
 
         existing.pop(change.filename, None)
+
+    # A failed AMR→MP3 conversion leaves the previous blob and row alone, but
+    # must be distinguishable from a successful one (plan Finding 5).
+    for filename in result.derivative_failures:
+        rec = existing.get(filename)
+        if rec is None:
+            continue
+        rec.derivative_state = DERIVATIVE_ERROR
+        rec.derivative_error_code = DERIVATIVE_ERROR_CONVERSION_FAILED
+
     return stale_paths
 
 

@@ -390,9 +390,28 @@ ETag records are stored in `va_submission_attachments`:
 
 Primary key: `(va_sid, filename)`.
 
+### Source and derivative state writes
+
+The same rows also carry the readiness state added in Phase 2 of the
+[Central attachment plan](../planning/s3-attachment-plan.md) (migration
+`b7e4c2a91d38`; column reference in
+[the data model](data-model.md#va_submission_attachments)). Sync is the only
+writer today, in `_apply_submission_attachment_result`:
+
+| Outcome | Columns written |
+|---|---|
+| Successful download | `source_state='available'`, `source_verified_at=<download time>`, `source_error_code=NULL`, `source_mime_type=<validated original MIME>` |
+| Successful download of an `.amr` | additionally `derivative_state='ready'`, `derivative_mime_type='audio/mpeg'`, `derivative_source_validator=<source ETag>`, `derivative_verified_at=<download time>`, `derivative_error_code=NULL` |
+| ODK no longer lists the file (`exists=false`) | `source_state='missing'` (the local blob and its derivative record are not rewritten) |
+| `AmrConversionError` | `derivative_state='error'`, `derivative_error_code='conversion_failed'` on the existing row; every other column, including `storage_name` and `local_path`, is left as it was |
+
+Nothing reads these columns for a decision yet: attachment presence is still
+resolved from disk until Phase 4. `mime_type` keeps its existing meaning and is
+not repurposed — the original's validated type is `source_mime_type`.
+
 ### Audio conversion
 
-`.amr` files are converted to `.mp3` using **SoX** immediately after download. The converter probes the source bitrate via `soxi` and targets 2x the source bitrate (capped 16–64 kbps) — AMR-NB speech at ~12 kbps produces 24 kbps MP3 output, optimal quality for the source without bloated file size. The `.amr` file is deleted after successful conversion. Conversion failure keeps the `.amr` on disk (better than data loss).
+`.amr` files are converted to `.mp3` using **SoX** immediately after download. The converter probes the source bitrate via `soxi` and targets 2x the source bitrate (capped 16–64 kbps) — AMR-NB speech at ~12 kbps produces 24 kbps MP3 output, optimal quality for the source without bloated file size. The `.amr` file is deleted after successful conversion. A failed conversion raises `AmrConversionError`: no partial `.mp3` is kept, the temporary source is removed by the caller, the existing row keeps its previous blob, and the failure is recorded as `derivative_state='error'` / `derivative_error_code='conversion_failed'`.
 
 ### API call volume
 

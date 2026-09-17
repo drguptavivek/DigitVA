@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -50,6 +51,68 @@ ORPHAN_DIRNAME = ".orphaned"
 # Legacy permission-dict keys that are role-scoped elsewhere; any other key in
 # the dict is a non-scoped legacy grant (mirrors VaUsers.has_va_form_access).
 _SCOPED_LEGACY_ROLES = {"coder", "reviewer", "sitepi"}
+
+# ---------------------------------------------------------------------------
+# Readiness vocabularies (Phase 2 columns on va_submission_attachments)
+#
+# These name the states the plan's "Availability and Completeness Semantics"
+# section defines. Phase 2 only stores them; Phase 4 is where delivery and
+# repair start deciding on them instead of on disk existence.
+# ---------------------------------------------------------------------------
+
+# Source = the original attachment, owned by ODK Central.
+SOURCE_UNKNOWN = "unknown"        # never observed
+SOURCE_LISTED = "listed"          # named by Central's attachment list only
+SOURCE_AVAILABLE = "available"    # a content response was actually observed
+SOURCE_MISSING = "missing"        # Central reports not-found; repair may run
+SOURCE_RETIRED = "retired"        # submission gone from ODK: never probe/repair
+SOURCE_ERROR = "error"            # last observation failed
+
+SOURCE_STATES = frozenset({
+    SOURCE_UNKNOWN, SOURCE_LISTED, SOURCE_AVAILABLE,
+    SOURCE_MISSING, SOURCE_RETIRED, SOURCE_ERROR,
+})
+
+# Error *categories* only. Upstream free text is never stored.
+SOURCE_ERROR_NOT_FOUND = "not_found"
+SOURCE_ERROR_AUTH = "auth"
+SOURCE_ERROR_THROTTLED = "throttled"
+SOURCE_ERROR_TRANSIENT = "transient"
+SOURCE_ERROR_INVALID_REDIRECT = "invalid_redirect"
+SOURCE_ERROR_UNKNOWN = "unknown"
+
+SOURCE_ERROR_CODES = frozenset({
+    SOURCE_ERROR_NOT_FOUND, SOURCE_ERROR_AUTH, SOURCE_ERROR_THROTTLED,
+    SOURCE_ERROR_TRANSIENT, SOURCE_ERROR_INVALID_REDIRECT, SOURCE_ERROR_UNKNOWN,
+})
+
+# Derivative = the MP3 made from AMR narration. NULL for every non-audio row.
+DERIVATIVE_PENDING = "pending"
+DERIVATIVE_READY = "ready"
+DERIVATIVE_STALE = "stale"        # source validator moved on; rebuild needed
+DERIVATIVE_ERROR = "error"        # conversion failed (plan Finding 5)
+
+DERIVATIVE_STATES = frozenset({
+    DERIVATIVE_PENDING, DERIVATIVE_READY, DERIVATIVE_STALE, DERIVATIVE_ERROR,
+})
+
+DERIVATIVE_ERROR_CONVERSION_FAILED = "conversion_failed"
+
+DERIVATIVE_MIME_TYPE = "audio/mpeg"
+
+# Local copy under APP_DATA/<form_id>/media/.
+LOCAL_PRESENT = "present"
+LOCAL_RETAINED = "retained"       # archival copy; never retired or quarantined
+LOCAL_QUARANTINED = "quarantined"
+LOCAL_ABSENT = "absent"
+
+LOCAL_FALLBACK_STATES = frozenset({
+    LOCAL_PRESENT, LOCAL_RETAINED, LOCAL_QUARANTINED, LOCAL_ABSENT,
+})
+
+# readiness() reads whole submissions at a time; a caller passing a very long
+# sid list is batched rather than issuing one unbounded IN (...).
+READINESS_BATCH_SIZE = 500
 
 
 @dataclass(frozen=True)
@@ -300,6 +363,97 @@ def remove_local_file_if_present(path: str | None) -> bool:
     except FileNotFoundError:
         return False
     return True
+
+
+# ---------------------------------------------------------------------------
+# Readiness (Phase 2 state; the Phase 4 contract)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Readiness:
+    """Stored readiness of one attachment row — no disk, no network.
+
+    Source and derivative are reported separately and each carries its own
+    observation time, so an old observation is never presented as a current
+    probe. ``derivative_state`` is ``None`` for every non-audio row.
+    """
+
+    va_sid: str
+    filename: str
+    storage_name: str | None
+    local_path: str | None
+    mime_type: str | None
+    exists_on_odk: bool
+    source_state: str
+    source_verified_at: datetime | None
+    source_error_code: str | None
+    derivative_state: str | None
+    derivative_verified_at: datetime | None
+    local_fallback_state: str
+
+
+def readiness(va_sids: list[str]) -> dict[str, list[Readiness]]:
+    """Bulk readiness read for the given submissions, keyed by ``va_sid``.
+
+    This is the Phase 4 contract from the plan's **Module Boundary**: callers
+    (repair maps, admin telemetry, render) ask for state and never for a file.
+    It performs no filesystem and no Central/S3 access, and issues one query per
+    ``READINESS_BATCH_SIZE`` submissions. Submissions with no attachment rows are
+    absent from the result rather than mapped to an empty list.
+
+    Phase 2 only stores the columns; nothing decides on them yet, so this is
+    additive to ``present_attachment_files_by_submission()`` rather than a
+    replacement for it.
+    """
+    unique_sids = list(dict.fromkeys(sid for sid in va_sids if sid))
+    if not unique_sids:
+        return {}
+
+    by_sid: dict[str, list[Readiness]] = {}
+    for start in range(0, len(unique_sids), READINESS_BATCH_SIZE):
+        batch = unique_sids[start:start + READINESS_BATCH_SIZE]
+        rows = db.session.execute(
+            sa.select(
+                VaSubmissionAttachments.va_sid,
+                VaSubmissionAttachments.filename,
+                VaSubmissionAttachments.storage_name,
+                VaSubmissionAttachments.local_path,
+                VaSubmissionAttachments.mime_type,
+                VaSubmissionAttachments.exists_on_odk,
+                VaSubmissionAttachments.source_state,
+                VaSubmissionAttachments.source_verified_at,
+                VaSubmissionAttachments.source_error_code,
+                VaSubmissionAttachments.derivative_state,
+                VaSubmissionAttachments.derivative_verified_at,
+                VaSubmissionAttachments.local_fallback_state,
+            )
+            .where(VaSubmissionAttachments.va_sid.in_(batch))
+            .order_by(
+                VaSubmissionAttachments.va_sid,
+                VaSubmissionAttachments.filename,
+            )
+        ).all()
+        for row in rows:
+            by_sid.setdefault(row.va_sid, []).append(Readiness(**row._mapping))
+    return by_sid
+
+
+def mark_audio_derivative_stale(va_sid: str, filename: str) -> None:
+    """Mark one audio row's MP3 as needing a rebuild.
+
+    Called when the source ETag the derivative was built from no longer matches
+    (plan Finding 6). Rows without a derivative — every non-audio attachment —
+    are untouched, so this can never invent a derivative state.
+    """
+    db.session.execute(
+        sa.update(VaSubmissionAttachments)
+        .where(
+            VaSubmissionAttachments.va_sid == va_sid,
+            VaSubmissionAttachments.filename == filename,
+            VaSubmissionAttachments.derivative_state.is_not(None),
+        )
+        .values(derivative_state=DERIVATIVE_STALE, derivative_verified_at=None)
+    )
 
 
 # ---------------------------------------------------------------------------

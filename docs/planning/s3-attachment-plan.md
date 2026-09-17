@@ -59,7 +59,7 @@ Updated 2026-09-17. Policy baseline:
 | Phase 0.4 — Central version record | Done | One mapped connection (`MINERVA`, minerva.causeofdeathindia.com): Central server `v2026.2.2`, frontend `v2026.2.4` (recorded 2026-09-17). Post-`v2026.1` line, so JPEG/PNG/GIF are `Content-Disposition: inline`; above the `v2024.2.0` S3 floor. Storage mode (database-only vs S3) still to confirm. |
 | Deployment mode | Decided 2026-09-17 | **Central without S3.** Originals stay in Central's PostgreSQL; MP3 derivatives stay under DigitVA `APP_DATA`. Bucket/IAM/retention/recovery-drill gates (Phase 0.5, 0.7, Phase 1 S3 steps, Phase 6 bucket restore) do not apply. The resolver still handles a Central `307` so S3 can be enabled on Central later without a DigitVA change. |
 | Retired submissions | Decided 2026-09-17 | Source state `retired`; local copies never quarantined ([policy](../policy/odk-retired-submissions.md)). |
-| Phase 2 — source/derivative state | In progress | |
+| Phase 2 — source/derivative state | Done | Migration `b7e4c2a91d38`: additive `source_*`, `derivative_*`, `local_fallback_state` columns on `va_submission_attachments`, backfilled from `exists_on_odk`/AMR rows/retired submissions. Sync writes them; `readiness()` and `mark_audio_derivative_stale()` exist in the service. Nothing decides on the state until Phase 4. |
 | Phase 4, 5, 6 | Open | Sequential after Phase 2 |
 | `admin_sync_legacy_attachment_stats` per-row uuid5 scan | Open | Noted under **Performance Constraints**; not touched |
 

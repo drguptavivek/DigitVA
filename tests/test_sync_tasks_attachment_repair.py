@@ -19,6 +19,8 @@ from app.models import (
     VaSyncRun,
     VaSites,
 )
+from app.services.attachment_service import SubmissionAttachmentState
+from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.tasks.sync_tasks import (
     _finalize_repair_run_if_ready,
     _build_repair_map_for_form,
@@ -95,6 +97,9 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         storage_name: str | None,
         local_path: str | None,
         attachments_expected: int = 1,
+        sync_issue_code: str | None = None,
+        store_state: str = "local",
+        derivative_state: str | None = None,
     ) -> str:
         now = datetime.now(timezone.utc)
         instance_id = uuid.uuid4().hex
@@ -108,7 +113,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             va_data_collector="collector",
             va_odk_reviewstate=None,
             va_odk_reviewcomments=None,
-            va_sync_issue_code=None,
+            va_sync_issue_code=sync_issue_code,
             va_sync_issue_detail=None,
             va_sync_issue_updated_at=None,
             va_instance_name=instance_id,
@@ -165,6 +170,8 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
                 exists_on_odk=True,
                 last_downloaded_at=now,
                 storage_name=storage_name,
+                store_state=store_state,
+                derivative_state=derivative_state,
             )
         )
         db.session.add(
@@ -199,9 +206,9 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         self.assertFalse(repair_map[va_sid]["needs_metadata"])
         self.assertFalse(repair_map[va_sid]["needs_smartva"])
 
-    def test_build_repair_map_reads_presence_through_attachment_service(self):
+    def test_build_repair_map_reads_readiness_through_attachment_service(self):
         # The repair map depends on the attachment module boundary, not on disk:
-        # presence reported by the service is sufficient for completeness.
+        # readiness reported by the service is sufficient for completeness.
         va_sid = self._create_submission_with_attachment(
             filename="photo.jpg",
             storage_name="photo-storage.jpg",
@@ -209,12 +216,64 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         )
 
         with patch(
-            "app.tasks.sync_tasks.present_attachment_files_by_submission",
-            return_value={va_sid: {"/remote/photo.jpg"}},
+            "app.tasks.sync_tasks.attachment_state_by_submission",
+            return_value={
+                va_sid: SubmissionAttachmentState(
+                    va_sid=va_sid, retired=False, ready_count=1, unready=(),
+                )
+            },
         ) as readiness:
             repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
 
         readiness.assert_called_once()
+        self.assertEqual(summary["attachments_missing"], 0)
+        self.assertNotIn(va_sid, repair_map)
+
+    def test_retired_submission_attachments_never_make_it_incomplete(self):
+        # docs/policy/odk-retired-submissions.md: ODK has purged the source, so
+        # no repair can ever run and the submission must not sit in the queue.
+        va_sid = self._create_submission_with_attachment(
+            filename="photo.jpg",
+            storage_name="retired-storage.jpg",
+            local_path=None,
+            sync_issue_code=MISSING_IN_ODK,
+        )
+
+        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+
+        self.assertEqual(summary["attachments_missing"], 0)
+        self.assertNotIn(va_sid, repair_map)
+
+    def test_an_unready_audio_derivative_makes_a_submission_incomplete(self):
+        # The blob is in the store, but its MP3 is stale: not complete.
+        media_dir = os.path.join(self._tmp_dir.name, self.form_id, "media")
+        os.makedirs(media_dir, exist_ok=True)
+        storage_name = "narration-storage.mp3"
+        with open(os.path.join(media_dir, storage_name), "wb") as handle:
+            handle.write(b"mp3")
+
+        va_sid = self._create_submission_with_attachment(
+            filename="narration.amr",
+            storage_name=storage_name,
+            local_path=None,
+            derivative_state="stale",
+        )
+
+        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+
+        self.assertEqual(summary["attachments_missing"], 1)
+        self.assertTrue(repair_map[va_sid]["needs_attachments"])
+
+    def test_s3_stored_rows_are_complete_without_a_local_file(self):
+        va_sid = self._create_submission_with_attachment(
+            filename="photo.jpg",
+            storage_name="s3-storage.jpg",
+            local_path=None,
+            store_state="s3",
+        )
+
+        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+
         self.assertEqual(summary["attachments_missing"], 0)
         self.assertNotIn(va_sid, repair_map)
 

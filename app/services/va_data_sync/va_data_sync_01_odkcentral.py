@@ -1,4 +1,3 @@
-import os
 import time
 import logging
 import math
@@ -1212,9 +1211,6 @@ def va_data_sync_odkcentral(
                     gap_errors = 0
                     gap_upserted_map: dict[str, str] = {}
                     gap_records_for_finalize: list[dict] = []
-                    form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
-                    media_dir = os.path.join(form_dir, "media")
-                    os.makedirs(media_dir, exist_ok=True)
 
                     for batch_start in range(0, len(missing_ids), _GAP_BATCH):
                         batch_ids = missing_ids[batch_start : batch_start + _GAP_BATCH]
@@ -1310,7 +1306,6 @@ def va_data_sync_odkcentral(
                                 attachment_sync_dispatcher(
                                     va_form,
                                     gap_upserted_map,
-                                    media_dir,
                                     _progress,
                                 )
                                 attachment_sync_forms_enqueued += 1
@@ -1318,7 +1313,6 @@ def va_data_sync_odkcentral(
                                 attachment_totals = va_odk_sync_form_attachments(
                                     va_form,
                                     gap_upserted_map,
-                                    media_dir,
                                     client_factory=lambda: _get_or_create_sync_odk_client(
                                         clients_by_group, connection_by_project,
                                         va_form, mapping,
@@ -1386,9 +1380,6 @@ def va_data_sync_odkcentral(
                         f"{len(va_submissions_raw)} submission(s) from ODK"
                     )
 
-                form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
-                media_dir = os.path.join(form_dir, "media")
-                os.makedirs(media_dir, exist_ok=True)
 
                 # Upsert submissions for this form only
                 log.info("DataSync [Upserting submissions: %s].", va_form.form_id)
@@ -1474,7 +1465,6 @@ def va_data_sync_odkcentral(
                         attachment_sync_dispatcher(
                             va_form,
                             upserted_map,
-                            media_dir,
                             _progress,
                         )
                         attachment_sync_forms_enqueued += 1
@@ -1487,7 +1477,6 @@ def va_data_sync_odkcentral(
                         attachment_totals = va_odk_sync_form_attachments(
                             va_form,
                             upserted_map,
-                            media_dir,
                             client_factory=lambda: _get_or_create_sync_odk_client(
                                 clients_by_group,
                                 connection_by_project,

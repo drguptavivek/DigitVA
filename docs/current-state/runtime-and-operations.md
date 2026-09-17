@@ -328,6 +328,8 @@ Reversible up to the retention step; nothing is deleted by any tool.
    `flask attachments s3-upload --dry-run`, then
    `flask attachments s3-upload --workers 8`. Re-run until it exits `0`.
 4. **Verify**: `python scripts/check_attachment_integrity.py --store s3`
+   (or the panel's *Run integrity check* button, which records the same counts
+   on a `va_sync_runs` row)
    must report `0` missing objects and `0` rows awaiting the cutover.
 5. **Quarantine** the local copies:
    `flask attachments local-quarantine --dry-run`, then without the flag.
@@ -344,6 +346,14 @@ files back, and restart. Rows marked `store_state='s3'` will need
 data operation, not a config change — which is why steps 4 and 6 exist.
 
 ### What to watch
+
+The admin **Attachment Management** panel (`/admin/panels/attachments`, or
+`flask attachments overview`) puts everything below on one page: per-form counts
+by `source_state`, `derivative_state`, `store_state` and
+`local_fallback_state`, retired-submission rows, S3 upload progress, the
+delivery counters, and the source error categories. It also offers per-form
+attachment repair and the integrity check as bounded background runs. See
+[the admin model](admin-and-setup.md#attachment-management-panel).
 
 - The one structured log line per delivery:
   `attachment delivery outcome=<...> latency_ms=<...> sid=<...> form=<...> error=<...>`,

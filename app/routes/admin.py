@@ -5948,6 +5948,118 @@ def admin_sync_legacy_attachment_repair():
         log.error("admin_sync_legacy_attachment_repair failed", exc_info=True)
         return _json_error("Failed to trigger legacy attachment repair", 500)
 
+# ---------------------------------------------------------------------------
+# Attachment Management  (admin-only)
+#
+# Every figure and every action here is the attachment service's
+# (docs/policy/attachment-storage.md, *Module boundary*). These handlers
+# authorize, validate, and serialize; they never read a file, a bucket, or ODK
+# Central themselves, and they never return a URL, a path, or a filename.
+# The per-project Central-fetch switch is not duplicated here: the panel uses
+# PUT /admin/api/projects/<project_id>/attachment-central-fetch.
+# ---------------------------------------------------------------------------
+
+@admin.get("/panels/attachments")
+@role_required("admin")
+def admin_panel_attachments():
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    return render_template("admin/panels/attachments.html")
+
+
+@admin.get("/api/attachments/overview")
+@role_required("admin")
+def admin_attachments_overview():
+    """Per-form attachment state counts, delivery counters, error categories."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.attachment_service import attachment_management_overview
+
+    project_id = (request.args.get("project_id") or "").strip().upper()
+    try:
+        return jsonify(
+            attachment_management_overview([project_id] if project_id else None)
+        )
+    except Exception:
+        log.error("admin_attachments_overview failed", exc_info=True)
+        return _json_error("Failed to load the attachment overview", 500)
+
+
+@admin.post("/api/attachments/forms/<form_id>/repair")
+@role_required("admin")
+def admin_attachments_repair_form(form_id: str):
+    """Queue attachment repair for one form and hand back the run id."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.models.va_forms import VaForms
+    from app.models.va_sync_runs import VaSyncRun
+    from app.tasks.sync_tasks import run_form_attachment_repair
+
+    va_form = db.session.get(VaForms, (form_id or "").strip())
+    if va_form is None:
+        return _json_error(f"Form '{form_id}' not found.", 404)
+
+    try:
+        run = VaSyncRun(
+            triggered_by="att-repair",
+            triggered_user_id=current_user.user_id,
+            started_at=datetime.now(timezone.utc),
+            status="running",
+        )
+        db.session.add(run)
+        db.session.commit()
+        task = run_form_attachment_repair.delay(
+            run_id=str(run.sync_run_id), form_id=va_form.form_id
+        )
+        log.info(
+            "admin attachment repair queued form=%s run=%s by=%s",
+            va_form.form_id, run.sync_run_id, current_user.user_id,
+        )
+        return jsonify({
+            "message": f"Attachment repair started for form {va_form.form_id}.",
+            "form_id": va_form.form_id,
+            "run_id": str(run.sync_run_id),
+            "task_id": task.id,
+        }), 202
+    except Exception:
+        db.session.rollback()
+        log.error("admin_attachments_repair_form failed for %s", form_id, exc_info=True)
+        return _json_error("Failed to queue attachment repair", 500)
+
+
+@admin.post("/api/attachments/integrity-check")
+@role_required("admin")
+def admin_attachments_integrity_check():
+    """Queue the attachment integrity check; its counts land on the run row."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.tasks.sync_tasks import run_attachment_integrity_check
+
+    payload = request.get_json(silent=True) or {}
+    form_id = (payload.get("form_id") or "").strip() or None
+    try:
+        task = run_attachment_integrity_check.delay(
+            form_id=form_id,
+            triggered_by="att-integrity",
+            user_id=str(current_user.user_id),
+        )
+        log.info(
+            "admin attachment integrity check queued form=%s by=%s",
+            form_id or "ALL", current_user.user_id,
+        )
+        return jsonify({
+            "message": "Attachment integrity check started.",
+            "form_id": form_id,
+            "task_id": task.id,
+        }), 202
+    except Exception:
+        log.error("admin_attachments_integrity_check failed", exc_info=True)
+        return _json_error("Failed to queue the attachment integrity check", 500)
+
+
 @admin.post("/api/sync/form/<form_id>")
 @role_required("admin")
 def admin_sync_form(form_id: str):

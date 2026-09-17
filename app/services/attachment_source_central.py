@@ -216,6 +216,49 @@ def resolve_source(record: AttachmentRecord) -> CentralSource | None:
 # Fetch
 # ---------------------------------------------------------------------------
 
+def _request_path_session(source: CentralSource):
+    """A no-retry view of the connection's session, for a caller that cannot wait.
+
+    pyODK mounts ``Retry(total=3, backoff_factor=2,
+    status_forcelist=(429, 500, 502, 503, 504))`` on its session, which is
+    right for a sync worker and wrong for a request path: one 503 would burn
+    roughly fourteen seconds of backoff before this module could classify it
+    and answer. Sync depends on that shared session, so it is never mutated —
+    a clone is made instead, sharing the credentials, cookies and TLS settings
+    but mounting ``HTTPAdapter(max_retries=0)``. The clone is cached per
+    connection per thread alongside the pyODK client itself, so no per-request
+    connection pool is built.
+
+    A session that is not a ``requests.Session`` — a test double, or another
+    transport — is used exactly as given.
+    """
+    session = source.client.session
+    if not isinstance(session, requests.Session):
+        return session
+
+    clones = getattr(_thread_state, "request_sessions", None)
+    if clones is None:
+        clones = {}
+        _thread_state.request_sessions = clones
+    clone = clones.get(source.connection_id)
+    if clone is not None:
+        return clone
+
+    clone = requests.Session()
+    clone.headers = session.headers
+    clone.auth = session.auth
+    clone.cookies = session.cookies
+    clone.verify = session.verify
+    clone.cert = session.cert
+    clone.proxies = session.proxies
+    clone.trust_env = session.trust_env
+    adapter = requests.adapters.HTTPAdapter(max_retries=0)
+    clone.mount("https://", adapter)
+    clone.mount("http://", adapter)
+    clones[source.connection_id] = clone
+    return clone
+
+
 def _origin(url: str) -> tuple[str, str]:
     parts = urlsplit(url)
     return parts.scheme.lower(), parts.netloc.lower()
@@ -281,22 +324,28 @@ def fetch(record: AttachmentRecord) -> CentralFetch:
 
     Streams (``stream=True``) so the body is never read into memory here, and
     observes redirects (``allow_redirects=False``) instead of letting Requests
-    follow them. A successful result hands the caller an open response; the
+    follow them. The request goes through a no-retry clone of the connection's
+    session (see ``_request_path_session``), so a failing Central is classified
+    after one attempt rather than after pyODK's retry backoff. A successful result hands the caller an open response; the
     caller owns closing it. Every other outcome closes what it opened.
     """
     source = resolve_source(record)
     if source is None:
         return CentralFetch(outcome=FETCH_UNCONFIGURED)
 
-    session = source.client.session
     # pyODK's Session resolves relative paths against its own normalised
     # base_url; the connection's base_url is the fallback for anything else.
-    session_base = getattr(session, "base_url", None) or source.base_url
+    session_base = (
+        getattr(source.client.session, "base_url", None) or source.base_url
+    )
+    session = _request_path_session(source)
     base_origin = _origin(session_base)
     timeout = _request_timeout()
     max_wait = _max_slot_wait()
 
-    url = source.attachment_path
+    # Absolute from the first hop: the no-retry clone is a plain requests
+    # session and does not resolve Central-relative paths.
+    url = urljoin(session_base, source.attachment_path)
     redirect_followed = False
 
     try:

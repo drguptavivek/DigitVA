@@ -22,7 +22,6 @@ Entry points
 from __future__ import annotations
 
 import logging
-import os
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
@@ -349,11 +348,6 @@ def enrich_unenriched_payloads(
             form_rows = form_rows[:max_per_form]
 
         log.debug("Form %s: enrich submissions=%d", fid, len(form_rows))
-        media_dir = None
-        if not dry_run and app_data_root:
-            form_dir = os.path.join(app_data_root, fid)
-            media_dir = os.path.join(form_dir, "media")
-            os.makedirs(media_dir, exist_ok=True)
         workflow_actor = system_actor() if not dry_run else None
 
         for row in form_rows:
@@ -574,82 +568,6 @@ def enrich_unenriched_payloads(
     return stats
 
 
-def _run_single_submission_attachment(
-    *,
-    va_form,
-    media_dir: str | None,
-    va_sid: str,
-    instance_id: str,
-    client,
-    stats: dict,
-    audit_by_sid: dict,
-    force_redownload: bool = False,
-) -> None:
-    from app.utils.va_odk.va_odk_07_syncattachments import va_odk_sync_submission_attachments
-
-    stats["attachments_checked"] += 1
-    if not media_dir:
-        stats["attachments_errors"] += 1
-        _set_stage(audit_by_sid, va_sid, "attachments", "failed:no-app-data")
-        log.warning("  attachments: failed (APP_DATA not configured)")
-        return
-    if not instance_id:
-        stats["attachments_errors"] += 1
-        _set_stage(audit_by_sid, va_sid, "attachments", "skip:no-instance-id")
-        log.warning("  attachments: skip (missing instance id)")
-        return
-    try:
-        per_sid = va_odk_sync_submission_attachments(
-            va_form,
-            instance_id,
-            va_sid,
-            media_dir,
-            client=client,
-            force_redownload=force_redownload,
-        )
-        db.session.commit()
-        downloaded = int(per_sid.get("downloaded", 0) or 0)
-        skipped = int(per_sid.get("skipped", 0) or 0)
-        errors = int(per_sid.get("errors", 0) or 0)
-        etag_not_modified = int(per_sid.get("etag_not_modified", 0) or 0)
-        local_present_on_etag = int(per_sid.get("local_present_on_etag", 0) or 0)
-        local_missing_on_etag = int(per_sid.get("local_missing_on_etag", 0) or 0)
-        stats["attachments_downloaded"] += downloaded
-        stats["attachments_skipped"] += skipped
-        stats["attachments_errors"] += errors
-        stats["attachments_etag_not_modified"] += etag_not_modified
-        stats["attachments_local_present_on_etag"] += local_present_on_etag
-        stats["attachments_local_missing_on_etag"] += local_missing_on_etag
-        _set_stage(
-            audit_by_sid,
-            va_sid,
-            "attachments",
-            "done" if errors == 0 else "failed:sync",
-            (
-                f"downloaded={downloaded} skipped={skipped} "
-                f"etag304={etag_not_modified} "
-                f"local_missing_on_etag={local_missing_on_etag}"
-            ),
-        )
-        _log_submission_step(
-            (
-                "attachments: downloaded=%d skipped=%d errors=%d "
-                "etag_not_modified=%d local_present_on_etag=%d local_missing_on_etag=%d"
-            ),
-            downloaded,
-            skipped,
-            errors,
-            etag_not_modified,
-            local_present_on_etag,
-            local_missing_on_etag,
-        )
-    except Exception as exc:
-        db.session.rollback()
-        stats["attachments_errors"] += 1
-        _set_stage(audit_by_sid, va_sid, "attachments", "failed:sync", str(exc))
-        log.error("  attachments: failed: %s", exc, exc_info=True)
-
-
 def _run_single_submission_smartva(
     *,
     va_sid: str,
@@ -776,9 +694,6 @@ def _run_attachment_sync_stage(
             stats["attachments_errors"] += len(upserted_map)
             continue
 
-        form_dir = os.path.join(app_data_root, form_id)
-        media_dir = os.path.join(form_dir, "media")
-        os.makedirs(media_dir, exist_ok=True)
         log.info(
             "Form %s attachments: start submissions=%d",
             form_id,
@@ -837,7 +752,6 @@ def _run_attachment_sync_stage(
                     va_form,
                     instance_id,
                     va_sid,
-                    media_dir,
                     client=client,
                 )
                 db.session.commit()

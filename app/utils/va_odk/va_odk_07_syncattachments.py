@@ -4,26 +4,27 @@ Replaces the full ZIP attachment extraction. For each submission:
   1. Fetch attachment list from ODK Central (cheap — no binary).
   2. For each file with exists=true, check the stored ETag.
   3. Conditional GET with If-None-Match → 304 (skip) or 200 (download).
-  4. .amr files are converted to .mp3 via SoX; images stored as-is.
-  5. ETag, local path, and storage_name stored in va_submission_attachments.
+  4. Hand the downloaded temp file to the attachment service, which converts
+     ``.amr`` narration, writes the blob into DigitVA's store and returns the
+     readiness state the row should carry.
+  5. Apply that state with a PK-safe upsert.
 
-Files are stored on disk as {storage_name} (uuid4().hex + ext) instead of
-their original ODK filename.  The original filename is preserved in the DB
-row for lookup; the opaque storage_name is used for serving URLs.
+This module owns the *network* half of attachment sync only. Where bytes live,
+how a derivative is made, whether a blob is present, and which superseded blob
+may be removed are all decisions of
+``app/services/attachment_service.py`` — nothing here touches the filesystem,
+the object store, or a media directory.
 
 The form media directory is NEVER cleared (no rmtree). Existing files for
-unchanged submissions remain on disk, so coders never see missing attachments
-during an active sync.
+unchanged submissions remain in the store, so coders never see missing
+attachments during an active sync.
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
-import os
-import subprocess
 import threading
-import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -31,20 +32,20 @@ from sqlalchemy.exc import IntegrityError
 from flask import current_app, has_app_context
 
 from app.services.attachment_service import (
+    AmrConversionError,
     DERIVATIVE_ERROR,
     DERIVATIVE_ERROR_CONVERSION_FAILED,
-    DERIVATIVE_MIME_TYPE,
-    DERIVATIVE_READY,
-    LOCAL_ABSENT,
-    SOURCE_AVAILABLE,
-    SOURCE_MISSING,
     STORE_STATE_LOCAL,
     STORE_STATE_S3,
-    local_attachment_file_exists,
-    remove_local_file_if_present,
+    attachment_present,
+    cleanup_superseded,
+    discard_ingest_temp_file,
+    generate_storage_name,
+    ingest_download,
+    new_ingest_temp_path,
+    mark_removed_on_odk,
     safe_mime_type,
 )
-from app.services.attachment_store import StoreTarget, get_attachment_store
 from app.services.odk_connection_guard_service import guarded_odk_call
 
 log = logging.getLogger(__name__)
@@ -61,14 +62,6 @@ def _normalize_attachment_filename(filename: str) -> str:
     if filename.lower().endswith(".amr"):
         return filename[: -len(".amr")] + ".mp3"
     return filename
-
-
-def _generate_storage_name(original_filename: str) -> str:
-    """Generate a unique opaque storage name (uuid4 hex + lowercase ext)."""
-    ext = os.path.splitext(original_filename)[1].lower()
-    if ext == ".amr":
-        ext = ".mp3"
-    return uuid.uuid4().hex + ext
 
 
 def _invalidate_attachment_cache(
@@ -96,70 +89,6 @@ def _invalidate_attachment_cache(
         log.warning("Cache invalidation error for %s/%s: %s", va_sid, filename, exc)
 
 
-def _sync_store():
-    """The selected attachment store, or None when there is no app context.
-
-    Sync runs its network phase in worker threads; each one is given an app
-    context, but the bare-thread fallback has none, in which case the local
-    store is the only possible answer.
-    """
-    if not has_app_context():
-        return None
-    return get_attachment_store()
-
-
-def _store_downloaded_attachment(
-    *, va_form, filename: str, media_dir: str, storage_name: str,
-    tmp_path: str, mime_type: str | None,
-) -> tuple[str | None, str | None, str]:
-    """Move one freshly downloaded temp file into the selected store.
-
-    Returns ``(tmp_path_still_to_clean, local_path, store_state)``.
-
-    Local store: the temp file is renamed (or converted) into
-    ``media_dir/<storage_name>`` exactly as before.
-
-    S3 store: the blob — the download for an ordinary attachment, the MP3 for
-    ``.amr`` narration — is uploaded from the temp file with a single atomic
-    ``put_object`` and the temp file is then removed. Nothing is buffered in
-    memory beyond one read chunk, ``local_path`` stays NULL, and a failed
-    upload raises, so the row is never updated and no object is left behind.
-    """
-    store = _sync_store()
-    is_audio = filename.lower().endswith(".amr")
-
-    if store is None or store.name != STORE_STATE_S3:
-        final_path = os.path.join(media_dir, storage_name)
-        if is_audio:
-            local_path = _convert_amr_to_mp3(
-                tmp_path, va_form.form_id, output_path=final_path
-            )
-        else:
-            os.rename(tmp_path, final_path)
-            local_path = final_path
-        return None, local_path, STORE_STATE_LOCAL
-
-    upload_path = tmp_path
-    content_type = mime_type
-    if is_audio:
-        # Convert in a second temp file; the AMR temp is consumed by SoX.
-        upload_path = _convert_amr_to_mp3(
-            tmp_path,
-            va_form.form_id,
-            output_path=os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}.mp3"),
-        )
-        content_type = DERIVATIVE_MIME_TYPE
-
-    try:
-        store.put(
-            StoreTarget(va_form_id=va_form.form_id, storage_name=storage_name),
-            upload_path,
-            content_type=content_type,
-        )
-    finally:
-        remove_local_file_if_present(upload_path)
-    return None, None, STORE_STATE_S3
-
 # ---------------------------------------------------------------------------
 # Dataclasses
 # ---------------------------------------------------------------------------
@@ -175,6 +104,8 @@ class AttachmentChange:
     storage_name: str | None = None
     # Which store the blob was written to; 's3' rows carry no ``local_path``.
     store_state: str = STORE_STATE_LOCAL
+    # Readiness state the attachment service decided this change implies.
+    state_values: dict = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -202,7 +133,6 @@ def _sync_submission_attachments_no_db(
     va_form,
     instance_id: str,
     va_sid: str,
-    media_dir: str,
     existing_etags: dict[str, str | None],
     existing_local_paths: dict[str, str | None],
     existing_storage_names: dict[str, str | None],
@@ -211,7 +141,6 @@ def _sync_submission_attachments_no_db(
     existing_store_states: dict[str, str | None] | None = None,
 ) -> SubmissionAttachmentSyncResult:
     """Sync one submission's attachments without touching the ORM session."""
-    os.makedirs(media_dir, exist_ok=True)
     if has_app_context():
         request_timeout = (
             current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10),
@@ -254,7 +183,11 @@ def _sync_submission_attachments_no_db(
             continue
 
         if not exists_on_odk:
-            changes.append(AttachmentChange(filename=filename, exists_on_odk=False))
+            changes.append(AttachmentChange(
+                filename=filename,
+                exists_on_odk=False,
+                state_values=mark_removed_on_odk(va_sid, filename),
+            ))
             continue
 
         headers: dict = {}
@@ -282,14 +215,15 @@ def _sync_submission_attachments_no_db(
 
             if dl_resp.status_code == 304:
                 etag_not_modified += 1
-                local_path = existing_local_paths.get(filename)
-                # An s3-stored row keeps no file here; presence is the stored
-                # store_state, never a per-row HEAD in a sync loop.
-                if (existing_store_states or {}).get(filename) == STORE_STATE_S3:
-                    local_exists = True
-                else:
-                    local_exists = local_attachment_file_exists(local_path)
                 storage_name = existing_storage_names.get(filename)
+                # Presence is the attachment service's answer, never a stat or
+                # a store_state read here.
+                local_exists = attachment_present(
+                    va_form_id=va_form.form_id,
+                    local_path=existing_local_paths.get(filename),
+                    storage_name=storage_name,
+                    store_state=(existing_store_states or {}).get(filename),
+                )
                 if local_exists and storage_name:
                     skipped += 1
                     local_present_on_etag += 1
@@ -325,8 +259,7 @@ def _sync_submission_attachments_no_db(
             # Upstream MIME is copied, not trusted; a literal "null" is rejected.
             mime_type: str | None = safe_mime_type(dl_resp.headers.get("Content-Type", ""))
 
-            storage_name = _generate_storage_name(filename)
-            tmp_path = os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}")
+            tmp_path = new_ingest_temp_path(va_form.form_id)
 
             # Download to temp file — bounded chunks, never the whole body.
             with open(tmp_path, "wb") as f:
@@ -334,25 +267,30 @@ def _sync_submission_attachments_no_db(
                     if chunk:
                         f.write(chunk)
 
-            tmp_path, local_path, store_state = _store_downloaded_attachment(
-                va_form=va_form,
+            downloaded_at = datetime.now(timezone.utc)
+            ingested = ingest_download(
+                va_sid=va_sid,
+                va_form_id=va_form.form_id,
                 filename=filename,
-                media_dir=media_dir,
-                storage_name=storage_name,
-                tmp_path=tmp_path,
+                temp_path=tmp_path,
                 mime_type=mime_type,
+                etag=new_etag,
+                downloaded_at=downloaded_at,
             )
+            # ingest_download owns the temp file on every path.
+            tmp_path = None
 
             changes.append(
                 AttachmentChange(
                     filename=filename,
                     exists_on_odk=True,
-                    local_path=local_path,
+                    local_path=ingested.local_path,
                     mime_type=mime_type,
                     etag=new_etag,
-                    last_downloaded_at=datetime.now(timezone.utc),
-                    storage_name=storage_name,
-                    store_state=store_state,
+                    last_downloaded_at=downloaded_at,
+                    storage_name=ingested.storage_name,
+                    store_state=ingested.store_state,
+                    state_values=ingested.state_values,
                 )
             )
             downloaded += 1
@@ -368,12 +306,10 @@ def _sync_submission_attachments_no_db(
                 "Attachment sync error [%s/%s]: %s", va_sid, filename, exc, exc_info=True
             )
         finally:
-            # Clean up temp file if it still exists (rename/conversion didn't consume it)
+            # A temp file only survives here when the download itself failed;
+            # once handed to ingest_download the service owns its cleanup.
             if tmp_path:
-                try:
-                    remove_local_file_if_present(tmp_path)
-                except OSError:
-                    pass
+                discard_ingest_temp_file(tmp_path)
             if dl_resp is not None and hasattr(dl_resp, "close"):
                 dl_resp.close()
 
@@ -395,110 +331,6 @@ def _sync_submission_attachments_no_db(
 # ---------------------------------------------------------------------------
 # DB apply
 # ---------------------------------------------------------------------------
-
-def _cleanup_replaced_attachment_files(stale_paths):
-    """Remove superseded attachment files after DB row updates are flushed."""
-    from app import db
-    from app.models.va_submission_attachments import VaSubmissionAttachments
-
-    seen_paths = set()
-    for old_local_path, new_local_path in stale_paths:
-        if (
-            not old_local_path
-            or old_local_path == new_local_path
-            or old_local_path in seen_paths
-        ):
-            continue
-        seen_paths.add(old_local_path)
-        in_use = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaSubmissionAttachments)
-            .where(
-                VaSubmissionAttachments.local_path == old_local_path,
-                VaSubmissionAttachments.exists_on_odk.is_(True),
-            )
-        )
-        if in_use and int(in_use) > 0:
-            continue
-        try:
-            remove_local_file_if_present(old_local_path)
-        except OSError:
-            log.warning("Could not remove stale attachment file: %s", old_local_path, exc_info=True)
-
-
-def _cleanup_replaced_store_objects(stale_objects):
-    """Delete superseded S3 objects after the rows already point at the new key.
-
-    Same ordering and the same guard as the local file cleanup: the row is
-    flushed first, then the old key is removed only if no live row still
-    references it. A delete failure is logged and left alone — the object
-    becomes an orphan key that ``scripts/check_attachment_integrity.py
-    --store s3`` reports; it is never allowed to fail a sync.
-    """
-    from app import db
-    from app.models.va_submission_attachments import VaSubmissionAttachments
-
-    if not stale_objects:
-        return
-    store = _sync_store()
-    if store is None or store.name != STORE_STATE_S3:
-        return
-
-    seen = set()
-    for va_form_id, old_storage_name in stale_objects:
-        if not old_storage_name or (va_form_id, old_storage_name) in seen:
-            continue
-        seen.add((va_form_id, old_storage_name))
-        in_use = db.session.scalar(
-            sa.select(sa.func.count())
-            .select_from(VaSubmissionAttachments)
-            .where(
-                VaSubmissionAttachments.storage_name == old_storage_name,
-                VaSubmissionAttachments.exists_on_odk.is_(True),
-            )
-        )
-        if in_use and int(in_use) > 0:
-            continue
-        try:
-            store.delete(StoreTarget(va_form_id=va_form_id, storage_name=old_storage_name))
-        except Exception:
-            log.warning(
-                "Could not remove a superseded attachment object for form %s",
-                va_form_id, exc_info=True,
-            )
-
-def _attachment_state_values(change: AttachmentChange) -> dict:
-    """Phase 2 source/derivative state implied by one applied change.
-
-    Vocabularies and their meanings live in ``app/services/attachment_service``.
-    A successful download is the only evidence that the source is *available*;
-    the MP3 written for an ``.amr`` attachment is recorded against the source
-    ETag it was built from so later syncs can tell a stale derivative apart.
-    """
-    if not change.exists_on_odk:
-        return {"source_state": SOURCE_MISSING}
-
-    values = {
-        "source_state": SOURCE_AVAILABLE,
-        "source_verified_at": change.last_downloaded_at,
-        "source_error_code": None,
-        # The ORIGINAL's validated MIME; ``mime_type`` is left as sync stored it.
-        "source_mime_type": change.mime_type,
-        "store_state": change.store_state,
-    }
-    if change.store_state == STORE_STATE_S3:
-        # Nothing was written to this app server's disk for an s3 row.
-        values["local_fallback_state"] = LOCAL_ABSENT
-    if change.filename.lower().endswith(".amr"):
-        values.update({
-            "derivative_state": DERIVATIVE_READY,
-            "derivative_mime_type": DERIVATIVE_MIME_TYPE,
-            "derivative_source_validator": change.etag,
-            "derivative_verified_at": change.last_downloaded_at,
-            "derivative_error_code": None,
-        })
-    return values
-
 
 def _apply_submission_attachment_result(
     existing_records, result, *, va_form_id=None, stale_objects=None,
@@ -528,7 +360,7 @@ def _apply_submission_attachment_result(
                 rec.etag = change.etag
                 rec.last_downloaded_at = change.last_downloaded_at
                 rec.storage_name = change.storage_name
-                for attr, value in _attachment_state_values(change).items():
+                for attr, value in (change.state_values or {}).items():
                     setattr(rec, attr, value)
                 if old_storage_name is not None:
                     _invalidate_attachment_cache(
@@ -549,7 +381,7 @@ def _apply_submission_attachment_result(
                 # File removed on ODK — update flag and invalidate cache
                 old_storage_name = rec.storage_name
                 rec.exists_on_odk = change.exists_on_odk
-                for attr, value in _attachment_state_values(change).items():
+                for attr, value in (change.state_values or {}).items():
                     setattr(rec, attr, value)
                 _invalidate_attachment_cache(old_storage_name, result.va_sid, change.filename)
             continue
@@ -567,7 +399,7 @@ def _apply_submission_attachment_result(
             ),
             "storage_name": change.storage_name if change.exists_on_odk else None,
         }
-        state_values = _attachment_state_values(change)
+        state_values = dict(change.state_values or {})
         values.update(state_values)
 
         for attempt in range(3):
@@ -601,7 +433,7 @@ def _apply_submission_attachment_result(
                         "storage_name collision for %s/%s, retrying (%d/3)",
                         result.va_sid, change.filename, attempt + 1,
                     )
-                    values["storage_name"] = _generate_storage_name(change.filename)
+                    values["storage_name"] = generate_storage_name(change.filename)
                 else:
                     raise
 
@@ -680,7 +512,6 @@ def _load_existing_attachment_state(va_sids):
 def va_odk_sync_form_attachments(
     va_form,
     upserted_map: dict[str, str],
-    media_dir: str,
     *,
     client_factory,
     max_workers: int = _ATTACHMENT_SYNC_MAX_WORKERS,
@@ -718,7 +549,6 @@ def va_odk_sync_form_attachments(
                     va_form,
                     instance_id,
                     va_sid,
-                    media_dir,
                     per_sid_etags.get(va_sid, {}),
                     per_sid_local_paths.get(va_sid, {}),
                     per_sid_storage_names.get(va_sid, {}),
@@ -730,7 +560,6 @@ def va_odk_sync_form_attachments(
             va_form,
             instance_id,
             va_sid,
-            media_dir,
             per_sid_etags.get(va_sid, {}),
             per_sid_local_paths.get(va_sid, {}),
             per_sid_storage_names.get(va_sid, {}),
@@ -812,8 +641,7 @@ def va_odk_sync_form_attachments(
         )
 
     db.session.flush()
-    _cleanup_replaced_attachment_files(stale_paths)
-    _cleanup_replaced_store_objects(stale_objects)
+    cleanup_superseded(stale_paths=stale_paths, stale_objects=stale_objects)
     return totals
 
 
@@ -821,7 +649,6 @@ def va_odk_sync_submission_attachments(
     va_form,
     instance_id: str,
     va_sid: str,
-    media_dir: str,
     client=None,
     force_redownload: bool = False,
 ) -> dict:
@@ -830,7 +657,6 @@ def va_odk_sync_submission_attachments(
     from app.models.va_submission_attachments import VaSubmissionAttachments
     from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
 
-    os.makedirs(media_dir, exist_ok=True)
     client = client or va_odk_clientsetup(project_id=va_form.project_id)
     (
         per_sid_etags,
@@ -843,7 +669,6 @@ def va_odk_sync_submission_attachments(
         va_form,
         instance_id,
         va_sid,
-        media_dir,
         per_sid_etags.get(va_sid, {}),
         per_sid_local_paths.get(va_sid, {}),
         per_sid_storage_names.get(va_sid, {}),
@@ -865,8 +690,7 @@ def va_odk_sync_submission_attachments(
         va_form_id=va_form.form_id, stale_objects=stale_objects,
     )
     db.session.flush()
-    _cleanup_replaced_attachment_files(stale_paths)
-    _cleanup_replaced_store_objects(stale_objects)
+    cleanup_superseded(stale_paths=stale_paths, stale_objects=stale_objects)
     return {
         "downloaded": result.downloaded,
         "skipped": result.skipped,
@@ -875,67 +699,3 @@ def va_odk_sync_submission_attachments(
         "local_present_on_etag": result.local_present_on_etag,
         "local_missing_on_etag": result.local_missing_on_etag,
     }
-
-
-# ---------------------------------------------------------------------------
-# AMR conversion
-# ---------------------------------------------------------------------------
-
-class AmrConversionError(RuntimeError):
-    """Raised when AMR→MP3 conversion fails; the attachment is recorded as an error."""
-
-
-def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = None) -> str:
-    """Convert an .amr file to .mp3. Returns the .mp3 path.
-
-    Uses SoX with smart bitrate: probes source via soxi, then targets 2x
-    the source bitrate (capped 16–64 kbps). AMR-NB speech (~12 kbps) ends
-    up at 24 kbps — optimal quality for the source without bloated output.
-
-    If output_path is provided, write the .mp3 there (and delete amr_path).
-    Otherwise derive the output path by replacing the .amr extension.
-
-    On failure raises AmrConversionError. The source file is left for the
-    caller's temp cleanup and no partial .mp3 is kept, so a failed
-    conversion can never be recorded as a successful derivative.
-    """
-    mp3_path = output_path or amr_path.rsplit(".", 1)[0] + ".mp3"
-    try:
-        # Probe source bitrate via soxi
-        target_bitrate = 24  # sensible default
-        try:
-            duration = float(subprocess.check_output(["soxi", "-D", amr_path]).decode().strip())
-            file_size = os.path.getsize(amr_path)
-            source_kbps = int((file_size * 8) / duration / 1000)
-            target_bitrate = max(16, min(64, source_kbps * 2))
-        except Exception as probe_err:
-            log.warning(
-                "AMR→MP3 [%s]: soxi probe failed for %s, using default %dkbps — %s",
-                form_id, os.path.basename(amr_path), target_bitrate, probe_err,
-            )
-
-        subprocess.run(
-            ["sox", amr_path, "-C", str(target_bitrate), mp3_path],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        os.remove(amr_path)
-        log.info(
-            "AMR→MP3 [%s]: %s → %s (%dkbps)", form_id,
-            os.path.basename(amr_path), os.path.basename(mp3_path), target_bitrate,
-        )
-        return mp3_path
-    except Exception as e:
-        log.error(
-            "AMR→MP3 conversion failed [%s/%s]: %s",
-            form_id, os.path.basename(amr_path), e,
-            exc_info=True,
-        )
-        try:
-            remove_local_file_if_present(mp3_path)
-        except OSError:
-            pass
-        raise AmrConversionError(
-            f"AMR→MP3 conversion failed for {os.path.basename(amr_path)}"
-        ) from e

@@ -9,7 +9,6 @@ SmartVA repair logic separately.
 from __future__ import annotations
 
 import logging
-import os
 
 import sqlalchemy as sa
 
@@ -190,14 +189,9 @@ def repair_submission_current_payload(
             return result
 
         if batch_plan[va_sid].get("needs_attachments"):
-            from flask import current_app
-
-            media_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id, "media")
-            os.makedirs(media_dir, exist_ok=True)
             totals = va_odk_sync_form_attachments(
                 va_form,
                 {va_sid: batch_plan[va_sid].get("instance_id") or ""},
-                media_dir,
                 client_factory=lambda: _get_single_form_odk_client(va_form),
                 force_redownload=force_attachment_redownload,
             )

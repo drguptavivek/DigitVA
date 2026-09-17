@@ -1,18 +1,38 @@
+import contextlib
 import tempfile
 from types import SimpleNamespace
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
+from flask import current_app
+
+from app.services.attachment_service import cleanup_superseded
 from app.utils.va_odk.va_odk_05_deltacheck import va_odk_delta_count
 from app.utils.va_odk.va_odk_06_fetchsubmissions import va_odk_fetch_submissions
 from app.utils.va_odk.va_odk_07_syncattachments import (
     SubmissionAttachmentSyncResult,
-    _cleanup_replaced_attachment_files,
     _apply_submission_attachment_result,
     _sync_submission_attachments_no_db,
     va_odk_sync_form_attachments,
     va_odk_sync_submission_attachments,
 )
+
+
+@contextlib.contextmanager
+def temp_app_data():
+    """Point the attachment store at a throwaway APP_DATA for one test.
+
+    Attachment blobs are written by the attachment service, which resolves the
+    media directory from the app config; these sync tests must not write into
+    the real test APP_DATA.
+    """
+    with tempfile.TemporaryDirectory() as app_data:
+        previous = current_app.config.get("APP_DATA")
+        current_app.config["APP_DATA"] = app_data
+        try:
+            yield app_data
+        finally:
+            current_app.config["APP_DATA"] = previous
 
 
 class _FakeResponse:
@@ -77,6 +97,7 @@ class TestOdkClientReuse(TestCase):
                     last_downloaded_at=None,
                     storage_name="new-token.jpg",
                     store_state="local",
+                    state_values={},
                 )
             ],
         )
@@ -93,16 +114,13 @@ class TestOdkClientReuse(TestCase):
         self.assertEqual(record.local_path, "/tmp/new-file.jpg")
         self.assertEqual(record.storage_name, "new-token.jpg")
 
-    def test_cleanup_replaced_attachment_files_deletes_only_unreferenced_paths(self):
-        with patch("app.db") as mock_db, patch(
-            "app.utils.va_odk.va_odk_07_syncattachments.os.path.exists",
-            return_value=True,
-        ), patch(
-            "app.utils.va_odk.va_odk_07_syncattachments.os.remove"
+    def test_cleanup_superseded_deletes_only_unreferenced_paths(self):
+        with patch("app.services.attachment_service.db") as mock_db, patch(
+            "app.services.attachment_service.os.remove"
         ) as mock_remove:
             mock_db.session.scalar.side_effect = [0, 2]
 
-            _cleanup_replaced_attachment_files([
+            cleanup_superseded(stale_paths=[
                 ("/tmp/remove-me.jpg", "/tmp/new-a.jpg"),
                 ("/tmp/keep-me.jpg", "/tmp/new-b.jpg"),
                 ("/tmp/remove-me.jpg", "/tmp/new-c.jpg"),
@@ -192,7 +210,7 @@ class TestOdkClientReuse(TestCase):
             form_id="FORM_A",
         )
 
-        with tempfile.TemporaryDirectory() as media_dir, patch(
+        with temp_app_data(), patch(
             "app.utils.va_odk.va_odk_01_clientsetup.va_odk_clientsetup",
             side_effect=AssertionError("clientsetup should not be called"),
         ), patch(
@@ -205,7 +223,6 @@ class TestOdkClientReuse(TestCase):
                 va_form,
                 instance_id="uuid:abc",
                 va_sid="uuid:abc-form01",
-                media_dir=media_dir,
                 client=fake_client,
             )
 
@@ -248,7 +265,7 @@ class TestOdkClientReuse(TestCase):
             client_factory_calls += 1
             return fake_client
 
-        with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
+        with temp_app_data(), patch("app.db") as mock_db:
             mock_db.session.scalars.return_value.all.return_value = []
             mock_db.session.flush.return_value = None
             mock_db.session.add.return_value = None
@@ -259,7 +276,6 @@ class TestOdkClientReuse(TestCase):
                     "uuid:one-form01": "uuid:one",
                     "uuid:two-form01": "uuid:two",
                 },
-                media_dir,
                 client_factory=client_factory,
                 max_workers=1,
             )
@@ -293,7 +309,7 @@ class TestOdkClientReuse(TestCase):
         def client_factory():
             return fake_client
 
-        with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
+        with temp_app_data(), patch("app.db") as mock_db:
             mock_db.session.execute.return_value.all.return_value = []
             mock_db.session.scalars.return_value.all.return_value = []
             mock_db.session.flush.side_effect = lambda: events.append("flush")
@@ -310,7 +326,6 @@ class TestOdkClientReuse(TestCase):
             result = va_odk_sync_form_attachments(
                 va_form,
                 {"uuid:one-form01": "uuid:one"},
-                media_dir,
                 client_factory=client_factory,
                 max_workers=1,
             )
@@ -335,8 +350,8 @@ class TestOdkClientReuse(TestCase):
             form_id="FORM_A",
         )
 
-        with tempfile.TemporaryDirectory() as media_dir, patch("app.db") as mock_db:
-            local_path = f"{media_dir}/note.txt"
+        with temp_app_data() as app_data, patch("app.db") as mock_db:
+            local_path = f"{app_data}/note.txt"
             with open(local_path, "wb") as handle:
                 handle.write(b"cached")
             existing = SimpleNamespace(
@@ -358,7 +373,6 @@ class TestOdkClientReuse(TestCase):
                 va_form,
                 instance_id="uuid:abc",
                 va_sid="uuid:abc-form01",
-                media_dir=media_dir,
                 client=fake_client,
             )
 
@@ -390,8 +404,8 @@ class TestOdkClientReuse(TestCase):
             form_id="FORM01",
         )
 
-        with tempfile.TemporaryDirectory() as media_dir:
-            legacy_path = f"{media_dir}/legacy-photo.jpg"
+        with temp_app_data() as app_data:
+            legacy_path = f"{app_data}/legacy-photo.jpg"
             with open(legacy_path, "wb") as handle:
                 handle.write(b"old-bytes")
 
@@ -399,7 +413,6 @@ class TestOdkClientReuse(TestCase):
                 va_form,
                 instance_id="uuid:abc",
                 va_sid="uuid:abc-form01",
-                media_dir=media_dir,
                 existing_etags={"photo.jpg": '"etag-legacy"'},
                 existing_local_paths={"photo.jpg": legacy_path},
                 existing_storage_names={"photo.jpg": None},
@@ -441,12 +454,11 @@ class TestOdkClientReuse(TestCase):
             form_id="FORM01",
         )
 
-        with tempfile.TemporaryDirectory() as media_dir:
+        with temp_app_data():
             result = _sync_submission_attachments_no_db(
                 va_form,
                 instance_id="uuid:abc",
                 va_sid="uuid:abc-form01",
-                media_dir=media_dir,
                 existing_etags={},
                 existing_local_paths={},
                 existing_storage_names={},

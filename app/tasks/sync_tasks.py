@@ -13,11 +13,15 @@ from celery.exceptions import SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 from datetime import datetime, timezone
 
-from app.services.attachment_service import present_attachment_files_by_submission
+from app.services.attachment_service import attachment_state_by_submission
 
 log = get_task_logger(__name__)
 ANALYTICS_MV_TRIGGER = "analytics_mv"
 ENRICHMENT_SYNC_BATCH_SIZE = 5
+# Most attachment gaps are closed by the sync download above; this is the
+# bounded second pass that rebuilds what only ODK Central can supply (a lost
+# store object, a stale or failed MP3 derivative).
+ATTACHMENT_REPAIR_BATCH_LIMIT = 50
 INTERRUPTED_RUN_MESSAGE = (
     "Interrupted run — the worker stopped before completion. "
     "Re-initiate Sync or Repair to continue remaining gaps."
@@ -245,6 +249,62 @@ def _append_run_error(run, message: str) -> None:
         run.error_message = message[:2000]
 
 
+def _repair_batch_attachments(
+    *,
+    sids_by_form: dict[str, list[str]],
+    log_progress,
+    label: str,
+    batch_index: int,
+    batch_total: int,
+) -> dict[str, int]:
+    """Second attachment pass for one repair batch, through the attachment service.
+
+    The sync download above restores anything Central still lists normally.
+    What is left — a store object that went missing, an MP3 derivative that is
+    stale or failed to convert — can only be rebuilt from the original, which
+    is exactly what ``attachment_service.repair_attachment()`` does. Bounded by
+    ``ATTACHMENT_REPAIR_BATCH_LIMIT`` per form so one bad form cannot stretch a
+    batch, and the run's progress log records outcome counts only: no
+    filenames, no submission identifiers, no URLs.
+    """
+    from app import db
+    from app.services import attachment_service
+
+    outcomes: dict[str, int] = {}
+    for form_id, form_sids in sorted(sids_by_form.items()):
+        try:
+            candidates = attachment_service.repair_candidates(
+                form_id,
+                target_sids=form_sids,
+                limit=ATTACHMENT_REPAIR_BATCH_LIMIT,
+            )
+        except Exception:
+            log.warning(
+                "Attachment repair candidates failed for %s", form_id, exc_info=True
+            )
+            continue
+        for record in candidates:
+            try:
+                outcome = attachment_service.repair_attachment(record)
+            except Exception:
+                db.session.rollback()
+                log.warning(
+                    "Attachment repair failed for form %s", form_id, exc_info=True
+                )
+                outcomes[attachment_service.REPAIR_ERROR] = (
+                    outcomes.get(attachment_service.REPAIR_ERROR, 0) + 1
+                )
+                continue
+            outcomes[outcome.outcome] = outcomes.get(outcome.outcome, 0) + 1
+
+    if outcomes:
+        summary = ", ".join(f"{name}={count}" for name, count in sorted(outcomes.items()))
+        log_progress(
+            f"[{label}] attachment repair: batch {batch_index}/{batch_total} — {summary}"
+        )
+    return outcomes
+
+
 def _run_canonical_repair_batches(
     *,
     run_id,
@@ -261,7 +321,7 @@ def _run_canonical_repair_batches(
     from app import db
     from app.models import VaForms
     from app.models.va_sync_runs import VaSyncRun
-    from app.services import smartva_service
+    from app.services import attachment_service, smartva_service
     from app.services.open_submission_repair_service import (
         repair_submission_current_payload,
     )
@@ -349,6 +409,7 @@ def _run_canonical_repair_batches(
         batch_held = 0
         error_messages: list[str] = []
         smartva_sids_by_form: dict[str, set[str]] = {}
+        sids_by_form: dict[str, list[str]] = {}
 
         for va_sid in batch_sids:
             try:
@@ -372,6 +433,8 @@ def _run_canonical_repair_batches(
             upstream_changed_held = bool(result.get("upstream_changed_held"))
             needs_smartva_after_repair = bool(result.get("needs_smartva_after_repair"))
             form_id = result.get("form_id")
+            if isinstance(form_id, str) and form_id:
+                sids_by_form.setdefault(form_id, []).append(va_sid)
 
             batch_downloaded += downloaded
             batch_non_audit_downloaded += non_audit_downloaded
@@ -388,6 +451,17 @@ def _run_canonical_repair_batches(
                 and form_id
             ):
                 smartva_sids_by_form.setdefault(form_id, set()).add(va_sid)
+
+        batch_repair_outcomes = _repair_batch_attachments(
+            sids_by_form=sids_by_form,
+            log_progress=log_progress,
+            label=label,
+            batch_index=batch_index,
+            batch_total=batch_total,
+        )
+        batch_errors += batch_repair_outcomes.get(
+            attachment_service.REPAIR_ERROR, 0
+        )
 
         for form_id, form_sids in sorted(smartva_sids_by_form.items()):
             try:
@@ -725,7 +799,7 @@ def _build_repair_map_for_form(
         scoped_target_sids = list(raw_by_sid.keys())
     else:
         scoped_target_sids = target_sids
-    present_attachment_files = present_attachment_files_by_submission(
+    attachment_states = attachment_state_by_submission(
         form_id,
         target_sids=scoped_target_sids,
     )
@@ -797,12 +871,27 @@ def _build_repair_map_for_form(
             attachments_expected = int(payload.get("AttachmentsExpected") or 0)
         except (TypeError, ValueError):
             attachments_expected = 0
-        present_attachment_count = len(present_attachment_files.get(va_sid, set()))
         legacy_attachment_count = int(legacy_attachment_rows.get(va_sid) or 0)
-        attachments_complete = (
-            present_attachment_count >= attachments_expected
-            and legacy_attachment_count == 0
-        )
+        # Completeness is readiness, not a file count: a row counts only when
+        # its blob is in DigitVA's store and, for audio, its MP3 derivative is
+        # ready. A submission retired from ODK is complete by policy — its
+        # source is gone and no repair may ever run
+        # (docs/policy/odk-retired-submissions.md).
+        attachment_state = attachment_states.get(va_sid)
+        if attachment_state is not None and attachment_state.retired:
+            attachments_complete = True
+        else:
+            ready_attachment_count = (
+                attachment_state.ready_count if attachment_state else 0
+            )
+            unready_attachments = (
+                attachment_state.unready if attachment_state else ()
+            )
+            attachments_complete = (
+                ready_attachment_count >= attachments_expected
+                and not unready_attachments
+                and legacy_attachment_count == 0
+            )
         summary["legacy_attachment_rows"] += legacy_attachment_count
         smartva_complete = smartva_present_sid is not None
         if not metadata_complete:
@@ -950,8 +1039,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
     Creates a va_sync_runs record with triggered_by="manual" so the dashboard
     can show the force-resync as a separate run entry.
     """
-    import os
-    from flask import current_app
     from app import db
     from app.models.va_sync_runs import VaSyncRun
     from app.models.va_forms import VaForms
@@ -991,9 +1078,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
 
         snapshot_time = datetime.now(timezone.utc)
         odk_client = _get_single_form_odk_client(va_form)
-        form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
-        media_dir = os.path.join(form_dir, "media")
-        os.makedirs(media_dir, exist_ok=True)
 
         odk_ids = va_odk_fetch_instance_ids(va_form, client=odk_client)
         _mark_form_sync_issues(va_form, odk_ids)
@@ -1115,8 +1199,6 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
 )
 def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill", user_id=None):
     """Repair local gaps for one form without doing a full force-resync."""
-    import os
-    from flask import current_app
     from app import db
     from app.models.va_forms import VaForms
     from app.models.va_submissions import VaSubmissions
@@ -1152,9 +1234,6 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
         log_progress(f"[{form_id}] backfill started — checking ODK and local gaps")
 
         odk_client = _get_single_form_odk_client(va_form)
-        form_dir = os.path.join(current_app.config["APP_DATA"], form_id)
-        media_dir = os.path.join(form_dir, "media")
-        os.makedirs(media_dir, exist_ok=True)
 
         odk_ids = va_odk_fetch_instance_ids(va_form, client=odk_client)
         _mark_form_sync_issues(va_form, odk_ids)
@@ -1308,6 +1387,155 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
         raise
 
 
+# One admin repair action never sweeps a whole form in a single run; the panel
+# button is meant to be pressed again.
+ATTACHMENT_PANEL_REPAIR_MAX_SUBMISSIONS = 200
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_form_attachment_repair",
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=3600,
+)
+def run_form_attachment_repair(self, *, run_id: str, form_id: str):
+    """Repair one form's unready attachments through the canonical repair engine.
+
+    Candidates come from ``attachment_service.attachment_state_by_submission()``
+    — submissions whose attachments are not ready and which are not retired —
+    and are capped at ``ATTACHMENT_PANEL_REPAIR_MAX_SUBMISSIONS`` so one press
+    of the admin button can never become an unbounded run. The run row is
+    created by the caller so it can hand the operator its id immediately.
+    """
+    from uuid import UUID
+
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services import attachment_service
+
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
+    try:
+        states = attachment_service.attachment_state_by_submission(form_id)
+        candidate_sids = sorted(
+            va_sid
+            for va_sid, state in states.items()
+            if state.unready and not state.retired
+        )[:ATTACHMENT_PANEL_REPAIR_MAX_SUBMISSIONS]
+        if not candidate_sids:
+            run = db.session.get(VaSyncRun, UUID(str(run_id)))
+            if run:
+                run.status = "success"
+                run.finished_at = datetime.now(timezone.utc)
+                db.session.commit()
+            log_progress(f"[{form_id}] attachment repair: nothing to repair")
+            return {"repaired_submissions": 0}
+
+        log_progress(
+            f"[{form_id}] attachment repair: queueing "
+            f"{len(candidate_sids)} submission(s)"
+        )
+        return _run_canonical_repair_batches(
+            run_id=run_id,
+            label=form_id,
+            candidate_sids=candidate_sids,
+            trigger_source="attachment_panel_repair",
+            force_attachment_redownload=False,
+            log_progress=log_progress,
+        )
+    except SoftTimeLimitExceeded:
+        db.session.rollback()
+        run = db.session.get(VaSyncRun, UUID(str(run_id)))
+        if run:
+            run.status = "error"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error_message = INTERRUPTED_RUN_MESSAGE
+            db.session.commit()
+        raise
+    except Exception as exc:
+        db.session.rollback()
+        log.error("Attachment repair failed for %s", form_id, exc_info=True)
+        run = db.session.get(VaSyncRun, UUID(str(run_id)))
+        if run:
+            run.status = "error"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error_message = str(exc)[:2000]
+            db.session.commit()
+        raise
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_attachment_integrity_check",
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=3600,
+)
+def run_attachment_integrity_check(
+    self,
+    form_id: str | None = None,
+    triggered_by: str = "att-integrity",
+    user_id=None,
+):
+    """Compare attachment rows against the store and record counts on a run row.
+
+    The work is ``attachment_service.integrity_check_summary()``; this task only
+    gives an operator somewhere to watch it from. Read-only against both the DB
+    and the store, and the progress log holds counts only — never a path, a key,
+    or a submission identifier.
+    """
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services import attachment_service
+
+    run = VaSyncRun(
+        triggered_by=triggered_by,
+        triggered_user_id=user_id,
+        started_at=datetime.now(timezone.utc),
+        status="running",
+    )
+    db.session.add(run)
+    db.session.commit()
+    run_id = run.sync_run_id
+
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
+    try:
+        log_progress(
+            f"attachment integrity: started (scope {form_id or 'ALL'})"
+        )
+        summary = attachment_service.integrity_check_summary(form_id=form_id)
+        log_progress(
+            "attachment integrity: "
+            + ", ".join(f"{key}={value}" for key, value in sorted(summary.items()))
+        )
+        run = db.session.get(VaSyncRun, run_id)
+        run.status = "success" if summary.get("clean") else "partial"
+        run.finished_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return summary
+    except SoftTimeLimitExceeded:
+        db.session.rollback()
+        run = db.session.get(VaSyncRun, run_id)
+        if run:
+            run.status = "error"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error_message = INTERRUPTED_RUN_MESSAGE
+            db.session.commit()
+        raise
+    except Exception as exc:
+        db.session.rollback()
+        log.error("Attachment integrity check failed", exc_info=True)
+        run = db.session.get(VaSyncRun, run_id)
+        if run:
+            run.status = "error"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error_message = str(exc)[:2000]
+            db.session.commit()
+        raise
+
+
 @shared_task(
     name="app.tasks.sync_tasks.run_legacy_attachment_repair",
     bind=True,
@@ -1423,8 +1651,6 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
     )
-    import os
-    from flask import current_app
     from app.models import VaStatuses, VaSubmissionsAuditlog
 
     run = VaSyncRun(
@@ -1515,9 +1741,6 @@ def run_single_submission_sync(self, va_sid: str, triggered_by: str = "manual", 
         _mark_form_sync_issues(va_form, va_odk_fetch_instance_ids(va_form, client=odk_client))
         db.session.commit()
 
-        form_dir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
-        media_dir = os.path.join(form_dir, "media")
-        os.makedirs(media_dir, exist_ok=True)
         run = db.session.get(VaSyncRun, run_id)
         run.records_added = added
         run.records_updated = updated

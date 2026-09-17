@@ -133,10 +133,15 @@ Optional filters:
 
 ---
 
-## `attachments` — Attachment delivery settings
+## `attachments` — Attachment lifecycle
+
+Every command here is a thin wrapper over
+[`app/services/attachment_service.py`](../../app/services/attachment_service.py);
+the CLI parses options and prints, and the service decides.
 
 | Command | Description |
 |---------|-------------|
+| `attachments overview [--project-id X]` | Print the same figures as the admin Attachment Management panel: per-form counts by `source_state`, `derivative_state`, `store_state` and `local_fallback_state`, retired-submission attachment rows, rows still awaiting S3 upload, this process's delivery outcome counters, and source error categories. Bulk aggregates only — no filesystem, store or Central access, and no paths, keys or submission identifiers in the output. |
 | `attachments central-fetch <PROJECT_ID>` | Report whether store misses may be self-healed from ODK Central for this project (default action). |
 | `attachments central-fetch <PROJECT_ID> --enable` | Allow a store miss on a live submission to be fetched from the project's ODK Central connection, streamed to the browser, and written into DigitVA's store. |
 | `attachments central-fetch <PROJECT_ID> --disable` | Return the project to store-only delivery: a store miss is a `404`, as before. |

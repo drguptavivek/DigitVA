@@ -1,0 +1,321 @@
+{#
+  Attachment Management panel
+
+  A read-only view over app/services/attachment_service.py plus three actions:
+  the per-project Central self-heal switch, per-form attachment repair, and the
+  integrity check. Every number comes from
+  GET /admin/api/attachments/overview — the panel computes nothing and never
+  shows a path, a key, a filename or a submission id.
+#}
+<div id="panel-attachments">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-paperclip me-2 text-secondary"></i>Attachment Management
+      <span class="badge text-bg-light border ms-2" id="att-store-badge">&mdash;</span>
+    </h5>
+    <div class="d-flex gap-2 align-items-center">
+      <select class="form-select form-select-sm" id="att-project-filter" style="width:auto;">
+        <option value="">All projects</option>
+      </select>
+      <button class="btn btn-sm btn-outline-secondary" id="att-refresh-btn">
+        <i class="fa-solid fa-rotate me-1"></i>Refresh
+      </button>
+      <button class="btn btn-sm btn-primary" id="att-integrity-btn">
+        <i class="fa-solid fa-clipboard-check me-1"></i>Run integrity check
+      </button>
+    </div>
+  </div>
+
+  <div id="att-alert"></div>
+
+  {# Projects: the Central self-heal switch #}
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <h6 class="card-title small text-uppercase text-muted mb-2">
+        Central self-heal (per project)
+      </h6>
+      <div id="att-projects-wrap"></div>
+      <div class="text-muted small mt-2">
+        With this off, an attachment whose blob is missing from DigitVA's store
+        is a 404 — the same behaviour as before Central self-heal existed.
+      </div>
+    </div>
+  </div>
+
+  {# Delivery counters and error categories #}
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body py-2">
+          <h6 class="card-title small text-uppercase text-muted mb-2">
+            Delivery outcomes (this worker, since start)
+          </h6>
+          <div id="att-counters-wrap"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body py-2">
+          <h6 class="card-title small text-uppercase text-muted mb-2">
+            Source error categories
+          </h6>
+          <div id="att-errors-wrap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Per-form state tables #}
+  <div id="att-forms-wrap"></div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var m = method || 'GET';
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: m, headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function notice(kind, message) {
+    document.getElementById('att-alert').innerHTML =
+      '<div class="alert alert-' + kind + ' small py-2">' + esc(message) + '</div>';
+  }
+
+  function clearNotice() { document.getElementById('att-alert').innerHTML = ''; }
+
+  function chips(counts) {
+    var keys = Object.keys(counts || {}).sort();
+    if (!keys.length) return '<span class="text-muted">none</span>';
+    return keys.map(function (key) {
+      return '<span class="badge text-bg-light border me-1 mb-1">'
+        + esc(key) + ' <span class="fw-semibold">' + esc(counts[key]) + '</span></span>';
+    }).join('');
+  }
+
+  function total(counts) {
+    return Object.keys(counts || {}).reduce(function (sum, key) {
+      return sum + Number(counts[key] || 0);
+    }, 0);
+  }
+
+  var _report = null;
+
+  function renderProjects() {
+    var wrap = document.getElementById('att-projects-wrap');
+    var projects = (_report && _report.projects) || [];
+    if (!projects.length) {
+      wrap.innerHTML = '<p class="text-muted small mb-0">No projects in scope.</p>';
+      return;
+    }
+    wrap.innerHTML = projects.map(function (p) {
+      var on = !!p.attachment_central_fetch_enabled;
+      return '<div class="form-check form-switch d-inline-block me-4">'
+        + '<input class="form-check-input att-central-toggle" type="checkbox" role="switch"'
+        + ' id="att-cf-' + esc(p.project_id) + '"'
+        + ' data-project="' + esc(p.project_id) + '"' + (on ? ' checked' : '') + '>'
+        + '<label class="form-check-label small" for="att-cf-' + esc(p.project_id) + '">'
+        + esc(p.project_id) + '</label></div>';
+    }).join('');
+
+    var toggles = wrap.querySelectorAll('.att-central-toggle');
+    for (var i = 0; i < toggles.length; i++) {
+      toggles[i].addEventListener('change', function () {
+        var input = this;
+        var projectId = input.getAttribute('data-project');
+        input.disabled = true;
+        apiJson(
+          '/admin/api/projects/' + encodeURIComponent(projectId) + '/attachment-central-fetch',
+          'PUT',
+          { attachment_central_fetch_enabled: input.checked }
+        ).then(function (res) {
+          input.disabled = false;
+          if (!res.ok) {
+            input.checked = !input.checked;
+            notice('danger', res.data.error || 'Failed to change the setting.');
+            return;
+          }
+          clearNotice();
+        }).catch(function () {
+          input.disabled = false;
+          input.checked = !input.checked;
+          notice('danger', 'Network error.');
+        });
+      });
+    }
+  }
+
+  function renderCounters() {
+    document.getElementById('att-counters-wrap').innerHTML =
+      chips((_report && _report.delivery_counters) || {});
+  }
+
+  function renderErrors() {
+    var wrap = document.getElementById('att-errors-wrap');
+    var categories = (_report && _report.source_error_categories) || [];
+    if (!categories.length) {
+      wrap.innerHTML = '<p class="text-muted small mb-0">No source errors recorded.</p>';
+      return;
+    }
+    wrap.innerHTML = categories.map(function (entry) {
+      return '<span class="badge text-bg-warning me-1 mb-1">'
+        + esc(entry.category) + ' <span class="fw-semibold">' + esc(entry.rows) + '</span></span>';
+    }).join('');
+  }
+
+  function renderForms() {
+    var wrap = document.getElementById('att-forms-wrap');
+    var forms = (_report && _report.forms) || [];
+    if (!forms.length) {
+      wrap.innerHTML = '<p class="text-muted small text-center py-3">No attachment rows found.</p>';
+      return;
+    }
+    var isS3 = _report.store === 's3';
+
+    var rows = forms.map(function (form) {
+      var rowTotal = total(form.store_state);
+      var awaiting = Number(form.awaiting_s3 || 0);
+      var uploaded = Math.max(rowTotal - awaiting, 0);
+      var percent = rowTotal ? Math.round((uploaded / rowTotal) * 100) : 100;
+      var progress = isS3
+        ? '<div class="progress" style="height:6px;"><div class="progress-bar" role="progressbar"'
+          + ' style="width:' + percent + '%;" aria-valuenow="' + percent + '"'
+          + ' aria-valuemin="0" aria-valuemax="100"></div></div>'
+          + '<div class="small text-muted mt-1">' + uploaded + ' / ' + rowTotal
+          + ' in the bucket</div>'
+        : '<span class="text-muted small">local store</span>';
+
+      return '<tr>'
+        + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(form.form_id) + '</span>'
+        + '<div class="text-muted small">' + esc(form.project_id) + '</div></td>'
+        + '<td class="align-middle py-2 small">' + chips(form.source_state) + '</td>'
+        + '<td class="align-middle py-2 small">' + chips(form.derivative_state) + '</td>'
+        + '<td class="align-middle py-2 small">' + chips(form.store_state) + '</td>'
+        + '<td class="align-middle py-2 small">' + chips(form.local_fallback_state) + '</td>'
+        + '<td class="align-middle py-2 text-center small">' + esc(form.retired_rows) + '</td>'
+        + '<td class="align-middle py-2 small" style="min-width:140px;">' + progress + '</td>'
+        + '<td class="align-middle py-2 text-end">'
+        + '<button class="btn btn-sm btn-outline-primary att-repair-btn"'
+        + ' data-form="' + esc(form.form_id) + '" title="Repair unready attachments">'
+        + '<i class="fa-solid fa-screwdriver-wrench"></i></button></td>'
+        + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<div class="table-responsive"><table class="table table-sm align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted">Form</th>'
+      + '<th class="fw-medium small text-muted">Source</th>'
+      + '<th class="fw-medium small text-muted">Derivative</th>'
+      + '<th class="fw-medium small text-muted">Store</th>'
+      + '<th class="fw-medium small text-muted">Local copy</th>'
+      + '<th class="fw-medium small text-muted text-center">Retired</th>'
+      + '<th class="fw-medium small text-muted">S3 upload</th>'
+      + '<th class="fw-medium small text-muted text-end">Repair</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    var buttons = wrap.querySelectorAll('.att-repair-btn');
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].addEventListener('click', function () {
+        var button = this;
+        var formId = button.getAttribute('data-form');
+        button.disabled = true;
+        apiJson('/admin/api/attachments/forms/' + encodeURIComponent(formId) + '/repair', 'POST')
+          .then(function (res) {
+            button.disabled = false;
+            if (!res.ok) {
+              notice('danger', res.data.error || 'Failed to queue the repair.');
+              return;
+            }
+            notice('success', (res.data.message || 'Repair started.')
+              + ' Run id: ' + (res.data.run_id || ''));
+          }).catch(function () {
+            button.disabled = false;
+            notice('danger', 'Network error.');
+          });
+      });
+    }
+  }
+
+  function renderProjectFilter() {
+    var select = document.getElementById('att-project-filter');
+    var current = select.value;
+    var ids = ((_report && _report.projects) || []).map(function (p) { return p.project_id; });
+    select.innerHTML = '<option value="">All projects</option>'
+      + ids.map(function (id) {
+        return '<option value="' + esc(id) + '">' + esc(id) + '</option>';
+      }).join('');
+    select.value = current;
+  }
+
+  var _filterInitialised = false;
+
+  function load() {
+    var wrap = document.getElementById('att-forms-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small">'
+      + '<i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+
+    var projectId = document.getElementById('att-project-filter').value;
+    var url = '/admin/api/attachments/overview'
+      + (projectId ? '?project_id=' + encodeURIComponent(projectId) : '');
+
+    apiJson(url).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">'
+          + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      _report = res.data;
+      document.getElementById('att-store-badge').textContent = _report.store;
+      if (!_filterInitialised) {
+        renderProjectFilter();
+        _filterInitialised = true;
+      }
+      renderProjects();
+      renderCounters();
+      renderErrors();
+      renderForms();
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  document.getElementById('att-refresh-btn').addEventListener('click', load);
+  document.getElementById('att-project-filter').addEventListener('change', load);
+
+  document.getElementById('att-integrity-btn').addEventListener('click', function () {
+    var button = this;
+    button.disabled = true;
+    apiJson('/admin/api/attachments/integrity-check', 'POST', {}).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) {
+        notice('danger', res.data.error || 'Failed to queue the integrity check.');
+        return;
+      }
+      notice('success', res.data.message || 'Integrity check started.');
+    }).catch(function () {
+      button.disabled = false;
+      notice('danger', 'Network error.');
+    });
+  });
+
+  load();
+
+}());
+</script>

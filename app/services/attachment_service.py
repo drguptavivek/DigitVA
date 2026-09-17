@@ -22,12 +22,13 @@ from __future__ import annotations
 import logging
 import os
 import re
+import subprocess
 import tempfile
 import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -955,6 +956,21 @@ def _content_disposition_filename(storage_name: str) -> str:
     return "attachment"
 
 
+def _iter_central_body(result):
+    """Bounded chunks of a Central fetch body, closing the response at the end.
+
+    The one reader of a Central response, shared by request-path delivery and
+    by background repair, so neither buffers a body whole or leaks a socket.
+    """
+    upstream = result.response
+    try:
+        for chunk in upstream.iter_content(chunk_size=ATTACHMENT_STREAM_CHUNK_SIZE):
+            if chunk:
+                yield chunk
+    finally:
+        upstream.close()
+
+
 def _stream_central_response(record: AttachmentRecord, result):
     """Proxy Central's body with DigitVA's own headers, teeing it into the store.
 
@@ -964,16 +980,8 @@ def _stream_central_response(record: AttachmentRecord, result):
     """
     upstream = result.response
 
-    def upstream_chunks():
-        try:
-            for chunk in upstream.iter_content(chunk_size=ATTACHMENT_STREAM_CHUNK_SIZE):
-                if chunk:
-                    yield chunk
-        finally:
-            upstream.close()
-
     response = current_app.response_class(
-        stream_with_context(_store_write(record, upstream_chunks())),
+        stream_with_context(_store_write(record, _iter_central_body(result))),
         mimetype=result.mime_type or "application/octet-stream",
     )
     response.headers["Content-Disposition"] = (
@@ -1068,3 +1076,1514 @@ def deliver(record: AttachmentRecord):
     # failure. Reporting it as "missing" would hide it indefinitely.
     _record_delivery(record, OUTCOME_ERROR, started_at, error_code=result.error_code)
     abort(502)
+
+
+# ---------------------------------------------------------------------------
+# Ingest
+#
+# Sync downloads an attachment's bytes to a temporary file and hands them to
+# this module. Everything that happens next — AMR→MP3 conversion, the store
+# write, the opaque storage name, the readiness state the row should carry,
+# and the removal of every temporary file on every path — is decided here, so
+# no sync module knows where an attachment lives or how a derivative is made.
+# ---------------------------------------------------------------------------
+
+class AmrConversionError(RuntimeError):
+    """AMR→MP3 conversion failed; the attachment is recorded as an error."""
+
+
+def is_audio_attachment(filename: str) -> bool:
+    """True for narration audio, whose stored blob is an MP3 derivative."""
+    return (filename or "").lower().endswith(".amr")
+
+
+def generate_storage_name(original_filename: str) -> str:
+    """A unique opaque storage name (uuid4 hex + lowercase ext).
+
+    ``.amr`` becomes ``.mp3`` because the stored blob is the derivative.
+    """
+    ext = os.path.splitext(original_filename or "")[1].lower()
+    if ext == ".amr":
+        ext = ".mp3"
+    return uuid.uuid4().hex + ext
+
+
+def _form_media_dir(va_form_id: str) -> str:
+    from app.services.attachment_store import LocalAttachmentStore, StoreTarget
+
+    return LocalAttachmentStore().media_dir(
+        StoreTarget(va_form_id=va_form_id, storage_name=None)
+    )
+
+
+def new_ingest_temp_path(va_form_id: str) -> str:
+    """A private temp path for one download, on the same filesystem as the store.
+
+    Downloads land here first so a partial body is never mistaken for a stored
+    object. The caller writes the body and then hands the path to
+    ``ingest_download()``, which consumes or removes it.
+    """
+    media_dir = _form_media_dir(va_form_id)
+    os.makedirs(media_dir, exist_ok=True)
+    return os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}")
+
+
+def _convert_amr_to_mp3(amr_path: str, form_id: str, output_path: str | None = None) -> str:
+    """Convert an .amr file to .mp3. Returns the .mp3 path.
+
+    Uses SoX with smart bitrate: probes source via soxi, then targets 2x
+    the source bitrate (capped 16–64 kbps). AMR-NB speech (~12 kbps) ends
+    up at 24 kbps — optimal quality for the source without bloated output.
+
+    If output_path is provided, write the .mp3 there (and delete amr_path).
+    Otherwise derive the output path by replacing the .amr extension.
+
+    On failure raises AmrConversionError. The source file is left for the
+    caller's temp cleanup and no partial .mp3 is kept, so a failed
+    conversion can never be recorded as a successful derivative.
+    """
+    mp3_path = output_path or amr_path.rsplit(".", 1)[0] + ".mp3"
+    try:
+        # Probe source bitrate via soxi
+        target_bitrate = 24  # sensible default
+        try:
+            duration = float(subprocess.check_output(["soxi", "-D", amr_path]).decode().strip())
+            file_size = os.path.getsize(amr_path)
+            source_kbps = int((file_size * 8) / duration / 1000)
+            target_bitrate = max(16, min(64, source_kbps * 2))
+        except Exception as probe_err:
+            log.warning(
+                "AMR→MP3 [%s]: soxi probe failed for %s, using default %dkbps — %s",
+                form_id, os.path.basename(amr_path), target_bitrate, probe_err,
+            )
+
+        subprocess.run(
+            ["sox", amr_path, "-C", str(target_bitrate), mp3_path],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        os.remove(amr_path)
+        log.info(
+            "AMR→MP3 [%s]: %s → %s (%dkbps)", form_id,
+            os.path.basename(amr_path), os.path.basename(mp3_path), target_bitrate,
+        )
+        return mp3_path
+    except Exception as e:
+        log.error(
+            "AMR→MP3 conversion failed [%s/%s]: %s",
+            form_id, os.path.basename(amr_path), e,
+            exc_info=True,
+        )
+        try:
+            remove_local_file_if_present(mp3_path)
+        except OSError:
+            pass
+        raise AmrConversionError(
+            f"AMR→MP3 conversion failed for {os.path.basename(amr_path)}"
+        ) from e
+
+
+@dataclass(frozen=True)
+class IngestResult:
+    """What one ingested download makes the attachment row become.
+
+    ``state_values`` is the readiness state implied by the ingest — the source
+    and derivative vocabularies of this module — ready to be assigned onto the
+    row. The DB write itself stays with the caller, which owns the PK-safe
+    upsert.
+    """
+
+    storage_name: str
+    local_path: str | None
+    store_state: str
+    mime_type: str | None
+    etag: str | None
+    downloaded_at: datetime
+    state_values: dict
+
+
+def _ingest_state_values(
+    *, filename: str, mime_type: str | None, etag: str | None,
+    downloaded_at: datetime, store_state: str,
+) -> dict:
+    """Source/derivative state implied by one successful ingest.
+
+    A successful download is the only evidence that the source is *available*;
+    the MP3 written for an ``.amr`` attachment is recorded against the source
+    ETag it was built from so a later sync can tell a stale derivative apart.
+    """
+    values = {
+        "source_state": SOURCE_AVAILABLE,
+        "source_verified_at": downloaded_at,
+        "source_error_code": None,
+        # The ORIGINAL's validated MIME; ``mime_type`` keeps its own meaning.
+        "source_mime_type": mime_type,
+        "store_state": store_state,
+    }
+    if store_state == STORE_STATE_S3:
+        # Nothing was written to this app server's disk for an s3 row.
+        values["local_fallback_state"] = LOCAL_ABSENT
+    if is_audio_attachment(filename):
+        values.update({
+            "derivative_state": DERIVATIVE_READY,
+            "derivative_mime_type": DERIVATIVE_MIME_TYPE,
+            "derivative_source_validator": etag,
+            "derivative_verified_at": downloaded_at,
+            "derivative_error_code": None,
+        })
+    return values
+
+
+def ingest_download(
+    *,
+    va_sid: str,
+    va_form_id: str,
+    filename: str,
+    temp_path: str,
+    mime_type: str | None,
+    etag: str | None,
+    downloaded_at: datetime,
+    storage_name: str | None = None,
+) -> IngestResult:
+    """Take one freshly downloaded temp file into DigitVA's store.
+
+    Converts ``.amr`` narration to MP3, writes the blob to the selected store
+    (a file under the form's media directory, or a single atomic ``put`` into
+    the bucket), and returns the storage name, the store it landed in and the
+    readiness state the row should carry.
+
+    ``storage_name`` is generated unless the caller is rebuilding an existing
+    object in place (repair), in which case its own name is reused so no
+    delivery token rotates.
+
+    Requires an app context: the store and the media directory are resolved
+    from the app config. Every temporary file — the download, and the
+    intermediate MP3 on the S3 path — is removed on success and on failure, so
+    a conversion error leaves no partial object and no orphan temp file.
+    Raises ``AmrConversionError`` on a failed conversion and
+    ``AttachmentStoreError`` on a failed store write; the caller records the
+    explicit derivative error state and leaves the previous blob alone.
+    """
+    from app.services.attachment_store import StoreTarget, get_attachment_store
+
+    resolved_name = storage_name or generate_storage_name(filename)
+    is_audio = is_audio_attachment(filename)
+    store = get_attachment_store()
+    cleanup_paths = {temp_path}
+    local_path: str | None = None
+
+    try:
+        if store.name != STORE_STATE_S3:
+            media_dir = _form_media_dir(va_form_id)
+            os.makedirs(media_dir, exist_ok=True)
+            final_path = os.path.join(media_dir, resolved_name)
+            if is_audio:
+                local_path = _convert_amr_to_mp3(
+                    temp_path, va_form_id, output_path=final_path
+                )
+            else:
+                os.replace(temp_path, final_path)
+                local_path = final_path
+            store_state = STORE_STATE_LOCAL
+        else:
+            upload_path = temp_path
+            content_type = mime_type
+            if is_audio:
+                # Convert into a second temp file; the AMR temp is consumed by SoX.
+                upload_path = _convert_amr_to_mp3(
+                    temp_path,
+                    va_form_id,
+                    output_path=os.path.join(
+                        _form_media_dir(va_form_id), f".tmp_{uuid.uuid4().hex}.mp3"
+                    ),
+                )
+                cleanup_paths.add(upload_path)
+                content_type = DERIVATIVE_MIME_TYPE
+            store.put(
+                StoreTarget(va_form_id=va_form_id, storage_name=resolved_name),
+                upload_path,
+                content_type=content_type,
+            )
+            store_state = STORE_STATE_S3
+    finally:
+        for path in cleanup_paths:
+            if path and path != local_path:
+                try:
+                    remove_local_file_if_present(path)
+                except OSError:
+                    log.warning("attachment ingest: temp cleanup failed for sid=%s", va_sid)
+
+    return IngestResult(
+        storage_name=resolved_name,
+        local_path=local_path,
+        store_state=store_state,
+        mime_type=mime_type,
+        etag=etag,
+        downloaded_at=downloaded_at,
+        state_values=_ingest_state_values(
+            filename=filename,
+            mime_type=mime_type,
+            etag=etag,
+            downloaded_at=downloaded_at,
+            store_state=store_state,
+        ),
+    )
+
+
+def mark_removed_on_odk(va_sid: str, filename: str) -> dict:
+    """Row values for an attachment Central no longer holds.
+
+    ``exists_on_odk=false`` means the source is gone upstream; the local blob
+    and any derivative record are deliberately left alone (the policy never
+    deletes an attachment DigitVA already has).
+    """
+    log.debug("attachment ingest: no longer on ODK sid=%s file=%s", va_sid, filename)
+    return {"source_state": SOURCE_MISSING}
+
+
+def attachment_present(
+    *,
+    va_form_id: str,
+    local_path: str | None,
+    storage_name: str | None,
+    store_state: str | None,
+) -> bool:
+    """Whether DigitVA's store already holds this row's blob.
+
+    The single-row form of ``present_attachment_files_by_submission()`` and the
+    readiness source for sync's ``304`` self-heal decision: sync never stats a
+    file or reads ``store_state`` itself. ``audit.csv`` counts here, because
+    sync maintains it like any other attachment.
+
+    Outside an app context — the bare-thread sync fallback — only the legacy
+    ``local_path`` can be answered, since both the media root and the selected
+    store come from the app config.
+    """
+    from flask import has_app_context
+
+    if not has_app_context():
+        return local_attachment_file_exists(local_path)
+    return bool(
+        resolve_attachment_presence(
+            app_data_root=current_app.config.get("APP_DATA"),
+            form_id=va_form_id,
+            local_path=local_path,
+            storage_name=storage_name,
+            store_state=store_state,
+            include_audit=True,
+        )
+    )
+
+
+def discard_ingest_temp_file(temp_path: str | None) -> None:
+    """Remove a download temp file the ingest never took ownership of.
+
+    Sync calls this only when the download itself failed; once
+    ``ingest_download()`` has been handed the path, the service owns it.
+    """
+    if not temp_path:
+        return
+    try:
+        remove_local_file_if_present(temp_path)
+    except OSError:
+        log.warning("attachment ingest: temp cleanup failed", exc_info=True)
+
+
+def cleanup_superseded(*, stale_paths=(), stale_objects=()) -> None:
+    """Remove blobs a fresh ingest has replaced, after the rows are flushed.
+
+    ``stale_paths`` are ``(old_local_path, new_local_path)`` pairs and
+    ``stale_objects`` are ``(form_id, old_storage_name)`` pairs for rows whose
+    blob lives in the object store. In both cases the row already points at the
+    new blob, and the old one is removed only when no live row still references
+    it. A failure is logged and left alone: the blob becomes an orphan that
+    ``attachment integrity`` reports, and it never fails a sync.
+    """
+    seen_paths = set()
+    for old_local_path, new_local_path in stale_paths or ():
+        if (
+            not old_local_path
+            or old_local_path == new_local_path
+            or old_local_path in seen_paths
+        ):
+            continue
+        seen_paths.add(old_local_path)
+        in_use = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSubmissionAttachments)
+            .where(
+                VaSubmissionAttachments.local_path == old_local_path,
+                VaSubmissionAttachments.exists_on_odk.is_(True),
+            )
+        )
+        if in_use and int(in_use) > 0:
+            continue
+        try:
+            remove_local_file_if_present(old_local_path)
+        except OSError:
+            log.warning(
+                "Could not remove stale attachment file: %s", old_local_path, exc_info=True
+            )
+
+    if not stale_objects:
+        return
+    from app.services.attachment_store import StoreTarget, get_attachment_store
+
+    store = get_attachment_store()
+    if store.name != STORE_STATE_S3:
+        return
+    seen_objects = set()
+    for va_form_id, old_storage_name in stale_objects:
+        if not old_storage_name or (va_form_id, old_storage_name) in seen_objects:
+            continue
+        seen_objects.add((va_form_id, old_storage_name))
+        in_use = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSubmissionAttachments)
+            .where(
+                VaSubmissionAttachments.storage_name == old_storage_name,
+                VaSubmissionAttachments.exists_on_odk.is_(True),
+            )
+        )
+        if in_use and int(in_use) > 0:
+            continue
+        try:
+            store.delete(
+                StoreTarget(va_form_id=va_form_id, storage_name=old_storage_name)
+            )
+        except Exception:
+            log.warning(
+                "Could not remove a superseded attachment object for form %s",
+                va_form_id, exc_info=True,
+            )
+
+
+# ---------------------------------------------------------------------------
+# Repair
+#
+# Plan Phase 5: a row whose stored object is missing, or whose MP3 derivative
+# is stale, is rebuilt from ODK Central — the same fetch-and-store path
+# delivery uses to self-heal, run without a client waiting. A retired
+# submission is never probed, and a project with Central fetch switched off
+# reports that rather than reaching the network.
+# ---------------------------------------------------------------------------
+
+REPAIR_NOT_NEEDED = "not_needed"
+REPAIR_REPAIRED = "repaired"
+REPAIR_DERIVATIVE_REBUILT = "derivative_rebuilt"
+REPAIR_RETIRED = "retired"
+REPAIR_CENTRAL_DISABLED = "central_disabled"
+REPAIR_UNKNOWN_ROW = "unknown_row"
+REPAIR_MISSING = "missing"
+REPAIR_TRANSIENT = "transient"
+REPAIR_ERROR = "error"
+
+REPAIR_OUTCOMES = (
+    REPAIR_NOT_NEEDED, REPAIR_REPAIRED, REPAIR_DERIVATIVE_REBUILT,
+    REPAIR_RETIRED, REPAIR_CENTRAL_DISABLED, REPAIR_UNKNOWN_ROW,
+    REPAIR_MISSING, REPAIR_TRANSIENT, REPAIR_ERROR,
+)
+
+
+@dataclass(frozen=True)
+class RepairOutcome:
+    """What one repair attempt did. ``error_code`` is a category, never text."""
+
+    outcome: str
+    error_code: str | None = None
+
+    @property
+    def repaired(self) -> bool:
+        return self.outcome in (REPAIR_REPAIRED, REPAIR_DERIVATIVE_REBUILT)
+
+
+@dataclass(frozen=True)
+class _RepairContext:
+    """Stored facts that decide whether a row may be repaired at all."""
+
+    central_fetch_enabled: bool
+    retired: bool
+    derivative_state: str | None
+
+
+def _repair_context(record: AttachmentRecord) -> _RepairContext | None:
+    """One bounded read of the project flag, retirement, and derivative state."""
+    row = db.session.execute(
+        sa.select(
+            VaProjectMaster.attachment_central_fetch_enabled,
+            VaSubmissions.va_sync_issue_code,
+            VaSubmissionAttachments.local_fallback_state,
+            VaSubmissionAttachments.derivative_state,
+            VaSubmissionAttachments.source_state,
+        )
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(
+            VaProjectMaster,
+            VaProjectMaster.project_id == VaForms.project_id,
+            isouter=True,
+        )
+        .where(
+            VaSubmissionAttachments.va_sid == record.va_sid,
+            VaSubmissionAttachments.filename == record.filename,
+        )
+    ).first()
+    if row is None:
+        return None
+    return _RepairContext(
+        central_fetch_enabled=bool(row.attachment_central_fetch_enabled),
+        retired=(
+            row.va_sync_issue_code == MISSING_IN_ODK
+            or row.local_fallback_state == LOCAL_RETAINED
+            or row.source_state == SOURCE_RETIRED
+        ),
+        derivative_state=row.derivative_state,
+    )
+
+
+def _repair_outcome_for_fetch(outcome: str) -> str:
+    from app.services import attachment_source_central as central
+
+    if outcome == central.FETCH_NOT_FOUND:
+        return REPAIR_MISSING
+    if outcome in (central.FETCH_TRANSIENT, central.FETCH_THROTTLED):
+        return REPAIR_TRANSIENT
+    return REPAIR_ERROR
+
+
+def _rebuild_audio_derivative(record: AttachmentRecord, result) -> RepairOutcome:
+    """Rebuild one MP3 from the AMR original Central just handed us.
+
+    Central holds the AMR, never the MP3, so a missing or stale derivative can
+    only be repaired by fetching the original and converting it again. The
+    rebuilt object keeps the row's existing ``storage_name``, so no delivery
+    token rotates and nothing else has to be invalidated.
+    """
+    temp_path = new_ingest_temp_path(record.va_form_id)
+    try:
+        with open(temp_path, "wb") as handle:
+            for chunk in _iter_central_body(result):
+                handle.write(chunk)
+        etag = (result.response.headers.get("ETag")
+                or result.response.headers.get("etag"))
+        ingested = ingest_download(
+            va_sid=record.va_sid,
+            va_form_id=record.va_form_id,
+            filename=record.filename,
+            temp_path=temp_path,
+            mime_type=safe_mime_type(result.mime_type) or record.source_mime_type,
+            etag=etag,
+            downloaded_at=datetime.now(timezone.utc),
+            storage_name=record.storage_name,
+        )
+    except AmrConversionError:
+        remove_local_file_if_present(temp_path)
+        db.session.execute(
+            sa.update(VaSubmissionAttachments)
+            .where(
+                VaSubmissionAttachments.va_sid == record.va_sid,
+                VaSubmissionAttachments.filename == record.filename,
+            )
+            .values(
+                derivative_state=DERIVATIVE_ERROR,
+                derivative_error_code=DERIVATIVE_ERROR_CONVERSION_FAILED,
+            )
+        )
+        db.session.commit()
+        return RepairOutcome(REPAIR_ERROR, error_code=DERIVATIVE_ERROR_CONVERSION_FAILED)
+
+    values = dict(ingested.state_values)
+    values["local_path"] = ingested.local_path
+    if ingested.store_state == STORE_STATE_LOCAL:
+        values["local_fallback_state"] = LOCAL_PRESENT
+    db.session.execute(
+        sa.update(VaSubmissionAttachments)
+        .where(
+            VaSubmissionAttachments.va_sid == record.va_sid,
+            VaSubmissionAttachments.filename == record.filename,
+            VaSubmissionAttachments.local_fallback_state != LOCAL_RETAINED,
+        )
+        .values(**values)
+    )
+    db.session.commit()
+    invalidate_attachment_record(record.storage_name)
+    return RepairOutcome(REPAIR_DERIVATIVE_REBUILT)
+
+
+def repair_attachment(record: AttachmentRecord) -> RepairOutcome:
+    """Restore one attachment's bytes from ODK Central. No response, no client.
+
+    * a retired submission is never probed — ``retired``;
+    * a row whose object is present and whose derivative is ready needs
+      nothing — ``not_needed``;
+    * with the project's ``attachment_central_fetch_enabled`` off, nothing
+      reaches the network — ``central_disabled``;
+    * a missing original is fetched and written into the store through the
+      same ``_store_write`` tee delivery uses — ``repaired``;
+    * a ``pending``/``stale``/``error`` MP3 is rebuilt from the AMR original —
+      ``derivative_rebuilt``;
+    * a failed fetch keeps the fetch's own category: ``missing`` (Central says
+      not-found), ``transient`` (retry later), ``error`` (auth, configuration,
+      or an invalid redirect — never silently treated as missing).
+
+    ``attachment_source_central.record_fetch_state()`` persists what the
+    attempt proved about the source in every case, so a run that repairs
+    nothing still moves the row's observation forward.
+    """
+    from app.services.attachment_store import AttachmentStoreError, get_attachment_store
+
+    context = _repair_context(record)
+    if context is None:
+        return RepairOutcome(REPAIR_UNKNOWN_ROW)
+    if context.retired:
+        return RepairOutcome(REPAIR_RETIRED)
+
+    is_audio = is_audio_attachment(record.filename)
+    object_missing = not get_attachment_store().exists(record)
+    derivative_unready = is_audio and context.derivative_state != DERIVATIVE_READY
+    if not object_missing and not derivative_unready:
+        return RepairOutcome(REPAIR_NOT_NEEDED)
+    if not context.central_fetch_enabled:
+        return RepairOutcome(REPAIR_CENTRAL_DISABLED)
+
+    from app.services import attachment_source_central as central
+
+    result = central.fetch(record)
+    central.record_fetch_state(record, result)
+    if not result.ok:
+        return RepairOutcome(
+            _repair_outcome_for_fetch(result.outcome), error_code=result.error_code
+        )
+
+    if is_audio:
+        return _rebuild_audio_derivative(record, result)
+
+    try:
+        for _ in _store_write(record, _iter_central_body(result)):
+            pass
+    except AttachmentStoreError:
+        return RepairOutcome(REPAIR_ERROR)
+    if not get_attachment_store().exists(record):
+        return RepairOutcome(REPAIR_ERROR)
+    return RepairOutcome(REPAIR_REPAIRED)
+
+
+# ---------------------------------------------------------------------------
+# Readiness-driven completeness
+#
+# Plan Finding 4 and the retired-submission policy: whether a submission's
+# attachments are complete is a question about stored state — source state,
+# derivative state, store presence — not about counting files on a disk that
+# an S3 deployment does not have.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class SubmissionAttachmentState:
+    """Readiness of one submission's attachments, as completeness sees it.
+
+    ``ready_count`` counts attachment blobs DigitVA can actually serve;
+    ``unready`` names the ones it cannot. ``audit.csv`` is excluded from both,
+    matching the historical presence definition. A ``retired`` submission is
+    complete by policy: ODK has purged it and nothing may be fetched again.
+    """
+
+    va_sid: str
+    retired: bool
+    ready_count: int
+    unready: tuple[str, ...]
+
+
+def attachment_state_by_submission(
+    form_id: str,
+    *,
+    target_sids: list[str] | None = None,
+) -> dict[str, SubmissionAttachmentState]:
+    """Bulk readiness-based completeness input for one form.
+
+    One bounded query over the form's attachment rows — no filesystem walk, no
+    Central or S3 call, and no per-row probe (see ``resolve_attachment_presence``
+    for why an ``s3`` row's presence is its stored ``store_state``).
+
+    A row counts as ready when its blob is present in the store and, for audio,
+    its MP3 derivative is ``ready``. A row whose source Central reports gone
+    (``missing``/``retired``) never blocks completeness, because no repair can
+    ever satisfy it.
+    """
+    app_data_root = current_app.config.get("APP_DATA")
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.store_state,
+            VaSubmissionAttachments.source_state,
+            VaSubmissionAttachments.derivative_state,
+            VaSubmissions.va_sync_issue_code,
+        )
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissions.va_form_id == form_id,
+            VaSubmissionAttachments.exists_on_odk.is_(True),
+        )
+    )
+    if target_sids:
+        stmt = stmt.where(VaSubmissionAttachments.va_sid.in_(target_sids))
+
+    ready: dict[str, set[str]] = {}
+    unready: dict[str, list[str]] = {}
+    retired: dict[str, bool] = {}
+    for row in db.session.execute(stmt).mappings().all():
+        va_sid = row["va_sid"]
+        retired[va_sid] = (
+            retired.get(va_sid, False) or row["va_sync_issue_code"] == MISSING_IN_ODK
+        )
+        if (row["filename"] or "").lower() == AUDIT_FILENAME:
+            continue
+        if row["source_state"] in (SOURCE_MISSING, SOURCE_RETIRED):
+            continue
+        identity = resolve_attachment_presence(
+            app_data_root=app_data_root,
+            form_id=form_id,
+            local_path=row["local_path"],
+            storage_name=row["storage_name"],
+            store_state=row["store_state"],
+        )
+        derivative_ok = row["derivative_state"] in (None, DERIVATIVE_READY)
+        if identity and derivative_ok:
+            ready.setdefault(va_sid, set()).add(identity)
+        else:
+            unready.setdefault(va_sid, []).append(row["filename"])
+
+    return {
+        va_sid: SubmissionAttachmentState(
+            va_sid=va_sid,
+            retired=is_retired,
+            ready_count=len(ready.get(va_sid, ())),
+            unready=tuple(sorted(unready.get(va_sid, ()))),
+        )
+        for va_sid, is_retired in retired.items()
+    }
+
+
+def repair_candidates(
+    form_id: str,
+    *,
+    target_sids: list[str] | None = None,
+    limit: int = 200,
+) -> list[AttachmentRecord]:
+    """Attachment rows of one form that ``repair_attachment()`` could fix.
+
+    Bounded by ``limit`` and ordered so repeated runs make progress in a stable
+    order. Retired submissions are excluded here as well as inside
+    ``repair_attachment()``, so a retired row never costs a store probe.
+    """
+    states = attachment_state_by_submission(form_id, target_sids=target_sids)
+    wanted = {
+        (va_sid, filename)
+        for va_sid, state in states.items()
+        if not state.retired
+        for filename in state.unready
+    }
+    if not wanted:
+        return []
+
+    rows = db.session.execute(
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+            VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.mime_type,
+            VaSubmissionAttachments.source_mime_type,
+        )
+        .where(
+            VaSubmissionAttachments.va_sid.in_(sorted({sid for sid, _ in wanted})),
+            VaSubmissionAttachments.storage_name.is_not(None),
+        )
+        .order_by(VaSubmissionAttachments.va_sid, VaSubmissionAttachments.filename)
+    ).all()
+    candidates = [
+        AttachmentRecord(
+            va_sid=row.va_sid,
+            va_form_id=form_id,
+            storage_name=row.storage_name,
+            filename=row.filename,
+            local_path=row.local_path,
+            mime_type=row.mime_type,
+            source_mime_type=row.source_mime_type,
+        )
+        for row in rows
+        if (row.va_sid, row.filename) in wanted
+    ]
+    return candidates[:limit]
+
+
+# ---------------------------------------------------------------------------
+# Operator overview
+#
+# What the admin "Attachment Management" panel and ``flask attachments
+# overview`` both read. Bulk aggregates only: every figure is a GROUP BY over
+# indexed columns, nothing is resolved per row, and nothing here touches the
+# filesystem, the bucket, or ODK Central.
+# ---------------------------------------------------------------------------
+
+# Only the most recent error categories are interesting, and only as counts.
+OVERVIEW_ERROR_CATEGORY_LIMIT = 10
+
+
+def _overview_scope(stmt, project_ids):
+    if project_ids:
+        stmt = stmt.where(VaForms.project_id.in_(project_ids))
+    return stmt
+
+
+def _overview_state_counts(project_ids) -> dict[str, dict]:
+    """Per-form counts of every readiness state, in one grouped query."""
+    columns = {
+        "source_state": VaSubmissionAttachments.source_state,
+        "derivative_state": VaSubmissionAttachments.derivative_state,
+        "store_state": VaSubmissionAttachments.store_state,
+        "local_fallback_state": VaSubmissionAttachments.local_fallback_state,
+    }
+    per_form: dict[str, dict] = {}
+    for label, column in columns.items():
+        stmt = (
+            sa.select(
+                VaForms.form_id,
+                VaForms.project_id,
+                column.label("state"),
+                sa.func.count().label("rows"),
+            )
+            .select_from(VaSubmissionAttachments)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+            .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+            .group_by(VaForms.form_id, VaForms.project_id, column)
+        )
+        for row in db.session.execute(_overview_scope(stmt, project_ids)).all():
+            form = per_form.setdefault(
+                row.form_id,
+                {
+                    "form_id": row.form_id,
+                    "project_id": row.project_id,
+                    "source_state": {},
+                    "derivative_state": {},
+                    "store_state": {},
+                    "local_fallback_state": {},
+                    "retired_rows": 0,
+                    "awaiting_s3": 0,
+                },
+            )
+            form[label][row.state or "unset"] = int(row.rows or 0)
+    return per_form
+
+
+def _overview_retired_counts(project_ids) -> dict[str, int]:
+    """Attachment rows belonging to submissions retired from ODK, per form."""
+    stmt = (
+        sa.select(VaForms.form_id, sa.func.count().label("rows"))
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(VaSubmissions.va_sync_issue_code == MISSING_IN_ODK)
+        .group_by(VaForms.form_id)
+    )
+    return {
+        row.form_id: int(row.rows or 0)
+        for row in db.session.execute(_overview_scope(stmt, project_ids)).all()
+    }
+
+
+def _overview_awaiting_s3(project_ids) -> dict[str, int]:
+    """Rows whose blob is not yet in the bucket, per form. Empty on local."""
+    from app.services.attachment_store import get_attachment_store
+
+    if get_attachment_store().name != STORE_STATE_S3:
+        return {}
+    stmt = (
+        sa.select(VaForms.form_id, sa.func.count().label("rows"))
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaSubmissionAttachments.exists_on_odk.is_(True),
+            VaSubmissionAttachments.store_state != STORE_STATE_S3,
+        )
+        .group_by(VaForms.form_id)
+    )
+    return {
+        row.form_id: int(row.rows or 0)
+        for row in db.session.execute(_overview_scope(stmt, project_ids)).all()
+    }
+
+
+def _overview_error_categories(project_ids) -> list[dict]:
+    """Source error categories and how many rows carry each. Counts, not rows."""
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.source_error_code.label("category"),
+            sa.func.count().label("rows"),
+            sa.func.max(VaSubmissionAttachments.source_verified_at).label("last_seen"),
+        )
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(VaSubmissionAttachments.source_error_code.is_not(None))
+        .group_by(VaSubmissionAttachments.source_error_code)
+        .order_by(sa.func.count().desc())
+        .limit(OVERVIEW_ERROR_CATEGORY_LIMIT)
+    )
+    return [
+        {
+            "category": row.category,
+            "rows": int(row.rows or 0),
+            "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+        }
+        for row in db.session.execute(_overview_scope(stmt, project_ids)).all()
+    ]
+
+
+def _overview_projects(project_ids) -> list[dict]:
+    """Projects in scope and their Central self-heal switch."""
+    stmt = sa.select(
+        VaProjectMaster.project_id,
+        VaProjectMaster.attachment_central_fetch_enabled,
+    ).order_by(VaProjectMaster.project_id)
+    if project_ids:
+        stmt = stmt.where(VaProjectMaster.project_id.in_(project_ids))
+    return [
+        {
+            "project_id": row.project_id,
+            "attachment_central_fetch_enabled": bool(
+                row.attachment_central_fetch_enabled
+            ),
+        }
+        for row in db.session.execute(stmt).all()
+    ]
+
+
+def attachment_management_overview(project_ids: list[str] | None = None) -> dict:
+    """Everything the Attachment Management panel shows, in five bulk queries.
+
+    ``project_ids`` scopes every figure to those projects; ``None`` is all of
+    them. The result is JSON-ready and contains no submission identifiers, no
+    filenames, no URLs — only the projects in scope with their Central
+    self-heal switch, per-form counts by state, the process's delivery
+    counters, and source error categories.
+    """
+    from app.services.attachment_store import get_attachment_store
+
+    scope = [p for p in (project_ids or []) if p]
+    forms = _overview_state_counts(scope)
+    for form_id, retired_rows in _overview_retired_counts(scope).items():
+        if form_id in forms:
+            forms[form_id]["retired_rows"] = retired_rows
+    for form_id, awaiting in _overview_awaiting_s3(scope).items():
+        if form_id in forms:
+            forms[form_id]["awaiting_s3"] = awaiting
+
+    store = get_attachment_store()
+    return {
+        "store": store.name,
+        "project_ids": scope,
+        "projects": _overview_projects(scope),
+        "forms": [forms[form_id] for form_id in sorted(forms)],
+        "delivery_counters": delivery_counters(),
+        "source_error_categories": _overview_error_categories(scope),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Integrity
+#
+# The DB and the store must agree: every row that claims a blob has one, and
+# every blob is claimed by a row. Both sides are read in bounded pages, and
+# nothing is ever deleted — an orphan local file can be *moved* into a
+# quarantine subtree, and an orphan key is only reported.
+# ---------------------------------------------------------------------------
+
+INTEGRITY_PAGE_SIZE = 500
+
+
+def _normalized_local_path(app_data: Path, raw_path: str | None) -> Path | None:
+    if not raw_path:
+        return None
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = app_data / candidate
+    return candidate.resolve(strict=False)
+
+
+def orphan_quarantine_destination(source_path: Path) -> Path:
+    """Where one orphan file is moved to, under ``<media>/.orphaned/``.
+
+    The relative path below ``media`` is preserved, and an existing
+    destination is never overwritten — a numeric suffix is added instead.
+    """
+    try:
+        media_root = next(
+            parent for parent in source_path.parents if parent.name == "media"
+        )
+    except StopIteration as exc:
+        raise ValueError(f"Path is not under a media directory: {source_path}") from exc
+    relative_path = source_path.relative_to(media_root)
+    destination = media_root / ORPHAN_DIRNAME / relative_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    if not destination.exists():
+        return destination
+
+    suffix = "".join(destination.suffixes)
+    stem = destination.name[: -len(suffix)] if suffix else destination.name
+    counter = 1
+    while True:
+        candidate = destination.with_name(f"{stem}.{counter}{suffix}")
+        if not candidate.exists():
+            return candidate
+        counter += 1
+
+
+def quarantine_orphan_files(orphan_files) -> list[tuple[Path, Path]]:
+    """Move orphan files aside. Nothing is deleted; the move is reversible."""
+    moved: list[tuple[Path, Path]] = []
+    for source_path in orphan_files:
+        destination = orphan_quarantine_destination(source_path)
+        source_path.replace(destination)
+        moved.append((source_path, destination))
+    return moved
+
+
+def local_integrity_check(
+    *,
+    form_id: str | None = None,
+    quarantine_orphans: bool = False,
+) -> dict:
+    """Compare attachment rows against the files under ``APP_DATA/*/media``.
+
+    Reports rows with no file, files no row references, and rows pointing
+    outside ``APP_DATA``. With ``quarantine_orphans`` the orphan files are
+    moved into ``.orphaned/`` rather than removed.
+    """
+    app_data = Path(current_app.config["APP_DATA"]).resolve(strict=False)
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.exists_on_odk,
+            VaSubmissions.va_form_id,
+        )
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .order_by(
+            VaSubmissions.va_form_id,
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+        )
+    )
+    if form_id:
+        stmt = stmt.where(VaSubmissions.va_form_id == form_id)
+
+    referenced_paths: set[str] = set()
+    missing_rows: list[dict] = []
+    outside_app_data_rows: list[dict] = []
+    row_count = 0
+
+    for row in db.session.execute(stmt).mappings().yield_per(INTEGRITY_PAGE_SIZE):
+        row_count += 1
+        norm_path = _normalized_local_path(app_data, row["local_path"])
+        if norm_path is not None:
+            referenced_paths.add(str(norm_path))
+            if not str(norm_path).startswith(str(app_data) + os.sep):
+                outside_app_data_rows.append({
+                    "va_sid": row["va_sid"],
+                    "form_id": row["va_form_id"],
+                    "filename": row["filename"],
+                    "local_path": row["local_path"],
+                })
+        if row["exists_on_odk"] is not True:
+            continue
+        if norm_path is None:
+            missing_rows.append({
+                "reason": "local_path_null",
+                "va_sid": row["va_sid"],
+                "form_id": row["va_form_id"],
+                "filename": row["filename"],
+                "local_path": None,
+            })
+        elif not local_attachment_file_exists(str(norm_path)):
+            missing_rows.append({
+                "reason": "file_missing",
+                "va_sid": row["va_sid"],
+                "form_id": row["va_form_id"],
+                "filename": row["filename"],
+                "local_path": str(norm_path),
+            })
+
+    disk_file_count, disk_files = scan_local_media_files(app_data)
+    orphan_paths = [p for p in disk_files if str(p) not in referenced_paths]
+    moved_orphans: list[tuple[Path, Path]] = []
+    if quarantine_orphans and orphan_paths:
+        moved_orphans = quarantine_orphan_files(orphan_paths)
+        disk_file_count, disk_files = scan_local_media_files(app_data)
+        orphan_paths = [p for p in disk_files if str(p) not in referenced_paths]
+
+    return {
+        "store": STORE_STATE_LOCAL,
+        "app_data": str(app_data),
+        "form_id": form_id,
+        "rows_scanned": row_count,
+        "disk_files_scanned": disk_file_count,
+        "missing_rows": missing_rows,
+        "orphan_paths": orphan_paths,
+        "outside_app_data_rows": outside_app_data_rows,
+        "moved_orphans": moved_orphans,
+        "clean": not missing_rows and not orphan_paths,
+    }
+
+
+def s3_integrity_check(*, form_id: str | None = None) -> dict:
+    """Compare the rows recorded as S3-stored against what the bucket holds.
+
+    Rows are streamed and keys are listed one page at a time, so neither a
+    large table nor a large bucket is materialised. Nothing is written or
+    deleted. Raises ``AttachmentStoreError`` when the process is not on the S3
+    store, because there would be no bucket to compare against.
+    """
+    from app.services.attachment_store import (
+        AttachmentStoreError,
+        StoreTarget,
+        get_attachment_store,
+    )
+
+    store = get_attachment_store()
+    if store.name != STORE_STATE_S3:
+        raise AttachmentStoreError(
+            "ATTACHMENT_STORE is not 's3'; nothing to check against a bucket."
+        )
+
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+            VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.store_state,
+            VaSubmissions.va_form_id,
+        )
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(VaSubmissionAttachments.exists_on_odk.is_(True))
+        .order_by(VaSubmissions.va_form_id, VaSubmissionAttachments.va_sid)
+    )
+    if form_id:
+        stmt = stmt.where(VaSubmissions.va_form_id == form_id)
+
+    expected: dict[str, tuple[str, str, str]] = {}
+    not_yet_uploaded: list[tuple[str, str, str]] = []
+    row_count = 0
+    for row in db.session.execute(stmt).yield_per(INTEGRITY_PAGE_SIZE):
+        row_count += 1
+        if not row.storage_name:
+            continue
+        if row.store_state != STORE_STATE_S3:
+            not_yet_uploaded.append((row.va_form_id, row.va_sid, row.filename))
+            continue
+        key = store.key_for(
+            StoreTarget(va_form_id=row.va_form_id, storage_name=row.storage_name)
+        )
+        expected[key] = (row.va_form_id, row.va_sid, row.filename)
+
+    present_keys: set[str] = set()
+    for key, _size, _etag in store.iter_keys():
+        present_keys.add(key)
+
+    missing = [(key, meta) for key, meta in expected.items() if key not in present_keys]
+    orphans = sorted(present_keys - set(expected))
+    return {
+        "store": STORE_STATE_S3,
+        "key_prefix": store.key_prefix or "",
+        "form_id": form_id,
+        "rows_scanned": row_count,
+        "keys_listed": len(present_keys),
+        "missing_objects": missing,
+        "orphan_keys": orphans,
+        "awaiting_cutover": not_yet_uploaded,
+        "clean": not missing and not orphans,
+    }
+
+
+def integrity_check_summary(*, form_id: str | None = None) -> dict:
+    """Counts-only integrity summary for the selected store.
+
+    What the admin action and the Celery task record: no paths, no submission
+    identifiers, no keys — those stay in the CLI report an operator runs.
+    """
+    from app.services.attachment_store import get_attachment_store
+
+    if get_attachment_store().name == STORE_STATE_S3:
+        report = s3_integrity_check(form_id=form_id)
+        return {
+            "store": STORE_STATE_S3,
+            "form_id": form_id,
+            "rows_scanned": report["rows_scanned"],
+            "keys_listed": report["keys_listed"],
+            "missing_objects": len(report["missing_objects"]),
+            "orphan_keys": len(report["orphan_keys"]),
+            "awaiting_cutover": len(report["awaiting_cutover"]),
+            "clean": report["clean"],
+        }
+    report = local_integrity_check(form_id=form_id)
+    return {
+        "store": STORE_STATE_LOCAL,
+        "form_id": form_id,
+        "rows_scanned": report["rows_scanned"],
+        "disk_files_scanned": report["disk_files_scanned"],
+        "missing_files": len(report["missing_rows"]),
+        "orphan_files": len(report["orphan_paths"]),
+        "outside_app_data": len(report["outside_app_data_rows"]),
+        "clean": report["clean"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Migration (local -> S3 cutover)
+#
+# The pair behind ``flask attachments s3-upload`` / ``local-quarantine``.
+# Neither ever deletes an attachment: the upload copies local blobs into the
+# bucket and verifies what landed, and the quarantine only *moves* verified
+# local files aside so an operator can remove them after a retention window.
+# ---------------------------------------------------------------------------
+
+# Rows are read in keyset pages so the tools never load the whole table, and
+# so an interrupted run resumes from where it stopped.
+MIGRATION_PAGE_SIZE = 200
+_HASH_CHUNK_SIZE = 1024 * 1024
+
+# Quarantine destination under each form's media directory. Files are moved
+# here, never removed; the retention delete is a manual, documented step.
+QUARANTINE_DIRNAME = ".s3-uploaded"
+
+
+def require_s3_store():
+    """The selected store, or an error naming the configuration to change."""
+    from app.services.attachment_store import AttachmentStoreError, get_attachment_store
+
+    store = get_attachment_store()
+    if store.name != STORE_STATE_S3:
+        raise AttachmentStoreError(
+            "ATTACHMENT_STORE is not 's3'. Set ATTACHMENT_STORE=s3 (with the "
+            "S3_* variables) before running the cutover commands."
+        )
+    return store
+
+
+def migration_content_type(row) -> str:
+    """The MIME to store one row's blob under.
+
+    ``.amr`` rows hold an MP3 derivative, so the derivative's type wins for
+    them; every other row is its original. A missing, malformed, or literal
+    ``"null"`` value is discarded by ``safe_mime_type`` and the type is guessed
+    from the storage name before falling back to a generic binary type.
+    """
+    import mimetypes
+
+    from app.services.attachment_store import DEFAULT_CONTENT_TYPE
+
+    preferred = (
+        row.derivative_mime_type
+        if is_audio_attachment(row.filename)
+        else row.source_mime_type
+    )
+    for candidate in (preferred, row.mime_type):
+        resolved = safe_mime_type(candidate)
+        if resolved:
+            return resolved
+    guessed, _ = mimetypes.guess_type(row.storage_name or "")
+    return guessed or DEFAULT_CONTENT_TYPE
+
+
+def _file_md5(path: str) -> str:
+    # MD5 because that is what a single-part S3 ETag is; not a security hash.
+    import hashlib
+
+    digest = hashlib.md5(usedforsecurity=False)
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(_HASH_CHUNK_SIZE), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _upload_candidate_page(form_id, after, page_size):
+    """One keyset page of rows whose blob is not yet recorded as being in S3."""
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+            VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.mime_type,
+            VaSubmissionAttachments.source_mime_type,
+            VaSubmissionAttachments.derivative_mime_type,
+            VaSubmissions.va_form_id,
+        )
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissionAttachments.exists_on_odk.is_(True),
+            VaSubmissionAttachments.storage_name.is_not(None),
+            VaSubmissionAttachments.store_state != STORE_STATE_S3,
+        )
+        .order_by(VaSubmissionAttachments.va_sid, VaSubmissionAttachments.filename)
+        .limit(page_size)
+    )
+    if form_id:
+        stmt = stmt.where(VaSubmissions.va_form_id == form_id)
+    if after is not None:
+        stmt = stmt.where(
+            sa.tuple_(
+                VaSubmissionAttachments.va_sid, VaSubmissionAttachments.filename
+            ) > sa.tuple_(sa.literal(after[0]), sa.literal(after[1]))
+        )
+    return db.session.execute(stmt).all()
+
+
+def _upload_one(store, row, content_type, path):
+    """Upload one row's blob and verify what landed. Returns an error or None.
+
+    Runs on a worker thread: filesystem and network only, never the ORM
+    session and never the app context, so ``path`` is resolved by the caller.
+    Verification is size plus, for a single-part upload, the ETag against the
+    local MD5 — a partial or truncated object is a failure, not a silent
+    success.
+    """
+    from app.services.attachment_store import StoreTarget
+
+    if path is None:
+        return "no local file"
+    target = StoreTarget(
+        va_form_id=row.va_form_id,
+        storage_name=row.storage_name,
+        local_path=row.local_path,
+    )
+    try:
+        local_size = os.path.getsize(path)
+        key = store.key_for(target)
+        head = store.head(key)
+        if head is None or head.get("ContentLength") != local_size:
+            store.put(target, path, content_type=content_type)
+            head = store.head(key)
+
+        if head is None:
+            return "object missing after upload"
+        if head.get("ContentLength") != local_size:
+            return f"size mismatch (local {local_size}, stored {head.get('ContentLength')})"
+        etag = (head.get("ETag") or "").strip('"')
+        if etag and "-" not in etag and etag != _file_md5(path):
+            return "ETag does not match the local file"
+    except OSError:
+        return "local file could not be read"
+    except Exception as exc:
+        return f"upload failed ({type(exc).__name__})"
+    return None
+
+
+def s3_upload_backlog(
+    *,
+    form_id: str | None = None,
+    dry_run: bool = False,
+    limit: int = 0,
+    workers: int = 4,
+    on_progress=None,
+) -> dict:
+    """Copy local attachment blobs into the S3 store and point the rows at them.
+
+    Idempotent and resumable: rows already recorded as ``store_state='s3'`` are
+    not revisited, and a row whose object is already present with the right
+    size is verified rather than re-uploaded. Bounded memory — every blob is
+    streamed from its file. Local files are never deleted.
+
+    Attachments of submissions retired from ODK are uploaded too: the object
+    becomes their archive copy. ``on_progress`` is called with a message after
+    each page so a CLI can report without this function knowing about one.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from app.services.attachment_store import LocalAttachmentStore, StoreTarget
+
+    store = require_s3_store()
+    local_store = LocalAttachmentStore()
+    counts = {"scanned": 0, "uploaded": 0, "would_upload": 0, "failed": 0}
+    failures: list[str] = []
+    planned: list[str] = []
+    after = None
+
+    while True:
+        page_size = MIGRATION_PAGE_SIZE
+        if limit:
+            remaining = limit - counts["scanned"]
+            if remaining <= 0:
+                break
+            page_size = min(page_size, remaining)
+        rows = _upload_candidate_page(form_id, after, page_size)
+        if not rows:
+            break
+        after = (rows[-1].va_sid, rows[-1].filename)
+        counts["scanned"] += len(rows)
+
+        if dry_run:
+            counts["would_upload"] += len(rows)
+            planned.extend(
+                f"{row.va_form_id}/{row.storage_name} as {migration_content_type(row)}"
+                for row in rows
+            )
+            continue
+
+        # Local paths are resolved here, on the thread that holds the app
+        # context; the workers only move bytes.
+        plans = [
+            (
+                row,
+                migration_content_type(row),
+                local_store.open_local_path(StoreTarget(
+                    va_form_id=row.va_form_id,
+                    storage_name=row.storage_name,
+                    local_path=row.local_path,
+                )),
+            )
+            for row in rows
+        ]
+        with ThreadPoolExecutor(max_workers=min(max(workers, 1), len(plans))) as pool:
+            outcomes = list(pool.map(
+                lambda plan: _upload_one(store, plan[0], plan[1], plan[2]),
+                plans,
+            ))
+
+        for (row, _content_type, _path), error in zip(plans, outcomes, strict=True):
+            if error:
+                counts["failed"] += 1
+                failures.append(f"{row.va_form_id}/{row.storage_name}: {error}")
+                continue
+            db.session.execute(
+                sa.update(VaSubmissionAttachments)
+                .where(
+                    VaSubmissionAttachments.va_sid == row.va_sid,
+                    VaSubmissionAttachments.filename == row.filename,
+                )
+                .values(store_state=STORE_STATE_S3, local_path=None)
+            )
+            invalidate_attachment_record(row.storage_name)
+            counts["uploaded"] += 1
+        db.session.commit()
+        if on_progress:
+            on_progress(
+                f"... scanned={counts['scanned']} uploaded={counts['uploaded']} "
+                f"failed={counts['failed']}"
+            )
+
+    return {**counts, "failures": failures, "planned": planned}
+
+
+def quarantine_local_copies(
+    *,
+    form_id: str | None = None,
+    dry_run: bool = False,
+    include_retained: bool = False,
+    on_message=None,
+) -> dict:
+    """Move the local files of verified S3-stored rows into ``media/.s3-uploaded/``.
+
+    Nothing is deleted. Each file is moved only after its object is confirmed
+    present in the bucket, so the copy count never drops below one. Removing
+    the quarantined files after the retention window is a manual ``rm``, by
+    design. ``retained`` archival copies of retired submissions are skipped
+    unless ``include_retained`` is set.
+    """
+    from app.services.attachment_store import LocalAttachmentStore, StoreTarget
+
+    store = require_s3_store()
+    local_store = LocalAttachmentStore()
+
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.va_sid,
+            VaSubmissionAttachments.filename,
+            VaSubmissionAttachments.storage_name,
+            VaSubmissionAttachments.local_path,
+            VaSubmissionAttachments.local_fallback_state,
+            VaSubmissions.va_form_id,
+        )
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .where(
+            VaSubmissionAttachments.store_state == STORE_STATE_S3,
+            VaSubmissionAttachments.storage_name.is_not(None),
+        )
+        .order_by(VaSubmissionAttachments.va_sid, VaSubmissionAttachments.filename)
+    )
+    if form_id:
+        stmt = stmt.where(VaSubmissions.va_form_id == form_id)
+    if not include_retained:
+        stmt = stmt.where(
+            VaSubmissionAttachments.local_fallback_state != LOCAL_RETAINED
+        )
+
+    counts = {"moved": 0, "would_move": 0, "skipped_no_object": 0, "no_local_file": 0}
+    for row in db.session.execute(stmt).yield_per(MIGRATION_PAGE_SIZE):
+        target = StoreTarget(
+            va_form_id=row.va_form_id,
+            storage_name=row.storage_name,
+            local_path=row.local_path,
+        )
+        path = local_store.open_local_path(target)
+        if path is None:
+            counts["no_local_file"] += 1
+            continue
+        if not store.exists(target):
+            counts["skipped_no_object"] += 1
+            if on_message:
+                on_message(
+                    f"! no object yet for {row.va_form_id}/{row.storage_name}; "
+                    "left in place"
+                )
+            continue
+        if dry_run:
+            counts["would_move"] += 1
+            continue
+
+        quarantine_dir = os.path.join(
+            local_store.media_dir(target), QUARANTINE_DIRNAME
+        )
+        os.makedirs(quarantine_dir, exist_ok=True)
+        os.replace(path, os.path.join(quarantine_dir, row.storage_name))
+        db.session.execute(
+            sa.update(VaSubmissionAttachments)
+            .where(
+                VaSubmissionAttachments.va_sid == row.va_sid,
+                VaSubmissionAttachments.filename == row.filename,
+            )
+            .values(local_fallback_state=LOCAL_QUARANTINED)
+        )
+        counts["moved"] += 1
+        if counts["moved"] % MIGRATION_PAGE_SIZE == 0:
+            db.session.commit()
+    db.session.commit()
+    return counts
+
+
+def set_project_central_fetch(project_id: str, enabled: bool | None = None) -> bool:
+    """Read or set one project's Central self-heal flag. Returns the value.
+
+    The rollout switch for the Central fetch on a store miss: with it off a
+    miss is a 404 exactly as before, so disabling is always a safe rollback.
+    Raises ``LookupError`` for an unknown project.
+    """
+    project = db.session.get(VaProjectMaster, (project_id or "").strip().upper())
+    if project is None:
+        raise LookupError(f"Project '{project_id}' not found.")
+    if enabled is not None:
+        project.attachment_central_fetch_enabled = bool(enabled)
+        db.session.commit()
+        log.info(
+            "attachment central-fetch flag project=%s enabled=%s",
+            project.project_id, project.attachment_central_fetch_enabled,
+        )
+    return bool(project.attachment_central_fetch_enabled)

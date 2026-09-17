@@ -30,6 +30,7 @@ The `/admin` interface provides the following management panels:
 - **ODK Connections** — CRUD for ODK Central connections, encrypted credential storage, test connection, and project assignment
 - **Languages** — canonical language list management with ODK alias mapping. Shows unmapped language values found in submissions.
 - **COD Buckets** — admin editor for imported COD reporting schemes, including hierarchy labels/order and single-target ICD-to-disease remapping by age scope.
+- **Attachments** — Attachment Management: per-form attachment state, the Central self-heal switch, per-form repair, and the integrity check (see below)
 - **ICD-10 Browser** — admin browser for `mas_icd10_2019_2`, including lazy hierarchy traversal, local policy-field curation, JSON export of curated code-policy rows, XLSX export of editable ICD rows with coding policy and COD manual override status, and a read-only legacy ICD reporting alias table for historical CoD normalization used by COD bucket reporting.
 
 All state-changing routes in the admin panel enforce CSRF protection via the `X-CSRFToken` request header.
@@ -58,6 +59,7 @@ The sync dashboard also includes ODK-backed backfill tooling:
 The following panels are restricted to application-level admins:
 
 - ODK Connections
+- Attachments
 - Users
 - Sites
 - Projects
@@ -168,6 +170,46 @@ Current operational behavior:
 - admin connection tests and live ODK lookups fail fast while a connection is
   in cooldown
 - the same connection guard is used by sync and ODK write-back flows
+
+## Attachment Management Panel
+
+`/admin/panels/attachments` is the operator view over
+[`app/services/attachment_service.py`](../../app/services/attachment_service.py).
+The panel computes nothing itself and never shows a path, an object key, a
+filename or a submission id — it renders what the service returns.
+
+### What it shows
+
+`GET /admin/api/attachments/overview` (optionally `?project_id=`) returns, in
+five bulk `GROUP BY` queries with no filesystem, store or ODK Central access:
+
+- per form, counts by `source_state`, `derivative_state`, `store_state` and
+  `local_fallback_state`
+- per form, attachment rows belonging to submissions retired from ODK
+- per form, rows still awaiting S3 upload (`store_state != 's3'` while
+  `ATTACHMENT_STORE=s3`), rendered as an upload-progress bar
+- this worker's delivery outcome counters since start (`local`,
+  `central_stream`, `central_redirect_followed`, `unavailable`, `error`)
+- the source error categories in scope, as counts
+
+The same figures are available from the CLI as
+`flask attachments overview [--project-id X]`.
+
+### Actions
+
+| Action | Endpoint |
+|---|---|
+| Turn Central self-heal on or off for a project | `PUT /admin/api/projects/<project_id>/attachment-central-fetch` (the existing flag endpoint — the panel reuses it rather than duplicating it) |
+| Repair one form's unready attachments | `POST /admin/api/attachments/forms/<form_id>/repair` — creates a `va_sync_runs` row, queues `run_form_attachment_repair`, and returns the run id |
+| Check integrity against the store | `POST /admin/api/attachments/integrity-check` — queues `run_attachment_integrity_check`, whose counts land on its own `va_sync_runs` row |
+
+Both actions are bounded: a repair takes at most
+`ATTACHMENT_PANEL_REPAIR_MAX_SUBMISSIONS` (200) submissions per press and at
+most `ATTACHMENT_REPAIR_BATCH_LIMIT` (50) attachment rows per form per batch.
+All three endpoints are `@role_required("admin")` plus `is_admin()`, and the
+POSTs carry `X-CSRFToken` like every other admin action. These runs use their
+own `triggered_by` values (`att-repair`, `att-integrity`) so they do not appear
+in the sync dashboard's history.
 
 ## Languages Panel
 

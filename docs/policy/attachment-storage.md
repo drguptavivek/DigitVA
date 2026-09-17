@@ -51,12 +51,36 @@ All attachment decisions live in
 | Store-backed delivery of a legacy `/media` row | `deliver_legacy_media()` |
 | Delivery, store first and Central self-heal | `deliver()` |
 | Store-only delivery (never reaches Central) | `deliver_local_attachment()` |
+| Temp path for one download | `new_ingest_temp_path()` / `discard_ingest_temp_file()` |
+| Ingest one downloaded file (convert, store, state) | `ingest_download()` |
+| Row values for an attachment ODK no longer holds | `mark_removed_on_odk()` |
+| Single-row store presence (sync's 304 self-heal) | `attachment_present()` |
+| Remove blobs a fresh ingest replaced | `cleanup_superseded()` |
+| Repair one attachment from ODK Central | `repair_attachment()` |
+| Rows a repair could fix, bounded | `repair_candidates()` |
+| Readiness-based completeness input | `attachment_state_by_submission()` |
+| Operator overview (admin panel, CLI) | `attachment_management_overview()` |
+| Integrity against the store | `local_integrity_check()` / `s3_integrity_check()` / `integrity_check_summary()` |
+| Orphan quarantine (local store only) | `quarantine_orphan_files()` |
+| Local -> S3 cutover | `s3_upload_backlog()` / `quarantine_local_copies()` |
+| Per-project Central self-heal switch | `set_project_central_fetch()` |
 
 Rules:
 
-- No module outside the attachment service performs a filesystem existence
-  check for an attachment. Routes, render code, sync tasks, admin telemetry,
-  and `scripts/check_attachment_integrity.py` call the service.
+- The attachment service is a deep module: it owns the whole lifecycle —
+  ingest, storage, derivatives, repair, retirement and migration — not just
+  serving. **No module outside `attachment_service` performs a filesystem,
+  store or ODK Central operation for an attachment.** Routes, render code,
+  sync (`app/utils/va_odk/va_odk_07_syncattachments.py`), sync tasks, admin
+  telemetry, `app/commands/attachments.py` and
+  `scripts/check_attachment_integrity.py` all call the service; the CLI and the
+  script hold no logic of their own.
+- Attachment sync lists attachments from Central, issues the conditional GET,
+  writes the body to the temp path the service hands it, calls
+  `ingest_download()`, and applies the returned state with its PK-safe upsert.
+  It imports no `os`, `subprocess`, `tempfile` or `pathlib`, knows nothing
+  about a media directory, and never calls the store. A test enforces this
+  (`tests/test_sync_attachments_boundary.py`).
 - Callers learn nothing about where bytes live. Replacing the local-disk
   implementation with Central-backed delivery is a change to this module's
   internals, not to its callers.
@@ -247,6 +271,14 @@ The fetch itself:
   inactive, or ambiguous mapping fails closed;
 - reuses one pyODK client per connection per thread, so an attachment request
   does not pay for an authentication handshake;
+- issues the request through a **no-retry clone** of that connection's session.
+  pyODK mounts `Retry(total=3, backoff_factor=2,
+  status_forcelist=(429, 500, 502, 503, 504))`, which is right for a sync
+  worker and wrong for a caller that must answer now: one `503` would cost
+  roughly fourteen seconds of backoff before classification. The clone shares
+  the credentials, cookies and TLS settings and mounts
+  `HTTPAdapter(max_retries=0)`; the shared session sync depends on is never
+  mutated;
 - streams with bounded connect/read timeouts
   (`ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS`,
   `ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS`) and never buffers a body whole;
@@ -262,10 +294,52 @@ The fetch itself:
   a `307` to a bucket is a rejection, not a handoff. Because only same-origin
   redirects are followed, the ODK credential never leaves the Central origin.
 
+## Repair
+
+`repair_attachment(record)` restores one attachment's bytes without a client
+waiting. It shares the store-write tee (`_store_write`) with request-path
+delivery, so both fill the store the same way, and reports one outcome:
+
+| Outcome | When |
+|---|---|
+| `retired` | the submission is gone from ODK. Nothing is probed. |
+| `not_needed` | the object is present and, for audio, the derivative is `ready`. |
+| `central_disabled` | the project's `attachment_central_fetch_enabled` is off. No request is made. |
+| `repaired` | a missing original was fetched from Central and written into the store. |
+| `derivative_rebuilt` | a `pending`/`stale`/`error` MP3 was rebuilt from the AMR original under the row's existing `storage_name`. |
+| `missing` | Central reports not-found. |
+| `transient` | a timeout, throttle, or `5xx`; retry later. |
+| `error` | auth, configuration, an invalid redirect, or a failed conversion — never reported as "missing". |
+| `unknown_row` | no attachment row for that record. |
+
+Every attempt records what it proved about the source through
+`attachment_source_central.record_fetch_state()`, so a run that repairs nothing
+still moves the row's observation forward. `repair_candidates(form_id)` is the
+bounded list a batch works from, and it excludes retired submissions before any
+store probe.
+
 ## Presence and completeness
 
 Presence for a row is routed through the store and is the single definition
-used by repair maps, admin backfill telemetry, and the integrity script.
+used by repair maps, admin backfill telemetry, and the integrity check.
+
+Completeness is **readiness**, not a file count.
+`attachment_state_by_submission(form_id)` is the single input: one bounded
+query per form, no filesystem walk and no per-row store probe. For each
+submission it reports
+
+- `retired` — the submission is gone from ODK
+  ([policy](odk-retired-submissions.md)). Its attachments never make it
+  incomplete, because no repair may ever run for them;
+- `ready_count` — attachment rows whose blob is present in DigitVA's store
+  and, for audio, whose MP3 derivative is `ready`. `audit.csv` is excluded, as
+  it always has been;
+- `unready` — the rows that are not ready. A row whose source Central reports
+  gone (`missing`/`retired`) is in neither list: it can never be satisfied.
+
+A submission's attachments are complete when it is retired, or when
+`ready_count >= AttachmentsExpected`, nothing is `unready`, and it has no
+legacy rows still lacking an opaque `storage_name`.
 
 For a `store_state='local'` row:
 
@@ -298,7 +372,9 @@ Semantics**).
   existing row is left untouched. A failed conversion is never recorded as a
   `.mp3` storage name pointing at a non-MP3 blob.
 - Conversion is retried by ordinary attachment repair because the row remains
-  incomplete.
+  incomplete. `repair_attachment()` rebuilds a `pending`, `stale` or `error`
+  derivative by fetching the AMR original from Central and converting it again
+  under the row's existing `storage_name`, so no delivery token rotates.
 
 ## Source and derivative state
 

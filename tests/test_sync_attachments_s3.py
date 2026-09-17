@@ -65,8 +65,10 @@ class SyncToS3StoreTests(TestCase):
         self.addCleanup(self.ctx.pop)
         self.store = store_mod.get_attachment_store()
 
-        self.media_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.media_dir.cleanup)
+        self.app_data = tempfile.TemporaryDirectory()
+        self.addCleanup(self.app_data.cleanup)
+        self.app.config["APP_DATA"] = self.app_data.name
+        self.media_dir = os.path.join(self.app_data.name, self.FORM_ID, "media")
         self.va_form = SimpleNamespace(
             project_id="PROJ01",
             odk_project_id="11",
@@ -79,7 +81,6 @@ class SyncToS3StoreTests(TestCase):
             self.va_form,
             "uuid:abc",
             "uuid:abc-form01",
-            self.media_dir.name,
             {},
             {},
             {},
@@ -91,8 +92,14 @@ class SyncToS3StoreTests(TestCase):
             store_mod.StoreTarget(va_form_id=self.FORM_ID, storage_name=storage_name)
         )
 
+    def _media_files(self):
+        """Everything this app server left on disk for the form, if anything."""
+        if not os.path.isdir(self.media_dir):
+            return []
+        return sorted(os.listdir(self.media_dir))
+
     def _leftover_temp_files(self):
-        return [name for name in os.listdir(self.media_dir.name) if name.startswith(".tmp_")]
+        return [name for name in self._media_files() if name.startswith(".tmp_")]
 
     def test_image_download_is_put_in_the_bucket_and_leaves_no_local_file(self):
         result = self._run([
@@ -113,7 +120,7 @@ class SyncToS3StoreTests(TestCase):
         self.assertIsNotNone(head)
         self.assertEqual(head["ContentLength"], len(b"image-bytes"))
         self.assertEqual(head["ContentType"], "image/jpeg")
-        self.assertEqual(os.listdir(self.media_dir.name), [])
+        self.assertEqual(self._media_files(), [])
 
     def test_amr_is_converted_then_put_as_the_mp3_derivative(self):
         def fake_convert(amr_path, form_id, output_path=None):
@@ -122,7 +129,7 @@ class SyncToS3StoreTests(TestCase):
                 handle.write(b"mp3-bytes")
             return output_path
 
-        with patch.object(sync, "_convert_amr_to_mp3", side_effect=fake_convert):
+        with patch.object(svc, "_convert_amr_to_mp3", side_effect=fake_convert):
             result = self._run([
                 _FakeResponse(json_data=[{"name": "narration.amr", "exists": True}]),
                 _FakeResponse(
@@ -137,7 +144,7 @@ class SyncToS3StoreTests(TestCase):
         head = self.store.head(self._key(change.storage_name))
         self.assertEqual(head["ContentType"], svc.DERIVATIVE_MIME_TYPE)
         self.assertEqual(head["ContentLength"], len(b"mp3-bytes"))
-        self.assertEqual(os.listdir(self.media_dir.name), [])
+        self.assertEqual(self._media_files(), [])
 
     def test_a_failed_upload_records_an_error_and_leaves_nothing_behind(self):
         with patch.object(
@@ -163,7 +170,6 @@ class SyncToS3StoreTests(TestCase):
             self.va_form,
             "uuid:abc",
             "uuid:abc-form01",
-            self.media_dir.name,
             {"photo.jpg": '"abc"'},
             {"photo.jpg": None},
             {"photo.jpg": "token.jpg"},

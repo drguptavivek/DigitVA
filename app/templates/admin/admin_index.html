@@ -167,6 +167,17 @@
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="Attachments"
+           data-panel="/admin/panels/attachments"
+           hx-get="/admin/panels/attachments"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-paperclip admin-nav-icon"></i>
+          <span class="admin-nav-label">Attachments</span>
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
            title="Activity"
            data-panel="/admin/panels/activity"
            hx-get="/admin/panels/activity"

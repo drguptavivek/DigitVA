@@ -226,10 +226,20 @@ repair behavior instead of introducing a second custom repair implementation.
 
 ## Attachment repair semantics
 
-Attachment repair is complete only when both are true:
+Attachment repair is complete when all three are true:
 
-- all expected current-payload attachments are present locally
+- the submission is **not** retired from ODK — a retired submission's
+  attachments never make it incomplete, because ODK has purged the source and
+  no repair may run ([policy](../policy/odk-retired-submissions.md)) — **or**
+- every expected current-payload attachment is *ready*: its blob is in
+  DigitVA's store and, for `.amr` narration, its MP3 derivative is `ready`
 - no legacy attachment rows remain for those ODK-backed files
+
+Readiness is read once per form through
+`attachment_service.attachment_state_by_submission()`, which reports
+`retired`, `ready_count` and the `unready` filenames without a filesystem walk
+or a per-row store probe. A row whose source Central reports gone
+(`source_state` `missing`/`retired`) blocks nothing: no repair can satisfy it.
 
 Legacy attachment rows are rows where:
 
@@ -266,18 +276,21 @@ local-only (no ODK calls) and loads automatically on panel load.
 |----------|--------------|---------------|
 | **Local Data** | Always shown as total count | N/A |
 | **Metadata** | All 8 fields present: `va_summary`, `va_category_list`, `FormVersion`, `DeviceID`, `SubmitterID`, `instanceID`, `AttachmentsExpected`, `AttachmentsPresent` | `local_total - metadata_complete` |
-| **Attachments** (non-audit) | `present_file_count >= AttachmentsExpected` AND `legacy_count == 0`. `audit.csv` excluded from file count. | `expected - present` |
+| **Attachments** (non-audit) | The submission is retired, OR `ready_count >= AttachmentsExpected` AND nothing is `unready` AND `legacy_count == 0`. `audit.csv` excluded from the ready count. | `expected - present` |
 | **Audit** | `audit.csv` present on disk | `audit_expected - audit_present` (informational only, does NOT gate completeness) |
 | **Legacy** | `storage_name IS NOT NULL` on all `exists_on_odk=true` attachment rows | Rows where `storage_name IS NULL` |
 | **SmartVA** | Active `va_smartva_results` row exists for `active_payload_version_id` with non-empty `cause1` | `eligible - complete - failed` |
 
-### What counts as a present attachment file
+### What counts as a ready attachment
 
-Presence is decided only by the attachment service
-(`resolve_local_attachment_path()` / `present_attachment_files_by_submission()`
+Readiness is decided only by the attachment service
+(`attachment_state_by_submission()` / `resolve_attachment_presence()` /
+`present_attachment_files_by_submission()`
 in [`app/services/attachment_service.py`](../../app/services/attachment_service.py));
 `_build_repair_map_for_form`, the admin backfill-stats endpoint, and the
-integrity script all call it rather than checking disk themselves. Policy:
+integrity check all call it rather than checking disk themselves. An `s3` row's
+presence **is** its stored `store_state`, so an S3 deployment is complete with
+no file on this app server. Policy:
 [Attachment Storage and Delivery Policy](../policy/attachment-storage.md).
 
 File resolution order per `va_submission_attachments` row:
@@ -319,10 +332,24 @@ SmartVA repair proceeds.
 
 If `needs_attachments` is still true:
 
-1. Creates `APP_DATA/<form_id>/media/` directory
-2. Downloads ALL attachments from ODK (including `audit.csv`)
-3. Migrates legacy rows to opaque `storage_name`
-4. **`db.session.commit()`** — saves attachment rows and files
+1. Downloads ALL attachments from ODK (including `audit.csv`) and hands each
+   one to `attachment_service.ingest_download()`, which converts, stores and
+   returns the readiness state
+2. Migrates legacy rows to opaque `storage_name`
+3. **`db.session.commit()`** — saves attachment rows and blobs
+
+Then, once per batch, `_run_canonical_repair_batches` runs a bounded second
+pass: for each form in the batch it takes up to
+`ATTACHMENT_REPAIR_BATCH_LIMIT` (50) rows from
+`attachment_service.repair_candidates()` and calls
+`attachment_service.repair_attachment()` on each. That is what rebuilds a store
+object that went missing and an MP3 derivative that is `pending`, `stale` or
+`error` — Central holds the AMR, never the MP3, so only a refetch-and-convert
+can fix one. The run's progress log records outcome counts only
+(`repaired`, `derivative_rebuilt`, `retired`, `central_disabled`, `missing`,
+`transient`, `error`) — no filenames, no submission ids, no URLs. Outcome
+meanings are in
+[the attachment storage policy](../policy/attachment-storage.md#repair).
 
 ### Step 5: Workflow advancement
 

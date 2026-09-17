@@ -341,6 +341,18 @@ If-None-Match: <stored_etag>
 → 200 + binary      (download — write file, update ETag record)
 ```
 
+Sync owns the *network* half only. It lists the attachments, issues the
+conditional GET, writes the body to the temp path
+`attachment_service.new_ingest_temp_path()` hands it, calls
+`attachment_service.ingest_download()`, and applies the readiness state that
+comes back with its PK-safe upsert. Everything else — AMR→MP3 conversion, the
+store write (local file or S3 object), the opaque `storage_name`, presence, and
+the removal of superseded blobs — belongs to
+[`app/services/attachment_service.py`](../../app/services/attachment_service.py).
+`va_odk_07_syncattachments.py` imports no `os`, `subprocess`, `tempfile` or
+`pathlib`, knows no media directory, and never calls the store; a test enforces
+this (`tests/test_sync_attachments_boundary.py`).
+
 Current implementation detail:
 
 - attachment downloads are streamed to disk in chunks rather than buffered via
@@ -349,9 +361,13 @@ Current implementation detail:
   `ODK_CONNECT_TIMEOUT_SECONDS` and `ODK_READ_TIMEOUT_SECONDS`
 - the upstream `Content-Type` is validated before it is stored; an empty,
   malformed, or literal `"null"` value is stored as `NULL`
-- `.amr` narration is converted to MP3 with SoX; a failed conversion raises
-  `AmrConversionError`, leaves no partial `.mp3`, counts as an attachment
-  error, and leaves the existing row untouched so ordinary repair retries it
+- `.amr` narration is converted to MP3 with SoX **inside the attachment
+  service**; a failed conversion raises `AmrConversionError`, leaves no partial
+  `.mp3` and no temp file, counts as an attachment error, and leaves the
+  existing row untouched so ordinary repair retries it
+- the `304` branch asks `attachment_service.attachment_present()` whether the
+  store already holds the blob; sync never stats a file or reads `store_state`
+  itself
 - attachment serving (`/vaform/attachment/<storage_name>`) enforces the
   submission-level authorization matrix and `Cache-Control: private, no-store`
   defined in the [Attachment Storage and Delivery Policy](../policy/attachment-storage.md)
@@ -395,8 +411,10 @@ Primary key: `(va_sid, filename)`.
 The same rows also carry the readiness state added in Phase 2 of the
 [Central attachment plan](../planning/s3-attachment-plan.md) (migration
 `b7e4c2a91d38`; column reference in
-[the data model](data-model.md#va_submission_attachments)). Sync is the only
-writer today, in `_apply_submission_attachment_result`:
+[the data model](data-model.md#va_submission_attachments)). The values are
+decided by `attachment_service.ingest_download()` and
+`attachment_service.mark_removed_on_odk()`; sync applies them in
+`_apply_submission_attachment_result`:
 
 | Outcome | Columns written |
 |---|---|
@@ -405,9 +423,14 @@ writer today, in `_apply_submission_attachment_result`:
 | ODK no longer lists the file (`exists=false`) | `source_state='missing'` (the local blob and its derivative record are not rewritten) |
 | `AmrConversionError` | `derivative_state='error'`, `derivative_error_code='conversion_failed'` on the existing row; every other column, including `storage_name` and `local_path`, is left as it was |
 
-Nothing reads these columns for a decision yet: attachment presence is still
-resolved from disk until Phase 4. `mime_type` keeps its existing meaning and is
-not repurposed — the original's validated type is `source_mime_type`.
+These columns are now what completeness decides on:
+`attachment_service.attachment_state_by_submission()` reports, per submission,
+whether it is retired, how many attachment blobs are ready (present in the
+store, and for audio with a `ready` derivative), and which are not — see
+[the repair workflow](odk-repair-workflow.md) and
+[the attachment storage policy](../policy/attachment-storage.md). `mime_type`
+keeps its existing meaning and is not repurposed — the original's validated
+type is `source_mime_type`.
 
 ### Audio conversion
 

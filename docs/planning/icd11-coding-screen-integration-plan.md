@@ -72,7 +72,7 @@ runtime WHO dependency. The container/ECT remain a later, optional upgrade.
 | D3 | Source of ICD-11 allowability | Selectable set = expansion of the WHO 2026 annex ICD-11 ranges over `mas_icd11_mms` linearization order (stem codes only). Age/sex exceptions mirror the ICD-10 policy per VA cause (neonatal causes -> `neonate`, maternal -> `female`, etc.). Shipped as a generated policy JSON like ICD-10, editable per code in the admin panel. Needs clinical sign-off before production. |
 | D4 | Record-level classification stamp | Add nullable `icd_classification` to the four assessment tables (backfilled `icd10`). Records stay self-describing if a form's setting changes later. |
 | D5 | Changing a form from ICD-10 to ICD-11 mid-project | Allowed. Existing records keep their stamp; new coding and recodes use the current form setting. Mixed classification within one project is reported per record. |
-| D6 | Bucket reporting for ICD-11 | Out of scope here. Until an ICD-11 bucket mapping exists, ICD-11-coded deaths show `final_icd = NULL` and are reported as unbucketed. Tracked as a follow-up. |
+| D6 | Bucket reporting for ICD-11 | Out of scope here. Until an ICD-11 bucket mapping exists, ICD-11-coded deaths show `final_icd = NULL` and are reported as unbucketed. Tracked as a follow-up. **Confirmed 2026-09-17:** when built, the WHO 2026 annex ICD-11 ranges are the authoritative source for ICD-11 to VA bucket assignment; translating through WHO's ICD-11 to ICD-10 mapping table is advisory only, a cross-check that routes disagreements to clinical review. |
 
 ## Design
 

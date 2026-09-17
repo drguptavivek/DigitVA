@@ -6,7 +6,7 @@ docs/icd-causegrp-mappings/migration-artifacts/icd11-mms-2026-01-base-2026-09-16
 See docs/policy/icd11-reference-catalog.md.
 
 Revision ID: b6edb1b7d01a
-Revises: d9e3f5a7b2c4
+Revises: c8d2e4f6a1b3
 Create Date: 2026-09-17 00:00:00.000000
 """
 
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "b6edb1b7d01a"
-down_revision = "d9e3f5a7b2c4"
+down_revision = "c8d2e4f6a1b3"
 branch_labels = None
 depends_on = None
 

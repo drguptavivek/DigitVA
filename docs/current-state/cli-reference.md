@@ -130,3 +130,20 @@ Optional filters:
 
 - `--sid=...` to restrict to one submission
 - `--limit=N` to cap inspected candidates
+
+---
+
+## `attachments` — Attachment delivery settings
+
+| Command | Description |
+|---------|-------------|
+| `attachments central-fetch <PROJECT_ID>` | Report whether store misses may be self-healed from ODK Central for this project (default action). |
+| `attachments central-fetch <PROJECT_ID> --enable` | Allow a store miss on a live submission to be fetched from the project's ODK Central connection, streamed to the browser, and written into DigitVA's store. |
+| `attachments central-fetch <PROJECT_ID> --disable` | Return the project to store-only delivery: a store miss is a `404`, as before. |
+
+The flag is `va_project_master.attachment_central_fetch_enabled` and defaults to
+off. Delivery always reads DigitVA's own store first, so disabling is a complete
+rollback with no data change. The same switch is exposed at
+`PUT /admin/api/projects/<project_id>/attachment-central-fetch` and as a toggle
+in the admin Projects panel. See
+[the attachment storage policy](../policy/attachment-storage.md).

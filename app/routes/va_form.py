@@ -1343,7 +1343,7 @@ def serve_attachment(storage_name_raw):
       2. Format validation → 404
       3. Record lookup (exists_on_odk=True only) → 404
       4. Submission-level authorization for the current user → 403
-      5. Delivery (path guard, presence, no-store) → 404 / 200
+      5. Delivery (local or Central-backed, no-store) → 200 / 404 / 502 / 503
 
     Everything after the format check is delegated to the attachment service;
     this route learns nothing about where the bytes live.
@@ -1364,7 +1364,7 @@ def serve_attachment(storage_name_raw):
         )
         abort(403)
 
-    return attachment_service.deliver_local_attachment(record)
+    return attachment_service.deliver(record)
 
 
 @va_form.route('/media/<va_form_id>/<va_filename>')

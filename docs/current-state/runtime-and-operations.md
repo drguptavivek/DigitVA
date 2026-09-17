@@ -196,6 +196,72 @@ Operational implication:
 - targeted operational repairs are also exposed through Flask CLI commands, including
   historical Step 1 reactivation after the old final-COD deactivation behavior
 
+## Attachment Delivery
+
+### Two copies, and which one is read
+
+DigitVA keeps its **own permanent copy** of every attachment — originals and the
+MP3 derivatives it makes — and that store is the read path for
+`/vaform/attachment/<storage_name>`. ODK Central keeps its own copy and remains
+the source of truth for existence and content, but it is not consulted on every
+request. The store is local files under `APP_DATA/<form_id>/media/` today and a
+DigitVA-owned bucket in a later phase; the delivery path does not know which,
+because the store is reached only through `_store_exists` / `_store_open` /
+`_store_write` in `app/services/attachment_service.py`.
+
+Delivery order:
+
+1. the store has the object -> serve it (`Range` supported, `private, no-store`);
+2. store miss, and the submission is retired, the row is an MP3 derivative, or
+   the project flag is off -> `404`, exactly as before;
+3. store miss otherwise -> fetch the original from the project's own ODK Central
+   connection, stream it to the browser, and write it into the store on the way
+   past (temp file plus atomic rename, so a failed fetch leaves nothing behind);
+4. a failed fetch is `404` (Central says not-found), `503` with `Retry-After`
+   (timeout, throttle, transient 5xx), or `502` (authentication, unmapped
+   connection, rejected redirect) — never a silent success.
+
+### Enabling it per project
+
+Self-heal is off by default and enabled one project at a time:
+
+```
+docker compose exec minerva_app_service uv run flask attachments central-fetch <PROJECT_ID> --enable
+docker compose exec minerva_app_service uv run flask attachments central-fetch <PROJECT_ID> --status
+docker compose exec minerva_app_service uv run flask attachments central-fetch <PROJECT_ID> --disable
+```
+
+Equivalent admin API: `PUT /admin/api/projects/<project_id>/attachment-central-fetch`
+with `{"attachment_central_fetch_enabled": true|false}` (admin only, CSRF via
+`X-CSRFToken`), and a per-row toggle in the admin Projects panel.
+
+A project with no active `map_project_odk` connection fails closed: delivery
+reports a configuration error rather than reaching for any other Central
+server. There is no global or default connection.
+
+### Config keys
+
+| Key | Default | Meaning |
+|---|---|---|
+| `ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS` | `5` | Connect timeout for a request-path fetch from Central. |
+| `ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS` | `30` | Read timeout for the same. Deliberately tighter than `ODK_READ_TIMEOUT_SECONDS`, which is the sync-path value. |
+| `ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS` | `1` | How long a request-path fetch may queue behind the shared ODK pacing interval before failing fast. Sync keeps sleeping out the full interval; a coder's image request must not occupy a worker doing that. |
+
+### What to watch
+
+- The one structured log line per delivery:
+  `attachment delivery outcome=<...> latency_ms=<...> sid=<...> form=<...> error=<...>`,
+  with `outcome` one of `local`, `central_stream`, `central_redirect_followed`,
+  `unavailable`, `error`. No URLs, query strings, headers, or payloads are logged.
+- The matching in-process counters, `attachment_service.delivery_counters()`.
+  A rising `central_stream` rate after the initial fill means the store is
+  losing objects; any sustained `error` means a connection or redirect problem,
+  not a missing attachment.
+- `va_submission_attachments.source_state` / `source_error_code`: `available`
+  after an observed content response, `missing` when Central reports not-found,
+  `error` with a category otherwise. A row already proved `available` is not
+  downgraded by a transient failure.
+
 ## Logging
 
 ### Current logging implementation

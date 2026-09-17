@@ -14,13 +14,17 @@ attachment, how presence is decided, how bytes are delivered, and what a
 failed derivative looks like. The migration that this baseline prepares for is
 described in [the Central S3 attachment plan](../planning/s3-attachment-plan.md).
 
-## Source of truth
+## Source of truth, and the two copies
 
-- ODK Central is the source of truth for original attachment content.
-- DigitVA stores attachment identity and metadata in
-  `va_submission_attachments`; today it also stores a local copy under
-  `APP_DATA/<form_id>/media/` and, for `.amr` narration, an MP3 derivative in
-  place of the original.
+- ODK Central is the source of truth for whether an original attachment exists
+  and what its content is.
+- DigitVA keeps its **own permanent copy** of every attachment — originals and
+  the MP3 derivatives it makes from `.amr` narration — in a DigitVA-owned
+  store, and that store is the read path. Central is consulted only to fill a
+  store miss, never on every request.
+- The store is local files under `APP_DATA/<form_id>/media/` today and a
+  DigitVA-owned bucket in a later phase. Nothing outside
+  `app/services/attachment_service.py` knows which.
 - The opaque `storage_name` token is an **identifier, never a capability**.
   Legacy backfilled tokens are deterministically derivable from `va_sid` and
   filename, so possession of a token grants nothing on its own.
@@ -40,7 +44,9 @@ All attachment decisions live in
 | Mark an audio derivative as needing a rebuild | `mark_audio_derivative_stale()` |
 | Visibility check without submission identity | `is_attachment_present_for_form()` |
 | Filesystem inventory for the integrity script | `scan_local_media_files()` |
-| Delivery with path guard and cache policy | `deliver_local_attachment()` |
+| Store lookup / read / tee-write | `_store_exists()` / `_store_open()` / `_store_write()` |
+| Delivery, store first and Central self-heal | `deliver()` |
+| Store-only delivery (never reaches Central) | `deliver_local_attachment()` |
 
 Rules:
 
@@ -82,16 +88,95 @@ Tests: [`tests/routes/test_serve_attachment.py`](../../tests/routes/test_serve_a
 
 ## Delivery
 
-- Attachment responses carry `Cache-Control: private, no-store, max-age=0`
-  and `X-Content-Type-Options: nosniff`. PHI image and audio bytes must not be
+`deliver()` is the single entry point. Authorization has already happened in
+the route; delivery only decides where the bytes come from.
+
+| Step | Condition | Result |
+|---|---|---|
+| 1 | The store holds the object | Serve it. Central is not contacted. Outcome `local`. |
+| 2 | Store miss, submission retired ([policy](odk-retired-submissions.md)) | `404`. Central is never contacted for a retired submission. |
+| 2 | Store miss, the row is an MP3 derivative (`.amr` original) | `404`. Central holds the AMR, not DigitVA's MP3; sync rebuilds it. |
+| 2 | Store miss, `attachment_central_fetch_enabled` is false | `404`, exactly as before the flag existed. |
+| 3 | Store miss, flag on | Fetch the original from the project's own connection, stream it to the browser, write it into the store. Outcome `central_stream`, or `central_redirect_followed` when a same-origin Central redirect was followed. |
+
+Outcomes of a failed fetch:
+
+| Fetch outcome | Response | `source_state` written |
+|---|---|---|
+| Central `200` | `200`, streamed and stored | `available`, `source_verified_at` now, error cleared |
+| Central `404`/`410` | `404` | `missing`, `source_error_code='not_found'` |
+| Timeout, connection error, `5xx`, cooldown | `503` + `Retry-After` | error code `transient`; an `available` row stays `available` |
+| `429`, or the request-path pacing slot is busy | `503` + `Retry-After` | error code `throttled`; an `available` row stays `available` |
+| `401`/`403` | `502` | error code `auth` |
+| No active mapped connection | `502` | error code `auth` |
+| Redirect off the Central origin, an unhandled `3xx`, or more than three hops | `502` | error code `invalid_redirect` |
+| Any other status | `502` | error code `unknown` |
+
+A failure never downgrades a row that has already been proved `available`: a
+timeout does not unprove an earlier successful delivery. `source_verified_at`
+moves only on an observed content response, so an old observation is never
+restamped as current. State is written and committed **before** any byte is
+streamed; no transaction is held open across a response body.
+
+Headers on every attachment response:
+
+- `Cache-Control: private, no-store, max-age=0` and
+  `X-Content-Type-Options: nosniff`. PHI image and audio bytes must not be
   written to the browser disk cache, consistent with the `no-store` policy on
-  the partials that reference them.
+  the partials that reference them;
+- for a Central-fetched original, `Content-Type` is DigitVA's validated MIME,
+  `Content-Disposition: inline; filename="<storage_name>"`, and `Content-Length`
+  when Central supplied one. These are DigitVA's own headers, so delivery does
+  not vary with the Central version;
+- store reads keep `send_file`'s `Range` support, which is what audio playback
+  uses.
+
+Other rules:
+
 - Delivery stays under `APP_DATA/<form_id>/media/`; a path outside it or a
-  missing file is `404`, and a missing file evicts the record cache.
+  missing object is `404`, and a store miss evicts the record cache.
 - The stored `mime_type` is copied from upstream and is not authoritative. A
   missing, malformed, or literal `"null"` value is discarded and the type is
-  derived from the storage name. Sync applies the same validation before
-  writing the row.
+  derived from the storage name or from the row's validated
+  `source_mime_type`. Sync applies the same validation before writing the row.
+- A store write is a temporary file in the same directory plus an atomic
+  rename, so an abandoned or failed fetch can never leave a partial object or
+  one that looks complete.
+- One structured log line per delivery records the outcome and latency; URLs,
+  query strings, headers, credentials, and payloads are never logged.
+  In-process counters are available through `delivery_counters()`.
+
+## Central self-heal
+
+`va_project_master.attachment_central_fetch_enabled` (default false) is the
+per-project rollout switch, set with
+`flask attachments central-fetch <project_id> --enable/--disable/--status`, with
+`PUT /admin/api/projects/<project_id>/attachment-central-fetch`, or from the
+admin Projects panel. Because the store is read first, disabling it is a
+complete rollback with no data change.
+
+The fetch itself:
+
+- resolves the connection through the attachment's own project mapping
+  (`va_submissions` -> `va_forms` -> `map_project_odk` -> `mas_odk_connections`,
+  active only). There is **no** global or default connection: an unmapped,
+  inactive, or ambiguous mapping fails closed;
+- reuses one pyODK client per connection per thread, so an attachment request
+  does not pay for an authentication handshake;
+- streams with bounded connect/read timeouts
+  (`ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS`,
+  `ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS`) and never buffers a body whole;
+- runs through `guarded_odk_call` under a **request-path policy**: it passes
+  `max_wait_seconds`, so pacing contention raises `OdkRequestSlotBusyError`
+  instead of sleeping in a web worker, and the declined call reserves no slot;
+- sets `allow_redirects=False` so Central's redirect is observable. A
+  `301`/`302`/`303`/`307`/`308` whose resolved `Location` is on the same Central
+  origin is followed server-side, at most three hops, with relative locations
+  resolved against the URL actually requested. Anything else — another host, an
+  unhandled `3xx`, a missing `Location` — is rejected as `invalid_redirect`.
+  This deployment runs Central without S3, so there is no redirect allowlist and
+  a `307` to a bucket is a rejection, not a handoff. Because only same-origin
+  redirects are followed, the ODK credential never leaves the Central origin.
 
 ## Presence and completeness
 
@@ -164,7 +249,8 @@ and never retired), `quarantined`, `absent`.
 |---|---|
 | Phase 2 (done) | The migration backfills `listed`/`missing` from `exists_on_odk`, `ready`/`pending` plus `audio/mpeg` and the stored ETag for AMR rows, and `retained` for attachments of retired submissions. Sync then writes `available`/`missing`, the original's validated MIME, the AMR derivative columns, and `derivative_state='error'` on a failed conversion. |
 | Phase 3 (done) | Nothing. Presence remains disk-backed through `present_attachment_files_by_submission()`. |
-| Phase 4 | The Central-backed resolver writes `available`/`missing`/`retired`/`error` with `source_verified_at` and `source_error_code`, and delivery and readiness start deciding on the stored state instead of on disk. |
+| Phase 4a (done) | The Central-backed source writes `available`/`missing`/`error` with `source_verified_at` and `source_error_code` on every fetch, and a self-healed object sets `local_path` and `local_fallback_state='present'`. |
+| Phase 4b | Frontend preview tier, client byte cache, and lightbox. |
 | Phase 5 | Sync stops downloading ordinary images and maintains derivative freshness through `mark_audio_derivative_stale()`. |
 | Phase 6 | Local retirement moves rows to `absent`, never touching `retained` rows. |
 
@@ -174,9 +260,11 @@ call. It is additive in Phase 2 and becomes the presence definition in Phase 4.
 
 ## Non-goals of this baseline
 
-- No Central or S3 retrieval or redirect handling yet. The source and
-  derivative state columns exist and sync writes them, but no delivery,
-  repair, or KPI decision reads them.
+- No S3. Neither Central nor DigitVA uses object storage today; the resolver
+  handles a Central `307` only so that enabling it later is not a code change,
+  and rejects one in the absence of an allowlist.
+- No change to sync downloads or to repair and KPI completeness semantics yet
+  (Phase 5).
 - No image derivatives or stored thumbnails.
 - No change to the deprecated `/media` route beyond ownership resolution, the
   shared matrix, and the cache policy.

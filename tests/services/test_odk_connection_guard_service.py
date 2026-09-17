@@ -7,6 +7,7 @@ from app import db
 from app.models import MasOdkConnections, VaStatuses
 from app.services.odk_connection_guard_service import (
     OdkConnectionCooldownError,
+    OdkRequestSlotBusyError,
     guarded_odk_call,
     record_odk_connection_failure,
     record_odk_connection_success,
@@ -126,3 +127,53 @@ class OdkConnectionGuardServiceTests(BaseTestCase):
 
         self.assertEqual(first_wait, 0.0)
         self.assertGreater(second_wait, 0.0)
+
+    def test_bounded_wait_fails_fast_and_leaves_the_queue_untouched(self):
+        """The request-path policy: fail fast instead of stalling a worker."""
+        conn = self._create_connection()
+        key = "ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS"
+        original = self.app.config[key]
+        self.app.config[key] = 0.25
+        self.addCleanup(self.app.config.__setitem__, key, original)
+
+        reserve_odk_request_slot(conn.connection_id)
+        before = snapshot_connection_guard_state(
+            conn.connection_id
+        ).last_request_started_at
+
+        with self.assertRaises(OdkRequestSlotBusyError):
+            reserve_odk_request_slot(conn.connection_id, max_wait_seconds=0.0)
+
+        after = snapshot_connection_guard_state(
+            conn.connection_id
+        ).last_request_started_at
+        self.assertEqual(before, after)
+
+        # A caller willing to wait still gets its slot.
+        self.assertGreater(
+            reserve_odk_request_slot(conn.connection_id, max_wait_seconds=5.0),
+            0.0,
+        )
+
+    def test_guarded_call_with_a_bound_does_not_run_the_callback_when_busy(self):
+        conn = self._create_connection()
+        key = "ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS"
+        original = self.app.config[key]
+        self.app.config[key] = 0.25
+        self.addCleanup(self.app.config.__setitem__, key, original)
+
+        calls = {"count": 0}
+
+        def _callback():
+            calls["count"] += 1
+            return "served"
+
+        self.assertEqual(
+            guarded_odk_call(_callback, connection_id=conn.connection_id),
+            "served",
+        )
+        with self.assertRaises(OdkRequestSlotBusyError):
+            guarded_odk_call(
+                _callback, connection_id=conn.connection_id, max_wait_seconds=0.0
+            )
+        self.assertEqual(calls["count"], 1)

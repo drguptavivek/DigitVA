@@ -353,7 +353,7 @@ class AttachmentServiceDbTests(BaseTestCase):
         path = self._media_file(name, b"bytes")
         record = svc.AttachmentRecord(
             va_sid=sub.va_sid, va_form_id=self.FORM_ID, storage_name=name,
-            local_path=path, mime_type="null",
+            filename="photo.jpg", local_path=path, mime_type="null",
         )
         self.addCleanup(lambda: flask_cache.delete(f"att:{name}"))
         with self.app.test_request_context("/"):
@@ -363,8 +363,13 @@ class AttachmentServiceDbTests(BaseTestCase):
             self.assertIn("no-store", response.headers["Cache-Control"])
             response.close()
 
+            # A legacy local_path outside the form's media directory is not a
+            # store object, even though a file is there. The storage_name must
+            # differ from the stored object above or the store would hit.
             outside = svc.AttachmentRecord(
-                va_sid=sub.va_sid, va_form_id=self.FORM_ID, storage_name=name,
+                va_sid=sub.va_sid, va_form_id=self.FORM_ID,
+                storage_name=uuid.uuid4().hex + ".jpg",
+                filename="photo.jpg",
                 local_path=os.path.join(self._tmp_dir.name, "escape.jpg"), mime_type=None,
             )
             with self.assertRaises(NotFound):

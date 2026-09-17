@@ -91,6 +91,21 @@ class Config:
     ODK_READ_TIMEOUT_SECONDS = float(
         os.environ.get("ODK_READ_TIMEOUT_SECONDS", "60")
     )
+    # Request-path attachment fetches from ODK Central (Phase 4a of
+    # docs/planning/s3-attachment-plan.md). Deliberately tighter than the sync
+    # timeouts above: these run inside a coder's HTTP request, so a stalled
+    # Central must fail fast instead of occupying a web worker.
+    ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS = float(
+        os.environ.get("ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS", "5")
+    )
+    ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS = float(
+        os.environ.get("ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS", "30")
+    )
+    # How long a request-path fetch will queue behind the shared ODK pacing
+    # interval before giving up (see OdkRequestSlotBusyError). 0 = never wait.
+    ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS = float(
+        os.environ.get("ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS", "1")
+    )
 
     # Email (SMTP)
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "localhost")
@@ -205,6 +220,9 @@ class TestConfig(Config):
     ODK_CONNECTION_FAILURE_COOLDOWN_SECONDS = 60
     ODK_CONNECT_TIMEOUT_SECONDS = 1.0
     ODK_READ_TIMEOUT_SECONDS = 5.0
+    ATTACHMENT_FETCH_CONNECT_TIMEOUT_SECONDS = 1.0
+    ATTACHMENT_FETCH_READ_TIMEOUT_SECONDS = 5.0
+    ATTACHMENT_FETCH_MAX_SLOT_WAIT_SECONDS = 0.0
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = False
     HIBP_PASSWORD_BREACH_CHECK_TIMEOUT_SECONDS = 1.0
     MAIL_SUPPRESS_SEND = True

@@ -60,6 +60,14 @@ class VaProjectMaster(db.Model):
         default=10,
         server_default="10",
     )
+    # Phase 4a of docs/planning/s3-attachment-plan.md: DigitVA keeps its own
+    # permanent copy of every attachment and serves from that store first.
+    # When true, a store miss on a live submission is self-healed by fetching
+    # the original from this project's ODK Central connection; when false, a
+    # store miss is a 404 exactly as before.
+    attachment_central_fetch_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
 
     def __repr__(self) -> str:
         return f"VA Project Master -> {self.project_id} ({self.project_status})"

@@ -22,9 +22,10 @@ Route URL: /vaform/attachment/<storage_name>  (va_form blueprint, prefix /vaform
 import os
 import uuid
 from datetime import datetime, timezone
+from unittest.mock import patch
 import sqlalchemy as sa
 
-from app import db
+from app import cache as flask_cache, db
 from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -32,6 +33,7 @@ from app.models import (
     VaAllocations,
     VaCoderReview,
     VaForms,
+    VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
     VaSites,
@@ -40,11 +42,28 @@ from app.models import (
     VaUserAccessGrants,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
+from app.services import attachment_source_central as central
 from app.services.attachment_storage_name_service import legacy_attachment_storage_name
 from tests.base import BaseTestCase
 
 # Blueprint prefix for va_form
 _ATTACHMENT_BASE = "/vaform/attachment"
+
+
+class _FakeUpstream:
+    """Minimal stand-in for a streamed requests.Response from Central."""
+
+    def __init__(self, payload=b"", headers=None):
+        self.headers = headers or {}
+        self._payload = payload
+        self.closed = False
+
+    def iter_content(self, chunk_size=1):
+        for index in range(0, len(self._payload), chunk_size):
+            yield self._payload[index:index + chunk_size]
+
+    def close(self):
+        self.closed = True
 
 
 class ServeAttachmentTests(BaseTestCase):
@@ -400,7 +419,6 @@ class ServeAttachmentTests(BaseTestCase):
     def test_stale_cache_entry_without_ownership_is_ignored(self):
         # Entries written by the pre-authorization-fix route lack va_sid; they
         # must never short-circuit the ownership lookup.
-        from app import cache as flask_cache
 
         storage_name = self._make_storage_name()
         self._make_attachment_row(storage_name, local_path=self._write_file(storage_name))
@@ -446,3 +464,293 @@ class ServeAttachmentTests(BaseTestCase):
         response = self.client.get(f"/vaform/media/{self.FORM_ID}/{filename}")
         self.assertEqual(response.status_code, 200)
         self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+
+    # ------------------------------------------------------------------
+    # 10. Store-first delivery with Central self-heal (plan Phase 4a)
+    #
+    # DigitVA's own store is the read path; the per-project flag only decides
+    # what a store miss may do. The HTTP layer is replaced by a canned
+    # CentralFetch so these assert the orchestration, not the transport.
+    # ------------------------------------------------------------------
+
+    def _set_central_fetch(self, enabled):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.attachment_central_fetch_enabled = enabled
+        db.session.flush()
+
+    def _enable_central_fetch(self):
+        """Enable the flag and guarantee it is switched back.
+
+        Delivery commits its state write, which releases the per-test
+        savepoint, so the flag has to be reset explicitly rather than by
+        rollback.
+        """
+        self._set_central_fetch(True)
+        self.addCleanup(self._set_central_fetch, False)
+
+    def _patch_fetch(self, result):
+        patcher = patch.object(central, "fetch", return_value=result)
+        mock = patcher.start()
+        self.addCleanup(patcher.stop)
+        return mock
+
+    def _row(self, va_sid, filename):
+        return db.session.get(VaSubmissionAttachments, (va_sid, filename))
+
+    def _expect_no_stored_object(self, storage_name):
+        path = os.path.join(self._media_dir(), storage_name)
+        self.addCleanup(lambda: os.path.exists(path) and os.unlink(path))
+        return path
+
+    def test_store_hit_is_served_without_contacting_central(self):
+        storage_name = self._make_storage_name()
+        self._make_attachment_row(storage_name, local_path=self._write_file(storage_name))
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        fetch = self._patch_fetch(None)
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"img")
+        fetch.assert_not_called()
+
+    def test_store_miss_with_the_flag_off_is_404(self):
+        storage_name = self._make_storage_name()
+        self._make_attachment_row(storage_name, local_path=None)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        fetch = self._patch_fetch(None)
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 404)
+        fetch.assert_not_called()
+
+    def test_store_miss_streams_from_central_and_fills_the_store(self):
+        storage_name = self._make_storage_name()
+        row = self._make_attachment_row(storage_name, local_path=None)
+        target = self._expect_no_stored_object(storage_name)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        self._patch_fetch(central.CentralFetch(
+            outcome=central.FETCH_OK,
+            response=_FakeUpstream(b"central-bytes"),
+            mime_type="image/jpeg",
+            content_length=13,
+        ))
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"central-bytes")
+        self.assertEqual(response.headers["Content-Type"], "image/jpeg")
+        self.assertEqual(
+            response.headers["Content-Disposition"],
+            f'inline; filename="{storage_name}"',
+        )
+        self.assertIn("no-store", response.headers["Cache-Control"])
+        self.assertIn("private", response.headers["Cache-Control"])
+        self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+
+        # The store now holds DigitVA's own permanent copy.
+        self.assertTrue(os.path.isfile(target))
+        with open(target, "rb") as handle:
+            self.assertEqual(handle.read(), b"central-bytes")
+        refreshed = self._row(row.va_sid, row.filename)
+        self.assertEqual(refreshed.source_state, "available")
+        self.assertEqual(refreshed.local_path, target)
+        self.assertEqual(refreshed.local_fallback_state, "present")
+        self.assertFalse(
+            [name for name in os.listdir(self._media_dir()) if name.startswith(".tmp_")]
+        )
+
+    def test_a_followed_redirect_is_delivered_the_same_way(self):
+        storage_name = self._make_storage_name()
+        self._make_attachment_row(storage_name, local_path=None)
+        self._expect_no_stored_object(storage_name)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        self._patch_fetch(central.CentralFetch(
+            outcome=central.FETCH_OK,
+            response=_FakeUpstream(b"after-redirect"),
+            mime_type="image/jpeg",
+            redirect_followed=True,
+        ))
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, b"after-redirect")
+
+    def test_a_rejected_redirect_is_502(self):
+        storage_name = self._make_storage_name()
+        self._make_attachment_row(storage_name, local_path=None)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        self._patch_fetch(central.CentralFetch(outcome=central.FETCH_INVALID_REDIRECT))
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 502)
+
+    def test_not_found_is_404_and_marks_the_source_missing(self):
+        storage_name = self._make_storage_name()
+        row = self._make_attachment_row(storage_name, local_path=None)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        self._patch_fetch(central.CentralFetch(outcome=central.FETCH_NOT_FOUND))
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 404)
+        refreshed = self._row(row.va_sid, row.filename)
+        self.assertEqual(refreshed.source_state, "missing")
+        self.assertEqual(refreshed.source_error_code, "not_found")
+
+    def test_a_transient_failure_is_503_and_keeps_an_available_row_available(self):
+        storage_name = self._make_storage_name()
+        row = self._make_attachment_row(storage_name, local_path=None)
+        row.source_state = "available"
+        db.session.flush()
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        self._patch_fetch(central.CentralFetch(outcome=central.FETCH_THROTTLED))
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("Retry-After", response.headers)
+        refreshed = self._row(row.va_sid, row.filename)
+        self.assertEqual(refreshed.source_state, "available")
+        self.assertEqual(refreshed.source_error_code, "throttled")
+
+    def test_an_auth_failure_is_502(self):
+        storage_name = self._make_storage_name()
+        self._make_attachment_row(storage_name, local_path=None)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        self._patch_fetch(central.CentralFetch(outcome=central.FETCH_AUTH))
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 502)
+
+    def test_a_store_miss_without_a_mapped_connection_fails_closed(self):
+        # No map_project_odk row exists for the base project, so resolution
+        # fails closed rather than reaching for any other connection.
+        storage_name = self._make_storage_name()
+        self._make_attachment_row(storage_name, local_path=None)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 502)
+
+    def test_a_retired_submission_never_contacts_central(self):
+        storage_name = self._make_storage_name()
+        self._make_attachment_row(storage_name, local_path=None)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        submission = db.session.get(VaSubmissions, self.submission.va_sid)
+        submission.va_sync_issue_code = "missing_in_odk"
+        db.session.flush()
+        self.addCleanup(self._clear_sync_issue)
+        fetch = self._patch_fetch(None)
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 404)
+        fetch.assert_not_called()
+
+    def test_a_missing_audio_derivative_is_not_fetched_from_central(self):
+        # Central holds the AMR original, not DigitVA's MP3, so a missing
+        # derivative is rebuilt by sync rather than self-healed here.
+        storage_name = uuid.uuid4().hex + ".mp3"
+        row = self._make_attachment_row(storage_name, local_path=None)
+        row.filename = "narration.amr"
+        db.session.flush()
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        fetch = self._patch_fetch(None)
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 404)
+        fetch.assert_not_called()
+
+    def _clear_sync_issue(self):
+        submission = db.session.get(VaSubmissions, self.submission.va_sid)
+        if submission is not None:
+            submission.va_sync_issue_code = None
+            db.session.flush()
+
+
+class AttachmentDeliveryFlagApiTests(BaseTestCase):
+    """The admin switch for Central-backed delivery."""
+
+    def _url(self):
+        return f"/admin/api/projects/{self.BASE_PROJECT_ID}/attachment-central-fetch"
+
+    def tearDown(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        if project is not None:
+            project.attachment_central_fetch_enabled = False
+            db.session.flush()
+        super().tearDown()
+
+    def test_admin_can_enable_and_disable_the_flag(self):
+        self._login(self.base_admin_id)
+        response = self.client.put(self._url(), json={
+            "attachment_central_fetch_enabled": True,
+        }, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["attachment_central_fetch_enabled"])
+        self.assertTrue(
+            db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+            .attachment_central_fetch_enabled
+        )
+
+        response = self.client.put(self._url(), json={
+            "attachment_central_fetch_enabled": False,
+        }, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["attachment_central_fetch_enabled"])
+
+    def test_missing_csrf_header_is_rejected(self):
+        self._login(self.base_admin_id)
+        response = self.client.put(self._url(), json={
+            "attachment_central_fetch_enabled": True,
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+            .attachment_central_fetch_enabled
+        )
+
+    def test_non_boolean_payload_is_rejected(self):
+        self._login(self.base_admin_id)
+        response = self.client.put(self._url(), json={
+            "attachment_central_fetch_enabled": "yes",
+        }, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 400)
+
+    def test_unknown_project_is_404(self):
+        self._login(self.base_admin_id)
+        response = self.client.put(
+            "/admin/api/projects/NOPE01/attachment-central-fetch",
+            json={"attachment_central_fetch_enabled": True},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_non_admin_is_refused(self):
+        self._login(str(self.base_coder_user.user_id))
+        response = self.client.put(self._url(), json={
+            "attachment_central_fetch_enabled": True,
+        }, headers=self._csrf_headers())
+        self.assertIn(response.status_code, (302, 403))
+        self.assertFalse(
+            db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+            .attachment_central_fetch_enabled
+        )

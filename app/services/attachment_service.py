@@ -5,11 +5,12 @@ bytes are present, and how they are delivered — goes through this module.
 Routes, render code, sync tasks, admin telemetry, and the integrity script call
 these functions; none of them touch the attachment filesystem directly.
 
-This is Phase 3 of ``docs/planning/s3-attachment-plan.md``: the interface exists
-so that the Central/S3-backed implementation (Phase 4) is a change to this
-module's internals rather than an edit across eight call sites. The current
-implementation is entirely local-disk backed and behaviour-neutral relative to
-the code it replaced.
+``docs/planning/s3-attachment-plan.md`` Phase 3 created the interface so that
+source changes stay inside this module. Phase 4a fills it in: DigitVA keeps its
+own permanent copy of every attachment and serves from that store, and ODK
+Central — the source of truth for existence and content — is consulted only to
+fill a store miss, per project and behind a flag. The store is local files
+today and a DigitVA-owned bucket next phase; delivery does not know which.
 
 Policy baseline: ``docs/policy/attachment-storage.md``.
 """
@@ -18,22 +19,29 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import threading
+import time
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
 import sqlalchemy as sa
-from flask import abort, current_app, send_file
+from flask import abort, current_app, send_file, stream_with_context
 
 from app import db, cache as flask_cache
 from app.models import (
     VaAllocations,
     VaCoderReview,
     VaFinalAssessments,
+    VaForms,
+    VaProjectMaster,
     VaStatuses,
     VaSubmissions,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
+from app.services.odk_retirement_service import MISSING_IN_ODK
 
 log = logging.getLogger(__name__)
 
@@ -117,13 +125,22 @@ READINESS_BATCH_SIZE = 500
 
 @dataclass(frozen=True)
 class AttachmentRecord:
-    """Identity and local delivery metadata for one attachment row."""
+    """Identity and delivery metadata for one attachment row.
+
+    ``filename`` is the attachment's original ODK name — the identity Central
+    addresses it by — and is distinct from the opaque ``storage_name`` the
+    browser sees. ``source_mime_type`` is the validated type of the original;
+    ``mime_type`` keeps its historical meaning (the locally stored blob's type,
+    which for ``.amr`` rows is the MP3 derivative's).
+    """
 
     va_sid: str
     va_form_id: str
     storage_name: str
+    filename: str
     local_path: str | None
     mime_type: str | None
+    source_mime_type: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -138,25 +155,30 @@ def resolve_attachment_record(storage_name: str) -> AttachmentRecord | None:
     """Resolve an opaque storage_name to its owning submission and metadata.
 
     Only rows with ``exists_on_odk=True`` resolve. Cache entries written before
-    ``va_sid`` was part of the record are treated as misses so ownership is
-    always known before authorization runs.
+    ``va_sid`` and ``filename`` were part of the record are treated as misses,
+    so ownership is always known before authorization runs and the original
+    ODK filename is always known before Central is addressed.
     """
     cached = flask_cache.get(_record_cache_key(storage_name))
-    if cached and cached.get("va_sid") and cached.get("va_form_id"):
+    if cached and cached.get("va_sid") and cached.get("va_form_id") and cached.get("filename"):
         return AttachmentRecord(
             va_sid=cached["va_sid"],
             va_form_id=cached["va_form_id"],
             storage_name=storage_name,
+            filename=cached["filename"],
             local_path=cached.get("local_path"),
             mime_type=cached.get("mime_type"),
+            source_mime_type=cached.get("source_mime_type"),
         )
 
     row = db.session.execute(
         sa.select(
             VaSubmissionAttachments.va_sid,
             VaSubmissions.va_form_id,
+            VaSubmissionAttachments.filename,
             VaSubmissionAttachments.local_path,
             VaSubmissionAttachments.mime_type,
+            VaSubmissionAttachments.source_mime_type,
         )
         .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
         .where(VaSubmissionAttachments.storage_name == storage_name)
@@ -168,8 +190,10 @@ def resolve_attachment_record(storage_name: str) -> AttachmentRecord | None:
         va_sid=row.va_sid,
         va_form_id=row.va_form_id,
         storage_name=storage_name,
+        filename=row.filename,
         local_path=row.local_path,
         mime_type=row.mime_type,
+        source_mime_type=row.source_mime_type,
     )
 
 
@@ -483,24 +507,359 @@ def apply_no_store_policy(response):
     return response
 
 
-def deliver_local_attachment(record: AttachmentRecord):
-    """Stream a locally stored attachment after the caller has authorized it.
 
-    Path guard keeps delivery under APP_DATA/<form_id>/media/. A missing file
-    evicts the record cache and reports not-found.
-    """
-    if not record.local_path:
-        abort(404)
-    media_base = os.path.realpath(
+
+# ---------------------------------------------------------------------------
+# DigitVA's own attachment store
+#
+# DigitVA keeps a permanent copy of every attachment it has delivered —
+# originals and MP3 derivatives alike — and that copy is the read path. ODK
+# Central stays the source of truth for existence and content, but it is only
+# consulted to *fill* the store, never on every request.
+#
+# The store is reached exclusively through the three functions below. Today
+# they are local files under ``APP_DATA/<form_id>/media/``; the next phase
+# replaces them with a DigitVA-owned S3 bucket without touching delivery or
+# the Central module.
+# ---------------------------------------------------------------------------
+
+# Bounded read/write size for proxied and persisted bodies; large media is
+# never buffered whole.
+ATTACHMENT_STREAM_CHUNK_SIZE = 64 * 1024
+
+
+def _store_media_dir(record: AttachmentRecord) -> str:
+    return os.path.realpath(
         os.path.join(current_app.config["APP_DATA"], record.va_form_id, "media")
     )
-    resolved = os.path.realpath(record.local_path)
-    if not resolved.startswith(media_base + os.sep):
-        abort(404)
-    if not os.path.isfile(resolved):
+
+
+def _store_exists(record: AttachmentRecord) -> str | None:
+    """Return the stored object's path, or None when the store has no object.
+
+    Resolution order is the one in docs/policy/attachment-storage.md: the
+    opaque ``storage_name`` under the form's media directory first, then the
+    legacy ``local_path``. Both must resolve inside that directory.
+    """
+    media_dir = _store_media_dir(record)
+    candidates = []
+    if record.storage_name:
+        candidates.append(os.path.join(media_dir, record.storage_name))
+    if record.local_path:
+        candidates.append(record.local_path)
+    for candidate in candidates:
+        resolved = os.path.realpath(candidate)
+        if not resolved.startswith(media_dir + os.sep):
+            continue
+        if os.path.isfile(resolved):
+            return resolved
+    return None
+
+
+def _store_open(record: AttachmentRecord, path: str):
+    """Serve one stored object, with DigitVA's own cache policy.
+
+    ``send_file`` keeps ``Range`` support, which is what audio playback uses.
+    """
+    return apply_no_store_policy(
+        send_file(path, mimetype=safe_mime_type(record.mime_type))
+    )
+
+
+def _store_write(record: AttachmentRecord, chunks):
+    """Tee ``chunks`` into the store while they stream to the client.
+
+    Yields every chunk through unchanged, so the browser is not made to wait
+    for the write. The object is written to a temporary name in the same
+    directory and renamed only after the last chunk, so a failed or abandoned
+    fetch can never leave a partial object behind or be mistaken for a
+    complete one. The row is pointed at the new object afterwards; if that
+    write fails the object is still found by ``storage_name`` on the next
+    request, so delivery is never blocked on it.
+    """
+    if not record.storage_name:
+        yield from chunks
+        return
+
+    media_dir = _store_media_dir(record)
+    target = os.path.join(media_dir, record.storage_name)
+    os.makedirs(media_dir, exist_ok=True)
+    tmp_path = os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}")
+
+    handle = open(tmp_path, "wb")
+    completed = False
+    try:
+        for chunk in chunks:
+            handle.write(chunk)
+            yield chunk
+        handle.close()
+        handle = None
+        os.replace(tmp_path, target)
+        completed = True
+    finally:
+        if handle is not None:
+            handle.close()
+        if not completed:
+            remove_local_file_if_present(tmp_path)
+
+    _mark_stored(record, target)
+
+
+def _mark_stored(record: AttachmentRecord, path: str) -> None:
+    """Point the row at the newly stored object. Best effort by design."""
+    try:
+        db.session.execute(
+            sa.update(VaSubmissionAttachments)
+            .where(
+                VaSubmissionAttachments.va_sid == record.va_sid,
+                VaSubmissionAttachments.filename == record.filename,
+            )
+            .values(local_path=path, local_fallback_state=LOCAL_PRESENT)
+        )
+        db.session.commit()
+        invalidate_attachment_record(record.storage_name)
+    except Exception:
+        db.session.rollback()
+        log.warning(
+            "attachment store: could not record the stored object for sid=%s",
+            record.va_sid, exc_info=True,
+        )
+
+
+def deliver_local_attachment(record: AttachmentRecord):
+    """Serve an attachment from DigitVA's store after the caller authorized it.
+
+    ``deliver()`` is the entry point routes use; this is the store-only branch,
+    kept for callers that must never reach Central. A store miss evicts the
+    record cache and reports not-found.
+    """
+    path = _store_exists(record)
+    if path is None:
         invalidate_attachment_record(record.storage_name)
         abort(404)
-
     cache_attachment_record(record)
-    response = send_file(resolved, mimetype=safe_mime_type(record.mime_type))
+    return _store_open(record, path)
+
+
+# ---------------------------------------------------------------------------
+# Delivery (plan Phase 4a)
+# ---------------------------------------------------------------------------
+
+# How long a client is asked to wait after a transient Central failure with no
+# stored object to serve.
+ATTACHMENT_UNAVAILABLE_RETRY_AFTER_SECONDS = 5
+
+# One log line and one counter per delivery, so operators can see how often
+# the store misses and Central has to fill it.
+OUTCOME_LOCAL = "local"
+OUTCOME_CENTRAL_STREAM = "central_stream"
+OUTCOME_CENTRAL_REDIRECT_FOLLOWED = "central_redirect_followed"
+OUTCOME_UNAVAILABLE = "unavailable"
+OUTCOME_ERROR = "error"
+
+DELIVERY_OUTCOMES = (
+    OUTCOME_LOCAL,
+    OUTCOME_CENTRAL_STREAM,
+    OUTCOME_CENTRAL_REDIRECT_FOLLOWED,
+    OUTCOME_UNAVAILABLE,
+    OUTCOME_ERROR,
+)
+
+_delivery_counters_lock = threading.Lock()
+_delivery_counters: dict[str, int] = {outcome: 0 for outcome in DELIVERY_OUTCOMES}
+
+
+def delivery_counters() -> dict[str, int]:
+    """Per-process delivery outcome counts since start. Never persisted."""
+    with _delivery_counters_lock:
+        return dict(_delivery_counters)
+
+
+def reset_delivery_counters() -> None:
+    with _delivery_counters_lock:
+        for outcome in DELIVERY_OUTCOMES:
+            _delivery_counters[outcome] = 0
+
+
+def _record_delivery(record: AttachmentRecord, outcome: str, started_at: float, *,
+                     error_code: str | None = None):
+    """Count and log one delivery. No URLs, headers, or payloads are logged."""
+    with _delivery_counters_lock:
+        _delivery_counters[outcome] = _delivery_counters.get(outcome, 0) + 1
+    log.info(
+        "attachment delivery outcome=%s latency_ms=%d sid=%s form=%s error=%s",
+        outcome,
+        int((time.monotonic() - started_at) * 1000),
+        record.va_sid,
+        record.va_form_id,
+        error_code or "-",
+    )
+
+
+@dataclass(frozen=True)
+class _DeliveryContext:
+    """Stored facts that decide whether a store miss may reach Central."""
+
+    central_fetch_enabled: bool
+    retired: bool
+
+
+def _delivery_context(record: AttachmentRecord) -> _DeliveryContext:
+    """One bounded read of the project flag and the submission's retirement."""
+    row = db.session.execute(
+        sa.select(
+            VaProjectMaster.attachment_central_fetch_enabled,
+            VaSubmissions.va_sync_issue_code,
+            VaSubmissionAttachments.local_fallback_state,
+        )
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(
+            VaProjectMaster,
+            VaProjectMaster.project_id == VaForms.project_id,
+            isouter=True,
+        )
+        .where(
+            VaSubmissionAttachments.va_sid == record.va_sid,
+            VaSubmissionAttachments.filename == record.filename,
+        )
+    ).first()
+    if row is None:
+        return _DeliveryContext(central_fetch_enabled=False, retired=False)
+    return _DeliveryContext(
+        central_fetch_enabled=bool(row.attachment_central_fetch_enabled),
+        # A retired submission has been purged from ODK: never contact Central,
+        # serve the retained archival copy or nothing
+        # (docs/policy/odk-retired-submissions.md).
+        retired=(
+            row.va_sync_issue_code == MISSING_IN_ODK
+            or row.local_fallback_state == LOCAL_RETAINED
+        ),
+    )
+
+
+def _is_audio_derivative(record: AttachmentRecord) -> bool:
+    """True when the stored object is a DigitVA-owned MP3, not a Central original.
+
+    Central holds the AMR, not the MP3, so a missing derivative cannot be
+    self-healed by a straight fetch; sync rebuilds it (Phase 5).
+    """
+    return (record.filename or "").lower().endswith(".amr")
+
+
+def _content_disposition_filename(storage_name: str) -> str:
+    """Opaque storage names only; anything else degrades to a fixed name."""
+    if re.fullmatch(r"[A-Za-z0-9._-]{1,128}", storage_name or ""):
+        return storage_name
+    return "attachment"
+
+
+def _stream_central_response(record: AttachmentRecord, result):
+    """Proxy Central's body with DigitVA's own headers, teeing it into the store.
+
+    The body is read in bounded chunks and never buffered whole, and the
+    upstream response is closed both when the generator finishes and when the
+    client disconnects.
+    """
+    upstream = result.response
+
+    def upstream_chunks():
+        try:
+            for chunk in upstream.iter_content(chunk_size=ATTACHMENT_STREAM_CHUNK_SIZE):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    response = current_app.response_class(
+        stream_with_context(_store_write(record, upstream_chunks())),
+        mimetype=result.mime_type or "application/octet-stream",
+    )
+    response.headers["Content-Disposition"] = (
+        f'inline; filename="{_content_disposition_filename(record.storage_name)}"'
+    )
+    if result.content_length is not None:
+        response.headers["Content-Length"] = str(result.content_length)
+    response.call_on_close(upstream.close)
     return apply_no_store_policy(response)
+
+
+def _unavailable_response(retry_after: int = ATTACHMENT_UNAVAILABLE_RETRY_AFTER_SECONDS):
+    """503 with a short retry hint; the caller decides nothing from the body."""
+    response = current_app.response_class(
+        "Attachment temporarily unavailable. Please retry.",
+        status=503,
+        mimetype="text/plain",
+    )
+    response.headers["Retry-After"] = str(retry_after)
+    return apply_no_store_policy(response)
+
+
+def deliver(record: AttachmentRecord):
+    """Deliver one authorized attachment, DigitVA's own store first.
+
+    Authorization is **not** re-derived here: the route has already applied
+    ``can_access_submission_attachment()``, and possession of a token proves
+    nothing. This function only decides where the bytes come from.
+
+    Order (docs/policy/attachment-storage.md, *Delivery*):
+
+    1. DigitVA's store has the object -> serve it. Central is not contacted;
+    2. store miss, and the submission is retired, the row is an audio
+       derivative, or the project's Central-fetch flag is off -> 404, exactly
+       as before;
+    3. store miss otherwise -> fetch the original from the project's own ODK
+       Central connection, stream it to the browser and write it into the
+       store on the way past;
+    4. a failed fetch follows the outcome table: not-found is 404, a transient
+       or throttled failure is 503 with a retry hint, and an auth,
+       configuration, or invalid-redirect failure is 502 — never a silent
+       success, so a misconfiguration cannot look like normal operation.
+    """
+    started_at = time.monotonic()
+
+    stored_path = _store_exists(record)
+    if stored_path is not None:
+        cache_attachment_record(record)
+        response = _store_open(record, stored_path)
+        _record_delivery(record, OUTCOME_LOCAL, started_at)
+        return response
+
+    context = _delivery_context(record)
+    if context.retired or not context.central_fetch_enabled or _is_audio_derivative(record):
+        invalidate_attachment_record(record.storage_name)
+        _record_delivery(record, OUTCOME_UNAVAILABLE, started_at)
+        abort(404)
+
+    from app.services import attachment_source_central as central
+
+    result = central.fetch(record)
+    central.record_fetch_state(record, result)
+
+    if result.ok:
+        cache_attachment_record(record)
+        response = _stream_central_response(record, result)
+        _record_delivery(
+            record,
+            OUTCOME_CENTRAL_REDIRECT_FOLLOWED if result.redirect_followed
+            else OUTCOME_CENTRAL_STREAM,
+            started_at,
+        )
+        return response
+
+    if result.outcome == central.FETCH_NOT_FOUND:
+        invalidate_attachment_record(record.storage_name)
+        _record_delivery(record, OUTCOME_UNAVAILABLE, started_at,
+                         error_code=result.error_code)
+        abort(404)
+
+    if result.outcome in (central.FETCH_TRANSIENT, central.FETCH_THROTTLED):
+        _record_delivery(record, OUTCOME_UNAVAILABLE, started_at,
+                         error_code=result.error_code)
+        return _unavailable_response()
+
+    # auth, unconfigured, invalid redirect, unknown: a configuration or safety
+    # failure. Reporting it as "missing" would hide it indefinitely.
+    _record_delivery(record, OUTCOME_ERROR, started_at, error_code=result.error_code)
+    abort(502)

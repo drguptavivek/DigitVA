@@ -190,6 +190,16 @@
         + '<i class="fa-solid fa-star-half-stroke me-1"></i>'
         + (nqaEnabled ? 'NQA On' : 'NQA Off')
         + '</button>';
+      // Phase 4a attachment rollout switch (docs/policy/attachment-storage.md)
+      var remoteAttEnabled = !!p.attachment_central_fetch_enabled;
+      var remoteAttBtn = '<button class="btn btn-sm py-0 px-2 project-remote-att-btn '
+        + (remoteAttEnabled ? 'btn-success' : 'btn-outline-secondary') + '"'
+        + ' data-id="' + esc(p.project_id) + '"'
+        + ' data-remote-att="' + (remoteAttEnabled ? '1' : '0') + '"'
+        + ' title="' + (remoteAttEnabled ? 'Serve attachments from ODK Central' : 'Serve attachments from local copies') + '">'
+        + '<i class="fa-solid fa-cloud-arrow-down me-1"></i>'
+        + (remoteAttEnabled ? 'Central Att' : 'Local Att')
+        + '</button>';
       var editBtn = '<button class="btn btn-sm py-0 px-2 btn-outline-primary project-edit-btn" '
         + ' data-id="' + esc(p.project_id) + '" title="Edit">'
         + '<i class="fa-solid fa-pen"></i></button>';
@@ -210,7 +220,7 @@
             ? '<span class="badge text-bg-success">Active</span>'
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
-        + '<td class="align-middle py-2 text-end">' + nqaBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
+        + '<td class="align-middle py-2 text-end">' + nqaBtn + ' ' + remoteAttBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
         + '</tr>';
     }).join('');
 
@@ -251,6 +261,17 @@
         var id = this.getAttribute('data-id');
         var currentlyOn = this.getAttribute('data-nqa') === '1';
         toggleNqa(id, currentlyOn);
+      });
+    }
+
+    // Bind attachment delivery toggle buttons
+    var remoteAttBtns = wrap.querySelectorAll('.project-remote-att-btn');
+    for (var m = 0; m < remoteAttBtns.length; m++) {
+      remoteAttBtns[m].addEventListener('click', function() {
+        toggleRemoteAttachments(
+          this.getAttribute('data-id'),
+          this.getAttribute('data-remote-att') === '1'
+        );
       });
     }
   }
@@ -318,6 +339,27 @@
         _projects = _projects.map(function (p) {
           return p.project_id === projectId
             ? Object.assign({}, p, { narrative_qa_enabled: res.data.project.narrative_qa_enabled })
+            : p;
+        });
+        renderTable(document.getElementById('project-show-inactive').checked);
+      });
+  }
+
+  // ── attachment delivery toggle ────────────────────────────────────────────
+
+  function toggleRemoteAttachments(projectId, currentlyOn) {
+    var url = '/admin/api/projects/' + encodeURIComponent(projectId) + '/attachment-central-fetch';
+    apiJson(url, 'PUT', { attachment_central_fetch_enabled: !currentlyOn })
+      .then(function (res) {
+        if (!res.ok) {
+          alert('Failed to update attachment delivery: ' + (res.data.error || 'Unknown error'));
+          return;
+        }
+        _projects = _projects.map(function (p) {
+          return p.project_id === projectId
+            ? Object.assign({}, p, {
+                attachment_central_fetch_enabled: res.data.attachment_central_fetch_enabled
+              })
             : p;
         });
         renderTable(document.getElementById('project-show-inactive').checked);

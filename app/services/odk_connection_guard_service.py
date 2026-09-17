@@ -51,6 +51,23 @@ class OdkConnectionCooldownError(RuntimeError):
         super().__init__(message)
 
 
+class OdkRequestSlotBusyError(RuntimeError):
+    """Raised when a bounded-wait caller would have to queue behind pacing.
+
+    The sync path is happy to sleep out the minimum request interval; a coder's
+    attachment request is not, because the sleep occupies a web worker. Request
+    -path callers pass ``max_wait_seconds`` and get this instead of a stall.
+    """
+
+    def __init__(self, connection_name: str, wait_seconds: float):
+        self.connection_name = connection_name
+        self.wait_seconds = wait_seconds
+        super().__init__(
+            f"ODK connection '{connection_name}' is paced; next slot is "
+            f"{wait_seconds:.3f}s away."
+        )
+
+
 @dataclass(slots=True)
 class OdkConnectionGuardSnapshot:
     """Operator-visible ODK connection guard state."""
@@ -208,8 +225,16 @@ def is_retryable_odk_connectivity_error(exc: Exception) -> bool:
     return any(marker in message for marker in _RETRYABLE_ERROR_MARKERS)
 
 
-def reserve_odk_request_slot(connection_id) -> float:
-    """Reserve the next allowed request slot for a connection and return wait time."""
+def reserve_odk_request_slot(connection_id, *, max_wait_seconds: float | None = None) -> float:
+    """Reserve the next allowed request slot for a connection and return wait time.
+
+    ``max_wait_seconds`` bounds how far ahead the caller is willing to be
+    scheduled. ``None`` (the default, and what every sync caller uses) accepts
+    any wait. A caller that passes a bound and would exceed it gets
+    ``OdkRequestSlotBusyError`` and reserves **nothing** — the reservation is
+    rolled back with the surrounding transaction, so a fast-failing request
+    never pushes the next sync call further out.
+    """
     conn_id = _connection_uuid(connection_id)
     if conn_id is None:
         return 0.0
@@ -252,6 +277,12 @@ def reserve_odk_request_slot(connection_id) -> float:
             if next_allowed > reserved_for:
                 reserved_for = next_allowed
 
+        wait_seconds = max(0.0, (reserved_for - now).total_seconds())
+        if max_wait_seconds is not None and wait_seconds > max_wait_seconds:
+            # Raising here rolls the enclosing transaction back, so no slot is
+            # taken and the pacing queue is left exactly as it was.
+            raise OdkRequestSlotBusyError(row["connection_name"], wait_seconds)
+
         connection.execute(
             sa.update(MasOdkConnections)
             .where(MasOdkConnections.connection_id == conn_id)
@@ -260,7 +291,6 @@ def reserve_odk_request_slot(connection_id) -> float:
                 updated_at=now,
             )
         )
-        wait_seconds = max(0.0, (reserved_for - now).total_seconds())
 
     return wait_seconds
 
@@ -359,13 +389,20 @@ def guarded_odk_call(
     *,
     client=None,
     connection_id=None,
+    max_wait_seconds: float | None = None,
 ):
-    """Run an ODK call with shared cooldown, pacing, and failure tracking."""
+    """Run an ODK call with shared cooldown, pacing, and failure tracking.
+
+    ``max_wait_seconds`` selects the request-path policy: instead of sleeping
+    out the pacing interval, a caller that would wait longer than the bound
+    gets ``OdkRequestSlotBusyError``. Omitting it keeps the sync-path
+    behaviour, which sleeps for as long as pacing requires.
+    """
     conn_id = _connection_uuid(connection_id) or get_client_connection_id(client)
     if conn_id is None:
         return callback()
 
-    wait_seconds = reserve_odk_request_slot(conn_id)
+    wait_seconds = reserve_odk_request_slot(conn_id, max_wait_seconds=max_wait_seconds)
     if wait_seconds > 0:
         time.sleep(wait_seconds)
 

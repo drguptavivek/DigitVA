@@ -324,6 +324,7 @@ def _serialize_project(project):
         "coding_intake_mode": project.coding_intake_mode,
         "demo_training_enabled": project.demo_training_enabled,
         "demo_retention_minutes": project.demo_retention_minutes,
+        "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
     }
 
 
@@ -1293,6 +1294,42 @@ def admin_update_project_site_coding_settings(project_id, site_id):
         "coding_start_date": ps.coding_start_date.isoformat() if ps.coding_start_date else None,
         "coding_end_date": ps.coding_end_date.isoformat() if ps.coding_end_date else None,
         "daily_coder_limit": ps.daily_coder_limit,
+    })
+
+
+@admin.put("/api/projects/<project_id>/attachment-central-fetch")
+@role_required("admin")
+def admin_update_project_attachment_central_fetch(project_id):
+    """Turn Central self-heal of attachment store misses on or off for one project.
+
+    Phase 4a rollout switch (docs/planning/s3-attachment-plan.md). Delivery
+    always reads DigitVA's own store first; off means a store miss is a 404,
+    as before, so disabling is always a safe rollback.
+    """
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    project = db.session.get(VaProjectMaster, (project_id or "").strip().upper())
+    if not project:
+        return _json_error("Project not found.", 404)
+
+    payload = request.get_json(silent=True) or {}
+    enabled = payload.get("attachment_central_fetch_enabled")
+    if not isinstance(enabled, bool):
+        return _json_error(
+            "attachment_central_fetch_enabled must be a boolean.", 400
+        )
+
+    project.attachment_central_fetch_enabled = enabled
+    db.session.commit()
+    log.info(
+        "admin attachment central-fetch flag changed project=%s enabled=%s by=%s",
+        project.project_id, enabled, current_user.user_id,
+    )
+
+    return jsonify({
+        "project_id": project.project_id,
+        "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
     })
 
 

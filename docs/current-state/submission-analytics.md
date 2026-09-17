@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-17
 ---
 
 # Submission Analytics Materialized Views
@@ -63,6 +63,19 @@ including:
 - `va_submission_payload_versions`
 
 ## Included Dimensions
+
+### Project attribution
+
+`project_id` in every analytics MV is the form's own `va_forms.project_id`.
+A form is keyed to exactly one `(project_id, site_id)` pair, while a site may
+belong to several active projects (`va_project_sites` is unique on the pair,
+not on `site_id`), so a submission is never attributed to "the site's
+project". Whether a submission is visible is decided by the scope filters,
+which compare `(project_id, site_id)` against currently active
+`va_project_sites` pairs — the same rule `dm_scope_filter` applies to forms.
+Submissions of a form whose pair has been deactivated therefore drop out of
+scoped analytics rather than being re-attributed to another project.
+
 
 Across the three views, DigitVA stores:
 

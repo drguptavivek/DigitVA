@@ -224,6 +224,77 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             )
         )
 
+    def _add_project_site_mapping(self, project_id, *, project_status, mapping_status):
+        now = datetime.now(timezone.utc)
+        for model in (VaResearchProjects, VaProjectMaster):
+            if db.session.get(model, project_id) is None:
+                db.session.add(model(
+                    project_id=project_id,
+                    project_code=project_id,
+                    project_name=f"Analytics MV {project_id}",
+                    project_nickname=project_id,
+                    project_status=project_status,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                ))
+        db.session.flush()
+        db.session.add(VaProjectSites(
+            project_id=project_id,
+            site_id=self.SITE_ID,
+            project_site_status=mapping_status,
+            project_site_registered_at=now,
+            project_site_updated_at=now,
+        ))
+        db.session.flush()
+
+    def _core_rows(self, sid):
+        return db.session.execute(
+            sa.text(f"SELECT project_id FROM {CORE_MV_NAME} WHERE va_sid = :sid"),
+            {"sid": sid},
+        ).scalars().all()
+
+    def test_core_mv_attributes_to_the_forms_own_project_when_site_is_shared(self):
+        """A site with several active project-site rows must not fan out.
+
+        Regression for the production refresh failure: site MH01 carried
+        active rows for a deactivated demo project and for the live project
+        while the form's own project mapping was deactivated, so the site-only
+        join emitted two rows per submission and the unique va_sid index
+        rejected REFRESH. A submission belongs to its form's own project.
+        """
+        sid = "uuid:mv-site-shared"
+        self._add_submission(sid, {"age_group": "adult", "ageInYears": "40"})
+
+        own = db.session.scalar(sa.select(VaProjectSites).where(
+            VaProjectSites.project_id == self.PROJECT_ID,
+            VaProjectSites.site_id == self.SITE_ID,
+        ))
+        own.project_site_status = VaStatuses.deactive
+        self._add_project_site_mapping(
+            "ANMVDM", project_status=VaStatuses.deactive, mapping_status=VaStatuses.active
+        )
+        self._add_project_site_mapping(
+            "ANMV02", project_status=VaStatuses.active, mapping_status=VaStatuses.active
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv()
+
+        self.assertEqual(self._core_rows(sid), [self.PROJECT_ID])
+
+    def test_core_mv_ignores_other_active_projects_sharing_the_site(self):
+        """A demo project sharing a live site does not steal attribution."""
+        sid = "uuid:mv-site-own"
+        self._add_submission(sid, {"age_group": "adult", "ageInYears": "40"})
+        self._add_project_site_mapping(
+            "ANMV03", project_status=VaStatuses.active, mapping_status=VaStatuses.active
+        )
+        db.session.commit()
+
+        refresh_submission_analytics_mv()
+
+        self.assertEqual(self._core_rows(sid), [self.PROJECT_ID])
+
     def test_mv_normalizes_age_and_selects_authoritative_final_cod(self):
         neonate_sid = "uuid:mv-neonate"
         child_sid = "uuid:mv-child"

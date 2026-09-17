@@ -48,7 +48,6 @@ class DmKpiRetiredSubmissionTests(BaseTestCase):
         super().setUpClass()
         now = datetime.now(timezone.utc)
         cls._ensure_base_research_project_and_site()
-        cls._create_daily_kpi_aggregates_table()
 
         db.session.add(
             VaForms(
@@ -68,30 +67,6 @@ class DmKpiRetiredSubmissionTests(BaseTestCase):
         cls._seed_submission(cls.LIVE_SID, now, sync_issue_code=None)
         cls._seed_submission(cls.RETIRED_SID, now, sync_issue_code="missing_in_odk")
         db.session.commit()
-
-    @classmethod
-    def _create_daily_kpi_aggregates_table(cls):
-        """Create the columns the burndown KPIs read from the daily aggregates.
-
-        ``va_daily_kpi_aggregates`` (migration d7e8f9a0b1c2) has no ORM model,
-        so ``db.create_all()`` does not build it for the test schema and the
-        burndown endpoint fails on a missing relation.  The table is created
-        empty inside the class transaction — and rolled back with it — so the
-        endpoint takes its live-SQL fallback, which is what this class tests.
-        """
-        db.session.execute(
-            sa.text("""
-                CREATE TABLE IF NOT EXISTS va_daily_kpi_aggregates (
-                    snapshot_date DATE NOT NULL,
-                    site_id VARCHAR(4) NOT NULL,
-                    project_id VARCHAR(6) NOT NULL,
-                    coded_count INTEGER,
-                    pending_count INTEGER,
-                    PRIMARY KEY (snapshot_date, site_id)
-                )
-            """)
-        )
-        db.session.flush()
 
     @classmethod
     def _seed_submission(cls, sid: str, now: datetime, sync_issue_code: str | None):

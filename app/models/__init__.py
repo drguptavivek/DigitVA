@@ -35,6 +35,7 @@ from app.models.va_social_autopsy_analysis import (
     VaSocialAutopsyAnalysisOption,
 )
 from app.models.va_sync_runs import VaSyncRun
+from app.models.va_daily_kpi_aggregates import VaDailyKpiAggregates
 from app.models.va_submission_attachments import VaSubmissionAttachments
 from app.models.va_submissions_auditlog import VaSubmissionsAuditlog
 from app.models.va_user_access_grants import VaUserAccessGrants
@@ -104,6 +105,7 @@ __all__ = [
     "VaSocialAutopsyAnalysis",
     "VaSocialAutopsyAnalysisOption",
     "VaSyncRun",
+    "VaDailyKpiAggregates",
     "VaSubmissionAttachments",
     "VaSubmissionsAuditlog",
     "VaProjectSites",

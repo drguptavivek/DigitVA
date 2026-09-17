@@ -16,11 +16,10 @@ from __future__ import annotations
 
 import logging
 
-import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
-from app import cache, db
+from app import cache
 from app.decorators import role_required
 from app.services.submission_analytics_mv import (
     _expand_project_ids_to_active_pairs,
@@ -69,36 +68,6 @@ def dm_project_site_pairs() -> set[tuple[str, str]]:
     pairs: set[tuple[str, str]] = set(current_user.get_data_manager_project_sites())
     pairs |= _expand_project_ids_to_active_pairs(project_ids)
     return pairs
-
-
-# ---------------------------------------------------------------------------
-# Scoped subquery builders
-# ---------------------------------------------------------------------------
-
-def dm_scoped_submission_sid_subquery(site_ids: list[str] | None = None):
-    """Return a subquery of va_sid values scoped to the DM's sites.
-
-    Filters submissions via the site attribution path:
-        va_submissions → va_forms.site_id
-    using the same COALESCE(ps.project_id, f.project_id) pattern as the
-    core analytics MV for site-level attribution.
-    """
-    if site_ids is None:
-        site_ids = dm_site_ids()
-    if not site_ids:
-        # Return an impossible subquery so IN () never matches
-        return sa.select(sa.literal(None)).where(sa.false())
-
-    return (
-        sa.select(sa.column("va_sid"))
-        .select_from(
-            sa.text(
-                "va_submissions s JOIN va_forms f ON f.form_id = s.va_form_id"
-            )
-        )
-        .where(sa.column("site_id").in_(site_ids))
-        .correlate(None)
-    )
 
 
 # ---------------------------------------------------------------------------

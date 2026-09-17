@@ -18,6 +18,19 @@ Sources:
 Design notes:
   va_sync_runs has no per-site breakdown, so C-02 and C-03 are
   system-level.  C-13 (sync latency) is DM-scoped via site attribution.
+
+Retired-from-ODK submissions (docs/policy/odk-retired-submissions.md),
+per KPI:
+  C-13, C-14  counted over submissions — retired rows are excluded, C-13
+              because its denominator is ALL-SYNCED and C-14 because a
+              retired submission's attachments are archival, not a gap the
+              DM can act on.
+  C-02, C-03, D-SH-01  counted over va_sync_runs rows, not submissions —
+              unaffected.
+  D-SH-04     counted over va_smartva_runs rows, not submissions —
+              unaffected.
+  D-SH-03 (the "missing in ODK" count itself) is served from the analytics
+  MV, not here, and deliberately keeps counting retired submissions.
 """
 
 from __future__ import annotations
@@ -31,10 +44,14 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_sync", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 @bp.get("/status")
@@ -153,7 +170,7 @@ def sync_latency():
             cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) AS cnt,
                     PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
@@ -168,10 +185,11 @@ def sync_latency():
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND s.va_created_at >= :cutoff
                   AND s.va_submission_date IS NOT NULL
             """),
-            {"site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
         ).mappings().first()
 
         def _fmt(val):
@@ -219,13 +237,14 @@ def attachment_health():
         # Submissions past SmartVA gate: workflow_state NOT IN
         #   (screening_pending, attachment_sync_pending, smartva_pending)
         c14 = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 WITH past_smartva AS (
                     SELECT s.va_sid
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND w.workflow_state IS NOT NULL
                       AND w.workflow_state NOT IN (
                           'screening_pending', 'attachment_sync_pending', 'smartva_pending'
@@ -242,7 +261,7 @@ def attachment_health():
                     COUNT(*) FILTER (WHERE att_count = 0) AS missing
                 FROM with_attachments
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         total_c14 = c14["total"] or 0

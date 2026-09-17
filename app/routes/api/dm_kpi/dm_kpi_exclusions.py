@@ -21,6 +21,9 @@ Sources:
   - va_data_manager_review (reason breakdowns)
   - va_reviewer_final_assessments (NQA/SA)
   - va_project_master (feature flags)
+
+Submissions retired from ODK are excluded from every count, list,
+grouping and average below (docs/policy/odk-retired-submissions.md).
 """
 
 from __future__ import annotations
@@ -33,10 +36,14 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_exclusions", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 @bp.get("/rates")
@@ -75,7 +82,7 @@ def exclusion_rates():
 
     def compute():
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) AS all_synced,
                     COUNT(*) FILTER (WHERE w.workflow_state = 'consent_refused')
@@ -91,8 +98,9 @@ def exclusion_rates():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         all_synced = row["all_synced"] or 0
@@ -156,65 +164,70 @@ def exclusion_breakdown():
     def compute():
         # Coder reason breakdown
         coder_reasons = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT cr.va_creview_reason, COUNT(*) AS count
                 FROM va_coder_review cr
                 JOIN va_submissions s ON s.va_sid = cr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND cr.va_creview_status = 'active'
                 GROUP BY cr.va_creview_reason
                 ORDER BY count DESC
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().all()
 
         # DM reason breakdown
         dm_reasons = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT dr.va_dmreview_reason, COUNT(*) AS count
                 FROM va_data_manager_review dr
                 JOIN va_submissions s ON s.va_sid = dr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND dr.va_dmreview_status = 'active'
                 GROUP BY dr.va_dmreview_reason
                 ORDER BY count DESC
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().all()
 
         # D-QG-03: Exclusions by actor
         dm_count = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt FROM va_data_manager_review dr
                 JOIN va_submissions s ON s.va_sid = dr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids) AND dr.va_dmreview_status = 'active'
+                  AND {_IN_ODK_SQL}
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         coder_count = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt FROM va_coder_review cr
                 JOIN va_submissions s ON s.va_sid = cr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids) AND cr.va_creview_status = 'active'
+                  AND {_IN_ODK_SQL}
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         screening_rejected = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e.transition_id = 'screening_rejected'
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         return {
@@ -279,9 +292,10 @@ def blocked_forms():
                     JOIN va_submissions s ON s.va_sid = w.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND w.workflow_state = '{state}'
                 """),
-                {"site_ids": site_ids},
+                {**IN_ODK_BIND, "site_ids": site_ids},
             ).scalar() or 0
             if count > 0:
                 breakdown.append({
@@ -293,16 +307,17 @@ def blocked_forms():
 
         # Missing language
         missing_lang = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')
                   AND (s.va_narration_language IS NULL OR s.va_narration_language = '')
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
         if missing_lang > 0:
             breakdown.append({
@@ -314,16 +329,17 @@ def blocked_forms():
 
         # ODK has issues
         odk_issues = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                   AND s.va_odk_reviewstate = 'hasIssues'
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
         if odk_issues > 0:
             breakdown.append({
@@ -335,12 +351,13 @@ def blocked_forms():
 
         # Total unique blocked (deduplicated)
         total_blocked = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(DISTINCT s.va_sid) AS cnt
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state NOT IN (
                       'consent_refused', 'not_codeable_by_data_manager',
                       'not_codeable_by_coder'
@@ -354,7 +371,7 @@ def blocked_forms():
                       OR s.va_odk_reviewstate = 'hasIssues'
                   )
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         return {
@@ -415,6 +432,7 @@ def nqa_sa_rates():
                                     f.project_id
                                 )
                             WHERE f.site_id = ANY(:site_ids)
+                              AND {_IN_ODK_SQL}
                               AND w.workflow_state IN (
                                   'coder_finalized', 'reviewer_eligible',
                                   'reviewer_coding_in_progress',
@@ -435,7 +453,7 @@ def nqa_sa_rates():
                             (SELECT COUNT(*) FROM coded_in_enabled_projects) AS denominator,
                             (SELECT COUNT(*) FROM with_assessment) AS numerator
                     """),
-                    {"site_ids": site_ids},
+                    {**IN_ODK_BIND, "site_ids": site_ids},
                 ).mappings().first()
 
                 denom = row["denominator"] or 0 if row else 0
@@ -472,15 +490,16 @@ def odk_issues():
 
     def compute():
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) AS total,
                     COUNT(*) FILTER (WHERE s.va_odk_reviewstate = 'hasIssues') AS has_issues
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         total = row["total"] or 0

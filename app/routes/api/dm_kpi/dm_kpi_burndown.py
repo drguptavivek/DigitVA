@@ -16,6 +16,9 @@ Design notes:
   C-18 requires project_target_completion_date to be set by admin.
   If not set, the endpoint returns burndown_available=false but still
   provides predicted_days and mean_daily_rate.
+
+Submissions retired from ODK are excluded from every count, list,
+grouping and average below (docs/policy/odk-retired-submissions.md).
 """
 
 from __future__ import annotations
@@ -29,6 +32,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     cached_kpi,
     dm_project_site_pairs,
@@ -37,6 +41,9 @@ from app.routes.api.dm_kpi.dm_kpi_scope import (
 
 bp = Blueprint("dm_kpi_burndown", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 @bp.get("/")
@@ -119,33 +126,35 @@ def burndown():
         else:
             # Live fallback
             total_coded_7d = db.session.execute(
-                sa.text("""
+                sa.text(f"""
                     SELECT COUNT(*) AS cnt
                     FROM va_submission_workflow_events e
                     JOIN va_submissions s ON s.va_sid = e.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND e.transition_id IN ('coder_finalized', 'recode_finalized')
                       AND e.event_created_at >= :cutoff
                 """),
-                {"site_ids": site_ids, "cutoff": seven_days_ago},
+                {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
             ).scalar() or 0
             mean_daily_rate = round(total_coded_7d / 7.0, 1)
 
         # --- C-17: Pending count for prediction ---
         pending = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state IN (
                       'ready_for_coding', 'coding_in_progress', 'coder_step1_saved',
                       'smartva_pending', 'screening_pending', 'attachment_sync_pending'
                   )
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         predicted_days = None
@@ -156,7 +165,7 @@ def burndown():
 
         # Per-coder rate
         per_coder = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     e.actor_user_id AS coder_id,
                     u.name AS coder_name,
@@ -167,18 +176,19 @@ def burndown():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_users u ON u.user_id = e.actor_user_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND e.event_created_at >= :cutoff
                   AND e.actor_user_id IS NOT NULL
                 GROUP BY e.actor_user_id, u.name
                 ORDER BY coded_7d DESC
             """),
-            {"site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
         ).mappings().all()
 
         # Per-language rate
         per_language = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     s.va_narration_language AS language,
                     COUNT(*) AS coded_7d,
@@ -187,13 +197,14 @@ def burndown():
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND e.event_created_at >= :cutoff
                   AND s.va_narration_language IS NOT NULL
                 GROUP BY s.va_narration_language
                 ORDER BY coded_7d DESC
             """),
-            {"site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
         ).mappings().all()
 
         # --- C-18: Burndown ---
@@ -227,24 +238,26 @@ def burndown():
         if burndown_available and target_date:
             # Total submissions in scope
             total_forms = db.session.execute(
-                sa.text("""
+                sa.text(f"""
                     SELECT COUNT(*) AS cnt
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                 """),
-                {"site_ids": site_ids},
+                {**IN_ODK_BIND, "site_ids": site_ids},
             ).scalar() or 0
 
             # First submission date
             first_date = db.session.execute(
-                sa.text("""
+                sa.text(f"""
                     SELECT MIN(DATE(va_created_at)) AS d
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                 """),
-                {"site_ids": site_ids},
+                {**IN_ODK_BIND, "site_ids": site_ids},
             ).scalar()
 
             if first_date and total_forms > 0:

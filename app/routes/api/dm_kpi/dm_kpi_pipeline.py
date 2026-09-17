@@ -21,6 +21,9 @@ Sources:
   - va_submission_workflow_events (transitions, durations)
   - va_daily_kpi_aggregates (time-series)
   - va_submission_upstream_changes (resolution times)
+
+Submissions retired from ODK are excluded from every count, list,
+grouping and average below (docs/policy/odk-retired-submissions.md).
 """
 
 from __future__ import annotations
@@ -34,10 +37,14 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_pipeline", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 @bp.get("/pending")
@@ -60,7 +67,7 @@ def pending_rate():
 
     def compute():
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) FILTER (WHERE w.workflow_state NOT IN (
                         'consent_refused', 'not_codeable_by_data_manager'
@@ -73,8 +80,9 @@ def pending_rate():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         pool = row["coding_pool"] or 0
@@ -104,7 +112,7 @@ def pipeline_aging():
 
     def compute():
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) FILTER (WHERE w.workflow_updated_at < NOW() - INTERVAL '48 hours') AS gt_48h,
                     COUNT(*) FILTER (WHERE w.workflow_updated_at < NOW() - INTERVAL '7 days') AS gt_7d,
@@ -113,9 +121,10 @@ def pipeline_aging():
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state = 'ready_for_coding'
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         return {
@@ -155,7 +164,7 @@ def time_to_code():
             cutoff = datetime.now(timezone.utc) - timedelta(days=7)
 
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) AS cnt,
                     MIN(EXTRACT(EPOCH FROM (e2.event_created_at - e1.event_created_at))) AS min_dur,
@@ -172,6 +181,7 @@ def time_to_code():
                 JOIN va_submissions s ON s.va_sid = e2.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e2.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND e2.event_created_at >= :cutoff
                   AND NOT EXISTS (
@@ -179,7 +189,7 @@ def time_to_code():
                       WHERE d.va_sid = e2.va_sid AND d.transition_id = 'demo_started'
                   )
             """),
-            {"site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
         ).mappings().first()
 
         def _fmt(val):
@@ -220,13 +230,14 @@ def review_rate():
 
     def compute():
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 WITH coded AS (
                     SELECT s.va_sid
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND (
                           w.workflow_state IN (
                               'reviewer_eligible', 'reviewer_coding_in_progress',
@@ -253,7 +264,7 @@ def review_rate():
                     (SELECT COUNT(*) FROM coded) AS eligible,
                     (SELECT COUNT(*) FROM with_review) AS reviewed
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         eligible = row["eligible"] or 0 if row else 0
@@ -305,26 +316,28 @@ def upstream_changes():
     def compute():
         # C-10: upstream change queue (snapshot)
         queue_count = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state = 'finalized_upstream_changed'
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         # C-11: % forms with upstream changes (cumulative)
         upstream_pct = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 WITH coded AS (
                     SELECT s.va_sid
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND w.workflow_state IN (
                           'coder_finalized', 'reviewer_eligible',
                           'reviewer_coding_in_progress', 'reviewer_finalized',
@@ -340,7 +353,7 @@ def upstream_changes():
                     )) AS with_upstream
                 FROM coded c
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         total_coded = upstream_pct["total_coded"] or 0 if upstream_pct else 0
@@ -350,7 +363,7 @@ def upstream_changes():
         # D-WT-02: resolution time (7d)
         seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
         resolution = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
                     EXTRACT(EPOCH FROM (uc.resolved_at - uc.created_at))
                 ) AS p50_seconds
@@ -358,15 +371,16 @@ def upstream_changes():
                 JOIN va_submissions s ON s.va_sid = uc.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND uc.resolved_at IS NOT NULL
                   AND uc.resolved_at >= :cutoff
             """),
-            {"site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
         ).scalar()
 
         # D-WT-04: reopen rate (7d)
         reopen = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) FILTER (WHERE e.transition_id IN (
                         'upstream_change_accepted', 'admin_override_to_recode'
@@ -376,9 +390,10 @@ def upstream_changes():
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e.event_created_at >= :cutoff
             """),
-            {"site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
         ).mappings().first()
 
         reopened = reopen["reopened"] or 0 if reopen else 0
@@ -423,7 +438,7 @@ def inflow_outflow():
         from_date = date.today() - timedelta(days=days - 1)
 
         rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 WITH events AS (
                     SELECT
                         DATE(e.event_created_at) AS day,
@@ -435,6 +450,7 @@ def inflow_outflow():
                     JOIN va_submissions s ON s.va_sid = e.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND e.transition_id IN (
                           'smartva_completed', 'coder_finalized', 'recode_finalized'
                       )
@@ -448,7 +464,7 @@ def inflow_outflow():
                 GROUP BY day
                 ORDER BY day DESC
             """),
-            {"site_ids": site_ids, "from_date": from_date},
+            {**IN_ODK_BIND, "site_ids": site_ids, "from_date": from_date},
         ).mappings().all()
 
         return {
@@ -484,7 +500,7 @@ def site_bottleneck():
 
     def compute():
         rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     f.site_id,
                     COUNT(*) FILTER (WHERE w.workflow_state NOT IN (
@@ -497,6 +513,7 @@ def site_bottleneck():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                 GROUP BY f.site_id
                 ORDER BY (COUNT(*) FILTER (WHERE w.workflow_state IN (
                     'ready_for_coding', 'coding_in_progress', 'coder_step1_saved'
@@ -506,7 +523,7 @@ def site_bottleneck():
                     )), 0
                 )) DESC
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().all()
 
         return {
@@ -546,7 +563,7 @@ def reviewer_throughput():
         seven_days_ago = now - timedelta(days=7)
 
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) FILTER (WHERE e.event_created_at >= :today) AS today,
                     COUNT(*) FILTER (WHERE e.event_created_at >= :seven_d) AS last_7d,
@@ -555,9 +572,10 @@ def reviewer_throughput():
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e.transition_id = 'reviewer_finalized'
             """),
-            {"site_ids": site_ids, "today": today_start, "seven_d": seven_days_ago},
+            {**IN_ODK_BIND, "site_ids": site_ids, "today": today_start, "seven_d": seven_days_ago},
         ).mappings().first()
 
         return {
@@ -626,15 +644,16 @@ def backlog_trend():
 
         # Live fallback (current snapshot only — no historical depth)
         current_pending = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS pending
                 FROM va_submission_workflow w
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state = 'ready_for_coding'
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         return {

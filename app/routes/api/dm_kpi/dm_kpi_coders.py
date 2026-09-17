@@ -15,6 +15,9 @@ Sources:
   - va_reviewer_final_assessments (reviewer output)
   - va_user_access_grants + va_users (coder pool)
   - va_allocations (utilization)
+
+Submissions retired from ODK are excluded from every count, list,
+grouping and average below (docs/policy/odk-retired-submissions.md).
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     cached_kpi,
     dm_project_site_pairs,
@@ -36,6 +40,10 @@ from app.routes.api.dm_kpi.dm_kpi_scope import (
 
 bp = Blueprint("dm_kpi_coders", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
+_IN_ODK_SQL_S2 = in_odk_sql("s2")
 
 
 @bp.get("/utilization")
@@ -76,15 +84,16 @@ def coder_utilization():
 
         # Coders with active allocations in DM's scoped submissions
         active_coders = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(DISTINCT a.va_allocated_to) AS cnt
                 FROM va_allocations a
                 JOIN va_submissions s ON s.va_sid = a.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND a.va_allocation_status = 'active'
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         rate = round(active_coders / total_coders * 100, 1) if total_coders > 0 else 0.0
@@ -134,7 +143,7 @@ def coder_output():
 
         # Build WHERE clause for date range
         date_filter = ""
-        params: dict = {"site_ids": site_ids}
+        params: dict = {**IN_ODK_BIND, "site_ids": site_ids}
         if cutoff:
             date_filter = "AND fa.va_finassess_createdat >= :cutoff"
             params["cutoff"] = cutoff
@@ -152,6 +161,7 @@ def coder_output():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_users u ON u.user_id = fa.va_finassess_by
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND fa.va_finassess_status = 'active'
                   {date_filter}
                 GROUP BY fa.va_finassess_by, u.name, s.va_narration_language
@@ -217,7 +227,7 @@ def coder_roster():
 
     def compute():
         rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     u.user_id,
                     u.name,
@@ -230,6 +240,7 @@ def coder_roster():
                         JOIN va_submissions s2 ON s2.va_sid = fa.va_sid
                         JOIN va_forms f2 ON f2.form_id = s2.va_form_id
                         WHERE f2.site_id = ANY(:site_ids)
+                          AND {_IN_ODK_SQL_S2}
                           AND fa.va_finassess_by = u.user_id
                           AND fa.va_finassess_status = 'active'
                     ) AS total_coded,
@@ -239,7 +250,7 @@ def coder_roster():
                         WHERE a.va_allocated_to = u.user_id
                           AND a.va_allocation_status = 'active'
                     ) AS active_allocations,
-                    MIN(g.created_at) AS active_since
+                    MIN(g.grant_created_at) AS active_since
                 FROM va_users u
                 JOIN va_user_access_grants g ON g.user_id = u.user_id
                 WHERE g.role = 'coder'
@@ -251,7 +262,7 @@ def coder_roster():
                 GROUP BY u.user_id, u.name, u.email, u.vacode_language, g.project_id
                 ORDER BY u.name
             """),
-            {"project_ids": project_ids, "site_ids": site_ids},
+            {**IN_ODK_BIND, "project_ids": project_ids, "site_ids": site_ids},
         ).mappings().all()
 
         return {
@@ -293,7 +304,7 @@ def coder_reviewer_disagreement():
 
     def compute():
         row = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     COUNT(*) AS total_reviewed,
                     COUNT(*) FILTER (
@@ -304,10 +315,11 @@ def coder_reviewer_disagreement():
                 JOIN va_submissions s ON s.va_sid = fa.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND fa.va_finassess_status = 'active'
                   AND rf.va_rfinassess_status = 'active'
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().first()
 
         total = row["total_reviewed"] or 0 if row else 0

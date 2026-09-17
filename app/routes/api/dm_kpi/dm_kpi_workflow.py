@@ -12,6 +12,9 @@ Sources:
   - va_submission_workflow (current states)
   - va_submission_workflow_events (transitions, durations)
   - va_submissions, va_forms (scope filtering)
+
+Submissions retired from ODK are excluded from every count, list,
+grouping and average below (docs/policy/odk-retired-submissions.md).
 """
 
 from __future__ import annotations
@@ -24,10 +27,14 @@ from flask import Blueprint, jsonify, request
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids
 
 bp = Blueprint("dm_kpi_workflow", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 # ---------------------------------------------------------------------------
@@ -134,15 +141,16 @@ DM_ACTIONS: dict[str, str] = {
 def _state_counts(site_ids: list[str]) -> dict[str, int]:
     """Return {workflow_state: count} for the DM's scoped submissions."""
     rows = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT w.workflow_state AS state, COUNT(*) AS count
             FROM va_submission_workflow w
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
             GROUP BY w.workflow_state
         """),
-        {"site_ids": site_ids},
+        {**IN_ODK_BIND, "site_ids": site_ids},
     ).mappings().all()
     return {r["state"]: r["count"] for r in rows}
 
@@ -150,7 +158,7 @@ def _state_counts(site_ids: list[str]) -> dict[str, int]:
 def _coder_finalized_24h_split(site_ids: list[str]) -> dict:
     """Return within_24h and beyond_24h counts for coder_finalized."""
     row = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             SELECT
                 COUNT(*) FILTER (
                     WHERE w.workflow_updated_at >= NOW() - INTERVAL '24 hours'
@@ -162,9 +170,10 @@ def _coder_finalized_24h_split(site_ids: list[str]) -> dict:
             JOIN va_submissions s ON s.va_sid = w.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = ANY(:site_ids)
+              AND {_IN_ODK_SQL}
               AND w.workflow_state = 'coder_finalized'
         """),
-        {"site_ids": site_ids},
+        {**IN_ODK_BIND, "site_ids": site_ids},
     ).mappings().first()
     return {
         "within_24h": row["within_24h"] or 0,
@@ -284,7 +293,7 @@ def state_velocity():
         cutoff = datetime.now(timezone.utc) - timedelta(days=range_days)
 
         rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 WITH cur_events AS (
                     SELECT
                         cur.va_sid,
@@ -295,6 +304,7 @@ def state_velocity():
                     JOIN va_submissions s ON s.va_sid = cur.va_sid
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND cur.event_created_at >= :cutoff
                       AND cur.previous_state IS NOT NULL
                 ),
@@ -332,7 +342,7 @@ def state_velocity():
                 GROUP BY previous_state
                 ORDER BY avg_seconds DESC
             """),
-            {"site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
         ).mappings().all()
 
         states = []
@@ -374,7 +384,7 @@ def stagnation():
         non_terminal = list(STAGNATION_THRESHOLDS.keys())
 
         rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     w.workflow_state AS state,
                     COUNT(*) AS total,
@@ -401,11 +411,12 @@ def stagnation():
                 JOIN va_submissions s ON s.va_sid = w.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state = ANY(:non_terminal)
                 GROUP BY w.workflow_state
                 ORDER BY gt_7d DESC
             """),
-            {"site_ids": site_ids, "non_terminal": non_terminal},
+            {**IN_ODK_BIND, "site_ids": site_ids, "non_terminal": non_terminal},
         ).mappings().all()
 
         alerts = []
@@ -489,7 +500,7 @@ def daily_transitions():
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
         rows = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     DATE(e.event_created_at) AS day,
                     e.current_state AS target_state,
@@ -498,11 +509,12 @@ def daily_transitions():
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e.event_created_at >= :cutoff
                 GROUP BY DATE(e.event_created_at), e.current_state
                 ORDER BY day ASC
             """),
-            {"site_ids": site_ids, "cutoff": cutoff},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": cutoff},
         ).mappings().all()
 
         # Pivot into per-day dicts

@@ -13,6 +13,9 @@ Sources:
   - va_submissions JOIN va_forms JOIN va_submission_workflow
   - va_user_access_grants JOIN va_users (unnest vacode_language)
   - map_language_aliases (for unmapped detection)
+
+Submissions retired from ODK are excluded from every count, list,
+grouping and average below (docs/policy/odk-retired-submissions.md).
 """
 
 from __future__ import annotations
@@ -25,10 +28,14 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_site_ids, dm_project_site_pairs
 
 bp = Blueprint("dm_kpi_language", __name__)
 log = logging.getLogger(__name__)
+
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
 
 
 # States that count as "pending" (waiting for or in coding)
@@ -65,19 +72,20 @@ def language_gap():
     def compute():
         # Step 1: Pending submissions grouped by language
         pending_by_lang = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT s.va_narration_language, COUNT(*) AS pending_count
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')
                   AND s.va_narration_language IS NOT NULL
                   AND s.va_narration_language != ''
                 GROUP BY s.va_narration_language
                 ORDER BY pending_count DESC
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().all()
 
         # Step 2: Coders per language (DM-scoped)
@@ -106,19 +114,20 @@ def language_gap():
         seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
         daily_rate_by_lang = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT s.va_narration_language,
                        COUNT(*)::FLOAT / 7.0 AS daily_rate
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND e.transition_id IN ('coder_finalized', 'recode_finalized')
                   AND e.event_created_at >= :cutoff
                   AND s.va_narration_language IS NOT NULL
                 GROUP BY s.va_narration_language
             """),
-            {"site_ids": site_ids, "cutoff": seven_days_ago},
+            {**IN_ODK_BIND, "site_ids": site_ids, "cutoff": seven_days_ago},
         ).mappings().all()
 
         rate_map = {r["va_narration_language"]: round(float(r["daily_rate"]), 1) for r in daily_rate_by_lang}
@@ -182,24 +191,25 @@ def language_distribution():
     def compute():
         # Overall distribution
         dist = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT s.va_narration_language, COUNT(*) AS count
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND s.va_narration_language IS NOT NULL
                   AND s.va_narration_language != ''
                   AND (w.workflow_state IS NULL OR w.workflow_state != 'consent_refused')
                 GROUP BY s.va_narration_language
                 ORDER BY count DESC
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().all()
 
         # Monthly trend
         monthly = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT
                     TO_CHAR(s.va_created_at, 'YYYY-MM') AS month,
                     s.va_narration_language,
@@ -208,13 +218,14 @@ def language_distribution():
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND s.va_narration_language IS NOT NULL
                   AND s.va_narration_language != ''
                   AND (w.workflow_state IS NULL OR w.workflow_state != 'consent_refused')
                 GROUP BY TO_CHAR(s.va_created_at, 'YYYY-MM'), s.va_narration_language
                 ORDER BY month DESC, count DESC
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).mappings().all()
 
         return {
@@ -257,29 +268,31 @@ def language_missing():
     def compute():
         # Total CODING-POOL count
         total_pool = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         # Missing (NULL or empty)
         missing = db.session.execute(
-            sa.text("""
+            sa.text(f"""
                 SELECT COUNT(*) AS cnt
                 FROM va_submissions s
                 JOIN va_forms f ON f.form_id = s.va_form_id
                 JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                 WHERE f.site_id = ANY(:site_ids)
+                  AND {_IN_ODK_SQL}
                   AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                   AND (s.va_narration_language IS NULL OR s.va_narration_language = '')
             """),
-            {"site_ids": site_ids},
+            {**IN_ODK_BIND, "site_ids": site_ids},
         ).scalar() or 0
 
         # Unmapped (not in map_language_aliases)
@@ -287,12 +300,13 @@ def language_missing():
         unmapped = 0
         try:
             unmapped = db.session.execute(
-                sa.text("""
+                sa.text(f"""
                     SELECT COUNT(*) AS cnt
                     FROM va_submissions s
                     JOIN va_forms f ON f.form_id = s.va_form_id
                     JOIN va_submission_workflow w ON w.va_sid = s.va_sid
                     WHERE f.site_id = ANY(:site_ids)
+                      AND {_IN_ODK_SQL}
                       AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
                       AND s.va_narration_language IS NOT NULL
                       AND s.va_narration_language != ''
@@ -300,7 +314,7 @@ def language_missing():
                           SELECT alias FROM map_language_aliases
                       )
                 """),
-                {"site_ids": site_ids},
+                {**IN_ODK_BIND, "site_ids": site_ids},
             ).scalar() or 0
         except Exception:
             log.warning("map_language_aliases table not found; skipping unmapped check")

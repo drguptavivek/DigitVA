@@ -122,6 +122,46 @@ sync* filter and still offers *Missing in ODK* and *All*.
 The one KPI that counts them is **D-SH-03** below, so the gap between DigitVA
 and Central is always visible rather than silently absorbed.
 
+Every endpoint group under `app/routes/api/dm_kpi/` applies the exclusion in
+its live SQL, through the shared predicate in
+[`app/services/odk_retirement_service.py`](../../app/services/odk_retirement_service.py)
+(`in_odk_sql(alias)` + `IN_ODK_BIND` for `sa.text()` queries,
+`submission_is_in_odk()` for Core expressions) placed in the WHERE clause
+closest to `va_submissions`, so joined aggregates over events, allocations and
+assessments are filtered through the submission rather than after aggregation:
+
+| Endpoint group | KPIs | Retired rows |
+|---|---|---|
+| `dm_kpi_grid` | C-01 daily grid and its live fallback | excluded |
+| `dm_kpi_pipeline` | C-04, C-07, C-08, C-09, C-10, C-11, C-19, C-22, D-WT-01…04 | excluded |
+| `dm_kpi_workflow` | D-WF-01…04 | excluded |
+| `dm_kpi_exclusions` | C-05, C-06, C-23, D-QG-01…08 | excluded |
+| `dm_kpi_coders` | C-12, C-21, C-24, D-LC-04, D-LC-06, D-QG-09 | excluded |
+| `dm_kpi_language` | C-15, C-20, D-LC-01, D-LC-03, D-LC-07 | excluded |
+| `dm_kpi_burndown` | C-16, C-17, C-18 | excluded |
+| `dm_kpi_sync` | C-13, C-14 | excluded (see below) |
+| `dm_kpi_sync` | C-02, C-03, D-SH-01, D-SH-04 | not applicable (see below) |
+
+**Per-KPI decisions for the sync group.** Sync KPIs are the one place where
+"the whole synced population" could plausibly mean *including* retired rows, so
+each was decided from its own definition:
+
+- **C-13 Sync Latency** — excluded. Its denominator is ALL-SYNCED, and
+  ALL-SYNCED is defined above as the rows still in ODK. A retired submission's
+  latency describes a sync that is no longer live.
+- **C-14 Attachment Health** — excluded. A retired submission's local
+  attachments are the archival copy and Central has usually purged the source
+  ([ODK Retired Submissions Policy](odk-retired-submissions.md)), so counting
+  it as a missing-attachment defect would report a gap no DM can close.
+- **C-02 Last Sync Run Status**, **C-03 Sync Error Rate**, **D-SH-01
+  Attachment Download Completeness** — not applicable: counted over
+  `va_sync_runs` rows, not over submissions.
+- **D-SH-04 SmartVA Failure Rate** — not applicable: counted over
+  `va_smartva_runs` rows, not over submissions.
+- **D-SH-03 Locally Missing in ODK** — the deliberate exception; it counts
+  retired submissions and is served from the core analytics MV, not from this
+  package.
+
 **Key distinction:**
 - **Hard gate** (`consent_refused`): permanent, excluded from all downstream scopes
 - **Soft gates** (`not_codeable_by_data_manager`, `not_codeable_by_coder`): reversible. ODK data updates or admin override can return these forms to the pipeline. These should be tracked and surfaced to the DM as "actionable" rather than "lost."

@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#12372d" />
+    <title>WHO 2022 Verbal Autopsy Instrument</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="demo-header">
+      <div class="demo-brand">
+        <h1>WHO 2022 Verbal Autopsy</h1>
+        <p>Secure verbal autopsy data entry</p>
+      </div>
+      <nav class="menu-bar" aria-label="Main menu">
+        <button id="show-login" type="button" data-menu-step="login">Login</button>
+        <button id="show-registration" type="button" data-menu-step="registration">Register user</button>
+        <button id="show-dashboard" type="button" data-menu-step="dashboard" hidden>Dashboard</button>
+        <button id="show-profile" type="button" data-menu-step="profile" hidden>Profile</button>
+        <button id="new-case-entry" type="button" data-menu-step="entry">Case data entry</button>
+        <button id="logout-user" type="button" hidden>Logout</button>
+        <button id="header-start-selected-entry" class="start-selected-entry" type="button" disabled>
+          Fill WHO VA 2022 Instrument
+        </button>
+        <label class="language-picker">
+          <span class="sr-only">Language</span>
+          <select id="language" aria-label="Instrument language"></select>
+        </label>
+      </nav>
+    </header>
+
+    <main>
+      <section id="login-shell" class="entry-shell" aria-labelledby="login-title">
+        <form id="login-form" class="entry-form">
+          <div class="entry-form__header">
+            <div>
+              <h2 id="login-title">User login</h2>
+              <p>Sign in to open the page assigned to your role.</p>
+            </div>
+          </div>
+
+          <div class="entry-grid">
+            <label>
+              <span>Email or user ID</span>
+              <input name="email" type="text" autocomplete="username" required />
+            </label>
+            <label>
+              <span>Password</span>
+              <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+          </div>
+
+          <div class="entry-actions">
+            <button type="submit">Login</button>
+          </div>
+        </form>
+        <output id="login-output" class="entry-output" hidden></output>
+      </section>
+
+      <section id="admin-shell" class="entry-shell" aria-labelledby="admin-title" hidden>
+        <div class="entry-form">
+          <div class="entry-form__header">
+            <div>
+              <h2 id="admin-title">Admin dashboard</h2>
+              <p id="admin-summary">Signed in as admin.</p>
+            </div>
+          </div>
+          <div class="entry-actions">
+            <button id="admin-register-user" type="button">Register another user</button>
+            <button id="admin-manage-users" type="button">Manage users</button>
+            <button id="admin-open-data-entry" type="button">Open data entry</button>
+            <button id="admin-open-dashboard" type="button">Open dashboard</button>
+          </div>
+        </div>
+      </section>
+      <section id="user-management-shell" class="entry-shell" aria-labelledby="user-management-title" hidden>
+        <form id="user-management-form" class="entry-form">
+          <div class="entry-form__header">
+            <div>
+              <h2 id="user-management-title">Manage users</h2>
+              <p>Select a user and update account credentials.</p>
+            </div>
+            <label>
+              <span>User</span>
+              <select id="managed-user-select" required>
+                <option value="">No users loaded</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="entry-grid">
+            <label>
+              <span>Name</span>
+              <input
+                name="name"
+                type="text"
+                autocomplete="name"
+                pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                title="Use letters only. Spaces are allowed between words."
+                required
+              />
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              <span>Role</span>
+              <select name="role" required>
+                <option value="">Select role</option>
+                <option value="admin">Admin</option>
+                <option value="data-entry">Data entry</option>
+              </select>
+            </label>
+            <label>
+              <span>Partner site</span>
+              <select name="partnerSite" required>
+                <option value="">Select partner site</option>
+                <option value="AIIMS">AIIMS</option>
+                <option value="ICMR">ICMR</option>
+                <option value="WHO Collaborating Centre">WHO Collaborating Centre</option>
+              </select>
+            </label>
+            <label>
+              <span>Site assigned</span>
+              <select name="siteAssigned" required>
+                <option value="">Select assigned site</option>
+                <option value="Bhopal">Bhopal</option>
+                <option value="Delhi">Delhi</option>
+                <option value="Mumbai">Mumbai</option>
+                <option value="Pune">Pune</option>
+              </select>
+            </label>
+            <label>
+              <span>New password</span>
+              <input
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                title="Leave blank to keep the current password."
+              />
+            </label>
+          </div>
+
+          <div class="entry-actions">
+            <button id="refresh-managed-users" type="button">Refresh users</button>
+            <button type="submit">Save changes</button>
+          </div>
+        </form>
+        <output id="user-management-output" class="entry-output" hidden></output>
+      </section>
+      <section id="profile-shell" class="entry-shell" aria-labelledby="profile-title" hidden>
+        <div class="entry-form">
+          <div class="entry-form__header">
+            <div>
+              <h2 id="profile-title">User profile</h2>
+              <p>View your account details and update your password.</p>
+            </div>
+          </div>
+
+          <dl id="profile-details" class="profile-details" aria-label="User details"></dl>
+
+          <form id="password-change-form" class="password-change-form">
+            <fieldset class="entry-section">
+              <legend>Change password</legend>
+              <div class="entry-grid">
+                <label>
+                  <span>Current password</span>
+                  <input name="currentPassword" type="password" autocomplete="current-password" required />
+                </label>
+                <label>
+                  <span>New password</span>
+                  <input
+                    name="newPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    minlength="8"
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Confirm new password</span>
+                  <input
+                    name="confirmPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    minlength="8"
+                    required
+                  />
+                </label>
+              </div>
+            </fieldset>
+
+            <div class="entry-actions">
+              <button type="submit">Change password</button>
+            </div>
+          </form>
+        </div>
+        <output id="profile-output" class="entry-output" hidden></output>
+      </section>
+      <section id="dashboard-shell" class="dashboard-shell" aria-labelledby="dashboard-title" hidden>
+        <div class="dashboard-header">
+          <div>
+            <h2 id="dashboard-title">WHO VA forms dashboard</h2>
+            <p id="dashboard-summary">Forms grouped user wise with pending, drafted, and final status.</p>
+          </div>
+          <button id="refresh-dashboard" type="button">Refresh</button>
+        </div>
+        <div id="dashboard-totals" class="dashboard-totals" aria-label="Form status totals"></div>
+        <div id="dashboard-users" class="dashboard-users"></div>
+        <output id="dashboard-output" class="entry-output" hidden></output>
+      </section>
+      <section id="registration-shell" class="entry-shell" aria-labelledby="registration-title">
+        <form id="registration-form" class="entry-form">
+          <div class="entry-form__header">
+            <div>
+              <h2 id="registration-title">User registration</h2>
+              <p>Create interviewer access before case data entry.</p>
+            </div>
+            <label>
+              <span>User ID</span>
+              <input id="generated-user-id" type="text" readonly placeholder="Generated after save" />
+            </label>
+          </div>
+
+          <div class="entry-grid">
+            <label>
+              <span>Name</span>
+              <input
+                name="name"
+                type="text"
+                autocomplete="name"
+                pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                title="Use letters only. Spaces are allowed between words."
+                required
+              />
+            </label>
+            <label>
+              <span>Email</span>
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              <span>Role</span>
+              <select name="role" required>
+                <option value="">Select role</option>
+                <option value="admin">Admin</option>
+                <option value="data-entry">Data entry</option>
+              </select>
+            </label>
+            <label>
+              <span>Partner site</span>
+              <select name="partnerSite" required>
+                <option value="">Select partner site</option>
+                <option value="AIIMS">AIIMS</option>
+                <option value="ICMR">ICMR</option>
+                <option value="WHO Collaborating Centre">WHO Collaborating Centre</option>
+              </select>
+            </label>
+            <label>
+              <span>Site assigned</span>
+              <select name="siteAssigned" required>
+                <option value="">Select assigned site</option>
+                <option value="Bhopal">Bhopal</option>
+                <option value="Delhi">Delhi</option>
+                <option value="Mumbai">Mumbai</option>
+                <option value="Pune">Pune</option>
+              </select>
+            </label>
+            <label class="entry-grid__wide">
+              <span>Password</span>
+              <input
+                name="password"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                title="Use at least 8 characters."
+                required
+              />
+            </label>
+          </div>
+
+          <div class="entry-actions">
+            <button id="clear-registration" type="button">Clear</button>
+            <button type="submit">Register</button>
+          </div>
+        </form>
+        <output id="registration-output" class="entry-output" hidden></output>
+      </section>
+      <section id="case-picker-shell" class="entry-shell" aria-labelledby="case-picker-title">
+        <div class="entry-form">
+          <div class="entry-form__header">
+            <div>
+              <h2 id="case-picker-title">Select deceased</h2>
+              <p>Select a deceased name before filling the WHO VA 2022 instrument.</p>
+            </div>
+          </div>
+
+          <div class="entry-grid">
+            <label class="entry-grid__wide">
+              <span>Deceased name</span>
+              <select id="deceased-entry-select">
+                <option value="">No saved deceased entries</option>
+              </select>
+            </label>
+          </div>
+
+          <output id="selected-entry-output" class="entry-summary" hidden></output>
+
+          <div class="entry-actions">
+            <button id="start-selected-entry" class="start-selected-entry" type="button" disabled>
+              Fill WHO VA 2022 Instrument
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section id="case-entry-shell" class="entry-shell" aria-labelledby="case-entry-title" hidden>
+        <form id="case-entry-form" class="entry-form">
+          <div class="entry-form__header">
+            <div>
+              <h2 id="case-entry-title">Case data entry</h2>
+              <p>Register demographic and deceased details before starting the verbal autopsy.</p>
+            </div>
+            <label>
+              <span>Uid</span>
+              <input id="uid" name="uid" type="text" readonly />
+            </label>
+          </div>
+
+          <fieldset class="entry-section">
+            <legend>Demographic details</legend>
+            <div class="entry-grid">
+              <label>
+                <span>District</span>
+                <input
+                  name="district"
+                  type="text"
+                  autocomplete="address-level2"
+                  pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                  title="Use letters only. Spaces are allowed between words."
+                  required
+                />
+              </label>
+              <label>
+                <span>Block</span>
+                <input
+                  name="block"
+                  type="text"
+                  pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                  title="Use letters only. Spaces are allowed between words."
+                  required
+                />
+              </label>
+              <label>
+                <span>Villages</span>
+                <input
+                  name="villages"
+                  type="text"
+                  pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                  title="Use letters only. Spaces are allowed between words."
+                  required
+                />
+              </label>
+              <label>
+                <span>Phc</span>
+                <input
+                  name="phc"
+                  type="text"
+                  pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                  title="Use letters only. Spaces are allowed between words."
+                  required
+                />
+              </label>
+              <label>
+                <span>Subcentre</span>
+                <input
+                  name="subcentre"
+                  type="text"
+                  pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                  title="Use letters only. Spaces are allowed between words."
+                  required
+                />
+              </label>
+              <input name="date" type="hidden" />
+            </div>
+          </fieldset>
+
+          <fieldset class="entry-section">
+            <legend>Deceased details</legend>
+            <div class="entry-grid">
+              <label>
+                <span>Full name of the deceased</span>
+                <input
+                  name="deceasedFullName"
+                  type="text"
+                  pattern="[A-Za-z]+(?: [A-Za-z]+)*"
+                  title="Use letters only. Spaces are allowed between words."
+                  required
+                />
+              </label>
+              <label>
+                <span>Sex of the deceased</span>
+                <select name="deceasedSex" required>
+                  <option value="">Select sex</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="undetermined">Undetermined</option>
+                </select>
+              </label>
+              <label class="entry-grid__wide">
+                <span>House address of the deceased</span>
+                <textarea name="deceasedHouseAddress" rows="3" required></textarea>
+              </label>
+              <label>
+                <span>Pin code</span>
+                <input
+                  name="pinCode"
+                  type="text"
+                  inputmode="numeric"
+                  pattern="[0-9]{6}"
+                  maxlength="6"
+                  required
+                />
+              </label>
+              <label>
+                <span>Death date</span>
+                <input name="deathDate" type="date" required />
+              </label>
+              <label>
+                <span>Death place</span>
+                <select name="deathPlace" required>
+                  <option value="">Select death place</option>
+                  <option value="hospital-death">Hospital death</option>
+                  <option value="home-death">Home death</option>
+                  <option value="on-the-way-to-hospital">On the way to hospital</option>
+                  <option value="other">Other place</option>
+                </select>
+              </label>
+              <label>
+                <span>Age at the time of death</span>
+                <input
+                  name="ageAtDeath"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  max="130"
+                  step="1"
+                  required
+                />
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="entry-actions">
+            <button id="clear-case-entry" type="button">Clear</button>
+            <button type="submit">Save entry</button>
+          </div>
+        </form>
+        <output id="case-entry-output" class="entry-output" hidden></output>
+      </section>
+
+      <section id="who-va-shell" class="who-va-shell" hidden>
+        <div class="who-va-toolbar">
+          <button id="choose-case-entry" type="button">Select deceased</button>
+          <button id="edit-case-entry" type="button">Edit case entry</button>
+        </div>
+        <output id="who-va-output" class="entry-output" hidden></output>
+        <who-va-2022-form
+          id="who-va-form"
+          locale="hi"
+          auto-save-draft-on-change
+          auto-save-draft-interval-ms="5000"
+        ></who-va-2022-form>
+      </section>
+    </main>
+
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

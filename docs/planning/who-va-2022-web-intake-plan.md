@@ -76,6 +76,35 @@ with submissions routed to the right organization unit by the standard
 - The front end is Jinja, jQuery, Bootstrap and HTMX with vendored assets under
   `app/static/vendors`; there is no JavaScript bundler in the repo.
 
+## Requirements added 2026-09-18
+
+- **Vendoring route.** The package source is copied into `vendor/who-va-2022/`
+  (no submodule, no npm dependency) and modified in place; DigitVA's extra
+  questions live in `vendor/who-va-2022/src/digitva-extension.ts` and are
+  composed into the instrument by `src/instrument.ts`. `tooling/who-va-2022/`
+  bundles it into `app/static/vendor/who-va-2022/who-va-2022.web-component.js`
+  (committed, with `manifest.json` carrying version, size and sha256).
+  Upstream fixes are merged by hand.
+- **Death register first.** Besides direct form entry, a project may register a
+  death first (deceased basics, unit, date, informant) and start the VA from
+  that entry, prefilled. A project setting `web_intake_mode` selects `off`,
+  `direct`, `death_register` or `both`.
+- **Unique id.** A PostgreSQL sequence assigns the human-readable id when the
+  death is registered (or, in direct mode, when the draft is first saved), so
+  it can be written on paper; the submission keeps a UUID internally. Format
+  `<unit_code>-<zero-padded sequence>`; gaps are accepted.
+- **Fields the interviewer answers** beyond WHO: `narr_language` (values are
+  DigitVA's language codes), `imagenarr`, `md_count` + `md_im1..30`,
+  `ds_count` + `ds_im1..5` (count-driven relevance as in the ODK form). The
+  WHO instrument already has `comment`. Everything else DigitVA-specific is
+  injected server-side.
+- **Mobile performance risk.** The field lead reports the package's web form
+  was slow on mobile devices. The bundle carries React, react-native-web and
+  pdfjs (1.0 MB, 197 KB gzipped) and recalculates 38 fields on every change.
+  Profiling on a low-end Android device with CPU throttling is a phase 1 task
+  before rollout; candidate fixes are lazy section rendering, debounced
+  recalculation, and dropping pdfjs from the default bundle.
+
 ## Proposed design
 
 ### 1. Delivery of the questionnaire
@@ -159,10 +188,10 @@ with submissions routed to the right organization unit by the standard
 | # | Question | Recommendation |
 |---|---|---|
 | W1 | Server-side validation | Node validator sidecar running the package's `validateSubmission()`; Python does structural checks only. Avoids porting 450 questions of skip logic. |
-| W2 | Asset delivery | Vendored pinned bundle under `app/static/vendor`, no CDN. |
+| W2 | Asset delivery | **Decided:** vendored source copy plus committed bundle under `app/static/vendor`, no CDN. |
 | W3 | Who may fill forms | New `interviewer` role, cadre-gated, unit-scoped when available. |
 | W4 | Virtual form granularity | One web form per project-site (container site for tree projects); routing to units happens by the code fields, as for ODK. |
-| W5 | Unique id format | Reuse the ODK `unique_id` convention, generated server-side from unit code, date and sequence. |
+| W5 | Unique id format | **Decided:** PostgreSQL sequence, `<unit_code>-<seq>`, assigned at death registration or first draft save; UUID internally. |
 | W6 | Mandatory media | Same as the ODK form today (audio narration expected); confirm with the field lead. |
 
 ## Spike results (2026-09-18, run on the host with Node 24 in a scratch project)

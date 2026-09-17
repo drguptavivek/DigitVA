@@ -1,0 +1,31 @@
+Independent implementation notice
+=================================
+
+This package is an independent software implementation of the 2022 WHO
+verbal autopsy instrument. It is not affiliated with, sponsored by, or
+endorsed by the World Health Organization (WHO). The name "WHO" is used only
+to identify the source instrument. The WHO logo is not used and must not be
+used to promote this package.
+
+The MIT License in LICENSE applies to the original software implementation.
+It does not replace or override the copyright or licence governing the source
+questionnaire content.
+
+Source instrument
+-----------------
+
+World Health Organization. 2022 WHO verbal autopsy instrument. Geneva: World
+Health Organization; 2022.
+
+https://www.who.int/publications/m/item/2022-who-verbal-autopsy-instrument
+
+The source instrument is identified by WHO as licensed under Creative Commons
+Attribution-NoDerivatives 3.0 IGO (CC BY-ND 3.0 IGO):
+
+https://creativecommons.org/licenses/by-nd/3.0/igo/
+
+Users remain responsible for complying with those terms, including attribution
+and restrictions on adaptations. This package intentionally ships only the
+unmodified English source instrument as a built-in language. Its localization
+APIs allow host applications to supply translations for which they have the
+necessary rights or permissions.

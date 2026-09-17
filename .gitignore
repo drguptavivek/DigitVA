@@ -55,3 +55,6 @@ docs/Samplemanuscripts/*.*
 
 # Beads / Dolt files (added by bd init)
 .beads-credential-key
+tooling/who-va-2022/node_modules/
+vendor/who-va-2022/node_modules/
+vendor/who-va-2022/dist/

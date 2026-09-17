@@ -1,0 +1,690 @@
+:root {
+  color: #1f2937;
+  background: #f5f7fa;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  /* Public theme tokens. Override these on :root, a wrapper, or the form. */
+  --who-2022-web-color-ink: #1f2937;
+  --who-2022-web-color-ink-subtle: #374151;
+  --who-2022-web-color-muted: #667085;
+  --who-2022-web-color-brand: #2563eb;
+  --who-2022-web-color-brand-deep: #1e3a5f;
+  --who-2022-web-color-brand-soft: #eff6ff;
+  --who-2022-web-color-surface: #ffffff;
+  --who-2022-web-color-canvas: #f5f7fa;
+  --who-2022-web-color-border: #e2e8f0;
+  --who-2022-web-color-control-border: #b8c2d1;
+  --who-2022-web-color-guidance: #475569;
+  --who-2022-web-color-danger: #b42318;
+  --who-2022-web-color-danger-border: #d92d20;
+  --who-2022-web-color-danger-strong: #912018;
+  --who-2022-web-color-danger-soft: #fff1f0;
+  --who-2022-web-color-image-background: #111827;
+  --who-2022-web-focus-ring: rgb(37 99 235 / 20%);
+  --who-2022-web-shadow-card: 0 1px 2px rgb(15 23 42 / 6%);
+  --who-2022-web-shadow-focus: 0 4px 12px rgb(37 99 235 / 10%);
+  --who-2022-web-radius-control: 12px;
+  --who-2022-web-radius-card: 18px;
+  --who-2022-web-form-max-width: 48rem;
+  --who-2022-web-form-padding: clamp(1rem, 2.5vw, 1.5rem);
+  --who-2022-web-form-padding-inline: var(--who-2022-web-form-padding);
+  --who-2022-web-form-padding-block: var(--who-2022-web-form-padding);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--who-2022-web-color-canvas);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--who-2022-web-color-canvas);
+}
+
+::selection {
+  color: var(--who-2022-web-color-brand-deep);
+  background: #dbeafe;
+}
+
+.demo-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px max(24px, calc((100vw - 760px) / 2));
+  overflow: hidden;
+  color: #fff;
+  background: var(--who-2022-web-color-brand-deep);
+  border-bottom: 1px solid rgb(255 255 255 / 14%);
+  box-shadow: none;
+}
+
+.demo-brand {
+  min-width: 220px;
+}
+
+.demo-header h1 {
+  margin: 3px 0 0;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1.18;
+  letter-spacing: 0;
+}
+
+.demo-brand p {
+  margin: 6px 0 0;
+  color: rgb(255 255 255 / 76%);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.menu-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px;
+  background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 8px;
+}
+
+.menu-bar button {
+  min-height: 36px;
+  padding: 0 14px;
+  color: #fff;
+  background: #2563eb;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.menu-bar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.menu-bar button:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.menu-bar button.menu-button--active {
+  color: #12372d;
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+.language-picker {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.language-picker select {
+  min-width: 104px;
+  padding: 6px 28px 6px 9px;
+  color: #fff;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 8px;
+  background: #294d75;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+main,
+who-va-2022-form {
+  display: block;
+  min-height: calc(100vh - 112px);
+}
+
+/* The form is rendered through react-native-web, so these selectors provide
+   browser-only polish while the shared inline styles remain native-safe. */
+who-va-2022-form input,
+who-va-2022-form textarea,
+who-va-2022-form [role="button"],
+who-va-2022-form [role="radio"],
+who-va-2022-form [role="checkbox"] {
+  font: inherit;
+  border-radius: var(--who-2022-web-radius-control) !important;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+who-va-2022-form input:hover,
+who-va-2022-form textarea:hover {
+  border-color: #7f8ea3 !important;
+}
+
+who-va-2022-form input:focus-visible,
+who-va-2022-form textarea:focus-visible,
+who-va-2022-form [role="button"]:focus-visible,
+who-va-2022-form [role="radio"]:focus-visible,
+who-va-2022-form [role="checkbox"]:focus-visible {
+  outline: 3px solid var(--who-2022-web-focus-ring);
+  outline-offset: 2px;
+  border-color: var(--who-2022-web-color-brand) !important;
+}
+
+who-va-2022-form [role="button"]:not([aria-disabled="true"]):hover,
+who-va-2022-form [role="radio"]:hover,
+who-va-2022-form [role="checkbox"]:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--who-2022-web-shadow-card);
+}
+
+who-va-2022-form [role="button"]:not([aria-disabled="true"]):active,
+who-va-2022-form [role="radio"]:active,
+who-va-2022-form [role="checkbox"]:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+who-va-2022-form [data-testid^="question-card-"] {
+  border-color: var(--who-2022-web-color-border) !important;
+  border-radius: var(--who-2022-web-radius-card) !important;
+  background-color: var(--who-2022-web-color-surface) !important;
+  box-shadow: var(--who-2022-web-shadow-card);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+who-va-2022-form [data-testid^="question-card-"]:focus-within {
+  border-color: #93b4f5 !important;
+  box-shadow: var(--who-2022-web-shadow-focus);
+}
+
+who-va-2022-form [data-testid="section-switcher"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  max-width: 100% !important;
+}
+
+who-va-2022-form [data-testid="section-slider"] {
+  flex: 1 1 auto !important;
+  max-width: 472px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+who-va-2022-form [data-testid="section-slider"] > div {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+}
+
+who-va-2022-form [data-testid="section-slider-item"] {
+  flex: 0 0 112px !important;
+  width: 112px !important;
+}
+@media (max-width: 680px) {
+  .demo-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .menu-bar {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .language-picker {
+    align-self: flex-start;
+  }
+}
+
+/* Compact landscape phones retain full-width content with smaller vertical
+   gutters; tablets and larger screens remain capped by form-max-width. */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root {
+    --who-2022-web-form-padding-block: 0.875rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.entry-shell {
+  width: min(100% - 32px, 760px);
+  margin: 24px auto 0;
+}
+
+.dashboard-shell {
+  width: min(100% - 32px, 1080px);
+  margin: 24px auto;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.dashboard-header h2 {
+  margin: 0;
+  color: var(--who-2022-web-color-ink);
+  font-size: 1.28rem;
+  line-height: 1.25;
+}
+
+.dashboard-header p {
+  margin: 4px 0 0;
+  color: var(--who-2022-web-color-muted);
+  font-size: 0.92rem;
+}
+
+.dashboard-header button,
+.dashboard-table button {
+  min-height: 36px;
+  padding: 0 12px;
+  color: #fff;
+  background: var(--who-2022-web-color-brand);
+  border: 1px solid var(--who-2022-web-color-brand);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dashboard-total,
+.dashboard-user {
+  background: var(--who-2022-web-color-surface);
+  border: 1px solid var(--who-2022-web-color-border);
+  border-radius: 8px;
+  box-shadow: var(--who-2022-web-shadow-card);
+}
+
+.dashboard-total {
+  padding: 14px;
+}
+
+.dashboard-total strong {
+  display: block;
+  color: var(--who-2022-web-color-brand-deep);
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.dashboard-total span {
+  color: var(--who-2022-web-color-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.dashboard-users {
+  display: grid;
+  gap: 14px;
+}
+
+.dashboard-user {
+  overflow: hidden;
+}
+
+.dashboard-user__header {
+  padding: 14px 16px 8px;
+}
+
+.dashboard-user__header h3 {
+  margin: 0;
+  color: var(--who-2022-web-color-ink);
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.dashboard-user__header p {
+  margin: 4px 0 0;
+  color: var(--who-2022-web-color-muted);
+  font-size: 0.84rem;
+}
+
+.dashboard-user__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.dashboard-pill,
+.dashboard-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.dashboard-pill {
+  color: var(--who-2022-web-color-brand-deep);
+  background: var(--who-2022-web-color-brand-soft);
+}
+
+.dashboard-status--pending {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.dashboard-status--drafted {
+  color: #075985;
+  background: #e0f2fe;
+}
+
+.dashboard-status--final {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: 11px 16px;
+  text-align: left;
+  vertical-align: middle;
+  border-top: 1px solid var(--who-2022-web-color-border);
+  font-size: 0.86rem;
+}
+
+.dashboard-table th {
+  color: var(--who-2022-web-color-muted);
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-empty {
+  margin: 0;
+  padding: 16px;
+  color: var(--who-2022-web-color-muted);
+  background: var(--who-2022-web-color-surface);
+  border: 1px solid var(--who-2022-web-color-border);
+  border-radius: 8px;
+}
+
+.entry-form {
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  color: var(--who-2022-web-color-ink);
+  background: var(--who-2022-web-color-surface);
+  border: 1px solid var(--who-2022-web-color-border);
+  border-radius: 8px;
+  box-shadow: var(--who-2022-web-shadow-card);
+}
+
+.entry-form__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  gap: 16px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.entry-form h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.entry-form p {
+  margin: 4px 0 0;
+  color: var(--who-2022-web-color-muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.entry-section {
+  min-width: 0;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+}
+
+.entry-section legend {
+  margin-bottom: 10px;
+  color: var(--who-2022-web-color-brand-deep);
+  font-size: 0.98rem;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.entry-grid__wide {
+  grid-column: 1 / -1;
+}
+
+.profile-details {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0 0 20px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid var(--who-2022-web-color-border);
+  border-radius: 8px;
+}
+
+.profile-details dt,
+.profile-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.profile-details dt {
+  color: var(--who-2022-web-color-muted);
+  font-weight: 800;
+}
+
+.profile-details dd {
+  color: var(--who-2022-web-color-ink);
+  font-weight: 650;
+}
+
+.entry-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--who-2022-web-color-ink-subtle);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.entry-form input,
+.entry-form textarea,
+.entry-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  color: var(--who-2022-web-color-ink);
+  background: #fff;
+  border: 1px solid var(--who-2022-web-color-control-border);
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 500;
+}
+
+.entry-form input[readonly] {
+  color: var(--who-2022-web-color-brand-deep);
+  background: var(--who-2022-web-color-brand-soft);
+}
+
+.entry-form textarea {
+  resize: vertical;
+}
+
+.entry-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.entry-actions button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--who-2022-web-color-control-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--who-2022-web-color-ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.entry-actions button[type="submit"] {
+  color: #fff;
+  border-color: var(--who-2022-web-color-brand);
+  background: var(--who-2022-web-color-brand);
+}
+
+.entry-output {
+  display: block;
+  margin-top: 12px;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--who-2022-web-color-ink);
+  background: #fff;
+  border: 1px solid var(--who-2022-web-color-border);
+  border-radius: 8px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+}
+.entry-summary {
+  display: block;
+  margin-top: 14px;
+  padding: 12px;
+  white-space: pre-wrap;
+  color: var(--who-2022-web-color-ink-subtle);
+  background: var(--who-2022-web-color-brand-soft);
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .entry-shell {
+    width: min(100% - 24px, 760px);
+    margin-top: 16px;
+  }
+
+  .dashboard-shell {
+    width: min(100% - 24px, 1080px);
+    margin-top: 16px;
+  }
+
+  .entry-form__header,
+  .entry-grid,
+  .dashboard-totals {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-header {
+    display: grid;
+  }
+
+  .dashboard-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.who-va-shell {
+  min-height: calc(100vh - 112px);
+}
+
+.who-va-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 14px;
+  width: min(100% - 32px, 760px);
+  margin: 18px auto 0;
+}
+
+.who-va-toolbar button {
+  min-height: 38px;
+  padding: 0 12px;
+  color: var(--who-2022-web-color-brand-deep);
+  background: #fff;
+  border: 1px solid var(--who-2022-web-color-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+}

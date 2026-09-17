@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "WHO VA 2022 Demo",
+    "slug": "who-va-2022-demo",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "newArchEnabled": true,
+    "platforms": ["android", "ios", "web"],
+    "scheme": "whova2022demo",
+    "plugins": ["expo-router"],
+    "ios": {
+      "bundleIdentifier": "org.drguptavivek.whova2022demo",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "org.drguptavivek.whova2022demo",
+      "permissions": ["CAMERA", "RECORD_AUDIO", "READ_MEDIA_IMAGES"]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}

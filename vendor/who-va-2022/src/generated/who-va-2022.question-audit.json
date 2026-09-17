@@ -1,0 +1,6863 @@
+{
+  "generatedFrom": "whova2022_xls_form_for_odk.xlsx",
+  "instrumentId": "va_who_2022",
+  "instrumentVersion": "2023072701",
+  "sectionCount": 30,
+  "questionCount": 449,
+  "questions": [
+    {
+      "name": "audit",
+      "sourceRow": 2,
+      "sourceType": "audit",
+      "dataType": "audit",
+      "control": "system",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10010",
+      "sourceRow": 4,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": "regex(., '^[A-Za-z ]+$')",
+      "calculation": null
+    },
+    {
+      "name": "Id10010a",
+      "sourceRow": 5,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": "(.>=18 and .<90) or .=99",
+      "calculation": null
+    },
+    {
+      "name": "Id10010b",
+      "sourceRow": 6,
+      "sourceType": "select_one select_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "female",
+        "male",
+        "undetermined"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10010c",
+      "sourceRow": 7,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "language",
+      "sourceRow": 8,
+      "sourceType": "select_one language",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "en"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10002",
+      "sourceRow": 11,
+      "sourceType": "select_one HIGH_LOW_VERY",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "high",
+        "low",
+        "veryl"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10003",
+      "sourceRow": 12,
+      "sourceType": "select_one HIGH_LOW_VERY",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "high",
+        "low",
+        "veryl"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10004",
+      "sourceRow": 13,
+      "sourceType": "select_one select_58",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "wet",
+        "dry",
+        "DK"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10007",
+      "sourceRow": 16,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10007a",
+      "sourceRow": 17,
+      "sourceType": "select_one select_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "female",
+        "male",
+        "undetermined"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10007b",
+      "sourceRow": 18,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": ".>=18 and .<=90",
+      "calculation": null
+    },
+    {
+      "name": "Id10008",
+      "sourceRow": 19,
+      "sourceType": "select_one select_32",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "parent",
+        "child",
+        "family_member",
+        "friend",
+        "spouse",
+        "health_worker",
+        "public_official",
+        "another_relationship",
+        "Ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10009",
+      "sourceRow": 20,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10012",
+      "sourceRow": 21,
+      "sourceType": "today",
+      "dataType": "date",
+      "control": "system",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10013",
+      "sourceRow": 22,
+      "sourceType": "select_one YES_NO",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10011",
+      "sourceRow": 23,
+      "sourceType": "start",
+      "dataType": "dateTime",
+      "control": "system",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10017",
+      "sourceRow": 28,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10018",
+      "sourceRow": 29,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10019",
+      "sourceRow": 30,
+      "sourceType": "select_one select_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "female",
+        "male",
+        "undetermined"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10020",
+      "sourceRow": 31,
+      "sourceType": "select_one YES_NO_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10021",
+      "sourceRow": 32,
+      "sourceType": "date",
+      "dataType": "date",
+      "control": "date",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10020}, 'yes')",
+      "constraint": ". <= today()",
+      "calculation": null
+    },
+    {
+      "name": "Id10022",
+      "sourceRow": 33,
+      "sourceType": "select_one YES_NO_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10023_a",
+      "sourceRow": 34,
+      "sourceType": "date",
+      "dataType": "date",
+      "control": "date",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10022}, 'yes') and selected(${Id10020}, 'yes')",
+      "constraint": ".>=${Id10021} and . <= today()",
+      "calculation": null
+    },
+    {
+      "name": "Id10023_b",
+      "sourceRow": 35,
+      "sourceType": "date",
+      "dataType": "date",
+      "control": "date",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10022}, 'yes') and (selected(${Id10020}, 'no') or selected(${Id10020}, 'ref'))",
+      "constraint": ". <= today()",
+      "calculation": null
+    },
+    {
+      "name": "Id10023",
+      "sourceRow": 36,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(selected(${Id10022}, 'yes') and selected(${Id10020}, 'yes'),${Id10023_a},${Id10023_b})"
+    },
+    {
+      "name": "Id10024",
+      "sourceRow": 37,
+      "sourceType": "date",
+      "dataType": "date",
+      "control": "date",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10022}, 'no') or selected(${Id10022}, 'ref')",
+      "constraint": ". <= today() and .>= date(date('1915-01-01'))",
+      "calculation": null
+    },
+    {
+      "name": "ageInDays",
+      "sourceRow": 38,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "(${Id10023} - ${Id10021})"
+    },
+    {
+      "name": "ageInDays2",
+      "sourceRow": 39,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "(${Id10024} - ${Id10021})"
+    },
+    {
+      "name": "ageInYears",
+      "sourceRow": 40,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "int(${ageInDays} div 365.25)"
+    },
+    {
+      "name": "ageInYearsRemain",
+      "sourceRow": 41,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "${ageInDays} mod 365.25"
+    },
+    {
+      "name": "ageInMonths",
+      "sourceRow": 42,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "int(${ageInYearsRemain} div 30.4375)"
+    },
+    {
+      "name": "ageInMonthsRemain",
+      "sourceRow": 43,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "int(${ageInYearsRemain} mod 30.4375)"
+    },
+    {
+      "name": "isNeonatal1",
+      "sourceRow": 44,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${ageInDays} <=27, '1', '0')"
+    },
+    {
+      "name": "isChild1",
+      "sourceRow": 45,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${ageInDays} >27 and ${ageInDays} <12*365.25, '1', '0')"
+    },
+    {
+      "name": "isAdult1",
+      "sourceRow": 46,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${ageInDays} >=12*365.25, '1', '0')"
+    },
+    {
+      "name": "displayAgeNeonate",
+      "sourceRow": 47,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "${isNeonatal1} = '1'",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "displayAgeChild",
+      "sourceRow": 48,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "${isChild1} = '1'",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "displayAgeAdult",
+      "sourceRow": 49,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "${isAdult1} = '1'",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "age_group",
+      "sourceRow": 50,
+      "sourceType": "select_one age_group",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "neonate",
+        "child",
+        "adult"
+      ],
+      "relevant": "${Id10020} != 'yes' or ${Id10022} != 'yes'",
+      "constraint": "not((${ageInDays2}>11*365.25 and selected(.,'child'))) and not(${ageInDays2}>27 and selected(.,'neonate'))",
+      "calculation": null
+    },
+    {
+      "name": "age_neonate_days",
+      "sourceRow": 51,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${age_group} = 'neonate'",
+      "constraint": ".>=0 and .<=27",
+      "calculation": null
+    },
+    {
+      "name": "age_neonate_hours",
+      "sourceRow": 52,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${age_neonate_days} = 0",
+      "constraint": ".>=0 and .<=23",
+      "calculation": null
+    },
+    {
+      "name": "age_child_unit",
+      "sourceRow": 53,
+      "sourceType": "select_one unitsc",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "years"
+      ],
+      "relevant": "${age_group} = 'child'",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "age_child_days",
+      "sourceRow": 54,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${age_child_unit} = 'days'",
+      "constraint": ".>27 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "age_child_months",
+      "sourceRow": 55,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${age_child_unit} = 'months'",
+      "constraint": ".>0 and .<=59",
+      "calculation": null
+    },
+    {
+      "name": "age_child_years",
+      "sourceRow": 56,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${age_child_unit} = 'years'",
+      "constraint": ".>0 and .<=11",
+      "calculation": null
+    },
+    {
+      "name": "age_adult",
+      "sourceRow": 57,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${age_group} = 'adult'",
+      "constraint": ".>11 and .<120",
+      "calculation": null
+    },
+    {
+      "name": "ageInMonthsByYear",
+      "sourceRow": 58,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if (${ageInYears} != 'NaN' and string-length(${ageInYears}) > 0, int(${ageInYears} * 12 + ${ageInMonths}), if(${age_group} = 'adult', int(${age_adult} * 12),if (${age_child_unit} = 'months',${age_child_months}, int(${age_child_years} * 12))))"
+    },
+    {
+      "name": "ageInYears2",
+      "sourceRow": 59,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${age_group} = 'adult', ${age_adult},  int(${ageInMonthsByYear} div 12))"
+    },
+    {
+      "name": "isNeonatal2",
+      "sourceRow": 60,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${age_group} = 'neonate', '1', '0')"
+    },
+    {
+      "name": "isChild2",
+      "sourceRow": 61,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${age_group} = 'child', '1', '0')"
+    },
+    {
+      "name": "isAdult2",
+      "sourceRow": 62,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${age_group} = 'adult', '1', '0')"
+    },
+    {
+      "name": "isNeonatal",
+      "sourceRow": 63,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${isNeonatal2}, ${isNeonatal1})"
+    },
+    {
+      "name": "isChild",
+      "sourceRow": 64,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${isChild2}, ${isChild1})"
+    },
+    {
+      "name": "isAdult",
+      "sourceRow": 65,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${isAdult2}, ${isAdult1})"
+    },
+    {
+      "name": "ageInDaysNeonate",
+      "sourceRow": 66,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(${ageInDays} = 'NaN' or ${ageInDays} = 'Invalid Date' or string-length(${ageInDays}) = 0, ${age_neonate_days}, ${ageInDays})"
+    },
+    {
+      "name": "Id10008_check",
+      "sourceRow": 67,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10008}, 'child')  and (selected(${isNeonatal}, '1') or selected(${isChild}, '1'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10058",
+      "sourceRow": 68,
+      "sourceType": "select_one select_18",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "hospital",
+        "other_health_facility",
+        "home",
+        "on_route_to_hospital_or_facility",
+        "other",
+        "DK",
+        "Ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10487",
+      "sourceRow": 69,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10051",
+      "sourceRow": 70,
+      "sourceType": "select_one YES_NO",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10052",
+      "sourceRow": 71,
+      "sourceType": "select_one select_500",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "citizen_at_birth",
+        "naturalized_citizen",
+        "foreign_national",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10053",
+      "sourceRow": 72,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10054",
+      "sourceRow": 73,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10055",
+      "sourceRow": 74,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10057",
+      "sourceRow": 75,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10059",
+      "sourceRow": 76,
+      "sourceType": "select_one select_19",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "single",
+        "married",
+        "partner",
+        "divorced",
+        "widowed",
+        "too_young_to_be_married",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10063",
+      "sourceRow": 77,
+      "sourceType": "select_one select_23",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "no_formal_education",
+        "primary_school",
+        "secondary_school",
+        "higher_than_secondary_school",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "((selected(${isChild}, '1') and ${ageInMonthsByYear} >=48 ) or selected(${isAdult}, '1')) and selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10064",
+      "sourceRow": 78,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10063}, 'no_formal_education') or selected(${Id10063}, 'primary_school') or selected(${Id10063}, 'DK') or selected(${Id10063}, 'Ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10065",
+      "sourceRow": 79,
+      "sourceType": "select_one select_25",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "mainly_unemployed",
+        "mainly_employed",
+        "home-maker",
+        "pensioner",
+        "student",
+        "other",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "((selected(${isChild}, '1') and ${ageInMonthsByYear} >=96 ) or selected(${isAdult}, '1')) and selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10066",
+      "sourceRow": 80,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10051}, 'yes') and selected(${Id10065}, 'mainly_employed')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10061",
+      "sourceRow": 81,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isNeonatal}, '1')) and selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10062",
+      "sourceRow": 82,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isNeonatal}, '1')) and selected(${Id10051}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "noteon",
+      "sourceRow": 86,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10476_audio",
+      "sourceRow": 87,
+      "sourceType": "audio",
+      "dataType": "attachment",
+      "control": "audio",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10476",
+      "sourceRow": 88,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "string-length(${Id10476_audio})=0",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10477",
+      "sourceRow": 89,
+      "sourceType": "select_multiple select_510",
+      "dataType": "string[]",
+      "control": "multipleChoice",
+      "required": true,
+      "choiceValues": [
+        "Chronic_kidney_disease",
+        "Dialysis",
+        "Fever",
+        "Heart_attack",
+        "Heart_problem",
+        "Jaundice",
+        "Liver_failure",
+        "Malaria",
+        "Pneumonia",
+        "Renal_kidney_failure",
+        "Suicide",
+        "None"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": "not((selected(., 'dk') or selected(., 'None')) and count-selected(.)>1)",
+      "calculation": null
+    },
+    {
+      "name": "Id10478",
+      "sourceRow": 90,
+      "sourceType": "select_multiple select_511",
+      "dataType": "string[]",
+      "control": "multipleChoice",
+      "required": true,
+      "choiceValues": [
+        "abdomen",
+        "cancer",
+        "dehydration",
+        "dengue",
+        "diarrhea",
+        "fever",
+        "heart_problem",
+        "jaundice",
+        "pneumonia",
+        "rash",
+        "None"
+      ],
+      "relevant": "selected(${isChild}, '1')",
+      "constraint": "not((selected(., 'dk') or selected(., 'None')) and count-selected(.)>1)",
+      "calculation": null
+    },
+    {
+      "name": "Id10479",
+      "sourceRow": 91,
+      "sourceType": "select_multiple select_512",
+      "dataType": "string[]",
+      "control": "multipleChoice",
+      "required": true,
+      "choiceValues": [
+        "asphyxia",
+        "incubator",
+        "lung_problem",
+        "pneumonia",
+        "preterm_delivery",
+        "respiratory_distress",
+        "None"
+      ],
+      "relevant": "selected(${isNeonatal}, '1')",
+      "constraint": "not((selected(., 'dk') or selected(., 'None')) and count-selected(.)>1)",
+      "calculation": null
+    },
+    {
+      "name": "notenarr",
+      "sourceRow": 92,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10104",
+      "sourceRow": 95,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10105",
+      "sourceRow": 96,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10104}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10106",
+      "sourceRow": 97,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10104}, 'yes')",
+      "constraint": "(.>=0 and .<=60) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10107",
+      "sourceRow": 98,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10104}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10377",
+      "sourceRow": 99,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10376",
+      "sourceRow": 100,
+      "sourceType": "select_one select_532",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "before",
+        "after",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10377}, 'yes') or selected(${Id10377}, 'dk') or selected(${Id10377}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10109",
+      "sourceRow": 101,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10110",
+      "sourceRow": 102,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10111",
+      "sourceRow": 103,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10110}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10112",
+      "sourceRow": 104,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10110}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10113",
+      "sourceRow": 105,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10110}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10114",
+      "sourceRow": 106,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10104}, 'yes')) and not(selected(${Id10109}, 'yes'))  and not(selected(${Id10110}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10115",
+      "sourceRow": 107,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10116",
+      "sourceRow": 108,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10114}, 'yes') or selected(${Id10114}, 'ref') or selected(${Id10114}, 'dk')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "note_s_s",
+      "sourceRow": 111,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10125",
+      "sourceRow": 112,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10126",
+      "sourceRow": 113,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10127",
+      "sourceRow": 114,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10128",
+      "sourceRow": 115,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10129",
+      "sourceRow": 116,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10128}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10482",
+      "sourceRow": 117,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10483",
+      "sourceRow": 118,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10484",
+      "sourceRow": 119,
+      "sourceType": "select_one select_531",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "positive",
+        "negative",
+        "unclear",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10483}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10130",
+      "sourceRow": 120,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10131",
+      "sourceRow": 121,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10132",
+      "sourceRow": 122,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10133",
+      "sourceRow": 123,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10134",
+      "sourceRow": 124,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10135",
+      "sourceRow": 125,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10136",
+      "sourceRow": 126,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10137",
+      "sourceRow": 127,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10138",
+      "sourceRow": 128,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10139",
+      "sourceRow": 129,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10140",
+      "sourceRow": 130,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10141",
+      "sourceRow": 131,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10142",
+      "sourceRow": 132,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10143",
+      "sourceRow": 133,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10144",
+      "sourceRow": 134,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "nmh",
+      "sourceRow": 136,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10077",
+      "sourceRow": 138,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "${Id10114}!='yes'",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10077_a",
+      "sourceRow": 140,
+      "sourceType": "select_one  select_534",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "less",
+        "more",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10077}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10077_b",
+      "sourceRow": 141,
+      "sourceType": "trigger",
+      "dataType": "boolean",
+      "control": "confirm",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10077_a}, 'less')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10079",
+      "sourceRow": 142,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10082",
+      "sourceRow": 143,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10079}, 'no') or selected(${Id10079}, 'dk') or selected(${Id10079}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10083",
+      "sourceRow": 144,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10082}, 'no') or selected(${Id10082}, 'dk') or selected(${Id10082}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10084",
+      "sourceRow": 145,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10083}, 'no') or selected(${Id10083}, 'dk') or selected(${Id10083}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10085",
+      "sourceRow": 146,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10084}, 'no') or selected(${Id10084}, 'dk') or selected(${Id10084}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10086",
+      "sourceRow": 147,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10085}, 'no') or selected(${Id10085}, 'dk') or selected(${Id10085}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10087",
+      "sourceRow": 148,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10086}, 'no') or selected(${Id10086}, 'dk') or selected(${Id10086}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10088",
+      "sourceRow": 149,
+      "sourceType": "select_one select_299",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "dog",
+        "snake",
+        "insect_or_scorpion",
+        "other",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "selected(${Id10087}, 'yes') or selected(${Id10086}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10089",
+      "sourceRow": 150,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10087}, 'no') or selected(${Id10087}, 'dk') or selected(${Id10087}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10091",
+      "sourceRow": 151,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10089}, 'no') or selected(${Id10089}, 'dk') or selected(${Id10089}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10092",
+      "sourceRow": 152,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10091}, 'no') or selected(${Id10091}, 'dk') or selected(${Id10091}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10093",
+      "sourceRow": 153,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10092}, 'no') or selected(${Id10092}, 'dk') or selected(${Id10092}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10096",
+      "sourceRow": 154,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10093}, 'no') or selected(${Id10093}, 'dk') or selected(${Id10093}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10094",
+      "sourceRow": 155,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10096}, 'no') or selected(${Id10096}, 'dk') or selected(${Id10096}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10095",
+      "sourceRow": 156,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10096}, 'no') or selected(${Id10096}, 'dk') or selected(${Id10096}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10097",
+      "sourceRow": 157,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10095}, 'no') or selected(${Id10095}, 'dk') or selected(${Id10095}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10098",
+      "sourceRow": 158,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10095}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10099",
+      "sourceRow": 159,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "${ageInYears2}>=10 and (selected(${Id10098}, 'no') or selected(${Id10098}, 'dk') or selected(${Id10098}, 'ref'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10100",
+      "sourceRow": 160,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10098}, 'yes')) and (selected(${Id10099}, 'no') or selected(${Id10099}, 'dk') or selected(${Id10099}, 'ref')  or ${ageInYears2}<10 or selected(${isNeonatal}, '1'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10351",
+      "sourceRow": 164,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "(selected(${Id10114}, 'no') or ${Id10114} = 'NaN' or string-length(${Id10114}) = 0) and selected(${isNeonatal}, '1') and (selected(${Id10098}, 'yes') or ${Id10098} = 'NaN' or string-length(${Id10098}) = 0) and not(selected(${Id10077_a}, 'less'))",
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10408",
+      "sourceRow": 165,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(((selected(${Id10114}, 'no') or ${Id10114} = 'NaN' or string-length(${Id10114}) = 0)  and selected(${isNeonatal}, '1')) or selected(${isChild}, '1') ) and not(selected(${Id10077_a}, 'less'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10120_0",
+      "sourceRow": 167,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${isNeonatal}, '1')",
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "id10120_unit",
+      "sourceRow": 168,
+      "sourceType": "select_one units_1",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "years",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10121",
+      "sourceRow": 169,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10120_unit}='months'",
+      "constraint": ".>=1 and (.<= ${ageInMonthsByYear}  and .<=11)",
+      "calculation": null
+    },
+    {
+      "name": "Id10122",
+      "sourceRow": 170,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10120_unit}='years'",
+      "constraint": ".>=1 and .<=${ageInYears2}",
+      "calculation": null
+    },
+    {
+      "name": "Id10120_1",
+      "sourceRow": 171,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10120_unit}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10120",
+      "sourceRow": 172,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(selected(${isNeonatal}, '1'),${Id10120_0}, if(${id10120_unit}='days', ${Id10120_1},if(${id10120_unit}='months', ${Id10121} * 30, ${Id10122} * 365)))"
+    },
+    {
+      "name": "Id10123",
+      "sourceRow": 174,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10114}, 'yes')) and not(selected(${Id10077_a}, 'less'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10147",
+      "sourceRow": 176,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10148_a",
+      "sourceRow": 177,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10147}, 'yes') and selected(${isNeonatal}, '1')",
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10148_units",
+      "sourceRow": 178,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${Id10147}, 'yes') and (selected(${isChild}, '1') or selected(${isAdult}, '1'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10148_b",
+      "sourceRow": 179,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10148_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10148_c",
+      "sourceRow": 180,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10148_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10148",
+      "sourceRow": 181,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10147}, 'yes')",
+      "constraint": null,
+      "calculation": "if(selected(${isNeonatal}, '1'), ${Id10148_a},if(${Id10148_units}='days', ${Id10148_b},int(${Id10148_c} * 30)))"
+    },
+    {
+      "name": "Id10149",
+      "sourceRow": 182,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10147}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10150",
+      "sourceRow": 183,
+      "sourceType": "select_one select_63",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "mild",
+        "severe",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10147}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10151",
+      "sourceRow": 184,
+      "sourceType": "select_one select_64",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "continuous",
+        "on_and_off",
+        "nightly",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10147}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10153",
+      "sourceRow": 185,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10154_units",
+      "sourceRow": 186,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10154_a",
+      "sourceRow": 187,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10154_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10154_b",
+      "sourceRow": 188,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10154_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10154",
+      "sourceRow": 189,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10154_units}='days', ${Id10154_a},int(${Id10154_b} * 30))"
+    },
+    {
+      "name": "Id10155",
+      "sourceRow": 190,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10156",
+      "sourceRow": 191,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10157",
+      "sourceRow": 192,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10153}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10158",
+      "sourceRow": 193,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1')  and selected(${Id10153}, 'yes')) or (selected(${isNeonatal}, '1') and  not(selected(${Id10114}, 'yes')) and selected(${Id10153}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10159",
+      "sourceRow": 194,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10161_0",
+      "sourceRow": 196,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${isNeonatal}, '1')",
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "id10161_unit",
+      "sourceRow": 197,
+      "sourceType": "select_one units",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "days",
+        "months",
+        "years",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10161_1",
+      "sourceRow": 198,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10161_unit}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10162",
+      "sourceRow": 199,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10161_unit}='months'",
+      "constraint": ".>=1 and .<=11",
+      "calculation": null
+    },
+    {
+      "name": "Id10163",
+      "sourceRow": 200,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10161_unit}='years'",
+      "constraint": ".>=1 and .<=${ageInYears2}",
+      "calculation": null
+    },
+    {
+      "name": "Id10161",
+      "sourceRow": 201,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(selected(${isNeonatal}, '1'),${Id10161_0}, if(${id10161_unit}='days', ${Id10161_1},if(${id10161_unit}='months', ${Id10162} * 30, ${Id10163} * 365)))"
+    },
+    {
+      "name": "Id10165",
+      "sourceRow": 203,
+      "sourceType": "select_one select_80",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "continuous",
+        "on_and_off",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10159}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10170",
+      "sourceRow": 204,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1') and selected(${Id10159}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10171",
+      "sourceRow": 205,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1') and selected(${Id10159}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10166",
+      "sourceRow": 206,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10167_a",
+      "sourceRow": 207,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10166}, 'yes') and selected(${isNeonatal}, '1')",
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10167_units",
+      "sourceRow": 208,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${Id10166}, 'yes') and (selected(${isChild}, '1') or selected(${isAdult}, '1'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10167_b",
+      "sourceRow": 209,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10167_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10167_c",
+      "sourceRow": 210,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10167_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10167",
+      "sourceRow": 211,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10166}, 'yes')",
+      "constraint": null,
+      "calculation": "if(selected(${isNeonatal}, '1'), ${Id10167_a},if(${Id10167_units}='days', ${Id10167_b},${Id10167_c} * 30))"
+    },
+    {
+      "name": "Id10172",
+      "sourceRow": 212,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10173_nc",
+      "sourceRow": 213,
+      "sourceType": "select_multiple select_501",
+      "dataType": "string[]",
+      "control": "multipleChoice",
+      "required": true,
+      "choiceValues": [
+        "stridor",
+        "grunting",
+        "wheezing",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "constraint": "not((selected(., 'dk')) and count-selected(.) > 1) and not((selected(., 'ref')) and count-selected(.) > 1) and not((selected(., 'no')) and count-selected(.) > 1)",
+      "calculation": null
+    },
+    {
+      "name": "Id10173_a",
+      "sourceRow": 214,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10173",
+      "sourceRow": 215,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(selected(${isAdult}, '1'),${Id10173_a} ,${Id10173_nc})"
+    },
+    {
+      "name": "Id10174",
+      "sourceRow": 216,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10175",
+      "sourceRow": 217,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1') and selected(${Id10174}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10176",
+      "sourceRow": 218,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10174}, 'yes')",
+      "constraint": ".>=0 and .<=99",
+      "calculation": null
+    },
+    {
+      "name": "Id10178_unit",
+      "sourceRow": 220,
+      "sourceType": "select_one H_D_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "hours",
+        "days",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10179",
+      "sourceRow": 221,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10178_unit}='hours'",
+      "constraint": ".>=0 and .<=23",
+      "calculation": null
+    },
+    {
+      "name": "Id10179_1",
+      "sourceRow": 222,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10178_unit}='days'",
+      "constraint": ".>=1 and .<=${Id10176}",
+      "calculation": null
+    },
+    {
+      "name": "Id10181",
+      "sourceRow": 224,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10182_units",
+      "sourceRow": 225,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10181}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10182_a",
+      "sourceRow": 226,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10182_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10182_b",
+      "sourceRow": 227,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10182_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10182",
+      "sourceRow": 228,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10181}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10182_units}='days', ${Id10182_a},${Id10182_b} * 30)"
+    },
+    {
+      "name": "Id10183",
+      "sourceRow": 229,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isNeonatal}, '1')) and selected(${Id10181}, 'yes')",
+      "constraint": "(.>=0 and .<=20) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10184_a",
+      "sourceRow": 230,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10181}, 'yes') and selected(${isNeonatal}, '1')",
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10184_units",
+      "sourceRow": 231,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${Id10181}, 'yes') and selected(${isChild}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10184_b",
+      "sourceRow": 232,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10184_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10184_c",
+      "sourceRow": 233,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10184_units}='months'",
+      "constraint": ".>=0 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10185",
+      "sourceRow": 234,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') and selected(${Id10181}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10186",
+      "sourceRow": 235,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10188",
+      "sourceRow": 236,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10190_units",
+      "sourceRow": 237,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${Id10188}, 'yes') and selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10190_a",
+      "sourceRow": 238,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10190_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10190_b",
+      "sourceRow": 239,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10190_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10189",
+      "sourceRow": 240,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(${ageInDaysNeonate}<7 and selected(${isNeonatal}, '1')) and selected(${Id10188}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10189_1",
+      "sourceRow": 241,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10188}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10191",
+      "sourceRow": 242,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${Id10188}, 'yes') or selected(${Id10189}, 'yes'))  and ${isNeonatal} !='1'",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10192",
+      "sourceRow": 243,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and (selected(${Id10188}, 'yes') or selected(${Id10189}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10194",
+      "sourceRow": 244,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10195",
+      "sourceRow": 245,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10194}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "id10196_unit",
+      "sourceRow": 247,
+      "sourceType": "select_one H_D_M_DK",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "hours",
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10196",
+      "sourceRow": 248,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10196_unit}='hours'",
+      "constraint": "(.>=0 and .<=23)  or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10197_a",
+      "sourceRow": 249,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10196_unit}='days'",
+      "constraint": ".>=1 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10198",
+      "sourceRow": 250,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${id10196_unit}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10197",
+      "sourceRow": 251,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": "if(selected(${id10196_unit}, 'days'),${Id10197_a}, if(${id10196_unit}='months', ${Id10198} * 30, int(${Id10196} div 24)))"
+    },
+    {
+      "name": "Id10199",
+      "sourceRow": 253,
+      "sourceType": "select_multiple select_100",
+      "dataType": "string[]",
+      "control": "multipleChoice",
+      "required": true,
+      "choiceValues": [
+        "upper_right",
+        "upper_left",
+        "lower_right",
+        "lower_left",
+        "all_over",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') and selected(${Id10195}, 'yes')) or (selected(${isAdult}, '1') and selected(${Id10194}, 'yes'))",
+      "constraint": "not((selected(., 'all_over')) and count-selected(.)>1)",
+      "calculation": null
+    },
+    {
+      "name": "Id10200",
+      "sourceRow": 254,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10201_unit",
+      "sourceRow": 255,
+      "sourceType": "select_one D_M_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10200}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10201_a",
+      "sourceRow": 256,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10201_unit}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10202",
+      "sourceRow": 257,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10201_unit}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10201",
+      "sourceRow": 258,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10200}, 'yes')",
+      "constraint": null,
+      "calculation": "if(selected(${Id10201_unit}, 'days'),${Id10201_a}, if(${Id10201_unit}='months', ${Id10202} * 30, null))"
+    },
+    {
+      "name": "Id10203",
+      "sourceRow": 259,
+      "sourceType": "select_one select_103",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "rapidly",
+        "slowly",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10200}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10204",
+      "sourceRow": 260,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10205_unit",
+      "sourceRow": 261,
+      "sourceType": "select_one D_M_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10204}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10205_a",
+      "sourceRow": 262,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10205_unit}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10206",
+      "sourceRow": 263,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10205_unit}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10205",
+      "sourceRow": 264,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10204}, 'yes')",
+      "constraint": null,
+      "calculation": "if(selected(${Id10205_unit}, 'days'),${Id10205_a}, if(${Id10205_unit}='months', ${Id10206} * 30, null))"
+    },
+    {
+      "name": "Id10207",
+      "sourceRow": 265,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10208",
+      "sourceRow": 266,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10209_units",
+      "sourceRow": 267,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10208}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10209_a",
+      "sourceRow": 268,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10209_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10209_b",
+      "sourceRow": 269,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10209_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10209",
+      "sourceRow": 270,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10208}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10209_units}='days', ${Id10209_a},${Id10209_b} * 30)"
+    },
+    {
+      "name": "Id10212",
+      "sourceRow": 271,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10213_units",
+      "sourceRow": 272,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isAdult}, '1')) and selected(${Id10212}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10213_a",
+      "sourceRow": 273,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10213_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10213_b",
+      "sourceRow": 274,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10213_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10213",
+      "sourceRow": 275,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isAdult}, '1')) and selected(${Id10212}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10213_units}='days', ${Id10213_a} div 30,${Id10213_b})"
+    },
+    {
+      "name": "Id10214",
+      "sourceRow": 276,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10216_units",
+      "sourceRow": 277,
+      "sourceType": "select_one units_3",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "hours",
+        "days",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10214}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10216_a",
+      "sourceRow": 278,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10216_units}='hours'",
+      "constraint": ".>=0 and .<=23",
+      "calculation": null
+    },
+    {
+      "name": "Id10216_b",
+      "sourceRow": 279,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10216_units}='days'",
+      "constraint": ".>=1 and .<=99",
+      "calculation": null
+    },
+    {
+      "name": "Id10216",
+      "sourceRow": 280,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": "if(${Id10216_units}='days', ${Id10216_b} * 24,${Id10216_a})"
+    },
+    {
+      "name": "Id10217",
+      "sourceRow": 281,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10214}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10220",
+      "sourceRow": 282,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10222",
+      "sourceRow": 283,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10220}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10275",
+      "sourceRow": 284,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${Id10220}, 'yes') and selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10276",
+      "sourceRow": 285,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10275}, 'no') or selected(${Id10275}, 'dk') or selected(${Id10275}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10223",
+      "sourceRow": 286,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10226",
+      "sourceRow": 287,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10223}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10224",
+      "sourceRow": 288,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10223}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10230",
+      "sourceRow": 289,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10231",
+      "sourceRow": 290,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10230}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10232_units",
+      "sourceRow": 291,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10231}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10232_a",
+      "sourceRow": 292,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10232_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10232_b",
+      "sourceRow": 293,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10232_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10232",
+      "sourceRow": 294,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10231}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10232_units}='days', ${Id10232_a},${Id10232_b}*30)"
+    },
+    {
+      "name": "Id10227",
+      "sourceRow": 295,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10229",
+      "sourceRow": 296,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isAdult}, '1') or selected(${isChild}, '1')) and selected(${Id10227}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10233",
+      "sourceRow": 297,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10234",
+      "sourceRow": 298,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10233}, 'yes')",
+      "constraint": ".>=0 and .<=99",
+      "calculation": null
+    },
+    {
+      "name": "Id10235",
+      "sourceRow": 299,
+      "sourceType": "select_multiple select_135",
+      "dataType": "string[]",
+      "control": "multipleChoice",
+      "required": true,
+      "choiceValues": [
+        "face",
+        "trunk",
+        "extremities",
+        "everywhere",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10233}, 'yes')",
+      "constraint": "not((selected(., 'DK') or selected(., 'Ref')) and count-selected(.)>1)",
+      "calculation": null
+    },
+    {
+      "name": "Id10236",
+      "sourceRow": 300,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10233}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10237",
+      "sourceRow": 301,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10238",
+      "sourceRow": 302,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10239",
+      "sourceRow": 303,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10240",
+      "sourceRow": 304,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10242",
+      "sourceRow": 305,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10243",
+      "sourceRow": 306,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10244",
+      "sourceRow": 307,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10245",
+      "sourceRow": 308,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10246",
+      "sourceRow": 309,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10247",
+      "sourceRow": 310,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10248_units",
+      "sourceRow": 311,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10247}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10248_a",
+      "sourceRow": 312,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10248_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10248_b",
+      "sourceRow": 313,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10248_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10248",
+      "sourceRow": 314,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10247}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10248_units}='days', ${Id10248_a},${Id10248_b}*30)"
+    },
+    {
+      "name": "Id10249",
+      "sourceRow": 315,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10250_units",
+      "sourceRow": 316,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10249}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10250_a",
+      "sourceRow": 317,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10250_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10250_b",
+      "sourceRow": 318,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10250_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10250",
+      "sourceRow": 319,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10249}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10250_units}='days', ${Id10250_a},${Id10250_b}*30)"
+    },
+    {
+      "name": "Id10251",
+      "sourceRow": 320,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10249}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10252",
+      "sourceRow": 321,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10254",
+      "sourceRow": 322,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10253",
+      "sourceRow": 323,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10255",
+      "sourceRow": 324,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or (selected(${isAdult}, '1') and selected(${Id10253}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10256",
+      "sourceRow": 325,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or (selected(${isAdult}, '1') and selected(${Id10253}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10257",
+      "sourceRow": 326,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or (selected(${isAdult}, '1') and selected(${Id10253}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10258",
+      "sourceRow": 327,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10259",
+      "sourceRow": 328,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10258}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10260",
+      "sourceRow": 329,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and (selected(${Id10259}, 'no') or selected(${Id10259}, 'ref') or selected(${Id10259}, 'dk'))",
+      "constraint": "not(selected(${Id10259}, 'yes') and (selected(., 'whole_body') or  (selected(., 'left_side')  and selected(., 'right_side')))) and not((selected(., 'DK') or selected(., 'Ref')) and count-selected(.)>1)",
+      "calculation": null
+    },
+    {
+      "name": "Id10261",
+      "sourceRow": 330,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10262_units",
+      "sourceRow": 331,
+      "sourceType": "select_one units_5",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "weeks",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10261}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10262_a",
+      "sourceRow": 332,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10262_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10262_b",
+      "sourceRow": 333,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10262_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10262",
+      "sourceRow": 334,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10261}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10262_units}='days', ${Id10262_a},${Id10262_b}*30)"
+    },
+    {
+      "name": "Id10262_c",
+      "sourceRow": 335,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10261}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10265",
+      "sourceRow": 336,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10266_units",
+      "sourceRow": 337,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10265}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10266_a",
+      "sourceRow": 338,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10266_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10266_b",
+      "sourceRow": 339,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10266_units}='months'",
+      "constraint": ".>=1 and .<=60",
+      "calculation": null
+    },
+    {
+      "name": "Id10266",
+      "sourceRow": 340,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10265}, 'yes')",
+      "constraint": null,
+      "calculation": "if(${Id10266_units}='days', ${Id10266_a},${Id10266_b}*30)"
+    },
+    {
+      "name": "Id10267",
+      "sourceRow": 341,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10268",
+      "sourceRow": 342,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10269",
+      "sourceRow": 343,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10271",
+      "sourceRow": 344,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10272",
+      "sourceRow": 345,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10273",
+      "sourceRow": 346,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10274_a",
+      "sourceRow": 347,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10273}, 'yes') and selected(${isNeonatal}, '1')",
+      "constraint": "(.>=0 and .<=${ageInDaysNeonate}) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10274_units",
+      "sourceRow": 348,
+      "sourceType": "select_one units_2",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "days",
+        "months",
+        "DK",
+        "ref"
+      ],
+      "relevant": "selected(${Id10273}, 'yes') and selected(${isChild}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10274_b",
+      "sourceRow": 349,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10274_units}='days'",
+      "constraint": ".>=0 and .<=30",
+      "calculation": null
+    },
+    {
+      "name": "Id10274_c",
+      "sourceRow": 350,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "${Id10274_units}='months'",
+      "constraint": ".>=1 and .<=11",
+      "calculation": null
+    },
+    {
+      "name": "Id10274",
+      "sourceRow": 351,
+      "sourceType": "calculate",
+      "dataType": "calculated",
+      "control": "calculated",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10273}, 'yes')",
+      "constraint": null,
+      "calculation": "if(selected(${isNeonatal}, '1'), ${Id10274_a},if(${Id10274_units}='days', ${Id10274_b},${Id10274_c} * 30))"
+    },
+    {
+      "name": "Id10277",
+      "sourceRow": 352,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10278",
+      "sourceRow": 353,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isNeonatal}, '1') and ${Id10114}!='yes') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10279",
+      "sourceRow": 354,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "${Id10278} ='no' or ${Id10278} ='dk' or ${Id10278} ='ref'",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10281",
+      "sourceRow": 355,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isNeonatal}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10282",
+      "sourceRow": 356,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10281}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10283",
+      "sourceRow": 357,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10282}, 'no') or selected(${Id10282}, 'dk')  or selected(${Id10282}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10284",
+      "sourceRow": 359,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10286",
+      "sourceRow": 360,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10287",
+      "sourceRow": 361,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10288",
+      "sourceRow": 362,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10289",
+      "sourceRow": 363,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10485",
+      "sourceRow": 365,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10486",
+      "sourceRow": 366,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isAdult}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10294",
+      "sourceRow": 369,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10077_a}, 'less'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10296",
+      "sourceRow": 370,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10077_a}, 'less'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10299",
+      "sourceRow": 371,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${Id10296}, 'yes') or selected(${Id10296}, 'ref') or selected(${Id10296}, 'dk'))   and ${ageInYears2}>39",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10300",
+      "sourceRow": 372,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10299}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10301",
+      "sourceRow": 373,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10077_a}, 'less'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10302",
+      "sourceRow": 374,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10299}, 'yes')) and (selected(${Id10296}, 'yes') or selected(${Id10296}, 'ref') or selected(${Id10296}, 'dk') )",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10303",
+      "sourceRow": 375,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10302}, 'yes')",
+      "constraint": ".>=0 and .<=99",
+      "calculation": null
+    },
+    {
+      "name": "Id10305",
+      "sourceRow": 376,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10299}, 'dk') or selected(${Id10299}, 'no') or selected(${Id10299}, 'ref') or (selected(${Id10299}, 'yes')   and ${ageInYears2}<50)  or selected(${Id10077_a}, 'less') or selected(${Id10296}, 'no')  or (selected(${Id10296}, 'yes')   and ${ageInYears2}<40)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10312",
+      "sourceRow": 377,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10305}, 'dk') or selected(${Id10305}, 'no') or selected(${Id10305}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10313",
+      "sourceRow": 378,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10312}, 'yes')) and not(selected(${Id10305}, 'yes')) and not(selected(${Id10299}, 'yes') and ${ageInYears2}>49)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10314",
+      "sourceRow": 379,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10313}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10306",
+      "sourceRow": 380,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10314}, 'no') or selected(${Id10314}, 'dk') or selected(${Id10314}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10334",
+      "sourceRow": 381,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10312}, 'yes')) and not(selected(${Id10305}, 'yes')) and not(selected(${Id10299}, 'yes') and ${ageInYears2}>49)   and not(selected(${Id10306}, 'yes')) and not(selected(${Id10313}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10333",
+      "sourceRow": 382,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10334},'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10308",
+      "sourceRow": 383,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10312}, 'yes')) and not(selected(${Id10305}, 'yes')) and not(selected(${Id10299}, 'yes') and ${ageInYears2}>49)   and not(selected(${Id10306}, 'yes')) and not(selected(${Id10334}, 'yes')) and not(selected(${Id10314}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10310",
+      "sourceRow": 384,
+      "sourceType": "select_one confirm",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10312}, 'yes')) and not(selected(${Id10314}, 'yes')) and not(selected(${Id10306}, 'yes')) and not(selected(${Id10334}, 'yes')) and not(selected(${Id10308}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10304",
+      "sourceRow": 385,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(((selected(${Id10314}, 'no') or selected(${Id10314}, 'ref') or selected(${Id10314}, 'dk')) and not(selected(${Id10306}, 'yes')) and not(selected(${Id10308}, 'yes'))  and not(selected(${Id10310}, 'yes'))) or (selected(${Id10308}, 'yes') and not(selected(${Id10313}, 'yes')))) and not(selected(${Id10077_a}, 'less'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10304_a",
+      "sourceRow": 386,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10304},'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10309",
+      "sourceRow": 388,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": "(.>=0 and .<=11) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10317",
+      "sourceRow": 389,
+      "sourceType": "select_one select_533",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "singleton",
+        "twins",
+        "triplets",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10321",
+      "sourceRow": 390,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10322_a",
+      "sourceRow": 391,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10325",
+      "sourceRow": 392,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10327",
+      "sourceRow": 393,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "${Id10309}>5 and selected(${Id10325}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10323",
+      "sourceRow": 394,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "${Id10309}>5",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10324",
+      "sourceRow": 395,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "${Id10309}>5",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10328",
+      "sourceRow": 396,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes'))  and not(selected(${Id10334}, 'yes'))  and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10329_a",
+      "sourceRow": 397,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes'))  and not(selected(${Id10334}, 'yes'))  and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))  and not(selected(${Id10312}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10329_b",
+      "sourceRow": 398,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes'))   and not(selected(${Id10312}, 'yes'))  and not(selected(${Id10306}, 'yes')) and not(selected(${Id10308}, 'yes') and selected(${Id10313}, 'yes'))  and (selected(${Id10334}, 'yes')   or (selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') )) )",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10322_b",
+      "sourceRow": 399,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes'))   and not(selected(${Id10312}, 'yes')) and selected(${Id10313}, 'yes') or (selected(${Id10334}, 'yes')   or (selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') )))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10331",
+      "sourceRow": 400,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10332",
+      "sourceRow": 401,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "constraint": ".>=0 and .<=99",
+      "calculation": null
+    },
+    {
+      "name": "Id10342",
+      "sourceRow": 403,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10343",
+      "sourceRow": 404,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10342}, 'no') or selected(${Id10342}, 'ref') or selected(${Id10342}, 'dk')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10344",
+      "sourceRow": 405,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10342}, 'yes')) and (selected(${Id10343}, 'no') or selected(${Id10343}, 'dk') or selected(${Id10343}, 'ref'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10330",
+      "sourceRow": 407,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10337",
+      "sourceRow": 408,
+      "sourceType": "select_one select_208",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "hospital",
+        "other_health_facility",
+        "home",
+        "on_route_to_hospital_or_facility",
+        "other",
+        "DK",
+        "Ref"
+      ],
+      "relevant": "not(selected(${Id10305}, 'yes')) and not(selected(${Id10334}, 'yes'))   and not(selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10319",
+      "sourceRow": 409,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": "(.>=0 and .<=20) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10320",
+      "sourceRow": 410,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "${Id10319} > 0",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10340",
+      "sourceRow": 412,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(not(selected(${Id10305}, 'yes'))   and ((selected(${Id10334}, 'yes')   or (selected(${Id10308}, 'yes') and (selected(${Id10313}, 'no') or selected(${Id10313}, 'dk') or selected(${Id10313}, 'ref') ))) or selected(${Id10299}, 'yes')) and not((selected(${Id10299}, 'no') or selected(${Id10299}, 'dk') or selected(${Id10299}, 'ref')) and selected(${Id10310}, 'yes')) or selected(${Id10313}, 'yes') or selected(${Id10312}, 'yes') )and not(selected(${Id10077_a}, 'less'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10354",
+      "sourceRow": 416,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10366_check",
+      "sourceRow": 417,
+      "sourceType": "select_one YES_NO",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": false,
+      "choiceValues": [
+        "yes",
+        "no"
+      ],
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "n10366",
+      "sourceRow": 419,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10366",
+      "sourceRow": 420,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": "(.>=0 and .<=9999)",
+      "calculation": null
+    },
+    {
+      "name": "Id10363",
+      "sourceRow": 422,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12))  and selected(${Id10366_check},'no')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10365",
+      "sourceRow": 423,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10363}, 'dk') or selected(${Id10363}, 'no') or selected(${Id10363}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10367",
+      "sourceRow": 424,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${isNeonatal}, '1') or (selected(${isChild}, '1') and ${ageInMonthsByYear}<12)",
+      "constraint": "(.>=0 and .<=11) or .=99 or .=88",
+      "calculation": null
+    },
+    {
+      "name": "Id10369",
+      "sourceRow": 425,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isChild}, '1') and ${ageInMonthsByYear}<12",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10370",
+      "sourceRow": 426,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10371",
+      "sourceRow": 427,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10370}, 'yes') or  selected(${Id10370}, 'dk') or  selected(${Id10370}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10372",
+      "sourceRow": 428,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10370}, 'yes') or  selected(${Id10370}, 'dk') or  selected(${Id10370}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10373",
+      "sourceRow": 429,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10372}, 'no') or  selected(${Id10372}, 'dk') or  selected(${Id10372}, 'ref')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10382",
+      "sourceRow": 432,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": "(.>=0 and .<=98) or .=99",
+      "calculation": null
+    },
+    {
+      "name": "Id10383",
+      "sourceRow": 433,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10384",
+      "sourceRow": 434,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10385",
+      "sourceRow": 435,
+      "sourceType": "select_one select_520",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "green_or_brown",
+        "clear",
+        "other",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10387",
+      "sourceRow": 437,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10388",
+      "sourceRow": 438,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10387}, 'yes'))",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10389",
+      "sourceRow": 439,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "not(selected(${Id10387}, 'yes')) and not(selected(${Id10388}, 'yes'))",
+      "constraint": "not(selected(${Id10387}, 'no') and selected(${Id10388}, 'no')  and selected(., 'no'))",
+      "calculation": null
+    },
+    {
+      "name": "Id10391",
+      "sourceRow": 441,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10393",
+      "sourceRow": 442,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10391}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10395",
+      "sourceRow": 443,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10396",
+      "sourceRow": 444,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10397",
+      "sourceRow": 445,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10398",
+      "sourceRow": 446,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10399",
+      "sourceRow": 447,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10400",
+      "sourceRow": 448,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10401",
+      "sourceRow": 449,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10402",
+      "sourceRow": 450,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10403",
+      "sourceRow": 451,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10404",
+      "sourceRow": 452,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10405",
+      "sourceRow": 453,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10406",
+      "sourceRow": 454,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10411",
+      "sourceRow": 458,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10413",
+      "sourceRow": 459,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10413_a",
+      "sourceRow": 460,
+      "sourceType": "select_one select_535",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "months",
+        "years",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10413}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10413_d",
+      "sourceRow": 461,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10413_a}, 'months')  or selected(${Id10413_a}, 'years')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10413_b",
+      "sourceRow": 462,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10413}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10414",
+      "sourceRow": 463,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": "not(selected(${Id10413}, 'no') and (selected(., 'cigarettes')  or selected(., 'pipe')))",
+      "calculation": null
+    },
+    {
+      "name": "Id10414_a",
+      "sourceRow": 464,
+      "sourceType": "select_one select_535",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "months",
+        "years",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10414}, 'yes')",
+      "constraint": "not(selected(${Id10413}, 'no') and (selected(., 'cigarettes')  or selected(., 'pipe')))",
+      "calculation": null
+    },
+    {
+      "name": "Id10414_d",
+      "sourceRow": 465,
+      "sourceType": "integer",
+      "dataType": "number",
+      "control": "integer",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10414_a}, 'months')  or selected(${Id10414_a}, 'years')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10414_b",
+      "sourceRow": 466,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10414}, 'yes')",
+      "constraint": "not(selected(${Id10413}, 'no') and (selected(., 'cigarettes')  or selected(., 'pipe')))",
+      "calculation": null
+    },
+    {
+      "name": "Id10418",
+      "sourceRow": 469,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10419",
+      "sourceRow": 470,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10418}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10420",
+      "sourceRow": 471,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10418}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10421",
+      "sourceRow": 472,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10418}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10422",
+      "sourceRow": 473,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10418}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10423",
+      "sourceRow": 474,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10418}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10424",
+      "sourceRow": 475,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10418}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10425",
+      "sourceRow": 476,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10418}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10426",
+      "sourceRow": 477,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "(selected(${Id10418}, 'yes') and ${isNeonatal} !='1') and selected(${Id10425}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10435",
+      "sourceRow": 478,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10436",
+      "sourceRow": 479,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10435}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10446",
+      "sourceRow": 480,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "botecrn",
+      "sourceRow": 484,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10069_a",
+      "sourceRow": 485,
+      "sourceType": "select_one YES_NO",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10070",
+      "sourceRow": 486,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10071_check",
+      "sourceRow": 487,
+      "sourceType": "select_one YES_NO",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no"
+      ],
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10071",
+      "sourceRow": 488,
+      "sourceType": "date",
+      "dataType": "date",
+      "control": "date",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10071_check}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10072",
+      "sourceRow": 489,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10073",
+      "sourceRow": 490,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10069_a}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "noteccd",
+      "sourceRow": 493,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10462",
+      "sourceRow": 494,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10463",
+      "sourceRow": 495,
+      "sourceType": "select_one YES_NO_DK_REF",
+      "dataType": "string",
+      "control": "singleChoice",
+      "required": true,
+      "choiceValues": [
+        "yes",
+        "no",
+        "dk",
+        "ref"
+      ],
+      "relevant": "selected(${Id10462}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10464",
+      "sourceRow": 496,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": true,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10465",
+      "sourceRow": 497,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10466",
+      "sourceRow": 498,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10467",
+      "sourceRow": 499,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10468",
+      "sourceRow": 500,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10469",
+      "sourceRow": 501,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10470",
+      "sourceRow": 502,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10471",
+      "sourceRow": 503,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10472",
+      "sourceRow": 504,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10473",
+      "sourceRow": 505,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": "selected(${Id10463}, 'yes')",
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "Id10481",
+      "sourceRow": 507,
+      "sourceType": "end",
+      "dataType": "dateTime",
+      "control": "system",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "noteend",
+      "sourceRow": 508,
+      "sourceType": "note",
+      "dataType": "none",
+      "control": "note",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    },
+    {
+      "name": "comment",
+      "sourceRow": 509,
+      "sourceType": "text",
+      "dataType": "string",
+      "control": "text",
+      "required": false,
+      "choiceValues": [],
+      "relevant": null,
+      "constraint": null,
+      "calculation": null
+    }
+  ]
+}

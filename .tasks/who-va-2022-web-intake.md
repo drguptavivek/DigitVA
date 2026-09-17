@@ -1,6 +1,6 @@
 # WHO VA 2022 web intake (who-2022-va package)
 
-- Status: planned, awaiting decisions W1–W6 and the spike
+- Status: in progress (2026-09-18): source vendored, extension and bundle built; intake app next. Open: W1 validator sidecar, W3 interviewer role, W6 mandatory media; mobile performance profiling
 - Priority: high
 - Created: 2026-09-17
 

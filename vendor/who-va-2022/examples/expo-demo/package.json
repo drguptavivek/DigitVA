@@ -1,0 +1,48 @@
+{
+  "name": "who-va-2022-expo-demo",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "prestart": "npm --prefix ../.. run build",
+    "start": "expo start",
+    "preandroid": "npm --prefix ../.. run build",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "preweb": "npm --prefix ../.. run build",
+    "web": "expo start --web",
+    "prebuild:web": "npm --prefix ../.. run build",
+    "build:web": "expo export --platform web --output-dir dist-web",
+    "prebuild": "expo prebuild",
+    "build:android:apk": "expo prebuild --platform android --clean && cd android && ./gradlew assembleRelease",
+    "build:ios:simulator": "expo prebuild --platform ios --clean && cd ios && pod install --repo-update && cd .. && xcodebuild -workspace ios/WHOVA2022Demo.xcworkspace -scheme WHOVA2022Demo -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/build/DerivedData CODE_SIGNING_ALLOWED=NO -jobs 2 build"
+  },
+  "dependencies": {
+    "@drguptavivek/who-2022-va": "workspace:*",
+    "@expo/metro-runtime": "57.0.6",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "expo": "^57.0.7",
+    "expo-audio": "~57.0.2",
+    "expo-constants": "^57.0.6",
+    "expo-document-picker": "~57.0.1",
+    "expo-file-system": "~57.0.1",
+    "expo-image-manipulator": "~57.0.5",
+    "expo-image-picker": "~57.0.5",
+    "expo-linking": "^57.0.3",
+    "expo-router": "~57.0.7",
+    "expo-secure-store": "~57.0.3",
+    "expo-sqlite": "~57.0.1",
+    "expo-status-bar": "^57.0.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-native": "^0.86.0",
+    "react-native-safe-area-context": "^5.8.0",
+    "react-native-screens": "^4.26.2",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "typescript": "^5.9.3"
+  }
+}

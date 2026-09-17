@@ -1,0 +1,11 @@
+dist
+coverage
+demo/dist
+examples/expo-demo/.expo
+examples/expo-demo/android
+examples/expo-demo/artifacts
+examples/expo-demo/dist-web
+examples/expo-demo/ios
+playwright-report
+src/generated
+pnpm-lock.yaml

@@ -41,6 +41,9 @@
   {# Connection info bar — shown when project is selected #}
   <div id="pf-connection-bar" class="d-none mb-3"></div>
 
+  {# Mapping conflicts — one ODK form mapped to several project-sites #}
+  <div id="pf-conflicts" class="mb-3"></div>
+
   {# Main content area #}
   <div id="pf-content">
     <p class="text-muted small text-center py-4">Select a project to configure its form mappings.</p>
@@ -126,6 +129,8 @@
       }
     });
   }());
+
+  loadConflicts();
 
   document.getElementById('pf-project-select').addEventListener('change', function () {
     PROJECT_ID = this.value;
@@ -556,7 +561,9 @@
       return;
     }
 
-    var cacheKey = String(odkProjectId);
+    // Cached per site: the response annotates each form relative to the
+    // project-site being configured (same_target).
+    var cacheKey = String(odkProjectId) + '|' + sid;
     if (_odkFormsCache[cacheKey]) {
       renderFormOptions(formSel, _odkFormsCache[cacheKey], preselectFid);
       return;
@@ -566,7 +573,9 @@
     formSel.disabled = true;
 
     apiJson('/admin/api/odk-connections/' + _connection.connection_id
-      + '/odk-projects/' + encodeURIComponent(odkProjectId) + '/forms')
+      + '/odk-projects/' + encodeURIComponent(odkProjectId) + '/forms'
+      + '?project_id=' + encodeURIComponent(PROJECT_ID)
+      + '&site_id=' + encodeURIComponent(sid))
       .then(function (res) {
         formSel.disabled = false;
         if (!res.ok) {
@@ -582,11 +591,18 @@
   }
 
   function renderFormOptions(sel, forms, preselectFid) {
+    // A form already mapped to another project-site cannot be selected: an ODK
+    // form belongs to at most one project-site per connection.
     sel.innerHTML = '<option value="">— select form —</option>'
       + forms.map(function (f) {
-          var s = (preselectFid && f.xmlFormId === preselectFid) ? ' selected' : '';
+          var takenBy = (f.mapped_to && !f.mapped_to.same_target) ? f.mapped_to : null;
+          var s = (!takenBy && preselectFid && f.xmlFormId === preselectFid) ? ' selected' : '';
           var label = f.name ? f.name + ' (' + f.xmlFormId + ')' : f.xmlFormId;
-          return '<option value="' + esc(f.xmlFormId) + '"' + s + '>' + esc(label) + '</option>';
+          if (takenBy) {
+            label += ' — already mapped to ' + takenBy.project_id + '/' + takenBy.site_id;
+          }
+          return '<option value="' + esc(f.xmlFormId) + '"' + s
+            + (takenBy ? ' disabled' : '') + '>' + esc(label) + '</option>';
         }).join('');
   }
 
@@ -638,7 +654,9 @@
           form_smartvafreetext: m.form_smartvafreetext || 'True',
           form_smartvacountry: m.form_smartvacountry || 'IND',
         });
+        _odkFormsCache = {};   // mapping annotations are now stale
         renderTable();  // re-render to show updated mapping info
+        loadConflicts();
       }).catch(function () { showError('Network error.'); });
   }
 
@@ -661,8 +679,77 @@
         if (!res.ok) { showError(res.data.error || 'Failed to remove.'); return; }
         _siteMappings = _siteMappings.filter(function (m) { return m.site_id !== sid; });
         _expandedSite = null;
+        _odkFormsCache = {};   // mapping annotations are now stale
         renderTable();
+        loadConflicts();
       }).catch(function () { showError('Network error.'); });
+  }
+
+  // ── mapping conflicts ─────────────────────────────────────────────────────
+
+  function loadConflicts() {
+    apiJson('/admin/api/odk-site-mappings/conflicts')
+      .then(function (res) {
+        renderConflicts(res.ok ? (res.data.conflicts || []) : []);
+      }).catch(function () { renderConflicts([]); });
+  }
+
+  function renderConflicts(conflicts) {
+    var box = document.getElementById('pf-conflicts');
+    if (!box) return;
+    if (!conflicts.length) { box.innerHTML = ''; return; }
+
+    box.innerHTML =
+      '<div class="alert alert-danger small py-2 mb-0">'
+      + '<div class="fw-semibold mb-2">'
+      + '<i class="fa-solid fa-triangle-exclamation me-2"></i>Mapping conflicts</div>'
+      + '<div class="text-muted mb-2">An ODK form may be mapped to only one project-site. '
+      + 'These forms are mapped more than once, so sync pulls them repeatedly.</div>'
+      + conflicts.map(function (c) {
+          return '<div class="mb-2">'
+            + '<div><code>' + esc(c.odk_form_id) + '</code> — ODK project '
+            + esc(c.odk_project_id) + ' on ' + esc(c.connection_name) + '</div>'
+            + '<ul class="mb-1 ps-4">'
+            + c.targets.map(function (t) {
+                var line = '<li>' + esc(t.project_id) + '/' + esc(t.site_id)
+                  + ' — pair ' + (t.project_site_active ? 'active' : 'deactivated')
+                  + ', ' + esc(t.submission_count) + ' submissions';
+                if (t.removable) {
+                  line += ' <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 ms-1'
+                    + ' pf-conflict-remove-btn" data-project="' + esc(t.project_id)
+                    + '" data-site="' + esc(t.site_id) + '">Remove stale mapping</button>';
+                }
+                return line + '</li>';
+              }).join('')
+            + '</ul>'
+            + (c.needs_manual_decision
+                ? '<div class="fst-italic">Both mappings are on active project-sites — '
+                  + 'needs manual decision.</div>'
+                : '')
+            + '</div>';
+        }).join('')
+      + '</div>';
+
+    Array.prototype.forEach.call(
+      box.querySelectorAll('.pf-conflict-remove-btn'),
+      function (btn) {
+        btn.addEventListener('click', function () {
+          removeConflictMapping(btn.dataset.project, btn.dataset.site, btn);
+        });
+      }
+    );
+  }
+
+  function removeConflictMapping(projectId, siteId, btn) {
+    btn.disabled = true;
+    apiJson('/admin/api/projects/' + encodeURIComponent(projectId)
+      + '/odk-site-mappings/' + encodeURIComponent(siteId), 'DELETE')
+      .then(function (res) {
+        if (!res.ok) { btn.disabled = false; showError(res.data.error || 'Failed to remove.'); return; }
+        _odkFormsCache = {};
+        loadConflicts();
+        if (PROJECT_ID) loadProjectContext();
+      }).catch(function () { btn.disabled = false; showError('Network error.'); });
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────

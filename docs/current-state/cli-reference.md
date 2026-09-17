@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-17
 ---
 
 # CLI Reference
@@ -61,6 +61,24 @@ Additional `users create` options: `--landing-page` (default: `coder`), `--timez
 |---------|-------------|
 | `odk-sync choices --form-type=... --project-id=N --form-id=...` | Sync choice mappings from ODK Central. Add `--dry-run` to preview. |
 | `odk-sync detect-changes --form-type=... --project-id=N --form-id=...` | Detect schema drift between ODK Central and the database. |
+
+---
+
+## `odk-mappings` — ODK form mapping audit
+
+An ODK form — `(ODK connection, odk_project_id, odk_form_id)` — may be mapped to at
+most one `(project_id, site_id)` pair. The rule is enforced in the service layer
+(`app/services/odk_form_mapping_service.py`), not by a database constraint, because
+the connection is resolved per project through `map_project_odk`.
+
+| Command | Description |
+|---------|-------------|
+| `odk-mappings audit` | Dry-run. List every ODK form mapped to more than one project-site, with each target's `va_project_sites` status and submission count. |
+| `odk-mappings audit --fix` | Delete stale duplicates only: a mapping on a **deactivated** project-site whose ODK form is still mapped to an **active** pair. Idempotent. |
+
+`--fix` refuses (non-zero exit, nothing deleted) when two conflicting mappings are
+both on active project-sites: choosing which one survives is a human decision. Use
+the Project Forms admin panel to remove the wrong one.
 
 ---
 

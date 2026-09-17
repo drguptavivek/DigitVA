@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-05-04
+last_updated: 2026-09-17
 ---
 
 # Admin And Setup Model
@@ -117,6 +117,14 @@ Key behavior:
   the whole panel blocked
 - a **Form Type** dropdown lists all active form types from `mas_form_types` (e.g. `WHO_2022_VA`, `WHO_2022_VA_SOCIAL`); selecting one links that form type to the site mapping
 - each project-site pair maps to at most one ODK form and at most one form type
+- conversely, one ODK form (connection + `odk_project_id` + `odk_form_id`) maps to at
+  most one project-site pair: the form picker shows forms already taken by another pair
+  as disabled (`— already mapped to ICMR01/NC02`) and saving one is rejected with `400`.
+  A mapping on a deactivated project-site still blocks; delete it instead
+- a **Mapping conflicts** block lists ODK forms mapped to more than one project-site,
+  with each target's pair status and submission count. Targets on a deactivated pair get
+  a **Remove stale mapping** button; two active targets are flagged as needing a manual
+  decision. `flask odk-mappings audit [--fix]` reports and repairs the same thing
 - the mapping is stored in `map_project_site_odk` (columns: `odk_project_id`, `odk_form_id`, `form_type_id`)
 - the table summary shows the configured form type as a badge next to the ODK form info; a warning badge is shown if no form type is selected
 - the same Configure row also edits the materialized compatibility `va_forms`

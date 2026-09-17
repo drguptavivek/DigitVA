@@ -3,7 +3,7 @@ title: Admin API Access Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-09
+last_updated: 2026-09-17
 ---
 
 # Admin API Access Policy
@@ -92,3 +92,33 @@ Project-site mapping writes through `/admin/api` must:
 - validate that the site exists
 - remain scoped to the caller's allowed project set
 - reactivate an existing inactive mapping rather than creating duplicates
+
+### ODK form uniqueness
+
+An ODK Central form — identified by `(ODK connection, odk_project_id, odk_form_id)` —
+may be mapped to at most one `(project_id, site_id)` pair. Mapping it twice makes sync
+pull the same form under two projects.
+
+Required behavior:
+
+- `POST /admin/api/projects/<project_id>/odk-site-mappings` rejects with `400` when the
+  ODK form is already mapped to a different project-site on the same connection, naming
+  that project-site
+- re-saving the same project-site with the same ODK form stays idempotent (`200`)
+- scope is per ODK connection: the connection is resolved through `map_project_odk`, so
+  the same ODK ids on a different connection are a different form and are allowed
+- a project with no `map_project_odk` row has no connection and therefore no conflict
+  scope; its mappings are inert because sync cannot run for them
+- a mapping on a **deactivated** project-site still blocks. Sync keys off the mapping,
+  not the pair status, so the remedy is to delete the stale mapping
+- `GET /admin/api/odk-connections/<connection_id>/odk-projects/<odk_project_id>/forms`
+  annotates each form with `mapped_to` (`project_id`, `site_id`, `same_target`) when the
+  optional `project_id`/`site_id` query params name the pair being configured, so the
+  admin picker can disable forms owned by another pair
+- `GET /admin/api/odk-site-mappings/conflicts` lists ODK forms mapped more than once,
+  marking which targets may be removed and which need a manual decision
+- `DELETE /admin/api/projects/<project_id>/odk-site-mappings/<site_id>` deliberately does
+  **not** require the project, site, or pair to be active: a stale mapping on a
+  deactivated pair must stay deletable
+- `flask odk-mappings audit [--fix]` performs the same audit offline
+  (see [`docs/current-state/cli-reference.md`](../current-state/cli-reference.md))

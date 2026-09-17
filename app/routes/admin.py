@@ -33,6 +33,11 @@ from app.services.site_maintenance_service import (
     start_site_maintenance,
 )
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.odk_form_mapping_service import (
+    find_conflicting_odk_form_mapping,
+    find_duplicate_odk_form_mappings,
+    get_odk_form_mapping_targets,
+)
 from app.services.cod_bucket_mapping_service import (
     NODE_DELETE_DISPOSITION_MOVE_TO_UNMAPPED,
     NODE_DELETE_DISPOSITION_UNMAP,
@@ -3732,13 +3737,24 @@ def admin_odk_list_odk_projects(connection_id):
 @admin.get("/api/odk-connections/<uuid:connection_id>/odk-projects/<int:odk_project_id>/forms")
 @role_required("admin")
 def admin_odk_list_forms(connection_id, odk_project_id):
-    """List forms in a specific ODK Central project."""
+    """List forms in a specific ODK Central project.
+
+    Optional ``project_id``/``site_id`` query params name the project-site pair the
+    caller is configuring. When given, every form already mapped on this connection
+    carries ``mapped_to`` so the picker can disable forms owned by another pair
+    while leaving the current pair's own form selectable. Omitting them keeps the
+    older response shape (``mapped_to`` is then null for the current pair too).
+    """
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
     conn = db.session.get(MasOdkConnections, connection_id)
     if not conn:
         return _json_error("Connection not found.", 404)
+
+    current_project_id = (request.args.get("project_id") or "").strip().upper()
+    current_site_id = (request.args.get("site_id") or "").strip().upper()
+    mapped_by_form = get_odk_form_mapping_targets(connection_id, odk_project_id)
 
     try:
         client = _get_odk_client_for_connection(conn)
@@ -3748,12 +3764,35 @@ def admin_odk_list_forms(connection_id, odk_project_id):
         )
         return jsonify({
             "forms": [
-                {"xmlFormId": f.xmlFormId, "name": f.name, "version": f.version}
+                {
+                    "xmlFormId": f.xmlFormId,
+                    "name": f.name,
+                    "version": f.version,
+                    "mapped_to": _serialize_mapped_to(
+                        mapped_by_form.get(f.xmlFormId),
+                        current_project_id,
+                        current_site_id,
+                    ),
+                }
                 for f in forms
             ]
         })
     except Exception as exc:
         return _json_error(f"Failed to fetch ODK forms: {exc}", 502)
+
+
+def _serialize_mapped_to(mapping, current_project_id, current_site_id):
+    """Describe the project-site an ODK form is already mapped to, if any."""
+    if mapping is None:
+        return None
+    return {
+        "project_id": mapping.project_id,
+        "site_id": mapping.site_id,
+        "same_target": (
+            mapping.project_id == current_project_id
+            and mapping.site_id == current_site_id
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -3861,6 +3900,43 @@ def admin_odk_site_mappings_list(project_id):
     })
 
 
+@admin.get("/api/odk-site-mappings/conflicts")
+@role_required("admin")
+def admin_odk_site_mapping_conflicts():
+    """List ODK forms mapped to more than one project-site on the same connection.
+
+    ``removable`` marks the targets an operator may delete right away (a
+    deactivated pair while another target is still active). A conflict between two
+    active pairs is reported with ``needs_manual_decision`` instead.
+    """
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    conflicts = find_duplicate_odk_form_mappings()
+    return jsonify({
+        "conflicts": [
+            {
+                "connection_id": str(conflict.connection_id),
+                "connection_name": conflict.connection_name,
+                "odk_project_id": conflict.odk_project_id,
+                "odk_form_id": conflict.odk_form_id,
+                "needs_manual_decision": len(conflict.active_targets) > 1,
+                "targets": [
+                    {
+                        "project_id": target.project_id,
+                        "site_id": target.site_id,
+                        "project_site_active": target.project_site_active,
+                        "submission_count": target.submission_count,
+                        "removable": target in conflict.stale_targets,
+                    }
+                    for target in conflict.targets
+                ],
+            }
+            for conflict in conflicts
+        ]
+    })
+
+
 @admin.post("/api/projects/<project_id>/odk-site-mappings")
 @role_required("admin")
 def admin_odk_site_mappings_save(project_id):
@@ -3933,6 +4009,17 @@ def admin_odk_site_mappings_save(project_id):
     if project_site is None:
         return _json_error("Active project-site mapping not found.", 404)
 
+    conflict = find_conflicting_odk_form_mapping(
+        project_id, site_id, odk_project_id, odk_form_id
+    )
+    if conflict is not None:
+        return _json_error(
+            f"ODK form '{odk_form_id}' in ODK project {odk_project_id} is already "
+            f"mapped to {conflict.project_id}/{conflict.site_id}. "
+            "Remove that mapping before mapping the form here.",
+            400,
+        )
+
     existing = db.session.scalar(
         sa.select(MapProjectSiteOdk).where(
             MapProjectSiteOdk.project_id == project_id,
@@ -3985,24 +4072,18 @@ def admin_odk_site_mappings_save(project_id):
 @admin.delete("/api/projects/<project_id>/odk-site-mappings/<site_id>")
 @role_required("admin")
 def admin_odk_site_mappings_delete(project_id, site_id):
-    """Remove the ODK form mapping for a project-site."""
+    """Remove the ODK form mapping for a project-site.
+
+    Deliberately does not require the project, site, or project-site pair to be
+    active: a mapping left behind on a deactivated pair still makes sync pull its
+    ODK form, so it must stay deletable. That stale-mapping case is exactly the one
+    the ODK-form uniqueness rule asks operators to clean up.
+    """
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
     project_id = project_id.upper()
     site_id = site_id.upper()
-    
-    project = db.session.get(VaProjectMaster, project_id)
-    if not project or project.project_status != VaStatuses.active:
-        return _json_error("Active project not found.", 404)
-
-    site = db.session.get(VaSiteMaster, site_id)
-    if not site or site.site_status != VaStatuses.active:
-        return _json_error("Active site not found.", 404)
-
-    project_site = _get_active_project_site(project_id, site_id)
-    if project_site is None:
-        return _json_error("Active project-site mapping not found.", 404)
 
     mapping = db.session.scalar(
         sa.select(MapProjectSiteOdk).where(

@@ -177,6 +177,9 @@ def create_app(config_class=None):
     from app.commands.repair import init_app as init_repair_commands
     init_repair_commands(app)
 
+    from app.commands.odk_mappings import init_app as init_odk_mapping_commands
+    init_odk_mapping_commands(app)
+
     @app.context_processor
     def inject_template_globals():
         from app.services.site_maintenance_service import get_site_maintenance_banner_context

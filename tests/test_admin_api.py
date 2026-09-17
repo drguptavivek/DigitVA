@@ -1,6 +1,7 @@
 import uuid
 import unittest
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import sqlalchemy as sa
@@ -910,6 +911,243 @@ class AdminApiTests(BaseTestCase):
         del_resp = self.client.delete(f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}", headers=headers)
         self.assertEqual(del_resp.status_code, 200)
 
+
+    # ── ODK form uniqueness (one ODK form → one project-site per connection) ──
+
+    def _assign_odk_connection(self, name, *project_ids):
+        """Create an ODK connection and assign it to the given projects."""
+        from app.models import MapProjectOdk
+        from app.utils.credential_crypto import encrypt_credential
+
+        pepper = self.app.config["ODK_CREDENTIAL_PEPPER"]
+        username_enc, username_salt = encrypt_credential("admin@odk.test", pepper)
+        password_enc, password_salt = encrypt_credential("s3cr3t", pepper)
+        conn = MasOdkConnections(
+            connection_name=name,
+            base_url="https://odk.test",
+            username_enc=username_enc,
+            username_salt=username_salt,
+            password_enc=password_enc,
+            password_salt=password_salt,
+            status=VaStatuses.active,
+        )
+        db.session.add(conn)
+        db.session.flush()
+        for project_id in project_ids:
+            existing = db.session.scalar(
+                sa.select(MapProjectOdk).where(MapProjectOdk.project_id == project_id)
+            )
+            if existing:
+                existing.connection_id = conn.connection_id
+            else:
+                db.session.add(
+                    MapProjectOdk(
+                        project_id=project_id, connection_id=conn.connection_id
+                    )
+                )
+        db.session.flush()
+        return conn
+
+    def _clear_site_mapping(self, project_id, site_id):
+        """Drop a project-site mapping left committed by an earlier test.
+
+        Routes commit, which releases the per-test SAVEPOINT (tests/base.py), so a
+        mapping created through /admin/api survives into later tests of this class.
+        """
+        mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == project_id,
+                MapProjectSiteOdk.site_id == site_id,
+            )
+        )
+        if mapping is not None:
+            db.session.delete(mapping)
+            db.session.commit()
+
+    def test_odk_site_mapping_save_rejects_form_mapped_to_another_pair(self):
+        self._clear_site_mapping(self.other_project_id, self.other_site)
+        self._assign_odk_connection(
+            f"Shared ODK {uuid.uuid4().hex[:6]}",
+            self.project_id,
+            self.other_project_id,
+        )
+        self._login(self.admin_user_id)
+
+        response = self.client.post(
+            f"/admin/api/projects/{self.other_project_id}/odk-site-mappings",
+            json={
+                "site_id": self.other_site,
+                "odk_project_id": 11,
+                "odk_form_id": "ADMIN_API_FORM_A",
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 400)
+        error = response.get_json()["error"]
+        self.assertIn("ADMIN_API_FORM_A", error)
+        self.assertIn(f"{self.project_id}/{self.site_a}", error)
+        self.assertIsNone(
+            db.session.scalar(
+                sa.select(MapProjectSiteOdk).where(
+                    MapProjectSiteOdk.project_id == self.other_project_id,
+                    MapProjectSiteOdk.site_id == self.other_site,
+                )
+            )
+        )
+
+    def test_odk_site_mapping_save_allows_idempotent_resave_of_same_pair(self):
+        self._assign_odk_connection(
+            f"Shared ODK {uuid.uuid4().hex[:6]}",
+            self.project_id,
+            self.other_project_id,
+        )
+        self._login(self.admin_user_id)
+
+        response = self.client.post(
+            f"/admin/api/projects/{self.project_id}/odk-site-mappings",
+            json={
+                "site_id": self.site_a,
+                "odk_project_id": 11,
+                "odk_form_id": "ADMIN_API_FORM_A",
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json()["mapping"]["odk_form_id"], "ADMIN_API_FORM_A"
+        )
+
+    def test_odk_site_mapping_save_allows_same_form_on_another_connection(self):
+        self._clear_site_mapping(self.other_project_id, self.other_site)
+        self._assign_odk_connection(f"ODK One {uuid.uuid4().hex[:6]}", self.project_id)
+        self._assign_odk_connection(
+            f"ODK Two {uuid.uuid4().hex[:6]}", self.other_project_id
+        )
+        self._login(self.admin_user_id)
+
+        response = self.client.post(
+            f"/admin/api/projects/{self.other_project_id}/odk-site-mappings",
+            json={
+                "site_id": self.other_site,
+                "odk_project_id": 11,
+                "odk_form_id": "ADMIN_API_FORM_A",
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(response.status_code, 201)
+        # The route committed: leave no mapping behind for later tests.
+        self._clear_site_mapping(self.other_project_id, self.other_site)
+
+    def test_odk_forms_endpoint_annotates_existing_mapping_target(self):
+        conn = self._assign_odk_connection(
+            f"Picker ODK {uuid.uuid4().hex[:6]}",
+            self.project_id,
+            self.other_project_id,
+        )
+        self._login(self.admin_user_id)
+
+        odk_forms = [
+            SimpleNamespace(xmlFormId="ADMIN_API_FORM_A", name="Form A", version="1"),
+            SimpleNamespace(xmlFormId="UNMAPPED_FORM", name="Free Form", version="1"),
+        ]
+        url = f"/admin/api/odk-connections/{conn.connection_id}/odk-projects/11/forms"
+        with patch("app.routes.admin._get_odk_client_for_connection", return_value=MagicMock()), \
+                patch("app.routes.admin.guarded_odk_call", return_value=odk_forms):
+            other_resp = self.client.get(
+                f"{url}?project_id={self.other_project_id}&site_id={self.other_site}"
+            )
+            own_resp = self.client.get(
+                f"{url}?project_id={self.project_id}&site_id={self.site_a}"
+            )
+
+        self.assertEqual(other_resp.status_code, 200)
+        other_forms = {f["xmlFormId"]: f for f in other_resp.get_json()["forms"]}
+        self.assertEqual(
+            other_forms["ADMIN_API_FORM_A"]["mapped_to"],
+            {
+                "project_id": self.project_id,
+                "site_id": self.site_a,
+                "same_target": False,
+            },
+        )
+        self.assertIsNone(other_forms["UNMAPPED_FORM"]["mapped_to"])
+
+        own_forms = {f["xmlFormId"]: f for f in own_resp.get_json()["forms"]}
+        self.assertTrue(own_forms["ADMIN_API_FORM_A"]["mapped_to"]["same_target"])
+
+    def test_odk_site_mapping_delete_works_for_deactivated_project_site(self):
+        self._login(self.admin_user_id)
+        project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.project_id,
+                VaProjectSites.site_id == self.site_a,
+            )
+        )
+        original_status = project_site.project_site_status
+        project_site.project_site_status = VaStatuses.deactive
+        db.session.flush()
+        try:
+            response = self.client.delete(
+                f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}",
+                headers=self._csrf_headers(),
+            )
+        finally:
+            project_site.project_site_status = original_status
+            db.session.flush()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(
+            db.session.scalar(
+                sa.select(MapProjectSiteOdk).where(
+                    MapProjectSiteOdk.project_id == self.project_id,
+                    MapProjectSiteOdk.site_id == self.site_a,
+                )
+            )
+        )
+
+    def test_odk_mapping_conflicts_endpoint_reports_stale_duplicate(self):
+        self._clear_site_mapping(self.other_project_id, self.other_site)
+        self._assign_odk_connection(
+            f"Conflict ODK {uuid.uuid4().hex[:6]}",
+            self.project_id,
+            self.other_project_id,
+        )
+        other_pair = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.other_project_id,
+                VaProjectSites.site_id == self.other_site,
+            )
+        )
+        other_pair.project_site_status = VaStatuses.deactive
+        db.session.add(
+            MapProjectSiteOdk(
+                project_id=self.other_project_id,
+                site_id=self.other_site,
+                odk_project_id=11,
+                odk_form_id="ADMIN_API_FORM_A",
+            )
+        )
+        db.session.flush()
+        self._login(self.admin_user_id)
+
+        response = self.client.get("/admin/api/odk-site-mappings/conflicts")
+
+        self.assertEqual(response.status_code, 200)
+        conflicts = response.get_json()["conflicts"]
+        conflict = next(
+            c for c in conflicts if c["odk_form_id"] == "ADMIN_API_FORM_A"
+        )
+        self.assertFalse(conflict["needs_manual_decision"])
+        targets = {(t["project_id"], t["site_id"]): t for t in conflict["targets"]}
+        self.assertTrue(targets[(self.project_id, self.site_a)]["project_site_active"])
+        self.assertFalse(targets[(self.project_id, self.site_a)]["removable"])
+        stale = targets[(self.other_project_id, self.other_site)]
+        self.assertFalse(stale["project_site_active"])
+        self.assertTrue(stale["removable"])
+        self.assertEqual(stale["submission_count"], 0)
 
     def test_admin_can_stop_running_sync_task(self):
         self._login(self.admin_user_id)

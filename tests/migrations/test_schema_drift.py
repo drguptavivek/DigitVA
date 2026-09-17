@@ -63,12 +63,14 @@ class SchemaDriftTest(unittest.TestCase):
         # Deliberate exception to test-harness rule 2 (no second Flask app): the
         # Alembic env needs an app whose db is bound to the throwaway database,
         # and this test never touches the shared session schema.
-        from app import create_app, db
+        from app import db
+
+        from tests.base import create_app_without_celery_takeover
 
         _admin_execute(f'DROP DATABASE IF EXISTS "{DRIFT_DB_NAME}"')
         _admin_execute(f'CREATE DATABASE "{DRIFT_DB_NAME}"')
         try:
-            app = create_app(DriftConfig)
+            app = create_app_without_celery_takeover(DriftConfig)
             with app.app_context():
                 alembic_upgrade()
                 with db.engine.connect() as conn:

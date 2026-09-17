@@ -10,15 +10,20 @@ Resources:
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import os
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import sqlalchemy as sa
-from flask import Blueprint, Response, jsonify, request, current_app
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    jsonify,
+    redirect,
+    request,
+    send_file,
+)
 from flask_login import current_user
 
 from app import cache, db, limiter
@@ -45,6 +50,13 @@ from app.services.data_management_service import (
     sync_run_entries,
     sync_run_target_label,
 )
+from app.services import export_store_service as export_store
+from app.services.attachment_store import AttachmentStoreError
+from app.services.export_store_service import (
+    EXPORT_CONTENT_TYPE,
+    UTF8_BOM,
+    ExportStoreError,
+)
 from app.services.submission_analytics_mv import (
     get_dm_kpi_from_mv,
     get_dm_project_site_stats_from_mv,
@@ -55,19 +67,6 @@ bp = Blueprint("data_management_api", __name__)
 log = logging.getLogger(__name__)
 _CACHE_TTL = 300
 _EXPORT_CACHE_TTL = 900
-_EXPORT_FILTER_KEYS = (
-    "search",
-    "project",
-    "site",
-    "date_from",
-    "date_to",
-    "odk_status",
-    "smartva",
-    "age_group",
-    "gender",
-    "odk_sync",
-    "workflow",
-)
 
 
 def _cache_key(suffix: str) -> str:
@@ -124,99 +123,86 @@ def _export_cache_ttl_seconds() -> int:
         return _EXPORT_CACHE_TTL
 
 
-def _export_cache_dir() -> str:
-    app_data = current_app.config.get("APP_DATA")
-    if not app_data:
-        app_data = os.path.join(current_app.instance_path, "data")
-    directory = os.path.join(app_data, "exports", "cache")
-    os.makedirs(directory, exist_ok=True)
-    return directory
-
-
-def _export_cache_key(export_kind: str, filters: dict[str, str | None]) -> str:
-    payload = {
-        "kind": export_kind,
-        "user_id": str(current_user.user_id),
-        "filters": {key: filters.get(key) for key in _EXPORT_FILTER_KEYS},
-    }
-    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
-def _read_cached_export(cache_path: str, ttl_seconds: int) -> str | None:
-    if ttl_seconds <= 0:
-        return None
-    try:
-        stat = os.stat(cache_path)
-    except OSError:
-        return None
-    age_seconds = max(0.0, datetime.utcnow().timestamp() - stat.st_mtime)
-    if age_seconds > ttl_seconds:
-        return None
-    try:
-        with open(cache_path, "r", encoding="utf-8", newline="") as handle:
-            return handle.read()
-    except OSError:
-        return None
-
-
-def _write_cached_export(cache_path: str, csv_text: str) -> None:
-    temp_path = f"{cache_path}.tmp.{os.getpid()}"
-    with open(temp_path, "w", encoding="utf-8", newline="") as handle:
-        handle.write(csv_text)
-    os.replace(temp_path, cache_path)
-
-
-def _cleanup_export_cache(directory: str, ttl_seconds: int) -> None:
-    # Keep files around for at most 4x TTL (minimum 1 hour) to bound disk usage.
-    retention_seconds = max(ttl_seconds * 4, 3600)
-    cutoff = datetime.utcnow().timestamp() - retention_seconds
-    try:
-        names = os.listdir(directory)
-    except OSError:
-        return
-    for name in names:
-        if not name.endswith(".csv"):
-            continue
-        path = os.path.join(directory, name)
-        try:
-            if os.path.getmtime(path) < cutoff:
-                os.remove(path)
-        except OSError:
-            continue
-
-
-def _csv_response(csv_text: str, filename_prefix: str, cache_status: str) -> Response:
-    filename = f"{filename_prefix}-{datetime.utcnow():%Y%m%d-%H%M%S}.csv"
+def _csv_response(csv_text: str, filename: str, cache_status: str) -> Response:
+    """The CSV inline. Only a fallback now — see ``_deliver_export``."""
     return Response(
-        "\ufeff" + csv_text,
-        content_type="text/csv; charset=utf-8",
+        UTF8_BOM + csv_text,
+        content_type=EXPORT_CONTENT_TYPE,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
             "X-Export-Cache": cache_status,
         },
     )
 
 
+def _deliver_export(ref, filename: str, cache_status: str) -> Response | None:
+    """Hand one stored export to the browser, or None when it cannot be.
+
+    On the S3 store that is a ``302`` to a presigned ``attachment`` GET, so the
+    CSV never passes through this app server. On the local store it is the
+    stored file. Both are ``private, no-store``: an export is scoped to the one
+    data manager who asked for it and must not be cached by a proxy.
+    """
+    url = export_store.presigned_download_url(ref, filename)
+    if url:
+        response = redirect(url, code=302)
+    else:
+        path = export_store.export_local_path(ref)
+        if path is None:
+            return None
+        response = send_file(
+            path,
+            mimetype="text/csv",
+            as_attachment=True,
+            download_name=filename,
+            max_age=0,
+        )
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["X-Export-Cache"] = cache_status
+    return response
+
+
 def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) -> Response:
+    """Serve one filtered CSV export for the signed-in data manager.
+
+    The export object in the store *is* the cache: a still-fresh object for the
+    same kind, user and filters is reused rather than recomputed, exactly as
+    the old on-disk cache did, and the ``user_id`` in the key means a lookup
+    can never reach another user's export. A store failure is never fatal — the
+    CSV is already in hand, so it is sent inline and only the caching is lost.
+    """
     filters = _export_filters_from_request()
     ttl_seconds = _export_cache_ttl_seconds()
-    cache_dir = _export_cache_dir()
-    cache_key = _export_cache_key(export_kind, filters)
-    cache_path = os.path.join(cache_dir, f"{cache_key}.csv")
+    filename = f"{filename_prefix}-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.csv"
 
-    cached_csv = _read_cached_export(cache_path, ttl_seconds)
-    if cached_csv is not None:
-        return _csv_response(cached_csv, filename_prefix, cache_status="HIT")
+    ref = export_store.export_cache_lookup(
+        export_kind=export_kind,
+        user_id=current_user.user_id,
+        filters=filters,
+        ttl_seconds=ttl_seconds,
+    )
+    if ref is not None:
+        response = _deliver_export(ref, filename, cache_status="HIT")
+        if response is not None:
+            return response
 
     csv_text = export_fn(current_user, **filters)
     try:
-        _write_cached_export(cache_path, csv_text)
-        _cleanup_export_cache(cache_dir, ttl_seconds)
-    except OSError as exc:
-        log.warning("Export cache write failed (%s): %s", cache_path, exc)
-        return _csv_response(csv_text, filename_prefix, cache_status="BYPASS")
-    return _csv_response(csv_text, filename_prefix, cache_status="MISS")
+        ref = export_store.write_export(
+            export_kind=export_kind,
+            user_id=current_user.user_id,
+            filters=filters,
+            csv_text=csv_text,
+        )
+    except (ExportStoreError, AttachmentStoreError, OSError) as exc:
+        log.warning("Export store write failed for kind=%s: %s", export_kind, exc)
+        return _csv_response(csv_text, filename, cache_status="BYPASS")
+
+    response = _deliver_export(ref, filename, cache_status="MISS")
+    if response is None:
+        return _csv_response(csv_text, filename, cache_status="BYPASS")
+    return response
 
 
 # ---------------------------------------------------------------------------

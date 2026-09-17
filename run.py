@@ -1,7 +1,5 @@
 import sqlalchemy as sa
 from app import create_app, db
-from app.services.va_db_backup.va_db_backup_01_create import va_db_backup_create
-from app.services.va_db_backup.va_db_backup_04_execute import va_db_backup_execute
 from app.services.va_db_initialise.va_db_initialise_01_researchprojects import (
     va_db_initialise_researchprojects,
 )
@@ -47,7 +45,25 @@ app = create_app()
 
 @app.shell_context_processor
 def make_shell_context():
-    
+
+    def va_db_backup_create():
+        """Dump the database before a destructive shell helper runs.
+
+        Thin wrapper over the backup service, which puts the dump wherever
+        ATTACHMENT_STORE points and records a va_db_backups row. Prints the
+        outcome so an operator sees a failure before answering the next prompt.
+        See docs/current-state/backup.md.
+        """
+        from app.models import VaDbBackup
+        from app.services.db_backup_service import create_db_backup
+
+        outcome = create_db_backup(triggered_by=VaDbBackup.TRIGGER_CLI)
+        print(
+            f"DB backup status={outcome.status} store={outcome.store} "
+            f"key={outcome.object_key} error={outcome.error_code}"
+        )
+        return outcome
+
     def va_initialise_platform():
         va_db_backup_create()
         db.drop_all()
@@ -86,7 +102,6 @@ def make_shell_context():
         "db": db,
         "va_data_sync_odkcentral": va_data_sync_odkcentral,
         "va_db_backup_create": va_db_backup_create,
-        "va_db_backup_execute": va_db_backup_execute,
         "va_db_initialise_researchprojects": va_db_initialise_researchprojects,
         "va_db_initialise_researchsites": va_db_initialise_researchsites,
         "va_db_initialise_vaforms": va_db_initialise_vaforms,

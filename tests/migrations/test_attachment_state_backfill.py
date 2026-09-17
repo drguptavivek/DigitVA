@@ -90,12 +90,14 @@ class AttachmentStateBackfillTest(unittest.TestCase):
     maxDiff = None
 
     def test_backfill_and_downgrade(self):
-        from app import create_app, db
+        from app import db
+
+        from tests.base import create_app_without_celery_takeover
 
         _drop_database()
         _admin_execute(f'CREATE DATABASE "{BACKFILL_DB_NAME}"')
         try:
-            app = create_app(BackfillConfig)
+            app = create_app_without_celery_takeover(BackfillConfig)
             with app.app_context():
                 alembic_upgrade(revision=PREVIOUS_HEAD)
                 sids = self._seed(db)

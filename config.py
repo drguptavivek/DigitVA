@@ -133,7 +133,6 @@ class Config:
         "APP_SMARTVA_RUNS",
         os.path.join(basedir, "smartva_runs"),
     )
-    APP_BACKUP = os.path.join(basedir, "backup")
     APP_LOG = os.path.join(basedir, "logs")
 
     # Validated at runtime when first used — see app/utils/credential_crypto.py
@@ -240,6 +239,15 @@ class Config:
     DB_BACKUP_TIMEOUT_SECONDS = int(
         os.environ.get("DB_BACKUP_TIMEOUT_SECONDS", "1800")
     )
+
+    # --- Data-manager CSV exports --------------------------------------
+    # An export is derived data: a data manager can always ask for it again.
+    # With ATTACHMENT_STORE=s3 it is written to the exports/ prefix of the same
+    # private bucket and delivered as a short-lived presigned download, so the
+    # app server keeps no export file; on the local store it lands under
+    # APP_DATA/exports/. Either way it is deleted once this many hours old.
+    # Baseline: docs/current-state/data-manager-dashboard.md.
+    EXPORT_RETENTION_HOURS = int(os.environ.get("EXPORT_RETENTION_HOURS", "24"))
 
     # Email (SMTP)
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "localhost")

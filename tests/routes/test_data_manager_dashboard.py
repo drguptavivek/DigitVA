@@ -282,9 +282,27 @@ class DataManagerDashboardTests(BaseTestCase):
         finally:
             super().tearDownClass()
 
+    def _stub_celery_extension(self):
+        """Make the sync routes think Celery is configured, for this test only.
+
+        ``app.extensions`` lives on the session-scoped app, so a stub left
+        behind here would be the Celery every later module sees.
+        """
+        missing = object()
+        previous = self.app.extensions.get("celery", missing)
+        self.app.extensions["celery"] = object()
+
+        def restore():
+            if previous is missing:
+                self.app.extensions.pop("celery", None)
+            else:
+                self.app.extensions["celery"] = previous
+
+        self.addCleanup(restore)
+
     def setUp(self):
         super().setUp()
-        self.app.extensions["celery"] = object()
+        self._stub_celery_extension()
         suffix = uuid.uuid4().hex[:8]
         self.dm_user = VaUsers(
             user_id=uuid.uuid4(),
@@ -1662,6 +1680,128 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response_second.status_code, 200)
         self.assertEqual(response_second.headers.get("X-Export-Cache"), "HIT")
         self.assertEqual(mocked_export.call_count, 1)
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_input_export_csv",
+        return_value="sid,result\nuuid:data-manager-dashboard,ok\n",
+    )
+    def test_export_route_redirects_to_a_presigned_url_on_the_s3_store(self, _export):
+        """The contract data_manager_dashboard.js relies on for an S3 export.
+
+        The button is a plain ``window.location.assign``, so a ``302`` to the
+        presigned URL is followed by the browser and the download starts from
+        the bucket. Nothing here signs a real URL — that is
+        tests/services/test_export_store_service.py under moto; what is asserted
+        is that the endpoint redirects, and with what headers.
+        """
+        self._login(self.dm_user_id)
+        signed = "https://bucket.example.invalid/exports/x.csv?X-Amz-Signature=abc"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            old_app_data = self.app.config.get("APP_DATA")
+            self.app.config["APP_DATA"] = tmpdir
+            try:
+                with patch(
+                    "app.routes.api.data_management.export_store.presigned_download_url",
+                    return_value=signed,
+                ) as presign:
+                    response = self.client.get(
+                        "/api/v1/data-management/submissions/export-smartva-input.csv"
+                        "?project=ICMR01"
+                    )
+            finally:
+                self.app.config["APP_DATA"] = old_app_data
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], signed)
+        self.assertEqual(response.headers["Cache-Control"], "private, no-store")
+        self.assertEqual(response.headers["X-Export-Cache"], "MISS")
+        ref, filename = presign.call_args[0]
+        self.assertTrue(ref.key.startswith("exports/smartva_input/"))
+        self.assertIn(str(self.dm_user_id), ref.key)
+        self.assertTrue(filename.endswith(".csv"))
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_input_export_csv",
+        side_effect=[
+            "sid,result\nuuid:data-manager-dashboard,mine\n",
+            "sid,result\nuuid:data-manager-dashboard,theirs\n",
+        ],
+    )
+    def test_export_cache_is_scoped_to_the_requesting_user(self, mocked_export):
+        """A second data manager never gets the first one's stored export."""
+        other = VaUsers(
+            user_id=uuid.uuid4(),
+            name="dm.other",
+            email=f"dm.other.{uuid.uuid4().hex[:8]}@example.com",
+            vacode_language=["English"],
+            permission={},
+            landing_page="data_manager",
+            pw_reset_t_and_c=True,
+            email_verified=True,
+            user_status=VaStatuses.active,
+        )
+        other.set_password("DataManager123")
+        db.session.add(other)
+        db.session.flush()
+        project_site_id = db.session.scalar(
+            db.select(VaProjectSites.project_site_id).where(
+                VaProjectSites.project_id == self.BASE_PROJECT_ID,
+                VaProjectSites.site_id == self.BASE_SITE_ID,
+            )
+        )
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=other.user_id,
+                role=VaAccessRoles.data_manager,
+                scope_type=VaAccessScopeTypes.project_site,
+                project_site_id=project_site_id,
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        url = "/api/v1/data-management/submissions/export-smartva-input.csv?project=ICMR01"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            old_app_data = self.app.config.get("APP_DATA")
+            old_ttl = self.app.config.get("DM_EXPORT_CACHE_TTL_SECONDS")
+            self.app.config["APP_DATA"] = tmpdir
+            self.app.config["DM_EXPORT_CACHE_TTL_SECONDS"] = 300
+            try:
+                self._login(self.dm_user_id)
+                mine = self.client.get(url)
+                self._login(str(other.user_id))
+                theirs = self.client.get(url)
+            finally:
+                self.app.config["APP_DATA"] = old_app_data
+                self.app.config["DM_EXPORT_CACHE_TTL_SECONDS"] = old_ttl
+
+        self.assertEqual(mine.headers["X-Export-Cache"], "MISS")
+        self.assertEqual(theirs.headers["X-Export-Cache"], "MISS")
+        self.assertEqual(mocked_export.call_count, 2)
+        self.assertIn("mine", mine.get_data(as_text=True))
+        self.assertIn("theirs", theirs.get_data(as_text=True))
+
+    @patch(
+        "app.routes.api.data_management.dm_smartva_input_export_csv",
+        return_value="sid,result\nuuid:data-manager-dashboard,ok\n",
+    )
+    def test_a_store_failure_still_serves_the_csv_inline(self, _export):
+        """The CSV is already in hand; only the caching is lost."""
+        self._login(self.dm_user_id)
+
+        with patch(
+            "app.routes.api.data_management.export_store.write_export",
+            side_effect=OSError("disk full"),
+        ):
+            response = self.client.get(
+                "/api/v1/data-management/submissions/export-smartva-input.csv"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Export-Cache"], "BYPASS")
+        self.assertEqual(response.headers["Cache-Control"], "private, no-store")
+        self.assertTrue(response.get_data(as_text=True).startswith("\ufeffsid,result"))
 
     def test_single_form_task_revalidates_scope_in_worker(self):
         from app.tasks.sync_tasks import run_single_form_sync

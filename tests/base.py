@@ -83,6 +83,34 @@ from app.models import (
 from config import TestConfig
 
 
+def create_app_without_celery_takeover(config_class):
+    """``create_app`` for a throwaway app, leaving the Celery globals alone.
+
+    ``celery_init_app`` builds a ``Celery`` and calls ``set_default()`` on it,
+    and ``Celery.__init__`` also makes itself the current app. Both are process
+    globals, so a second app built inside a test silently becomes the app that
+    every ``shared_task`` resolves against for the rest of the session — and
+    ``FlaskTask.__call__`` then pushes *that* app's context, config and all.
+    A test that only wanted its own ``ATTACHMENT_STORE`` ends up imposing it on
+    every later module.
+
+    The throwaway apps in this suite never run a task, so the previous default
+    and current app are restored the moment the app exists. Any test that does
+    need its second app's Celery must say so explicitly rather than inherit it.
+    """
+    from celery import _state as celery_state
+
+    from app import create_app
+
+    previous_default = celery_state.default_app
+    previous_current = getattr(celery_state._tls, "current_app", None)
+    try:
+        return create_app(config_class)
+    finally:
+        celery_state.default_app = previous_default
+        celery_state._tls.current_app = previous_current
+
+
 class ExternalTransactionSession(FlaskSQLAlchemySession):
     """
     Session class that honours an explicitly bound Connection.

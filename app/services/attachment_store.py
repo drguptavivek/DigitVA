@@ -22,10 +22,12 @@ module branches on it except delivery, which must choose between sending a
 file and issuing a redirect.
 
 The S3 backend also exposes ``put_key``/``head_key``/``get_key``/``delete_key``
-for callers that address an object by a key of their own rather than by an
-attachment row: the SmartVA run archive under the ``smartva_runs/`` prefix of
-the same bucket, and the database backups under ``db-backups/``. Those objects
-are never presigned and never served.
+/``presigned_key_url`` for callers that address an object by a key of their own
+rather than by an attachment row: the SmartVA run archive under the
+``smartva_runs/`` prefix of the same bucket, the database backups under
+``db-backups/``, and the data-manager CSV exports under ``exports/``. Only the
+exports are ever presigned — they are derived data a data manager asked for.
+Backup and SmartVA run objects are never presigned and never served.
 
 Policy baseline: ``docs/policy/attachment-storage.md``.
 """
@@ -340,6 +342,34 @@ class S3AttachmentStore:
             _remove_quietly(tmp_path)
             raise
         return written
+
+    def presigned_key_url(
+        self, key: str, *, content_type: str, filename: str, disposition: str = "inline"
+    ) -> str | None:
+        """Sign a short-lived GET for one store-relative key.
+
+        Same guarantees as ``presigned_url``: the type, disposition and cache
+        policy the client will see are fixed inside the signature, so a signed
+        URL cannot be replayed with a different one. Used by the data-manager
+        CSV exports, which are derived data and the only keyed objects that are
+        ever served to a browser — backups and SmartVA runs never are.
+        """
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        params = {
+            "Bucket": self.bucket,
+            "Key": self.absolute_key(key),
+            "ResponseContentType": content_type or DEFAULT_CONTENT_TYPE,
+            "ResponseContentDisposition": f'{disposition}; filename="{filename}"',
+            "ResponseCacheControl": STORE_CACHE_CONTROL,
+        }
+        try:
+            return self.client.generate_presigned_url(
+                "get_object", Params=params, ExpiresIn=self.expiry_seconds
+            )
+        except (BotoCoreError, ClientError):
+            log.warning("attachment store: could not sign a URL for a keyed object")
+            return None
 
     def delete_key(self, key: str) -> bool:
         """Remove one store-relative key. Explicit tooling only."""

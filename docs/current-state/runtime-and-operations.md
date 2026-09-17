@@ -267,6 +267,7 @@ server. There is no global or default connection.
 | `DB_BACKUP_LOCAL_DIR` | `<repo>/dailybackups` | Where a dump goes on `ATTACHMENT_STORE=local`. Unused on the S3 store, where the VM keeps no dump at all. |
 | `DB_BACKUP_TMP_DIR` | system temp | Scratch space for one dump on its way to the bucket. Removed in a `finally`; never accumulates. |
 | `DB_BACKUP_TIMEOUT_SECONDS` | `1800` | Hard stop for one `pg_dump`. A run that hits it is a hung connection, not a slow dump. |
+| `EXPORT_RETENTION_HOURS` | `24` | How long a data-manager CSV export lives in the `exports/` prefix (or under `APP_DATA/exports/`) before the nightly prune deletes it. Clamped to at least 1. |
 
 Add these to the environment template alongside the existing ODK keys; the
 values themselves belong only in the deployment's `.env` or secret store.
@@ -327,6 +328,16 @@ Before setting `ATTACHMENT_STORE=s3`:
    dump, so expire noncurrent versions there after ~30 days. Do not scope such
    a rule to the attachment or `smartva_runs/` prefixes — those hold primary
    data. See [backup.md](backup.md).
+
+   The same statements also cover the **data-manager CSV exports** under the
+   `exports/` prefix. These are the only keyed objects that are ever presigned
+   — an export is derived data a data manager asked for, delivered as a
+   short-lived `attachment` download — and the only ones DigitVA deletes on a
+   clock (`EXPORT_RETENTION_HOURS`, default 24 h). A **lifecycle rule** is
+   appropriate here too, and more so than for backups: expire noncurrent
+   versions under `exports/` after a few days, since versioning would otherwise
+   keep a noncurrent copy of every pruned export forever. See
+   [data-manager-dashboard.md](data-manager-dashboard.md), *Exports*.
 
 6. Backup scope: the bucket is now a primary data store. Include it in the
    backup plan alongside the database — versioning plus either cross-region

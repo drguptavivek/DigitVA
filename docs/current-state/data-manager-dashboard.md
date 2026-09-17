@@ -234,7 +234,8 @@ Current export actions:
 Current export behavior:
 
 - all exports reuse the current dashboard filters and sort order
-- CSV responses are emitted as UTF-8 with BOM for Excel compatibility
+- CSVs are written UTF-8 with BOM for Excel compatibility — the BOM is part of
+  the stored object, so both stores deliver the same bytes
 - `Export Data` includes current workflow/coding state and the filtered ODK
   payload data
 - `SmartVA Input Data` exports the cleaned SmartVA preparation input shape for
@@ -249,6 +250,51 @@ Current PII handling:
   `va_uniqueid_real`, `va_instance_name`, and `va_data_collector`
 - the main data export retains non-PII narrative text such as `Id10476`
 - SmartVA exports do not include the full raw `va_data` payload
+
+### Where an export is stored
+
+An export is *derived* data: a data manager can always ask for it again. So it
+is not kept on the app server any longer than it has to be.
+[`app/services/export_store_service.py`](../../app/services/export_store_service.py)
+owns the whole lifecycle over the existing `attachment_store` — there is no
+second S3 client:
+
+| | `ATTACHMENT_STORE=s3` | `ATTACHMENT_STORE=local` |
+|---|---|---|
+| Written to | `exports/<kind>/<user_id>/<UTC ts>_<filter hash>.csv` in the DigitVA bucket, SSE-S3, `Cache-Control: private, no-store` | the same key layout under `APP_DATA/exports/` |
+| Delivered as | `302` to a presigned `attachment` GET, lifetime `ATTACHMENT_PRESIGN_EXPIRY_SECONDS` | the stored file, served by the app |
+| On the VM | nothing — the CSV goes out through one bounded temp file that is removed in a `finally` | the export file |
+
+The response to the export endpoint carries `Cache-Control: private, no-store`
+and `X-Export-Cache: HIT` / `MISS` / `BYPASS` on both stores. The dashboard
+button is a plain `window.location.assign`, so the browser follows the redirect
+and the download starts from the bucket; no JavaScript change was needed.
+
+`BYPASS` means the store could not be written: the CSV is already in hand, so
+it is sent inline and only the caching is lost.
+
+### The export cache
+
+The stored object **is** the cache. Its name carries the sha256 of the export
+kind, the user and every filter value, so a repeat request for the same export
+is answered by one bounded listing of `exports/<kind>/<user_id>/` rather than by
+recomputing the query — exactly the `DM_EXPORT_CACHE_TTL_SECONDS` (900 s)
+semantics the old `APP_DATA/exports/cache/` directory had, with no second store
+to keep in step. The `user_id` is part of the key, so a lookup can only ever
+reach the requesting user's own exports.
+
+The legacy `APP_DATA/exports/cache/` directory is no longer written or read. It
+holds nothing but expired derived data and can be deleted on any deployment.
+
+### Retention
+
+`EXPORT_RETENTION_HOURS` (default 24) — an export older than that is deleted
+from whichever store holds it. The prune runs nightly inside `run_db_backup`
+(see [runtime-and-operations.md](runtime-and-operations.md)), which is the app's
+one daily housekeeping slot; it runs whether or not the dump succeeded, because
+exports must not pile up on a VM whose disk is the scarce resource. Deletion is
+the point here: unlike attachments, backups and SmartVA runs, nothing under
+`exports/` is an archive.
 
 ## Sync UX
 

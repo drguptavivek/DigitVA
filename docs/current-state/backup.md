@@ -56,6 +56,15 @@ The task creates the dump and then prunes. It never raises: a failure is a
 what the admin panel shows. The prune is skipped when the dump failed, so a bad
 night can never also delete the last good dump.
 
+This beat row is also the app's **one daily housekeeping slot**: `run_db_backup`
+prunes expired data-manager CSV exports (`EXPORT_RETENTION_HOURS`) in the same
+run, rather than from a second schedule — one row is simpler than two and there
+is nothing to coordinate between them. That prune runs whether or not the dump
+succeeded, because an export is derived data on its own clock and a failed
+backup must not let exports pile up on the VM. It never raises either; the count
+comes back as `exports_pruned`. See
+[data-manager-dashboard.md](data-manager-dashboard.md), *Exports*.
+
 ## Retention
 
 `DB_BACKUP_KEEP_DAILY` (default 30) is a count, not a number of days. Dumps are
@@ -203,6 +212,30 @@ transport.
   application container; `DATABASE_URL` reaches `minerva_db_service` from there.
 
 ## Related operational notes
+
+### The old interactive backup menu was removed (2026-09-17)
+
+`app/services/va_db_backup/` — four modules behind an `input()`-driven
+"MINErVA DB Backup Tool" menu that wrote plain `.sql` dumps into an `APP_BACKUP`
+directory and restored them with `DROP SCHEMA public CASCADE` — has been
+deleted, along with the `APP_BACKUP` config key that only it used. It was
+superseded by `db_backup_service` and the `flask backups db-*` commands
+documented above, which record every attempt, verify the object, and never
+prompt.
+
+Its only caller was the `flask shell` context in
+[`run.py`](../../run.py). `va_db_backup_create` still exists there, as a thin
+wrapper over `create_db_backup()`, so the pre-`drop_all()` safety dump in
+`va_initialise_platform` and `va_initiate_datasync` is preserved — and is now a
+recorded, verified dump in whichever store `ATTACHMENT_STORE` selects. The
+interactive `va_db_backup_execute` menu was dropped from the shell context with
+no replacement; use `flask backups db-list` / `db-download` and
+`scripts/manual-db-restore.sh`.
+
+Nothing was deleted from disk or from any bucket. Existing `.sql` files in a
+deployment's `backup/` directory are untouched and still restorable with
+`psql -f`.
+
 
 ### Pulling container-owned files off the VM with rsync
 

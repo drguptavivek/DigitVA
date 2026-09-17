@@ -13,9 +13,9 @@ from urllib.parse import parse_qs, urlparse
 
 from moto import mock_aws
 
-from app import create_app
 from app.services import attachment_store as store_mod
 from config import TestConfig, validate_attachment_store_config
+from tests.base import create_app_without_celery_takeover
 
 
 class S3TestConfig(TestConfig):
@@ -25,9 +25,14 @@ class S3TestConfig(TestConfig):
 
 
 def make_s3_app():
-    """An app on the S3 store with its bucket created inside the active mock."""
+    """An app on the S3 store with its bucket created inside the active mock.
+
+    Built through ``create_app_without_celery_takeover`` so this throwaway app
+    does not become the process-wide Celery app and leak ``ATTACHMENT_STORE=s3``
+    into every later test module.
+    """
     store_mod.reset_s3_clients()
-    app = create_app(S3TestConfig)
+    app = create_app_without_celery_takeover(S3TestConfig)
     with app.app_context():
         store = store_mod.get_attachment_store()
         store.client.create_bucket(
@@ -102,7 +107,7 @@ class LocalStoreInterfaceTests(TestCase):
     FORM_ID = "STOREFORM"
 
     def setUp(self):
-        self.app = create_app(TestConfig)
+        self.app = create_app_without_celery_takeover(TestConfig)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.app.config["APP_DATA"] = self._tmp.name

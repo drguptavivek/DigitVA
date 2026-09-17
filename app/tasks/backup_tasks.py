@@ -41,11 +41,18 @@ DEFAULT_DAILY_TIME = "01:30"
 def run_db_backup(self, triggered_by="scheduled", user_id=None, prune=True):
     """Dump the database to the object store, then apply retention.
 
+    This is also the app's nightly housekeeping slot: expired data-manager CSV
+    exports are pruned here rather than from a second beat entry, because one
+    daily schedule row is simpler than two and there is nothing to coordinate
+    between them. That prune runs whatever the dump did — an export is derived
+    data with its own clock, and a failed backup must not let exports pile up
+    on a VM whose disk is the scarce resource.
+
     Returns a counts-only dict — status, store, size, what was pruned — with no
     credential and nothing beyond the object key an operator needs to name the
-    dump. Never raises: a failed dump is a ``failed`` row, and the prune is
-    skipped when the dump failed so a broken backup run cannot also delete the
-    last good dump.
+    dump. Never raises: a failed dump is a ``failed`` row, and the *dump* prune
+    is skipped when the dump failed so a broken backup run cannot also delete
+    the last good dump.
     """
     from app.services import db_backup_service as svc
 
@@ -53,7 +60,12 @@ def run_db_backup(self, triggered_by="scheduled", user_id=None, prune=True):
         outcome = svc.create_db_backup(triggered_by=triggered_by, user_id=user_id)
     except Exception:  # noqa: BLE001 - a scheduled task must not crash the beat loop
         log.error("db backup task: create failed unexpectedly", exc_info=True)
-        return {"status": "failed", "error_code": "unexpected", "pruned": 0}
+        return {
+            "status": "failed",
+            "error_code": "unexpected",
+            "pruned": 0,
+            "exports_pruned": _prune_exports(),
+        }
 
     result = {
         "status": outcome.status,
@@ -62,6 +74,7 @@ def run_db_backup(self, triggered_by="scheduled", user_id=None, prune=True):
         "size_bytes": outcome.size_bytes,
         "error_code": outcome.error_code,
         "pruned": 0,
+        "exports_pruned": _prune_exports(),
     }
     if not (prune and outcome.ok):
         return result
@@ -75,6 +88,17 @@ def run_db_backup(self, triggered_by="scheduled", user_id=None, prune=True):
         log.error("db backup task: prune failed unexpectedly", exc_info=True)
         result["prune_skipped"] = "unexpected"
     return result
+
+
+def _prune_exports() -> int:
+    """Delete expired data-manager exports. Returns the count; never raises."""
+    from app.services import export_store_service
+
+    try:
+        return export_store_service.prune_exports().pruned
+    except Exception:  # noqa: BLE001 - housekeeping must not fail the backup run
+        log.error("db backup task: export prune failed unexpectedly", exc_info=True)
+        return 0
 
 
 def parse_daily_time(value: str | None) -> tuple[int, int]:

@@ -93,8 +93,19 @@ Database backups block in the Attachment Management panel. No IAM change was
 needed — the existing statements already cover the prefix — but this *is* the
 one prefix that wants a lifecycle rule, expiring noncurrent versions of pruned
 dumps after ~30 days. Runbook: [Backup And Restore](../current-state/backup.md);
-(4) exports to S3. Goal: after these, the only stateful thing on the VM is the
-Postgres volume.
+(4) data-manager CSV exports to S3 (`exports/` prefix) — **done**, no migration:
+`app/services/export_store_service.py` over the existing `attachment_store` (no
+second S3 client), keys
+`exports/<kind>/<user_id>/<UTC ts>_<filter hash>.csv`, a `302` to a presigned
+`attachment` GET on the S3 store and the stored file on the local one, the
+stored object itself acting as the `DM_EXPORT_CACHE_TTL_SECONDS` cache (the
+`APP_DATA/exports/cache/` directory is gone), and an `EXPORT_RETENTION_HOURS`
+prune folded into the nightly `run_db_backup` housekeeping slot. No IAM change
+was needed. This is the one prefix whose objects are presigned *and* deleted on
+a clock, so a noncurrent-version lifecycle rule suits it even better than
+`db-backups/`. Runbook:
+[Data Manager Dashboard](../current-state/data-manager-dashboard.md), *Exports*.
+Goal reached: the only stateful thing on the VM is the Postgres volume.
 
 ## Goals
 

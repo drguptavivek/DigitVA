@@ -312,7 +312,10 @@ Current behavior of that command for field mapping bootstrap:
 
 The shell helper `va_initialise_platform()` currently performs:
 
-1. database backup creation
+1. database backup creation — a real `pg_dump` through
+   `db_backup_service.create_db_backup()`, recorded in `va_db_backups` and
+   written to whichever store `ATTACHMENT_STORE` selects (see
+   [backup.md](backup.md))
 2. full schema drop and recreate
 3. seed project, site, and form master data
 4. load ICD codes

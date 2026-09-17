@@ -82,10 +82,15 @@ context for the entire session. Do **not** call `create_app(TestConfig)` inside
 test methods, setUp, or setUpClass. Use `from app import db` directly — the
 session-scoped context is already active.
 
-**Exception — `tests/migrations/test_schema_drift.py`.** The schema-drift guard has to
-run `flask db upgrade` against a throwaway database, which means an app whose `db` is
-bound to that database. It creates a second app deliberately, uses a nested app context,
-and never touches the shared session schema. No other test may follow it.
+**Exceptions.** Four places need an app the session app cannot be: the
+migration guards (`tests/migrations/test_schema_drift.py`,
+`test_attachment_state_backfill.py`) run `flask db upgrade` against a throwaway
+database, and the object-store tests (`tests/services/test_attachment_store.py`
+and everything importing its `make_s3_app`) need `ATTACHMENT_STORE=s3` without
+imposing it on the session app. All four build the app through
+`tests.base.create_app_without_celery_takeover()`, use a nested app context, and
+never touch the shared session schema. No other test may follow them — and any
+that does must go through that helper (see rule 7).
 
 ### 3. Tests that mock db.session do not need create_app
 
@@ -124,7 +129,28 @@ Tests for pure functions, template rendering, or fully-mocked service calls
 may use plain `unittest.TestCase` without inheriting `BaseTestCase`. Do not
 pull in database infrastructure for tests that never touch it.
 
-### 7. Use unique names for unique-constrained fields in tests
+### 7. A test that changes global state must restore it
+
+The app, its `extensions` dict and the Celery process globals are **session
+scoped**: whatever a test leaves in them is what every later module sees. Two
+real leaks came from this and both are fixed at the source:
+
+- Stubbing an extension (`app.extensions["celery"] = object()`) must save the
+  previous value and restore it from `addCleanup`/`tearDown`, including the case
+  where the key was absent.
+- Building a second app must not let it take over Celery. `celery_init_app`
+  calls `set_default()`, and `Celery.__init__` also makes itself *current*, so a
+  throwaway app silently becomes the app every `shared_task` resolves against —
+  and `FlaskTask.__call__` then pushes that app's context and config. Use
+  `tests.base.create_app_without_celery_takeover()` (see rule 2 for when a
+  second app is allowed at all), which restores both globals.
+
+The same applies to `app.config` overrides, `ATTACHMENT_STORE` in particular:
+flip it through a helper that restores the old value and drops the cached
+`app.extensions["attachment_store"]` — `DbBackupBase._pin_local_store` is the
+pattern.
+
+### 8. Use unique names for unique-constrained fields in tests
 
 When creating test data inside savepoint-rollback tests, use unique names for
 fields with unique constraints (e.g. `connection_name`). This prevents

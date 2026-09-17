@@ -179,3 +179,28 @@ docker compose exec minerva_app_service uv run python scripts/check_attachment_i
 Removing the quarantined files after the retention window is a deliberate
 manual step — see
 [the cutover runbook](runtime-and-operations.md#attachment-delivery).
+
+## `smartva` — SmartVA run archive
+
+Thin wrappers over
+[`app/services/smartva_run_archive_service.py`](../../app/services/smartva_run_archive_service.py).
+A SmartVA run directory is a working area the SmartVA CLI needs while it runs;
+nothing in the app reads it afterwards, so it is archived to the DigitVA bucket
+under `smartva_runs/{project_id}/{form_id}/{form_run_id}/` and removed from the
+VM. Both commands do nothing on `ATTACHMENT_STORE=local`.
+
+| Command | Description |
+|---------|-------------|
+| `smartva archive-runs [--form-id X] [--dry-run] [--limit N] [--delete-local]` | Archive every run directory not yet verified in the bucket, plus any archived run whose local copy is still waiting out `SMARTVA_RUNS_KEEP_LOCAL_DAYS`. Uploads with a content type per extension, verifies the whole prefix with one listing, and — with `--delete-local`, off by default — removes the directory and NULLs `disk_path` once verified and once the keep-days window has elapsed. Keyset-paginated, idempotent and resumable; exits non-zero if any run failed. Never deletes on any failure. |
+| `smartva archive-status [--form-id X]` | Print run counts by `archive_state`, the number of run directories and bytes still on this VM, the configured key prefix and keep-days, and the most recent failure category. Counts only — no paths, keys or submission identifiers. |
+
+```
+docker compose exec minerva_app_service uv run flask smartva archive-status
+docker compose exec minerva_app_service uv run flask smartva archive-runs --dry-run
+docker compose exec minerva_app_service uv run flask smartva archive-runs --delete-local
+```
+
+The admin equivalent is *Archive pending runs* in the Attachment Management
+panel, which queues a bounded `run_smartva_run_archive` Celery task. Archived
+objects are never presigned and never served. Baseline:
+[SmartVA Generation Policy](../policy/smartva-generation-policy.md).

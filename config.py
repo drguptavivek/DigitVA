@@ -202,6 +202,20 @@ class Config:
         os.environ.get("ATTACHMENT_PRESIGN_EXPIRY_SECONDS", "300")
     )
 
+    # --- SmartVA run archive -------------------------------------------
+    # A SmartVA run directory is a local working area the CLI needs while it
+    # runs; once its likelihood rows are in va_smartva_run_outputs nothing in
+    # the app reads it again. With ATTACHMENT_STORE=s3 the whole directory is
+    # archived under the smartva_runs/ prefix of the same private bucket and
+    # the local copy is removed once this many days have passed since the run
+    # completed. 0 = remove immediately after a verified archive. Raise it only
+    # to keep a debugging window on the VM; the objects are never presigned and
+    # never served. Ignored entirely on the local store.
+    # Baseline: docs/policy/smartva-generation-policy.md.
+    SMARTVA_RUNS_KEEP_LOCAL_DAYS = int(
+        os.environ.get("SMARTVA_RUNS_KEEP_LOCAL_DAYS", "0")
+    )
+
     # Email (SMTP)
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "localhost")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
@@ -333,6 +347,7 @@ class TestConfig(Config):
     S3_SECRET_ACCESS_KEY = "testing-secret-key"
     S3_PREFIX = ""
     ATTACHMENT_PRESIGN_EXPIRY_SECONDS = 300
+    SMARTVA_RUNS_KEEP_LOCAL_DAYS = 0
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = False
     HIBP_PASSWORD_BREACH_CHECK_TIMEOUT_SECONDS = 1.0
     MAIL_SUPPRESS_SEND = True

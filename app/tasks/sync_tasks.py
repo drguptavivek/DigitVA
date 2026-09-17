@@ -22,6 +22,10 @@ ENRICHMENT_SYNC_BATCH_SIZE = 5
 # bounded second pass that rebuilds what only ODK Central can supply (a lost
 # store object, a stale or failed MP3 derivative).
 ATTACHMENT_REPAIR_BATCH_LIMIT = 50
+# Run directories archived per press of the admin "Archive pending runs" button
+# (and per scheduled sweep). Bounded so one job cannot run for hours: a backlog
+# is cleared by repeated presses.
+SMARTVA_ARCHIVE_TASK_LIMIT = 200
 INTERRUPTED_RUN_MESSAGE = (
     "Interrupted run — the worker stopped before completion. "
     "Re-initiate Sync or Repair to continue remaining gaps."
@@ -1527,6 +1531,91 @@ def run_attachment_integrity_check(
     except Exception as exc:
         db.session.rollback()
         log.error("Attachment integrity check failed", exc_info=True)
+        run = db.session.get(VaSyncRun, run_id)
+        if run:
+            run.status = "error"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error_message = str(exc)[:2000]
+            db.session.commit()
+        raise
+
+
+@shared_task(
+    name="app.tasks.sync_tasks.run_smartva_run_archive",
+    bind=True,
+    soft_time_limit=1800,
+    time_limit=3600,
+)
+def run_smartva_run_archive(
+    self,
+    form_id: str | None = None,
+    limit: int = SMARTVA_ARCHIVE_TASK_LIMIT,
+    delete_local: bool = True,
+    triggered_by: str = "smartva-archive",
+    user_id=None,
+):
+    """Archive SmartVA run directories to the object store and free the VM.
+
+    The work is ``smartva_run_archive_service.archive_run_backlog()``; this task
+    only gives an operator somewhere to watch it from. Bounded per press — one
+    run of this task never sweeps more than ``limit`` run directories, so a
+    backlog is cleared by repeated presses rather than one unbounded job. On the
+    local store it does nothing. The progress log holds counts and failure
+    categories only — never a path, a key, or a submission identifier.
+    """
+    from app import db
+    from app.models.va_sync_runs import VaSyncRun
+    from app.services import smartva_run_archive_service
+
+    run = VaSyncRun(
+        triggered_by=triggered_by,
+        triggered_user_id=user_id,
+        started_at=datetime.now(timezone.utc),
+        status="running",
+    )
+    db.session.add(run)
+    db.session.commit()
+    run_id = run.sync_run_id
+
+    def log_progress(msg):
+        _log_progress(db, run_id, msg)
+
+    try:
+        log_progress(f"smartva run archive: started (scope {form_id or 'ALL'})")
+        counts = smartva_run_archive_service.archive_run_backlog(
+            form_id=form_id,
+            limit=max(int(limit or 0), 0) or SMARTVA_ARCHIVE_TASK_LIMIT,
+            delete_local=bool(delete_local),
+            on_progress=log_progress,
+        )
+        log_progress(
+            "smartva run archive: "
+            + ", ".join(
+                f"{key}={value}"
+                for key, value in sorted(counts.items())
+                if key != "failures"
+            )
+        )
+        for failure in counts["failures"][:20]:
+            log_progress(f"smartva run archive failure: {failure}")
+        run = db.session.get(VaSyncRun, run_id)
+        run.records_updated = counts["archived"]
+        run.status = "success" if not counts["failed"] else "partial"
+        run.finished_at = datetime.now(timezone.utc)
+        db.session.commit()
+        return counts
+    except SoftTimeLimitExceeded:
+        db.session.rollback()
+        run = db.session.get(VaSyncRun, run_id)
+        if run:
+            run.status = "error"
+            run.finished_at = datetime.now(timezone.utc)
+            run.error_message = INTERRUPTED_RUN_MESSAGE
+            db.session.commit()
+        raise
+    except Exception as exc:
+        db.session.rollback()
+        log.error("SmartVA run archive failed", exc_info=True)
         run = db.session.get(VaSyncRun, run_id)
         if run:
             run.status = "error"

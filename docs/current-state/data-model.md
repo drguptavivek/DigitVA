@@ -558,11 +558,29 @@ Key fields:
 - `disk_path`
 - `run_started_at`
 - `run_completed_at`
+- `archive_state` (`local` | `archived` | `failed` | `absent`, NOT NULL,
+  default `local`, indexed)
+- `archive_key_prefix`
+- `archived_at`
+- `archive_error_code`
+- `archive_file_count`
+- `archive_bytes`
 
 Current behavior:
 
-- stores the optional on-disk workspace path for raw SmartVA debug artifacts
+- stores the on-disk workspace path for raw SmartVA debug artifacts, relative to
+  `APP_SMARTVA_RUNS`
 - groups multiple `va_smartva_runs` created during the same form execution
+- the archive columns record where that workspace lives now: with
+  `ATTACHMENT_STORE=s3` it is copied to the DigitVA bucket under
+  `smartva_runs/{project_id}/{form_id}/{form_run_id}/`, verified, and then
+  removed from the VM — at which point `disk_path` becomes NULL and
+  `archive_key_prefix` holds the store-relative prefix
+- `archive_error_code` is a short category only (`upload_failed`,
+  `verify_mismatch`, `store_unavailable`, `walk_failed`,
+  `local_delete_failed`) — never a path, a key or a submission identifier
+- migration `d3b8f1e40a72`; policy baseline
+  [SmartVA Generation Policy](../policy/smartva-generation-policy.md)
 
 ## Analytics Materialized View
 

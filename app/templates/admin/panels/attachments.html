@@ -6,6 +6,11 @@
   integrity check. Every number comes from
   GET /admin/api/attachments/overview — the panel computes nothing and never
   shows a path, a key, a filename or a submission id.
+
+  The SmartVA run archive block at the foot shares this panel because it shares
+  the bucket (the smartva_runs/ prefix). Its figures come from
+  GET /admin/api/smartva/run-archive/overview, and its one action queues a
+  bounded Celery sweep.
 #}
 <div id="panel-attachments">
 
@@ -69,6 +74,28 @@
 
   {# Per-form state tables #}
   <div id="att-forms-wrap"></div>
+
+  {# SmartVA run archive — same bucket, smartva_runs/ prefix #}
+  <div class="card mt-3">
+    <div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="card-title small text-uppercase text-muted mb-0">
+          SmartVA run archive
+        </h6>
+        <button class="btn btn-sm btn-outline-primary" id="sva-archive-btn">
+          <i class="fa-solid fa-box-archive me-1"></i>Archive pending runs
+        </button>
+      </div>
+      <div id="sva-archive-wrap"></div>
+      <div class="text-muted small mt-2">
+        SmartVA run directories are an operational artifact layer: nothing in
+        the app reads one after its results are saved. They are archived to the
+        same private bucket under the <code>smartva_runs/</code> prefix and
+        removed from the VM only after every file is verified there. These
+        objects are never presigned and never served.
+      </div>
+    </div>
+  </div>
 
 </div>
 
@@ -296,7 +323,66 @@
     });
   }
 
-  document.getElementById('att-refresh-btn').addEventListener('click', load);
+  function humanBytes(bytes) {
+    var value = Number(bytes || 0);
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var index = 0;
+    while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; }
+    return (index === 0 ? value : value.toFixed(1)) + ' ' + units[index];
+  }
+
+  function renderRunArchive(report) {
+    var wrap = document.getElementById('sva-archive-wrap');
+    var failure = report.last_failure;
+    wrap.innerHTML = '<div>' + chips(report.counts) + '</div>'
+      + '<div class="small text-muted mt-2">'
+      + 'store <span class="fw-semibold">' + esc(report.store) + '</span>'
+      + ' &middot; prefix <code>' + esc(report.key_prefix) + '</code>'
+      + ' &middot; keep local ' + esc(report.keep_local_days) + ' day(s)'
+      + ' &middot; ' + esc(report.local_run_dirs) + ' directory(ies) still on this VM ('
+      + esc(humanBytes(report.local_bytes)) + ')'
+      + '</div>'
+      + (failure
+        ? '<div class="small mt-1"><span class="badge text-bg-warning">last failure: '
+          + esc(failure.error_code || 'unknown') + '</span></div>'
+        : '');
+  }
+
+  function loadRunArchive() {
+    var wrap = document.getElementById('sva-archive-wrap');
+    wrap.innerHTML = '<span class="text-muted small">Loading…</span>';
+    apiJson('/admin/api/smartva/run-archive/overview').then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2 mb-0">'
+          + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      renderRunArchive(res.data);
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2 mb-0">Network error.</div>';
+    });
+  }
+
+  document.getElementById('sva-archive-btn').addEventListener('click', function () {
+    var button = this;
+    button.disabled = true;
+    apiJson('/admin/api/smartva/run-archive/archive-pending', 'POST', {}).then(function (res) {
+      button.disabled = false;
+      if (!res.ok) {
+        notice('danger', res.data.error || 'Failed to queue the run archive.');
+        return;
+      }
+      notice('success', res.data.message || 'SmartVA run archive started.');
+    }).catch(function () {
+      button.disabled = false;
+      notice('danger', 'Network error.');
+    });
+  });
+
+  document.getElementById('att-refresh-btn').addEventListener('click', function () {
+    load();
+    loadRunArchive();
+  });
   document.getElementById('att-project-filter').addEventListener('change', load);
 
   document.getElementById('att-integrity-btn').addEventListener('click', function () {
@@ -316,6 +402,7 @@
   });
 
   load();
+  loadRunArchive();
 
 }());
 </script>

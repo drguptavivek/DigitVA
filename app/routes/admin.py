@@ -6060,6 +6060,72 @@ def admin_attachments_integrity_check():
         return _json_error("Failed to queue the attachment integrity check", 500)
 
 
+# ---------------------------------------------------------------------------
+# SmartVA run archive  (admin-only)
+#
+# The counts and the action here belong to
+# app/services/smartva_run_archive_service.py. These handlers authorize,
+# validate and serialize; they never touch a run directory or the bucket, and
+# they never return a path, a key or a submission identifier.
+# ---------------------------------------------------------------------------
+
+@admin.get("/api/smartva/run-archive/overview")
+@role_required("admin")
+def admin_smartva_run_archive_overview():
+    """Counts by archive state, local bytes remaining, last failure category."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.services.smartva_run_archive_service import smartva_archive_overview
+
+    form_id = (request.args.get("form_id") or "").strip() or None
+    try:
+        return jsonify(smartva_archive_overview(form_id=form_id))
+    except Exception:
+        log.error("admin_smartva_run_archive_overview failed", exc_info=True)
+        return _json_error("Failed to load the SmartVA run archive overview", 500)
+
+
+@admin.post("/api/smartva/run-archive/archive-pending")
+@role_required("admin")
+def admin_smartva_run_archive_pending():
+    """Queue a bounded archive sweep of the SmartVA run directories."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    from app.tasks.sync_tasks import (
+        SMARTVA_ARCHIVE_TASK_LIMIT,
+        run_smartva_run_archive,
+    )
+
+    payload = request.get_json(silent=True) or {}
+    form_id = (payload.get("form_id") or "").strip() or None
+    try:
+        task = run_smartva_run_archive.delay(
+            form_id=form_id,
+            limit=SMARTVA_ARCHIVE_TASK_LIMIT,
+            delete_local=True,
+            triggered_by="smartva-archive",
+            user_id=str(current_user.user_id),
+        )
+        log.info(
+            "admin smartva run archive queued form=%s by=%s",
+            form_id or "ALL", current_user.user_id,
+        )
+        return jsonify({
+            "message": (
+                "SmartVA run archive started for up to "
+                f"{SMARTVA_ARCHIVE_TASK_LIMIT} run(s)."
+            ),
+            "form_id": form_id,
+            "limit": SMARTVA_ARCHIVE_TASK_LIMIT,
+            "task_id": task.id,
+        }), 202
+    except Exception:
+        log.error("admin_smartva_run_archive_pending failed", exc_info=True)
+        return _json_error("Failed to queue the SmartVA run archive", 500)
+
+
 @admin.post("/api/sync/form/<form_id>")
 @role_required("admin")
 def admin_sync_form(form_id: str):

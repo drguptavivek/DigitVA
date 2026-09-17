@@ -72,10 +72,19 @@ Updated 2026-09-17. Policy baseline:
 | `admin_sync_legacy_attachment_stats` per-row uuid5 scan | Open | Noted under **Performance Constraints**; not touched |
 
 **Queued after the S3 store (agreed 2026-09-17), in order:** (1) attachment
-management — ingest, repair and retirement pulled into the service, admin
-panel; (2) SmartVA run archival to S3 (`smartva_runs/` prefix); (3) DB dumps to
-S3 (`db-backups/` prefix, own IAM statement); (4) exports to S3. Goal: after
-these, the only stateful thing on the VM is the Postgres volume.
+management — ingest, repair and retirement pulled into the service, admin panel
+— **done**; (2) SmartVA run archival to S3 (`smartva_runs/` prefix) — **done**,
+migration `d3b8f1e40a72`: `va_smartva_form_runs.archive_state` and five
+companion columns, `app/services/smartva_run_archive_service.py` over the
+existing `attachment_store` (no second S3 client), archival right after a batch
+commits, `flask smartva archive-runs` / `archive-status`, the bounded
+`run_smartva_run_archive` Celery task, and a SmartVA run archive block in the
+Attachment Management panel. Same bucket and IAM statements; these objects are
+never presigned. Baseline:
+[SmartVA Generation Policy](../policy/smartva-generation-policy.md),
+*Run Directory Archival*; (3) DB dumps to S3 (`db-backups/` prefix, own IAM
+statement); (4) exports to S3. Goal: after these, the only stateful thing on the
+VM is the Postgres volume.
 
 ## Goals
 

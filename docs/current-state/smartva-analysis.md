@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-09-17
 ---
 
 # SmartVA Analysis
@@ -47,9 +47,11 @@ Current protected-payload repair rule:
 - in that case DigitVA rebinds the preserved SmartVA to the current payload
   instead of rerunning SmartVA
   - `va_smartva_results` for the active projection shown in the UI
-- exact raw SmartVA-generated files may also be copied to disk under the
-  configured `APP_SMARTVA_RUNS` base directory per form run for operational
-  debugging
+- exact raw SmartVA-generated files are copied to disk under the configured
+  `APP_SMARTVA_RUNS` base directory per form run for operational debugging, and
+  — with `ATTACHMENT_STORE=s3` — archived to the DigitVA bucket under the
+  `smartva_runs/` prefix and removed from the VM (see *Disk Preservation and
+  Archival*)
 - `report.txt` rejection lines are now parsed, and submissions removed by
   SmartVA quality checks are recorded as `smartva_rejected` failures rather
   than generic missing-row failures
@@ -343,9 +345,10 @@ Current storage behavior:
 - DigitVA reads those files through the formatter, persists the emitted
   likelihood row for each submission run in `va_smartva_run_outputs`, and then
   projects the active summary into `va_smartva_results`
-- the full raw SmartVA workspace may be copied once per form run to the
-  persisted `disk_path` recorded in `va_smartva_form_runs` for operational
-  debugging
+- the full raw SmartVA workspace is copied once per form run to the persisted
+  `disk_path` recorded in `va_smartva_form_runs` for operational debugging, and
+  then archived off the VM — `archive_state` on the same row records where it
+  is now
 - the current service does **not** write SmartVA workspaces under
   `APP_DATA/SMARTVA_OUTPUT` or `APP_DATA/<form_id>/smartva_input|smartva_output`;
   those older directories are legacy leftovers from a pre-form-run append
@@ -408,7 +411,7 @@ Rows are keyed by `output_kind = 'likelihood_row'`,
 `output_source_name` (e.g. `"adult-likelihoods.csv"`), and `output_resultfor`
 (e.g. `"for_adult"`).
 
-### Disk Preservation
+### Disk Preservation and Archival
 
 The entire SmartVA workspace is copied to disk under `APP_SMARTVA_RUNS`:
 
@@ -434,6 +437,36 @@ The entire SmartVA workspace is copied to disk under `APP_SMARTVA_RUNS`:
 The `disk_path` in `va_smartva_form_runs` stores the relative path.
 Normal regeneration derives from versioned payloads and persisted DB outputs
 rather than requiring preserved raw workspaces.
+
+Because nothing in the app reads a run directory once its likelihood rows are
+in `va_smartva_run_outputs`, the directory does not stay on the VM. With
+`ATTACHMENT_STORE=s3`, `_archive_completed_form_run()` runs immediately after
+the batch commits and hands the directory to
+`app/services/smartva_run_archive_service.py`, which:
+
+1. uploads every file to
+   `smartva_runs/{project_id}/{form_id}/{form_run_id}/{relative path}` in the
+   same private bucket the attachments use, with a content type per extension
+   (`text/csv`, `text/plain`, `image/png`, the xlsx/docx types), SSE-S3 and
+   `Cache-Control: private, no-store`;
+2. verifies the whole prefix with one listing — every file present at its full
+   size;
+3. removes the local directory and NULLs `disk_path`, but only once
+   `SMARTVA_RUNS_KEEP_LOCAL_DAYS` (default `0`) has elapsed since the run
+   completed.
+
+These objects are **never presigned and never served** — they carry full VA
+payloads. Archival never fails a SmartVA run: any error is recorded as
+`archive_state = 'failed'` with a short `archive_error_code`, the directory
+stays, and the backlog is retried by `flask smartva archive-runs` or the admin
+panel's *Archive pending runs* action. On the local attachment store nothing is
+archived and nothing is deleted.
+
+Run-archive columns on `va_smartva_form_runs`: `archive_state`
+(`local`/`archived`/`failed`/`absent`, indexed), `archive_key_prefix`,
+`archived_at`, `archive_error_code`, `archive_file_count`, `archive_bytes`.
+Policy baseline: [SmartVA Generation Policy](../policy/smartva-generation-policy.md),
+*Run Directory Archival*.
 
 ### Audit and Isolation
 

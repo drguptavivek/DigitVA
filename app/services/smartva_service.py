@@ -259,6 +259,46 @@ def _finalize_smartva_form_run(
     form_run.run_completed_at = _utcnow()
 
 
+def _archive_completed_form_run(form_run: VaSmartvaFormRun) -> None:
+    """Hand a finished run directory to the archive service.
+
+    Called only *after* the run's results are committed, which is the point at
+    which the directory becomes inert: the likelihood CSVs, report.txt and the
+    formatted output have all been read into the session by then, and nothing
+    in the app opens a run directory again (its rows live in
+    ``va_smartva_run_outputs``). Running it after the commit also keeps the S3
+    round trips out of the results transaction.
+
+    On the local store this is a no-op. Archival must never turn a completed
+    run into a failed one, so every error stops here and the directory stays.
+    See ``docs/policy/smartva-generation-policy.md``.
+    """
+    from app.services.smartva_run_archive_service import (
+        archive_form_run,
+        archiving_enabled,
+    )
+
+    try:
+        if not archiving_enabled():
+            return
+        outcome = archive_form_run(form_run)
+        db.session.commit()
+        if not outcome.ok:
+            log.warning(
+                "SmartVA [%s]: run archive failed (%s); the local run "
+                "directory was kept.",
+                form_run.form_id,
+                outcome.error_code,
+            )
+    except Exception:
+        db.session.rollback()
+        log.warning(
+            "SmartVA [%s]: run archive raised; the local run directory was kept.",
+            form_run.form_id,
+            exc_info=True,
+        )
+
+
 def _create_smartva_run(
     va_sid: str,
     *,
@@ -832,6 +872,7 @@ def _generate_batch(
                     outcome=VaSmartvaFormRun.OUTCOME_FAILED,
                 )
                 db.session.commit()
+                _archive_completed_form_run(form_run)
                 return rejected_failure_count + remaining_failure_count
 
             current_existing = _active_smartva_results_for_sids(
@@ -889,6 +930,7 @@ def _generate_batch(
             )
             processing_tx.commit()
             db.session.commit()
+            _archive_completed_form_run(form_run)
             total_saved = success_count + failure_count
             log.info(
                 "SmartVA [%s]: batch committed %d result row(s).",
@@ -920,6 +962,7 @@ def _generate_batch(
                     outcome=VaSmartvaFormRun.OUTCOME_FAILED,
                 )
                 db.session.commit()
+                _archive_completed_form_run(form_run)
             except Exception:
                 db.session.rollback()
                 failure_count = 0

@@ -21,6 +21,11 @@ The backend is selected once from ``ATTACHMENT_STORE`` and nothing above this
 module branches on it except delivery, which must choose between sending a
 file and issuing a redirect.
 
+The S3 backend also exposes ``put_key``/``head_key``/``delete_key`` for callers
+that address an object by a key of their own rather than by an attachment row.
+The SmartVA run archive uses those under the ``smartva_runs/`` prefix of the
+same bucket; those objects are never presigned and never served.
+
 Policy baseline: ``docs/policy/attachment-storage.md``.
 """
 
@@ -280,11 +285,45 @@ class S3AttachmentStore:
         object behind. Memory stays bounded because botocore reads the handle
         in chunks rather than materialising the body.
         """
-        from botocore.exceptions import BotoCoreError, ClientError
-
         key = self.key_for(record)
         if key is None:
             raise AttachmentStoreError("Cannot store an object without a storage_name.")
+        return self._put_absolute(key, source, content_type)
+
+    # -- Keyed access -----------------------------------------------------
+    #
+    # The methods above address one attachment through a ``StoredObject``. The
+    # three below address an arbitrary object by a store-relative key, so that
+    # a caller holding a key of its own — the SmartVA run archive under
+    # ``smartva_runs/`` — reuses this bucket, client and object policy instead
+    # of building a second S3 client. They are S3-only on purpose: nothing
+    # archives to the local store.
+
+    def absolute_key(self, key: str) -> str:
+        """``<S3_PREFIX><key>`` — a store-relative key made bucket-absolute."""
+        return f"{self.key_prefix}{key}"
+
+    def put_key(self, key: str, source, *, content_type: str | None) -> str:
+        """Upload one object at a store-relative key. Returns the absolute key."""
+        return self._put_absolute(self.absolute_key(key), source, content_type)
+
+    def head_key(self, key: str) -> dict | None:
+        """HEAD one store-relative key: its metadata, or None when absent."""
+        return self.head(self.absolute_key(key))
+
+    def delete_key(self, key: str) -> bool:
+        """Remove one store-relative key. Explicit tooling only."""
+        from botocore.exceptions import BotoCoreError, ClientError
+
+        try:
+            self.client.delete_object(Bucket=self.bucket, Key=self.absolute_key(key))
+        except (BotoCoreError, ClientError) as exc:
+            raise AttachmentStoreError("Attachment store delete failed.") from exc
+        return True
+
+    def _put_absolute(self, key: str, source, content_type: str | None) -> str:
+        from botocore.exceptions import BotoCoreError, ClientError
+
         extra = {
             "ContentType": content_type or DEFAULT_CONTENT_TYPE,
             "CacheControl": STORE_CACHE_CONTROL,
@@ -302,7 +341,7 @@ class S3AttachmentStore:
                     "S3 uploads need a file path or a readable stream, not an iterator."
                 )
         except (BotoCoreError, ClientError) as exc:
-            log.warning("attachment store: PUT failed for form=%s", record.va_form_id)
+            log.warning("attachment store: PUT failed")
             raise AttachmentStoreError("Attachment store write failed.") from exc
         return key
 

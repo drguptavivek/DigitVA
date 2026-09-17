@@ -229,6 +229,9 @@ def create_app(config_class=None):
     from app.commands.attachments import init_app as init_attachment_commands
     init_attachment_commands(app)
 
+    from app.commands.smartva import init_app as init_smartva_commands
+    init_smartva_commands(app)
+
     @app.context_processor
     def inject_template_globals():
         from app.services.site_maintenance_service import get_site_maintenance_banner_context

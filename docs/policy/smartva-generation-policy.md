@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-04-19
+last_updated: 2026-09-17
 ---
 
 # SmartVA Generation Policy
@@ -45,9 +45,61 @@ Current implementation note:
   - `va_smartva_runs` for per-submission attempt history
   - `va_smartva_run_outputs` for likelihood-row storage
   - `va_smartva_results` for the active projection row used by the UI
-- raw SmartVA-generated files may also be retained on disk under the configured
+- raw SmartVA-generated files may also be retained under the configured
   `APP_SMARTVA_RUNS` base directory as an operational/debug artifact layer,
-  not in DB
+  not in DB — see **Run Directory Archival** below for where they end up
+
+## Run Directory Archival
+
+A SmartVA run directory is a *working* area, not a read path. The SmartVA CLI
+is a binary that needs real files on real disk while it runs, so
+`smartva_service` copies the finished workspace to
+`APP_SMARTVA_RUNS/{project_id}/{form_id}/{form_run_id}/`. Nothing in the app
+opens it again: every figure DigitVA shows comes from `va_smartva_run_outputs`
+and `va_smartva_results`.
+
+Baseline rules:
+
+1. **Where the files live after a run.** With `ATTACHMENT_STORE=s3` the whole
+   run directory is uploaded to the same private DigitVA bucket the attachments
+   use, under the key prefix
+   `smartva_runs/{project_id}/{form_id}/{form_run_id}/{relative path}`. With
+   the local store nothing changes: run directories stay on disk exactly as
+   before.
+2. **Never served, never presigned.** These files contain full VA payloads and
+   are PHI. Unlike attachments, a SmartVA run object is never presigned and
+   never returned to a browser. The only way back to one is an operator with
+   bucket credentials.
+3. **Delete only after a verified archive.** The local directory is removed
+   only once every file in it is confirmed present in the bucket at its full
+   size. Any failure — a write error, an unverifiable file, an unreadable
+   directory — leaves the directory untouched and records the failure category
+   on the run row. Deletion is never a fallback and never a cleanup step of its
+   own.
+4. **Retention.** `SMARTVA_RUNS_KEEP_LOCAL_DAYS` (default `0`) is how long a
+   verified run directory stays on the VM, measured from the run's completion.
+   `0` means it goes as soon as the archive is verified. Raise it only to keep
+   a debugging window; it does not change what is archived.
+5. **State is on the run row.** `va_smartva_form_runs.archive_state` is one of
+   `local`, `archived`, `failed` or `absent`, alongside
+   `archive_key_prefix`, `archived_at`, `archive_error_code`,
+   `archive_file_count` and `archive_bytes`. `disk_path` keeps its meaning and
+   becomes NULL only when a verified archive lets the local copy go.
+6. **Failures are visible, not silent.** Archival never turns a completed
+   SmartVA run into a failed one — a failing archive is recorded and logged,
+   and the results stand. The backlog is cleared with
+   `flask smartva archive-runs` or the admin panel's *Archive pending runs*
+   action, both of which retry a `failed` run.
+7. **No paths or PII in the record.** `archive_error_code` is a short category
+   (`upload_failed`, `verify_mismatch`, `store_unavailable`, `walk_failed`,
+   `local_delete_failed`). Logs, the CLI and the admin panel carry counts and
+   categories, never a path, a key or a submission identifier.
+
+Implementation: `app/services/smartva_run_archive_service.py` (the only module
+that decides any of this), `app/commands/smartva.py`, the
+`run_smartva_run_archive` Celery task, and the SmartVA run archive block of the
+admin Attachment Management panel. The object store itself is
+`app/services/attachment_store.py` — there is no second S3 client.
 
 ## Workflow State Guards
 
@@ -172,7 +224,8 @@ Required target storage layers:
    - this is a projection concern, not the whole SmartVA history
 5. Raw SmartVA files on disk
    - optional operational/debug artifacts retained under the configured
-     `APP_SMARTVA_RUNS` base directory
+     `APP_SMARTVA_RUNS` base directory, then archived to the object store and
+     removed from the VM (see **Run Directory Archival**)
    - not required for normal regeneration because SmartVA reruns derive from
      versioned submission payloads
    - not stored as DB artifact blobs

@@ -44,9 +44,10 @@ Operational implication:
 - this is a synchronous Flask application with ORM-backed DB access and file-based integration steps.
 - **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login.
 - password creation and reset flows now reject passwords found in the Have I Been Pwned breach corpus using the shared password policy helper
-- SmartVA form-run evidence is stored under the configured
-  `APP_SMARTVA_RUNS` directory, which defaults to `/app/smartva_runs` in the
-  container.
+- SmartVA form-run evidence is written under the configured `APP_SMARTVA_RUNS`
+  directory, which defaults to `/app/smartva_runs` in the container, and is
+  then archived to the object store and removed from the VM — see
+  **SmartVA Run Archive** below.
 
 ## Container And Docker Setup
 
@@ -260,6 +261,7 @@ server. There is no global or default connection.
 | `S3_SECRET_ACCESS_KEY` | _(unset)_ | Secret. Environment only; never logged. |
 | `S3_PREFIX` | `` | Optional key prefix inside the bucket, e.g. `digitva/`. |
 | `ATTACHMENT_PRESIGN_EXPIRY_SECONDS` | `300` | Lifetime of a delivery presigned URL. |
+| `SMARTVA_RUNS_KEEP_LOCAL_DAYS` | `0` | Days a *verified* SmartVA run directory stays on the VM after the run completed. `0` removes it as soon as the archive is verified. Ignored on the local store. |
 
 Add these to the environment template alongside the existing ODK keys; the
 values themselves belong only in the deployment's `.env` or secret store.
@@ -308,6 +310,12 @@ Before setting `ATTACHMENT_STORE=s3`:
    only so sync can remove a *superseded* object after the row already points
    at its replacement; no other code path deletes.
 
+   The same bucket and the same IAM statements also cover the **SmartVA run
+   archive** under the `smartva_runs/` prefix — Get/Put/Delete on the objects
+   and List on the bucket is everything it needs, so no policy change is
+   required. Those objects are never presigned, so nothing about the delivery
+   path applies to them.
+
 6. Backup scope: the bucket is now a primary data store. Include it in the
    backup plan alongside the database — versioning plus either cross-region
    replication or a periodic inventory/restore drill. `local_path` no longer
@@ -345,6 +353,48 @@ files back, and restart. Rows marked `store_state='s3'` will need
 `local_path`/`store_state` restored, so a rollback after a large upload is a
 data operation, not a config change — which is why steps 4 and 6 exist.
 
+### SmartVA Run Archive
+
+A SmartVA run directory is a working area the SmartVA CLI needs while it runs.
+Nothing in the app reads it afterwards, so with `ATTACHMENT_STORE=s3` the whole
+directory is uploaded to the same bucket under
+`smartva_runs/{project_id}/{form_id}/{form_run_id}/{relative path}` right after
+the batch commits, verified against one listing of that prefix, and only then
+removed from the VM. With the local store nothing changes: runs stay on disk.
+
+These files hold full VA payloads. They are PHI: private bucket, SSE, and —
+unlike attachments — **never presigned and never served to a browser**.
+
+Where the state lives: `va_smartva_form_runs.archive_state`
+(`local`/`archived`/`failed`/`absent`, indexed), `archive_key_prefix`,
+`archived_at`, `archive_error_code`, `archive_file_count`, `archive_bytes`.
+`disk_path` becomes NULL only after a verified archive lets the local copy go.
+
+Operating it:
+
+```
+docker compose exec minerva_app_service uv run flask smartva archive-status
+docker compose exec minerva_app_service uv run flask smartva archive-runs --dry-run
+docker compose exec minerva_app_service uv run flask smartva archive-runs --delete-local
+docker compose exec minerva_app_service uv run flask smartva archive-runs --form-id <FORM_ID> --limit 100
+```
+
+`archive-runs` is idempotent and resumable: an object already present at the
+right size is verified rather than re-uploaded, and `--delete-local` is off by
+default. It exits non-zero if any run failed. The equivalent admin action is
+*Archive pending runs* in the Attachment Management panel, which queues the
+bounded `run_smartva_run_archive` Celery task (200 run directories per press)
+and records it on a `va_sync_runs` row.
+
+Backlog to clear on first cutover: about 13.5k files / 279 MB across the
+existing run directories. Nothing is deleted until its archive is verified, and
+any failure leaves the directory in place with a short `archive_error_code`
+(`upload_failed`, `verify_mismatch`, `store_unavailable`, `walk_failed`,
+`local_delete_failed`) — retried by re-running the command.
+
+Policy baseline: [SmartVA Generation Policy](../policy/smartva-generation-policy.md),
+*Run Directory Archival*.
+
 ### What to watch
 
 The admin **Attachment Management** panel (`/admin/panels/attachments`, or
@@ -363,6 +413,10 @@ attachment repair and the integrity check as bounded background runs. See
   A rising `central_stream` rate after the initial fill means the store is
   losing objects; any sustained `error` means a connection or redirect problem,
   not a missing attachment.
+- `va_smartva_form_runs.archive_state`: `local` runs still hold a directory on
+  the app server; `archived` runs do not once the keep-days window has passed;
+  `failed` runs are the ones to retry. The panel's SmartVA run archive block
+  shows these counts, the bytes still on the VM, and the last failure category.
 - `va_submission_attachments.store_state`: `local` rows still hold a file on
   the app server; `s3` rows do not and have a NULL `local_path`.
 - `va_submission_attachments.source_state` / `source_error_code`: `available`

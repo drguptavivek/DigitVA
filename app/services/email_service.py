@@ -91,6 +91,21 @@ def _should_attempt_email_delivery(to: str) -> bool:
 # High-level helpers (called from routes)
 # ---------------------------------------------------------------------------
 
+def _email_link_base_url() -> str:
+    """Return the scheme-qualified base URL used for links inside emails.
+
+    Falls back to Flask's SERVER_NAME and finally to localhost.  Both config keys
+    are read with `or` rather than a `.get()` default because Flask always defines
+    SERVER_NAME (value None when unset), which would otherwise shadow the default.
+    """
+    base_url = current_app.config.get("MAIL_BASE_URL") or ""
+    if not base_url:
+        base_url = current_app.config.get("SERVER_NAME") or "localhost:5000"
+    if not base_url.startswith("http"):
+        base_url = "https://" + base_url
+    return base_url
+
+
 def send_password_reset_email(user, token: str, invite_mode: bool = False) -> None:
     """Dispatch a password email via Celery.
 
@@ -98,13 +113,7 @@ def send_password_reset_email(user, token: str, invite_mode: bool = False) -> No
     instructs the user to set a password instead of resetting one.
     """
 
-    base_url = current_app.config.get("MAIL_BASE_URL", "")
-    if not base_url:
-        base_url = current_app.config.get("SERVER_NAME", "localhost:5000")
-        if not base_url.startswith("http"):
-            base_url = "https://" + base_url
-
-    reset_url = f"{base_url}/vaauth/reset-password/{token}"
+    reset_url = f"{_email_link_base_url()}/vaauth/reset-password/{token}"
     subject = "Set Your DigitVA Password" if invite_mode else "Reset Your DigitVA Password"
 
     if not _should_attempt_email_delivery(user.email):
@@ -124,13 +133,7 @@ def send_password_reset_email(user, token: str, invite_mode: bool = False) -> No
 
 def send_verification_email(user, token: str) -> None:
     """Dispatch an email-verification email via Celery."""
-    base_url = current_app.config.get("MAIL_BASE_URL", "")
-    if not base_url:
-        base_url = current_app.config.get("SERVER_NAME", "localhost:5000")
-    if not base_url.startswith("http"):
-        base_url = "https://" + base_url
-
-    verify_url = f"{base_url}/vaauth/verify-email/{token}"
+    verify_url = f"{_email_link_base_url()}/vaauth/verify-email/{token}"
 
     if not _should_attempt_email_delivery(user.email):
         return

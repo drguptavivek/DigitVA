@@ -947,6 +947,16 @@ class OdkSyncLoopCooldownTests(BaseTestCase):
                 "._resolve_project_connections",
                 return_value=conn_for_form,
             ),
+            # The sync loop skips any form without an active runtime mapping
+            # (commit e03340f), so stub the lookup for these fake forms.
+            patch(
+                "app.services.va_data_sync.va_data_sync_01_odkcentral"
+                ".get_active_mapping_for_form",
+                side_effect=lambda va_form: Mock(
+                    odk_project_id=1,
+                    odk_form_id=va_form.odk_form_id,
+                ),
+            ),
             patch(
                 "app.services.va_data_sync.va_data_sync_01_odkcentral"
                 "._get_or_create_sync_odk_client",

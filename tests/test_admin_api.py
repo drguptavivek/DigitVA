@@ -238,6 +238,7 @@ class AdminApiTests(BaseTestCase):
 
     def setUp(self):
         super().setUp()
+        self._restore_class_fixture_mapping()
         sfx = uuid.uuid4().hex[:8]
         self.manager = self._create_user(f"admin.api.manager.{sfx}@example.com")
         self.target = self._create_user(f"admin.api.target.{sfx}@example.com")
@@ -260,6 +261,47 @@ class AdminApiTests(BaseTestCase):
         self.target_id = str(self.target.user_id)
         self.viewer_id = str(self.viewer.user_id)
         self.admin_user_id = str(self.admin_user.user_id)
+
+    def _restore_class_fixture_mapping(self):
+        """Re-assert the setUpClass ODK mapping for (project_id, site_a).
+
+        Tests here mutate and even DELETE that mapping through /admin/api, and
+        those routes commit — which releases the per-test SAVEPOINT and makes the
+        change permanent (tests/base.py caveat, docs/policy/test-harness.md
+        "Per-test isolation").  Restoring it in setUp keeps every test independent
+        of whatever an earlier test committed.
+        """
+        mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.project_id,
+                MapProjectSiteOdk.site_id == self.site_a,
+            )
+        )
+        if mapping is None:
+            mapping = MapProjectSiteOdk(
+                project_id=self.project_id,
+                site_id=self.site_a,
+                form_type_id=None,
+            )
+            db.session.add(mapping)
+        mapping.odk_project_id = 11
+        mapping.odk_form_id = "ADMIN_API_FORM_A"
+        db.session.flush()
+
+    def _switch_login(self, user_id):
+        """Re-login as another user *within* a test.
+
+        BaseTestCase.setUp drops Flask-Login's g._login_user once per test
+        (tests/base.py:318), but _login() itself does not.  Because conftest
+        pushes one app context for the whole session, g survives between
+        requests, so a plain _login() after the test's first request keeps
+        serving the previous user.  Drop the cache, then switch.
+        """
+        from flask import g
+
+        if hasattr(g, "_login_user"):
+            del g._login_user
+        self._login(user_id)
 
     def _create_user(self, email):
         user = VaUsers(
@@ -314,9 +356,12 @@ class AdminApiTests(BaseTestCase):
         response = self.client.get("/admin/api/bootstrap")
 
         self.assertEqual(response.status_code, 403)
+        # e12dd3a replaced admin.py's _require_admin_api_access() with @role_required();
+        # the wrong-role contract is now "{role} access is required."
+        # (docs/policy/auth-decorator-rbac.md:88).
         self.assertEqual(
             response.get_json()["error"],
-            "Admin API access is not allowed for this user.",
+            "admin or project_pi access is required.",
         )
 
     def test_bootstrap_returns_csrf_contract_and_scope_for_project_pi(self):
@@ -664,7 +709,7 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(toggle_resp.get_json()["status"], "active")
         
         # Ensure non-admin cannot access master list
-        self._login(self.manager_id)
+        self._switch_login(self.manager_id)
         forbidden_resp = self.client.get("/admin/api/sites?master=1")
         self.assertEqual(forbidden_resp.status_code, 403)
 
@@ -675,10 +720,13 @@ class AdminApiTests(BaseTestCase):
         # Create user
         create_resp = self.client.post(
             "/admin/api/users",
+            # 338bc88 made admin user creation invite-only: matching email_confirm is
+            # required and no operator password is accepted
+            # (docs/policy/dm-user-grant-management.md:116).
             json={
                 "email": "new.admin.user@example.com",
+                "email_confirm": "new.admin.user@example.com",
                 "name": "New Admin User",
-                "password": "SecurePassword123!",
                 "phone": "1234567890",
                 "languages": ["english", "hindi"],
             },
@@ -692,12 +740,15 @@ class AdminApiTests(BaseTestCase):
         )
         
         # Ensure non-admin cannot access master list
-        self._login(self.manager_id)
+        self._switch_login(self.manager_id)
         forbidden_resp = self.client.get("/admin/api/users?master=1")
         self.assertEqual(forbidden_resp.status_code, 403)
         
-        # Switch back to admin
-        self._login(self.admin_user_id)
+        # Switch back to admin.  _login() clears the session, so the CSRF token
+        # captured above is no longer valid — re-issue it for the new session
+        # (X-CSRFToken stays required: docs/policy/admin-api-access.md, CSRF Baseline).
+        self._switch_login(self.admin_user_id)
+        headers = self._csrf_headers()
 
         # Edit user
         edit_resp = self.client.put(
@@ -839,7 +890,10 @@ class AdminApiTests(BaseTestCase):
             "form_smartvafreetext": "False",
             "form_smartvacountry": "ZAF",
         }, headers=headers)
-        self.assertEqual(save_resp.status_code, 201)
+        # setUpClass already maps (ADM001, AA01) via MapProjectSiteOdk (fixture added in
+        # ffff8c6, after this test), so this POST is the idempotent-update path and returns
+        # 200 — 201 is only for a new mapping (docs/policy/admin-api-access.md, Mapping Rules).
+        self.assertEqual(save_resp.status_code, 200)
         saved_mapping = save_resp.get_json()["mapping"]
         self.assertEqual(saved_mapping["form_smartvahiv"], "True")
         self.assertEqual(saved_mapping["form_smartvamalaria"], "True")
@@ -1057,22 +1111,44 @@ class AdminApiTests(BaseTestCase):
 
         now = datetime.now(timezone.utc)
         legacy_form_id = f"ADM001AB{uuid.uuid4().hex[:4].upper()}"[:12]
+        # Earlier tests in this class create (project_id, site_b) through
+        # /admin/api/project-sites and commit, which releases the per-test SAVEPOINT
+        # and leaves the row behind — so these must be get-or-create
+        # (docs/policy/test-harness.md, Rule 5).
+        project_site = db.session.scalar(
+            sa.select(VaProjectSites).where(
+                VaProjectSites.project_id == self.project_id,
+                VaProjectSites.site_id == self.site_b,
+            )
+        )
+        if project_site is None:
+            project_site = VaProjectSites(
+                project_id=self.project_id,
+                site_id=self.site_b,
+                project_site_registered_at=now,
+            )
+            db.session.add(project_site)
+        project_site.project_site_status = VaStatuses.deactive
+        project_site.project_site_updated_at = now
+
+        odk_map = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.project_id,
+                MapProjectSiteOdk.site_id == self.site_b,
+            )
+        )
+        if odk_map is None:
+            odk_map = MapProjectSiteOdk(
+                project_id=self.project_id,
+                site_id=self.site_b,
+                form_type_id=None,
+            )
+            db.session.add(odk_map)
+        odk_map.odk_project_id = 22
+        odk_map.odk_form_id = "ADMIN_API_FORM_B"
+
         db.session.add_all(
             [
-                VaProjectSites(
-                    project_id=self.project_id,
-                    site_id=self.site_b,
-                    project_site_status=VaStatuses.deactive,
-                    project_site_registered_at=now,
-                    project_site_updated_at=now,
-                ),
-                MapProjectSiteOdk(
-                    project_id=self.project_id,
-                    site_id=self.site_b,
-                    odk_project_id=22,
-                    odk_form_id="ADMIN_API_FORM_B",
-                    form_type_id=None,
-                ),
                 VaForms(
                     form_id=legacy_form_id,
                     project_id=self.project_id,
@@ -1377,16 +1453,20 @@ class AdminApiTests(BaseTestCase):
         )
 
     def test_admin_backfill_reconciles_orphaned_running_row(self):
-        from datetime import datetime, timezone
+        from datetime import datetime, timedelta, timezone
         from app import db
         from app.models.va_sync_runs import VaSyncRun
 
         self._login(self.admin_user_id)
         headers = self._csrf_headers()
 
+        # _reconcile_orphaned_running_sync_rows() only reclaims rows older than its
+        # 5-minute stale_cutoff; a freshly started run is a live job and must still
+        # return 409 (docs/current-state/async-tasks.md:314 — orphan detection is
+        # age-gated).  Start the row before the cutoff so it qualifies as orphaned.
         stale_run = VaSyncRun(
             triggered_by="backfill",
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(timezone.utc) - timedelta(minutes=10),
             status="running",
         )
         db.session.add(stale_run)
@@ -1410,7 +1490,8 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 202)
         db.session.refresh(stale_run)
         self.assertEqual(stale_run.status, "error")
-        self.assertIn("no active Celery sync/backfill task", stale_run.error_message)
+        # 8bdd7bf reworded this from "Stale run — no active Celery sync/backfill task".
+        self.assertIn("no active sync/repair worker task is running", stale_run.error_message)
         mocked_delay.assert_called_once()
 
     def test_sync_status_returns_null_schedule_when_beat_tables_missing(self):

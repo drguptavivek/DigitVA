@@ -38,6 +38,15 @@ class SiteMaintenanceTests(BaseTestCase):
         db.session.commit()
         return user
 
+    def setUp(self):
+        super().setUp()
+        # Maintenance state is a single global row.  These tests commit more than once
+        # (helper commit + route commit), which releases the per-test SAVEPOINT and leaves
+        # the row permanently committed (tests/base.py caveat, docs/policy/test-harness.md
+        # "Per-test isolation").  Reset the table so each test starts from "no maintenance".
+        db.session.query(VaSiteMaintenance).delete()
+        db.session.flush()
+
     def _activate_maintenance(self, *, starts_at, cutoff_at, message="Planned maintenance"):
         maintenance = VaSiteMaintenance(
             enabled=True,

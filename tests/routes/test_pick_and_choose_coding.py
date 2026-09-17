@@ -192,6 +192,30 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         )
         db.session.commit()
 
+    def _reset_to_ready_pool(self, va_sid):
+        """Put a fixture submission back in the coder ready pool.
+
+        Allocation routes commit, which releases the per-test savepoint, so a
+        submission allocated by an earlier test in this class can still be out
+        of the ready pool here (tests/base.py savepoint caveat in
+        docs/policy/test-harness.md).
+        """
+        db.session.query(VaAllocations).filter(
+            VaAllocations.va_sid == va_sid,
+            VaAllocations.va_allocation_for == VaAllocation.coding,
+        ).update(
+            {"va_allocation_status": VaStatuses.deactive},
+            synchronize_session=False,
+        )
+        workflow = db.session.scalar(
+            db.select(VaSubmissionWorkflow).where(
+                VaSubmissionWorkflow.va_sid == va_sid
+            )
+        )
+        workflow.workflow_state = "ready_for_coding"
+        workflow.workflow_reason = "test_reset"
+        db.session.commit()
+
     def _active_coding_sid(self):
         return db.session.scalar(
             db.select(VaAllocations.va_sid).where(
@@ -202,21 +226,32 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         )
 
     def test_dashboard_shows_pick_and_choose_section(self):
+        # The coder dashboard moved to /coding/ in commit 4ebb4fb and became
+        # fully API-driven in commit 0098d90, so the ready counts and the
+        # pick-mode rows are asserted on the JSON endpoints the page calls
+        # rather than on server-rendered HTML.
         self._login(self.base_coder_id)
 
-        response = self.client.get("/vadashboard/coder")
+        self._reset_to_ready_pool("sid-random-1")
+        self._reset_to_ready_pool("sid-pick-1")
 
+        response = self.client.get("/coding/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Random Allocation Forms Ready", response.data)
-        self.assertIn(b"Pick And Choose Forms Ready", response.data)
-        self.assertIn(b"Two coding modes are active for your access scope.", response.data)
-        self.assertIn(b"Start Random Allocation Coding", response.data)
-        self.assertIn(b"Pick And Choose Coding", response.data)
-        self.assertIn(b"sid-pick-1", response.data)
-        self.assertIn(b"vapickcoding/sid-pick-1", response.data)
+
+        stats = self.client.get("/api/v1/coding/stats").get_json()
+        self.assertTrue(stats["has_random_mode"])
+        self.assertTrue(stats["has_pick_mode"])
+        self.assertGreaterEqual(stats["random_ready"], 1)
+        self.assertGreaterEqual(stats["pick_ready"], 1)
+
+        available = self.client.get("/api/v1/coding/available").get_json()
+        pick_sids = [row["va_sid"] for row in available["forms"]]
+        self.assertIn("sid-pick-1", pick_sids)
+        self.assertNotIn("sid-random-1", pick_sids)
 
     def test_startcoding_uses_only_random_projects(self):
         self._login(self.base_coder_id)
+        self._reset_to_ready_pool("sid-random-1")
         db.session.query(VaAllocations).filter(
             VaAllocations.va_allocated_to == self.base_coder_user.user_id,
             VaAllocations.va_allocation_for == VaAllocation.coding,
@@ -226,8 +261,11 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
         )
         db.session.commit()
 
-        response = self.client.get(
-            "/vacta/vacode/vastartcoding/vastartcoding",
+        # Random allocation moved from GET /vacta/vacode/vastartcoding to
+        # POST /coding/start in commit 4ebb4fb.
+        response = self.client.post(
+            "/coding/start",
+            headers=self._csrf_headers(),
             follow_redirects=True,
         )
 
@@ -237,7 +275,12 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
     def test_pickcoding_allocates_selected_ready_submission(self):
         self._login(self.base_coder_id)
 
-        response = self.client.get("/vacta/vacode/vapickcoding/sid-pick-1")
+        # Pick allocation moved from GET /vacta/vacode/vapickcoding/<sid> to
+        # POST /coding/pick/<sid> in commit 4ebb4fb.
+        response = self.client.post(
+            "/coding/pick/sid-pick-1",
+            headers=self._csrf_headers(),
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_coding_sid(), "sid-pick-1")
@@ -451,6 +494,23 @@ class PickAndChooseCodingRouteTests(BaseTestCase):
             )
         )
         self.assertIsNotNone(project_site)
+        # These writes are committed, which releases the per-test savepoint,
+        # so the closed gates must be restored explicitly or later tests in
+        # this class see an un-codeable RND01 project-site.
+        original_gates = {
+            "coding_enabled": project_site.coding_enabled,
+            "coding_start_date": project_site.coding_start_date,
+            "coding_end_date": project_site.coding_end_date,
+            "daily_coder_limit": project_site.daily_coder_limit,
+        }
+
+        def _restore_gates():
+            for attribute, value in original_gates.items():
+                setattr(project_site, attribute, value)
+            db.session.commit()
+
+        self.addCleanup(_restore_gates)
+
         today = datetime.now(timezone.utc).date()
         project_site.coding_enabled = False
         project_site.coding_start_date = today + timedelta(days=7)

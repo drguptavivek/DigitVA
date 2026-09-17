@@ -6,6 +6,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     MapIcd10LegacyReportingAlias,
+    MasIcd1020192,
     MapIcdCodBucket,
     MasCodBucketNode,
     MasCodBucketScheme,
@@ -1009,7 +1010,15 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(row["sa14"], "1")
         self.assertEqual(row["sa_tu14"], "Transport strike delayed referral")
 
-    def test_cod_snapshot_mv_tolerates_duplicate_who_bucket_mapping_rows(self):
+    def test_cod_snapshot_mv_emits_one_row_per_submission_for_who_bucket(self):
+        """Commit 5580394 deduped map_icd_cod_buckets and added the unique
+        index ux_map_icd_cod_buckets_scheme_scope_icd_norm, so the duplicate
+        mapping rows this test used to insert are now rejected by the database
+        (docs/policy/cod-bucket-reporting.md rules 31-32). Duplicate handling at
+        the import boundary is covered by
+        tests/services/test_cod_bucket_mapping_service.py; what stays here is
+        the MV's one-row-per-submission guarantee.
+        """
         sid = "uuid:mv-snapshot-duplicate-bucket"
         self._add_submission(
             sid,
@@ -1072,23 +1081,14 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         )
         db.session.add_all([parent, leaf])
         db.session.flush()
-        db.session.add_all(
-            [
-                MapIcdCodBucket(
-                    scheme_id=scheme.scheme_id,
-                    age_scope=None,
-                    icd_code="R57",
-                    node_id=leaf.node_id,
-                    is_active=True,
-                ),
-                MapIcdCodBucket(
-                    scheme_id=scheme.scheme_id,
-                    age_scope=None,
-                    icd_code="R57",
-                    node_id=leaf.node_id,
-                    is_active=True,
-                ),
-            ]
+        db.session.add(
+            MapIcdCodBucket(
+                scheme_id=scheme.scheme_id,
+                age_scope=None,
+                icd_code="R57",
+                node_id=leaf.node_id,
+                is_active=True,
+            )
         )
         db.session.commit()
 
@@ -1191,6 +1191,27 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 is_active=True,
             )
         )
+        # map_icd10_legacy_reporting_aliases.reporting_code is FK-constrained to
+        # mas_icd10_2019_2.code (migration f6b7c8d9e0f1), and the test schema is
+        # built by db.create_all() with no ICD-10 catalog seed.
+        if db.session.get(MasIcd1020192, "A97") is None:
+            db.session.add(
+                MasIcd1020192(
+                    code="A97",
+                    title="Dengue",
+                    node_type="category",
+                    semantic_level="three_character",
+                    sort_order=1,
+                    has_children=False,
+                    is_leaf=True,
+                    is_three_character_code=True,
+                    is_detailed_code=False,
+                    source_version="2019-test",
+                    source_path="tests",
+                    is_active=True,
+                )
+            )
+            db.session.flush()
         db.session.add(
             MapIcd10LegacyReportingAlias(
                 legacy_code="A90",

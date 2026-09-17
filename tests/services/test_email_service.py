@@ -12,7 +12,12 @@ class TestEmailService(BaseTestCase):
     def test_actually_send_email_uses_current_app_context(self):
         user = SimpleNamespace(email="vivekguptarpc@gmail.com", name="Vivek")
 
-        with self.app.app_context(), patch(
+        # This test exercises the configured-SMTP path.  TestConfig leaves
+        # MAIL_SERVER at "localhost", which is_mail_configured() treats as
+        # unconfigured (email_service.py), so the send is skipped without it.
+        with self.app.app_context(), patch.dict(
+            self.app.config, {"MAIL_SERVER": "smtp.test.invalid"}
+        ), patch(
             "app.services.email_service.render_template",
             side_effect=lambda template, **context: f"{template}:{context['name']}",
         ) as render_template, patch(

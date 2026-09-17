@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-05-04
+last_updated: 2026-09-17
 ---
 
 # Data Manager Dashboard
@@ -287,7 +287,7 @@ local vendored copy of Chart.js.
 
 Current chart API:
 
-- `/data-management/api/project-site-submissions`
+- `/api/v1/data-management/project-site-submissions`
 
 This chart currently uses a route-level scoped query. It has not yet been
 migrated to the submission analytics materialized view.

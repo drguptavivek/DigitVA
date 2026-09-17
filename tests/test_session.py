@@ -7,14 +7,16 @@ from tests.base import BaseTestCase
 
 class SessionTests(BaseTestCase):
     def test_session_timeout_config(self):
-        """Verify that PERMANENT_SESSION_LIFETIME is set to 30 minutes."""
+        """Idle session lifetime is 30 minutes; remember-me lasts 30 days."""
         self.assertEqual(
-            self.app.config["PERMANENT_SESSION_LIFETIME"], 
+            self.app.config["PERMANENT_SESSION_LIFETIME"],
             timedelta(minutes=30)
         )
+        # SEC-010 (commit f5c359f) deliberately extended REMEMBER_COOKIE_DURATION
+        # from 30 minutes to 30 days; config.py:28 is the baseline.
         self.assertEqual(
-            self.app.config["REMEMBER_COOKIE_DURATION"], 
-            timedelta(minutes=30)
+            self.app.config["REMEMBER_COOKIE_DURATION"],
+            timedelta(days=30)
         )
 
     def test_login_redirects_to_next_page(self):

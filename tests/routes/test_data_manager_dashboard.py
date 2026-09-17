@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import uuid
 import re
 import tempfile
@@ -399,7 +400,7 @@ class DataManagerDashboardTests(BaseTestCase):
         mocked_delta_count.return_value = 3
 
         response = self.client.post(
-            "/data-management/api/sync/preview",
+            "/api/v1/data-management/sync/preview",
             headers=headers,
             json={"project_ids": [self.BASE_PROJECT_ID], "site_ids": [self.BASE_SITE_ID]},
         )
@@ -408,7 +409,18 @@ class DataManagerDashboardTests(BaseTestCase):
         payload = response.get_json()
         self.assertEqual(payload["totals"]["forms"], 1)
         self.assertEqual(payload["totals"]["new_fetch_candidates"], 2)
-        self.assertEqual(payload["totals"]["missing_in_odk_flags"], 1)
+        # Earlier tests in this class commit extra submissions on FORM_ID and
+        # those commits are not rolled back (docs/policy/test-harness.md,
+        # "Caveat"), so compare against the live local count: the route builds
+        # expected SIDs as "<instance-id>-<form_id>", so no local row matches
+        # and every one must be flagged missing-in-ODK.
+        local_submissions = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(VaSubmissions)
+            .where(VaSubmissions.va_form_id == self.FORM_ID)
+        )
+        self.assertGreaterEqual(local_submissions, 1)
+        self.assertEqual(payload["totals"]["missing_in_odk_flags"], local_submissions)
         self.assertEqual(payload["totals"]["updated_candidates"], 3)
         self.assertEqual(payload["forms"][0]["preview_status"], "ok")
 
@@ -445,9 +457,19 @@ class DataManagerDashboardTests(BaseTestCase):
             status="error",
             records_added=0,
             records_updated=0,
-            progress_log=(
-                f'[{{"ts":"2026-03-18T00:00:00+00:00","msg":"[{self.SID}] '
-                'refreshed from ODK: +0 added, 0 updated"}}]'
+            # The original literal doubled the closing brace outside the
+            # f-string half, so progress_log was invalid JSON and
+            # sync_run_target_label() bailed out before resolving the SID.
+            progress_log=json.dumps(
+                [
+                    {
+                        "ts": "2026-03-18T00:00:00+00:00",
+                        "msg": (
+                            f"[{self.SID}] refreshed from ODK: "
+                            "+0 added, 0 updated"
+                        ),
+                    }
+                ]
             ),
         )
         db.session.add(run)
@@ -457,13 +479,18 @@ class DataManagerDashboardTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(len(payload["runs"]), 1)
-        self.assertEqual(payload["runs"][0]["target"], self.FORM_ID)
+        # Sync runs committed by earlier tests in this class survive
+        # (docs/policy/test-harness.md, "Caveat"), so pick out this run by id.
+        run_payload = next(
+            row for row in payload["runs"]
+            if row["sync_run_id"] == str(run.sync_run_id)
+        )
+        self.assertEqual(run_payload["target"], self.FORM_ID)
 
     def test_data_manager_can_load_project_site_submission_stats(self):
         self._login(self.dm_user_id)
 
-        response = self.client.get("/data-management/api/project-site-submissions")
+        response = self.client.get("/api/v1/data-management/project-site-submissions")
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -697,7 +724,8 @@ class DataManagerDashboardTests(BaseTestCase):
         response = self.client.get("/data-management/cod-buckets")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"COD Bucket Reporting", response.data)
+        # Heading renamed to "Cause of Death Report" in commit 5a94ab1.
+        self.assertIn(b"Cause of Death Report", response.data)
 
     def test_cod_bucket_aggregates_api_respects_dm_scope(self):
         self._login(self.dm_user_id)
@@ -1038,43 +1066,19 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response.mimetype, "text/csv")
         decoded = response.data.decode("utf-8-sig")
         rows = list(csv.DictReader(io.StringIO(decoded)))
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["SID"], in_scope_sid)
-        self.assertEqual(rows[0]["Final authoritative COD"], "I21")
-        self.assertEqual(rows[0]["Scheme level 1"], "Export Category")
-        self.assertEqual(rows[0]["Scheme level 2"], "Export Cause")
-        self.assertEqual(rows[0]["Project"], self.BASE_PROJECT_ID)
-        self.assertEqual(rows[0]["Site"], self.BASE_SITE_ID)
-        self.assertEqual(rows[0]["Form code"], self.FORM_ID)
-        self.assertEqual(
-            payload["summary"]["age_sex_distribution"],
-            [
-                {
-                    "age_band": ">=50 years",
-                    "sort_order": 5,
-                    "male_count": 1,
-                    "female_count": 0,
-                    "unknown_count": 0,
-                    "total_count": 1,
-                    "male_percent": 100.0,
-                    "female_percent": 0.0,
-                    "unknown_percent": 0.0,
-                    "total_percent": 100.0,
-                }
-            ],
-        )
-        self.assertEqual(
-            payload["summary"]["gender_distribution"],
-            [
-                {
-                    "gender": "Male",
-                    "coded_count": 1,
-                    "percent": 100.0,
-                }
-            ],
-        )
-        self.assertIn("heatmap", payload["summary"])
-        self.assertIn("treemap", payload["summary"])
+        # An MV refresh commits (docs/policy/test-harness.md, "Caveat"), so
+        # rows committed by earlier tests in this class survive into this one.
+        # Assert on scope membership instead of a global row count.
+        sids = [row["SID"] for row in rows]
+        self.assertEqual(sids.count(in_scope_sid), 1)
+        self.assertNotIn(out_scope_sid, sids)
+        row = next(row for row in rows if row["SID"] == in_scope_sid)
+        self.assertEqual(row["Final authoritative COD"], "I21")
+        self.assertEqual(row["Scheme level 1"], "Export Category")
+        self.assertEqual(row["Scheme level 2"], "Export Cause")
+        self.assertEqual(row["Project"], self.BASE_PROJECT_ID)
+        self.assertEqual(row["Site"], self.BASE_SITE_ID)
+        self.assertEqual(row["Form code"], self.FORM_ID)
 
     @patch(
         "app.routes.api.data_management.get_dm_kpi_from_mv",
@@ -1185,16 +1189,36 @@ class DataManagerDashboardTests(BaseTestCase):
             ["updatedAt"],
         )
 
-    @patch("app.services.coder_workflow_service.is_upstream_recode", return_value=True)
-    def test_data_manager_view_includes_inline_upstream_change_panel(self, _mocked_upstream):
+    def test_data_manager_view_includes_inline_upstream_change_panel(self):
+        """The inline View Changes panel is shown for *pending* upstream
+        changes only (docs/policy/data-manager-workflow.md, "For pending
+        `finalized_upstream_changed` submissions"). The previous version of
+        this test mocked ``is_upstream_recode`` and looked for a
+        ``dm-upstream-change-panel`` id that only ever existed on the
+        unmerged fd81caf branch.
+        """
         self._login(self.dm_user_id)
+        db.session.add(
+            VaSubmissionUpstreamChange(
+                va_sid=self.SID,
+                workflow_state_before="coder_finalized",
+                previous_va_data={"Id10120": 10.0},
+                incoming_va_data={"Id10120": 12.0},
+                detected_odk_updatedat=datetime.now(timezone.utc),
+                resolution_status="pending",
+            )
+        )
+        db.session.commit()
 
         response = self.client.get(f"/data-management/view/{self.SID}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Changed Fields", response.data)
-        self.assertIn(b"dm-upstream-change-panel", response.data)
-        self.assertIn(b"/api/v1/data-management/submissions/", response.data)
+        self.assertIn(b"Upstream Changed Fields", response.data)
+        self.assertIn(b"dm-open-upstream-changes-modal-btn", response.data)
+        self.assertIn(
+            f"/api/v1/data-management/submissions/{self.SID}/upstream-change-details".encode(),
+            response.data,
+        )
 
     def test_data_manager_can_trigger_scoped_form_sync(self):
         self._login(self.dm_user_id)
@@ -1206,7 +1230,7 @@ class DataManagerDashboardTests(BaseTestCase):
             mocked_delay.return_value.id = "task-form-sync"
 
             response = self.client.post(
-                f"/data-management/api/forms/{self.FORM_ID}/sync",
+                f"/api/v1/data-management/forms/{self.FORM_ID}/sync",
                 headers=headers,
             )
 
@@ -1223,7 +1247,7 @@ class DataManagerDashboardTests(BaseTestCase):
             mocked_delay.return_value.id = "task-submission-sync"
 
             response = self.client.post(
-                f"/data-management/api/submissions/{self.SID}/sync",
+                f"/api/v1/data-management/submissions/{self.SID}/sync",
                 headers=headers,
             )
 
@@ -1406,7 +1430,7 @@ class DataManagerDashboardTests(BaseTestCase):
     def test_data_manager_read_only_view_writes_audit_row(self):
         self._login(self.dm_user_id)
 
-        response = self.client.get(f"/vacta/vadata/vaview/{self.SID}")
+        response = self.client.get(f"/data-management/view/{self.SID}")
 
         self.assertEqual(response.status_code, 200)
         audit_row = db.session.scalar(

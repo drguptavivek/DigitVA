@@ -23,13 +23,22 @@ class RateLimitingTests(BaseTestCase):
             # Not 429
             self.assertNotEqual(response.status_code, 429)
             
-        # 11th request should be rate limited
+        # 11th request is rate limited. Commit d9b3572 turned the 429 for
+        # browser (non-API) paths into a flashed warning plus a redirect; only
+        # /api/ and /admin/api/ paths still receive a JSON 429
+        # (app/routes/va_errors.py:26-36).
         response = self.client.post(
             login_url,
             data={"email": "blocked@example.com", "password": "password"},
             headers=self._csrf_headers()
         )
-        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.status_code, 302)
+        with self.client.session_transaction() as sess:
+            flashed = [message for _category, message in sess.get("_flashes", [])]
+        self.assertIn(
+            "Too many requests in a short time. Please wait 5 minutes and try again.",
+            flashed,
+        )
 
     def test_admin_sync_polling_endpoints_are_not_globally_rate_limited(self):
         """Dashboard polling endpoints should not consume the low global IP budget."""

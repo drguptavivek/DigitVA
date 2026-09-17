@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from app import db
 from app.models import (
+    MasIcd1020192,
     VaAllocation,
     VaAllocations,
     VaFinalAssessments,
@@ -20,6 +21,7 @@ from app.models import (
     VaSubmissions,
     VaUsers,
 )
+from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
 
@@ -123,12 +125,52 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
             )
         )
         db.session.flush()
+        # Final COD submission reads the active payload version since commit
+        # 5d55f8f (reads migrated off va_data onto payload_versions).
+        ensure_active_payload_version(
+            db.session.get(VaSubmissions, cls.DEMO_SID),
+            payload_data={},
+            source_updated_at=now,
+            created_by_role="vasystem",
+        )
         db.session.add(
             VaSubmissionWorkflow(
                 va_sid=cls.DEMO_SID,
                 workflow_state="ready_for_coding",
                 workflow_reason="test_seed",
                 workflow_updated_by_role="vasystem",
+            )
+        )
+        # Commit 52d967c ("Enforce WHO ICD policy on COD saves") made final COD
+        # submission reject any ICD-10 value that is not an active, selectable
+        # mas_icd10_2019_2 row — see
+        # docs/policy/who-2022-icd10-coding-allowability.md.
+        db.session.merge(
+            MasIcd1020192(
+                code="I24",
+                title="Other acute ischaemic heart diseases",
+                node_type="category",
+                semantic_level="three_character",
+                sort_order=1,
+                chapter_code="IX",
+                chapter_title="Diseases of the circulatory system",
+                block_code="I20-I25",
+                block_title="Ischaemic heart diseases",
+                three_character_code="I24",
+                three_character_title="Other acute ischaemic heart diseases",
+                has_children=False,
+                is_leaf=True,
+                is_three_character_code=True,
+                is_detailed_code=False,
+                is_coding_selectable=True,
+                sex_selectable="both",
+                age_group_selectable="all",
+                policy_status="unreviewed",
+                source_version="ICD-10-2019",
+                source_path="test",
+                is_active=True,
+                created_at=now,
+                updated_at=now,
             )
         )
         cls.demo_plain_user = VaUsers(
@@ -211,7 +253,12 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertIn("DEMO-CODING", html)
+        # The DEMO-CODING shortcut is rendered client-side by
+        # va_code_dashboard.js from CONFIG.demoProjects since commit 0098d90
+        # made the coder dashboard fully API-driven
+        # (docs/policy/demo-coding-retention.md:81).
+        self.assertIn("va_code_dashboard.js", html)
+        self.assertIn("demoProjects", html)
         self.assertIn("These are demo-training forms.", html)
         self.assertIn(self.DEMO_PROJECT_ID, html)
 

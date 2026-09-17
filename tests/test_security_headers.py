@@ -13,7 +13,10 @@ class SecurityHeadersTests(BaseTestCase):
         # self.assertIn("Strict-Transport-Security", response.headers)
         
         self.assertEqual(response.headers.get("X-Content-Type-Options"), "nosniff")
-        self.assertEqual(response.headers.get("X-Frame-Options"), "DENY")
+        # Commit 612fa6e deliberately relaxed X-Frame-Options from DENY to
+        # SAMEORIGIN so the same-origin PDF iframe in the coding modal works
+        # (app/__init__.py:120).
+        self.assertEqual(response.headers.get("X-Frame-Options"), "SAMEORIGIN")
         self.assertEqual(response.headers.get("X-XSS-Protection"), "1; mode=block")
         self.assertIn("Referrer-Policy", response.headers)
 

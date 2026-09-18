@@ -1,8 +1,28 @@
 # Per-unit coding gates
 
-- Status: designed 2026-09-18, implementation pending
+- Status: implemented 2026-09-18, pending test-runner verification (see
+  docs/policy/organization-model.md "Per-unit coding gates" and the pytest
+  paths below)
 - Priority: medium
 - Created: 2026-09-18
+
+## Implementation notes (2026-09-18)
+
+- Table: `map_org_unit_coding_gate` (`app/models/mas_organization.py`),
+  migration `a40c38e73af4` chained onto `f1c6a9d3e7b5`.
+- Resolution: `app.services.org_grant_service.resolve_unit_coding_gates` —
+  one ltree query, deepest gated ancestor wins.
+- Enforcement: `app/services/coder_workflow_service.py` —
+  `_get_excluded_org_units_for_coding` (exclusion path, mirrors
+  `_get_excluded_sites_for_coding`) and `_get_site_coding_error` extended
+  with an optional `org_unit_id` (reason path), wired into both
+  `allocate_random_form` and `allocate_pick_form`.
+- Admin UI: `app/routes/admin_organization.py` (`GET`/`PUT`/`DELETE`
+  `.../units/<org_unit_id>/coding-gate`) and
+  `app/templates/admin/panels/organization.html` (gate button + form on the
+  unit tree).
+- Not yet run: the pytest paths listed at the end of this file — a
+  dedicated test-runner session owns execution in this repo right now.
 
 ## Goal
 
@@ -115,3 +135,22 @@ empty queue with a site-level explanation that is not true.
 Whether an admin closing a level (all District-level units at once) needs its
 own bulk action, or whether closing each unit is enough. Defer until the
 Organization panel's unit editor exists.
+
+## Follow-up: the eligibility board still shows site gates only
+
+`app/routes/coding.py::_coding_status` renders a per-site eligibility summary
+that reasons about `va_project_sites` gates alone. It was left untouched when
+the unit gates landed (2026-09-18) — it is display-only, not the allocation
+or reason path.
+
+The consequence is worth fixing rather than leaving: a coder can see a board
+saying their site is open, then be refused a form because their unit's gate
+is closed. The allocation refusal now names the unit correctly, so they are
+not left guessing — but the board and the refusal disagree, and the board is
+what they look at first.
+
+Not urgent, and deliberately out of scope of the original change to keep the
+allocation path minimal. Whoever picks it up: the resolved gate is available
+from `org_grant_service.resolve_unit_coding_gates()`, the same call the
+exclusion path uses, so the board can show the effective gate rather than the
+site's.

@@ -3,7 +3,7 @@ title: Test Harness Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Test Harness Policy
@@ -156,6 +156,34 @@ When creating test data inside savepoint-rollback tests, use unique names for
 fields with unique constraints (e.g. `connection_name`). This prevents
 conflicts when `commit()` inside the test releases the savepoint, making the
 row visible to subsequent tests in the same class.
+
+## Seeding a project: the dual-table trap
+
+This repository keeps **two** project tables and **two** site tables, and
+different foreign keys point at different ones:
+
+- `va_forms.project_id` -> `va_research_projects`
+- `va_sites.project_id` -> `va_research_projects`
+- `va_project_sites.project_id` -> `va_project_master`
+
+So a fixture that seeds only `VaProjectMaster` — the newer org-model master
+table, and the one most people reach for — fails at the first `va_forms` or
+`va_sites` insert with
+
+    insert on va_forms violates fk_va_forms_project_id_va_research_projects
+
+**Seed both project rows, and both site rows** (`VaSiteMaster` and `VaSites`),
+matching the pattern in `tests/services/test_runtime_form_sync_service.py`.
+
+This is not a quirk of one test. On 2026-09-18 it broke two separate new test
+classes within an hour of each other, and in both cases the failure was in
+`setUpClass`, which means **every test in the class errored without running a
+single assertion**. Both times the suite reported errors rather than
+failures, and both times the feature under test was entirely unverified while
+looking merely "a bit red".
+
+When a `setUpClass` errors, treat the whole class as unverified rather than
+as a flaky fixture to retry.
 
 ## Key files
 

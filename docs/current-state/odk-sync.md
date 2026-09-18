@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # ODK Sync And Attachments
@@ -578,6 +578,21 @@ After upsert, the app computes and stores:
 The sync path also maintains:
 
 - `va_submission_workflow`
+- `va_submissions.org_unit_id` / `org_unit_resolution` — the organization unit
+  the death is attributed to, for projects that have a tree
+
+Organization routing (`app/services/org_unit_routing_service.py`) runs for
+every created or changed submission, inside the same upsert loop:
+
+- the deepest `org_<level_code>_code` field naming a live unit of the project
+  wins; failing that, the ODK mapping's fallback unit; failing that, the
+  submission stays unrouted for the data manager's queue
+- a routing context is built once per form, so the project's levels and its
+  unit-code lookups are not re-queried per submission
+- routing is idempotent, and a data manager's manual pin is never overwritten
+- projects with no organization tree are skipped entirely
+
+Policy: `docs/policy/organization-model.md`.
 
 Current behavior:
 

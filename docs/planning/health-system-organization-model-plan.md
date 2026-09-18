@@ -3,7 +3,7 @@ title: Health-System Organization Model — Units, Cadres, Coding Scope and Rout
 doc_type: planning
 status: proposed
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Health-System Organization Model — Units, Cadres, Coding Scope and Routing
@@ -150,6 +150,12 @@ materialized per mapping as they are now.
 - `va_submissions.org_unit_id` (nullable, indexed): the routed unit. Set at
   sync time and re-evaluated on payload change; never overwritten once a
   data manager has pinned it manually (`org_unit_pinned_by`, `_at`).
+  **Done (phase 3a, migration `c1d4e7f9a3b6`)**: rules in
+  `app/services/org_unit_routing_service.py`, applied by ODK sync and web
+  intake, with the unrouted queue under
+  `/api/v1/data-management/submissions/unrouted`. Decision B (form fields) is
+  implemented; the submitter and device rules of options A and C are not.
+  Several ODK forms per project-site (phase 3b) is still outstanding.
 - Routing rules per ODK mapping, evaluated in order until one resolves,
   falling back to the mapping's own unit:
   1. `submitter`: `SubmitterID` / `SubmitterName` matches a

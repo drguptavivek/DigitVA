@@ -11,6 +11,7 @@ from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
 from app.models.va_forms import VaForms
+from app.services import org_unit_routing_service as org_routing
 from app.services.runtime_form_sync_service import (
     get_active_mapping_for_form,
     sync_runtime_forms_from_site_mappings,
@@ -663,6 +664,11 @@ def _upsert_form_submissions(
     discarded = 0
     skipped = 0
 
+    # Organization routing: built once per form so a form's submissions share
+    # the project's levels and its unit-code lookups.
+    # See app/services/org_unit_routing_service.py.
+    routing_context = org_routing.context_for_form(va_form)
+
     for va_submission in (va_submissions or []):
         if enrich_payloads:
             va_submission = _enrich_submission_payload_for_storage(
@@ -671,6 +677,7 @@ def _upsert_form_submissions(
                 client=client,
             )
         va_submission_amended = False
+        created_submission = None
 
         fields = _submission_projection_fields(va_form, va_submission)
         va_submission_sid = fields["va_sid"]
@@ -931,6 +938,15 @@ def _upsert_form_submissions(
             amended_sids.add(va_submission_sid)
             if upserted_map is not None:
                 upserted_map[va_submission_sid] = va_submission.get("KEY", "")
+            # Attribute the death to an organization unit from the payload's
+            # unit codes. Idempotent, and never overrides a data manager's pin.
+            routed_submission = existing if existing is not None else created_submission
+            if routed_submission is not None and routing_context.has_tree:
+                org_routing.route_submission(
+                    routed_submission,
+                    context=routing_context,
+                    payload=va_submission,
+                )
 
     return added, updated, discarded, skipped
 

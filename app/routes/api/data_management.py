@@ -684,3 +684,173 @@ def reject_upstream_change(va_sid: str):
         db.session.rollback()
         log.error("reject_upstream_change failed for %s", va_sid, exc_info=True)
         return jsonify({"error": "Operation failed. Check server logs."}), 500
+
+
+# ---------------------------------------------------------------------------
+# Organization routing: the unrouted queue
+#
+# A health-system project's submissions are attributed to an organization unit
+# from the payload's org_<level_code>_code fields at sync time. Submissions
+# that nothing in the payload resolved land here: either unrouted entirely, or
+# sitting on the ODK mapping's fallback unit rather than their own. A data
+# manager pins the right unit by hand, and that pin outranks later syncs.
+# Policy: docs/policy/organization-model.md.
+# ---------------------------------------------------------------------------
+
+UNROUTED_QUEUE_MAX_ROWS = 200
+
+
+def _dm_submission_scope_filter():
+    """WHERE clause limiting submissions to the current DM's granted scope."""
+    project_ids = current_user.get_data_manager_projects()
+    project_site_pairs = current_user.get_data_manager_project_sites()
+    conditions = []
+    if project_ids:
+        conditions.append(VaForms.project_id.in_(sorted(project_ids)))
+    if project_site_pairs:
+        conditions.append(
+            sa.tuple_(VaForms.project_id, VaForms.site_id).in_(sorted(project_site_pairs))
+        )
+    if not conditions:
+        return sa.false()
+    return sa.or_(*conditions)
+
+
+@bp.get("/submissions/unrouted")
+@role_required("data_manager")
+@limiter.limit("120 per minute")
+def unrouted_submissions():
+    """Submissions in the DM's scope that are not attributed to their own unit.
+
+    ``include=fallback`` (the default) also lists submissions sitting on their
+    ODK mapping's fallback unit; ``include=unrouted`` lists only the ones with
+    no unit at all.
+    """
+    from app.models import MasOrgLevel, MasOrgUnit
+    from app.services.org_unit_routing_service import RESOLUTION_MAPPING_FALLBACK
+
+    include = (request.args.get("include") or "fallback").strip().lower()
+    if include not in {"fallback", "unrouted"}:
+        return jsonify({"error": "include must be 'fallback' or 'unrouted'."}), 400
+
+    # Only projects that actually have a tree can have a routing problem.
+    project_has_tree = sa.exists(
+        sa.select(1).where(
+            MasOrgLevel.project_id == VaForms.project_id,
+            MasOrgLevel.is_active.is_(True),
+        )
+    )
+    unit = sa.orm.aliased(MasOrgUnit)
+    routing_condition = (
+        VaSubmissions.org_unit_id.is_(None)
+        if include == "unrouted"
+        else sa.or_(
+            VaSubmissions.org_unit_id.is_(None),
+            VaSubmissions.org_unit_resolution == RESOLUTION_MAPPING_FALLBACK,
+        )
+    )
+
+    project_id = (request.args.get("project") or "").strip()
+    stmt = (
+        sa.select(
+            VaSubmissions.va_sid,
+            VaSubmissions.va_submission_date,
+            VaSubmissions.va_data_collector,
+            VaSubmissions.org_unit_resolution,
+            VaForms.project_id,
+            VaForms.site_id,
+            unit.unit_code,
+            unit.unit_name,
+        )
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .outerjoin(unit, unit.org_unit_id == VaSubmissions.org_unit_id)
+        .where(
+            _dm_submission_scope_filter(),
+            project_has_tree,
+            routing_condition,
+        )
+        .order_by(VaSubmissions.va_submission_date.desc())
+        .limit(UNROUTED_QUEUE_MAX_ROWS + 1)
+    )
+    if project_id:
+        stmt = stmt.where(VaForms.project_id == project_id)
+
+    rows = db.session.execute(stmt).all()
+    truncated = len(rows) > UNROUTED_QUEUE_MAX_ROWS
+    return jsonify({
+        "submissions": [
+            {
+                "va_sid": row.va_sid,
+                "submission_date": row.va_submission_date.isoformat()
+                if row.va_submission_date
+                else None,
+                "data_collector": row.va_data_collector,
+                "project_id": row.project_id,
+                "site_id": row.site_id,
+                "resolution": row.org_unit_resolution,
+                "unit_code": row.unit_code,
+                "unit_name": row.unit_name,
+            }
+            for row in rows[:UNROUTED_QUEUE_MAX_ROWS]
+        ],
+        "truncated": truncated,
+        "limit": UNROUTED_QUEUE_MAX_ROWS,
+    })
+
+
+@bp.post("/submissions/<path:va_sid>/org-unit")
+@role_required("data_manager")
+def set_submission_org_unit(va_sid: str):
+    """Pin a submission to an organization unit, or clear an existing pin.
+
+    Body ``{"org_unit_id": "<uuid>"}`` pins; ``{"org_unit_id": null}`` clears
+    the pin so the next sync routes the submission from its payload again.
+    """
+    from app.services.org_unit_routing_service import clear_pin, pin_submission_org_unit
+    from app.services.organization_service import OrganizationError
+
+    submission = db.session.get(VaSubmissions, va_sid)
+    if submission is None:
+        return jsonify({"error": "Submission not found."}), 404
+
+    form_row = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id).where(
+            VaForms.form_id == submission.va_form_id
+        )
+    ).first()
+    if not form_row or not current_user.has_data_manager_submission_access(
+        form_row.project_id, form_row.site_id
+    ):
+        return jsonify({"error": "You do not have access to this submission."}), 403
+
+    payload = request.get_json(silent=True) or {}
+    raw_unit_id = payload.get("org_unit_id")
+
+    try:
+        if raw_unit_id in (None, ""):
+            clear_pin(submission)
+            action = "data_manager_cleared_submission_org_unit_pin"
+            message = "Unit pin cleared. The next sync will route this submission again."
+            unit_code = None
+        else:
+            unit = pin_submission_org_unit(
+                submission,
+                raw_unit_id,
+                actor_user_id=current_user.user_id,
+                project_id=form_row.project_id,
+            )
+            action = "data_manager_pinned_submission_org_unit"
+            message = f"Submission pinned to {unit.unit_code}."
+            unit_code = unit.unit_code
+    except OrganizationError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    audit_dm_submission_action(va_sid, action, operation="u")
+    db.session.commit()
+    return jsonify({
+        "va_sid": va_sid,
+        "org_unit_id": str(submission.org_unit_id) if submission.org_unit_id else None,
+        "unit_code": unit_code,
+        "resolution": submission.org_unit_resolution,
+        "message": message,
+    })

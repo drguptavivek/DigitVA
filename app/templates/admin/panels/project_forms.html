@@ -94,6 +94,7 @@
   var _odkFormsCache   = {};     // "odkProjectId" → [{ xmlFormId, name }]
   var _siteMappings    = [];     // [{ site_id, odk_project_id, odk_form_id, form_type_id, form_type_code }]
   var _formTypes       = [];     // [{ form_type_id, form_type_code, form_type_name }]
+  var _orgUnits        = [];     // organization tree units; empty when the project has none
   var _expandedSite    = null;   // site_id of currently open config row
   var _removeModal     = null;
   var _pendingRemoveSid = null;
@@ -142,6 +143,7 @@
     _odkFormsCache = {};
     _siteMappings = [];
     _formTypes = [];
+    _orgUnits = [];
     _expandedSite = null;
     if (PROJECT_ID) loadProjectContext();
     else resetContent();
@@ -163,11 +165,15 @@
       fetch('/admin/api/project-sites?project_id=' + encodeURIComponent(PROJECT_ID)).then(function (r) { return r.json(); }),
       apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings'),
       apiJson('/admin/api/form-types'),
+      // A project without an organization tree simply returns no units, and
+      // the fallback-unit picker is then left out of the mapping editor.
+      apiJson('/admin/api/organization/' + encodeURIComponent(PROJECT_ID) + '/units'),
     ]).then(function (results) {
       var connRes     = results[0];
       var sitesData   = results[1];
       var mappingsRes = results[2];
       var ftRes       = results[3];
+      var unitsRes    = results[4];
 
       _connection   = connRes.data.connection || null;
       _sites        = (sitesData.project_sites || [])
@@ -176,6 +182,7 @@
                         .sort(function (a, b) { return a.site_id.localeCompare(b.site_id); });
       _siteMappings = mappingsRes.data.mappings || [];
       _formTypes    = ftRes.data.form_types || [];
+      _orgUnits     = (unitsRes.ok && unitsRes.data.units) ? unitsRes.data.units : [];
 
       renderConnectionBar();
 
@@ -329,6 +336,7 @@
     var savedFreetext = saved ? (saved.form_smartvafreetext || 'True') : 'True';
     var savedCountry = saved ? (saved.form_smartvacountry || 'IND') : 'IND';
     var savedIcdClassification = saved ? (saved.icd_classification || 'icd10') : 'icd10';
+    var savedOrgUnitId = saved ? (saved.org_unit_id || '') : '';
 
     var projOptions = '<option value="">Loading ODK projects…</option>';
     if (_odkProjectsLoaded) {
@@ -423,6 +431,26 @@
       + '<option value="icd11"' + (savedIcdClassification === 'icd11' ? ' selected' : '') + '>ICD-11</option>'
       + '</select>'
       + '</div>'
+
+      // Fallback organization unit, only for projects that have a tree
+      + (_orgUnits.length
+        ? '<div>'
+          + '<label class="form-label small mb-1 text-muted">Fallback organization unit</label>'
+          + '<select class="form-select form-select-sm" '
+          + 'id="pf-org-unit-' + esc(site.site_id) + '" style="max-width:480px;">'
+          + '<option value="">— none: unrouted submissions go to the data manager —</option>'
+          + _orgUnits.map(function (u) {
+              var indent = new Array(Math.max(0, (u.depth || 1) - 1) + 1).join('\u00a0\u00a0');
+              var sel = (u.org_unit_id === savedOrgUnitId) ? ' selected' : '';
+              return '<option value="' + esc(u.org_unit_id) + '"' + sel + '>'
+                + indent + esc(u.unit_code) + ' — ' + esc(u.unit_name)
+                + ' (' + esc(u.level_code) + ')</option>';
+            }).join('')
+          + '</select>'
+          + '<div class="form-text small">Used when a submission\'s payload carries no '
+          + 'org_&lt;level&gt;_code that matches a live unit.</div>'
+          + '</div>'
+        : '')
 
       // SmartVA configuration
       + '<div class="border rounded p-2 bg-white">'
@@ -632,6 +660,7 @@
     var formSmartvaFreetext = (document.getElementById('pf-smartva-freetext-' + sid) || {}).value || 'True';
     var formSmartvaCountry = (document.getElementById('pf-smartva-country-' + sid) || {}).value || 'IND';
     var icdClassification = (document.getElementById('pf-icd-' + sid) || {}).value || 'icd10';
+    var orgUnitId = (document.getElementById('pf-org-unit-' + sid) || {}).value || '';
 
     if (!odkProjectId || !odkFormId) {
       showError('Select both an ODK project and a form before saving.');
@@ -649,6 +678,7 @@
       form_smartvafreetext: formSmartvaFreetext,
       form_smartvacountry: formSmartvaCountry,
       icd_classification: icdClassification,
+      org_unit_id: orgUnitId || null,
     };
 
     apiJson('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings', 'POST', payload)
@@ -664,6 +694,7 @@
           form_type_id: m.form_type_id || null,
           form_type_code: m.form_type_code || null,
           icd_classification: m.icd_classification || 'icd10',
+          org_unit_id: m.org_unit_id || null,
           form_id: m.form_id || null,
           form_smartvahiv: m.form_smartvahiv || 'False',
           form_smartvamalaria: m.form_smartvamalaria || 'False',

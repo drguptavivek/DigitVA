@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Current Data Model
@@ -250,9 +250,26 @@ rows here keep the Project > Site > Form model.
   enforcement still runs off `va_forms`, so a unit grant does not yet change
   what a coder may open
 
+### Submission routing to units
+
+- `map_project_site_odk.org_unit_id` (nullable, FK `mas_org_unit`): the
+  fallback unit for submissions of that ODK form whose payload carries no
+  usable unit code
+- `va_submissions.org_unit_id` (nullable, indexed, FK `mas_org_unit`): the
+  unit a death is attributed to
+- `va_submissions.org_unit_resolution`: `form_field`, `mapping_fallback` or
+  `manual`, constrained to those values and required whenever `org_unit_id` is
+  set (and forbidden when it is not)
+- `va_submissions.org_unit_pinned_by` / `org_unit_pinned_at`: who pinned the
+  unit by hand and when; a check constraint allows them only alongside
+  `org_unit_resolution = 'manual'`
+- index on (`org_unit_id`, `org_unit_resolution`) for the unrouted queue
+- rules in `app/services/org_unit_routing_service.py`, applied by ODK sync and
+  by web intake
+
 Migrations: `c8d2e4f6a1b3` (additive; enables the `ltree` extension),
 `d9e3f5a7b2c4` (additive; adds the `org_unit` scope value and the two grant
-columns).
+columns), `c1d4e7f9a3b6` (additive; adds the routing columns).
 
 ## ICD Reference Master Table
 

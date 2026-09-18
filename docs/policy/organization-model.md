@@ -64,11 +64,16 @@ the door reads the card, never the printed title. So a coder record at a PHC is
 refused for a CHO and accepted for an MO; afterwards the cadre stands as a
 record of who the person is.
 
-One caveat worth stating plainly: the coding screens do not consult the tree
-yet. What a coder can actually open is still resolved the old way, through
-forms and sites, so a unit-scoped record today is a correctly stored fact that
-does not yet change anyone's working day. Submissions must first be routed to
-units (phase 3) before the coding screens can filter by unit (phase 4). See
+Incoming submissions are attributed to a unit automatically: the form carries
+the unit codes, and DigitVA reads the most specific one the interviewer
+answered. Where that fails, the submission waits in a data manager's queue to
+be assigned by hand.
+
+One caveat worth stating plainly: the coding screens do not consult any of
+this yet. What a coder can actually open is still resolved the old way,
+through forms and sites, so a unit-scoped permission record and a submission's
+routed unit are both correctly stored facts that do not yet change anyone's
+working day. Enforcement is the next phase. See
 [Not yet implemented](#not-yet-implemented-later-phases-of-the-plan).
 
 ## Baseline
@@ -171,10 +176,45 @@ units (phase 3) before the coding screens can filter by unit (phase 4). See
   `/admin/api/access-grants` endpoint.
 - Every unit grant mutation is written to `grants.log` with the unit and cadre.
 
+## Submission routing
+
+- A project's ODK form carries one field per level, named
+  `org_<level_code>_code`, filled from the unit codes DigitVA exports. Routing
+  reads those fields and takes the **deepest** one that names a live unit of
+  that project at that level.
+- A code that names no live unit, or that names a unit at a different level
+  than the field it arrived in, is not trusted: routing keeps looking up the
+  tree and logs the mismatch.
+- Codes are matched case-insensitively, and are read whether ODK delivers the
+  field bare (`org_phc_code`) or inside a group path (`.../org_phc_code`).
+- When nothing in the payload resolves, the submission falls back to the unit
+  named on its ODK form mapping (`map_project_site_odk.org_unit_id`) — for a
+  project whose single Central form serves many interviewers, typically a
+  district or the project root. An inactive fallback, or one belonging to
+  another project, is ignored.
+- When there is no fallback either, the submission stays **unrouted** and
+  appears in the data manager's unrouted queue.
+- `va_submissions.org_unit_resolution` records how the unit was decided:
+  `form_field`, `mapping_fallback` or `manual`.
+- Routing is **idempotent**: the same payload always yields the same unit, so
+  re-running a sync rewrites nothing. A payload change re-routes the
+  submission, so a corrected form moves the death to the right unit.
+- A **manual pin** by a data manager sets `manual` and is never overwritten by
+  a later sync. Clearing the pin hands the submission back to routing.
+- A project with no organization tree is left alone entirely: its submissions
+  stay unrouted, which is what unrouted means for it.
+- Web-intake submissions route by the same rules, since the web questionnaire
+  carries the same fields and the project-site's ODK mapping supplies the same
+  fallback.
+- Deactivating a unit does not rewrite the submissions already attributed to
+  it; the next sync of an affected submission re-routes it.
+
 ## Not yet implemented (later phases of the plan)
 
-- routing of synced submissions to units from the `org_<level>_code` fields
+- several ODK forms per project-site: `map_project_site_odk` is still unique on
+  (project, site), so one DigitVA project-site holds one ODK form
 - project coding-scope level and above-scope mode; until then a unit grant
   does not change what a coder may open — coding eligibility still resolves
-  through `va_forms`
+  through `va_forms`, and a submission's routed unit is recorded but not
+  enforced
 - unit dimensions in dashboards, exports and analytics

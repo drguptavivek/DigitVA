@@ -42,6 +42,7 @@ from app.models.va_web_intake import (
 )
 from app.services import org_grant_service
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
+from app.services import org_unit_routing_service as org_routing
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     build_submission_projection,
@@ -647,6 +648,15 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     )
     db.session.add(submission)
     db.session.flush()
+    # Attribute the death to an organization unit, exactly as ODK sync does:
+    # the web questionnaire carries the same org_<level_code>_code fields, and
+    # the project-site's ODK mapping supplies the same fallback unit.
+    # No-op for a project without an organization tree.
+    routing_context = org_routing.context_for_form(form)
+    if routing_context.has_tree:
+        org_routing.route_submission(
+            submission, context=routing_context, payload=payload
+        )
     ensure_active_payload_version(
         submission,
         payload_data=payload,

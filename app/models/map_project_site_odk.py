@@ -51,6 +51,15 @@ class MapProjectSiteOdk(db.Model):
     icd_classification: so.Mapped[str] = so.mapped_column(
         sa.String(8), nullable=False, server_default="icd10"
     )
+    # Fallback organization unit for submissions of this ODK form whose payload
+    # carries no usable unit code. NULL means such submissions stay unrouted
+    # and surface in the data manager's unrouted queue.
+    # Policy: docs/policy/organization-model.md.
+    org_unit_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_org_unit.org_unit_id", name="fk_map_project_site_odk_org_unit"),
+        nullable=True,
+    )
 
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False

@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Admin And Setup Model
@@ -168,6 +168,14 @@ Export / Import.
   by code; nothing is deleted.
 - Routes live in `app/routes/admin_organization.py`; rules in
   `app/services/organization_service.py`.
+
+### Fallback organization unit on a form mapping
+
+The Project Forms panel shows a **Fallback organization unit** picker for
+projects that have an organization tree. Submissions of that ODK form whose
+payload carries no `org_<level_code>_code` matching a live unit are attributed
+to it; left empty, such submissions stay unrouted and appear in the data
+manager's unrouted queue. The picker is hidden for projects with no tree.
 
 ### Unit-scoped grants in the Access Grants panel
 

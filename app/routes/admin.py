@@ -4046,6 +4046,7 @@ def admin_odk_site_mappings_list(project_id):
                 "form_type_id": str(r.form_type_id) if r.form_type_id else None,
                 "form_type_code": r.form_type.form_type_code if r.form_type else None,
                 "icd_classification": r.icd_classification,
+                "org_unit_id": str(r.org_unit_id) if r.org_unit_id else None,
                 "form_id": forms_by_site.get(r.site_id).form_id if forms_by_site.get(r.site_id) else None,
                 "form_smartvahiv": (
                     forms_by_site.get(r.site_id).form_smartvahiv
@@ -4144,9 +4145,24 @@ def admin_odk_site_mappings_save(project_id):
     form_smartvafreetext = (data.get("form_smartvafreetext") or "True").strip()
     form_smartvacountry = (data.get("form_smartvacountry") or "IND").strip().upper()
     icd_classification = (data.get("icd_classification") or "icd10").strip().lower()
+    org_unit_id_raw = (data.get("org_unit_id") or "").strip()
 
     if not site_id or odk_project_id is None or not odk_form_id:
         return _json_error("site_id, odk_project_id, and odk_form_id are required.", 400)
+
+    # Fallback organization unit for submissions of this form whose payload
+    # carries no usable unit code. Must belong to this project and be active.
+    org_unit_id = None
+    if org_unit_id_raw:
+        try:
+            org_unit_id = uuid.UUID(org_unit_id_raw)
+        except (TypeError, ValueError):
+            return _json_error("Invalid org_unit_id.", 400)
+        fallback_unit = db.session.get(MasOrgUnit, org_unit_id)
+        if fallback_unit is None or fallback_unit.project_id != project_id:
+            return _json_error("Organization unit not found in this project.", 404)
+        if not fallback_unit.is_active:
+            return _json_error("Organization unit is inactive.", 400)
 
     from app.services.icd_coding_value import ICD_CLASSIFICATIONS
 
@@ -4217,6 +4233,7 @@ def admin_odk_site_mappings_save(project_id):
         existing.odk_form_id = odk_form_id
         existing.form_type_id = form_type_id
         existing.icd_classification = icd_classification
+        existing.org_unit_id = org_unit_id
         status_code = 200
     else:
         existing = MapProjectSiteOdk(
@@ -4226,6 +4243,7 @@ def admin_odk_site_mappings_save(project_id):
             odk_form_id=odk_form_id,
             form_type_id=form_type_id,
             icd_classification=icd_classification,
+            org_unit_id=org_unit_id,
         )
         db.session.add(existing)
         status_code = 201
@@ -4248,6 +4266,7 @@ def admin_odk_site_mappings_save(project_id):
             "form_type_id": str(existing.form_type_id) if existing.form_type_id else None,
             "form_type_code": existing.form_type.form_type_code if existing.form_type else None,
             "icd_classification": existing.icd_classification,
+            "org_unit_id": str(existing.org_unit_id) if existing.org_unit_id else None,
             "form_id": runtime_form.form_id,
             "form_smartvahiv": runtime_form.form_smartvahiv,
             "form_smartvamalaria": runtime_form.form_smartvamalaria,

@@ -122,7 +122,6 @@ class AttachmentStateBackfillTest(unittest.TestCase):
     def _seed(self, db):
         """Seed one form and the attachment shapes the backfill distinguishes."""
         from app.models import VaResearchProjects, VaSites, VaStatuses
-        from app.models.va_submissions import VaSubmissions
 
         now = datetime.now(timezone.utc)
         db.session.add(VaResearchProjects(
@@ -171,22 +170,30 @@ class AttachmentStateBackfillTest(unittest.TestCase):
         )
         db.session.flush()
 
+        # SQL rather than the model for the same reason as va_forms above:
+        # VaSubmissions carries columns that later migrations add (the
+        # organization-routing ones), and this database sits at PREVIOUS_HEAD.
         sids = {name: str(uuid.uuid4()) for name in ("live", "retired")}
+        submission_insert = sa.text(
+            "INSERT INTO va_submissions (va_sid, va_form_id, va_data_collector, "
+            "va_consent, va_narration_language, va_deceased_age, "
+            "va_deceased_gender, va_uniqueid_masked, va_summary, va_catcount, "
+            "va_category_list, va_sync_issue_code, va_created_at, va_updated_at) "
+            "VALUES (:va_sid, :va_form_id, 'collector', 'yes', 'English', 1, "
+            "'male', 'X', :empty_list, '{}', :empty_list, :sync_issue_code, "
+            ":now, :now)"
+        )
         for name, va_sid in sids.items():
-            db.session.add(VaSubmissions(
-                va_sid=va_sid,
-                va_form_id=FORM_ID,
-                va_data_collector="collector",
-                va_consent="yes",
-                va_narration_language="English",
-                va_deceased_age=1,
-                va_deceased_gender="male",
-                va_uniqueid_masked="X",
-                va_summary=[],
-                va_catcount={},
-                va_category_list=[],
-                va_sync_issue_code="missing_in_odk" if name == "retired" else None,
-            ))
+            db.session.execute(
+                submission_insert,
+                dict(
+                    va_sid=va_sid,
+                    va_form_id=FORM_ID,
+                    empty_list=[],
+                    sync_issue_code="missing_in_odk" if name == "retired" else None,
+                    now=now,
+                ),
+            )
         db.session.flush()
 
         # Written as SQL, not through the model: the model already carries the

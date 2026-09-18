@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Data Manager Dashboard
@@ -422,6 +422,28 @@ collaborator grants.
 
 See [dm-user-grant-management.md](../../docs/policy/dm-user-grant-management.md)
 for the full policy baseline.
+
+## Unrouted Submissions Queue
+
+For projects with an organization tree, submissions are attributed to a unit at
+sync time from the payload's `org_<level_code>_code` fields. Ones that did not
+resolve to their own unit are listed here so a data manager can assign them.
+
+- `GET /api/v1/data-management/submissions/unrouted` — submissions in the
+  manager's granted scope that are unrouted or sitting on their ODK mapping's
+  fallback unit. `include=unrouted` narrows it to the ones with no unit at all;
+  `project=<id>` filters by project. Capped at 200 rows, with `truncated` set
+  when more exist. Projects without a tree never appear.
+- `POST /api/v1/data-management/submissions/<va_sid>/org-unit` with
+  `{"org_unit_id": "<uuid>"}` pins the submission to that unit; the pin sets
+  `org_unit_resolution = 'manual'` and later syncs will not move it. Posting
+  `{"org_unit_id": null}` clears the pin and hands the submission back to
+  routing.
+- Both require a `data_manager` grant covering the submission's project-site,
+  and the unit must belong to that submission's project and be active. Pins
+  are written to the submission audit log.
+
+Policy: `docs/policy/organization-model.md`.
 
 ## Related Files
 

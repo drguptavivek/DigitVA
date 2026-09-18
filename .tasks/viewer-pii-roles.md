@@ -1,6 +1,6 @@
 # Viewer roles: with and without PII
 
-- Status: policy agreed 2026-09-18, implementation started
+- Status: role + redaction built 2026-09-18; NOT reachable until collaborator is wired into routes
 - Priority: high
 - Created: 2026-09-18
 
@@ -217,3 +217,45 @@ checked without redoing the work. The correct figure is 12 mapped, 3
 unmapped, the unmapped being `Id10073`, `abha_number`, `abha_address`.
 
 Record the explicit field list, never the count.
+
+
+## Built, and the gap that stops it working (2026-09-18)
+
+Done and tested (14 tests, verified non-vacuous by the test runner):
+
+- `collaborator_pii` exists and is grantable (`c04662c`)
+- `should_redact_pii(user)` in `app/services/viewer_pii_service.py` — the one
+  helper; redact only when the user holds no active grant with a role other
+  than plain `collaborator`
+- staff identity blanked on dashboard rows and in the unrouted-submissions
+  API; the search path drops the collector, coder and reviewer name clauses
+  so a name cannot be confirmed by searching for it
+
+**THE GAP — the roles do not work yet.** A plain `collaborator` has no wired
+route access at all: there is no `collaborator` entry in
+`app/decorators/role_required.py`'s `_ROLE_METHODS`, no route calls
+`role_required("collaborator")`, and `dm_scope_filter` resolves visible
+project/site pairs from `data_manager` grants only.
+
+So the redaction is correct and unreachable. It takes effect the moment
+somebody grants collaborators access to these routes — which is an
+access-WIDENING change and deliberately out of scope here. **Do not describe
+the viewer roles as delivered until that is done.**
+
+## Two surfaces still unredacted
+
+1. **Submission detail rendering** — `app/routes/data_management.py`
+   `view_submission` -> `render_va_coding_page` -> the ~1300-line
+   `renderpartial` route in `app/routes/va_form.py`. This is where subject PII
+   actually renders to a viewer. Not touched: too large and coupled to change
+   safely without dedicated review, and unreachable by collaborator today.
+   **This must be done as part of wiring collaborator access, not after.**
+
+2. **`dm_coded_cod_snapshot_export_csv`** — emits `narrative_text`,
+   `coder_name`, `reviewer_name`, `active_coder_assigned_name` and
+   `active_reviewer_assigned_name` as plain columns with no redaction of any
+   kind. Harmless today (only data managers reach it); a leak the moment
+   collaborators are wired in.
+
+Both are gated on the same event. Whoever wires collaborator access owns
+closing them at the same time, or the wiring itself creates the leak.

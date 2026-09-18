@@ -95,6 +95,7 @@ from app.services.workflow.upstream_changes import (
     resolve_pending_upstream_change,
 )
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
+from app.services.viewer_pii_service import should_redact_pii
 
 
 NON_SUBSTANTIVE_REVIEW_FIELDS = frozenset(
@@ -198,9 +199,19 @@ UPSTREAM_REVIEW_HIDDEN_FIELDS = frozenset(
 )
 
 
-def _dm_search_condition(search: str):
-    """Return the shared DM dashboard text-search predicate."""
+def _dm_search_condition(search: str, *, redact_staff_identity: bool = False):
+    """Return the shared DM dashboard text-search predicate.
+
+    ``redact_staff_identity`` drops every clause that can confirm a staff
+    member's name — the collector, coder, or reviewer — by search alone.
+    Without this, a viewer who never sees a name rendered could still type
+    a candidate name into search and learn, from a nonzero result, that it
+    matches. See docs/policy/access-control-model.md, "collaborator".
+    """
     like = f"%{search}%"
+    if redact_staff_identity:
+        return VaSubmissions.va_uniqueid_masked.ilike(like)
+
     coder_final_sids = (
         sa.select(VaFinalAssessments.va_sid)
         .join(VaUsers, VaUsers.user_id == VaFinalAssessments.va_finassess_by)
@@ -223,6 +234,19 @@ def _dm_search_condition(search: str):
         VaSubmissions.va_sid.in_(coder_final_sids),
         VaSubmissions.va_sid.in_(reviewer_final_sids),
     )
+
+
+def _redact_staff_identity_row(row: dict, *, redact: bool) -> dict:
+    """Blank staff-identity base columns on one DM dashboard row in place.
+
+    Staff identity: who collected (``va_data_collector``) and who coded or
+    reviewed (``coded_by``) this death. See
+    docs/policy/access-control-model.md, "collaborator".
+    """
+    if redact:
+        row["va_data_collector"] = None
+        row["coded_by"] = None
+    return row
 
 # ---------------------------------------------------------------------------
 # Scope helpers
@@ -591,13 +615,15 @@ def dm_submissions_page(
         .where(VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active)
         .subquery()
     )
+    redact_pii = should_redact_pii(user)
+
     scope = dm_scope_filter(user)
     conditions = [scope]
     project_values = _csv_values(project)
     site_values = _csv_values(site)
 
     if search:
-        conditions.append(_dm_search_condition(search))
+        conditions.append(_dm_search_condition(search, redact_staff_identity=redact_pii))
     if project_values:
         conditions.append(VaForms.project_id.in_(project_values))
     if site_values:
@@ -763,6 +789,7 @@ def dm_submissions_page(
         r["coded_on"] = _format_datetime_for_current_user(row.get("coded_on"))
         r["workflow_label"] = _WORKFLOW_LABEL.get(r.get("workflow_state", ""), r.get("workflow_state", ""))
         r["odk_sync_status"] = "missing_in_odk" if r.get("va_sync_issue_code") == "missing_in_odk" else "in_sync"
+        _redact_staff_identity_row(r, redact=redact_pii)
         data.append(r)
 
     last_page = max(1, math.ceil(total / per_page)) if per_page else 1
@@ -832,7 +859,9 @@ def _dm_submission_query_parts(
     site_values = _csv_values(site)
 
     if search:
-        conditions.append(_dm_search_condition(search))
+        conditions.append(
+            _dm_search_condition(search, redact_staff_identity=should_redact_pii(user))
+        )
     if project_values:
         conditions.append(VaForms.project_id.in_(project_values))
     if site_values:

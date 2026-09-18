@@ -20,6 +20,11 @@ These rules are those incidents generalised. They are not about Alembic
 mechanics; they are about the difference between what your working tree can
 see and what a fresh clone can see.
 
+This repository is also worked on by several sessions in one shared
+checkout. The companion rules for that are in
+[Shared Working Tree Policy](shared-working-tree.md); rule 1 there is the
+same hazard as rule 1 here, in a different medium.
+
 ## Rules
 
 ### 1. Chain only onto a COMMITTED revision

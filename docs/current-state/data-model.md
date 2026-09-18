@@ -282,10 +282,19 @@ rows here keep the Project > Site > Form model.
 - `_next_form_id` already allocated sequential ids per project-site
   (`PRJ01ST0101`, `…02`), so several forms per pair need no identity change
 
+### Project coding scope
+
+- `va_project_master.coding_scope_level_id` (nullable, FK `mas_org_level`):
+  the level within which a death may be coded; NULL means no unit-based scope
+- `va_project_master.above_scope_coding_mode`: `code_any` or `view_only`
+  (check-constrained), governing coders granted above that level
+- a project with a scope level must use `pick_and_choose` coding intake
+
 Migrations: `c8d2e4f6a1b3` (additive; enables the `ltree` extension),
 `d9e3f5a7b2c4` (additive; adds the `org_unit` scope value and the two grant
 columns), `c1d4e7f9a3b6` (additive; adds the routing columns),
-`e2a5c8b1d7f3` (widens the mapping uniqueness constraint).
+`e2a5c8b1d7f3` (widens the mapping uniqueness constraint),
+`f7b2d4e6a8c9` (additive; adds the project coding-scope columns).
 
 ## ICD Reference Master Table
 

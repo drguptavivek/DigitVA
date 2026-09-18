@@ -301,6 +301,7 @@ class VaUsers(UserMixin, db.Model):
 
     def _get_granted_va_forms(self, role: str) -> set[str]:
         from app.models import (
+            MasOrgUnit,
             VaForms,
             VaProjectSites,
             VaUserAccessGrants,
@@ -345,10 +346,37 @@ class VaUsers(UserMixin, db.Model):
                 VaProjectSites.project_site_status == active_status,
             )
         )
+        # A unit-scoped grant reaches the forms of its unit's project. Which
+        # of that project's *submissions* the user may open is then narrowed by
+        # the routed unit (see coder_workflow_service._org_unit_scope_filter);
+        # a project without an organization tree has no unit grants, so this
+        # adds nothing for it.
+        org_unit_scope_exists = sa.exists(
+            sa.select(1)
+            .select_from(VaUserAccessGrants)
+            .join(
+                MasOrgUnit,
+                MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id,
+            )
+            .where(
+                VaUserAccessGrants.user_id == self.user_id,
+                VaUserAccessGrants.role == role_enum,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                VaUserAccessGrants.grant_status == active_status,
+                MasOrgUnit.is_active.is_(True),
+                MasOrgUnit.project_id == VaForms.project_id,
+            )
+        )
         stmt = (
             sa.select(VaForms.form_id)
             .where(VaForms.form_status == active_status)
-            .where(sa.or_(project_scope_exists, project_site_scope_exists))
+            .where(
+                sa.or_(
+                    project_scope_exists,
+                    project_site_scope_exists,
+                    org_unit_scope_exists,
+                )
+            )
         )
         if role == "coder":
             stmt = stmt.where(active_project_site_exists)

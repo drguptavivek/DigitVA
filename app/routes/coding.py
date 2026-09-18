@@ -25,6 +25,7 @@ from app.services.coder_workflow_service import (
     start_demo_allocation,
     get_active_coding_allocation,
     get_pick_available_forms,
+    _org_unit_scope_filter,
 )
 from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.demo_project_service import get_demo_training_project_ids
@@ -53,6 +54,11 @@ def dashboard():
         ]
         if narration_language_filter is not None:
             total_filters.append(narration_language_filter)
+        # Organization-tree projects are limited to the coder's own units, so
+        # the dashboard counts match what the pick list actually offers.
+        org_unit_filter = _org_unit_scope_filter(current_user)
+        if org_unit_filter is not None:
+            total_filters.append(org_unit_filter)
         tr01_cutoff_filter = _tr01_cutoff_filter(current_user)
         if tr01_cutoff_filter is not None:
             total_filters.append(tr01_cutoff_filter)
@@ -71,6 +77,8 @@ def dashboard():
             ]
             if narration_language_filter is not None:
                 random_filters.append(narration_language_filter)
+            if org_unit_filter is not None:
+                random_filters.append(org_unit_filter)
             if tr01_cutoff_filter is not None:
                 random_filters.append(tr01_cutoff_filter)
             va_random_ready_forms = db.session.scalar(

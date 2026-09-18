@@ -123,6 +123,11 @@ an explicit grant row.
   uncoded forms read-only).
 - `coding_intake_mode` must be `pick_and_choose` for org-tree projects; the
   admin API rejects `random_form_allocation` when a scope level is set.
+
+**Done (phase 4, migration `f7b2d4e6a8c9`)**: the two settings, the
+eligibility rule in `org_grant_service.codeable_unit_ids`, the list filter in
+`coder_workflow_service._org_unit_scope_filter` and the per-submission gate in
+`va_validate_permissions` for both the coder and reviewer tracks.
 - Existing project-site gates (`coding_enabled`, dates, daily limit) apply
   unchanged through the container project-site.
 

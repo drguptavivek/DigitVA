@@ -1,3 +1,5 @@
+import uuid
+
 import sqlalchemy as sa
 import sqlalchemy.orm as so
 from app import db
@@ -12,6 +14,10 @@ class VaProjectMaster(db.Model):
         sa.CheckConstraint(
             "web_intake_mode IN ('off', 'direct', 'death_register', 'both')",
             name="ck_va_project_master_web_intake_mode",
+        ),
+        sa.CheckConstraint(
+            "above_scope_coding_mode IN ('code_any', 'view_only')",
+            name="ck_va_project_master_above_scope_coding_mode",
         ),
     )
     project_id: so.Mapped[str] = so.mapped_column(
@@ -56,6 +62,22 @@ class VaProjectMaster(db.Model):
         nullable=False,
         default="random_form_allocation",
         server_default="random_form_allocation",
+    )
+    # Health-system projects: the level within which a death may be coded.
+    # A coder assigned at or below this level codes inside their own unit's
+    # subtree; one assigned above it is governed by above_scope_coding_mode.
+    # NULL means no unit-based coding scope — the project codes as before.
+    # Policy: docs/policy/organization-model.md.
+    coding_scope_level_id: so.Mapped[Optional[uuid.UUID]] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_org_level.org_level_id", name="fk_va_project_master_coding_scope_level"),
+        nullable=True,
+    )
+    # What a coder granted *above* the coding scope level may do:
+    # 'code_any' — code anything in their own subtree; 'view_only' — see coded
+    # and uncoded work but code nothing.
+    above_scope_coding_mode: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="view_only", server_default="view_only"
     )
     demo_training_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"

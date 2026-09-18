@@ -168,6 +168,46 @@ def _demo_recode_reset_message() -> str:
 # Internal helpers (no current_user — caller passes user explicitly)
 # ---------------------------------------------------------------------------
 
+def _org_unit_scope_filter(user, role: str = "coder"):
+    """Restrict submissions of organization-tree projects to the user's units.
+
+    Returns None when nothing should be restricted. The filter only bites for
+    projects that actually have an active organization tree; a project without
+    one keeps today's form-and-site behaviour untouched, which is what makes
+    this safe to add to a shared filter path.
+
+    Within a tree project a submission is codeable only when it is routed to a
+    unit inside the user's coding scope — their grant's subtree, narrowed by
+    the project's coding scope level and above-scope mode. An unrouted
+    submission of a tree project is therefore not codeable by anyone until a
+    data manager routes it, which is the point of the unrouted queue.
+    """
+    from app.models import MasOrgLevel, VaAccessRoles
+    from app.services.org_grant_service import codeable_unit_ids
+
+    # Correlated on VaSubmissions alone, with VaForms pulled inside the
+    # subquery: this filter is used by queries that do not join VaForms, and
+    # correlating on it there would silently add a cartesian product.
+    project_has_tree = sa.exists(
+        sa.select(1)
+        .select_from(VaForms)
+        .join(MasOrgLevel, MasOrgLevel.project_id == VaForms.project_id)
+        .where(
+            VaForms.form_id == VaSubmissions.va_form_id,
+            MasOrgLevel.is_active.is_(True),
+        )
+    )
+    unit_ids = codeable_unit_ids(user.user_id, VaAccessRoles(role))
+    if not unit_ids:
+        # No unit grants at all: every tree project is out of reach, while
+        # non-tree projects are unaffected.
+        return sa.not_(project_has_tree)
+    return sa.or_(
+        sa.not_(project_has_tree),
+        VaSubmissions.org_unit_id.in_(sorted(unit_ids)),
+    )
+
+
 def _available_submission_filters(form_ids, project_id=None, user=None):
     filters = [
         VaSubmissions.va_form_id.in_(form_ids),
@@ -180,6 +220,9 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
         language_filter = _narration_language_filter(user)
         if language_filter is not None:
             filters.append(language_filter)
+        unit_filter = _org_unit_scope_filter(user)
+        if unit_filter is not None:
+            filters.append(unit_filter)
     if project_id:
         filters.append(
             VaSubmissions.va_form_id.in_(
@@ -505,6 +548,17 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
         raise AllocationError("Submission not found.", 404)
     if not (user.has_va_form_access(form.va_form_id, "coder") or user.is_coding_tester(form.va_form_id)):
         raise AllocationError("You do not have coder access for this VA form.")
+
+    # Organization-tree projects narrow form access to the coder's own units.
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import submission_within_org_scope
+
+    if not user.is_coding_tester(form.va_form_id) and not submission_within_org_scope(
+        user, va_sid, VaAccessRoles.coder
+    ):
+        raise AllocationError(
+            "This submission belongs to a unit outside your coding scope."
+        )
 
     sub_row = _require_submission_exists(va_sid)
     if get_project_coding_intake_mode(sub_row.project_id) != CODING_INTAKE_PICK:

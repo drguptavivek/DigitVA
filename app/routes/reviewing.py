@@ -16,6 +16,7 @@ from flask import Blueprint, render_template
 from app.decorators import role_required
 from app.utils import va_permission_abortwithflash, va_render_serialisedates
 from app.utils import va_permission_ensureanyallocation
+from app.services.coder_workflow_service import _org_unit_scope_filter
 from app.services.coding_service import render_va_coding_page
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import (
@@ -35,6 +36,9 @@ reviewing = Blueprint("reviewing", __name__)
 @role_required("reviewer")
 def dashboard():
     va_form_access = current_user.get_reviewer_va_forms()
+    # Organization-tree projects limit a reviewer to their own units; a project
+    # without a tree is unaffected. Same rule as coding, reviewer grants.
+    reviewer_unit_filter = _org_unit_scope_filter(current_user, role="reviewer")
     if va_form_access:
         active_final = (
             sa.select(
@@ -65,6 +69,7 @@ def dashboard():
                     VaSubmissions.va_narration_language.in_(
                         current_user.vacode_language
                     ),
+                    reviewer_unit_filter,
                 )
             )
         )
@@ -148,6 +153,7 @@ def dashboard():
                         VaSubmissions.va_narration_language.in_(
                             current_user.vacode_language
                         ),
+                        reviewer_unit_filter,
                         # A retired submission is not offered for review, but a
                         # review already done or still in session stays visible.
                         # See docs/policy/odk-retired-submissions.md.

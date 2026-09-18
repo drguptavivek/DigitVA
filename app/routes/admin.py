@@ -80,6 +80,7 @@ from app.models import (
     MasCodBucketNode,
     MasCodBucketSchemeAgeBand,
     MasCadre,
+    MasOrgLevel,
     MasOrgUnit,
     MapProjectOdk,
     MapProjectSiteOdk,
@@ -356,6 +357,10 @@ def _serialize_project(project):
         "social_autopsy_enabled": project.social_autopsy_enabled,
         "reviewer_social_autopsy_enabled": project.reviewer_social_autopsy_enabled,
         "coding_intake_mode": project.coding_intake_mode,
+        "coding_scope_level_id": str(project.coding_scope_level_id)
+        if project.coding_scope_level_id
+        else None,
+        "above_scope_coding_mode": project.above_scope_coding_mode,
         "demo_training_enabled": project.demo_training_enabled,
         "demo_retention_minutes": project.demo_retention_minutes,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
@@ -1042,6 +1047,48 @@ def admin_update_project(project_id):
         }:
             return _json_error("Invalid coding_intake_mode.", 400)
         project.coding_intake_mode = coding_intake_mode
+
+    if "above_scope_coding_mode" in payload:
+        above_scope_coding_mode = (payload["above_scope_coding_mode"] or "").strip()
+        if above_scope_coding_mode not in {"code_any", "view_only"}:
+            return _json_error("Invalid above_scope_coding_mode.", 400)
+        project.above_scope_coding_mode = above_scope_coding_mode
+
+    if "coding_scope_level_id" in payload:
+        raw_level_id = payload["coding_scope_level_id"]
+        if raw_level_id in (None, ""):
+            project.coding_scope_level_id = None
+        else:
+            try:
+                level_uuid = uuid.UUID(str(raw_level_id))
+            except (TypeError, ValueError):
+                return _json_error("Invalid coding_scope_level_id.", 400)
+            level = db.session.get(MasOrgLevel, level_uuid)
+            if level is None or level.project_id != project.project_id:
+                return _json_error(
+                    "Organization level not found in this project.", 404
+                )
+            if not level.is_active:
+                return _json_error("Organization level is inactive.", 400)
+            project.coding_scope_level_id = level.org_level_id
+
+    # Unit-scoped coding is a pick-and-choose workflow: a coder chooses from
+    # the deaths of their own units, and random allocation would hand them
+    # submissions from outside their scope.
+    # Policy: docs/policy/organization-model.md.
+    if (
+        project.coding_scope_level_id is not None
+        and project.coding_intake_mode != "pick_and_choose"
+    ):
+        # Roll back first: the fields above are already assigned on the ORM
+        # object, and returning without discarding them would leave the
+        # rejected combination in the session for a later flush to persist.
+        db.session.rollback()
+        return _json_error(
+            "A project with a coding scope level must use pick-and-choose "
+            "coding intake.",
+            400,
+        )
 
     if "demo_training_enabled" in payload:
         project.demo_training_enabled = bool(payload["demo_training_enabled"])

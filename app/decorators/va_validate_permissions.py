@@ -78,6 +78,18 @@ def _has_coding_role() -> bool:
     return current_user.is_coder() or current_user.is_coding_tester()
 
 
+def _within_coding_org_scope(sid: str | None, form_id: str | None) -> bool:
+    """Unit-scope gate for a coding action on one submission."""
+    if not sid:
+        return True
+    if form_id and current_user.is_coding_tester(form_id):
+        return True
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import submission_within_org_scope
+
+    return submission_within_org_scope(current_user, sid, VaAccessRoles.coder)
+
+
 def _has_coding_form_access(form_id: str | None) -> bool:
     if not form_id:
         return False
@@ -91,6 +103,14 @@ def _validate_vacode(actiontype, sid, partial):
     form_id = db.session.scalar(
         sa.select(VaSubmissions.va_form_id).where(VaSubmissions.va_sid == sid)
     )
+    # Organization-tree projects narrow form access to the coder's own units.
+    # Checked once here so it covers every coding action, rather than per
+    # branch where a new action could miss it. No-op for projects without a
+    # tree. Policy: docs/policy/organization-model.md.
+    if not _within_coding_org_scope(sid, form_id):
+        va_permission_abortwithflash(
+            "This submission belongs to a unit outside your coding scope.", 403
+        )
     if actiontype == "vastartcoding":
         if not _has_coding_role():
             va_permission_abortwithflash(
@@ -177,6 +197,16 @@ def _validate_vacode(actiontype, sid, partial):
         va_permission_abortwithflash("Unknown coding action requested.", 404)
 
 
+def _within_reviewing_org_scope(sid: str | None) -> bool:
+    """Unit-scope gate for a reviewing action on one submission."""
+    if not sid:
+        return True
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import submission_within_org_scope
+
+    return submission_within_org_scope(current_user, sid, VaAccessRoles.reviewer)
+
+
 def _validate_vareview(actiontype, sid, partial):
     form = (
         db.session.execute(
@@ -193,6 +223,12 @@ def _validate_vareview(actiontype, sid, partial):
         if form and form["va_narration_language"]
         else None
     )
+    # Same unit-scope rule as coding, with reviewer grants. Checked once for
+    # every reviewing action. No-op for projects without an organization tree.
+    if not _within_reviewing_org_scope(sid):
+        va_permission_abortwithflash(
+            "This submission belongs to a unit outside your reviewing scope.", 403
+        )
     if actiontype == "vastartreviewing":
         if not partial:
             if not current_user.has_va_form_access(form_id, "reviewer"):

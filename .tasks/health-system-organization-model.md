@@ -1,6 +1,6 @@
 # Health-system organization model
 
-- Status: phases 1–3 done (2026-09-18); phases 4–5 pending
+- Status: phases 1–4 done (2026-09-18); phase 5 pending
 - Priority: high
 - Created: 2026-09-17
 
@@ -50,10 +50,14 @@ migrations only.
 - Phase 3b (`e2a5c8b1d7f3`): several ODK forms per project-site; each mapping
   materializes its own `va_forms` row, matched on the ODK ids.
 
+- Phase 4 (`f7b2d4e6a8c9`): project coding scope level and above-scope mode,
+  the eligibility rule in `org_grant_service.codeable_unit_ids`, the shared
+  list filter in `coder_workflow_service._org_unit_scope_filter`, and the
+  per-submission gate in `va_validate_permissions` for the coder and reviewer
+  tracks. Projects without an organization tree are unaffected.
+
 ## Next
 
-Phase 4: `va_project_master.coding_scope_level_id` and
-`above_scope_coding_mode`, then enforcement — pick-and-choose and the reviewer
-track filtered by the coder's unit subtree, replacing the `va_forms` route for
-org-tree projects. Phase 5: unit dimensions in dashboards, exports and
-analytics.
+Phase 5: unit dimensions in dashboards, exports and analytics — unit path in
+the analytics MV, unit as a grouping dimension in DM KPIs, and
+`org_unit_code` / `org_unit_name` / level path columns in the exports.

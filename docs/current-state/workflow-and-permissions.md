@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Workflow And Permissions
@@ -625,11 +625,20 @@ For example:
 - coder access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 - site PI access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
 - reviewer access is derived from grant scope, then resolved back to form access through `va_project_sites` and `va_forms`
-- unit-scoped (`org_unit`) grants exist and resolve to organization-unit sets
-  through `app/services/org_grant_service.py`, but no coding or review
-  surface consults them yet: eligibility still runs through `va_forms`, so a
-  unit grant alone grants no submission access (policy:
-  `docs/policy/organization-model.md`)
+- unit-scoped (`org_unit`) grants reach the forms of their unit's project, and
+  for projects with an active organization tree the submissions of those forms
+  are then narrowed to the coder's own unit subtree, honouring the project's
+  coding scope level and above-scope mode
+  (`app/services/org_grant_service.py::codeable_unit_ids`)
+- the narrowing is applied in the shared availability filter
+  (`coder_workflow_service._org_unit_scope_filter`, used by the pick list,
+  random allocation and the dashboard counts) **and** per submission when one
+  is opened or allocated (`submission_within_org_scope`, called once for every
+  coding and reviewing action in `va_validate_permissions`)
+- projects with no organization tree are unaffected: the filter excludes
+  nothing for them, so the form-and-site model is unchanged
+- an unrouted submission of a tree project is codeable by nobody until a data
+  manager routes it (policy: `docs/policy/organization-model.md`)
 
 ### Language as second filter
 

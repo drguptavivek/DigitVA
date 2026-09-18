@@ -69,12 +69,13 @@ the unit codes, and DigitVA reads the most specific one the interviewer
 answered. Where that fails, the submission waits in a data manager's queue to
 be assigned by hand.
 
-One caveat worth stating plainly: the coding screens do not consult any of
-this yet. What a coder can actually open is still resolved the old way,
-through forms and sites, so a unit-scoped permission record and a submission's
-routed unit are both correctly stored facts that do not yet change anyone's
-working day. Enforcement is the next phase. See
-[Not yet implemented](#not-yet-implemented-later-phases-of-the-plan).
+The two halves then meet: a coder sees the deaths of their own units and no
+others. A project may also fix the level within which coding happens — only
+the PHC's own deaths, or anything within the CHC — and say whether people
+above that level may code at all or only look.
+
+Projects that do not use an organization tree are untouched by all of this
+and keep working exactly as they did.
 
 ## Baseline
 
@@ -241,10 +242,42 @@ levels API, the exports, the panel and routing all read from it:
 - Deactivating a unit does not rewrite the submissions already attributed to
   it; the next sync of an affected submission re-routes it.
 
+## Coding scope
+
+A project may fix the level within which a death may be coded, with
+`va_project_master.coding_scope_level_id`. Leaving it NULL means no
+unit-based coding scope.
+
+- A coder granted at a unit **at or below** the scope level codes inside that
+  unit's own subtree.
+- A coder granted **above** the scope level is governed by
+  `above_scope_coding_mode`: `code_any` lets them code their whole subtree,
+  `view_only` (the default) lets them code nothing.
+- The same rule governs the reviewer track, using reviewer grants.
+- A project with a coding scope level must use `pick_and_choose` coding
+  intake: random allocation would hand a coder submissions from outside
+  their scope. The admin API refuses the combination either way round.
+
+### What enforcement actually means
+
+- A unit-scoped grant reaches the **forms** of its unit's project; which of
+  that project's **submissions** may be opened is then narrowed by the routed
+  unit. Both halves are needed: the first makes the project visible, the
+  second keeps the coder inside their own units.
+- The narrowing applies **only to projects with an active organization tree**.
+  A project without one keeps the form-and-site model exactly as before —
+  this is what makes the change safe to add to a shared filter path.
+- An **unrouted** submission of a tree project is codeable by nobody until a
+  data manager routes it. That is deliberate: attributing a death to the wrong
+  unit is worse than leaving it in the queue.
+- The check is applied in two places, because a list filter alone is not
+  authorization: the pick list and dashboard counts filter by unit, and
+  opening or being allocated one submission is gated separately
+  (`org_grant_service.submission_within_org_scope`). Every coding and
+  reviewing action passes through the gate, rather than each action
+  remembering to ask.
+- `coding_tester` is exempt, as it is from the site coding gates.
+
 ## Not yet implemented (later phases of the plan)
 
-- project coding-scope level and above-scope mode; until then a unit grant
-  does not change what a coder may open — coding eligibility still resolves
-  through `va_forms`, and a submission's routed unit is recorded but not
-  enforced
 - unit dimensions in dashboards, exports and analytics

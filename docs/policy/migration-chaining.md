@@ -62,6 +62,19 @@ Once pushed, rule 2 makes it expensive to move.
 
 ### 4. Two local heads are a normal state, not a defect
 
+Which means **tooling must cope with it**. Anything that applies migrations
+in a test or a script has to use `upgrade(revision="heads")` rather than a
+bare `upgrade()`, or it fails routinely on the state this policy calls
+correct. `tests/migrations/test_schema_drift.py` did exactly that until
+2026-09-18.
+
+A check that is expected-red whenever the documented-correct state obtains
+stops being informative: people learn to ignore it, and it then fails to
+report the case it exists for. That is rule 5's hazard arriving from the
+opposite direction — a check nobody trusts is as useless as one that cannot
+fail.
+
+
 Two independent uncommitted migrations sharing a committed parent is the
 correct shape. Do not "resolve" it by chaining one onto the other while both
 are untracked — that is rule 1's failure, reintroduced. `flask db upgrade

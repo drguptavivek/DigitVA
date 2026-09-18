@@ -1,0 +1,153 @@
+# Viewer roles: with and without PII
+
+- Status: policy agreed 2026-09-18, implementation blocked
+- Priority: high
+- Created: 2026-09-18
+
+## Goal
+
+Split read-only access into a viewer who sees personal data and one who does
+not. Operational need: a supervisor must be able to see **who did what for
+which death** without every read-only account seeing the deceased's identity.
+
+## Decision (2026-09-18, user)
+
+Roles, not a flag on the grant. One new role only — `collaborator` already IS
+the read-only role:
+
+- `collaborator` — read-only, **no PII**. Admin panel label "Viewer".
+- `collaborator_pii` — read-only, **with PII**. Label "Viewer (with PII)".
+
+Policy baseline: `docs/policy/access-control-model.md`, sections
+`collaborator`, `collaborator_pii`, and Role To Scope Rules.
+
+The role-vs-flag tradeoff and the merged subject/staff PII set are recorded
+there with their reasoning; do not re-litigate without reading it.
+
+## Blocked on
+
+1. **`2e1da5fbaa0a` must land first.** Adding the enum values needs a
+   migration, and a second one written now would create a duplicate head.
+2. **The `is_pii` flag set must actually be correct first.** See below. This
+   is the hard blocker.
+
+## Blocker: the PII definition is currently wrong
+
+`mas_field_display_config.is_pii` is the single definition of what
+`collaborator` must not see. As of 2026-09-18 it covers only form type
+`WHO_2022_VA`. `WHO_2022_VA_SOCIAL` holds ~86% of submissions (7082/8223) and
+its cloned config rows still carry `is_pii = false` for the national
+identification number (`Id10073`, 1129 populated values), `Id10055`,
+`Id10070/71/72` and `Id10010c`.
+
+Building the roles on that set would ship a redaction control that looks
+correct and leaks the exact field it exists to hide. **A wrong redaction
+control is worse than a missing one, because people then trust it.** Owned by
+the web-intake session (`pii_field_registry.py`, migration `b8e3d1f7a2c4`);
+raised as urgent.
+
+Root cause worth fixing rather than patching: display-config rows are cloned
+once at form-type creation and never resynced, so any per-field policy will
+drift across form types. Prefer applying by `field_id` across all form types.
+
+## Landmine to defuse before building on this table
+
+`pii_field_registry.py:170-172` forces `row.is_active = True` on the update
+path (and the migration's `DO UPDATE` mirrors it). `field_mapping_service.py`
+(`_build_fieldsitepi`) renders a field iff `is_active` AND
+`subcategory_code IS NOT NULL`, so forcing it true would resurrect a
+deliberately hidden mapped field onto the coding screen.
+
+Inert **today**: no code path anywhere sets `is_active = False` on that table
+(the admin field-edit handler hides a field by nulling the category codes
+instead). It becomes live the moment anyone adds an is_active toggle — which
+this work plausibly would. Fix defensively first: do not force `is_active`
+on update, leave it at whatever it was.
+
+## Contract this work depends on (being fixed by the web-intake session)
+
+`_build_pii_field_ids` (`field_mapping_service.py:325-333`) currently filters
+on `is_active = True` in the SAME query as `is_pii = True`. So **deactivating
+a PII-flagged field drops it OUT of redaction and it gets exported.** Hiding a
+field un-redacts it — failing in the direction nobody notices, because the
+field disappears from the UI (looking like the intended effect) while
+continuing to appear in the CSV.
+
+This is live-relevant to this task specifically: a with-PII/without-PII
+feature is exactly the kind of work that adds an is_active toggle, and doing
+so on the current query would reproduce the leak the roles exist to prevent.
+
+The fix decouples them: `is_active` governs DISPLAY only, `is_pii` governs
+REDACTION only, and the redaction query stops filtering on `is_active`.
+
+Root cause of the coverage gap, also being fixed: `form_type_service` copies
+`is_pii` from the source form type when it clones field rows — at the clone,
+export and import paths — taking the flag AS IT STOOD AT CREATION TIME.
+WHO_2022_VA_SOCIAL was cloned before WHO_2022_VA was flagged, and nothing
+resyncs. Applying by `field_id` fixes every form type that exists today; form
+type creation now also applies the registry immediately, so a type created
+tomorrow from an unflagged source does not start wrong. This matters to these
+roles because a redaction set that silently excludes a whole form type is the
+failure mode the roles cannot survive.
+
+**Do not wire up any is_active toggle until that has landed.** Treat the
+decoupling as the contract these roles rest on: once `is_pii = True`, a field
+stays redacted regardless of display state. A regression test should assert
+exactly that — a field flagged PII and deactivated is still redacted.
+
+## Expected scope
+
+- enum values + migration (`ALTER TYPE ... ADD VALUE` in an
+  `autocommit_block()`, as the org_unit scope migration did)
+- add `collaborator_pii` to `ROLES_ALLOWING_ORG_UNIT`
+- **one redaction helper taking the viewer's role.** Never a per-screen
+  condition — a screen that forgets fails open
+- enforcement at every surface, not just the obvious one:
+  - submission payload rendering (detail view, coding screen)
+  - exports: the payload via `_filter_export_payload` **and base columns**,
+    which bypass it entirely (see organization-model.md, "Unit columns in
+    submission exports")
+  - `va_submissions.va_data_collector` is a base export column today while
+    the payload's `SubmitterName` is deliberately stripped — the same name,
+    published and redacted at once. Close that inconsistency
+  - **search**, not only display: `data_management_service.py:222` filters on
+    `va_data_collector.ilike(...)`, so a no-PII viewer could confirm a
+    collector's name by searching for it even if it is never rendered
+  - API responses and the analytics MV
+- admin UI: role picker, and the labels above
+- tests: a plain `collaborator` sees redacted payload, redacted staff
+  identity, redacted export (payload AND base columns) and cannot confirm a
+  name via search; `collaborator_pii` sees all of it; existing roles
+  unchanged
+
+## Rollout
+
+Making plain `collaborator` no-PII **removes** visibility from every existing
+grant. That is deliberate and is the safe direction, but the migration must
+NOT auto-upgrade anyone. Existing collaborators needing PII are re-granted as
+`collaborator_pii` by an admin or PI, per person. Someone must work through
+the current collaborator list — flag this to the user before release.
+
+## Corrected 2026-09-18: a finding that was wrong
+
+An audit reported that `/api/v1/organization/<project_id>/units` wrongly 403'd
+global-scoped non-admin grants. It was accepted and "fixed", and a test was
+written asserting a global `data_manager` reaches the whole tree.
+
+It was wrong. `ck_va_user_access_grants_role_scope` permits `scope_type =
+'global'` only for `role = 'admin'`, so such a grant cannot exist. The fix was
+dead code and the test asserted an impossible state; both are reverted.
+
+A follow-up proposed widening the constraint so the test would pass. **Do not.**
+`global` means every project, present and future — a global `data_manager` or
+`collaborator` would be one row granting all projects forever, which is what
+`admin` is for.
+
+Note also that "above-scope" in commit 497ae07 means a grant at a unit above
+the project's `coding_scope_level_id`, entirely within one project's tree. It
+does not mean global scope and needs no change to that constraint.
+
+Rule taken from this: verify a finding's premise before acting, and hold
+findings that propose RELAXING a constraint to a higher bar than those that
+propose tightening one. A wrong tightening is an inconvenience; a wrong
+relaxation is a vulnerability.

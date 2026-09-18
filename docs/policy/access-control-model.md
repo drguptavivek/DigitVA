@@ -30,6 +30,7 @@ DigitVA uses these roles:
 - `site_pi`
 - `data_manager`
 - `collaborator`
+- `collaborator_pii`
 - `coder`
 - `reviewer`
 
@@ -105,6 +106,70 @@ May not:
 - review
 - perform oversight write actions
 - administer configuration
+- **see personal data.** Payload fields flagged `is_pii` in
+  `mas_field_display_config` are redacted, and so is staff identity — who
+  collected, coded or reviewed a death. Use `collaborator_pii` for that.
+
+#### Rollout note: this narrows an existing role
+
+Before the viewer split, a `collaborator` saw whatever a screen rendered,
+personal data included. Making the plain role no-PII **removes** visibility
+from every grant that already exists.
+
+That is the safe direction and it is deliberate — the alternative, defaulting
+existing grants to PII, would keep an unreviewed set of people seeing personal
+data because of how the roles happened to be numbered. But it is not silent:
+existing `collaborator` holders who genuinely need personal data must be
+re-granted as `collaborator_pii` by an admin or project PI, as a decision about
+each person, and the migration must not do it for them.
+
+### `collaborator_pii`
+
+Read-only role within assigned scope, **including personal data**. Shown in
+the admin panel as "Viewer (with PII)"; plain `collaborator` is shown as
+"Viewer".
+
+Identical to `collaborator` in everything it may do. The only difference is
+that personal data is not redacted from what it sees.
+
+May additionally see:
+
+- the personal-data fields of a submission payload — those flagged
+  `is_pii` in `mas_field_display_config` (names, the national identification
+  number, the ABHA identifiers)
+- staff identity: who collected, coded and reviewed each death
+  (`va_submissions.va_data_collector`, the payload's `SubmitterName`, and the
+  coder and reviewer names on workflow and audit views)
+
+Grant it for the operational reason it exists: a supervisor who has to know
+who did what for which death. It is not a convenience upgrade of
+`collaborator` and should be granted deliberately, to named people.
+
+#### Why this is a role and not a flag
+
+Considered and rejected: a `sees_pii` boolean on the grant. Roles were chosen
+so that PII visibility is legible wherever a grant is listed, audited or
+reviewed, rather than hidden in a column somebody has to know to look at.
+
+The cost is real and should be understood: every place that tests
+`role == collaborator` must also test `collaborator_pii`, and a place that
+forgets fails **closed** for `collaborator_pii` (a supervisor sees too little)
+but a place that tests only "is read-only" and forgets to redact fails **open**
+(a plain viewer sees PII). Redaction is therefore written as a single helper
+that takes the viewer's role, never as a per-screen condition.
+
+#### One PII set, or two
+
+`collaborator_pii` currently carries **both** subject personal data (the
+deceased, the respondent) and staff identity (the interviewer, the coder). The
+two are governed differently — subject data sits under ethics approval, staff
+names are ordinary personnel data — and a supervisor who needs only the audit
+trail must today be given the deceased's name as well.
+
+If that trade proves wrong in practice, the split is a third role
+(`collaborator_staff`), which is exactly the cost of using roles as the
+mechanism. Recorded here so the choice is revisited deliberately rather than
+rediscovered.
 
 ### `coder`
 
@@ -174,6 +239,7 @@ The system must not infer broader access from missing values or partial keys.
 - `site_pi` uses `project_site` or `org_unit`
 - `data_manager` uses `project`, `project_site` or `org_unit`
 - `collaborator` uses `project`, `project_site` or `org_unit`
+- `collaborator_pii` uses `project`, `project_site` or `org_unit`
 - `coder` uses `project`, `project_site` or `org_unit`
 - `coding_tester` uses `project`, `project_site` or `org_unit`
 - `reviewer` uses `project`, `project_site` or `org_unit`

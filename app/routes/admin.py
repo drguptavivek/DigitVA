@@ -359,6 +359,7 @@ def _serialize_project(project):
         "demo_training_enabled": project.demo_training_enabled,
         "demo_retention_minutes": project.demo_retention_minutes,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
+        "web_intake_mode": project.web_intake_mode,
     }
 
 
@@ -815,6 +816,7 @@ def _resolve_scope_from_payload(payload):
             VaAccessRoles.coding_tester,
             VaAccessRoles.reviewer,
             VaAccessRoles.data_manager,
+            VaAccessRoles.interviewer,
         }:
             raise ValueError("This role cannot use project scope.")
         if not project_id or project_site_id_value or org_unit_id_value:
@@ -855,6 +857,7 @@ def _resolve_scope_from_payload(payload):
         VaAccessRoles.coding_tester,
         VaAccessRoles.reviewer,
         VaAccessRoles.data_manager,
+        VaAccessRoles.interviewer,
     }:
         raise ValueError("This role cannot use project_site scope.")
     if payload.get("project_id"):
@@ -1042,6 +1045,23 @@ def admin_update_project(project_id):
 
     if "demo_training_enabled" in payload:
         project.demo_training_enabled = bool(payload["demo_training_enabled"])
+
+    if "web_intake_mode" in payload:
+        from app.models.va_web_intake import WEB_INTAKE_MODES
+
+        web_intake_mode = (payload["web_intake_mode"] or "").strip()
+        if web_intake_mode not in WEB_INTAKE_MODES:
+            return _json_error("Invalid web_intake_mode.", 400)
+        project.web_intake_mode = web_intake_mode
+        if web_intake_mode != "off":
+            # Interviewer access resolves through va_forms, so the web form has
+            # to exist before anyone can open /intake/ — a web-only project has
+            # no ODK mapping to materialize one. See docs/policy/web-intake.md.
+            from app.services.runtime_form_sync_service import (
+                ensure_web_forms_for_project,
+            )
+
+            ensure_web_forms_for_project(project.project_id)
 
     if "demo_retention_minutes" in payload:
         try:
@@ -1416,6 +1436,7 @@ def admin_update_project_attachment_central_fetch(project_id):
     return jsonify({
         "project_id": project.project_id,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
+        "web_intake_mode": project.web_intake_mode,
     })
 
 

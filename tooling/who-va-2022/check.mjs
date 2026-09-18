@@ -19,12 +19,14 @@ await build({
 const mod = await import(pathToFileURL(out).href);
 const inst = mod.whoVa2022Instrument;
 const names = new Set(inst.questions.map((q) => q.name));
-const expected = ["narr_language", "imagenarr", "md_count", "md_im1", "md_im30", "ds_count", "ds_im5", "comment", "custom_medical_certificate_upload"];
+const expected = ["abha_number", "abha_address", "narr_language", "imagenarr", "md_count", "md_im1", "md_im30", "ds_count", "ds_im5", "comment", "custom_medical_certificate_upload"];
 const missing = expected.filter((n) => !names.has(n));
 if (missing.length) throw new Error("missing DigitVA questions: " + missing.join(", "));
 const dup = inst.questions.map((q) => q.name).filter((n, i, a) => a.indexOf(n) !== i);
 if (dup.length) throw new Error("duplicate question names: " + dup.join(", "));
 const r = mod.validateSubmission(inst, { Id10013: "yes", md_count: 2, md_im1: "who-va-attachment:x" });
 const relevantImages = inst.questions.filter((q) => /^md_im\d+$/.test(q.name) && mod.isQuestionRelevant(inst, q, { Id10013: "yes", md_count: 2 })).map((q) => q.name);
-console.log(JSON.stringify({ questions: inst.questions.length, sections: inst.sections.length, relevantImagesWhenCount2: relevantImages, sampleIssues: r.issues.length }));
+const abha = mod.validateSubmission(inst, { Id10013: "yes", abha_number: "12-3456-7890-1234", abha_address: "someone@abdm" }).issues.filter((i) => i.question.startsWith("abha"));
+const abhaBad = mod.validateSubmission(inst, { Id10013: "yes", abha_number: "123", abha_address: "x@y" }).issues.filter((i) => i.question.startsWith("abha")).map((i) => i.question + ":" + i.code);
+console.log(JSON.stringify({ abhaIssuesGood: abha.length, abhaIssuesBad: abhaBad, questions: inst.questions.length, sections: inst.sections.length, relevantImagesWhenCount2: relevantImages, sampleIssues: r.issues.length }));
 writeFileSync(path.join(tmp, "ok"), "");

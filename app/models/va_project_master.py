@@ -8,6 +8,12 @@ from app.models.va_selectives import VaStatuses
 
 class VaProjectMaster(db.Model):
     __tablename__ = "va_project_master"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "web_intake_mode IN ('off', 'direct', 'death_register', 'both')",
+            name="ck_va_project_master_web_intake_mode",
+        ),
+    )
     project_id: so.Mapped[str] = so.mapped_column(
         sa.String(6), primary_key=True, index=True
     )
@@ -67,6 +73,11 @@ class VaProjectMaster(db.Model):
     # store miss is a 404 exactly as before.
     attachment_central_fetch_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
+    # Web intake of WHO VA 2022 questionnaires (docs/policy/web-intake.md):
+    # off | direct | death_register | both.
+    web_intake_mode: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="off", server_default="off"
     )
 
     def __repr__(self) -> str:

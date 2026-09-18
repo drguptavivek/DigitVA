@@ -1,0 +1,118 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}DigitVA | VA Intake{% endblock %}
+{% block content %}
+<h2 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">VA Intake</h2>
+<p class="text-muted">Register deaths and fill the WHO 2022 verbal autopsy questionnaire for your unit.</p>
+<div id="intake-alert" class="alert d-none small py-2"></div>
+<div class="row g-3 align-items-end mb-3">
+  <div class="col-md-5">
+    <label class="form-label small mb-1">Project and site</label>
+    <select id="intake-scope" class="form-select form-select-sm"></select>
+  </div>
+  <div class="col-md-4 d-none" id="intake-unit-wrap">
+    <label class="form-label small mb-1">Organization unit</label>
+    <select id="intake-unit" class="form-select form-select-sm"></select>
+  </div>
+  <div class="col-md-3 d-flex gap-2">
+    <a class="btn btn-sm btn-outline-primary d-none" id="intake-new-death" href="{{ url_for('intake.new_death_page') }}"><i class="fa-solid fa-plus me-1"></i>Register death</a>
+    <button class="btn btn-sm btn-primary d-none" id="intake-new-direct"><i class="fa-solid fa-file-pen me-1"></i>New questionnaire</button>
+  </div>
+</div>
+<div class="row g-4">
+  <div class="col-lg-6">
+    <h5 class="mb-2">My drafts</h5>
+    <div id="intake-drafts" class="small text-muted">Loading…</div>
+  </div>
+  <div class="col-lg-6 d-none" id="intake-deaths-wrap">
+    <h5 class="mb-2">Registered deaths</h5>
+    <div id="intake-deaths" class="small text-muted">Loading…</div>
+  </div>
+</div>
+<script>
+(function () {
+  var CSRF = '', CONTEXT = [], SCOPE = null;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function api(url, method, body) {
+    var headers = { 'X-CSRFToken': CSRF };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, { method: method || 'GET', headers: headers, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+  function alertBox(kind, msg) { var el = $('intake-alert'); if (!msg) { el.classList.add('d-none'); return; } el.className = 'alert alert-' + kind + ' small py-2'; el.textContent = msg; }
+  function scopeKey(c) { return c.project_id + '|' + c.site_id; }
+  function currentScope() { return CONTEXT.filter(function (c) { return scopeKey(c) === SCOPE; })[0] || null; }
+  function unitId() { var u = $('intake-unit'); return u.value || null; }
+
+  api('/intake/api/bootstrap').then(function (res) {
+    if (!res.ok) { alertBox('danger', res.data.error || 'Could not load intake context.'); return; }
+    CSRF = res.data.csrf_token; CONTEXT = res.data.context || [];
+    var sel = $('intake-scope');
+    sel.innerHTML = CONTEXT.map(function (c) { return '<option value="' + esc(scopeKey(c)) + '">' + esc(c.project_id) + ' / ' + esc(c.site_id) + ' — ' + esc(c.project_name) + '</option>'; }).join('');
+    if (!CONTEXT.length) { alertBox('warning', 'No project has web intake enabled for your interviewer grants.'); return; }
+    try { SCOPE = localStorage.getItem('intake.scope'); } catch (e) {}
+    if (!SCOPE || !currentScope()) SCOPE = scopeKey(CONTEXT[0]);
+    sel.value = SCOPE;
+    sel.addEventListener('change', function () { SCOPE = this.value; try { localStorage.setItem('intake.scope', SCOPE); } catch (e) {} render(); });
+    $('intake-unit').addEventListener('change', function () { try { localStorage.setItem('intake.unit', this.value); } catch (e) {} loadDeaths(); });
+    render();
+  });
+
+  function render() {
+    var c = currentScope(); if (!c) return;
+    var units = c.org_units || [];
+    $('intake-unit-wrap').classList.toggle('d-none', !units.length);
+    $('intake-unit').innerHTML = units.map(function (u) { return '<option value="' + esc(u.org_unit_id) + '">' + esc(u.unit_code) + ' — ' + esc(u.unit_name) + '</option>'; }).join('');
+    try { var saved = localStorage.getItem('intake.unit'); if (saved && units.some(function (u) { return u.org_unit_id === saved; })) $('intake-unit').value = saved; } catch (e) {}
+    var mode = c.web_intake_mode;
+    var useRegister = mode === 'death_register' || mode === 'both';
+    var useDirect = mode === 'direct' || mode === 'both';
+    $('intake-new-death').classList.toggle('d-none', !useRegister);
+    $('intake-new-direct').classList.toggle('d-none', !useDirect);
+    $('intake-deaths-wrap').classList.toggle('d-none', !useRegister);
+    $('intake-new-death').href = '/intake/deaths/new?project_id=' + encodeURIComponent(c.project_id) + '&site_id=' + encodeURIComponent(c.site_id) + (unitId() ? '&org_unit_id=' + encodeURIComponent(unitId()) : '');
+    loadDrafts(); if (useRegister) loadDeaths();
+  }
+
+  function loadDrafts() {
+    api('/intake/api/drafts').then(function (res) {
+      var wrap = $('intake-drafts');
+      if (!res.ok) { wrap.textContent = res.data.error || 'Failed to load drafts.'; return; }
+      var drafts = res.data.drafts || [];
+      if (!drafts.length) { wrap.innerHTML = '<p class="text-muted">No drafts in progress.</p>'; return; }
+      wrap.innerHTML = '<table class="table table-sm align-middle"><thead><tr><th>ID</th><th>Project / site</th><th>Sections saved</th><th>Updated</th><th></th></tr></thead><tbody>'
+        + drafts.map(function (d) { return '<tr><td><code>' + esc(d.unique_id) + '</code></td><td>' + esc(d.project_id) + ' / ' + esc(d.site_id) + '</td><td>' + d.sections_saved + '</td><td>' + esc((d.updated_at || '').replace('T', ' ').slice(0, 16)) + '</td>'
+          + '<td class="text-end"><a class="btn btn-sm btn-primary" href="/intake/form/' + esc(d.draft_id) + '">Resume</a></td></tr>'; }).join('') + '</tbody></table>';
+    });
+  }
+
+  function loadDeaths() {
+    var c = currentScope(); if (!c) return;
+    api('/intake/api/deaths?project_id=' + encodeURIComponent(c.project_id) + '&site_id=' + encodeURIComponent(c.site_id)).then(function (res) {
+      var wrap = $('intake-deaths');
+      if (!res.ok) { wrap.textContent = res.data.error || 'Failed to load deaths.'; return; }
+      var deaths = res.data.deaths || [];
+      if (!deaths.length) { wrap.innerHTML = '<p class="text-muted">No deaths registered yet.</p>'; return; }
+      wrap.innerHTML = '<table class="table table-sm align-middle"><thead><tr><th>ID</th><th>Deceased</th><th>Died</th><th>Status</th><th></th></tr></thead><tbody>'
+        + deaths.map(function (d) {
+          var action = d.status === 'va_submitted' ? '<span class="badge text-bg-success">Submitted</span>'
+            : '<button class="btn btn-sm btn-outline-primary intake-start-va" data-id="' + esc(d.death_id) + '">' + (d.status === 'va_in_progress' ? 'Resume VA' : 'Start VA') + '</button>';
+          return '<tr><td><code>' + esc(d.unique_id) + '</code></td><td>' + esc(d.deceased_name) + ' (' + esc(d.deceased_sex) + ')</td><td>' + esc(d.date_of_death) + '</td><td>' + esc(d.status) + '</td><td class="text-end">' + action + '</td></tr>';
+        }).join('') + '</tbody></table>';
+      document.querySelectorAll('.intake-start-va').forEach(function (b) { b.addEventListener('click', function () { startDraft({ death_id: b.dataset.id }); }); });
+    });
+  }
+
+  function startDraft(extra) {
+    var c = currentScope(); if (!c) return;
+    var body = { project_id: c.project_id, site_id: c.site_id, org_unit_id: unitId() };
+    Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
+    api('/intake/api/drafts', 'POST', body).then(function (res) {
+      if (!res.ok) { alertBox('danger', res.data.error || 'Could not start the questionnaire.'); return; }
+      window.location.href = '/intake/form/' + res.data.draft.draft_id;
+    });
+  }
+  $('intake-new-direct').addEventListener('click', function () { startDraft({}); });
+}());
+</script>
+{% endblock %}

@@ -53,15 +53,33 @@ if (narrativeAnchorIndex < 0) {
 const narrativeAnchor = withCertificate[narrativeAnchorIndex]!;
 const lastSection = generated.sections[generated.sections.length - 1]!;
 const maxOrder = Math.max(...withCertificate.map((question) => question.order), ...generated.sections.map((s) => s.order));
-const digitva = createDigitVaExtension(maxOrder, narrativeAnchor.sectionPath, lastSection.parent ?? lastSection.name);
+// ABHA identifiers follow the deceased's surname (Id10018).
+const deceasedAnchorIndex = withCertificate.findIndex((question) => question.name === "Id10018");
+if (deceasedAnchorIndex < 0) {
+  throw new Error("Cannot add the DigitVA ABHA fields because Id10018 is missing");
+}
+const deceasedAnchor = withCertificate[deceasedAnchorIndex]!;
+const digitva = createDigitVaExtension(
+  maxOrder,
+  narrativeAnchor.sectionPath,
+  lastSection.parent ?? lastSection.name,
+  deceasedAnchor.sectionPath
+);
+
+const withDeceased: InstrumentQuestion[] = [
+  ...withCertificate.slice(0, deceasedAnchorIndex + 1),
+  ...digitva.deceasedQuestions,
+  ...withCertificate.slice(deceasedAnchorIndex + 1)
+];
+const narrativeIndex = withDeceased.findIndex((question) => question.name === "Id10476");
 
 export const whoVa2022Instrument: InstrumentDefinition = {
   ...generated,
   sections: [...generated.sections, ...digitva.sections],
   questions: [
-    ...withCertificate.slice(0, narrativeAnchorIndex + 1),
+    ...withDeceased.slice(0, narrativeIndex + 1),
     ...digitva.narrativeQuestions,
-    ...withCertificate.slice(narrativeAnchorIndex + 1),
+    ...withDeceased.slice(narrativeIndex + 1),
     ...digitva.documentQuestions
   ]
 };

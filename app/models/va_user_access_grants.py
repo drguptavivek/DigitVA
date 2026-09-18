@@ -33,7 +33,7 @@ class VaUserAccessGrants(db.Model):
             (role = 'admin' AND scope_type = 'global') OR
             (role = 'project_pi' AND scope_type = 'project') OR
             (role = 'site_pi' AND scope_type IN ('project_site', 'org_unit')) OR
-            (role IN ('collaborator', 'coder', 'coding_tester', 'reviewer', 'data_manager') AND scope_type IN ('project', 'project_site', 'org_unit'))
+            (role IN ('collaborator', 'coder', 'coding_tester', 'reviewer', 'data_manager', 'interviewer') AND scope_type IN ('project', 'project_site', 'org_unit'))
             """,
             name="ck_va_user_access_grants_role_scope",
         ),

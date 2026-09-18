@@ -76,6 +76,8 @@ class VaUsers(UserMixin, db.Model):
             return url_for("reviewing.dashboard")
         if self.landing_page == "sitepi" and self.is_site_pi():
             return url_for("sitepi.dashboard")
+        if self.landing_page == "intake" and self.is_interviewer():
+            return url_for("intake.dashboard")
         if self.is_coder():
             return url_for("coding.dashboard")
         if self.is_data_manager():
@@ -84,6 +86,8 @@ class VaUsers(UserMixin, db.Model):
             return url_for("reviewing.dashboard")
         if self.is_site_pi():
             return url_for("sitepi.dashboard")
+        if self.is_interviewer():
+            return url_for("intake.dashboard")
         return url_for("va_main.va_index")
 
     def set_password(self, password):
@@ -97,6 +101,28 @@ class VaUsers(UserMixin, db.Model):
         if va_form:
             return va_form in coder_va_form
         return bool(coder_va_form)
+
+    def is_interviewer(self, va_form=None):
+        interviewer_va_form = self.get_interviewer_va_forms()
+        if va_form:
+            return va_form in interviewer_va_form
+        if interviewer_va_form:
+            return True
+        # Unit-scoped grants do not resolve to va_forms (see
+        # _get_granted_va_forms), but web intake supports them: the project,
+        # site and unit a questionnaire may be filled for are still decided by
+        # web_intake_service.interviewer_context()/_require_scope(), so this
+        # only opens the role gate, not the scope.
+        return bool(self.get_interviewer_org_units())
+
+    def get_interviewer_org_units(self):
+        from app.models import VaAccessRoles
+        from app.services.org_grant_service import granted_units
+
+        return granted_units(self.user_id, VaAccessRoles.interviewer)
+
+    def get_interviewer_va_forms(self):
+        return self._get_granted_va_forms("interviewer")
 
     def is_coding_tester(self, va_form=None):
         tester_forms = self.get_coding_tester_va_forms()

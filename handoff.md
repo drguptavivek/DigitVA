@@ -1,81 +1,42 @@
 # Handoff
 
-## Status
+Updated 2026-09-18 (session: organization phase 1, ICD-11 catalog delegation, WHO VA 2022 web intake).
 
-`main` already includes the recent sync/dashboard/data-manager work pushed in commit `bdb3d81`:
+## State of `main`
 
-- `Sync` / `Force-resync` / `Backfill` separation
-- targeted batch backfill for metadata, attachments, and SmartVA
-- improved sync progress logging
-- local-only backfill coverage card
-- corrected pending-coding KPI and workflow donut behavior
-- coded grid `Coded On` / `Coded By`
-- new ODK Central edit URL shape in Data Manager
+- 91882f6 Organization model phase 1 (levels, units, cadres, workers, Organization panel, `flask org`).
+- d3788eb ICD-11 MMS catalog, importer, `flask icd11`, read-only browser, form-level `icd_classification` (decisions D1/D4 as recommended; D3 allowability needs clinical sign-off; coding screen still ICD-10 only).
+- b7480dc Organization phase 2, unit-scoped access grants (other session).
+- 2fc60ea Vendored `vendor/who-va-2022` with DigitVA extension; bundle under `app/static/vendor/who-va-2022` built by `tooling/who-va-2022` (`npm ci && npm run check && npm run build`).
+- This commit: web intake phase 1 (see below).
 
-Current local work in progress adds a project-level toggle for the app-owned Social Autopsy analysis form:
+## Web intake phase 1 (this commit) — what exists and what is unverified
 
-- new `va_project_master.social_autopsy_enabled` flag
-- admin project create/edit support for that flag
-- coding UI renders the Social Autopsy analysis form only when the project flag is enabled
-- Social Autopsy completion gating is skipped when the project flag is disabled
-- Social Autopsy save API rejects writes when the project flag is disabled
+Code: `app/models/va_web_intake.py`, migration `e5f6a7b8c9d1` (applied on the dev DB), `app/services/web_intake_service.py` (deep module), `app/routes/intake.py` (`/intake/...`), templates `va_frontpages/va_intake*.html`, `interviewer` role (enum, grants constraint, `role_required`, admin scope sets, org grant roles, navbar, landing page), project setting `web_intake_mode` (admin Projects panel), `va_forms.form_source`, `ensure_web_runtime_form`.
 
-This change preserves the existing mapped `social_autopsy` category fields. The toggle only controls the app-owned analysis form and its workflow requirements.
+Tests (41, all passing; whole suite 1145 green):
 
-## Migration
+- `tests/services/test_web_intake_service.py` (24) — mode gating, interviewer scope, death-register validation and sequence-allocated unique ids, draft section merge and envelope reassembly, submit -> `va_submissions` + active payload version + `smartva_pending`, attachment answers lifted out of the payload, web form vs ODK runtime sync.
+- `tests/routes/test_intake_api.py` (17) — 401/403 for pages and API, CSRF on every state change, bootstrap, register -> draft -> save -> submit, owner-only form page, `WebIntakeError` status mapping, discard; plus `WebOnlyProjectIntakeTests` for the two authorization fixes below.
 
-The migration for the new project flag is now applied:
+Fixed while writing them:
 
-- migration revision: `aa12bb34cc56`
-- `docker compose exec minerva_app_service uv run flask db current`
-  - `aa12bb34cc56 (head)`
+- `sync_runtime_forms_from_site_mappings()` keyed its form lookup by (project, site) over every `va_forms` row, so an ODK mapping for a project-site that also had a web form overwrote the web form's `odk_form_id`/`odk_project_id`. Web-sourced rows are now excluded from the rewrite; their ids still reserve against `_next_form_id`.
+- Web-only projects could not bootstrap: `is_interviewer()` resolves through `va_forms`, and the web form was only created lazily inside `start_draft()`. `admin_update_project` now calls `ensure_web_forms_for_project()` whenever `web_intake_mode` is set to something other than `off` (idempotent, every active site).
+- Unit-scoped interviewer grants never satisfied the role gate (`_get_granted_va_forms()` ignores `org_unit` scope). `is_interviewer()` now also honours an active unit-scoped interviewer grant — role gate only; `interviewer_context()`/`_require_scope()` still decide project, site and unit.
+- `tests/migrations/test_attachment_state_backfill.py` seeded `va_forms` through the model at `PREVIOUS_HEAD`, which broke once the model gained `form_source`; it now inserts that row as SQL, like the attachment rows.
+- `tests/conftest.py` creates `va_death_register_number_seq` — standalone DDL from `e5f6a7b8c9d1` that `create_all()` cannot produce.
 
-Note:
+Still not verified: the questionnaire page has never been opened in a browser (draft store adapter, prefill, `lockedQuestionNames`, submit flow). `list_deaths` scoping for unit grants remains a first cut.
 
-- the first attempt used a duplicate Alembic revision id and was corrected
-- the live migration file is:
-  - `migrations/versions/a1b2c3d4e5f6_add_social_autopsy_enabled_to_projects.py`
-  - internal Alembic `revision` value is `aa12bb34cc56`
+## First steps for the next session
 
-## Files Changed Locally
+1. Grant `interviewer` to a test user on a project with `web_intake_mode = both`, open `/intake/`, register a death, start the questionnaire, check section saves in `va_web_intake_draft_sections`, submit, confirm the case appears for coders.
+2. Phase 2 attachments: upload `who-va-attachment:` references through `attachment_service` (store-first), then `mark_attachment_sync_completed`.
+3. Decisions still open: W1 validator sidecar, W6 mandatory media; mobile performance profiling of the bundle.
 
-- `app/models/va_project_master.py`
-- `app/routes/admin.py`
-- `app/routes/va_form.py`
-- `app/routes/api/so.py`
-- `app/templates/admin/panels/projects.html`
-- `app/templates/va_formcategory_partials/category_table_sections.html`
-- `migrations/versions/a1b2c3d4e5f6_add_social_autopsy_enabled_to_projects.py`
-- `tests/test_admin_api.py`
-- `tests/test_category_table_sections_template.py`
-- `tests/routes/test_social_autopsy_analysis.py`
-- `docs/policy/social-autopsy-analysis.md`
-- `docs/current-state/admin-and-setup.md`
+## Cross-stream notes
 
-## Verified
-
-- `docker compose exec minerva_app_service uv run flask db heads`
-  - `aa12bb34cc56 (head)`
-- `docker compose exec minerva_app_service uv run flask db upgrade`
-  - passed
-- `docker compose exec minerva_app_service uv run flask db current`
-  - `aa12bb34cc56 (head)`
-
-## Still To Do
-
-1. finish docs updates for the Social Autopsy toggle:
-   - `docs/current-state/category-rendering-and-visibility.md`
-   - likely `docs/current-state/data-model.md`
-2. run focused verification for the new toggle:
-   - admin project create/edit test
-   - Social Autopsy API rejection test
-   - category template gating test
-3. commit and push the Social Autopsy project-level toggle work
-
-## Implementation Notes
-
-- Backward compatibility is preserved by defaulting `social_autopsy_enabled` to `true`.
-- Runtime helper logic treats missing project rows as enabled to avoid surprising breakage on older data paths.
-- The intent is:
-  - mapped category presence still comes from form/category definitions
-  - app-owned Social Autopsy analysis visibility comes from the project-level flag
+- Migration chain: c8d2e4f6a1b3 -> b6edb1b7d01a -> f4b8dd6e3568 -> d9e3f5a7b2c4 -> e5f6a7b8c9d1. Always `flask db heads` before adding one.
+- Shared test databases collide when two sessions run pytest at once; run the suite in chunks (services/routes/integration/migrations, then the rest) because the app container has a 756 MiB limit.
+- Plans: `docs/planning/health-system-organization-model-plan.md`, `docs/planning/icd11-coding-screen-integration-plan.md` (parked), `docs/planning/who-va-2022-web-intake-plan.md`. Tasks in `.tasks/`.

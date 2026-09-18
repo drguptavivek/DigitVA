@@ -55,6 +55,15 @@
             <option value="pick_and_choose">Pick and choose</option>
           </select>
         </div>
+        <div class="col-sm-4">
+          <label class="form-label small mb-1">Web Intake (WHO VA form)</label>
+          <select class="form-select form-select-sm" id="project-web-intake-mode-input" title="off: ODK only; direct: questionnaire only; death_register: register the death first; both: either route">
+            <option value="off">Off (ODK only)</option>
+            <option value="direct">Direct questionnaire entry</option>
+            <option value="death_register">Death register first</option>
+            <option value="both">Both routes</option>
+          </select>
+        </div>
         <div class="col-sm-2">
           <label class="form-label small mb-1">Coder SA</label>
           <div class="form-check form-switch pt-2">
@@ -376,6 +385,7 @@
   var nicknameInput = document.getElementById('project-nickname-input');
   var statusInput = document.getElementById('project-status-input');
   var codingIntakeModeInput = document.getElementById('project-coding-intake-mode-input');
+  var webIntakeModeInput = document.getElementById('project-web-intake-mode-input');
   var socialAutopsyEnabledInput = document.getElementById('project-social-autopsy-enabled-input');
   var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
@@ -393,6 +403,7 @@
     statusInput.value = 'active';
     statusInput.disabled = true; // New projects are always active
     codingIntakeModeInput.value = 'random_form_allocation';
+    webIntakeModeInput.value = 'off';
     socialAutopsyEnabledInput.checked = true;
     reviewerSocialAutopsyEnabledInput.checked = true;
     demoTrainingEnabledInput.checked = false;
@@ -414,6 +425,7 @@
     statusInput.value = project.status;
     statusInput.disabled = false; // Existing projects can change status
     codingIntakeModeInput.value = project.coding_intake_mode || 'random_form_allocation';
+    webIntakeModeInput.value = project.web_intake_mode || 'off';
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
     reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
@@ -443,6 +455,7 @@
       project_name: nameInput.value.trim(),
       project_nickname: nicknameInput.value.trim(),
       coding_intake_mode: codingIntakeModeInput.value,
+      web_intake_mode: webIntakeModeInput.value,
       social_autopsy_enabled: socialAutopsyEnabledInput.checked,
       reviewer_social_autopsy_enabled: reviewerSocialAutopsyEnabledInput.checked,
       demo_training_enabled: demoTrainingEnabledInput.checked,

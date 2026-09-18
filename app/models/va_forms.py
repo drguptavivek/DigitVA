@@ -8,6 +8,9 @@ from app.models.va_selectives import VaStatuses
 
 class VaForms(db.Model):
     __tablename__ = "va_forms"
+    __table_args__ = (
+        sa.CheckConstraint("form_source IN ('odk', 'web')", name="ck_va_forms_form_source"),
+    )
     form_id: so.Mapped[str] = so.mapped_column(
         sa.String(12), index=True, primary_key=True
     )
@@ -20,6 +23,11 @@ class VaForms(db.Model):
     odk_form_id: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
     odk_project_id: so.Mapped[str] = so.mapped_column(sa.String(8), nullable=False)
     form_type: so.Mapped[str] = so.mapped_column(sa.String(64), nullable=False)
+    # odk: materialized from map_project_site_odk and synced from ODK Central;
+    # web: DigitVA's own intake form, never enumerated by ODK sync.
+    form_source: so.Mapped[str] = so.mapped_column(
+        sa.String(8), nullable=False, default="odk", server_default="odk"
+    )
     form_smartvahiv: so.Mapped[str] = so.mapped_column(sa.String(8), default="False", nullable=False)
     form_smartvamalaria: so.Mapped[str] = so.mapped_column(sa.String(8), default="False", nullable=False)
     form_smartvahce: so.Mapped[str] = so.mapped_column(sa.String(8), default="True", nullable=False)

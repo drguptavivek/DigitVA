@@ -39,6 +39,7 @@ Current policy docs:
 - [Test Harness Policy](test-harness.md) — session-scoped schema, savepoint isolation, fixture rules
 - [UI Notification Policy](ui-notifications.md)
 - [User Management CLI Policy](user-management-cli.md)
+- [Web Intake Policy](web-intake.md) — WHO VA 2022 questionnaire filled in DigitVA, death register, interviewer role
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)
 - [WHO 2022 ICD-10 Coding Allowability Policy](who-2022-icd10-coding-allowability.md)
 

@@ -16,6 +16,10 @@ import { parseExpression } from "./engine/expression.js";
 import type { InstrumentChoice, InstrumentQuestion, InstrumentSection, SourceExpression } from "./types.js";
 
 export const DIGITVA_DOCUMENTS_SECTION = "digitva_documents";
+/** ABHA number: 14 digits, optionally grouped 2-4-4-4 with hyphens. */
+export const ABHA_NUMBER_PATTERN = "^([0-9]{14}|[0-9]{2}-[0-9]{4}-[0-9]{4}-[0-9]{4})$";
+/** ABHA address: 4-32 characters of letters, digits, dot or underscore, then @abdm (or @sbx in the sandbox). */
+export const ABHA_ADDRESS_PATTERN = "^[A-Za-z0-9._]{4,32}@(abdm|sbx)$";
 export const DIGITVA_MEDICAL_IMAGE_SLOTS = 30;
 export const DIGITVA_DEATH_IMAGE_SLOTS = 5;
 
@@ -97,13 +101,44 @@ function integer(name: string, order: number, sectionPath: string[], label: stri
  * parent section. `narrativeAnchorPath` is the section of Id10476 so the
  * narration language and narrative image sit next to the narrative text.
  */
-export function createDigitVaExtension(startOrder: number, narrativeAnchorPath: string[], parentSection: string): {
+export function createDigitVaExtension(
+  startOrder: number,
+  narrativeAnchorPath: string[],
+  parentSection: string,
+  deceasedAnchorPath: string[]
+): {
   sections: InstrumentSection[];
+  deceasedQuestions: InstrumentQuestion[];
   narrativeQuestions: InstrumentQuestion[];
   documentQuestions: InstrumentQuestion[];
 } {
   let order = startOrder;
   const next = () => ++order;
+
+  const deceasedQuestions: InstrumentQuestion[] = [
+    base("abha_number", next(), deceasedAnchorPath, "ABHA number of the deceased (14 digits), if known", {
+      hint: { en: "Ayushman Bharat Health Account number, e.g. 12-3456-7890-1234" },
+      constraint: expression(`regex(., '${ABHA_NUMBER_PATTERN}')`),
+      constraintMessage: { en: "Enter the 14-digit ABHA number" },
+      validation: {
+        required: false,
+        dataType: "string",
+        constraint: expression(`regex(., '${ABHA_NUMBER_PATTERN}')`),
+        constraintMessage: { en: "Enter the 14-digit ABHA number" }
+      }
+    }),
+    base("abha_address", next(), deceasedAnchorPath, "ABHA address of the deceased, if known", {
+      hint: { en: "e.g. name@abdm" },
+      constraint: expression(`regex(., '${ABHA_ADDRESS_PATTERN}')`),
+      constraintMessage: { en: "Enter an ABHA address such as name@abdm" },
+      validation: {
+        required: false,
+        dataType: "string",
+        constraint: expression(`regex(., '${ABHA_ADDRESS_PATTERN}')`),
+        constraintMessage: { en: "Enter an ABHA address such as name@abdm" }
+      }
+    })
+  ];
 
   const narrativeQuestions: InstrumentQuestion[] = [
     base("narr_language", next(), narrativeAnchorPath, "Narration language", {
@@ -155,5 +190,5 @@ export function createDigitVaExtension(startOrder: number, narrativeAnchorPath: 
       parent: parentSection
     }
   ];
-  return { sections, narrativeQuestions, documentQuestions };
+  return { sections, deceasedQuestions, narrativeQuestions, documentQuestions };
 }

@@ -14,7 +14,6 @@ from app.models import (
     VaStatuses,
 )
 
-
 _FORM_ID_SUFFIX_RE = re.compile(r"^(\d{2})$")
 
 
@@ -97,9 +96,14 @@ def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
             VaForms.form_id,
         )
     ).all()
+    # Only ODK-sourced forms may be rewritten from a mapping; the web intake
+    # form for a project-site is DigitVA's own row (see ensure_web_runtime_form)
+    # and must keep its odk_form_id/odk_project_id placeholders. Form ids still
+    # come from every row so _next_form_id cannot reuse a web form's id.
     forms_by_project_site = {
         (form.project_id, form.site_id): form
         for form in existing_forms
+        if form.form_source != "web"
     }
     form_ids_in_use = {form.form_id for form in existing_forms}
 
@@ -131,7 +135,9 @@ def ensure_runtime_form_for_mapping(
         forms_by_project_site = {
             (form.project_id, form.site_id): form
             for form in db.session.scalars(
-                sa.select(VaForms).order_by(
+                sa.select(VaForms)
+                .where(VaForms.form_source != "web")
+                .order_by(
                     VaForms.project_id,
                     VaForms.site_id,
                     VaForms.form_id,
@@ -170,6 +176,71 @@ def ensure_runtime_form_for_mapping(
         existing.form_status = VaStatuses.active
 
     return existing
+
+
+WEB_FORM_ODK_FORM_ID = "WEB_WHOVA2022"
+
+
+def ensure_web_runtime_form(project_id: str, site_id: str) -> VaForms:
+    """Return the project-site's DigitVA web intake form, creating it on first use.
+
+    Web forms carry ``form_source='web'``; they are never enumerated by ODK sync
+    (which iterates ``map_project_site_odk``) and never retired as missing in
+    ODK. Policy: docs/policy/web-intake.md.
+    """
+    from app.models import MasFormTypes
+
+    existing = db.session.scalar(
+        sa.select(VaForms).where(
+            VaForms.project_id == project_id,
+            VaForms.site_id == site_id,
+            VaForms.form_source == "web",
+        )
+    )
+    if existing is not None:
+        if existing.form_status != VaStatuses.active:
+            existing.form_status = VaStatuses.active
+        return existing
+
+    _ensure_legacy_project_site_rows(project_id, site_id)
+    form_type = db.session.scalar(
+        sa.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
+    )
+    form_ids_in_use = set(db.session.scalars(sa.select(VaForms.form_id)).all())
+    form = VaForms(
+        form_id=_next_form_id(project_id, site_id, form_ids_in_use),
+        project_id=project_id,
+        site_id=site_id,
+        odk_form_id=WEB_FORM_ODK_FORM_ID,
+        odk_project_id="0",
+        form_type=form_type.form_type_name if form_type else "WHO VA 2022",
+        form_type_id=form_type.form_type_id if form_type else None,
+        form_source="web",
+        form_status=VaStatuses.active,
+    )
+    db.session.add(form)
+    db.session.flush()
+    return form
+
+
+def ensure_web_forms_for_project(project_id: str) -> list[VaForms]:
+    """Materialize the web intake form for every active site of a project.
+
+    Interviewer access resolves through ``va_forms`` (see
+    ``VaUsers._get_granted_va_forms``), so the row has to exist before an
+    interviewer can open ``/intake/``. A project that collects only on the web
+    has no ODK mapping and so no other form row; this is called when an admin
+    switches ``web_intake_mode`` on. Idempotent.
+    """
+    site_ids = db.session.scalars(
+        sa.select(VaProjectSites.site_id)
+        .where(
+            VaProjectSites.project_id == project_id,
+            VaProjectSites.project_site_status == VaStatuses.active,
+        )
+        .order_by(VaProjectSites.site_id)
+    ).all()
+    return [ensure_web_runtime_form(project_id, site_id) for site_id in site_ids]
 
 
 def _form_type_name(mapping: MapProjectSiteOdk, fallback: str | None = None) -> str:

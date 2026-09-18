@@ -44,6 +44,7 @@ ROLES_ALLOWING_ORG_UNIT = frozenset(
         VaAccessRoles.coding_tester,
         VaAccessRoles.reviewer,
         VaAccessRoles.data_manager,
+        VaAccessRoles.interviewer,
     }
 )
 

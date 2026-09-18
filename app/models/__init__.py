@@ -60,6 +60,7 @@ from app.models.va_selectives import (
     VaAccessRoles,
     VaAccessScopeTypes,
 )
+from app.models.va_web_intake import VaDeathRegister, VaWebIntakeDraft, VaWebIntakeDraftSection
 from app.models.mas_organization import (
     MasOrgLevel,
     MasOrgUnit,
@@ -146,4 +147,7 @@ __all__ = [
     "MasCadre",
     "MapOrgLevelCadre",
     "MasOrgUnitWorker",
+    "VaDeathRegister",
+    "VaWebIntakeDraft",
+    "VaWebIntakeDraftSection",
 ]

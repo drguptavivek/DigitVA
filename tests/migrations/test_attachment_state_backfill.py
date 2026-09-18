@@ -121,7 +121,7 @@ class AttachmentStateBackfillTest(unittest.TestCase):
 
     def _seed(self, db):
         """Seed one form and the attachment shapes the backfill distinguishes."""
-        from app.models import VaForms, VaResearchProjects, VaSites, VaStatuses
+        from app.models import VaResearchProjects, VaSites, VaStatuses
         from app.models.va_submissions import VaSubmissions
 
         now = datetime.now(timezone.utc)
@@ -145,17 +145,30 @@ class AttachmentStateBackfillTest(unittest.TestCase):
             site_updated_at=now,
         ))
         db.session.flush()
-        db.session.add(VaForms(
-            form_id=FORM_ID,
-            project_id=PROJECT_ID,
-            site_id=SITE_ID,
-            odk_form_id="PH2ODK",
-            odk_project_id="97",
-            form_type="WHO VA 2022",
-            form_status=VaStatuses.active,
-            form_registered_at=now,
-            form_updated_at=now,
-        ))
+        # SQL rather than the model for the same reason as the attachment rows
+        # below: VaForms already carries columns (form_source) that later
+        # migrations add, and this database sits at PREVIOUS_HEAD.
+        db.session.execute(
+            sa.text(
+                "INSERT INTO va_forms (form_id, project_id, site_id, odk_form_id, "
+                "odk_project_id, form_type, form_smartvahiv, form_smartvamalaria, "
+                "form_smartvahce, form_smartvafreetext, form_smartvacountry, "
+                "form_status, form_registered_at, form_updated_at) "
+                "VALUES (:form_id, :project_id, :site_id, :odk_form_id, "
+                ":odk_project_id, :form_type, 'False', 'False', 'True', 'True', "
+                "'IND', :form_status, :now, :now)"
+            ),
+            dict(
+                form_id=FORM_ID,
+                project_id=PROJECT_ID,
+                site_id=SITE_ID,
+                odk_form_id="PH2ODK",
+                odk_project_id="97",
+                form_type="WHO VA 2022",
+                form_status=VaStatuses.active.value,
+                now=now,
+            ),
+        )
         db.session.flush()
 
         sids = {name: str(uuid.uuid4()) for name in ("live", "retired")}

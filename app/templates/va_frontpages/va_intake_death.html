@@ -1,0 +1,70 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}DigitVA | Register death{% endblock %}
+{% block content %}
+<h2 class="text-primary mb-3" style="font-size: 28px; font-weight: 600;">Register a death</h2>
+<p class="text-muted">The id shown after saving can be written on the paper record. The questionnaire can be started now or later from the intake dashboard.</p>
+<div id="death-alert" class="alert d-none small py-2"></div>
+<form id="death-form" class="row g-3" autocomplete="off">
+  <div class="col-md-6"><label class="form-label">Name of the deceased <span class="text-danger">*</span></label><input name="deceased_name" class="form-control" required></div>
+  <div class="col-md-3"><label class="form-label">Sex <span class="text-danger">*</span></label>
+    <select name="deceased_sex" class="form-select" required><option value="male">Male</option><option value="female">Female</option><option value="undetermined">Undetermined</option><option value="unknown">Unknown</option></select></div>
+  <div class="col-md-3"><label class="form-label">Date of death <span class="text-danger">*</span></label><input name="date_of_death" type="date" class="form-control" required></div>
+  <div class="col-md-3"><label class="form-label">Date of birth</label><input name="date_of_birth" type="date" class="form-control"></div>
+  <div class="col-md-3"><label class="form-label">Age (years, if DOB unknown)</label><input name="age_years" type="number" min="0" max="130" class="form-control"></div>
+  <div class="col-md-3"><label class="form-label">ABHA number</label><input name="abha_number" class="form-control" placeholder="12-3456-7890-1234" maxlength="17"></div>
+  <div class="col-md-3"><label class="form-label">ABHA address</label><input name="abha_address" class="form-control" placeholder="name@abdm" maxlength="64"></div>
+  <div class="col-md-6"><label class="form-label">Place of death</label><input name="place_of_death" class="form-control"></div>
+  <div class="col-md-6"><label class="form-label">Address</label><input name="address" class="form-control"></div>
+  <div class="col-md-4"><label class="form-label">Informant name</label><input name="informant_name" class="form-control"></div>
+  <div class="col-md-3"><label class="form-label">Informant phone</label><input name="informant_phone" class="form-control" maxlength="32"></div>
+  <div class="col-md-5"><label class="form-label">Remarks</label><input name="remarks" class="form-control"></div>
+  <div class="col-12 d-flex gap-2">
+    <button type="submit" class="btn btn-primary" id="death-save">Save</button>
+    <button type="button" class="btn btn-success" id="death-save-start">Save and start questionnaire</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('intake.dashboard') }}">Cancel</a>
+  </div>
+</form>
+<div id="death-result" class="alert alert-success mt-3 d-none"></div>
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var SCOPE = { project_id: params.get('project_id'), site_id: params.get('site_id'), org_unit_id: params.get('org_unit_id') || null };
+  var CSRF = '';
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function api(url, method, body) {
+    var headers = { 'X-CSRFToken': CSRF };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, { method: method || 'GET', headers: headers, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+  function alertBox(msg) { var el = $('death-alert'); if (!msg) { el.classList.add('d-none'); return; } el.className = 'alert alert-danger small py-2'; el.textContent = msg; }
+  api('/intake/api/bootstrap').then(function (res) { if (res.ok) CSRF = res.data.csrf_token; else alertBox(res.data.error || 'Could not load.'); });
+  function save(startAfter) {
+    alertBox();
+    var form = $('death-form');
+    if (!form.reportValidity()) return;
+    var body = Object.assign({}, SCOPE);
+    new FormData(form).forEach(function (v, k) { body[k] = v; });
+    $('death-save').disabled = $('death-save-start').disabled = true;
+    api('/intake/api/deaths', 'POST', body).then(function (res) {
+      $('death-save').disabled = $('death-save-start').disabled = false;
+      if (!res.ok) { alertBox(res.data.error || 'Could not save.'); return; }
+      var d = res.data.death;
+      if (startAfter) {
+        api('/intake/api/drafts', 'POST', { project_id: d.project_id, site_id: d.site_id, org_unit_id: d.org_unit_id, death_id: d.death_id }).then(function (r2) {
+          if (!r2.ok) { alertBox(r2.data.error || 'Saved, but the questionnaire could not be started.'); return; }
+          window.location.href = '/intake/form/' + r2.data.draft.draft_id;
+        });
+        return;
+      }
+      form.reset();
+      var out = $('death-result'); out.classList.remove('d-none');
+      out.innerHTML = 'Death registered with id <strong><code>' + esc(d.unique_id) + '</code></strong> for ' + esc(d.deceased_name) + '. <a href="/intake/">Back to intake</a>.';
+    });
+  }
+  $('death-form').addEventListener('submit', function (e) { e.preventDefault(); save(false); });
+  $('death-save-start').addEventListener('click', function () { save(true); });
+}());
+</script>
+{% endblock %}

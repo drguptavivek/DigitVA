@@ -1,0 +1,112 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}DigitVA | VA questionnaire {{ draft.unique_id }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+  <div>
+    <h4 class="mb-0 text-primary">WHO VA 2022 questionnaire</h4>
+    <div class="small text-muted">Case id <code id="wv-unique-id">{{ draft.unique_id }}</code> · {{ draft.project_id }} / {{ draft.site_id }}
+      {% if prefill.deceased %}· {{ prefill.deceased.givenNames }} {{ prefill.deceased.surname or '' }}{% endif %}</div>
+  </div>
+  <div class="d-flex align-items-center gap-2 small">
+    <span id="wv-save-state" class="text-muted">Not saved yet</span>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('intake.dashboard') }}">Back to intake</a>
+  </div>
+</div>
+<div id="wv-alert" class="alert d-none small py-2"></div>
+<div id="wv-host" class="bg-white border rounded p-2" style="min-height: 60vh;">
+  <div class="text-center text-muted py-5"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading the questionnaire…</div>
+</div>
+<script type="module">
+import * as WhoVa from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+
+const DRAFT = {{ draft | tojson }};
+const PREFILL = {{ prefill | tojson }};
+const API = "/intake/api/drafts/" + encodeURIComponent(DRAFT.draft_id);
+let CSRF = "";
+const $ = (id) => document.getElementById(id);
+const alertBox = (kind, msg) => { const el = $("wv-alert"); if (!msg) { el.classList.add("d-none"); return; } el.className = `alert alert-${kind} small py-2`; el.textContent = msg; };
+const api = async (url, method = "GET", body) => {
+  const headers = { "X-CSRFToken": CSRF };
+  if (body) headers["Content-Type"] = "application/json";
+  const r = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+};
+
+// Question name -> deepest section name, so each section is saved as its own JSON.
+const instrument = WhoVa.whoVa2022Instrument;
+const sectionOf = new Map(instrument.questions.map((q) => [q.name, q.sectionPath[q.sectionPath.length - 1] || "_root"]));
+function splitBySection(data) {
+  const out = {};
+  for (const [name, value] of Object.entries(data || {})) {
+    const section = sectionOf.get(name) || "_other";
+    (out[section] ||= {})[name] = value;
+  }
+  return out;
+}
+
+// Server-backed draft store: sends only the sections whose answers changed.
+let lastSaved = {};
+let saving = Promise.resolve();
+const draftStore = {
+  async load(id) {
+    const res = await api(API);
+    if (!res.ok) throw new Error(res.data.error || "Could not load the draft.");
+    const envelope = res.data.envelope;
+    lastSaved = Object.fromEntries(Object.entries(splitBySection(envelope.data)).map(([k, v]) => [k, JSON.stringify(v)]));
+    if (!Object.keys(envelope.data || {}).length) {
+      let data = {};
+      try { data = WhoVa.createWhoVaInitialDataFromPrefill(PREFILL) || {}; } catch (e) { console.warn("prefill failed", e); }
+      Object.assign(data, PREFILL.answers || {});
+      envelope.data = data;
+    }
+    envelope.id = id;
+    return envelope;
+  },
+  save(draft) {
+    saving = saving.then(async () => {
+      const sections = splitBySection(draft.data);
+      const changed = {};
+      for (const [name, answers] of Object.entries(sections)) {
+        const serialized = JSON.stringify(answers);
+        if (lastSaved[name] !== serialized) changed[name] = answers;
+      }
+      const meta = { schemaVersion: draft.schemaVersion, formVersion: draft.formVersion, instrumentId: draft.instrumentId, instrumentVersion: draft.instrumentVersion, createdAt: draft.createdAt, updatedAt: draft.updatedAt };
+      const res = await api(API, "PATCH", { sections: changed, meta, current_section: draft.currentSection });
+      if (!res.ok) throw new Error(res.data.error || "Save failed.");
+      for (const [name, answers] of Object.entries(changed)) lastSaved[name] = JSON.stringify(answers);
+      $("wv-save-state").textContent = `Saved ${new Date().toLocaleTimeString()} (${Object.keys(changed).length} section${Object.keys(changed).length === 1 ? "" : "s"})`;
+    });
+    return saving;
+  }
+};
+
+async function main() {
+  const boot = await api("/intake/api/bootstrap");
+  if (!boot.ok) { alertBox("danger", boot.data.error || "Could not load."); return; }
+  CSRF = boot.data.csrf_token;
+
+  const el = document.createElement("who-va-2022-form");
+  el.setAttribute("draft-id", DRAFT.draft_id);
+  el.setAttribute("locale", "en");
+  el.setAttribute("auto-save-draft-on-change", "");
+  el.draftStore = draftStore;
+  if (PREFILL.lockedQuestionNames && "lockedQuestionNames" in el) el.lockedQuestionNames = PREFILL.lockedQuestionNames;
+  el.addEventListener("who-va-draft-error", (e) => alertBox("warning", "Draft could not be saved: " + (e.detail?.message || e.detail)));
+  el.addEventListener("who-va-complete", async (e) => {
+    const result = e.detail || {};
+    if (!result.valid) { alertBox("warning", `The questionnaire has ${result.issues?.length || 0} unresolved issue(s).`); return; }
+    alertBox("info", "Submitting…");
+    try { await saving; } catch (err) { /* reported already */ }
+    const res = await api(API + "/submit", "POST", { completion: { data: result.data, valid: result.valid, issues: result.issues || [], formVersion: result.formVersion, instrumentId: result.instrumentId, instrumentVersion: result.instrumentVersion } });
+    if (!res.ok) { alertBox("danger", res.data.error || "Submission failed."); return; }
+    alertBox("success", `Submitted. Case ${DRAFT.unique_id} is now in the coding workflow.`);
+    setTimeout(() => { window.location.href = "/intake/"; }, 1500);
+  });
+  const host = $("wv-host");
+  host.innerHTML = "";
+  host.appendChild(el);
+}
+main().catch((err) => alertBox("danger", err.message || String(err)));
+</script>
+{% endblock %}

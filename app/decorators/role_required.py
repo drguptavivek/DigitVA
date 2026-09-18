@@ -50,6 +50,7 @@ _ROLE_METHODS = {
     "data_manager":   lambda u: u.is_data_manager(),
     "site_pi":        lambda u: u.is_site_pi(),
     "project_pi":     lambda u: bool(u.get_project_pi_projects()),
+    "interviewer":    lambda u: u.is_interviewer(),
 }
 
 
@@ -62,6 +63,7 @@ def role_required(*roles):
                 request.path.startswith("/api/")
                 or request.path.startswith("/admin/api/")
                 or request.path.startswith("/data-management/api/")
+                or request.path.startswith("/intake/api/")
             )
 
             # ── Layer 1: Authentication ──────────────────────────────────────

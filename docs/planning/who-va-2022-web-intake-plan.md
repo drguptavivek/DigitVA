@@ -223,6 +223,17 @@ with submissions routed to the right organization unit by the standard
    preparation on a web payload (expected to work since names match), and the
    ODK `unique_id` convention for W5.
 
+## Progress
+
+- 2026-09-18: package vendored with DigitVA extension (incl. ABHA fields),
+  bundle built; migration `e5f6a7b8c9d1` (interviewer role, project mode,
+  form source, death register, drafts with per-section rows);
+  `web_intake_service`, `intake` blueprint (dashboard, death register,
+  questionnaire page with section-wise saves, submit into the workflow);
+  admin project setting; policy `docs/policy/web-intake.md`.
+  **Not yet:** tests for the intake service and routes, attachments,
+  validator sidecar, browser verification of the questionnaire page.
+
 ## Phases
 
 1. Spike results recorded here; `form_source` column and virtual web form;

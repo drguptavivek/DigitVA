@@ -561,6 +561,13 @@ def _submission_projection_fields(va_form, va_submission: dict) -> dict:
     }
 
 
+# Public names for other intake paths (web intake) that must create submissions
+# with exactly the projection ODK sync uses.
+build_submission_projection = _submission_projection_fields
+consent_is_valid = _consent_is_valid
+normalize_consent = _normalize_consent
+
+
 def _apply_submission_projection(submission: VaSubmissions, fields: dict, payload_data: dict) -> None:
     submission.va_sid = fields["va_sid"]
     submission.va_form_id = fields["va_form_id"]

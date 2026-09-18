@@ -86,6 +86,13 @@ def pytest_sessionstart(session):
     db.session.execute(sa.text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
     # mas_org_unit.path is an ltree column (see migration c8d2e4f6a1b3).
     db.session.execute(sa.text("CREATE EXTENSION IF NOT EXISTS ltree"))
+    # The web intake death-register number sequence is standalone DDL created by
+    # migration e5f6a7b8c9d1; create_all/drop_all neither create nor drop it.
+    from app.models.va_web_intake import DEATH_NUMBER_SEQUENCE
+
+    db.session.execute(
+        sa.text(f"CREATE SEQUENCE IF NOT EXISTS {DEATH_NUMBER_SEQUENCE} START 1")
+    )
     db.session.commit()
 
     # Ensure named enums exist before create_all

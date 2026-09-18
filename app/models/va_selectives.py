@@ -27,6 +27,7 @@ class VaAccessRoles(enum.Enum):
     coding_tester = "coding_tester"
     reviewer = "reviewer"
     data_manager = "data_manager"
+    interviewer = "interviewer"
 
 
 class VaAccessScopeTypes(enum.Enum):

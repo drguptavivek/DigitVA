@@ -876,10 +876,11 @@ class AdminApiTests(BaseTestCase):
             "form_smartvafreetext": "False",
             "form_smartvacountry": "ZAF",
         }, headers=headers)
-        # setUpClass already maps (ADM001, AA01) via MapProjectSiteOdk (fixture added in
-        # ffff8c6, after this test), so this POST is the idempotent-update path and returns
-        # 200 — 201 is only for a new mapping (docs/policy/admin-api-access.md, Mapping Rules).
-        self.assertEqual(save_resp.status_code, 200)
+        # setUpClass maps (ADM001, AA01) to ADMIN_API_FORM_A. A project-site may
+        # map several ODK forms, so posting a different form adds a mapping
+        # (201) rather than replacing that one
+        # (docs/policy/admin-api-access.md, Several ODK forms per project-site).
+        self.assertEqual(save_resp.status_code, 201)
         saved_mapping = save_resp.get_json()["mapping"]
         self.assertEqual(saved_mapping["form_smartvahiv"], "True")
         self.assertEqual(saved_mapping["form_smartvamalaria"], "True")
@@ -891,7 +892,15 @@ class AdminApiTests(BaseTestCase):
         list_resp = self.client.get(f"/admin/api/projects/{self.project_id}/odk-site-mappings")
         self.assertEqual(list_resp.status_code, 200)
         mappings = list_resp.get_json()["mappings"]
-        saved = next(m for m in mappings if m["site_id"] == self.site_a)
+        # Both forms are now mapped to this project-site.
+        site_a_forms = {
+            m["odk_form_id"] for m in mappings if m["site_id"] == self.site_a
+        }
+        self.assertEqual(site_a_forms, {"ADMIN_API_FORM_A", "test_form"})
+        saved = next(
+            m for m in mappings
+            if m["site_id"] == self.site_a and m["odk_form_id"] == "test_form"
+        )
         self.assertEqual(saved["odk_project_id"], 10)
         self.assertEqual(saved["form_smartvahiv"], "True")
         self.assertEqual(saved["form_smartvamalaria"], "True")
@@ -899,16 +908,36 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(saved["form_smartvafreetext"], "False")
         self.assertEqual(saved["form_smartvacountry"], "ZAF")
 
-        form = db.session.get(VaForms, "ADM001AA0101")
+        # The new mapping materialized its own va_forms row, distinct from the
+        # one the fixture's form owns, and the SmartVA settings landed there.
+        form = db.session.get(VaForms, saved_mapping["form_id"])
         self.assertIsNotNone(form)
+        self.assertNotEqual(form.form_id, "ADM001AA0101")
+        self.assertEqual(form.odk_form_id, "test_form")
         self.assertEqual(form.form_smartvahiv, "True")
         self.assertEqual(form.form_smartvamalaria, "True")
         self.assertEqual(form.form_smartvahce, "False")
         self.assertEqual(form.form_smartvafreetext, "False")
         self.assertEqual(form.form_smartvacountry, "ZAF")
-        
-        # Delete mapping
-        del_resp = self.client.delete(f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}", headers=headers)
+
+        # The fixture's own form is untouched by the second mapping.
+        first_form = db.session.get(VaForms, "ADM001AA0101")
+        self.assertEqual(first_form.odk_form_id, "ADMIN_API_FORM_A")
+
+        # Deleting without naming the mapping is refused while the pair holds
+        # several forms, then succeeds once told which one.
+        ambiguous = self.client.delete(
+            f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}",
+            headers=headers,
+        )
+        self.assertEqual(ambiguous.status_code, 409)
+        self.assertIn("mapping_id", ambiguous.get_json()["error"])
+
+        del_resp = self.client.delete(
+            f"/admin/api/projects/{self.project_id}/odk-site-mappings/{self.site_a}"
+            f"?mapping_id={saved_mapping['mapping_id']}",
+            headers=headers,
+        )
         self.assertEqual(del_resp.status_code, 200)
 
     def test_odk_site_mapping_icd_classification(self):
@@ -925,10 +954,12 @@ class AdminApiTests(BaseTestCase):
             },
             headers=headers,
         )
-        self.assertEqual(save_resp.status_code, 200)
+        # A form not yet mapped to this project-site is a new mapping.
+        self.assertEqual(save_resp.status_code, 201)
         self.assertEqual(save_resp.get_json()["mapping"]["icd_classification"], "icd10")
 
-        # Accepts icd11.
+        # Accepts icd11. Re-saving the same ODK form on the same project-site is
+        # the idempotent path, so this updates that mapping rather than adding one.
         save_resp = self.client.post(
             f"/admin/api/projects/{self.project_id}/odk-site-mappings",
             json={
@@ -946,13 +977,25 @@ class AdminApiTests(BaseTestCase):
             sa.select(MapProjectSiteOdk).where(
                 MapProjectSiteOdk.project_id == self.project_id,
                 MapProjectSiteOdk.site_id == self.site_a,
+                MapProjectSiteOdk.odk_form_id == "icd_test_form",
             )
         )
         self.assertEqual(mapping.icd_classification, "icd11")
 
         list_resp = self.client.get(f"/admin/api/projects/{self.project_id}/odk-site-mappings")
-        saved = next(m for m in list_resp.get_json()["mappings"] if m["site_id"] == self.site_a)
+        saved = next(
+            m for m in list_resp.get_json()["mappings"]
+            if m["site_id"] == self.site_a and m["odk_form_id"] == "icd_test_form"
+        )
         self.assertEqual(saved["icd_classification"], "icd11")
+
+        # The classification is per form: the fixture's own mapping on the same
+        # project-site keeps its default.
+        other = next(
+            m for m in list_resp.get_json()["mappings"]
+            if m["site_id"] == self.site_a and m["odk_form_id"] == "ADMIN_API_FORM_A"
+        )
+        self.assertEqual(other["icd_classification"], "icd10")
 
         # Rejects an invalid value.
         reject_resp = self.client.post(

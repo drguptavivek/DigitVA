@@ -139,7 +139,9 @@ those forms routes by unit codes. Today `map_project_site_odk` is unique on
 (project, site), so a container project-site can hold only one ODK form.
 Phase 3 relaxes this: uniqueness moves to (project, site, odk_project_id,
 odk_form_id) while the existing one-project-site-per-ODK-form rule is kept,
-and sync enumerates every mapping of the project. Legacy `va_forms` rows are
+and sync enumerates every mapping of the project. **Done (phase 3b, migration
+`e2a5c8b1d7f3`)**: each mapping materializes its own `va_forms` row, matched on
+the ODK ids as well as the project-site. Legacy `va_forms` rows are
 materialized per mapping as they are now.
 
 - `map_project_site_odk` gains `org_unit_id` (nullable). A health-system

@@ -3,7 +3,7 @@ title: Admin API Access Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Admin API Access Policy
@@ -93,11 +93,39 @@ Project-site mapping writes through `/admin/api` must:
 - remain scoped to the caller's allowed project set
 - reactivate an existing inactive mapping rather than creating duplicates
 
+### Several ODK forms per project-site
+
+A project-site may map **more than one** ODK form: one DigitVA project accepts
+submissions from several Central forms over one connection. Uniqueness on
+`map_project_site_odk` is therefore on the whole identity
+`(project_id, site_id, odk_project_id, odk_form_id)`, and each mapping
+materializes its own `va_forms` row.
+
+Required behavior:
+
+- a save names the mapping it targets with `mapping_id`. Without one, a save
+  whose ODK ids match an existing mapping of that project-site is the
+  idempotent re-save (`200`); otherwise it **adds** a mapping (`201`)
+- a `mapping_id` that belongs to another project is `404`; one whose `site_id`
+  differs from the posted `site_id` is `400` — a mapping is not moved between
+  sites, it is removed and made again
+- editing a mapping's ODK form repoints that mapping's existing `va_forms` row
+  rather than leaving it behind, so its submissions stay attached
+- `DELETE .../odk-site-mappings/<site_id>` takes an optional `mapping_id`
+  query parameter. Without it, the delete succeeds only when the project-site
+  has exactly one mapping; with several it returns `409` listing them, rather
+  than guessing
+- `POST /admin/api/sync/project-site/<project_id>/<site_id>` syncs **every**
+  form mapped to the pair and reports them in `started`; `task_id` and
+  `form_id` remain at the top level, naming the first, for callers written when
+  a pair had one form
+
 ### ODK form uniqueness
 
-An ODK Central form — identified by `(ODK connection, odk_project_id, odk_form_id)` —
-may be mapped to at most one `(project_id, site_id)` pair. Mapping it twice makes sync
-pull the same form under two projects.
+The reverse rule still holds. An ODK Central form — identified by
+`(ODK connection, odk_project_id, odk_form_id)` — may be mapped to at most one
+`(project_id, site_id)` pair. Mapping it twice makes sync pull the same form
+under two projects.
 
 Required behavior:
 

@@ -111,13 +111,14 @@ class TestRuntimeFormSyncService(BaseTestCase):
         self.assertEqual(runtime_form.form_type_id, self.form_type.form_type_id)
         self.assertEqual(runtime_form.form_type, "WHO 2022 VA with Social Autopsy")
 
-    def test_reuses_existing_runtime_form_for_same_project_site(self):
+    def test_reuses_the_runtime_form_of_the_same_odk_form(self):
+        """A rerun updates the row belonging to those ODK ids, rather than adding one."""
         db.session.add(
             MapProjectSiteOdk(
                 project_id=self.BASE_PROJECT_ID,
                 site_id=self.BASE_SITE_ID,
                 odk_project_id=12,
-                odk_form_id="new_social_form",
+                odk_form_id="social_form_v2",
                 form_type_id=self.form_type.form_type_id,
             )
         )
@@ -125,8 +126,8 @@ class TestRuntimeFormSyncService(BaseTestCase):
             form_id="BASE01BS0109",
             project_id=self.BASE_PROJECT_ID,
             site_id=self.BASE_SITE_ID,
-            odk_project_id="3",
-            odk_form_id="old_form",
+            odk_project_id="12",
+            odk_form_id="social_form_v2",
             form_type="WHO VA 2022",
             form_status=VaStatuses.deactive,
         )
@@ -139,10 +140,53 @@ class TestRuntimeFormSyncService(BaseTestCase):
         runtime_form = next(
             form
             for form in runtime_forms
-            if form.project_id == self.BASE_PROJECT_ID and form.site_id == self.BASE_SITE_ID
+            if form.odk_form_id == "social_form_v2"
         )
         self.assertEqual(runtime_form.form_id, "BASE01BS0109")
         self.assertEqual(runtime_form.odk_project_id, "12")
-        self.assertEqual(runtime_form.odk_form_id, "new_social_form")
         self.assertEqual(runtime_form.form_status, VaStatuses.active)
         self.assertEqual(runtime_form.form_type_id, self.form_type.form_type_id)
+
+    def test_a_different_odk_form_gets_its_own_runtime_form(self):
+        """A project-site may map several ODK forms; one never overwrites another.
+
+        Before phase 3b a runtime form was keyed by project-site alone, so a
+        second mapping repointed the first form's row — and every submission
+        collected under it silently claimed to belong to the new ODK form.
+        """
+        db.session.add(
+            MapProjectSiteOdk(
+                project_id=self.BASE_PROJECT_ID,
+                site_id=self.BASE_SITE_ID,
+                odk_project_id=12,
+                odk_form_id="new_social_form",
+                form_type_id=self.form_type.form_type_id,
+            )
+        )
+        untouched = VaForms(
+            form_id="BASE01BS0109",
+            project_id=self.BASE_PROJECT_ID,
+            site_id=self.BASE_SITE_ID,
+            odk_project_id="3",
+            odk_form_id="old_form",
+            form_type="WHO VA 2022",
+            form_status=VaStatuses.deactive,
+        )
+        db.session.add(untouched)
+        db.session.commit()
+
+        runtime_forms = sync_runtime_forms_from_site_mappings()
+        db.session.commit()
+
+        runtime_form = next(
+            form for form in runtime_forms if form.odk_form_id == "new_social_form"
+        )
+        self.assertNotEqual(runtime_form.form_id, "BASE01BS0109")
+        self.assertEqual(runtime_form.odk_project_id, "12")
+        self.assertEqual(runtime_form.form_status, VaStatuses.active)
+
+        # The unrelated form keeps its own ODK identity and its status.
+        db.session.refresh(untouched)
+        self.assertEqual(untouched.odk_form_id, "old_form")
+        self.assertEqual(untouched.odk_project_id, "3")
+        self.assertEqual(untouched.form_status, VaStatuses.deactive)

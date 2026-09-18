@@ -65,10 +65,16 @@ def get_icd_classification_for_submission(va_sid: str) -> str:
     if form is None:
         return DEFAULT_ICD_CLASSIFICATION
 
+    # Keyed on the ODK project and form as well as the project-site: a
+    # project-site may map several Central forms, and the classification is a
+    # per-form setting.
     mapping = db.session.scalar(
         sa.select(MapProjectSiteOdk).where(
             MapProjectSiteOdk.project_id == form.project_id,
             MapProjectSiteOdk.site_id == form.site_id,
+            MapProjectSiteOdk.odk_form_id == form.odk_form_id,
+            sa.cast(MapProjectSiteOdk.odk_project_id, sa.Text)
+            == str(form.odk_project_id),
         )
     )
     if mapping is None:

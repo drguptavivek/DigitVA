@@ -17,11 +17,9 @@ from app.models import (
 _FORM_ID_SUFFIX_RE = re.compile(r"^(\d{2})$")
 
 
-def get_active_mapping_for_project_site(
-    project_id: str,
-    site_id: str,
-) -> MapProjectSiteOdk | None:
-    return db.session.scalar(
+def _active_mappings_stmt():
+    """Mappings whose project, site and project-site row are all active."""
+    return (
         sa.select(MapProjectSiteOdk)
         .join(
             VaProjectSites,
@@ -39,8 +37,6 @@ def get_active_mapping_for_project_site(
             VaSiteMaster.site_id == MapProjectSiteOdk.site_id,
         )
         .where(
-            MapProjectSiteOdk.project_id == project_id,
-            MapProjectSiteOdk.site_id == site_id,
             VaProjectSites.project_site_status == VaStatuses.active,
             VaProjectMaster.project_status == VaStatuses.active,
             VaSiteMaster.site_status == VaStatuses.active,
@@ -48,8 +44,48 @@ def get_active_mapping_for_project_site(
     )
 
 
+def get_active_mappings_for_project_site(
+    project_id: str,
+    site_id: str,
+) -> list[MapProjectSiteOdk]:
+    """Every active ODK form mapped to one project-site.
+
+    A project-site may hold several ODK forms — one DigitVA project accepts
+    submissions from several Central forms over one connection — so this
+    returns a list. Use ``get_active_mapping_for_form`` to resolve the single
+    mapping behind one runtime form.
+    """
+    return list(
+        db.session.scalars(
+            _active_mappings_stmt()
+            .where(
+                MapProjectSiteOdk.project_id == project_id,
+                MapProjectSiteOdk.site_id == site_id,
+            )
+            .order_by(MapProjectSiteOdk.odk_project_id, MapProjectSiteOdk.odk_form_id)
+        ).all()
+    )
+
+
 def get_active_mapping_for_form(va_form: VaForms) -> MapProjectSiteOdk | None:
-    return get_active_mapping_for_project_site(va_form.project_id, va_form.site_id)
+    """The mapping a runtime form was materialized from.
+
+    Keyed on the ODK project and form as well as the project-site, because a
+    project-site may map several Central forms and each gets its own
+    ``va_forms`` row. ``va_forms.odk_project_id`` is text while the mapping's
+    is an integer, so the comparison is made on the text form of both.
+    """
+    if va_form.odk_form_id is None or va_form.odk_project_id is None:
+        return None
+    return db.session.scalar(
+        _active_mappings_stmt().where(
+            MapProjectSiteOdk.project_id == va_form.project_id,
+            MapProjectSiteOdk.site_id == va_form.site_id,
+            MapProjectSiteOdk.odk_form_id == va_form.odk_form_id,
+            sa.cast(MapProjectSiteOdk.odk_project_id, sa.Text)
+            == str(va_form.odk_project_id),
+        )
+    )
 
 
 def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
@@ -62,28 +98,12 @@ def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
     """
 
     mappings = db.session.scalars(
-        sa.select(MapProjectSiteOdk)
-        .join(
-            VaProjectSites,
-            sa.and_(
-                VaProjectSites.project_id == MapProjectSiteOdk.project_id,
-                VaProjectSites.site_id == MapProjectSiteOdk.site_id,
-            ),
+        _active_mappings_stmt().order_by(
+            MapProjectSiteOdk.project_id,
+            MapProjectSiteOdk.site_id,
+            MapProjectSiteOdk.odk_project_id,
+            MapProjectSiteOdk.odk_form_id,
         )
-        .join(
-            VaProjectMaster,
-            VaProjectMaster.project_id == MapProjectSiteOdk.project_id,
-        )
-        .join(
-            VaSiteMaster,
-            VaSiteMaster.site_id == MapProjectSiteOdk.site_id,
-        )
-        .where(
-            VaProjectSites.project_site_status == VaStatuses.active,
-            VaProjectMaster.project_status == VaStatuses.active,
-            VaSiteMaster.site_status == VaStatuses.active,
-        )
-        .order_by(MapProjectSiteOdk.project_id, MapProjectSiteOdk.site_id)
     ).all()
 
     if not mappings:
@@ -100,8 +120,8 @@ def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
     # form for a project-site is DigitVA's own row (see ensure_web_runtime_form)
     # and must keep its odk_form_id/odk_project_id placeholders. Form ids still
     # come from every row so _next_form_id cannot reuse a web form's id.
-    forms_by_project_site = {
-        (form.project_id, form.site_id): form
+    forms_by_mapping = {
+        _mapping_key_for_form(form): form
         for form in existing_forms
         if form.form_source != "web"
     }
@@ -112,7 +132,7 @@ def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
         runtime_forms.append(
             ensure_runtime_form_for_mapping(
                 mapping,
-                forms_by_project_site=forms_by_project_site,
+                forms_by_mapping=forms_by_mapping,
                 form_ids_in_use=form_ids_in_use,
             )
         )
@@ -121,19 +141,51 @@ def sync_runtime_forms_from_site_mappings() -> list[VaForms]:
     return runtime_forms
 
 
+def _mapping_key_for_form(form: VaForms) -> tuple[str, str, str, str]:
+    """The identity a runtime form shares with its mapping.
+
+    A project-site may map several ODK forms, so the ODK project and form are
+    part of the key; without them a second mapping would overwrite the first
+    form's row. ``va_forms.odk_project_id`` is text, so both sides are compared
+    as text.
+    """
+    return (
+        form.project_id,
+        form.site_id,
+        str(form.odk_project_id or ""),
+        form.odk_form_id or "",
+    )
+
+
+def _mapping_key(mapping: MapProjectSiteOdk) -> tuple[str, str, str, str]:
+    return (
+        mapping.project_id,
+        mapping.site_id,
+        str(mapping.odk_project_id),
+        mapping.odk_form_id,
+    )
+
+
 def ensure_runtime_form_for_mapping(
     mapping: MapProjectSiteOdk,
     *,
-    forms_by_project_site: dict[tuple[str, str], VaForms] | None = None,
+    forms_by_mapping: dict[tuple[str, str, str, str], VaForms] | None = None,
     form_ids_in_use: set[str] | None = None,
+    previous_key: tuple[str, str, str, str] | None = None,
 ) -> VaForms:
-    """Materialize or update the compatibility ``va_forms`` row for one mapping."""
+    """Materialize or update the compatibility ``va_forms`` row for one mapping.
+
+    ``previous_key`` is the mapping's identity *before* an edit repointed it at
+    a different ODK form. Passing it repoints the existing ``va_forms`` row —
+    and so keeps its submissions attached — instead of leaving that row behind
+    and materializing a second one.
+    """
 
     _ensure_legacy_project_site_rows(mapping.project_id, mapping.site_id)
 
-    if forms_by_project_site is None:
-        forms_by_project_site = {
-            (form.project_id, form.site_id): form
+    if forms_by_mapping is None:
+        forms_by_mapping = {
+            _mapping_key_for_form(form): form
             for form in db.session.scalars(
                 sa.select(VaForms)
                 .where(VaForms.form_source != "web")
@@ -149,7 +201,9 @@ def ensure_runtime_form_for_mapping(
             db.session.scalars(sa.select(VaForms.form_id)).all()
         )
 
-    existing = forms_by_project_site.get((mapping.project_id, mapping.site_id))
+    existing = forms_by_mapping.get(_mapping_key(mapping))
+    if existing is None and previous_key is not None:
+        existing = forms_by_mapping.pop(previous_key, None)
     if existing is None:
         existing = VaForms(
             form_id=_next_form_id(
@@ -166,7 +220,7 @@ def ensure_runtime_form_for_mapping(
             form_status=VaStatuses.active,
         )
         db.session.add(existing)
-        forms_by_project_site[(mapping.project_id, mapping.site_id)] = existing
+        forms_by_mapping[_mapping_key(mapping)] = existing
         form_ids_in_use.add(existing.form_id)
     else:
         existing.odk_form_id = mapping.odk_form_id

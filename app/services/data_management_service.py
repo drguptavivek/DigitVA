@@ -298,11 +298,17 @@ def dm_scoped_forms(user) -> list[dict]:
                     VaProjectSites.project_site_status == VaStatuses.active,
                 ),
             )
+            # The ODK ids are part of the join: a project-site may map several
+            # Central forms, and each has its own va_forms row. Joining on the
+            # pair alone would pair every form with every mapping.
             .join(
                 VaForms,
                 sa.and_(
                     VaForms.project_id == MapProjectSiteOdk.project_id,
                     VaForms.site_id == MapProjectSiteOdk.site_id,
+                    VaForms.odk_form_id == MapProjectSiteOdk.odk_form_id,
+                    VaForms.odk_project_id
+                    == sa.cast(MapProjectSiteOdk.odk_project_id, sa.Text),
                     VaForms.form_status == VaStatuses.active,
                 ),
             )
@@ -390,11 +396,16 @@ def dm_odk_edit_url(user, va_sid: str) -> str | None:
         )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        # Keyed on the ODK ids too: a project-site may map several Central
+        # forms, and the edit link must point at this submission's own form.
         .join(
             MapProjectSiteOdk,
             sa.and_(
                 MapProjectSiteOdk.project_id == VaForms.project_id,
                 MapProjectSiteOdk.site_id == VaForms.site_id,
+                MapProjectSiteOdk.odk_form_id == VaForms.odk_form_id,
+                sa.cast(MapProjectSiteOdk.odk_project_id, sa.Text)
+                == VaForms.odk_project_id,
             ),
         )
         .join(

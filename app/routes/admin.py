@@ -4040,6 +4040,7 @@ def admin_odk_site_mappings_list(project_id):
     return jsonify({
         "mappings": [
             {
+                "mapping_id": str(r.id),
                 "site_id": r.site_id,
                 "odk_project_id": r.odk_project_id,
                 "odk_form_id": r.odk_form_id,
@@ -4222,13 +4223,44 @@ def admin_odk_site_mappings_save(project_id):
             400,
         )
 
-    existing = db.session.scalar(
-        sa.select(MapProjectSiteOdk).where(
-            MapProjectSiteOdk.project_id == project_id,
-            MapProjectSiteOdk.site_id == site_id,
+    # A project-site may map several ODK forms, so a save targets one mapping.
+    # mapping_id names the row being edited; without it this is a new mapping
+    # unless the same ODK form is already mapped here, which is an idempotent
+    # re-save.
+    mapping_id_raw = (data.get("mapping_id") or "").strip()
+    existing = None
+    if mapping_id_raw:
+        try:
+            mapping_uuid = uuid.UUID(mapping_id_raw)
+        except (TypeError, ValueError):
+            return _json_error("Invalid mapping_id.", 400)
+        existing = db.session.get(MapProjectSiteOdk, mapping_uuid)
+        if existing is None or existing.project_id != project_id:
+            return _json_error("Form mapping not found in this project.", 404)
+        if existing.site_id != site_id:
+            return _json_error(
+                "A form mapping cannot be moved to another site. "
+                "Remove it and map the form on the other site instead.",
+                400,
+            )
+    else:
+        existing = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == project_id,
+                MapProjectSiteOdk.site_id == site_id,
+                MapProjectSiteOdk.odk_project_id == odk_project_id,
+                MapProjectSiteOdk.odk_form_id == odk_form_id,
+            )
         )
-    )
+
+    previous_key = None
     if existing:
+        previous_key = (
+            existing.project_id,
+            existing.site_id,
+            str(existing.odk_project_id),
+            existing.odk_form_id,
+        )
         existing.odk_project_id = odk_project_id
         existing.odk_form_id = odk_form_id
         existing.form_type_id = form_type_id
@@ -4248,7 +4280,8 @@ def admin_odk_site_mappings_save(project_id):
         db.session.add(existing)
         status_code = 201
 
-    runtime_form = ensure_runtime_form_for_mapping(existing)
+    db.session.flush()
+    runtime_form = ensure_runtime_form_for_mapping(existing, previous_key=previous_key)
     runtime_form.form_smartvahiv = form_smartvahiv
     runtime_form.form_smartvamalaria = form_smartvamalaria
     runtime_form.form_smartvahce = form_smartvahce
@@ -4260,6 +4293,7 @@ def admin_odk_site_mappings_save(project_id):
     db.session.refresh(runtime_form)
     return jsonify({
         "mapping": {
+            "mapping_id": str(existing.id),
             "site_id": existing.site_id,
             "odk_project_id": existing.odk_project_id,
             "odk_form_id": existing.odk_form_id,
@@ -4293,18 +4327,41 @@ def admin_odk_site_mappings_delete(project_id, site_id):
     project_id = project_id.upper()
     site_id = site_id.upper()
 
-    mapping = db.session.scalar(
-        sa.select(MapProjectSiteOdk).where(
+    mappings = db.session.scalars(
+        sa.select(MapProjectSiteOdk)
+        .where(
             MapProjectSiteOdk.project_id == project_id,
             MapProjectSiteOdk.site_id == site_id,
         )
-    )
-    if not mapping:
+        .order_by(MapProjectSiteOdk.odk_project_id, MapProjectSiteOdk.odk_form_id)
+    ).all()
+    if not mappings:
         return _json_error("Mapping not found.", 404)
+
+    # A project-site may map several ODK forms. Delete the named one; with no
+    # mapping_id, delete only when there is no ambiguity about which is meant.
+    mapping_id_raw = (request.args.get("mapping_id") or "").strip()
+    if mapping_id_raw:
+        try:
+            mapping_uuid = uuid.UUID(mapping_id_raw)
+        except (TypeError, ValueError):
+            return _json_error("Invalid mapping_id.", 400)
+        mapping = next((m for m in mappings if m.id == mapping_uuid), None)
+        if mapping is None:
+            return _json_error("Mapping not found.", 404)
+    elif len(mappings) > 1:
+        return _json_error(
+            "This project-site maps several ODK forms. "
+            "Pass mapping_id to say which one to remove: "
+            + ", ".join(f"{m.odk_form_id} ({m.id})" for m in mappings),
+            409,
+        )
+    else:
+        mapping = mappings[0]
 
     db.session.delete(mapping)
     db.session.commit()
-    return jsonify({"message": "Mapping removed."})
+    return jsonify({"message": "Mapping removed.", "mapping_id": str(mapping.id)})
 
 
 @admin.get("/api/cod-bucket-schemes")
@@ -6483,54 +6540,51 @@ def admin_sync_project_site(project_id: str, site_id: str):
         )
         from app.tasks.sync_tasks import run_single_form_sync
 
-        active_form = next(
-            (
-                form for form in sync_runtime_forms_from_site_mappings()
-                if form.project_id == project_id and form.site_id == site_id
-            ),
-            None,
+        # A project-site may map several ODK forms; syncing the pair means
+        # syncing each of them.
+        from app.services.runtime_form_sync_service import (
+            get_active_mappings_for_project_site,
         )
-        if active_form is None:
+
+        sync_runtime_forms_from_site_mappings()
+        mappings = get_active_mappings_for_project_site(project_id, site_id)
+        if not mappings:
             return _json_error(
                 f"Active runtime mapping not found for project/site '{project_id}/{site_id}'.",
                 404,
             )
 
-        mapping = db.session.scalar(
-            sa.select(MapProjectSiteOdk).where(
-                MapProjectSiteOdk.project_id == project_id,
-                MapProjectSiteOdk.site_id == site_id,
-            )
-        )
-        if mapping is None:
-            return _json_error(
-                f"ODK mapping not found for project/site '{project_id}/{site_id}'.",
-                404,
-            )
-
-        va_form = ensure_runtime_form_for_mapping(mapping)
+        va_forms = [ensure_runtime_form_for_mapping(mapping) for mapping in mappings]
         db.session.commit()
 
-        log.info(
-            "Project/site sync of %s/%s (%s) triggered by user %s",
-            project_id,
-            site_id,
-            va_form.form_id,
-            current_user.user_id,
-        )
-        task = run_single_form_sync.delay(
-            form_id=va_form.form_id,
-            triggered_by="manual",
-            user_id=str(current_user.user_id),
-        )
+        started = []
+        for va_form in va_forms:
+            log.info(
+                "Project/site sync of %s/%s (%s) triggered by user %s",
+                project_id,
+                site_id,
+                va_form.form_id,
+                current_user.user_id,
+            )
+            task = run_single_form_sync.delay(
+                form_id=va_form.form_id,
+                triggered_by="manual",
+                user_id=str(current_user.user_id),
+            )
+            started.append({"form_id": va_form.form_id, "task_id": task.id})
+
+        form_list = ", ".join(item["form_id"] for item in started)
         return jsonify(
             {
                 "message": (
                     f"Sync started for {project_id}/{site_id} "
-                    f"using form {va_form.form_id}."
+                    f"using form{'s' if len(started) > 1 else ''} {form_list}."
                 ),
-                "task_id": task.id,
-                "form_id": va_form.form_id,
+                # The first task id and form id stay top level for callers
+                # written when a project-site had exactly one form.
+                "task_id": started[0]["task_id"],
+                "form_id": started[0]["form_id"],
+                "started": started,
             }
         ), 202
     except Exception as e:

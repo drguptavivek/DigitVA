@@ -267,9 +267,25 @@ rows here keep the Project > Site > Form model.
 - rules in `app/services/org_unit_routing_service.py`, applied by ODK sync and
   by web intake
 
+### Several ODK forms per project-site
+
+- `map_project_site_odk` is unique on
+  (`project_id`, `site_id`, `odk_project_id`, `odk_form_id`), not on
+  (`project_id`, `site_id`): one DigitVA project accepts submissions from
+  several ODK Central forms over one connection
+- each mapping materializes its **own** `va_forms` row; the two are matched on
+  project, site, ODK project and ODK form. `va_forms.odk_project_id` is text
+  while the mapping's is an integer, so joins compare them as text
+- the reverse rule still holds and is enforced in
+  `app/services/odk_form_mapping_service.py`: one ODK form belongs to one
+  project-site per connection
+- `_next_form_id` already allocated sequential ids per project-site
+  (`PRJ01ST0101`, `…02`), so several forms per pair need no identity change
+
 Migrations: `c8d2e4f6a1b3` (additive; enables the `ltree` extension),
 `d9e3f5a7b2c4` (additive; adds the `org_unit` scope value and the two grant
-columns), `c1d4e7f9a3b6` (additive; adds the routing columns).
+columns), `c1d4e7f9a3b6` (additive; adds the routing columns),
+`e2a5c8b1d7f3` (widens the mapping uniqueness constraint).
 
 ## ICD Reference Master Table
 

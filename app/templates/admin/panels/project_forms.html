@@ -96,6 +96,7 @@
   var _formTypes       = [];     // [{ form_type_id, form_type_code, form_type_name }]
   var _orgUnits        = [];     // organization tree units; empty when the project has none
   var _expandedSite    = null;   // site_id of currently open config row
+  var _editingMapping  = {};     // site_id → mapping_id being edited ('' = new form)
   var _removeModal     = null;
   var _pendingRemoveSid = null;
 
@@ -145,6 +146,7 @@
     _formTypes = [];
     _orgUnits = [];
     _expandedSite = null;
+    _editingMapping = {};
     if (PROJECT_ID) loadProjectContext();
     else resetContent();
   });
@@ -260,9 +262,15 @@
     }
 
     var rows = _sites.map(function (site) {
-      var saved = _siteMappings.find(function (m) { return m.site_id === site.site_id; });
-      var isMapped = !!saved;
-      var smartvaInfo = saved
+      // A project-site may map several ODK forms; the editor works on one of
+      // them at a time, chosen in the config row.
+      var siteMappings = _siteMappings.filter(function (m) { return m.site_id === site.site_id; });
+      var editingId = _editingMapping[site.site_id];
+      var saved = editingId === ''
+        ? null
+        : (siteMappings.find(function (m) { return m.mapping_id === editingId; }) || siteMappings[0]);
+      var isMapped = siteMappings.length > 0;
+      var smartvaInfo = (saved && siteMappings.length === 1)
         ? '<div class="mt-1 small text-muted">'
           + '<span class="badge rounded-pill text-bg-light border me-1">HIV ' + esc(saved.form_smartvahiv || 'False') + '</span>'
           + '<span class="badge rounded-pill text-bg-light border me-1">Malaria ' + esc(saved.form_smartvamalaria || 'False') + '</span>'
@@ -273,16 +281,18 @@
         : '';
 
       var odkInfo = isMapped
-        ? '<span class="text-success small">'
-          + '<i class="fa-solid fa-circle-check me-1"></i>'
-          + 'ODK project #' + esc(saved.odk_project_id) + ' / <code>' + esc(saved.odk_form_id) + '</code>'
-          + (saved.form_type_code
-              ? ' &nbsp;<span class="badge text-bg-secondary fw-normal">' + esc(saved.form_type_code) + '</span>'
-              : ' &nbsp;<span class="badge text-bg-warning text-dark fw-normal">No form type</span>')
-          + ' &nbsp;<span class="badge text-bg-info fw-normal">'
-          + esc((saved.icd_classification || 'icd10') === 'icd11' ? 'ICD-11' : 'ICD-10')
-          + '</span>'
-          + '</span>'
+        ? siteMappings.map(function (m) {
+            return '<div class="mb-1">'
+              + '<span class="text-success small">'
+              + '<i class="fa-solid fa-circle-check me-1"></i>'
+              + 'ODK project #' + esc(m.odk_project_id) + ' / <code>' + esc(m.odk_form_id) + '</code>'
+              + (m.form_type_code
+                  ? ' &nbsp;<span class="badge text-bg-secondary fw-normal">' + esc(m.form_type_code) + '</span>'
+                  : ' &nbsp;<span class="badge text-bg-warning text-dark fw-normal">No form type</span>')
+              + ' &nbsp;<span class="badge text-bg-info fw-normal">'
+              + esc((m.icd_classification || 'icd10') === 'icd11' ? 'ICD-11' : 'ICD-10')
+              + '</span></span></div>';
+          }).join('')
           + smartvaInfo
         : '<span class="text-muted small"><i class="fa-regular fa-circle me-1"></i>Not mapped</span>';
 
@@ -300,7 +310,7 @@
 
       var configRow = '<tr id="pf-config-row-' + esc(site.site_id) + '" class="d-none bg-light">'
         + '<td colspan="4" class="py-3 px-3">'
-        + renderConfigForm(site, saved)
+        + renderConfigForm(site, saved, siteMappings)
         + '</td>'
         + '</tr>';
 
@@ -326,7 +336,8 @@
     if (_expandedSite) openConfigRow(_expandedSite, true);
   }
 
-  function renderConfigForm(site, saved) {
+  function renderConfigForm(site, saved, siteMappings) {
+    siteMappings = siteMappings || [];
     var savedOpid   = saved ? String(saved.odk_project_id) : '';
     var savedFid    = saved ? saved.odk_form_id : '';
     var savedFtId   = saved ? (saved.form_type_id || '') : '';
@@ -337,6 +348,30 @@
     var savedCountry = saved ? (saved.form_smartvacountry || 'IND') : 'IND';
     var savedIcdClassification = saved ? (saved.icd_classification || 'icd10') : 'icd10';
     var savedOrgUnitId = saved ? (saved.org_unit_id || '') : '';
+
+    // Which mapping this editor is working on. Hidden so save() can send it:
+    // without a mapping_id, a save whose ODK ids differ adds a form instead of
+    // editing this one.
+    var editingId = saved ? (saved.mapping_id || '') : '';
+    var mappingPicker = '<input type="hidden" id="pf-mapping-id-' + esc(site.site_id) + '" value="' + esc(editingId) + '">';
+    if (siteMappings.length) {
+      mappingPicker += '<div class="mb-3 d-flex align-items-end gap-2 flex-wrap">'
+        + '<div><label class="form-label small mb-1 text-muted">Editing form</label>'
+        + '<select class="form-select form-select-sm pf-mapping-sel" data-sid="' + esc(site.site_id) + '" style="min-width:280px;">'
+        + siteMappings.map(function (m) {
+            return '<option value="' + esc(m.mapping_id) + '"' + (m.mapping_id === editingId ? ' selected' : '') + '>'
+              + '#' + esc(m.odk_project_id) + ' / ' + esc(m.odk_form_id) + '</option>';
+          }).join('')
+        + '<option value=""' + (editingId === '' ? ' selected' : '') + '>＋ Add another form…</option>'
+        + '</select></div>'
+        + (editingId
+            ? '<button class="btn btn-sm btn-outline-danger pf-remove-mapping" data-sid="' + esc(site.site_id) + '" '
+              + 'data-mapping-id="' + esc(editingId) + '"><i class="fa-solid fa-trash me-1"></i>Remove this form</button>'
+            : '')
+        + '<span class="text-muted small ms-auto">' + siteMappings.length + ' form'
+        + (siteMappings.length === 1 ? '' : 's') + ' mapped to this site</span>'
+        + '</div>';
+    }
 
     var projOptions = '<option value="">Loading ODK projects…</option>';
     if (_odkProjectsLoaded) {
@@ -359,7 +394,9 @@
             + esc(ft.form_type_code) + ' — ' + esc(ft.form_type_name) + '</option>';
         }).join('');
 
-    var clearBtn = saved
+    // Only offered when the site has a single mapping; with several, the
+    // picker above carries a per-form remove that names which one.
+    var clearBtn = (saved && siteMappings.length === 1)
       ? '<button class="btn btn-sm btn-outline-danger pf-clear-btn" data-sid="' + esc(site.site_id) + '">'
         + '<i class="fa-solid fa-xmark me-1"></i>Remove</button>'
       : '';
@@ -376,7 +413,8 @@
         + '</option>';
     }).join('');
 
-    return '<div class="d-flex flex-column gap-2">'
+    return mappingPicker
+      + '<div class="d-flex flex-column gap-2">'
 
       // ODK Project select
       + '<div>'
@@ -503,6 +541,37 @@
   function bindTableEvents() {
     document.querySelectorAll('.pf-config-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { toggleConfigRow(this.dataset.sid); });
+    });
+    // Switching the edited form re-renders the config row for that mapping;
+    // the empty value is the "add another form" case.
+    document.querySelectorAll('.pf-mapping-sel').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        _editingMapping[this.dataset.sid] = this.value;
+        _expandedSite = this.dataset.sid;
+        renderTable();
+      });
+    });
+    document.querySelectorAll('.pf-remove-mapping').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        removeMapping(this.dataset.sid, this.dataset.mappingId);
+      });
+    });
+  }
+
+  function removeMapping(sid, mappingId) {
+    var mapping = _siteMappings.find(function (m) { return m.mapping_id === mappingId; });
+    var label = mapping ? ('#' + mapping.odk_project_id + ' / ' + mapping.odk_form_id) : 'this form';
+    if (!confirm('Remove the mapping for ' + label + ' on site ' + sid + '?')) return;
+    apiJson(
+      '/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings/'
+        + encodeURIComponent(sid) + '?mapping_id=' + encodeURIComponent(mappingId),
+      'DELETE'
+    ).then(function (res) {
+      if (!res.ok) { showError((res.data && res.data.error) || 'Failed to remove the mapping.'); return; }
+      _siteMappings = _siteMappings.filter(function (m) { return m.mapping_id !== mappingId; });
+      delete _editingMapping[sid];
+      _odkFormsCache = {};
+      renderTable();
     });
   }
 
@@ -667,8 +736,11 @@
       return;
     }
 
+    var mappingId = (document.getElementById('pf-mapping-id-' + sid) || {}).value || '';
+
     var payload = {
       site_id: sid,
+      mapping_id: mappingId || null,
       odk_project_id: parseInt(odkProjectId, 10),
       odk_form_id: odkFormId,
       form_type_id: formTypeId || null,
@@ -685,9 +757,10 @@
       .then(function (res) {
         if (!res.ok) { showError(res.data.error || 'Failed to save.'); return; }
         var m = res.data.mapping;
-        // Update local state
-        _siteMappings = _siteMappings.filter(function (x) { return x.site_id !== sid; });
+        // Update local state for this mapping only: a site may hold several.
+        _siteMappings = _siteMappings.filter(function (x) { return x.mapping_id !== m.mapping_id; });
         _siteMappings.push({
+          mapping_id: m.mapping_id,
           site_id: m.site_id,
           odk_project_id: m.odk_project_id,
           odk_form_id: m.odk_form_id,
@@ -702,6 +775,7 @@
           form_smartvafreetext: m.form_smartvafreetext || 'True',
           form_smartvacountry: m.form_smartvacountry || 'IND',
         });
+        _editingMapping[sid] = m.mapping_id;
         _odkFormsCache = {};   // mapping annotations are now stale
         renderTable();  // re-render to show updated mapping info
         loadConflicts();

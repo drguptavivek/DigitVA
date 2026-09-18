@@ -22,7 +22,7 @@ The `/admin` interface provides the following management panels:
 
 - **Access Grants** — manage user-to-project/site/unit role assignments
 - **Project Sites** — manage which sites are associated with a project
-- **Project Forms** — per-site ODK form mapping (ODK project ID and xmlFormId), with live dropdowns populated from ODK Central via pyODK
+- **Project Forms** — per-site ODK form mappings (ODK project ID and xmlFormId), with live dropdowns populated from ODK Central via pyODK. A site may map several ODK forms; the config row picks which one is being edited, adds another, or removes one
 - **Project PIs** — manage PI assignments scoped to a project
 - **Projects** — project master management (create, activate, deactivate)
 - **Sites** — site master management (create, activate, deactivate)

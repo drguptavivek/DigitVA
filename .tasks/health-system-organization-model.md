@@ -1,6 +1,6 @@
 # Health-system organization model
 
-- Status: phases 1–2 done (2026-09-17); phases 3–5 pending
+- Status: phases 1–3 done (2026-09-18); phases 4–5 pending
 - Priority: high
 - Created: 2026-09-17
 
@@ -43,10 +43,17 @@ migrations only.
   grant endpoints. Coding and review surfaces still resolve through
   `va_forms`; enforcement is phase 4.
 
+- Phase 3a (`c1d4e7f9a3b6`): submissions routed to units from the
+  `org_<level_code>_code` payload fields, with a mapping fallback unit, a
+  data-manager unrouted queue, and the ODK form-field contract shown in the
+  Organization panel plus a live preflight check against the mapped form.
+- Phase 3b (`e2a5c8b1d7f3`): several ODK forms per project-site; each mapping
+  materializes its own `va_forms` row, matched on the ODK ids.
+
 ## Next
 
-Phase 3: `map_project_site_odk` gains `org_unit_id`, uniqueness moves to
-(project, site, odk_project_id, odk_form_id) so one DigitVA project accepts
-several ODK forms over one connection, `va_submissions.org_unit_id` is routed
-from the `org_<level_code>_code` payload fields with a data-manager unrouted
-queue for the fallbacks.
+Phase 4: `va_project_master.coding_scope_level_id` and
+`above_scope_coding_mode`, then enforcement — pick-and-choose and the reviewer
+track filtered by the coder's unit subtree, replacing the `va_forms` route for
+org-tree projects. Phase 5: unit dimensions in dashboards, exports and
+analytics.

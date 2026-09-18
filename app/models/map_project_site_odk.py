@@ -8,14 +8,23 @@ from datetime import datetime, timezone
 class MapProjectSiteOdk(db.Model):
     """Maps a project-site pair to a specific ODK Central project and form.
 
-    A project-site combination has at most one ODK form mapping (unique on
-    project_id + site_id). The ODK connection is resolved via MapProjectOdk.
+    A project-site may map **several** ODK forms — one DigitVA project accepts
+    submissions from several Central forms over one connection — so uniqueness
+    is on the whole identity, project + site + ODK project + ODK form. Each
+    mapping materializes its own ``va_forms`` row. The reverse rule still
+    holds and is enforced in ``app.services.odk_form_mapping_service``: one ODK
+    form belongs to one project-site. The ODK connection is resolved via
+    MapProjectOdk.
     """
 
     __tablename__ = "map_project_site_odk"
     __table_args__ = (
         sa.UniqueConstraint(
-            "project_id", "site_id", name="uq_map_project_site_odk_project_site"
+            "project_id",
+            "site_id",
+            "odk_project_id",
+            "odk_form_id",
+            name="uq_map_project_site_odk_project_site_form",
         ),
         sa.CheckConstraint(
             "icd_classification IN ('icd10', 'icd11')",

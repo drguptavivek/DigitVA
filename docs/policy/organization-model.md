@@ -243,8 +243,6 @@ levels API, the exports, the panel and routing all read from it:
 
 ## Not yet implemented (later phases of the plan)
 
-- several ODK forms per project-site: `map_project_site_odk` is still unique on
-  (project, site), so one DigitVA project-site holds one ODK form
 - project coding-scope level and above-scope mode; until then a unit grant
   does not change what a coder may open — coding eligibility still resolves
   through `va_forms`, and a submission's routed unit is recorded but not

@@ -41,6 +41,7 @@ __all__ = [
     "normalize_code",
     "normalize_level_code",
     "odk_field_name_for_level",
+    "odk_choice_list_name_for_level",
     # levels
     "list_levels", "create_level", "update_level",
     # units
@@ -125,7 +126,13 @@ def normalize_level_code(raw: object) -> str:
 
 
 def odk_field_name_for_level(level_code: str) -> str:
+    """The XLSForm ``survey`` field carrying this level's unit code."""
     return f"org_{level_code}_code"
+
+
+def odk_choice_list_name_for_level(level_code: str) -> str:
+    """The XLSForm ``choices`` list_name holding this level's units."""
+    return f"org_{level_code}"
 
 
 def _clean_text(raw: object, *, max_len: int | None = None, required: bool = False, what: str = "Value") -> str | None:
@@ -197,6 +204,7 @@ def serialize_level(level: MasOrgLevel) -> dict:
         "is_optional": level.is_optional,
         "is_active": level.is_active,
         "odk_field_name": odk_field_name_for_level(level.level_code),
+        "odk_choice_list_name": odk_choice_list_name_for_level(level.level_code),
     }
 
 

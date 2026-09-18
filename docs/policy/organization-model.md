@@ -176,6 +176,38 @@ working day. Enforcement is the next phase. See
   `/admin/api/access-grants` endpoint.
 - Every unit grant mutation is written to `grants.log` with the unit and cadre.
 
+## ODK form contract
+
+The names a project's ODK form must use are **generated from its level codes**,
+never chosen by the form developer. One helper in
+`app/services/organization_service.py` is the single source of truth, and the
+levels API, the exports, the panel and routing all read from it:
+
+| Sheet | Value | Shape | Example |
+|---|---|---|---|
+| `survey` | field name | `org_<level_code>_code` | `org_phc_code` |
+| `choices` | `list_name` | `org_<level_code>` | `org_phc` |
+| `choices` | `name` | the unit code | `P01` |
+| `choices` | `parent_code` | the parent unit's code | `C01` |
+
+- Level codes are constrained to `^[a-z][a-z0-9_]{0,31}$`, so every derived
+  name is a valid XLSForm name.
+- The Organization panel's **ODK form fields** tab shows the exact `survey`
+  and `choices` rows for the project, ready to copy into the XLSForm. A
+  cascading level filters on `parent_code=${<parent level's field>}`; where the
+  levels above it are optional, the filter coalesces down to the nearest level
+  that must be answered. An optional level is `required = no`.
+- `GET /admin/api/organization/<project_id>/levels` returns the applicable
+  levels for a project, each with its `odk_field_name` and
+  `odk_choice_list_name`; `odk-choices.csv` exports the choices rows.
+- A **misnamed field is silent**: nothing errors, every submission simply falls
+  back. So the panel also checks a mapped form against the expected names,
+  reading the field list live from ODK Central
+  (`GET .../odk-field-check?site_id=...`). The ODK project and form come from
+  the project-site's mapping, never from the request, so the form checked is
+  always the one submissions will arrive from. Check before data collection
+  starts.
+
 ## Submission routing
 
 - A project's ODK form carries one field per level, named

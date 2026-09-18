@@ -6,6 +6,7 @@ Plan: docs/planning/health-system-organization-model-plan.md
 """
 import logging
 
+import sqlalchemy as sa
 from flask import current_app, jsonify, render_template, request
 from flask_login import current_user
 
@@ -395,6 +396,50 @@ def admin_org_odk_choices_csv(project_id):
         mimetype="text/csv",
         headers={"Content-Disposition": f'attachment; filename="odk_choices_{project_id}.csv"'},
     )
+
+
+@admin.get(f"{_API}/odk-field-check")
+@role_required("admin", "project_pi")
+def admin_org_odk_field_check(project_id):
+    """Check that a mapped ODK form carries this project's org_<level>_code fields.
+
+    ``site_id`` names the project-site whose mapping to check. The ODK project
+    and form come from that mapping, never from the request, so the form
+    checked is always the one submissions will actually arrive from. Reads the
+    field list from ODK Central live, through the shared connection guard.
+    """
+    if err := _guard(project_id):
+        return err
+
+    from app.models import MapProjectSiteOdk
+    from app.services.org_unit_routing_service import check_odk_form_fields
+
+    site_id = (request.args.get("site_id") or "").strip()
+    if not site_id:
+        return _json_error("site_id is required.", 400)
+
+    mapping = db.session.scalar(
+        sa.select(MapProjectSiteOdk).where(
+            MapProjectSiteOdk.project_id == project_id,
+            MapProjectSiteOdk.site_id == site_id,
+        )
+    )
+    if mapping is None:
+        return _json_error("This project-site has no ODK form mapping.", 404)
+
+    try:
+        result = check_odk_form_fields(
+            project_id, mapping.odk_project_id, mapping.odk_form_id
+        )
+    except Exception as exc:  # noqa: BLE001 — surfaced verbatim to the operator
+        log.warning(
+            "organization odk-field-check failed | project=%s site=%s form=%s | %s",
+            project_id, site_id, mapping.odk_form_id, exc,
+        )
+        return _json_error(f"Could not read the ODK form: {exc}", 502)
+
+    result["site_id"] = site_id
+    return jsonify(result)
 
 
 @admin.post(f"{_API}/import")

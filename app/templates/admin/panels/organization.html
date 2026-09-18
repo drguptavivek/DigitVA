@@ -31,6 +31,7 @@
     <li class="nav-item"><button class="nav-link" data-org-tab="levels" type="button">Levels</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="cadres" type="button">Cadres &amp; permissions</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="workers" type="button">Workers</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="odkform" type="button">ODK form fields</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="transfer" type="button">Export / Import</button></li>
   </ul>
 
@@ -158,6 +159,56 @@
       </div>
     </div>
   </div>
+
+  {# ---- ODK form fields ---- #}
+  <div class="org-tab d-none" data-org-pane="odkform">
+    <p class="small text-muted mb-3">
+      These are the rows the ODK form developer copies into the project's XLSForm so that
+      submissions can be routed to units. Field and list names are generated from the
+      level codes — do not rename them. Paste into the matching sheet: the tables copy as
+      tab-separated rows, which land in the right columns in Excel or Google Sheets.
+    </p>
+
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <h6 class="mb-0">survey sheet</h6>
+      <button class="btn btn-sm btn-outline-primary" id="org-copy-survey"><i class="fa-regular fa-copy me-1"></i>Copy survey rows</button>
+    </div>
+    <div class="table-responsive mb-4">
+      <table class="table table-sm table-bordered align-middle mb-0" style="font-size:.82rem;">
+        <thead class="table-light"><tr><th>type</th><th>name</th><th>label</th><th>required</th><th>choice_filter</th></tr></thead>
+        <tbody id="org-survey-rows"></tbody>
+      </table>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <h6 class="mb-0">choices sheet</h6>
+      <button class="btn btn-sm btn-outline-primary" id="org-copy-choices"><i class="fa-regular fa-copy me-1"></i>Copy choices rows</button>
+    </div>
+    <div class="table-responsive mb-2">
+      <table class="table table-sm table-bordered align-middle mb-0" style="font-size:.82rem;">
+        <thead class="table-light"><tr><th>list_name</th><th>name</th><th>label</th><th>parent_code</th></tr></thead>
+        <tbody id="org-choices-rows"></tbody>
+      </table>
+    </div>
+    <p class="small text-muted" id="org-choices-note"></p>
+
+    <div class="card mt-3"><div class="card-body">
+      <h6 class="card-title">Check a mapped ODK form</h6>
+      <p class="small text-muted mb-2">
+        Reads the field list from ODK Central for the form mapped to a project-site and
+        reports whether each expected field is present. A misnamed field does not fail a
+        sync — every submission simply falls back — so check before collecting data.
+      </p>
+      <div class="d-flex gap-2 align-items-end flex-wrap">
+        <div>
+          <label class="form-label small mb-1">Project-site</label>
+          <select id="org-check-site" class="form-select form-select-sm" style="min-width:220px;"></select>
+        </div>
+        <button class="btn btn-sm btn-primary" id="org-check-btn"><i class="fa-solid fa-plug-circle-check me-1"></i>Check form</button>
+      </div>
+      <div id="org-check-result" class="mt-3 d-none"></div>
+    </div></div>
+  </div>
 </div>
 
 <script>
@@ -221,7 +272,7 @@
       renderAll();
     });
   }
-  function renderAll() { renderLevels(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderTransfer(); }
+  function renderAll() { renderLevels(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderTransfer(); renderOdkForm(); }
 
   $('org-seed-btn').addEventListener('click', function () {
     if (!confirm('Add the template levels, cadres and permissions to project ' + PROJECT_ID + '? Existing codes are kept.')) return;
@@ -388,6 +439,176 @@
   });
 
   // ── export / import ───────────────────────────────────────────────────────
+  // ── ODK form fields ───────────────────────────────────────────────────────
+  //
+  // Field and list names come from the levels API (odk_field_name,
+  // odk_choice_list_name), so the naming convention stays in
+  // app/services/organization_service.py and is never re-derived here.
+
+  var CHOICES_PREVIEW_ROWS = 100;
+
+  function activeLevels() {
+    return STATE.levels
+      .filter(function (l) { return l.is_active; })
+      .slice()
+      .sort(function (a, b) { return a.depth - b.depth; });
+  }
+
+  // A cascading select filters on its parent's code. When the levels directly
+  // above are optional they may be unanswered, so the filter coalesces down to
+  // the nearest level that must be answered.
+  function choiceFilterFor(levels, index) {
+    if (index === 0) return '';
+    var refs = [];
+    for (var i = index - 1; i >= 0; i--) {
+      refs.push('${' + levels[i].odk_field_name + '}');
+      if (!levels[i].is_optional) break;
+    }
+    var expr = refs.length === 1 ? refs[0] : 'coalesce(' + refs.join(', ') + ')';
+    return 'parent_code=' + expr;
+  }
+
+  function surveyRows() {
+    var levels = activeLevels();
+    return levels.map(function (l, i) {
+      return {
+        type: 'select_one ' + l.odk_choice_list_name,
+        name: l.odk_field_name,
+        label: l.level_name,
+        required: l.is_optional ? 'no' : 'yes',
+        choice_filter: choiceFilterFor(levels, i)
+      };
+    });
+  }
+
+  function choicesRows() {
+    var listByLevelCode = {};
+    activeLevels().forEach(function (l) { listByLevelCode[l.level_code] = l.odk_choice_list_name; });
+    return STATE.units
+      .filter(function (u) { return u.is_active && listByLevelCode[u.level_code]; })
+      .map(function (u) {
+        return {
+          list_name: listByLevelCode[u.level_code],
+          name: u.unit_code,
+          label: u.unit_name,
+          parent_code: u.parent_code || ''
+        };
+      });
+  }
+
+  function tsv(rows, columns) {
+    return rows.map(function (r) {
+      return columns.map(function (c) { return String(r[c] == null ? '' : r[c]); }).join('\t');
+    }).join('\n');
+  }
+
+  function copyText(text, label) {
+    function done() { alertBox('success', label + ' copied. Paste into the sheet.'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else { fallback(); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); }
+      catch (e) { alertBox('warning', 'Could not copy automatically — select the table and copy manually.'); }
+      finally { document.body.removeChild(ta); }
+    }
+  }
+
+  function renderOdkForm() {
+    var survey = surveyRows();
+    var choices = choicesRows();
+
+    $('org-survey-rows').innerHTML = survey.length
+      ? survey.map(function (r) {
+          return '<tr><td><code>' + esc(r.type) + '</code></td><td><code>' + esc(r.name) + '</code></td>'
+            + '<td>' + esc(r.label) + '</td><td>' + esc(r.required) + '</td>'
+            + '<td><code>' + esc(r.choice_filter) + '</code></td></tr>';
+        }).join('')
+      : '<tr><td colspan="5" class="text-muted small">No active levels yet — add levels or seed the template first.</td></tr>';
+
+    var shown = choices.slice(0, CHOICES_PREVIEW_ROWS);
+    $('org-choices-rows').innerHTML = shown.length
+      ? shown.map(function (r) {
+          return '<tr><td><code>' + esc(r.list_name) + '</code></td><td><code>' + esc(r.name) + '</code></td>'
+            + '<td>' + esc(r.label) + '</td><td><code>' + esc(r.parent_code) + '</code></td></tr>';
+        }).join('')
+      : '<tr><td colspan="4" class="text-muted small">No active units yet.</td></tr>';
+    $('org-choices-note').textContent = choices.length > shown.length
+      ? 'Showing the first ' + shown.length + ' of ' + choices.length + ' rows. Copy takes all ' + choices.length + '.'
+      : (choices.length + ' row' + (choices.length === 1 ? '' : 's') + '.');
+
+    var siteSel = $('org-check-site');
+    if (siteSel && siteSel.dataset.loadedFor !== PROJECT_ID) loadCheckSites();
+  }
+
+  $('org-copy-survey').addEventListener('click', function () {
+    var rows = surveyRows();
+    if (!rows.length) { alertBox('warning', 'No active levels to copy.'); return; }
+    copyText(tsv(rows, ['type', 'name', 'label', 'required', 'choice_filter']), copyLabel(rows.length, 'survey'));
+  });
+  $('org-copy-choices').addEventListener('click', function () {
+    var rows = choicesRows();
+    if (!rows.length) { alertBox('warning', 'No active units to copy.'); return; }
+    copyText(tsv(rows, ['list_name', 'name', 'label', 'parent_code']), copyLabel(rows.length, 'choices'));
+  });
+  function copyLabel(n, sheet) { return n + ' ' + sheet + ' row' + (n === 1 ? '' : 's'); }
+
+  function loadCheckSites() {
+    var sel = $('org-check-site');
+    sel.dataset.loadedFor = PROJECT_ID;
+    api('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/odk-site-mappings').then(function (res) {
+      var mappings = (res.ok && res.data.mappings) || [];
+      sel.innerHTML = mappings.length
+        ? mappings.map(function (m) {
+            return '<option value="' + esc(m.site_id) + '">' + esc(m.site_id) + ' — ' + esc(m.odk_form_id) + '</option>';
+          }).join('')
+        : '<option value="">— no ODK form mapped yet —</option>';
+    });
+  }
+
+  $('org-check-btn').addEventListener('click', function () {
+    var siteId = $('org-check-site').value;
+    var out = $('org-check-result');
+    if (!siteId) { alertBox('warning', 'Map an ODK form to a project-site first.'); return; }
+    out.classList.remove('d-none');
+    out.innerHTML = '<span class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the form from ODK Central…</span>';
+    api(base() + '/odk-field-check?site_id=' + encodeURIComponent(siteId)).then(function (res) {
+      if (!res.ok) {
+        out.innerHTML = '<div class="alert alert-danger small py-2 mb-0">' + esc((res.data && res.data.error) || 'Check failed.') + '</div>';
+        return;
+      }
+      var d = res.data;
+      if (!d.has_tree) {
+        out.innerHTML = '<div class="alert alert-secondary small py-2 mb-0">This project has no active levels, so no fields are expected.</div>';
+        return;
+      }
+      var rows = d.levels.map(function (l) {
+        return '<tr><td><code>' + esc(l.field_name) + '</code></td><td>' + esc(l.level_name) + '</td>'
+          + '<td>' + (l.is_optional ? '<span class="badge text-bg-secondary">optional</span>' : '') + '</td>'
+          + '<td>' + (l.present
+              ? '<span class="text-success"><i class="fa-solid fa-check me-1"></i>present</span>'
+              : '<span class="text-danger"><i class="fa-solid fa-xmark me-1"></i>missing</span>') + '</td></tr>';
+      }).join('');
+      var banner = d.missing_count === 0
+        ? '<div class="alert alert-success small py-2">All ' + d.present_count + ' expected field(s) are present in <code>' + esc(d.odk_form_id) + '</code>.</div>'
+        : '<div class="alert alert-warning small py-2">' + d.missing_count + ' of ' + d.levels.length
+          + ' expected field(s) are missing from <code>' + esc(d.odk_form_id) + '</code>. '
+          + 'Submissions will fall back to the mapping\'s unit, or stay unrouted.</div>';
+      out.innerHTML = banner
+        + '<div class="table-responsive"><table class="table table-sm table-bordered mb-0" style="font-size:.82rem;">'
+        + '<thead class="table-light"><tr><th>field</th><th>level</th><th></th><th>status</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div>'
+        + '<p class="small text-muted mt-2 mb-0">Form carries ' + d.form_field_count + ' field(s) in total.</p>';
+    });
+  });
+
   function renderTransfer() {
     $('org-export-xlsx').href = base() + '/export.xlsx';
     $('org-export-choices').href = base() + '/odk-choices.csv';

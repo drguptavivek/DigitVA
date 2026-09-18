@@ -300,3 +300,127 @@ def clear_pin(submission: VaSubmissions) -> None:
     )
     submission.org_unit_pinned_by = None
     submission.org_unit_pinned_at = None
+
+
+# ---------------------------------------------------------------------------
+# Preflight: does the mapped ODK form actually carry the routing fields?
+#
+# Routing is silent when a field is misnamed: nothing errors, every submission
+# simply falls back. This check answers the question before a sync runs, by
+# reading the form's field list from ODK Central.
+# ---------------------------------------------------------------------------
+
+
+def expected_odk_fields(project_id: str) -> list[dict]:
+    """The survey field and choice list each active level expects, deepest last."""
+    from app.services.organization_service import (
+        odk_choice_list_name_for_level,
+        odk_field_name_for_level,
+    )
+
+    levels = db.session.scalars(
+        sa.select(MasOrgLevel)
+        .where(MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True))
+        .order_by(MasOrgLevel.depth)
+    ).all()
+    return [
+        {
+            "level_code": level.level_code,
+            "level_name": level.level_name,
+            "depth": level.depth,
+            "is_optional": level.is_optional,
+            "field_name": odk_field_name_for_level(level.level_code),
+            "choice_list_name": odk_choice_list_name_for_level(level.level_code),
+        }
+        for level in levels
+    ]
+
+
+def _field_basename(entry: dict) -> str | None:
+    """The leaf name of one ODK Central field entry.
+
+    Central returns ``{"name": "org_phc_code", "path": "/data/grp/org_phc_code"}``;
+    older servers may return only a path. Either way the leaf is what a payload
+    key ends with, which is what routing matches on.
+    """
+    name = entry.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    path = entry.get("path")
+    if isinstance(path, str) and path.strip():
+        return path.strip().rstrip("/").rsplit("/", 1)[-1] or None
+    return None
+
+
+def fetch_odk_form_field_names(
+    odk_project_id: int, odk_form_id: str, *, client
+) -> set[str]:
+    """Leaf field names of one ODK Central form. Raises on an unusable response."""
+    from app.services.odk_connection_guard_service import guarded_odk_call
+
+    response = guarded_odk_call(
+        lambda: client.get(
+            f"projects/{odk_project_id}/forms/{odk_form_id}/fields",
+            params={"odata": "false"},
+        ),
+        client=client,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"ODK Central returned {response.status_code} for the form's field list."
+        )
+    entries = response.json()
+    if not isinstance(entries, list):
+        raise RuntimeError("ODK Central returned an unexpected field list.")
+    names = {
+        basename
+        for basename in (_field_basename(entry) for entry in entries if isinstance(entry, dict))
+        if basename
+    }
+    if not names:
+        raise RuntimeError("ODK Central returned no fields for this form.")
+    return names
+
+
+def check_odk_form_fields(
+    project_id: str, odk_project_id: int, odk_form_id: str, *, client=None
+) -> dict:
+    """Compare a mapped ODK form's fields against the project's expected ones.
+
+    Returns the per-level verdict plus a summary. Raises RuntimeError with an
+    operator-readable message when the form cannot be read.
+    """
+    expected = expected_odk_fields(project_id)
+    if not expected:
+        return {
+            "project_id": project_id,
+            "odk_project_id": odk_project_id,
+            "odk_form_id": odk_form_id,
+            "has_tree": False,
+            "levels": [],
+            "missing_count": 0,
+            "present_count": 0,
+        }
+
+    if client is None:
+        from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+
+        client = va_odk_clientsetup(project_id)
+
+    form_fields = fetch_odk_form_field_names(odk_project_id, odk_form_id, client=client)
+
+    levels = []
+    for item in expected:
+        present = item["field_name"] in form_fields
+        levels.append({**item, "present": present})
+    missing = [item for item in levels if not item["present"]]
+    return {
+        "project_id": project_id,
+        "odk_project_id": odk_project_id,
+        "odk_form_id": odk_form_id,
+        "has_tree": True,
+        "levels": levels,
+        "missing_count": len(missing),
+        "present_count": len(levels) - len(missing),
+        "form_field_count": len(form_fields),
+    }

@@ -673,3 +673,174 @@ class SyncRoutesSubmissionsTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
         )
         self.assertIsNone(submission.org_unit_id)
         self.assertIsNone(submission.org_unit_resolution)
+
+
+class OdkFieldPreflightTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
+    """Checking a mapped ODK form for the expected org_<level_code>_code fields."""
+
+    class _FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+
+        def json(self):
+            return self._payload
+
+    class _FakeClient:
+        """Stands in for a pyODK client: records the path and returns fields."""
+
+        def __init__(self, response):
+            self._response = response
+            self.requested_path = None
+
+        def get(self, path, params=None):
+            self.requested_path = path
+            return self._response
+
+    def _client(self, payload, status_code=200):
+        return self._FakeClient(self._FakeResponse(payload, status_code))
+
+    def test_expected_fields_follow_the_projects_levels(self):
+        self._tree()
+        expected = routing.expected_odk_fields(self.PROJECT)
+        self.assertEqual(
+            [item["field_name"] for item in expected],
+            [
+                "org_district_code",
+                "org_taluka_code",
+                "org_chc_code",
+                "org_phc_code",
+                "org_subcentre_code",
+                "org_village_code",
+            ],
+        )
+        self.assertEqual(expected[0]["choice_list_name"], "org_district")
+        self.assertTrue(expected[1]["is_optional"])  # taluka
+
+    def test_check_reports_present_and_missing_fields(self):
+        self._tree()
+        client = self._client(
+            [
+                {"name": "Id10019", "path": "/data/Id10019"},
+                {"name": "org_district_code", "path": "/data/org/org_district_code"},
+                {"name": "org_chc_code", "path": "/data/org/org_chc_code"},
+            ]
+        )
+        result = routing.check_odk_form_fields(
+            self.PROJECT, 77, "ROUTING_FORM", client=client
+        )
+        self.assertEqual(client.requested_path, "projects/77/forms/ROUTING_FORM/fields")
+        self.assertTrue(result["has_tree"])
+        by_field = {row["field_name"]: row["present"] for row in result["levels"]}
+        self.assertTrue(by_field["org_district_code"])
+        self.assertTrue(by_field["org_chc_code"])
+        self.assertFalse(by_field["org_phc_code"])
+        self.assertEqual(result["present_count"], 2)
+        self.assertEqual(result["missing_count"], 4)
+        self.assertEqual(result["form_field_count"], 3)
+
+    def test_fields_are_matched_on_the_leaf_name_of_a_group_path(self):
+        self._tree()
+        client = self._client(
+            [{"path": "/data/outer/inner/org_phc_code"}, {"path": "/data/Id10019"}]
+        )
+        result = routing.check_odk_form_fields(
+            self.PROJECT, 77, "ROUTING_FORM", client=client
+        )
+        by_field = {row["field_name"]: row["present"] for row in result["levels"]}
+        self.assertTrue(by_field["org_phc_code"])
+
+    def test_a_project_without_levels_expects_nothing(self):
+        result = routing.check_odk_form_fields(self.PROJECT, 77, "ROUTING_FORM")
+        self.assertFalse(result["has_tree"])
+        self.assertEqual(result["levels"], [])
+
+    def test_an_unusable_odk_response_is_an_error(self):
+        self._tree()
+        with self.assertRaises(RuntimeError) as ctx:
+            routing.check_odk_form_fields(
+                self.PROJECT, 77, "ROUTING_FORM", client=self._client([], 404)
+            )
+        self.assertIn("404", str(ctx.exception))
+
+        with self.assertRaises(RuntimeError) as ctx:
+            routing.check_odk_form_fields(
+                self.PROJECT, 77, "ROUTING_FORM", client=self._client([])
+            )
+        self.assertIn("no fields", str(ctx.exception))
+
+    # -- endpoint ----------------------------------------------------------
+
+    def test_endpoint_checks_the_mapped_form_and_ignores_request_supplied_ids(self):
+        from unittest.mock import patch
+
+        self._tree()
+        self._mapping()
+        self._login(str(self.base_admin_id))
+
+        client = self._client([{"name": "org_district_code"}])
+        with patch(
+            "app.utils.va_odk.va_odk_01_clientsetup.va_odk_clientsetup",
+            return_value=client,
+        ):
+            response = self.client.get(
+                f"/admin/api/organization/{self.PROJECT}/odk-field-check"
+                f"?site_id={self.SITE}&odk_form_id=SOMETHING_ELSE"
+            )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        body = response.get_json()
+        self.assertEqual(body["odk_form_id"], "ROUTING_FORM")
+        self.assertEqual(body["site_id"], self.SITE)
+        self.assertEqual(body["missing_count"], 5)
+        self.assertEqual(client.requested_path, "projects/77/forms/ROUTING_FORM/fields")
+
+    def test_endpoint_requires_a_mapping_and_a_site(self):
+        self._tree()
+        self._login(str(self.base_admin_id))
+        missing_site = self.client.get(
+            f"/admin/api/organization/{self.PROJECT}/odk-field-check"
+        )
+        self.assertEqual(missing_site.status_code, 400)
+        no_mapping = self.client.get(
+            f"/admin/api/organization/{self.PROJECT}/odk-field-check?site_id={self.SITE}"
+        )
+        self.assertEqual(no_mapping.status_code, 404)
+        self.assertIn("no ODK form mapping", no_mapping.get_json()["error"])
+
+    def test_endpoint_surfaces_an_odk_failure_as_502(self):
+        from unittest.mock import patch
+
+        self._tree()
+        self._mapping()
+        self._login(str(self.base_admin_id))
+        with patch(
+            "app.utils.va_odk.va_odk_01_clientsetup.va_odk_clientsetup",
+            side_effect=Exception("credentials rejected"),
+        ):
+            response = self.client.get(
+                f"/admin/api/organization/{self.PROJECT}/odk-field-check?site_id={self.SITE}"
+            )
+        self.assertEqual(response.status_code, 502)
+        self.assertIn("credentials rejected", response.get_json()["error"])
+
+    def test_endpoint_is_closed_to_a_project_pi_of_another_project(self):
+        self._tree()
+        self._mapping()
+        self._login(str(self.base_project_pi_id))
+        response = self.client.get(
+            f"/admin/api/organization/{self.PROJECT}/odk-field-check?site_id={self.SITE}"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_panel_shows_the_copyable_survey_and_choices_tables(self):
+        self._login(str(self.base_admin_id))
+        response = self.client.get(
+            f"/admin/panels/organization?project_id={self.PROJECT}"
+        )
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('data-org-tab="odkform"', body)
+        self.assertIn('id="org-survey-rows"', body)
+        self.assertIn('id="org-choices-rows"', body)
+        self.assertIn('id="org-copy-survey"', body)
+        self.assertIn('id="org-check-btn"', body)

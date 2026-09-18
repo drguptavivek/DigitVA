@@ -157,8 +157,8 @@ Key behavior:
 
 Per-project health-system tree (policy: `docs/policy/organization-model.md`).
 Tabs: Units (tree with contact and location data), Levels, Cadres and
-permissions (level × cadre grid: can fill / can code VA form), Workers, and
-Export / Import.
+permissions (level × cadre grid: can fill / can code VA form), Workers,
+ODK form fields, and Export / Import.
 
 - "Seed template" adds District > Taluka (optional) > CHC > PHC > Sub-centre >
   Village with the default cadres; rerunning it keeps existing codes.
@@ -166,8 +166,20 @@ Export / Import.
   CSV per sheet, and the ODK choices CSV for cascading unit selects.
 - Import: upload the workbook, run the dry run, then apply. Rows are matched
   by code; nothing is deleted.
+- ODK form fields: the exact `survey` and `choices` rows for this project's
+  tree, shown for the ODK form developer to copy into the XLSForm. Each table
+  copies as tab-separated rows, so a paste lands in the right columns in Excel
+  or Google Sheets. Field and list names are generated from the level codes and
+  must not be renamed.
+- The same tab checks a mapped ODK form: pick a project-site and DigitVA reads
+  that form's field list from ODK Central and reports each expected
+  `org_<level_code>_code` field as present or missing. The ODK project and form
+  come from the mapping, not from the request. A missing field does not fail a
+  sync — submissions fall back or stay unrouted — so this is a preflight to run
+  before data collection.
 - Routes live in `app/routes/admin_organization.py`; rules in
-  `app/services/organization_service.py`.
+  `app/services/organization_service.py` and
+  `app/services/org_unit_routing_service.py`.
 
 ### Fallback organization unit on a form mapping
 

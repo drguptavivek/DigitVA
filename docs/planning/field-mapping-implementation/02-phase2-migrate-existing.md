@@ -3,7 +3,7 @@ title: Phase 2 - Migrate Existing WHO_2022_VA Data
 doc_type: implementation-plan
 status: draft
 owner: engineering
-last_updated: 2026-03-10
+last_updated: 2026-09-18
 phase: 2
 estimated_duration: 1 day
 risk_level: critical
@@ -701,6 +701,30 @@ touch app/services/migrations/__init__.py
 
 # 3. Run migration script
 docker compose exec minerva_app_service uv run python -m app.services.migrations.migrate_who_2022_va
+```
+
+> **Use `flask seed run` instead, unless you know why you are not.**
+>
+> `python -m app.services.migrations.migrate_who_2022_va` creates roughly 413
+> `mas_field_display_config` rows directly. It does not apply the PII field
+> registry, so every row lands with `is_pii` at its `False` default — including
+> the national identification number and the ABHA identifiers.
+>
+> Following this procedure therefore produces a fresh database in which no
+> field is flagged as personal data, and the CSV export will include fields it
+> is supposed to redact. Nothing corrects that afterwards except a manual
+> `flask seed run`, which `boot.sh` does not perform.
+>
+> The supported route is:
+>
+> ```bash
+> docker compose exec minerva_app_service uv run flask seed run
+> ```
+>
+> Recorded 2026-09-18. A code fix is in flight so the standalone entry point
+> applies the registry itself; until it lands, prefer the seed command.
+
+```bash
 
 # 4. Re-run tests (should pass now)
 docker compose exec minerva_app_service uv run pytest tests/migrations/test_migrate_who_2022_va.py -v
@@ -913,6 +937,8 @@ DELETE FROM mas_form_types;
 "
 
 # 2. Re-run migration after fixing issues
+# NOTE: prefer `flask seed run` — this entry point does not apply the PII
+# field registry. See the warning earlier in this document.
 docker compose exec minerva_app_service uv run python -m app.services.migrations.migrate_who_2022_va
 ```
 

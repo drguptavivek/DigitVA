@@ -595,6 +595,68 @@ def _apply_submission_projection(submission: VaSubmissions, fields: dict, payloa
     submission.va_category_list = fields["va_category_list"]
 
 
+# Forms already checked this run, so a project's many forms cost one Central
+# call each at most, not one per pass.
+_ORG_FIELD_CHECK_CACHE_KEY = "_org_field_check_seen"
+
+
+def _warn_on_missing_org_fields(va_form, mapping, *, client, log_progress=None, _seen=None):
+    """Warn when a mapped ODK form is missing the project's routing fields.
+
+    A misnamed or removed org_<level_code>_code field does not fail anything:
+    submissions simply fall back to the mapping's unit or stay unrouted, and
+    the first symptom is a growing unrouted queue days later. Checking here
+    turns that into a warning at the moment of sync.
+
+    Never raises and never blocks a sync: routing is best-effort and a Central
+    hiccup on the field list must not stop submissions arriving.
+    """
+    from app.services.org_unit_routing_service import check_odk_form_fields
+
+    seen = _warn_on_missing_org_fields.__dict__.setdefault(
+        _ORG_FIELD_CHECK_CACHE_KEY, set()
+    )
+    key = (mapping.odk_project_id, mapping.odk_form_id)
+    if key in seen:
+        return None
+    seen.add(key)
+
+    try:
+        result = check_odk_form_fields(
+            va_form.project_id,
+            mapping.odk_project_id,
+            mapping.odk_form_id,
+            client=client,
+        )
+    except Exception as exc:  # noqa: BLE001 — advisory only
+        log.info(
+            "DataSync [%s] could not check organization fields: %s",
+            va_form.form_id, exc,
+        )
+        return None
+
+    if not result.get("has_tree") or not result.get("missing_count"):
+        return result
+
+    missing = ", ".join(
+        item["field_name"] for item in result["levels"] if not item["present"]
+    )
+    message = (
+        f"[{va_form.form_id}] ODK form {mapping.odk_form_id!r} is missing "
+        f"{result['missing_count']} organization field(s): {missing}. "
+        "Submissions will fall back to the mapping's unit or stay unrouted."
+    )
+    log.warning("DataSync %s", message)
+    if log_progress:
+        log_progress(message)
+    return result
+
+
+def reset_org_field_check_cache() -> None:
+    """Clear the per-run cache of checked forms. Called when a sync starts."""
+    _warn_on_missing_org_fields.__dict__.pop(_ORG_FIELD_CHECK_CACHE_KEY, None)
+
+
 def _mark_form_sync_issues(va_form, odk_instance_ids: list[str], *, by_role: str = "vaadmin"):
     """Mark local submissions that no longer exist in ODK for a form."""
     expected_sids = {
@@ -1090,6 +1152,8 @@ def va_data_sync_odkcentral(
     try:
         _progress("Sync started.")
         _reset_language_cache()
+        # Per-run, so a form that was fixed between runs is checked again.
+        reset_org_field_check_cache()
 
         # Capture before any ODK calls — ensures submissions arriving during
         # the run are caught on the next sync rather than silently skipped.
@@ -1154,6 +1218,9 @@ def va_data_sync_odkcentral(
                     connection_by_project,
                     va_form,
                     mapping,
+                )
+                _warn_on_missing_org_fields(
+                    va_form, mapping, client=odk_client, log_progress=_progress
                 )
                 odk_ids_current = va_odk_fetch_instance_ids(va_form, client=odk_client)
                 _mark_form_sync_issues(va_form, odk_ids_current)

@@ -165,6 +165,8 @@ and keep working exactly as they did.
   `admin` stays global and `project_pi` stays project-scoped.
 - A unit grant carries no `project_id` or `project_site_id`. The grant's
   project is the unit's project, and every project filter resolves it that way.
+- One cadre per person per unit (decision 2026-09-18): a grant carries a single
+  `cadre_id`, and there is one grant per user × role × unit.
 - The `cadre_id` on a grant is **descriptive**: it records which cadre the
   person holds at that unit, and nothing at runtime consults it. It is
   validated when the grant is written:
@@ -217,6 +219,11 @@ levels API, the exports, the panel and routing all read from it:
   the project-site's mapping, never from the request, so the form checked is
   always the one submissions will arrive from. Check before data collection
   starts.
+- **Sync checks too.** Each mapped form is checked once per sync run and any
+  missing field is logged and written to the run's progress log, so a form
+  edited in Central after setup surfaces as a warning rather than as a growing
+  unrouted queue. The check is advisory: it never blocks a sync, and a Central
+  failure on the field list is ignored.
 
 ## Submission routing
 
@@ -227,6 +234,12 @@ levels API, the exports, the panel and routing all read from it:
 - A code that names no live unit, or that names a unit at a different level
   than the field it arrived in, is not trusted: routing keeps looking up the
   tree and logs the mismatch.
+- Routing is by organization codes **only** (decision 2026-09-18). The ODK
+  submitter is never used to decide a unit. The submitter's name is carried as
+  data — the WHO VA form has a submitter name field, web intake records the
+  submitting user, and sync promotes ODK's `SubmitterName` into
+  `va_submissions.va_data_collector` — but it says who filled the form, not
+  where the death belongs.
 - Codes are matched case-insensitively, and are read whether ODK delivers the
   field bare (`org_phc_code`) or inside a group path (`.../org_phc_code`).
 - When nothing in the payload resolves, the submission falls back to the unit

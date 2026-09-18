@@ -844,3 +844,112 @@ class OdkFieldPreflightTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
         self.assertIn('id="org-choices-rows"', body)
         self.assertIn('id="org-copy-survey"', body)
         self.assertIn('id="org-check-btn"', body)
+
+
+class SyncWarnsOnMissingOrgFieldsTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
+    """Sync flags a mapped ODK form that lost its routing fields."""
+
+    class _Client:
+        def __init__(self, field_names, status_code=200):
+            self._field_names = field_names
+            self._status_code = status_code
+            self.calls = 0
+
+        def get(self, path, params=None):
+            self.calls += 1
+            client = self
+
+            class _Response:
+                status_code = client._status_code
+
+                def json(self):
+                    return [{"name": name} for name in client._field_names]
+
+            return _Response()
+
+    def _warn(self, client, messages):
+        from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+            _warn_on_missing_org_fields,
+            reset_org_field_check_cache,
+        )
+
+        reset_org_field_check_cache()
+        mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.PROJECT
+            )
+        )
+        return _warn_on_missing_org_fields(
+            db.session.get(VaForms, self.FORM_ID),
+            mapping,
+            client=client,
+            log_progress=messages.append,
+        )
+
+    def test_missing_fields_are_reported_without_failing_the_sync(self):
+        self._tree()
+        self._mapping()
+        messages = []
+        result = self._warn(self._Client(["Id10019", "org_district_code"]), messages)
+
+        self.assertEqual(result["missing_count"], 5)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("missing 5 organization field(s)", messages[0])
+        self.assertIn("org_phc_code", messages[0])
+        self.assertIn("stay unrouted", messages[0])
+
+    def test_a_complete_form_is_silent(self):
+        self._tree()
+        self._mapping()
+        messages = []
+        self._warn(
+            self._Client([
+                "org_district_code", "org_taluka_code", "org_chc_code",
+                "org_phc_code", "org_subcentre_code", "org_village_code",
+            ]),
+            messages,
+        )
+        self.assertEqual(messages, [])
+
+    def test_a_project_without_a_tree_is_not_checked(self):
+        self._mapping()
+        messages = []
+        result = self._warn(self._Client(["Id10019"]), messages)
+        self.assertFalse(result["has_tree"])
+        self.assertEqual(messages, [])
+
+    def test_each_form_is_checked_once_per_run(self):
+        from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+            _warn_on_missing_org_fields,
+        )
+
+        self._tree()
+        self._mapping()
+        messages = []
+        client = self._Client(["Id10019"])
+        self._warn(client, messages)
+        mapping = db.session.scalar(
+            sa.select(MapProjectSiteOdk).where(
+                MapProjectSiteOdk.project_id == self.PROJECT
+            )
+        )
+        _warn_on_missing_org_fields(
+            db.session.get(VaForms, self.FORM_ID),
+            mapping,
+            client=client,
+            log_progress=messages.append,
+        )
+        self.assertEqual(client.calls, 1)
+        self.assertEqual(len(messages), 1)
+
+    def test_an_odk_failure_never_blocks_the_sync(self):
+        self._tree()
+        self._mapping()
+        messages = []
+
+        class _Exploding:
+            def get(self, path, params=None):
+                raise RuntimeError("Central unreachable")
+
+        self.assertIsNone(self._warn(_Exploding(), messages))
+        self.assertEqual(messages, [])

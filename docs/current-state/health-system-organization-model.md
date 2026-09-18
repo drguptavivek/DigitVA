@@ -222,28 +222,28 @@ unit is worse than leaving it in a queue — and it is why the queue exists:
 
 ### What routing does not do yet
 
-The plan considered three routing strategies. Only one is built.
+The plan considered three routing strategies. One is built; the other two are
+**closed, not deferred**.
 
 | Option | Mechanism | Status |
 |---|---|---|
-| A. ODK submitter | `SubmitterID` → worker registry → unit | **not built** |
+| A. ODK submitter | `SubmitterID` → worker registry → unit | **will not be built** (2026-09-18) |
 | B. Unit code in the form | `org_<level_code>_code` fields | **built** |
-| C. Both, with mismatch detection | B primary, A as fallback and cross-check | **not built** |
+| C. Both, with mismatch detection | B primary, A as fallback and cross-check | **will not be built** (2026-09-18) |
 
-Option B was the decision on 2026-09-17: explicit, auditable, and it survives
-shared devices.
+Routing is by organization codes only. A submission's unit comes from what the
+interviewer answered, and from nothing else.
 
-Option A is further away than the plan assumed. Sync does capture
-`SubmitterID`, `SubmitterName` and `DeviceID` — but into the stored **payload**
-(`_enrich_submission_payload_for_storage`), not into columns, and
-`va_submissions` promotes only `SubmitterName`, into `va_data_collector`.
-`mas_org_unit_worker` has **no** ODK submitter or device columns; the plan
-proposed them and phase 1 did not build them. So option A needs a migration on
-the worker table, a way to populate and reconcile those ids against ODK
-Central's app users, and a payload read for the submitter id. It is worth
-building when a project cannot change its form, or as the cross-check of
-option C — a submission whose form says PHC X while its submitter belongs to
-PHC Y is exactly the kind of error that currently passes silently.
+The submitter's **name** is still carried, as data rather than as a routing
+key: the WHO VA form has a submitter name field, web intake records the
+submitting user, and sync promotes ODK's `SubmitterName` into
+`va_submissions.va_data_collector`. It says who filled the form; it does not
+decide which unit the death belongs to.
+
+This closes the worker-registry question too: `mas_org_unit_worker` needs no
+ODK submitter or device columns, and nothing has to be reconciled against
+Central's app-user list. Workers remain master data — who works where, in
+which cadre — and the form-filling permission in the level × cadre grid.
 
 ## Findings
 
@@ -300,10 +300,8 @@ implemented.
 1. **A project needs both sites and a tree.** The container project-site
    stays, carrying the ODK mapping and the coding gates (`coding_enabled`,
    dates, `daily_coder_limit`), with the tree alongside it. This is what is
-   built, so nothing changes. *Still open:* whether a health-system project
-   also wants those gates expressed **per unit** — a coding window or daily
-   limit for one PHC rather than for the whole site. Nothing expresses that
-   today.
+   built, so nothing changes. Whether those gates are also wanted per unit is
+   tracked separately below.
 2. **Units are never deleted.** Deactivation only, and a submission already
    attributed to a unit keeps that attribution. This is what is built:
    deactivation cascades to the subtree, nothing is removed, and coded deaths
@@ -315,23 +313,34 @@ implemented.
    nothing at all from their subtree, where they should see coded and uncoded
    work read-only. Tracked in `.tasks/org-above-scope-view-only-access.md`.
 
+4. **One cadre per person per unit.** A grant carries one `cadre_id`, and
+   there is one grant per user × role × unit. That is the model, and it is
+   what is built — nothing to change.
+5. **Routing is by organization codes only.** Submitter-based routing
+   (options A and C) is **not** going to be built. The submitter's name is
+   still carried as data — the WHO VA form has a submitter name field and web
+   intake records one — but it plays no part in deciding a submission's unit.
+   The worker registry therefore needs no ODK submitter or device columns.
+6. **The ODK form check runs during sync.** Implemented: each mapped form is
+   checked once per sync run against the project's expected
+   `org_<level_code>_code` fields, and missing ones are logged and written to
+   the run's progress log. It is advisory — it never blocks a sync, and a
+   Central failure on the field list is ignored.
+
 ### Still open
 
-4. **Is one cadre per grant enough?** A person holding two cadres at one unit,
-   or the same cadre at several units, currently needs one grant per
-   combination. No one has asked for more yet.
-5. **How are workers kept in step with ODK app users?** The worker registry
-   has no ODK submitter or device columns at all, and nothing reconciles
-   workers against Central's app users. Both are prerequisites for routing
-   option A.
-6. **Reporting dimensions (phase 5).** Unit path in the analytics MV, unit as
+7. **Per-unit coding gates.** The container project-site carries
+   `coding_enabled`, the coding dates and `daily_coder_limit`. Whether a
+   health-system project also wants those per unit — a coding window for one
+   PHC rather than for the whole site — is undecided, and nothing expresses it
+   today.
+8. **The `view_only` viewing right.** Decided in substance (see above) but not
+   built: such a grant currently shows its holder nothing.
+   `.tasks/org-above-scope-view-only-access.md`.
+9. **Reporting dimensions (phase 5).** Unit path in the analytics MV, unit as
    a grouping dimension in the DM KPIs, and `org_unit_code` / `org_unit_name` /
    level-path columns in exports. Not started; listed under
    [Not yet implemented](../policy/organization-model.md#not-yet-implemented-later-phases-of-the-plan).
-7. **Does the ODK form check belong in sync?** It runs on demand from the
-   admin panel. Running it automatically before a sync, or on a schedule,
-   would catch a form edited in Central after setup — currently that shows up
-   only as a growing unrouted queue.
 
 ## Verification
 

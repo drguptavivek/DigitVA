@@ -176,3 +176,44 @@ Use `flask db upgrade heads`, or name the revision. **Do not "fix" it by
 chaining one onto the other while both are untracked** — chaining onto an
 uncommitted revision is what broke `origin/main` earlier today (see
 `8eae9f9`). Whoever commits second re-chains onto whatever is then the head.
+
+## Every path that creates a field-config row must apply the PII registry
+
+These roles treat `mas_field_display_config.is_pii` as the single source of
+truth for what a no-PII viewer may not see. The consequence: **any code path
+that creates a row on that table without applying the registry silently
+widens what a "Viewer" can see.** The row arrives with `is_pii` at its
+`False` default and the export leaks the field again.
+
+Three such doors were found and closed on 2026-09-18, all by the web-intake
+session:
+
+1. form-type **clone** (`form_type_service`) — copied `is_pii` as it stood at
+   creation time, which is how WHO_2022_VA_SOCIAL was born unflagged
+2. form-type **import** — same copy
+3. **ODK schema sync** (`odk_schema_sync_service.sync_selected` and
+   `_register_new_field`) — created rows at the default and never applied the
+   registry. Reachable from the admin field-mapping panel: register a form
+   type, run ODK schema sync, and `Id10073` lands unflagged. Nothing corrects
+   it but a manual `flask seed run`, which `boot.sh` never does.
+
+A fourth was filed as a LOW follow-up on 2026-09-18: a standalone migration
+entry point that does not call the registry. That it keeps happening is the
+argument for the durable fix below, not for a fourth patch.
+
+**If this work adds another way to create rows on that table, it must call
+the registry too.** Check before adding one.
+
+Worth revisiting once these roles land: the durable fix is a default applied
+at row creation rather than a call remembered at each site, since the failure
+mode is silent and the list of sites is only known by searching. Deliberately
+not attempted during the fix of the three known doors.
+
+## Field counts: do not record a bare count
+
+The count of PII fields that are coder-mapped drifted twice in opposite
+directions in one afternoon (12 -> 11 -> 12) because a count cannot be
+checked without redoing the work. The correct figure is 12 mapped, 3
+unmapped, the unmapped being `Id10073`, `abha_number`, `abha_address`.
+
+Record the explicit field list, never the count.

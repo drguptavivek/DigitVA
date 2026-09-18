@@ -336,10 +336,24 @@ implemented.
 
 ### Still open
 
-8. **Reporting dimensions (phase 5).** Unit path in the analytics MV, unit as
-   a grouping dimension in the DM KPIs, and `org_unit_code` / `org_unit_name` /
-   level-path columns in exports. Not started; listed under
-   [Not yet implemented](../policy/organization-model.md#not-yet-implemented-later-phases-of-the-plan).
+8. **Reporting dimensions (phase 5).** Split in two:
+   - **Exports — done.** `dm_submissions_export_csv` (the data manager's
+     `submissions/export.csv`) now appends `org_unit_code`, `org_unit_name`
+     and `org_unit_level_path` (the human-readable ancestor chain, e.g.
+     `Bengaluru Urban / North Block / Yelahanka PHC`) after every existing
+     column, base and payload-derived alike, so no downstream consumer's
+     column offsets shift. A project without a tree, or a submission that
+     was never routed, exports the three columns blank — nothing else
+     changes. Resolution is batched:
+     `organization_service.resolve_org_unit_export_labels` takes the distinct
+     `org_unit_id`s already present in the fetched rows and runs exactly two
+     queries regardless of row count — one for those units, one for the
+     ancestor unit codes named in their `path` (deduplicated project-wide) —
+     so a large export never walks the tree per row. Inactive units still
+     resolve their code and name.
+   - **Unit path in the analytics MV, unit as a grouping dimension in the DM
+     KPIs — not started.** Listed under
+     [Not yet implemented](../policy/organization-model.md#not-yet-implemented-later-phases-of-the-plan).
 
 ## Verification
 
@@ -358,7 +372,7 @@ implemented.
 
 | Concern | Module |
 |---|---|
-| Tree, cadres, workers, export/import | `app/services/organization_service.py` |
+| Tree, cadres, workers, export/import, unit label lookup for submission exports | `app/services/organization_service.py` |
 | Unit-scoped grants, coding scope rule | `app/services/org_grant_service.py` |
 | Submission routing, ODK field preflight | `app/services/org_unit_routing_service.py` |
 | Runtime form materialization per mapping | `app/services/runtime_form_sync_service.py` |

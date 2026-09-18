@@ -59,6 +59,8 @@ __all__ = [
     "parse_organization_workbook", "import_organization",
     # serializers
     "serialize_level", "serialize_unit", "serialize_cadre", "serialize_level_cadre", "serialize_worker",
+    # export dimensions
+    "resolve_org_unit_export_labels",
 ]
 
 # ltree labels accept [A-Za-z0-9_]; codes are stored upper-case.
@@ -398,6 +400,62 @@ def list_units(project_id: str, *, include_inactive: bool = False) -> list[dict]
         stmt = stmt.where(MasOrgUnit.is_active.is_(True))
     rows = db.session.execute(stmt.order_by(MasOrgUnit.path)).all()
     return [serialize_unit(unit, level=level, parent_code=parent_code) for unit, level, parent_code in rows]
+
+
+def resolve_org_unit_export_labels(org_unit_ids) -> dict[uuid.UUID, dict]:
+    """Batched unit code/name/level-path lookup for exports.
+
+    Takes any iterable of unit ids (``None`` entries are ignored) and returns
+    ``{org_unit_id: {"unit_code", "unit_name", "level_path"}}`` for every id
+    actually found — inactive units included, since history must stay
+    readable. Exactly two queries regardless of how many rows the caller is
+    exporting: one for the referenced units themselves, one for the ancestor
+    codes named in their ``path`` (deduplicated across all of them), so a
+    large export never turns into a per-row walk up the tree.
+    """
+    ids = {uid for uid in org_unit_ids if uid is not None}
+    if not ids:
+        return {}
+
+    units = db.session.execute(
+        sa.select(
+            MasOrgUnit.org_unit_id,
+            MasOrgUnit.project_id,
+            MasOrgUnit.unit_code,
+            MasOrgUnit.unit_name,
+            MasOrgUnit.path,
+        ).where(MasOrgUnit.org_unit_id.in_(ids))
+    ).all()
+    if not units:
+        return {}
+
+    project_ids = {row.project_id for row in units}
+    ancestor_codes = {code for row in units for code in str(row.path).split(".")}
+
+    name_by_project_code: dict[tuple[str, str], str] = {}
+    if ancestor_codes:
+        code_rows = db.session.execute(
+            sa.select(MasOrgUnit.project_id, MasOrgUnit.unit_code, MasOrgUnit.unit_name).where(
+                MasOrgUnit.project_id.in_(project_ids),
+                MasOrgUnit.unit_code.in_(ancestor_codes),
+            )
+        ).all()
+        name_by_project_code = {
+            (row.project_id, row.unit_code): row.unit_name for row in code_rows
+        }
+
+    labels: dict[uuid.UUID, dict] = {}
+    for row in units:
+        codes = str(row.path).split(".")
+        level_path = " / ".join(
+            name_by_project_code.get((row.project_id, code), code) for code in codes
+        )
+        labels[row.org_unit_id] = {
+            "unit_code": row.unit_code,
+            "unit_name": row.unit_name,
+            "level_path": level_path,
+        }
+    return labels
 
 
 def _aliased_parent():

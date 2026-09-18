@@ -51,6 +51,7 @@ from app.services.odk_retirement_service import (
     submission_is_retired,
 )
 from app.services.odk_review_service import resolve_odk_instance_id
+from app.services.organization_service import resolve_org_unit_export_labels
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_active_reviewer_reviews_for_submission,
     deactivate_active_narrative_assessments_for_submission,
@@ -1114,6 +1115,7 @@ def dm_submissions_export_csv(
             VaSubmissions.va_deceased_age_normalized_days,
             VaSubmissions.va_deceased_age_normalized_years,
             VaSubmissions.va_deceased_age_source,
+            VaSubmissions.org_unit_id,
             VaSubmissionPayloadVersion.payload_data,
             sa.func.coalesce(attachment_counts.c.cnt, 0).label("attachment_count"),
             sa.case((smartva_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva"),
@@ -1183,6 +1185,9 @@ def dm_submissions_export_csv(
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
     rows = db.session.execute(query).mappings().all()
     pii_payload_fields_by_form = _pii_payload_fields_by_form(rows)
+    org_unit_labels = resolve_org_unit_export_labels(
+        row.get("org_unit_id") for row in rows
+    )
 
     base_headers = [
         "va_sid",
@@ -1265,7 +1270,10 @@ def dm_submissions_export_csv(
             pii_fields_by_form=pii_payload_fields_by_form,
         ).keys()
     })
-    headers = base_headers + payload_headers
+    # Appended after every existing column (base and payload): downstream
+    # consumers depend on the existing column order and offsets.
+    org_unit_headers = ["org_unit_code", "org_unit_name", "org_unit_level_path"]
+    headers = base_headers + payload_headers + org_unit_headers
 
     handle = io.StringIO()
     writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
@@ -1345,6 +1353,10 @@ def dm_submissions_export_csv(
         }
         for key in payload_headers:
             export_row[key] = _serialize_csv_cell(payload.get(key))
+        org_unit_label = org_unit_labels.get(row.get("org_unit_id")) or {}
+        export_row["org_unit_code"] = org_unit_label.get("unit_code", "")
+        export_row["org_unit_name"] = org_unit_label.get("unit_name", "")
+        export_row["org_unit_level_path"] = org_unit_label.get("level_path", "")
         writer.writerow(export_row)
 
     return handle.getvalue()

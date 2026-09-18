@@ -59,9 +59,11 @@ from app.services.export_store_service import (
 )
 from app.services.submission_analytics_mv import (
     get_dm_kpi_from_mv,
+    get_dm_org_unit_stats_from_mv,
     get_dm_project_site_stats_from_mv,
     refresh_submission_analytics_mv,
 )
+from app.services.organization_service import list_levels as org_list_levels
 
 bp = Blueprint("data_management_api", __name__)
 log = logging.getLogger(__name__)
@@ -531,21 +533,57 @@ def project_site_submissions():
     timezone_name = getattr(current_user, "timezone", "Asia/Kolkata") or "Asia/Kolkata"
     project_ids = sorted(current_user.get_data_manager_projects())
     project_site_pairs = current_user.get_data_manager_project_sites()
+    project_filter = request.args.get("project", "")
+    common_filters = dict(
+        site=request.args.get("site", ""),
+        date_from=request.args.get("date_from") or None,
+        date_to=request.args.get("date_to") or None,
+        odk_status=request.args.get("odk_status", ""),
+        smartva=request.args.get("smartva", ""),
+        age_group=request.args.get("age_group", ""),
+        gender=request.args.get("gender", ""),
+        odk_sync=request.args.get("odk_sync", ""),
+        workflow=request.args.get("workflow", ""),
+    )
+
+    # Grouping by organization unit needs exactly one project with a tree —
+    # units belong to a single project. A project with no tree (org_list_levels
+    # returns nothing) keeps the site-grouped stats it always had; that is
+    # what makes this opt-in rather than a behaviour change for every project.
+    # docs/policy/organization-model.md. project_ids/project_site_pairs are
+    # this DM's own granted scope (project-scoped and project-site-scoped
+    # grants respectively, exactly as the site-grouped branch below uses
+    # them) — the requested project must be inside one of the two, the same
+    # authorization every other DM query in this module already applies.
+    dm_may_see_project = project_filter and (
+        project_filter in project_ids
+        or any(pair[0] == project_filter for pair in project_site_pairs)
+    )
+    if (
+        request.args.get("group_by", "") == "org_unit"
+        and dm_may_see_project
+        and org_list_levels(project_filter)
+    ):
+        return jsonify({
+            "group_by": "org_unit",
+            "stats": get_dm_org_unit_stats_from_mv(
+                project_id=project_filter,
+                project_ids=project_ids,
+                project_site_pairs=project_site_pairs,
+                project=project_filter,
+                **common_filters,
+            ),
+            "timezone": timezone_name,
+        })
+
     return jsonify({
+        "group_by": "site",
         "stats": get_dm_project_site_stats_from_mv(
             project_ids=project_ids,
             project_site_pairs=project_site_pairs,
             timezone_name=timezone_name,
-            project=request.args.get("project", ""),
-            site=request.args.get("site", ""),
-            date_from=request.args.get("date_from") or None,
-            date_to=request.args.get("date_to") or None,
-            odk_status=request.args.get("odk_status", ""),
-            smartva=request.args.get("smartva", ""),
-            age_group=request.args.get("age_group", ""),
-            gender=request.args.get("gender", ""),
-            odk_sync=request.args.get("odk_sync", ""),
-            workflow=request.args.get("workflow", ""),
+            project=project_filter,
+            **common_filters,
         ),
         "timezone": timezone_name,
     })

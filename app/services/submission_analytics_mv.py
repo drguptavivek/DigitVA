@@ -6,6 +6,20 @@ Three focused MVs replace the former single wide MV:
   va_submission_analytics_demographics_mv — sex, age band, boolean flags
   va_submission_cod_detail_mv       — COD ICD codes, SmartVA results
   va_submission_cod_snapshot_mv     — active COD/export snapshot
+
+A migration must reproduce what it did at the time it was written. Several
+historical migrations call ``build_submission_analytics_core_mv_sql()``
+directly to (re)create the core MV — that is fine as long as a change to
+this function cannot change what THOSE migrations produce when the chain is
+replayed from scratch. New optional columns must therefore be gated behind a
+parameter that defaults to matching every existing caller's historical
+behaviour (default False/off), never added unconditionally to the returned
+SQL. ``include_org_unit`` follows this rule: only migration
+``2e1da5fbaa0a`` (the one that introduced it) and the test suites that
+build the MV fresh pass ``include_org_unit=True``; every earlier migration
+keeps calling this function with the default and keeps getting the SQL it
+always got, because ``mas_org_unit`` does not exist yet when those
+migrations run.
 """
 
 from __future__ import annotations
@@ -97,8 +111,32 @@ _WHO_2022_SCHEME_CODE = "WHO_2022_VA"
 
 def build_submission_analytics_core_mv_sql(
     view_name: str = CORE_MV_NAME,
+    *,
+    include_org_unit: bool = False,
 ) -> str:
-    """Return the CREATE MATERIALIZED VIEW statement for the core analytics MV."""
+    """Return the CREATE MATERIALIZED VIEW statement for the core analytics MV.
+
+    ``include_org_unit=True`` adds org_unit_id/org_unit_code/org_unit_path
+    (joined from mas_org_unit) to the SELECT. Default False so every
+    pre-existing migration that calls this function keeps producing exactly
+    the SQL it always produced — several of them run before mas_org_unit
+    exists. Only migration 2e1da5fbaa0a and the test suites that build the
+    MV fresh pass True. See the module docstring.
+    """
+    org_unit_columns = ""
+    org_unit_join = ""
+    if include_org_unit:
+        org_unit_columns = """,
+    -- Organization unit this death is attributed to (health-system
+    -- projects only). NULL for a project with no organization tree, or for
+    -- an unrouted submission of one that has a tree. org_unit_path carries
+    -- the unit's ltree path so a subtree rollup is one indexed `<@` query
+    -- rather than a walk per unit. Policy: docs/policy/organization-model.md.
+    s.org_unit_id,
+    ou.unit_code AS org_unit_code,
+    ou.path AS org_unit_path"""
+        org_unit_join = "\nLEFT JOIN mas_org_unit ou ON ou.org_unit_id = s.org_unit_id"
+
     return f"""
 CREATE MATERIALIZED VIEW {view_name} AS
 SELECT
@@ -117,7 +155,7 @@ SELECT
     -- DISTINCT FROM keeps the column NOT NULL for submissions with no sync
     -- issue at all, so consumers can filter on odk_missing = false.
     (s.va_sync_issue_code IS NOT DISTINCT FROM '{MISSING_IN_ODK}') AS odk_missing,
-    (w.workflow_state = '{WORKFLOW_FINALIZED_UPSTREAM_CHANGED}') AS cod_pending_upstream_review
+    (w.workflow_state = '{WORKFLOW_FINALIZED_UPSTREAM_CHANGED}') AS cod_pending_upstream_review{org_unit_columns}
 FROM va_submissions s
 JOIN va_forms f ON f.form_id = s.va_form_id
 -- A submission belongs to its form's own (project, site) pair: va_forms and
@@ -125,7 +163,7 @@ JOIN va_forms f ON f.form_id = s.va_form_id
 -- several active projects at once, so "the site's project" is not defined.
 -- Scope filters compare (project_id, site_id) against active va_project_sites
 -- pairs, exactly as dm_scope_filter does for the form itself.
-LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid{org_unit_join}
 WITH DATA
 """
 
@@ -1306,6 +1344,112 @@ def get_dm_project_site_stats_from_mv(
             "total_submissions": row["total_submissions"] or 0,
             "this_week_submissions": row["this_week_submissions"] or 0,
             "today_submissions": row["today_submissions"] or 0,
+        }
+        for row in rows
+    ]
+
+
+def get_dm_org_unit_stats_from_mv(
+    *,
+    project_id: str,
+    project_ids: list[str],
+    project_site_pairs,
+    project: str = "",
+    site: str = "",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    odk_status: str = "",
+    smartva: str = "",
+    age_group: str = "",
+    gender: str = "",
+    odk_sync: str = "",
+    workflow: str = "",
+) -> list[dict]:
+    """Return per-organization-unit submission counts for one project's tree.
+
+    Each row is one active unit of ``project_id`` with its **subtree**
+    total: a district's count includes every taluka, CHC and PHC beneath it,
+    counted once each. This is a single query — candidate units outer-joined
+    against the scoped, already-filtered submissions on the ltree `<@`
+    containment operator (indexed via
+    ``ix_va_submission_analytics_core_mv_org_unit_path``) — not a query per
+    unit. Callers must first confirm the project has a tree
+    (``organization_service.list_levels``); a project without one has no
+    units to group by, and its site-grouped stats
+    (``get_dm_project_site_stats_from_mv``) are untouched by this function
+    existing. Policy: docs/policy/organization-model.md.
+    """
+    from app.models.mas_organization import MasOrgUnit
+
+    core = sa.table(
+        CORE_MV_NAME,
+        sa.column("va_sid"),
+        sa.column("project_id"),
+        sa.column("site_id"),
+        sa.column("submission_date"),
+        sa.column("workflow_state"),
+        sa.column("odk_review_state"),
+        sa.column("odk_sync_issue_code"),
+        sa.column("odk_missing"),
+        sa.column("org_unit_path"),
+    )
+    demo = sa.table(
+        DEMOGRAPHICS_MV_NAME,
+        sa.column("va_sid"),
+        sa.column("analytics_age_band"),
+        sa.column("sex"),
+        sa.column("has_smartva"),
+    )
+
+    conditions = build_dm_mv_filter_conditions(
+        core,
+        demo,
+        project_ids=project_ids,
+        project_site_pairs=project_site_pairs,
+        project=project or project_id,
+        site=site,
+        date_from=date_from,
+        date_to=date_to,
+        odk_status=odk_status,
+        smartva=smartva,
+        age_group=age_group,
+        gender=gender,
+        odk_sync=odk_sync,
+        workflow=workflow,
+    )
+
+    joined = core.join(demo, core.c.va_sid == demo.c.va_sid)
+    scoped_submissions = (
+        sa.select(core.c.org_unit_path)
+        .select_from(joined)
+        .where(sa.and_(*conditions))
+        .where(core.c.org_unit_path.isnot(None))
+        .subquery("scoped_submissions")
+    )
+
+    rows = db.session.execute(
+        sa.select(
+            MasOrgUnit.org_unit_id,
+            MasOrgUnit.unit_code,
+            MasOrgUnit.unit_name,
+            sa.func.count(scoped_submissions.c.org_unit_path).label("total_submissions"),
+        )
+        .select_from(MasOrgUnit)
+        .outerjoin(
+            scoped_submissions,
+            scoped_submissions.c.org_unit_path.op("<@")(MasOrgUnit.path),
+        )
+        .where(MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True))
+        .group_by(MasOrgUnit.org_unit_id, MasOrgUnit.unit_code, MasOrgUnit.unit_name)
+        .order_by(MasOrgUnit.unit_code)
+    ).all()
+
+    return [
+        {
+            "org_unit_id": str(row.org_unit_id),
+            "org_unit_code": row.unit_code,
+            "org_unit_name": row.unit_name,
+            "total_submissions": row.total_submissions or 0,
         }
         for row in rows
     ]

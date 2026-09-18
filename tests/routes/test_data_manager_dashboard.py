@@ -23,6 +23,8 @@ from app.models import (
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
     MasOdkConnections,
+    MasOrgLevel,
+    MasOrgUnit,
     VaProjectMaster,
     VaProjectSites,
     VaResearchProjects,
@@ -511,7 +513,7 @@ class DataManagerDashboardTests(BaseTestCase):
         """
         for mv in (COD_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql()))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
         db.session.execute(
             sa.text(f"CREATE UNIQUE INDEX {index_prefix}_core_va_sid ON {CORE_MV_NAME} (va_sid)")
         )
@@ -539,6 +541,64 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn("total_submissions", payload["stats"][0])
         self.assertIn("this_week_submissions", payload["stats"][0])
         self.assertIn("today_submissions", payload["stats"][0])
+
+    def test_project_site_submissions_groups_by_org_unit_when_tree_exists(self):
+        """group_by=org_unit switches the response for a project with a
+        tree; a project without one keeps the site-grouped response
+        (covered by test_data_manager_can_load_project_site_submission_stats).
+        """
+        district_level = MasOrgLevel(
+            project_id=self.BASE_PROJECT_ID,
+            level_code="dmdashdistrict",
+            level_name="District",
+            depth=1,
+        )
+        db.session.add(district_level)
+        db.session.flush()
+        district = MasOrgUnit(
+            project_id=self.BASE_PROJECT_ID,
+            org_level_id=district_level.org_level_id,
+            unit_code="DMDASHD01",
+            unit_name="Dashboard District",
+            path="DMDASHD01",
+        )
+        db.session.add(district)
+        db.session.flush()
+        submission = db.session.get(VaSubmissions, self.SID)
+        submission.org_unit_id = district.org_unit_id
+        submission.org_unit_resolution = "manual"
+        db.session.commit()
+
+        self._login(self.dm_user_id)
+        self._create_analytics_mvs("ix_test_dm_org_unit_stats")
+
+        response = self.client.get(
+            "/api/v1/data-management/project-site-submissions",
+            query_string={"group_by": "org_unit", "project": self.BASE_PROJECT_ID},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["group_by"], "org_unit")
+        by_code = {row["org_unit_code"]: row for row in payload["stats"]}
+        self.assertIn("DMDASHD01", by_code)
+        self.assertEqual(by_code["DMDASHD01"]["total_submissions"], 1)
+
+    def test_project_site_submissions_ignores_group_by_org_unit_without_a_tree(self):
+        """A project with no organization tree keeps the site-grouped shape
+        even if a caller asks for group_by=org_unit."""
+        self._login(self.dm_user_id)
+        self._create_analytics_mvs("ix_test_dm_no_tree_group_by")
+
+        response = self.client.get(
+            "/api/v1/data-management/project-site-submissions",
+            query_string={"group_by": "org_unit", "project": self.BASE_PROJECT_ID},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["group_by"], "site")
+        self.assertEqual(payload["stats"][0]["project_id"], self.BASE_PROJECT_ID)
 
     def test_data_manager_coder_daily_stats_excludes_recodes_and_out_of_scope(self):
         self._login(self.dm_user_id)
@@ -1496,6 +1556,102 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn("sid", body)
         self.assertIn("uuid:data-manager-dashboard", body)
         self.assertIn("I21", body)
+
+    def _org_tree(self):
+        """District > PHC, two units deep, for this class's BASE_PROJECT_ID."""
+        from app.models.mas_organization import MasOrgLevel, MasOrgUnit
+
+        district_level = MasOrgLevel(
+            project_id=self.BASE_PROJECT_ID,
+            level_code="district",
+            level_name="District",
+            depth=1,
+        )
+        phc_level = MasOrgLevel(
+            project_id=self.BASE_PROJECT_ID,
+            level_code="phc",
+            level_name="PHC",
+            depth=2,
+        )
+        db.session.add_all([district_level, phc_level])
+        db.session.flush()
+        district = MasOrgUnit(
+            org_unit_id=uuid.uuid4(),
+            project_id=self.BASE_PROJECT_ID,
+            org_level_id=district_level.org_level_id,
+            unit_code="D01",
+            unit_name="District One",
+            path="D01",
+        )
+        db.session.add(district)
+        db.session.flush()
+        phc = MasOrgUnit(
+            org_unit_id=uuid.uuid4(),
+            project_id=self.BASE_PROJECT_ID,
+            org_level_id=phc_level.org_level_id,
+            parent_org_unit_id=district.org_unit_id,
+            unit_code="P01",
+            unit_name="PHC One",
+            path="D01.P01",
+        )
+        db.session.add(phc)
+        db.session.flush()
+        return district, phc
+
+    def test_submissions_export_csv_includes_org_unit_dimensions_for_routed_submission(self):
+        _district, phc = self._org_tree()
+        submission = db.session.get(VaSubmissions, self.SID)
+        submission.org_unit_id = phc.org_unit_id
+        submission.org_unit_resolution = "manual"
+        db.session.flush()
+        self.addCleanup(lambda: setattr(submission, "org_unit_id", None))
+        self._login(self.dm_user_id)
+
+        response = self.client.get("/api/v1/data-management/submissions/export.csv")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        rows = list(csv.DictReader(io.StringIO(body.lstrip("﻿"))))
+        header = rows and list(rows[0].keys()) or []
+        self.assertIn("org_unit_code", header)
+        self.assertIn("org_unit_name", header)
+        self.assertIn("org_unit_level_path", header)
+        row = next(r for r in rows if r["va_sid"] == self.SID)
+        self.assertEqual(row["org_unit_code"], "P01")
+        self.assertEqual(row["org_unit_name"], "PHC One")
+        self.assertEqual(row["org_unit_level_path"], "District One / PHC One")
+
+    def test_submissions_export_csv_leaves_org_unit_columns_blank_when_unrouted(self):
+        submission = db.session.get(VaSubmissions, self.SID)
+        self.assertIsNone(submission.org_unit_id, "fixture default: this submission is unrouted")
+        self._login(self.dm_user_id)
+
+        response = self.client.get("/api/v1/data-management/submissions/export.csv")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        rows = list(csv.DictReader(io.StringIO(body.lstrip("﻿"))))
+        row = next(r for r in rows if r["va_sid"] == self.SID)
+        self.assertEqual(row["org_unit_code"], "")
+        self.assertEqual(row["org_unit_name"], "")
+        self.assertEqual(row["org_unit_level_path"], "")
+
+    def test_submissions_export_csv_appends_org_unit_columns_without_reordering(self):
+        self._login(self.dm_user_id)
+
+        response = self.client.get("/api/v1/data-management/submissions/export.csv")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        header = next(csv.reader(io.StringIO(body.lstrip("﻿"))))
+        # Existing leading columns keep their exact original order.
+        self.assertEqual(
+            header[:5],
+            ["va_sid", "project_id", "site_id", "va_form_id", "va_uniqueid_masked"],
+        )
+        # The three new dimensions are appended after every existing column,
+        # base and payload-derived alike.
+        self.assertEqual(header[-3:], ["org_unit_code", "org_unit_name", "org_unit_level_path"])
 
     @patch(
         "app.routes.api.data_management.dm_smartva_input_export_csv",

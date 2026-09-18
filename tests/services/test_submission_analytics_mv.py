@@ -10,6 +10,8 @@ from app.models import (
     MapIcdCodBucket,
     MasCodBucketNode,
     MasCodBucketScheme,
+    MasOrgLevel,
+    MasOrgUnit,
     VaFinalAssessments,
     VaForms,
     VaInitialAssessments,
@@ -39,6 +41,7 @@ from app.services.submission_analytics_mv import (
     build_submission_cod_detail_mv_sql,
     build_submission_cod_snapshot_mv_sql,
     get_dm_kpi_from_mv,
+    get_dm_org_unit_stats_from_mv,
     get_dm_project_site_stats_from_mv,
     refresh_submission_analytics_mv,
     CORE_MV_NAME,
@@ -139,7 +142,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         ):
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
 
-        db.session.execute(sa.text(build_submission_analytics_core_mv_sql()))
+        db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True)))
         db.session.execute(sa.text(
             f"CREATE UNIQUE INDEX ix_test_core_va_sid ON {CORE_MV_NAME} (va_sid)"
         ))
@@ -1793,3 +1796,139 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(
             self._sids_in_scope(kpi_filter="all"), {live_sid, retired_sid}
         )
+
+    # -- phase 5: organization unit reporting columns -----------------------
+
+    def _make_org_tree(self, project_id: str, *, prefix: str):
+        """Create a two-level tree (district > phc) for project_id and
+        return (district, phc) MasOrgUnit rows. Mirrors the shape a
+        health-system project uses: docs/policy/organization-model.md.
+        """
+        code_prefix = prefix.upper()
+        district_level = MasOrgLevel(
+            project_id=project_id,
+            level_code=f"{prefix}district",
+            level_name="District",
+            depth=1,
+        )
+        phc_level = MasOrgLevel(
+            project_id=project_id,
+            level_code=f"{prefix}phc",
+            level_name="PHC",
+            depth=2,
+        )
+        db.session.add_all([district_level, phc_level])
+        db.session.flush()
+
+        district = MasOrgUnit(
+            project_id=project_id,
+            org_level_id=district_level.org_level_id,
+            unit_code=f"{code_prefix}D01",
+            unit_name="District One",
+            path=f"{code_prefix}D01",
+        )
+        db.session.add(district)
+        db.session.flush()
+
+        phc = MasOrgUnit(
+            project_id=project_id,
+            org_level_id=phc_level.org_level_id,
+            parent_org_unit_id=district.org_unit_id,
+            unit_code=f"{code_prefix}P01",
+            unit_name="PHC One",
+            path=f"{code_prefix}D01.{code_prefix}P01",
+        )
+        db.session.add(phc)
+        db.session.flush()
+        return district, phc
+
+    def test_core_mv_carries_org_unit_columns_after_refresh(self):
+        district, _phc = self._make_org_tree(self.PROJECT_ID, prefix="orgcol")
+        sid = "uuid:mv-org-unit-columns"
+        self._add_submission(sid, {"age_group": "adult", "ageInYears": "40"})
+        db.session.flush()
+        db.session.get(VaSubmissions, sid).org_unit_id = district.org_unit_id
+        db.session.get(VaSubmissions, sid).org_unit_resolution = "manual"
+        db.session.commit()
+
+        refresh_submission_analytics_mv()
+
+        row = db.session.execute(
+            sa.text(
+                f"SELECT org_unit_id, org_unit_code, org_unit_path "
+                f"FROM {CORE_MV_NAME} WHERE va_sid = :sid"
+            ),
+            {"sid": sid},
+        ).mappings().one()
+
+        self.assertEqual(row["org_unit_id"], district.org_unit_id)
+        self.assertEqual(row["org_unit_code"], "ORGCOLD01")
+        self.assertEqual(str(row["org_unit_path"]), "ORGCOLD01")
+
+    def test_core_mv_org_unit_columns_are_null_for_unrouted_submission(self):
+        """A submission with no unit (no tree, or unrouted) stays NULL."""
+        sid = "uuid:mv-org-unit-null"
+        self._add_submission(sid, {"age_group": "adult", "ageInYears": "40"})
+        db.session.commit()
+
+        refresh_submission_analytics_mv()
+
+        row = db.session.execute(
+            sa.text(
+                f"SELECT org_unit_id, org_unit_code FROM {CORE_MV_NAME} "
+                f"WHERE va_sid = :sid"
+            ),
+            {"sid": sid},
+        ).mappings().one()
+
+        self.assertIsNone(row["org_unit_id"])
+        self.assertIsNone(row["org_unit_code"])
+
+    def test_org_unit_subtree_rollup_counts_descendants_once(self):
+        """A district's total includes its PHC's submissions exactly once,
+        and the PHC's own total is not inflated by its parent's rows."""
+        district, phc = self._make_org_tree(self.PROJECT_ID, prefix="rollup")
+
+        district_sid = "uuid:mv-rollup-district"
+        phc_sid = "uuid:mv-rollup-phc"
+        self._add_submission(district_sid, {"age_group": "adult", "ageInYears": "40"})
+        self._add_submission(phc_sid, {"age_group": "adult", "ageInYears": "40"})
+        db.session.flush()
+        db.session.get(VaSubmissions, district_sid).org_unit_id = district.org_unit_id
+        db.session.get(VaSubmissions, district_sid).org_unit_resolution = "manual"
+        db.session.get(VaSubmissions, phc_sid).org_unit_id = phc.org_unit_id
+        db.session.get(VaSubmissions, phc_sid).org_unit_resolution = "manual"
+        db.session.commit()
+
+        refresh_submission_analytics_mv()
+
+        stats = get_dm_org_unit_stats_from_mv(
+            project_id=self.PROJECT_ID,
+            project_ids=[],
+            project_site_pairs=[(self.PROJECT_ID, self.SITE_ID)],
+        )
+        by_code = {row["org_unit_code"]: row["total_submissions"] for row in stats}
+
+        self.assertEqual(by_code["ROLLUPD01"], 2)
+        self.assertEqual(by_code["ROLLUPP01"], 1)
+
+    def test_no_tree_project_kpi_and_site_stats_unchanged(self):
+        """A project with no organization tree is untouched by the new
+        columns: KPI counts and site-grouped stats behave exactly as before.
+        """
+        sid = "uuid:mv-no-tree"
+        self._add_submission(sid, {"age_group": "adult", "ageInYears": "40"})
+        db.session.commit()
+
+        refresh_submission_analytics_mv()
+
+        scope = [(self.PROJECT_ID, self.SITE_ID)]
+        kpi = get_dm_kpi_from_mv([], scope)
+        stats = get_dm_project_site_stats_from_mv(
+            project_ids=[], project_site_pairs=scope, timezone_name="UTC"
+        )
+
+        self.assertGreaterEqual(kpi["total_submissions"], 1)
+        self.assertEqual(len(stats), 1)
+        self.assertEqual(stats[0]["project_id"], self.PROJECT_ID)
+        self.assertEqual(stats[0]["site_id"], self.SITE_ID)

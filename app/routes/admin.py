@@ -1006,36 +1006,44 @@ def admin_update_project(project_id):
         return _json_error("Project not found.", 404)
         
     payload = request.get_json(silent=True) or {}
-    
+
+    # Every field is validated into `updates` before anything is assigned to
+    # the project. Returning an error half way through assignment would leave
+    # the rejected values on the ORM object, where a later flush in the same
+    # session could persist them — a partial update nobody asked for.
+    updates: dict[str, object] = {}
+
     if "project_code" in payload:
-        project.project_code = (payload["project_code"] or "").strip().upper() or project.project_id
-        
+        updates["project_code"] = (
+            (payload["project_code"] or "").strip().upper() or project.project_id
+        )
+
     if "project_name" in payload:
         project_name = (payload["project_name"] or "").strip()
         if not project_name:
             return _json_error("project_name cannot be empty.", 400)
-        project.project_name = project_name
-        
+        updates["project_name"] = project_name
+
     if "project_nickname" in payload:
         project_nickname = (payload["project_nickname"] or "").strip()
         if not project_nickname:
             return _json_error("project_nickname cannot be empty.", 400)
-        project.project_nickname = project_nickname
-        
+        updates["project_nickname"] = project_nickname
+
     if "status" in payload:
         try:
-            project.project_status = VaStatuses(payload["status"])
+            updates["project_status"] = VaStatuses(payload["status"])
         except ValueError:
             return _json_error("Invalid status.", 400)
 
     if "narrative_qa_enabled" in payload:
-        project.narrative_qa_enabled = bool(payload["narrative_qa_enabled"])
+        updates["narrative_qa_enabled"] = bool(payload["narrative_qa_enabled"])
 
     if "social_autopsy_enabled" in payload:
-        project.social_autopsy_enabled = bool(payload["social_autopsy_enabled"])
+        updates["social_autopsy_enabled"] = bool(payload["social_autopsy_enabled"])
 
     if "reviewer_social_autopsy_enabled" in payload:
-        project.reviewer_social_autopsy_enabled = bool(
+        updates["reviewer_social_autopsy_enabled"] = bool(
             payload["reviewer_social_autopsy_enabled"]
         )
 
@@ -1046,18 +1054,18 @@ def admin_update_project(project_id):
             "pick_and_choose",
         }:
             return _json_error("Invalid coding_intake_mode.", 400)
-        project.coding_intake_mode = coding_intake_mode
+        updates["coding_intake_mode"] = coding_intake_mode
 
     if "above_scope_coding_mode" in payload:
         above_scope_coding_mode = (payload["above_scope_coding_mode"] or "").strip()
         if above_scope_coding_mode not in {"code_any", "view_only"}:
             return _json_error("Invalid above_scope_coding_mode.", 400)
-        project.above_scope_coding_mode = above_scope_coding_mode
+        updates["above_scope_coding_mode"] = above_scope_coding_mode
 
     if "coding_scope_level_id" in payload:
         raw_level_id = payload["coding_scope_level_id"]
         if raw_level_id in (None, ""):
-            project.coding_scope_level_id = None
+            updates["coding_scope_level_id"] = None
         else:
             try:
                 level_uuid = uuid.UUID(str(raw_level_id))
@@ -1070,20 +1078,20 @@ def admin_update_project(project_id):
                 )
             if not level.is_active:
                 return _json_error("Organization level is inactive.", 400)
-            project.coding_scope_level_id = level.org_level_id
+            updates["coding_scope_level_id"] = level.org_level_id
 
     # Unit-scoped coding is a pick-and-choose workflow: a coder chooses from
     # the deaths of their own units, and random allocation would hand them
-    # submissions from outside their scope.
+    # submissions from outside their scope. Checked against the values this
+    # request would leave behind, whichever of the two it supplies.
     # Policy: docs/policy/organization-model.md.
-    if (
-        project.coding_scope_level_id is not None
-        and project.coding_intake_mode != "pick_and_choose"
-    ):
-        # Roll back first: the fields above are already assigned on the ORM
-        # object, and returning without discarding them would leave the
-        # rejected combination in the session for a later flush to persist.
-        db.session.rollback()
+    resulting_scope_level = updates.get(
+        "coding_scope_level_id", project.coding_scope_level_id
+    )
+    resulting_intake_mode = updates.get(
+        "coding_intake_mode", project.coding_intake_mode
+    )
+    if resulting_scope_level is not None and resulting_intake_mode != "pick_and_choose":
         return _json_error(
             "A project with a coding scope level must use pick-and-choose "
             "coding intake.",
@@ -1091,24 +1099,16 @@ def admin_update_project(project_id):
         )
 
     if "demo_training_enabled" in payload:
-        project.demo_training_enabled = bool(payload["demo_training_enabled"])
+        updates["demo_training_enabled"] = bool(payload["demo_training_enabled"])
 
+    web_intake_mode = None
     if "web_intake_mode" in payload:
         from app.models.va_web_intake import WEB_INTAKE_MODES
 
         web_intake_mode = (payload["web_intake_mode"] or "").strip()
         if web_intake_mode not in WEB_INTAKE_MODES:
             return _json_error("Invalid web_intake_mode.", 400)
-        project.web_intake_mode = web_intake_mode
-        if web_intake_mode != "off":
-            # Interviewer access resolves through va_forms, so the web form has
-            # to exist before anyone can open /intake/ — a web-only project has
-            # no ODK mapping to materialize one. See docs/policy/web-intake.md.
-            from app.services.runtime_form_sync_service import (
-                ensure_web_forms_for_project,
-            )
-
-            ensure_web_forms_for_project(project.project_id)
+        updates["web_intake_mode"] = web_intake_mode
 
     if "demo_retention_minutes" in payload:
         try:
@@ -1117,7 +1117,21 @@ def admin_update_project(project_id):
             return _json_error("demo_retention_minutes must be a positive integer.", 400)
         if demo_retention_minutes < 1:
             return _json_error("demo_retention_minutes must be a positive integer.", 400)
-        project.demo_retention_minutes = demo_retention_minutes
+        updates["demo_retention_minutes"] = demo_retention_minutes
+
+    # Everything validated: apply.
+    for field, value in updates.items():
+        setattr(project, field, value)
+
+    if web_intake_mode is not None and web_intake_mode != "off":
+        # Interviewer access resolves through va_forms, so the web form has
+        # to exist before anyone can open /intake/ — a web-only project has
+        # no ODK mapping to materialize one. See docs/policy/web-intake.md.
+        from app.services.runtime_form_sync_service import (
+            ensure_web_forms_for_project,
+        )
+
+        ensure_web_forms_for_project(project.project_id)
 
     db.session.commit()
     return jsonify({"project": _serialize_project(project)})

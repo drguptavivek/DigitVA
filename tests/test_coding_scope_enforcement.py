@@ -499,3 +499,68 @@ class CodingScopeSettingsApiTests(CodingScopeFixtureMixin, BaseTestCase):
         later = self._patch({"coding_intake_mode": "random_form_allocation"})
         self.assertEqual(later.status_code, 400)
         self.assertIn("pick-and-choose", later.get_json()["error"])
+
+
+class ProjectUpdateIsAllOrNothingTests(CodingScopeFixtureMixin, BaseTestCase):
+    """A rejected project update leaves no field changed.
+
+    Validation runs before any assignment, so an error cannot leave the
+    rejected values on the ORM object for a later flush to persist.
+    """
+
+    def _put(self, body):
+        return self.client.put(
+            f"/admin/api/projects/{self.PROJECT}",
+            json=body,
+            headers=self._csrf_headers(),
+        )
+
+    def test_a_rejected_field_discards_the_valid_fields_sent_with_it(self):
+        self._login(str(self.base_admin_id))
+        project = db.session.get(VaProjectMaster, self.PROJECT)
+        original_name = project.project_name
+
+        response = self._put({
+            "project_name": "Renamed by a request that should fail",
+            "coding_intake_mode": "nonsense",
+        })
+        self.assertEqual(response.status_code, 400)
+
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, self.PROJECT)
+        self.assertEqual(project.project_name, original_name)
+
+    def test_a_rejected_scope_combination_discards_the_whole_request(self):
+        levels, _, _, _, _ = self._tree()
+        self._login(str(self.base_admin_id))
+        project = db.session.get(VaProjectMaster, self.PROJECT)
+        self.assertEqual(project.coding_intake_mode, "pick_and_choose")
+
+        response = self._put({
+            "coding_scope_level_id": str(levels["phc"].org_level_id),
+            "coding_intake_mode": "random_form_allocation",
+            "narrative_qa_enabled": True,
+        })
+        self.assertEqual(response.status_code, 400)
+
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, self.PROJECT)
+        self.assertIsNone(project.coding_scope_level_id)
+        self.assertEqual(project.coding_intake_mode, "pick_and_choose")
+        self.assertFalse(project.narrative_qa_enabled)
+
+    def test_a_valid_update_still_applies_every_field(self):
+        levels, _, _, _, _ = self._tree()
+        self._login(str(self.base_admin_id))
+        response = self._put({
+            "project_nickname": "ScopedProject",
+            "coding_scope_level_id": str(levels["phc"].org_level_id),
+            "above_scope_coding_mode": "code_any",
+        })
+        self.assertEqual(response.status_code, 200, response.get_json())
+
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, self.PROJECT)
+        self.assertEqual(project.project_nickname, "ScopedProject")
+        self.assertEqual(project.coding_scope_level_id, levels["phc"].org_level_id)
+        self.assertEqual(project.above_scope_coding_mode, "code_any")

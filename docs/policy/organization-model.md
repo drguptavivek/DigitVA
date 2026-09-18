@@ -129,6 +129,10 @@ and keep working exactly as they did.
 - Seeding the template (District, Taluka optional, CHC, PHC, Sub-centre,
   Village, with SMO/MO/CHO/MPW/ANM/ASHA) is idempotent: existing codes are
   kept.
+- A submission already attributed to a unit **keeps that attribution** when
+  the unit is deactivated (decision 2026-09-18), so counts over a closed unit
+  stay correct. Deactivation removes the unit from routing and from every
+  grant's resolved scope; it does not rewrite history.
 
 ## Import and export
 
@@ -258,6 +262,11 @@ unit-based coding scope.
 - A coder granted **above** the scope level is governed by
   `above_scope_coding_mode`: `code_any` lets them code their whole subtree,
   `view_only` (the default) lets them code nothing.
+- `view_only` means the person **sees the cause of death and the submission
+  data for their subtree, read-only, and codes nothing** (decision
+  2026-09-18). Only the "codes nothing" half is implemented; the viewing right
+  is outstanding, so such a grant currently shows its holder nothing at all.
+  Tracked in `.tasks/org-above-scope-view-only-access.md`.
 - The same rule governs the reviewer track, using reviewer grants.
 - A project with a coding scope level must use `pick_and_choose` coding
   intake: random allocation would hand a coder submissions from outside

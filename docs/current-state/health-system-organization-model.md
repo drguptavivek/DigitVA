@@ -231,13 +231,19 @@ The plan considered three routing strategies. Only one is built.
 | C. Both, with mismatch detection | B primary, A as fallback and cross-check | **not built** |
 
 Option B was the decision on 2026-09-17: explicit, auditable, and it survives
-shared devices. Sync already stores `SubmitterID`, `SubmitterName` and
-`DeviceID` per submission, and `mas_org_unit_worker` already has fields for
-the ODK submitter id and device id, so option A remains available without
-schema work. It is worth building when a project cannot change its form, or as
-the cross-check of option C — a submission whose form says PHC X while its
-submitter belongs to PHC Y is exactly the kind of error that currently passes
-silently.
+shared devices.
+
+Option A is further away than the plan assumed. Sync does capture
+`SubmitterID`, `SubmitterName` and `DeviceID` — but into the stored **payload**
+(`_enrich_submission_payload_for_storage`), not into columns, and
+`va_submissions` promotes only `SubmitterName`, into `va_data_collector`.
+`mas_org_unit_worker` has **no** ODK submitter or device columns; the plan
+proposed them and phase 1 did not build them. So option A needs a migration on
+the worker table, a way to populate and reconcile those ids against ODK
+Central's app users, and a payload read for the submitter id. It is worth
+building when a project cannot change its form, or as the cross-check of
+option C — a submission whose form says PHC X while its submitter belongs to
+PHC Y is exactly the kind of error that currently passes silently.
 
 ## Findings
 
@@ -285,30 +291,39 @@ on the shared test database and produce failures that do not reproduce.
 
 ## Open questions
 
-These are open against the policy as written; anything settled here belongs
-back in [Organization Model Policy](../policy/organization-model.md) before it is implemented.
+Anything settled here belongs back in
+[Organization Model Policy](../policy/organization-model.md) before it is
+implemented.
 
-1. **Does a project ever need both sites and a tree?** The container
-   project-site still carries the ODK mapping and the coding gates
-   (`coding_enabled`, dates, `daily_coder_limit`) for tree projects. Those
-   gates are site-shaped. Whether a health-system project wants per-unit
-   coding windows or daily limits is undecided, and nothing expresses them
+### Decided (2026-09-18)
+
+1. **A project needs both sites and a tree.** The container project-site
+   stays, carrying the ODK mapping and the coding gates (`coding_enabled`,
+   dates, `daily_coder_limit`), with the tree alongside it. This is what is
+   built, so nothing changes. *Still open:* whether a health-system project
+   also wants those gates expressed **per unit** — a coding window or daily
+   limit for one PHC rather than for the whole site. Nothing expresses that
    today.
-2. **What happens to a coded submission when its unit is deactivated or
-   moved?** Routing does not rewrite submissions already attributed to a unit;
-   the next sync of that submission re-routes it. A unit that closes mid-study
-   leaves its coded deaths attributed to it, which is probably right for
-   reporting and possibly wrong for access.
-3. **Should a site PI at a unit see coded work outside their coding scope?**
-   `above_scope_coding_mode = 'view_only'` names a viewing right that is not
-   yet implemented as one: today it only means "codes nothing". What such a
-   person should actually see is unspecified.
+2. **Units are never deleted.** Deactivation only, and a submission already
+   attributed to a unit keeps that attribution. This is what is built:
+   deactivation cascades to the subtree, nothing is removed, and coded deaths
+   stay where they were counted. Reporting over a closed unit therefore stays
+   correct.
+3. **`view_only` means the person sees the cause of death and the submission
+   data, but codes nothing.** Today it only means the second half. The viewing
+   right is a real gap: a coder granted above the scope level currently sees
+   nothing at all from their subtree, where they should see coded and uncoded
+   work read-only. Tracked in `.tasks/org-above-scope-view-only-access.md`.
+
+### Still open
+
 4. **Is one cadre per grant enough?** A person holding two cadres at one unit,
    or the same cadre at several units, currently needs one grant per
    combination. No one has asked for more yet.
 5. **How are workers kept in step with ODK app users?** The worker registry
-   has fields for the ODK submitter id and device id, but nothing populates or
-   reconciles them. This is a prerequisite for routing option A.
+   has no ODK submitter or device columns at all, and nothing reconciles
+   workers against Central's app users. Both are prerequisites for routing
+   option A.
 6. **Reporting dimensions (phase 5).** Unit path in the analytics MV, unit as
    a grouping dimension in the DM KPIs, and `org_unit_code` / `org_unit_name` /
    level-path columns in exports. Not started; listed under

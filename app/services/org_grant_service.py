@@ -16,6 +16,7 @@ Plan: docs/planning/health-system-organization-model-plan.md (phase 2).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterable
 
 import sqlalchemy as sa
 
@@ -169,6 +170,44 @@ def scope_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]:
         .where(
             VaUserAccessGrants.user_id == user_id,
             VaUserAccessGrants.role == role,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            granted.is_active.is_(True),
+            covered.is_active.is_(True),
+        )
+    )
+    return set(db.session.scalars(stmt).all())
+
+
+def scope_unit_ids_for_roles(
+    user_id: uuid.UUID, roles: Iterable[VaAccessRoles]
+) -> set[uuid.UUID]:
+    """Every active unit reachable by any of *roles*, in one query.
+
+    Same shaped join as ``scope_unit_ids``, but with the role filter widened
+    to ``role IN (...)`` so a caller that used to need one query per role
+    (e.g. the organization API's read-only unit picker, which unions across
+    every role that may hold an org_unit grant) gets it in one round trip.
+    """
+    roles = list(roles)
+    if not roles:
+        return set()
+    granted = sa.orm.aliased(MasOrgUnit, name="granted_unit_roles")
+    covered = sa.orm.aliased(MasOrgUnit, name="covered_unit_roles")
+    stmt = (
+        sa.select(covered.org_unit_id)
+        .select_from(VaUserAccessGrants)
+        .join(granted, granted.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .join(
+            covered,
+            sa.and_(
+                covered.project_id == granted.project_id,
+                sa.text("covered_unit_roles.path <@ granted_unit_roles.path"),
+            ),
+        )
+        .where(
+            VaUserAccessGrants.user_id == user_id,
+            VaUserAccessGrants.role.in_(roles),
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
             VaUserAccessGrants.grant_status == VaStatuses.active,
             granted.is_active.is_(True),

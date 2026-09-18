@@ -118,6 +118,49 @@ and keep working exactly as they did.
   (`list_name = org_<level_code>`, `name` = unit code, `label` = unit name,
   `parent_code` = filter column) so form authors never type codes by hand.
 
+### Using official geography codes as unit codes
+
+Where an official code already exists for a unit — an Indian census state code
+(`06` Haryana), a district code (`088` Faridabad), an LGD code — **use it as
+the unit code**. Do not hold a separate code and map between the two. The unit
+code is read by three things at once: submission routing (`org_<level>_code`),
+the XLSForm and web-form choice lists, and reporting. One value serves all
+three; a mapping table would be a second source of truth for the thing that
+must not drift.
+
+One constraint decides how far down the tree that can go: **unit codes are
+unique per project, not per level.** Official codes are not. Census state and
+district codes happen not to collide with each other, so `06` and `088` coexist
+safely in one project. Below district they repeat across parents — two blocks
+in different districts may both be `0123` — and the second insert is rejected.
+
+The rule:
+
+- where the official code is unique within the whole project, use it bare
+- below that, prefix with the parent using an underscore (`088_0123`), and do
+  not put the bare official code in the unit code at all
+
+Two consequences of that rule, both easy to assume wrongly later:
+
+- **The value in `org_<level_code>_code` is not always the bare official
+  code.** State and district stay bare (`06`, `088`) and so line up with the
+  legacy `survey_state` / `survey_district` those forms already carry. Block
+  and village do not. Anything reporting by census geography must therefore
+  read the **state and district levels by name**, never "the deepest code on
+  the submission".
+- **Prefix with the parent, not with the full path.** `unit_code` is
+  `String(32)`, and `CODE_RE` (`app/services/organization_service.py`) allows
+  only `[A-Z0-9_]` — **no hyphens**, even though Postgres 17's ltree would
+  accept them. So the separator is an underscore. `088_0123` fits comfortably;
+  a four- or five-level prefix chain would not. Full-path codes are the one variant the column cannot
+  hold — if anyone proposes them, the column is the constraint to raise.
+
+State this when a project is seeded. It is cheaper than discovering it as a
+failed import halfway through loading a state's villages.
+
+There is no `external_code` column on `mas_org_unit` and none is planned. If a
+project ever has to carry two coding systems at once, that is when to add one.
+
 ## Lifecycle
 
 - Nothing in the organization model is deleted through the application.
@@ -145,6 +188,29 @@ and keep working exactly as they did.
   whole import; nothing is written.
 - Worker names and phone numbers are personal data: export and import are
   restricted to admins and project PIs of that project and are logged.
+
+### Unit columns in submission exports
+
+The data-manager submissions CSV carries `org_unit_code`, `org_unit_name` and
+`org_unit_level_path` for the unit a submission routed to, appended after the
+existing columns. Unrouted submissions, and projects with no tree, get blanks.
+Inactive units still resolve, because a closed unit's name must stay readable
+on the cases it collected.
+
+**These are base headers, and base headers bypass PII redaction.**
+`_filter_export_payload` in `app/services/data_management_service.py` filters
+the payload dict only — the hardcoded omit list unioned with the
+`mas_field_display_config.is_pii` set. Nothing added as a base column passes
+through it.
+
+A facility's code, name and level path are not personal data, so the three
+columns above are safe. But `mas_org_unit` also carries `address`, `phone`,
+`latitude`, `longitude`, `google_maps_url` and free-text `remarks`, and
+`mas_org_unit_worker` carries worker names and phone numbers. **Do not add any
+of those to an export as a base column** expecting the PII filter to catch
+them; it will not. If a unit contact or a worker ever has to appear in an
+export, restrict it at the point it is added, the way the organization
+import/export is already restricted to admins and project PIs.
 
 ## Access
 
@@ -320,4 +386,6 @@ unit-based coding scope.
 
 ## Not yet implemented (later phases of the plan)
 
-- unit dimensions in dashboards, exports and analytics
+- unit dimensions in dashboards and analytics (the submission CSV export's
+  unit columns are implemented — see
+  [Implementation Report](../current-state/health-system-organization-model.md#open-questions))

@@ -817,6 +817,7 @@ def _resolve_scope_from_payload(payload):
         if role not in {
             VaAccessRoles.project_pi,
             VaAccessRoles.collaborator,
+            VaAccessRoles.collaborator_pii,
             VaAccessRoles.coder,
             VaAccessRoles.coding_tester,
             VaAccessRoles.reviewer,
@@ -858,6 +859,7 @@ def _resolve_scope_from_payload(payload):
     if role not in {
         VaAccessRoles.site_pi,
         VaAccessRoles.collaborator,
+        VaAccessRoles.collaborator_pii,
         VaAccessRoles.coder,
         VaAccessRoles.coding_tester,
         VaAccessRoles.reviewer,

@@ -1,6 +1,6 @@
 # Viewer roles: with and without PII
 
-- Status: policy agreed 2026-09-18, implementation blocked
+- Status: policy agreed 2026-09-18, implementation started
 - Priority: high
 - Created: 2026-09-18
 
@@ -24,12 +24,24 @@ Policy baseline: `docs/policy/access-control-model.md`, sections
 The role-vs-flag tradeoff and the merged subject/staff PII set are recorded
 there with their reasoning; do not re-litigate without reading it.
 
-## Blocked on
+## Blockers — both cleared 2026-09-18
 
-1. **`2e1da5fbaa0a` must land first.** Adding the enum values needs a
-   migration, and a second one written now would create a duplicate head.
-2. **The `is_pii` flag set must actually be correct first.** See below. This
-   is the hard blocker.
+1. ~~`2e1da5fbaa0a` must land first.~~ Landed and pushed; it is the single
+   head, and a new migration chains onto it.
+2. ~~The `is_pii` flag set must be correct first.~~ Fixed in the working tree
+   by the web-intake session: the registry applies by `field_id` across all
+   active form types, the migration loops form types, `_build_pii_field_ids`
+   no longer filters on `is_active` (verified), the registry no longer forces
+   `is_active`, and form-type creation applies the registry so a clone is not
+   born unflagged.
+
+   The code is still uncommitted, but `b8e3d1f7a2c4` HAS since been applied
+   to the dev database through alembic, and both form types now carry the
+   flags (`Id10073` and `Id10010c` true on WHO_2022_VA and
+   WHO_2022_VA_SOCIAL). Dev data is therefore usable for testing these roles.
+
+   An earlier version of this note said the opposite; it was written before
+   the migration ran.
 
 ## Blocker: the PII definition is currently wrong
 
@@ -151,3 +163,16 @@ Rule taken from this: verify a finding's premise before acting, and hold
 findings that propose RELAXING a constraint to a higher bar than those that
 propose tightening one. A wrong tightening is an inconvenience; a wrong
 relaxation is a vulnerability.
+
+## Working-tree migration state (2026-09-18)
+
+Two uncommitted migrations both chain onto the committed head
+`2e1da5fbaa0a`: `b8e3d1f7a2c4` (PII flags, web-intake session) and
+`f1c6a9d3e7b5` (collaborator_pii role, this work). That is the correct shape
+for two independent changes, but it means a plain `flask db upgrade` in this
+tree fails with multiple heads.
+
+Use `flask db upgrade heads`, or name the revision. **Do not "fix" it by
+chaining one onto the other while both are untracked** — chaining onto an
+uncommitted revision is what broke `origin/main` earlier today (see
+`8eae9f9`). Whoever commits second re-chains onto whatever is then the head.

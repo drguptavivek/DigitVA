@@ -23,6 +23,9 @@ class VaAccessRoles(enum.Enum):
     project_pi = "project_pi"
     site_pi = "site_pi"
     collaborator = "collaborator"
+    # Read-only, same reach as collaborator, but personal data is not
+    # redacted. See docs/policy/access-control-model.md, "collaborator_pii".
+    collaborator_pii = "collaborator_pii"
     coder = "coder"
     coding_tester = "coding_tester"
     reviewer = "reviewer"

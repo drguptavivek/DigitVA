@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-04-12
+last_updated: 2026-09-18
 ---
 
 # Current State Index
@@ -35,6 +35,7 @@ Read these documents in this order:
 12. [Submission Analytics Materialized View](submission-analytics.md)
 13. [COD Bucket Reporting](cod-bucket-reporting.md)
 14. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
+15. [Health-System Organization Model](health-system-organization-model.md)
 
 Related planning:
 

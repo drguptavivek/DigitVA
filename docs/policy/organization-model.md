@@ -14,8 +14,13 @@ Health-system deployments organize VA work along the public health hierarchy
 (District > Taluka > CHC > PHC > Sub-centre > Village), not along research
 sites. This policy defines how a project describes that hierarchy, who sits
 where in it, and what the codes mean for ODK forms, coding scope and
-reporting. Planning context:
-`docs/planning/health-system-organization-model-plan.md`.
+reporting.
+
+- How it is implemented, what the work turned up and what is still open:
+  [Health-System Organization Model — Implementation Report](../current-state/health-system-organization-model.md)
+- Roles and scopes generally: [Access Control Model](access-control-model.md)
+- Planning context:
+  [the plan](../planning/health-system-organization-model-plan.md)
 
 ## In plain terms
 

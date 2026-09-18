@@ -321,7 +321,12 @@ implemented.
    still carried as data — the WHO VA form has a submitter name field and web
    intake records one — but it plays no part in deciding a submission's unit.
    The worker registry therefore needs no ODK submitter or device columns.
-6. **The ODK form check runs during sync.** Implemented: each mapped form is
+6. **Coding gates are wanted per unit**, not only per project-site: a coding
+   window, an enabled flag and a daily limit for one PHC rather than for the
+   whole site. Not built; the design questions — inheritance down the subtree,
+   and precedence against the existing site gate — are in
+   `.tasks/org-per-unit-coding-gates.md`.
+7. **The ODK form check runs during sync.** Implemented: each mapped form is
    checked once per sync run against the project's expected
    `org_<level_code>_code` fields, and missing ones are logged and written to
    the run's progress log. It is advisory — it never blocks a sync, and a
@@ -329,15 +334,10 @@ implemented.
 
 ### Still open
 
-7. **Per-unit coding gates.** The container project-site carries
-   `coding_enabled`, the coding dates and `daily_coder_limit`. Whether a
-   health-system project also wants those per unit — a coding window for one
-   PHC rather than for the whole site — is undecided, and nothing expresses it
-   today.
-8. **The `view_only` viewing right.** Decided in substance (see above) but not
+7. **The `view_only` viewing right.** Decided in substance (see above) but not
    built: such a grant currently shows its holder nothing.
    `.tasks/org-above-scope-view-only-access.md`.
-9. **Reporting dimensions (phase 5).** Unit path in the analytics MV, unit as
+8. **Reporting dimensions (phase 5).** Unit path in the analytics MV, unit as
    a grouping dimension in the DM KPIs, and `org_unit_code` / `org_unit_name` /
    level-path columns in exports. Not started; listed under
    [Not yet implemented](../policy/organization-model.md#not-yet-implemented-later-phases-of-the-plan).

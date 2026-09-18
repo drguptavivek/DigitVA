@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 ---
 
 # Organization Model Policy
@@ -16,6 +16,60 @@ sites. This policy defines how a project describes that hierarchy, who sits
 where in it, and what the codes mean for ODK forms, coding scope and
 reporting. Planning context:
 `docs/planning/health-system-organization-model-plan.md`.
+
+## In plain terms
+
+This section orients a reader who is not implementing the code. The rules that
+govern behaviour are the ones below it; where the two ever disagree, the rules
+below win.
+
+Nobody in DigitVA simply *has* permissions. Permission is handed out one record
+at a time, and each record says three things: **who** (a person with a login),
+**what job** (the role: coder, reviewer, data manager, site PI, project PI,
+admin), and **where** (the scope — the boundary that job applies inside).
+
+The system never infers. If no record says a person may do something, they may
+not. Access is not inherited from a job title, from seniority, from being
+someone's supervisor, or from a field being left blank. A data manager who
+should also code needs a second record saying so.
+
+The "where" used to be a research shape — Project > Site > Form — which suits a
+study with a handful of field sites. A health system is a tree instead:
+
+```
+District
+ └─ CHC            community health centre
+     └─ PHC        primary health centre
+         └─ Sub-centre
+             └─ Village
+```
+
+A project now describes its own tree, and a permission record may point at any
+node of it. **Pointing at a node means that node and everything beneath it.**
+Point at the CHC and the person covers that CHC, its PHCs, their sub-centres
+and villages. Point at one PHC and they cover that branch only — not the CHC
+above, not the neighbouring PHC.
+
+A **cadre** is the health-system job title: SMO, MO, CHO, ANM, ASHA. Each
+project fills in a grid saying which cadres exist at each level of its tree and
+what they may do there — at a PHC an MO may code a death while a CHO may fill
+the form but not code it.
+
+The cadre is **not itself a permission**. It is a check made when the
+permission record is written. Think of a keycard: the role is what kind of card
+it is, the scope is which doors it opens, and the cadre is the job title
+printed on the front. Whoever issues the card refuses to print "coder" for
+someone whose title may not code at that location — but once the card exists,
+the door reads the card, never the printed title. So a coder record at a PHC is
+refused for a CHO and accepted for an MO; afterwards the cadre stands as a
+record of who the person is.
+
+One caveat worth stating plainly: the coding screens do not consult the tree
+yet. What a coder can actually open is still resolved the old way, through
+forms and sites, so a unit-scoped record today is a correctly stored fact that
+does not yet change anyone's working day. Submissions must first be routed to
+units (phase 3) before the coding screens can filter by unit (phase 4). See
+[Not yet implemented](#not-yet-implemented-later-phases-of-the-plan).
 
 ## Baseline
 

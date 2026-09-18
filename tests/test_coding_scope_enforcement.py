@@ -564,3 +564,105 @@ class ProjectUpdateIsAllOrNothingTests(CodingScopeFixtureMixin, BaseTestCase):
         self.assertEqual(project.project_nickname, "ScopedProject")
         self.assertEqual(project.coding_scope_level_id, levels["phc"].org_level_id)
         self.assertEqual(project.above_scope_coding_mode, "code_any")
+
+
+class AreaOverviewTests(CodingScopeFixtureMixin, BaseTestCase):
+    """A grant above the coding scope level oversees its subtree read-only."""
+
+    def _login_coder(self):
+        self._login(str(self.base_coder_user.user_id))
+
+    def test_a_view_only_grant_sees_its_subtree_but_codes_nothing(self):
+        levels, _, chc, phc_a, phc_b = self._tree()
+        self._grant(chc, cadre_code="SMO")
+        self._set_scope(levels["phc"])  # the CHC grant is above the scope level
+        self._submission("csc-area-chc", unit=chc)
+        self._submission("csc-area-phc", unit=phc_a)
+
+        user = self.base_coder_user
+        self.assertEqual(
+            grants.codeable_unit_ids(user.user_id, VaAccessRoles.coder), set()
+        )
+        self.assertEqual(
+            grants.viewable_unit_ids(user.user_id, VaAccessRoles.coder),
+            {chc.org_unit_id, phc_a.org_unit_id, phc_b.org_unit_id},
+        )
+        self.assertTrue(grants.has_view_only_scope(user.user_id, VaAccessRoles.coder))
+
+        self._login_coder()
+        response = self.client.get("/coding/area")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("csc-area-chc", body)
+        self.assertIn("csc-area-phc", body)
+        self.assertIn("view only", body)
+
+    def test_the_view_page_opens_inside_the_area_and_is_refused_outside(self):
+        levels, _, chc, phc_a, phc_b = self._tree()
+        self._grant(phc_a)
+        self._set_scope(levels["phc"])
+        self._submission("csc-area-mine", unit=phc_a)
+        self._submission("csc-area-theirs", unit=phc_b)
+
+        self._login_coder()
+        allowed = self.client.get("/coding/area/csc-area-mine")
+        self.assertEqual(allowed.status_code, 200)
+
+        refused = self.client.get("/coding/area/csc-area-theirs")
+        self.assertIn(refused.status_code, (302, 403))
+
+    def test_viewing_does_not_make_a_submission_codeable(self):
+        from app.services.coder_workflow_service import (
+            AllocationError,
+            allocate_pick_form,
+        )
+
+        levels, _, chc, phc_a, _ = self._tree()
+        self._grant(chc, cadre_code="SMO")
+        self._set_scope(levels["phc"])
+        self._submission("csc-area-look-only", unit=phc_a)
+
+        user = self.base_coder_user
+        # Visible…
+        self.assertTrue(grants.submission_within_org_view_scope(
+            user, "csc-area-look-only", VaAccessRoles.coder))
+        # …but not codeable, and allocation refuses it.
+        self.assertFalse(grants.submission_within_org_scope(
+            user, "csc-area-look-only", VaAccessRoles.coder))
+        with self.assertRaises(AllocationError):
+            allocate_pick_form(user, "csc-area-look-only")
+
+        # And it is still absent from the pick list.
+        from app.services.coder_workflow_service import get_pick_available_forms
+
+        forms = user.get_coder_va_forms()
+        offered = {
+            row["va_sid"]
+            for row in get_pick_available_forms(user, list(forms))
+        }
+        self.assertNotIn("csc-area-look-only", offered)
+
+    def test_a_coder_inside_the_scope_sees_the_same_page_with_coding_allowed(self):
+        levels, _, _, phc_a, _ = self._tree()
+        self._grant(phc_a)
+        self._set_scope(levels["phc"])
+        self._submission("csc-area-codeable", unit=phc_a)
+
+        user = self.base_coder_user
+        self.assertFalse(grants.has_view_only_scope(user.user_id, VaAccessRoles.coder))
+
+        self._login_coder()
+        response = self.client.get("/coding/area")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("csc-area-codeable", response.get_data(as_text=True))
+
+    def test_a_user_with_no_unit_grant_gets_an_empty_area(self):
+        """An admin holds no unit grant, so the area is empty rather than open."""
+        self._tree()
+        self._submission("csc-area-none", unit=None)
+        self._login(str(self.base_admin_id))
+        response = self.client.get("/coding/area")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("no area to show", body)
+        self.assertNotIn("csc-area-none", body)

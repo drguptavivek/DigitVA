@@ -308,10 +308,12 @@ implemented.
    stay where they were counted. Reporting over a closed unit therefore stays
    correct.
 3. **`view_only` means the person sees the cause of death and the submission
-   data, but codes nothing.** Today it only means the second half. The viewing
-   right is a real gap: a coder granted above the scope level currently sees
-   nothing at all from their subtree, where they should see coded and uncoded
-   work read-only. Tracked in `.tasks/org-above-scope-view-only-access.md`.
+   data, but codes nothing.** Both halves are now implemented: the viewable
+   unit set is resolved separately from the codeable one, a read-only **My
+   Area** surface lists the subtree's submissions and opens them in the data
+   manager's read-only rendering, and a `vaview` action is gated against the
+   viewable set while every other coding action stays gated against the
+   codeable one.
 
 4. **One cadre per person per unit.** A grant carries one `cadre_id`, and
    there is one grant per user × role × unit. That is the model, and it is
@@ -334,9 +336,6 @@ implemented.
 
 ### Still open
 
-7. **The `view_only` viewing right.** Decided in substance (see above) but not
-   built: such a grant currently shows its holder nothing.
-   `.tasks/org-above-scope-view-only-access.md`.
 8. **Reporting dimensions (phase 5).** Unit path in the analytics MV, unit as
    a grouping dimension in the DM KPIs, and `org_unit_code` / `org_unit_name` /
    level-path columns in exports. Not started; listed under
@@ -344,14 +343,15 @@ implemented.
 
 ## Verification
 
-- 68 tests added across the four phases, covering the tree rules, path
-  rewrites, cadre gating, subtree resolution, routing including four cases
-  driven through the real sync upsert loop, the ODK field preflight, several
-  forms per project-site, and the coding-scope rule in all four positions
-  relative to the scope level.
-- Full suite passing (1,270 at the last run), including the schema drift
-  guard, which builds a database from the migration chain alone and compares
-  it to the models.
+- Tests added across the phases cover the tree rules, path rewrites, cadre
+  gating, subtree resolution, routing including four cases driven through the
+  real sync upsert loop, the ODK field preflight both on demand and during
+  sync, several forms per project-site, the coding-scope rule in all four
+  positions relative to the scope level, and the viewing right — including
+  that a viewable-but-not-codeable submission is still refused by allocation
+  and absent from the pick list.
+- Full suite passing, including the schema drift guard, which builds a
+  database from the migration chain alone and compares it to the models.
 - Migrations applied and cycled on the development database.
 
 ## Where the code lives
@@ -364,5 +364,6 @@ implemented.
 | Runtime form materialization per mapping | `app/services/runtime_form_sync_service.py` |
 | List filtering and the allocation gate | `app/services/coder_workflow_service.py` |
 | Per-action enforcement | `app/decorators/va_validate_permissions.py` |
+| Read-only area overview | `app/routes/coding.py` (`area_overview`) |
 | Organization admin API | `app/routes/admin_organization.py` |
 | Unrouted queue | `app/routes/api/data_management.py` |

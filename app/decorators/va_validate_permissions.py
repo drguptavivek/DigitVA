@@ -90,6 +90,16 @@ def _within_coding_org_scope(sid: str | None, form_id: str | None) -> bool:
     return submission_within_org_scope(current_user, sid, VaAccessRoles.coder)
 
 
+def _within_viewing_org_scope(sid: str | None) -> bool:
+    """Unit-scope gate for a read-only view of one submission."""
+    if not sid:
+        return True
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import submission_within_org_view_scope
+
+    return submission_within_org_view_scope(current_user, sid, VaAccessRoles.coder)
+
+
 def _has_coding_form_access(form_id: str | None) -> bool:
     if not form_id:
         return False
@@ -107,7 +117,16 @@ def _validate_vacode(actiontype, sid, partial):
     # Checked once here so it covers every coding action, rather than per
     # branch where a new action could miss it. No-op for projects without a
     # tree. Policy: docs/policy/organization-model.md.
-    if not _within_coding_org_scope(sid, form_id):
+    #
+    # Viewing is the wider right: a grant above the project's coding scope
+    # level codes nothing but still oversees its subtree read-only, so a view
+    # is checked against the viewable set rather than the codeable one.
+    if actiontype == "vaview":
+        if not _within_viewing_org_scope(sid):
+            va_permission_abortwithflash(
+                "This submission belongs to a unit outside your area.", 403
+            )
+    elif not _within_coding_org_scope(sid, form_id):
         va_permission_abortwithflash(
             "This submission belongs to a unit outside your coding scope.", 403
         )

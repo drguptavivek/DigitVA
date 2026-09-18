@@ -277,9 +277,22 @@ unit-based coding scope.
   `view_only` (the default) lets them code nothing.
 - `view_only` means the person **sees the cause of death and the submission
   data for their subtree, read-only, and codes nothing** (decision
-  2026-09-18). Only the "codes nothing" half is implemented; the viewing right
-  is outstanding, so such a grant currently shows its holder nothing at all.
-  Tracked in `.tasks/org-above-scope-view-only-access.md`.
+  2026-09-18). Both halves are implemented.
+
+### Viewing scope
+
+- The **viewable** unit set is the whole subtree of every active grant,
+  regardless of the project's coding scope level: oversight does not shrink
+  because coding does. It is resolved separately from the codeable set
+  (`org_grant_service.viewable_unit_ids`), and the two are never substituted
+  for one another — that separation is what stops a viewer becoming a coder.
+- A read-only **area** surface lists the submissions routed to those units,
+  marking which are also codeable, and opens any of them in the same read-only
+  rendering the data manager sees. Coding, allocation and the pick list are
+  unaffected: a unit a person may only view never yields work.
+- A `vaview` action is therefore gated against the viewable set while every
+  other coding action is gated against the codeable set.
+- A project with no organization tree is unaffected, as everywhere else.
 - The same rule governs the reviewer track, using reviewer grants.
 - A project with a coding scope level must use `pick_and_choose` coding
   intake: random allocation would hand a coder submissions from outside

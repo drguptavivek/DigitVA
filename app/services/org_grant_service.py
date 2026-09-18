@@ -325,3 +325,68 @@ def submission_within_org_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
     if row.org_unit_id is None:
         return False
     return row.org_unit_id in codeable_unit_ids(user.user_id, role)
+
+
+# ---------------------------------------------------------------------------
+# Viewing scope
+#
+# Deliberately separate from the coding scope above. A grant above the
+# project's coding scope level codes nothing, but its holder still oversees
+# their subtree: they see the cause of death and the submission data,
+# read-only. Keeping the two sets apart is what stops a viewer becoming a
+# coder — never substitute one for the other.
+# ---------------------------------------------------------------------------
+
+
+def viewable_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]:
+    """Units whose submissions this user may *see* through unit grants.
+
+    The whole subtree of every active grant, regardless of the project's
+    coding scope level — oversight does not shrink because coding does.
+    """
+    return scope_unit_ids(user_id, role)
+
+
+def submission_within_org_view_scope(user, va_sid: str, role: VaAccessRoles) -> bool:
+    """Whether one submission is inside the user's *viewing* scope for *role*.
+
+    Same shape as ``submission_within_org_scope``, against the viewable set.
+    True for any submission of a project with no organization tree.
+    """
+    from app.models import MasOrgLevel, VaForms, VaSubmissions
+
+    row = db.session.execute(
+        sa.select(VaSubmissions.org_unit_id, VaForms.project_id)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(VaSubmissions.va_sid == va_sid)
+    ).first()
+    if row is None:
+        return False
+
+    has_tree = db.session.scalar(
+        sa.select(sa.literal(True)).where(
+            sa.exists(
+                sa.select(1).where(
+                    MasOrgLevel.project_id == row.project_id,
+                    MasOrgLevel.is_active.is_(True),
+                )
+            )
+        )
+    )
+    if not has_tree:
+        return True
+    if row.org_unit_id is None:
+        return False
+    return row.org_unit_id in viewable_unit_ids(user.user_id, role)
+
+
+def has_view_only_scope(user_id: uuid.UUID, role: VaAccessRoles) -> bool:
+    """Whether this user oversees units they may not code in.
+
+    True when the viewable set is strictly larger than the codeable one, which
+    is exactly the case the oversight surface exists for.
+    """
+    viewable = viewable_unit_ids(user_id, role)
+    if not viewable:
+        return False
+    return bool(viewable - codeable_unit_ids(user_id, role))

@@ -202,6 +202,18 @@ def dashboard():
         demo_projects=demo_projects,
         coder_eligibility=coder_eligibility,
         coder_languages=coder_languages,
+        has_org_unit_area=_has_org_unit_area(),
+    )
+
+
+def _has_org_unit_area():
+    """Whether this user oversees any organization units, in either role."""
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import viewable_unit_ids
+
+    return bool(
+        viewable_unit_ids(current_user.user_id, VaAccessRoles.coder)
+        or viewable_unit_ids(current_user.user_id, VaAccessRoles.reviewer)
     )
 
 
@@ -279,3 +291,122 @@ def view_submission(va_sid):
     ):
         va_permission_abortwithflash("You do not have coder access to view this submission.", 403)
     return render_va_coding_page(form, "vacode", "vaview", "coder")
+
+
+# ---------------------------------------------------------------------------
+# Area overview — oversight of the units a grant covers but may not code
+#
+# A coder granted above the project's coding scope level codes nothing, but
+# still oversees their subtree: they see the cause of death and the submission
+# data, read-only. The list and the view below are that right. They are
+# deliberately built on the *viewable* unit set, never the codeable one.
+# Policy: docs/policy/organization-model.md#coding-scope
+# ---------------------------------------------------------------------------
+
+AREA_OVERVIEW_MAX_ROWS = 200
+
+
+@coding.get("/area")
+@role_required("coder", "coding_tester", "reviewer", "admin")
+def area_overview():
+    """Submissions in the units this user's grants cover, read-only."""
+    from app.models import MasOrgUnit, VaAccessRoles, VaFinalAssessments
+    from app.services.org_grant_service import codeable_unit_ids, viewable_unit_ids
+
+    role = VaAccessRoles.reviewer if _prefers_reviewer_area() else VaAccessRoles.coder
+    viewable = viewable_unit_ids(current_user.user_id, role)
+    if not viewable:
+        return render_template(
+            "va_frontpages/va_area_overview.html",
+            rows=[],
+            role=role.value,
+            codeable_count=0,
+            viewable_count=0,
+            truncated=False,
+        )
+
+    codeable = codeable_unit_ids(current_user.user_id, role)
+
+    authoritative = (
+        sa.select(
+            VaFinalAssessments.va_sid.label("va_sid"),
+            sa.func.max(VaFinalAssessments.va_finassess_createdat).label("coded_at"),
+        )
+        .where(VaFinalAssessments.va_finassess_status == VaStatuses.active)
+        .group_by(VaFinalAssessments.va_sid)
+        .subquery()
+    )
+    stmt = (
+        sa.select(
+            VaSubmissions.va_sid,
+            VaSubmissions.va_uniqueid_masked,
+            VaSubmissions.va_submission_date,
+            VaSubmissions.va_deceased_age,
+            VaSubmissions.va_deceased_gender,
+            VaSubmissions.org_unit_id,
+            MasOrgUnit.unit_code,
+            MasOrgUnit.unit_name,
+            VaSubmissionWorkflow.workflow_state,
+            authoritative.c.coded_at,
+        )
+        .select_from(VaSubmissions)
+        .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaSubmissions.org_unit_id)
+        .outerjoin(authoritative, authoritative.c.va_sid == VaSubmissions.va_sid)
+        .where(VaSubmissions.org_unit_id.in_(sorted(viewable)))
+        .order_by(MasOrgUnit.path, VaSubmissions.va_submission_date.desc())
+        .limit(AREA_OVERVIEW_MAX_ROWS + 1)
+    )
+    records = db.session.execute(stmt).mappings().all()
+    truncated = len(records) > AREA_OVERVIEW_MAX_ROWS
+
+    rows = []
+    for record in records[:AREA_OVERVIEW_MAX_ROWS]:
+        row = dict(record)
+        # "Codeable here" is what separates oversight from work: a viewer sees
+        # every row, and may open the ones inside their coding scope.
+        row["is_codeable"] = record["org_unit_id"] in codeable
+        rows.append(va_render_serialisedates(row, ["va_submission_date"]))
+
+    return render_template(
+        "va_frontpages/va_area_overview.html",
+        rows=rows,
+        role=role.value,
+        codeable_count=len(codeable),
+        viewable_count=len(viewable),
+        truncated=truncated,
+    )
+
+
+def _prefers_reviewer_area() -> bool:
+    """Show the reviewer's area to someone who only holds reviewer grants."""
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import viewable_unit_ids
+
+    requested = (request.args.get("role") or "").strip().lower()
+    if requested in {"coder", "reviewer"}:
+        return requested == "reviewer"
+    if viewable_unit_ids(current_user.user_id, VaAccessRoles.coder):
+        return False
+    return bool(viewable_unit_ids(current_user.user_id, VaAccessRoles.reviewer))
+
+
+@coding.get("/area/<va_sid>")
+@role_required("coder", "coding_tester", "reviewer", "admin")
+def area_view_submission(va_sid):
+    """Read-only view of one submission inside the user's area."""
+    from app.models import VaAccessRoles
+    from app.services.org_grant_service import submission_within_org_view_scope
+
+    submission = db.session.get(VaSubmissions, va_sid)
+    if not submission:
+        va_permission_abortwithflash("Submission not found.", 404)
+
+    role = VaAccessRoles.reviewer if _prefers_reviewer_area() else VaAccessRoles.coder
+    if not submission_within_org_view_scope(current_user, va_sid, role):
+        va_permission_abortwithflash(
+            "This submission belongs to a unit outside your area.", 403
+        )
+    # vadata is the read-only rendering the data manager already uses; the
+    # coder back-link keeps the viewer inside their own dashboard.
+    return render_va_coding_page(submission, "vadata", "vaview", "coder")

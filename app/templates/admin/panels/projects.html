@@ -173,6 +173,22 @@
         </div>
       </div>
 
+      {# Web-capture readiness — WP2 of
+         docs/planning/web-capture-project-configuration-plan.md. Read-only,
+         fetched per project when an existing project is opened for editing.
+         The rule is docs/policy/web-intake.md, "Ready for web capture". #}
+      <div class="border rounded p-2 mt-3 d-none" id="project-web-intake-readiness">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <div class="fw-semibold small">Readiness</div>
+          <span id="project-web-intake-readiness-summary"></span>
+        </div>
+        <div class="text-muted small mb-2">
+          What still has to line up before an interviewer can fill this
+          project's questionnaire and have the case reach a coder.
+        </div>
+        <div id="project-web-intake-readiness-list"></div>
+      </div>
+
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
           <button class="btn btn-sm btn-outline-secondary" id="project-cancel-btn">Cancel</button>
@@ -327,6 +343,11 @@
         +   (reviewerSocialAutopsyEnabled ? '<div><span class="badge text-bg-primary mt-1">Reviewer SA On</span></div>' : '')
         +   (demoEnabled ? '<div><span class="badge text-bg-warning mt-1">Demo / Training</span></div>' : '')
         + '</td>'
+        + '<td class="align-middle py-2 small project-readiness-cell"'
+        +   ' data-id="' + esc(p.project_id) + '"'
+        +   ' data-mode="' + esc(p.web_intake_mode || 'off') + '">'
+        +   '<span class="text-muted">…</span>'
+        + '</td>'
         + '<td class="align-middle py-2">'
         + (isActive
             ? '<span class="badge text-bg-success">Active</span>'
@@ -343,6 +364,7 @@
       + '<th class="fw-medium small text-muted">Name</th>'
       + '<th class="fw-medium small text-muted" style="width:15%;">Nickname</th>'
       + '<th class="fw-medium small text-muted" style="width:16%;">Coding Intake</th>'
+      + '<th class="fw-medium small text-muted" style="width:10%;">Web capture</th>'
       + '<th class="fw-medium small text-muted" style="width:10%;">Status</th>'
       + '<th class="fw-medium small text-muted text-end" style="width:20%;">Actions</th>'
       + '</tr></thead>'
@@ -375,6 +397,8 @@
         toggleNqa(id, currentlyOn);
       });
     }
+
+    loadReadinessBadges(wrap);
 
     // Bind attachment delivery toggle buttons
     var remoteAttBtns = wrap.querySelectorAll('.project-remote-att-btn');
@@ -505,6 +529,111 @@
   var languagesErrEl = document.getElementById('project-web-intake-languages-error');
   var formTypesErrEl = document.getElementById('project-web-intake-form-types-error');
   var errEl = document.getElementById('project-form-error');
+  var readinessBlockEl = document.getElementById('project-web-intake-readiness');
+  var readinessSummaryEl = document.getElementById('project-web-intake-readiness-summary');
+  var readinessListEl = document.getElementById('project-web-intake-readiness-list');
+
+  // ── web-capture readiness ─────────────────────────────────────────────────
+  // WP2 of docs/planning/web-capture-project-configuration-plan.md. Read-only:
+  // one GET per project row for the badge, one more when an existing project
+  // is opened for editing. Nothing here is rendered into the page server-side
+  // — the panel is a JSON client of /admin/api/projects/<id>/web-intake-readiness.
+
+  var READINESS_BADGE = { ok: 'text-bg-success', warn: 'text-bg-warning', fail: 'text-bg-danger' };
+
+  function readinessUrl(projectId) {
+    return '/admin/api/projects/' + encodeURIComponent(projectId) + '/web-intake-readiness';
+  }
+
+  function countIssues(checks) {
+    var fails = 0, warns = 0;
+    for (var i = 0; i < checks.length; i++) {
+      if (checks[i].status === 'fail') fails++;
+      else if (checks[i].status === 'warn') warns++;
+    }
+    return { fails: fails, warns: warns, total: fails + warns };
+  }
+
+  function readinessBadge(result) {
+    var counts = countIssues(result.checks || []);
+    if (!counts.total) return '<span class="badge text-bg-success">Ready</span>';
+    var cls = counts.fails ? 'text-bg-danger' : 'text-bg-warning';
+    return '<span class="badge ' + cls + '">' + counts.total
+      + (counts.total === 1 ? ' issue' : ' issues') + '</span>';
+  }
+
+  function loadReadinessBadges(wrap) {
+    var cells = wrap.querySelectorAll('.project-readiness-cell');
+    for (var i = 0; i < cells.length; i++) {
+      (function (cell) {
+        // A project that does not collect on the web has nothing to be ready
+        // for; say so from the row we already have rather than asking.
+        if (cell.getAttribute('data-mode') === 'off') {
+          cell.innerHTML = '<span class="badge text-bg-secondary">Off</span>';
+          return;
+        }
+        apiJson(readinessUrl(cell.getAttribute('data-id'))).then(function (res) {
+          if (!res.ok || !res.data || !res.data.checks) {
+            cell.innerHTML = '<span class="text-danger">unavailable</span>';
+            return;
+          }
+          cell.innerHTML = readinessBadge(res.data);
+        }).catch(function () {
+          cell.innerHTML = '<span class="text-danger">unavailable</span>';
+        });
+      }(cells[i]));
+    }
+  }
+
+  function renderReadinessChecks(result) {
+    var checks = result.checks || [];
+    var html = '';
+    for (var i = 0; i < checks.length; i++) {
+      var c = checks[i];
+      var cls = READINESS_BADGE[c.status] || 'text-bg-secondary';
+      html += '<div class="d-flex align-items-start gap-2 py-1 border-top">'
+        + '<span class="badge ' + cls + '" style="min-width:3.2rem;">' + esc(c.status) + '</span>'
+        + '<div class="small">'
+        +   '<div><span class="fw-semibold">' + esc(c.code) + '</span> — ' + esc(c.message) + '</div>'
+        +   (c.fix_hint ? '<div class="text-muted">' + esc(c.fix_hint) + '</div>' : '')
+        + '</div></div>';
+    }
+    readinessListEl.innerHTML = html;
+    readinessSummaryEl.innerHTML = result.ready
+      ? '<span class="badge text-bg-success">Ready for web capture</span>'
+      : '<span class="badge text-bg-danger">Not ready</span>';
+  }
+
+  // Guards against a slow response for a project the admin has already
+  // navigated away from overwriting the list for the one now open.
+  var _readinessFor = null;
+
+  function hideReadiness() {
+    _readinessFor = null;
+    readinessBlockEl.classList.add('d-none');
+    readinessListEl.innerHTML = '';
+    readinessSummaryEl.innerHTML = '';
+  }
+
+  function loadReadiness(projectId) {
+    _readinessFor = projectId;
+    readinessBlockEl.classList.remove('d-none');
+    readinessSummaryEl.innerHTML = '';
+    readinessListEl.innerHTML = '<div class="text-muted small py-1">Loading…</div>';
+    apiJson(readinessUrl(projectId)).then(function (res) {
+      if (_readinessFor !== projectId) return;
+      if (!res.ok || !res.data || !res.data.checks) {
+        readinessListEl.innerHTML = '<div class="text-danger small py-1">'
+          + esc((res.data && res.data.error) || 'Could not load readiness.') + '</div>';
+        return;
+      }
+      renderReadinessChecks(res.data);
+    }).catch(function () {
+      if (_readinessFor !== projectId) return;
+      readinessListEl.innerHTML = '<div class="text-danger small py-1">Network error.</div>';
+    });
+  }
+
 
   // ── web form language inputs ──────────────────────────────────────────────
 
@@ -774,6 +903,8 @@
     demoTrainingEnabledInput.checked = false;
     demoRetentionMinutesInput.value = '10';
     resetWebIntakeInputs();
+    // A project that does not exist yet has nothing to be ready for.
+    hideReadiness();
     errEl.textContent = '';
   }
 
@@ -798,6 +929,7 @@
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
     demoRetentionMinutesInput.value = project.demo_retention_minutes || 10;
     fillWebIntakeInputs(project);
+    loadReadiness(projectId);
     errEl.textContent = '';
     
     formContainer.classList.remove('d-none');

@@ -123,6 +123,35 @@ submission enters the workflow. Plan:
   that also has a web form cannot overwrite the web form's identifiers.
 - Editing a submitted web case is not supported in this phase.
 
+## Ready for web capture
+
+A project can only capture a VA through the browser form when several
+settings, spread over five panels, line up. This section is the rule; the
+assessment that implements it is
+`app/services/web_intake_readiness_service.py`, served as
+`GET /admin/api/projects/<project_id>/web-intake-readiness`, shown as the
+"Web capture" badge and the "Readiness" list in the Projects panel, and
+printed by `flask web-intake readiness <project_id>`.
+
+Each check reports `ok`, `warn` or `fail`. **A project is ready when no check
+fails.** A `warn` is something an administrator should look at; it never
+stops an interview, so it never makes a project unready.
+
+| Check | What it means | Fails when | Who fixes it, and where |
+| --- | --- | --- | --- |
+| `mode` | The project collects on the web at all | The project is not active, or `web_intake_mode` is `off` | Administrator, Projects panel |
+| `sites` | There is something to collect against | The project has no active project-site; web forms are created per project-site | Administrator or project PI, Project Sites panel |
+| `web_forms` | Every active site has its web `va_forms` row | A site has no active `form_source='web'` row; interviewer access resolves through `va_forms`, so a site without one is a site nobody can open the questionnaire for. **Warns** when a row's form type differs from the project's current setting: an existing row deliberately keeps the type it was created with, so the questionnaire cannot change under drafts already being filled | Administrator, Projects panel (re-saving Web Intake materializes the rows) |
+| `form_type` | The questionnaire is usable | No form type resolves, the resolved type has no `base_instrument_code` (nothing is bundled to render), or its PII set is unconfirmed (redaction fails closed on every field it owns, so the cases would be unreadable) | Administrator, Projects and Field Mapping panels; [New Form Type Onboarding](new-form-type-onboarding.md) |
+| `org_tree` | A submission can route to a live unit | The project has organization levels but a required (non-optional) level has no active unit. Coding eligibility is decided by the routed unit, so such a case reaches no coder. **Warns** when there is no tree at all: routing then falls back to the project-site mapping, which is legitimate | Administrator or project PI, Organization panel |
+| `geography_fields` | The questionnaire itself carries `org_<level_code>_code` per level | Never fails; **warns** when the bundled instrument has no field for a level, or when its field list cannot be read. The web form routes correctly regardless — it fills those codes server-side from the unit the interviewer chose — so this warning is about the same questionnaire collected through ODK Central | Whoever maintains the project's ODK XLSForm |
+| `interviewers` | Somebody can fill the form | No active user holds an active interviewer grant reaching the project at project, project-site or organization-unit scope. **Warns** in a project with a tree when every interviewer grant is project- or site-scoped: such an interviewer may name any unit, so nothing narrows what a death is attributed to | Administrator, Access Grants panel |
+| `coding_scope` | The collected cases can be coded | `coding_scope_level_id` is set while `coding_intake_mode` is not `pick_and_choose`; random allocation would hand a coder submissions from outside their own units ([Organization Model](organization-model.md)) | Administrator, Projects panel |
+| `locales` | Every offered display language exists | Never fails; **warns** when `web_intake_available_locales` names a code the instrument has no translations for. The form drops it silently and opens in English, so a project can be offering fewer languages than it was configured with | Administrator, Projects panel |
+
+The assessment is read-only. It never creates a site, a web form or a grant,
+and a project PI may run it only for the projects they manage.
+
 ## Not yet implemented
 
 - Attachments (phase 2), the validator sidecar (W1), offline mode, native

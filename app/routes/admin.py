@@ -1459,6 +1459,33 @@ def admin_update_project(project_id):
     return jsonify({"project": _serialize_project(project)})
 
 
+@admin.get("/api/projects/<project_id>/web-intake-readiness")
+@role_required("admin", "project_pi")
+def admin_project_web_intake_readiness(project_id):
+    """Whether this project can capture a VA through the browser form.
+
+    WP2 of docs/planning/web-capture-project-configuration-plan.md; the rule
+    is docs/policy/web-intake.md, "Ready for web capture". JSON only: the
+    Projects panel's badge and check list are clients of this endpoint, and so
+    is ``flask web-intake readiness``.
+
+    A project PI reads only the projects they manage, the same ownership rule
+    the project-sites endpoints apply. Pure reads, so no CSRF token and no
+    commit.
+    """
+    from app.services.web_intake_readiness_service import (
+        WebIntakeReadinessError,
+        assess_web_intake_readiness,
+    )
+
+    if not _current_user_can_manage_project(project_id):
+        return _json_error("You do not have access to that project.", 403)
+    try:
+        return jsonify(assess_web_intake_readiness(project_id))
+    except WebIntakeReadinessError:
+        return _json_error("Project not found.", 404)
+
+
 @admin.post("/api/projects/<project_id>/toggle")
 @role_required("admin")
 def admin_toggle_project(project_id):

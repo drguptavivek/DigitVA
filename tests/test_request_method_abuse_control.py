@@ -111,5 +111,8 @@ class RequestMethodAbuseControlTests(BaseTestCase):
             )
             self.assertEqual(response.status_code, 404)
 
-        follow_up = self._request_from_ip("GET", "/", ip_address)
+        # Probe a public page: "/" now requires login and would answer 302
+        # whether or not the IP is banned, which proves nothing. /help goes
+        # through the same before_request ban check and is public by design.
+        follow_up = self._request_from_ip("GET", "/help", ip_address)
         self.assertEqual(follow_up.status_code, 200)

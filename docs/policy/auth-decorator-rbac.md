@@ -137,13 +137,32 @@ decorator at all. For the same reason `login_required` cannot be detected by
 view's — so it is matched on its wrapper's `__code__`, which `wraps` never
 rewrites.
 
-Two explicit allowlists live in that module, each entry carrying its reason:
-`PUBLIC_BY_DESIGN` (login, logout, health, static, the account-recovery flows,
-the maintenance banner) and `UNGUARDED_DECISION_PENDING` (the landing page, the
-WHO document endpoint, and the four `help` routes). An entry on the pending list
-must eventually be decorated or moved to `PUBLIC_BY_DESIGN`; separate tests fail
-if an allowlisted endpoint disappears from `url_map` or later becomes guarded,
-so neither list can drift.
+One explicit allowlist lives in that module, each entry carrying its reason:
+`PUBLIC_BY_DESIGN`. There is no pending list -- as of 2026-09-19 a route has
+exactly two outcomes, guarded or public by design, and "undecided" is not one of
+them. Separate tests fail if an allowlisted endpoint disappears from `url_map`
+or later becomes guarded, so the list cannot drift.
+
+**The settled public set** (2026-09-19): `static`; `health.health_check`; every
+endpoint of the `va_auth` blueprint -- `va_login`, `va_logout`,
+`site_maintenance_status`, `forgot_password`, `reset_password`,
+`resend_verification`, `verify_email` -- because an anonymous user must reach
+every account-access flow to obtain a session at all; `va_main.who_va_document`,
+which streams published WHO reference material from a fixed on-disk registry;
+and the four `help` routes (`index`, `page`, `docs_index`, `doc_page`). The help
+surface is the sign-in and account instructions a logged-out user needs.
+`help.page` is public *and* role-filtered in its body: `_user_has_role` aborts
+403 for a page whose registry entry names roles, so only the `roles=None` pages
+render for an anonymous visitor. That in-body filtering is the guard for the
+role-restricted help pages and must stay.
+
+**The landing page requires a login.** `va_main.va_index` (`/`, `/index`,
+`/vaindex`) carries Flask-Login's `login_required` -- not `role_required`, since
+every authenticated role may see it, matching `profile.view`. With
+`login.login_view = 'va_auth.va_login'` set in `app/__init__.py`, an anonymous
+GET `/` is a redirect to the login form, and the login view redirects only when
+`current_user.is_authenticated`, so there is no loop.
+`tests/routes/test_public_route_access.py` exercises both halves at runtime.
 
 `API_PATH_PREFIXES` is the module constant behind the JSON-vs-HTML decision, and
 the same test file asserts that every registered rule that looks like an API

@@ -16,7 +16,13 @@ the below is covered by it.
 
 **Done:** `tests/test_route_auth_coverage.py` walks `app.url_map` and fails on any
 endpoint carrying neither `role_required`'s new `__digitva_roles__` marker nor
-Flask-Login's `login_required`, with two reasoned allowlists that cannot drift.
+Flask-Login's `login_required`, with one reasoned allowlist that cannot drift.
+
+**Decision (2026-09-19):** the pending list is gone. `help.index`, `help.page`,
+`help.docs_index`, `help.doc_page` and `va_main.who_va_document` are settled as
+`PUBLIC_BY_DESIGN`; `va_main.va_index` now carries `login_required`. Every route
+is guarded or public by design -- see docs/policy/auth-decorator-rbac.md
+section 3 and tests/routes/test_public_route_access.py.
 
 An unguarded route is strictly worse than a mistyped one: a mistyped name now
 fails at import, while a missing decorator **fails open** and serves everyone.

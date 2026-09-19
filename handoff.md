@@ -24,7 +24,7 @@ b8e3d1f7a2c4`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,402 passed after the route-coverage test (1,391 after the PII change, 1,381 on the rebased tree before both).
+Verified: full suite 1,409 passed after the public-route decisions (1,402 after the route-coverage test, 1,391 after the PII change, 1,381 on the rebased tree before all three).
 
 ## The access model, as it now stands
 
@@ -50,8 +50,9 @@ Two things worth knowing before extending it:
 
 Ranked across every session's input. Done since the previous ranking: the
 PII set failing open, the PII cache never invalidating, and the route
-decorator guarantee (see the two sections below). One decision is waiting on
-you before the next item: the six routes in `UNGUARDED_DECISION_PENDING`.
+decorator guarantee (see the two sections below). The six routes that were
+pending a decision are settled: help and WHO documents public, `/` requires
+login.
 
 1. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
    unblocks removing the hardcoded `locale = "en"` at
@@ -85,22 +86,17 @@ assertion proving unguarded-but-wrapped endpoints still exist so that
 rationale stays falsifiable. Positive control registers an unguarded view on
 a bare `flask.Flask` and asserts it is reported.
 
-Two allowlists, both checked for staleness. `PUBLIC_BY_DESIGN` holds nine
-endpoints: static, health, login, logout, the maintenance banner, and the
-four account-recovery flows. `UNGUARDED_DECISION_PENDING` holds six that are
-unwrapped today and not obviously public; an entry there must be decorated
-or moved to public, never left:
-
-- `va_main.va_index` (`/`, `/index`, `/vaindex`): landing page, no
-  `current_user` check at all.
-- `va_main.who_va_document`: streams a WHO reference PDF from a fixed slug
-  registry. Public WHO material, but nothing declares it so.
-- `help.index`, `help.page`: filter and 403 by role in the body, so guarded
-  by hand; pages registered `roles=None` render for anyone.
-- `help.docs_index`, `help.doc_page`: **serve curated internal engineering
-  docs to unauthenticated visitors with no check whatsoever.** Slug is a
-  registry key, so exposure is exactly the curated list, but that list is
-  internal.
+One allowlist, `PUBLIC_BY_DESIGN`, checked for stale entries and for
+entries that later became guarded. It holds fourteen endpoints: static,
+health, the seven `va_auth` account-access flows (login, logout, maintenance
+banner, forgot password, reset link, resend verification, verify email), the
+WHO reference documents, and the four help pages. Decided 2026-09-19: help
+and WHO documents are public so a prospective user can read them before
+logging in; `help.page` keeps its in-body role filter for role-restricted
+pages. `va_main.va_index` (`/`, `/index`, `/vaindex`) now carries
+`login_required`; an anonymous visitor is redirected to the login page.
+`tests/routes/test_public_route_access.py` asserts the anonymous behaviour
+of each class at runtime.
 
 `API_PATH_PREFIXES` is now a constant on `role_required`, and a test asserts
 every `/api/`-shaped rule matches one of its prefixes, closing item 2 of

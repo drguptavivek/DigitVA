@@ -1,4 +1,8 @@
-"""Every registered route is auth-guarded, or is on an explicit allowlist.
+"""Every registered route is auth-guarded, or is public by design.
+
+There is no pending list: as of 2026-09-19 every route in `app.url_map` either
+declares a guard or sits on `PUBLIC_BY_DESIGN` with a reason. A new route has
+exactly those two outcomes -- "undecided" is not one of them.
 
 `role_required`'s own validation (tests/test_role_required_validation.py)
 guarantees that a route's role *names* are real. It cannot say anything about a
@@ -43,7 +47,7 @@ _MAX_WRAPPER_DEPTH = 32
 _LOGIN_REQUIRED_CO_QUALNAME = "login_required.<locals>.decorated_view"
 
 
-# ── Allowlists ───────────────────────────────────────────────────────────────
+# ── Allowlist ────────────────────────────────────────────────────────────────
 
 PUBLIC_BY_DESIGN = frozenset({
     # Static asset serving; Flask's own endpoint, no application data.
@@ -65,42 +69,32 @@ PUBLIC_BY_DESIGN = frozenset({
     "va_auth.reset_password",
     "va_auth.resend_verification",
     "va_auth.verify_email",
-})
-
-# Endpoints that are unguarded today and are NOT obviously public. Each entry
-# here is an open decision, not a resolution.
-#
-# An entry must leave this set in one of two ways: decorate the view, or move it
-# to PUBLIC_BY_DESIGN with a reason. Leaving it here indefinitely is the one
-# outcome this set exists to make visible. Several of these do check
-# `current_user` inside the body -- that still counts as pending, because the
-# point of the test is that guarding is *declarative* and readable at the route.
-UNGUARDED_DECISION_PENDING = frozenset({
-    # `/`, `/index`, `/vaindex`. Renders the public landing page plus a list of
-    # WHO VA reference documents. No user data, no current_user check.
-    "va_main.va_index",
     # Streams a WHO VA reference PDF from a fixed on-disk registry
-    # (WHO_VA_DOCUMENTS); slug must be a registry key, so no arbitrary read.
-    # Public WHO material, but nothing declares that.
+    # (WHO_VA_DOCUMENTS); the slug must be a registry key, so no arbitrary read.
+    # Published WHO material, deliberately readable without an account.
     "va_main.who_va_document",
     # Help index. Renders the shell; the page list is filtered per user by
-    # `_visible_pages`, which treats anonymous as holding no roles.
+    # `_visible_pages`, which treats anonymous as holding no roles, so an
+    # anonymous visitor sees only the `roles=None` pages.
     "help.index",
-    # A single help page. Checks `_user_has_role(current_user, ...)` in the body
-    # and aborts 403 -- effectively guarded, but by hand, and pages registered
-    # with `roles=None` (getting-started, authentication, user-roles, profile)
-    # render for anyone.
+    # A single help page, public by design *and* role-filtered in the body:
+    # `_user_has_role(current_user, page_info[4])` aborts 403 for a page whose
+    # registry entry names roles. That in-body filtering is the guard for the
+    # role-restricted pages and must stay; only the `roles=None` pages
+    # (getting-started, authentication, password-reset, email-verification,
+    # user-roles, profile) render for anonymous visitors, and those are the
+    # sign-in and account instructions a logged-out user needs.
     "help.page",
-    # Index of the curated engineering docs. No role check at all.
+    # Index of the curated user-facing engineering docs. Public by design: the
+    # curated list in ENGINEERING_DOCS is the published documentation set.
     "help.docs_index",
-    # Renders a curated repo markdown doc (ENGINEERING_DOCS) as HTML to anyone,
-    # with no role check. The slug must be a registry key and `_render_md`
-    # blocks traversal, so the exposure is exactly the curated list -- but the
-    # list is internal engineering documentation.
+    # Renders one curated repo markdown doc (ENGINEERING_DOCS) as HTML. The slug
+    # must be a registry key and `_render_md` blocks traversal, so the exposure
+    # is exactly that curated list, which is published by design.
     "help.doc_page",
 })
 
-_ALLOWED = PUBLIC_BY_DESIGN | UNGUARDED_DECISION_PENDING
+_ALLOWED = PUBLIC_BY_DESIGN
 
 
 # ── The checker ──────────────────────────────────────────────────────────────
@@ -199,7 +193,8 @@ def test_every_route_is_guarded_or_allowlisted(app):
         row for row in unguarded_endpoints(app) if row[0] not in _ALLOWED
     ]
     assert not offenders, (
-        "These endpoints have no auth decorator and are on neither allowlist. "
+        "These endpoints have no auth decorator and are not on "
+        "PUBLIC_BY_DESIGN. "
         "An unguarded route fails open and serves every visitor:\n"
         f"{_format(offenders)}\n\n"
         "Fix by decorating the view with @role_required(...), or -- if it must "
@@ -208,7 +203,7 @@ def test_every_route_is_guarded_or_allowlisted(app):
     )
 
 
-def test_allowlists_have_no_stale_entries(app):
+def test_allowlist_has_no_stale_entries(app):
     """An allowlist entry for a route that no longer exists is a standing
     exemption nobody is reading. It must be deleted with the route."""
     registered = {rule.endpoint for rule in app.url_map.iter_rules()}
@@ -220,7 +215,7 @@ def test_allowlists_have_no_stale_entries(app):
 
 
 def test_allowlisted_endpoints_are_still_unguarded(app):
-    """The allowlists must shrink honestly.
+    """The allowlist must shrink honestly.
 
     Separate from the coverage test so the reason for the failure is
     unambiguous: nothing is unguarded, an exemption simply outlived its need.
@@ -234,19 +229,8 @@ def test_allowlisted_endpoints_are_still_unguarded(app):
     } - unguarded)
     assert not now_guarded, (
         "These endpoints are allowlisted as unguarded but now carry an auth "
-        "decorator. Remove them from PUBLIC_BY_DESIGN / "
-        "UNGUARDED_DECISION_PENDING:\n"
+        "decorator. Remove them from PUBLIC_BY_DESIGN:\n"
         + "\n".join(f"  {endpoint}" for endpoint in now_guarded)
-    )
-
-
-def test_pending_list_is_a_subset_of_what_is_actually_unguarded(app):
-    """UNGUARDED_DECISION_PENDING is a queue, not a category. Nothing may sit on
-    it that is not both registered and genuinely undecorated."""
-    unguarded = {row[0] for row in unguarded_endpoints(app)}
-    assert UNGUARDED_DECISION_PENDING <= unguarded, (
-        "Entries on UNGUARDED_DECISION_PENDING that are not unguarded: "
-        f"{sorted(UNGUARDED_DECISION_PENDING - unguarded)}"
     )
 
 

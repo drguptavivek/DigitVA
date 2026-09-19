@@ -175,14 +175,23 @@ source for those five. It is a translation source only: whether the
 reference form itself moves from V1.1 to V2.0 is a separate decision.
 
 The ICMR deployment form (`ND01_ICMRVA_WHOVA2022.xlsx`, the version used
-most commonly, 2026-09-19) carries the WHO instrument plus the DigitVA
-layer the WHO reference does not have: `begin_screen`, `instructions`,
-`introduction` (the intake screen), `death_summary`, `ds_available`,
-`ds_im1` to `ds_im5` (death-summary images), `imagenarr` (image
-narration), `Site`, `deviceid` and other capture fields, 96 names in all.
-Those names are the structural reference for the `intake_screen` and
-`death_summary` layers when they are built; the importer reports them as
-"unknown in workbook" against the WHO reference today, which is expected.
+most commonly, 2026-09-19) carries the WHO instrument plus every DigitVA
+layer the option contract names, as deployed structure with English and
+Hindi text, 96 names beyond the WHO reference:
+
+| Layer (`enabled_extensions`) | ND01 structure |
+| --- | --- |
+| `intake_screen` | `begin_screen`: `introduction`, `instructions` (with Hindi variants), `confirm_inst` |
+| `geography` | `Site`, `survey_state`, `survey_district`, `survey_block`, `unique_id`, `site_individual_id` |
+| `narration_language` | `narr_language`; narration capture `Id10476_audio` (audio) and `imagenarr` (image) |
+| `social_autopsy` | `socialautopsy` group: `socioeconomic` (`sa01` to `sa06_a`), `reachinghealthcare` (`sa07` to `sa12`), `eventchronology` (`sa13` to `sa19` with `sa_tu*` time units) |
+| `death_summary` | `death_summary` "Death Certificate (Images)": `ds_available`, `ds_count`, `ds_im1` to `ds_im5` |
+| medical records (not yet a named extension) | `md_records`: `md_available`, `md_count`, `md_im1` to `md_im30` |
+
+These are the structural reference for those layers when they are built
+(decisions E7 and E8: overlay from a deployed form, never invented). The
+importer reports them as "unknown in workbook" against the WHO reference
+today, which is expected. The `abha` layer is not in ND01.
 
 Instrument locale codes are a separate axis from `mas_languages` codes (`kha`
 here is `khasi` there). Nothing maps between them, and adding a

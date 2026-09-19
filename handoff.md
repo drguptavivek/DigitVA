@@ -57,6 +57,14 @@ Two things worth knowing before extending it:
 
 ## Start here
 
+**Approved plan for the next pass:** `docs/planning/web-capture-project-configuration-plan.md`
+(web form type and extensions as project settings, defaults for a web
+project, readiness check, routing confirmation, every open question
+recorded, stored and editable instrument translations from the nine
+deployed workbooks in `docs/kb/WHO_VA_2022_Docs/`, which are still
+untracked). Beads `digitva-6v1`, `xv9`, `shz`, `mze`, `9ff`, `0by`.
+
+
 Ranked across every session's input. Done since the previous ranking: the
 PII set failing open, the PII cache never invalidating, and the route
 decorator guarantee (see the two sections below). The six routes that were

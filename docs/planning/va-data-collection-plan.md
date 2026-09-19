@@ -3,7 +3,7 @@ title: VA Data Collection — Consolidated Plan (engine, form pipeline, clients)
 doc_type: planning
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # VA Data Collection — Consolidated Plan
@@ -77,6 +77,9 @@ ones taken while consolidating, which cut across all of them.
 | E7 | Instruments are **built offline from one curated reference form per form type**, never converted at request time | 2026-09-18 | Conversion output needs review before it faces an interviewer, and there is no single workbook to convert automatically — see the per-site variance below. |
 | E8 | Reference material comes from **ODK Central's deployed definitions**, not the generic WHO workbook | 2026-09-18 | `GET projects/{id}/forms/{id}.xlsx` returns what is actually in the field, already carrying DigitVA's extension fields. The generic workbook's placeholder choices ("Language 2", "Language 3") are exactly what must not reach an interviewer. |
 | E9 | **Language lists are configuration, not part of the instrument.** The language question's choices are supplied from DigitVA's language data at composition time; `DIGITVA_NARRATION_LANGUAGES` is removed from the engine | 2026-09-18 | The hardcoded list matches WHO_2022_VA and is wrong for WHO_2022_VA_SOCIAL, and every site's workbook carries a different list. Baking one into either the engine or an instrument cannot be right for all of them. |
+
+
+> **2026-09-19:** the project-configuration slice (web form type, extensions, defaults, readiness, translations) and the register of every decision taken that day are in `docs/planning/web-capture-project-configuration-plan.md`.
 
 ## Where we are
 

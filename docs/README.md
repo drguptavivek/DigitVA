@@ -38,6 +38,7 @@ These documents describe the current implementation as it exists today.
 
 - [Policy Docs](policy/README.md)
 - [Access Control Model](policy/access-control-model.md)
+- [New Form Type Onboarding](policy/new-form-type-onboarding.md)
 - [Admin API Access Policy](policy/admin-api-access.md)
 - [ODK Field Dependencies](policy/odk-field-dependencies.md) --- ✅ NEW
 - [Final COD Authority](policy/final-cod-authority.md) --- ✅ New

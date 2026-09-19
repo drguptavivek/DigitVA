@@ -13,6 +13,7 @@ This folder contains policy baselines for application behavior.
 Current policy docs:
 
 - [Access Control Model](access-control-model.md)
+- [New Form Type Onboarding](new-form-type-onboarding.md)
 - [Admin Activity Log Policy](admin-activity-log.md)
 - [Admin API Access Policy](admin-api-access.md)
 - [Attachment Storage and Delivery Policy](attachment-storage.md) — attachment authorization matrix, presence, delivery, AMR derivatives

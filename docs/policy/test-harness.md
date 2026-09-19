@@ -270,6 +270,31 @@ un-patched object happens to take. The case that found it was patching a
 path. The same mistake on an admit-path test would have passed while asserting
 against a decorator it never touched.
 
+### Rule: when mutation testing, defeat the bytecode cache
+
+CPython validates a cached `.pyc` against the source file's **size and
+mtime**, not its contents. Two mutants of the same file that happen to be the
+same length and are written in the same second are indistinguishable to that
+check, so the second run silently executes the first one's bytecode.
+
+This is not hypothetical. Mutating a gate to `if False:  # MUTATION: gate
+never denies` and to `if True:  # MUTATION: gate always denies` produces two
+files of exactly 40 characters on that line and identical total size. Written
+a second apart, the never-denying and always-denying mutants failed
+*identically* -- which is impossible, and was the only reason anyone noticed.
+A bind-mounted worktree makes it worse: the container writes `__pycache__`
+into the host tree, so the stale bytecode survives between containers.
+
+Run mutations with `PYTHONDONTWRITEBYTECODE=1` or `python -B`, or vary the
+mutants' length deliberately.
+
+A mutation test measuring the previous mutant is the purest form of what this
+section is about: it cannot fail for what it appears to test, and it fails
+**open** -- the report says "positive controls verified" on evidence that
+measured nothing. Note also what caught it: not a check, but noticing that a
+result contradicted the mechanism. Keep enough of a model of what *should*
+happen to recognise an impossible answer.
+
 ### Rule: a missing fixture can make an authorization test vacuous too
 
 Three route tests for the viewer roles returned 500 because the analytics

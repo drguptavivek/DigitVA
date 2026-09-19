@@ -17,25 +17,31 @@ import logging
 import tempfile
 from pathlib import Path
 
-from flask import jsonify, render_template, request
+from flask import Response, jsonify, render_template, request
 from flask_login import current_user
 from werkzeug.utils import secure_filename
 
 from app import db
 from app.decorators import role_required
+from app.models.mas_instrument_locales import SOURCE_EDITED, SOURCE_IMPORTED
 from app.routes.admin import _json_error, admin
 from app.services.instrument_translation_service import (
     BASE_INSTRUMENT_CODE,
     MAX_STRING_PAGE_SIZE,
     TRANSLATION_COVERAGE_THRESHOLD,
+    XLIFF_EXTENSIONS,
+    XLIFF_MEDIA_TYPE,
     InstrumentTranslationError,
     documented_sources,
     export_translations,
+    export_xliff,
     import_translations,
+    import_xliff,
     list_strings,
     locale_status,
     set_locale_active,
     update_string,
+    xliff_filename,
 )
 
 log = logging.getLogger(__name__)
@@ -247,6 +253,88 @@ def admin_instrument_translation_put_string(instrument_code, locale):
         return _json_error(str(exc), 400)
     db.session.commit()
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# XLIFF 2.0 interchange
+# ---------------------------------------------------------------------------
+
+
+@admin.get(f"{_API}/<instrument_code>/<locale>/xliff")
+@role_required("admin")
+def admin_instrument_translation_export_xliff(instrument_code, locale):
+    """One locale as an XLIFF 2.0 document, for a translator's CAT tool."""
+    if err := _guard():
+        return err
+    try:
+        document = export_xliff(instrument_code, locale)
+    except InstrumentTranslationError as exc:
+        return _json_error(str(exc), 404)
+    response = Response(document, mimetype=XLIFF_MEDIA_TYPE)
+    # The name is built from a sanitised code and locale, never from input
+    # that reaches the header as written.
+    response.headers["Content-Disposition"] = (
+        f"attachment; filename={xliff_filename(instrument_code, locale)}"
+    )
+    return response
+
+
+@admin.post(f"{_API}/<instrument_code>/<locale>/xliff")
+@role_required("admin")
+def admin_instrument_translation_import_xliff(instrument_code, locale):
+    """Write the targets of an uploaded XLIFF 2.0 document back into a locale."""
+    if err := _guard():
+        return err
+    uploaded = request.files.get("file")
+    if uploaded is None or not uploaded.filename:
+        return _json_error("Upload the XLIFF document as 'file'.", 400)
+    name = secure_filename(uploaded.filename)
+    if not name.lower().endswith(XLIFF_EXTENSIONS):
+        return _json_error(
+            f"Only {' and '.join(XLIFF_EXTENSIONS)} documents are accepted.", 400
+        )
+    mark_as = request.form.get("as") or SOURCE_IMPORTED
+    if mark_as not in (SOURCE_IMPORTED, SOURCE_EDITED):
+        return _json_error(
+            f"'as' must be {SOURCE_IMPORTED!r} or {SOURCE_EDITED!r}.", 400
+        )
+
+    # Read under the cap before anything parses it, the same way the workbook
+    # upload does: an unbounded document is never fully read into memory.
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := uploaded.stream.read(_UPLOAD_CHUNK):
+        size += len(chunk)
+        if size > MAX_UPLOAD_BYTES:
+            return _json_error(
+                f"The document is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+                400,
+            )
+        chunks.append(chunk)
+    try:
+        document = b"".join(chunks).decode("utf-8")
+    except UnicodeDecodeError:
+        return _json_error("The document is not UTF-8 text.", 400)
+
+    try:
+        report = import_xliff(
+            instrument_code,
+            locale,
+            document,
+            actor_id=current_user.user_id,
+            mark_as=mark_as,
+        )
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    except Exception:  # malformed document the parser accepted but we cannot use
+        db.session.rollback()
+        log.exception(
+            "instrument translation xliff import failed | %s/%s", instrument_code, locale
+        )
+        return _json_error("The document could not be read.", 400)
+    db.session.commit()
+    return jsonify({"report": report})
 
 
 @admin.get(f"{_API}/<instrument_code>/<locale>/export")

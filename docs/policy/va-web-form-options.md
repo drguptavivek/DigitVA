@@ -229,6 +229,34 @@ instrument bundle and is no longer a code in a Python registry. It is data:
    lists it in `web_intake_available_locales` (or stores NULL, which means all
    of them).
 
+**Handing a language to a translator.** Step 2 seeds a language; refining it is
+done in **XLIFF 2.0**, the industry-standard interchange every CAT tool reads
+(decided 2026-09-19; the scheme and the rules are in
+[VA Form Project Configuration Policy](va-form-project-configuration.md) →
+"Interchange format"). Export the locale
+(`flask instrument-translations export-xliff <instrument_code> <locale>`, or
+the **XLIFF** button on the language's row in the admin panel), send the `.xlf`
+out, and import the returned file (`import-xliff`, or **Import XLIFF**). Choose
+`--as edited` for a reviewed file that should outrank a later workbook
+re-import, `imported` for a bulk hand-back that should not. An XLIFF import
+cannot add a language or a question: a unit whose id the reference form does
+not have is reported and skipped.
+
+**Where no translation exists the form shows English.** Nothing falls back to
+a blank. The serving payload
+(`GET /api/v1/instruments/<instrument_code>/translations/<locale>`) omits an
+item it has no string for rather than sending an empty one, the client-side
+apply (`app/static/js/intake/translations.js`) sets a locale's text only when
+it is a non-empty string, and the bundle's `localizeText` then resolves label
+candidates in the order **locale, base language, `en`**
+(`localeCandidates`, `vendor/who-va-2022/src/i18n.ts`). So a partially
+translated language renders every translated string in that language and every
+other one in English, in the same form, and a half-covered language can never
+blank a question. Pinned by `tooling/who-va-2022/tests/translations.test.mjs`
+("where no translation exists the form falls back to English") and
+`tests/services/test_instrument_translation_xliff.py`
+(`InstrumentTranslationEnglishFallbackTests`).
+
 Corrections are made string by string in the panel: the edit is marked
 `edited`, survives the next re-import, bumps the locale's version and is
 written to the log with the item key and the old and new text. Every

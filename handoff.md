@@ -35,7 +35,9 @@ work packages WP0 to WP6 landed;
 | `610f55d` | The 16 WHO_2022_VA_2026 overrides that depart from the annex documented and pinned by a file-based test; annex follow-ups 4-7 filed as `digitva-2g7`, `28a`, `jt3`, `2c1` |
 | `5043448` | Web form type, welcome note, death-summary flag as project settings; `base_instrument_code` on `mas_form_types`; defaults for a new web project; migration `c3e8b5a1f4d2` |
 | `fe498e6` | Web-capture readiness: nine checks as JSON, Projects panel badge and list, `flask web-intake readiness` |
-| (this session) | Instrument translations stored, managed and served: `mas_instrument_locales`, `map_instrument_translations`, importer from one documented source workbook per language, admin panel, `GET /api/v1/instruments/<code>/translations/<locale>`, client-side apply in the intake page; migration `a7d4f1c9b0e6` |
+| `383acef` | French, Portuguese, Arabic, Swahili and Spanish sourced from WHO's multilingual V2.0 form (`2022whova_xls_form_for_odk_multilingual.xlsx`); thirteen locales active on dev |
+| (this session) | XLIFF 2.0 export and import per locale as the industry-standard interchange (resource ids `question.<name>.<field>`, `choice.<list>.<name>.label`); English fallback pinned |
+| `d497e0e` | Instrument translations stored, managed and served: `mas_instrument_locales`, `map_instrument_translations`, importer from one documented source workbook per language, admin panel, `GET /api/v1/instruments/<code>/translations/<locale>`, client-side apply in the intake page; migration `a7d4f1c9b0e6` |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4 -> f2a9c4d7e1b3 -> c3e8b5a1f4d2 -> a7d4f1c9b0e6`. Verified by an empty-database `flask db upgrade` replay of the
@@ -72,9 +74,12 @@ Two things worth knowing before extending it:
 step on any database, dev included: import and activate each documented
 language with `flask instrument-translations import WHO_2022_VA <locale>
 docs/kb/WHO_VA_2022_Docs/<workbook>`; nothing serves Hindi until that is
-done. All eight deployed languages reach 100 percent coverage; French is
-documented but cannot activate because the WHO reference form has French
-on its choices sheet only (owner to decide keep-inactive or drop the row).
+done. All thirteen documented languages reach 100 percent coverage on the
+survey labels (eight from the deployed Indian forms, five from WHO's
+multilingual V2.0 form). Translators exchange a locale as XLIFF 2.0 through
+the panel or `flask instrument-translations export-xliff` / `import-xliff`;
+where a string has no translation the form shows English. Whether the
+curated reference form itself moves from V1.1 to V2.0 is `digitva-13x`.
 
 Open after this pass, in order:
 

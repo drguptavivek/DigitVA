@@ -63,6 +63,31 @@
     </div>
   </div>
 
+  {# XLIFF 2.0 interchange — the industry-standard exchange with translators #}
+  <div class="card mb-4">
+    <div class="card-body">
+      <h6 class="card-title mb-2">XLIFF 2.0 interchange</h6>
+      <p class="small text-muted mb-3">
+        Export a language as XLIFF 2.0 for a translator's CAT tool and import the
+        returned file here. An empty target leaves the stored string alone, and a
+        unit the reference form does not have is reported and skipped &mdash; XLIFF
+        can never add a question. Use the <strong>XLIFF</strong> and
+        <strong>Import XLIFF</strong> buttons on a language's row above.
+      </p>
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-4">
+          <label class="form-label small mb-1" for="itr-xliff-as">Mark written strings as</label>
+          <select class="form-select form-select-sm" id="itr-xliff-as">
+            <option value="imported">imported &mdash; a bulk hand-back; admin edits are kept</option>
+            <option value="edited">edited &mdash; reviewed; outranks a later workbook re-import</option>
+          </select>
+        </div>
+      </div>
+      <input type="file" id="itr-xliff-file" accept=".xlf,.xliff" class="d-none">
+      <div id="itr-xliff-result" class="small mt-3"></div>
+    </div>
+  </div>
+
   {# String editor #}
   <div class="card d-none" id="itr-strings-card">
     <div class="card-body">
@@ -155,7 +180,12 @@
           + ' data-locale="' + esc(l.locale_code) + '">Strings</button>'
           + ' <a class="btn btn-sm py-0 px-2 btn-outline-secondary" target="_blank" rel="noopener"'
           + ' href="' + API + '/' + encodeURIComponent(INSTRUMENT) + '/'
-          + encodeURIComponent(l.locale_code) + '/export">JSON</a>';
+          + encodeURIComponent(l.locale_code) + '/export">JSON</a>'
+          + ' <a class="btn btn-sm py-0 px-2 btn-outline-secondary"'
+          + ' href="' + API + '/' + encodeURIComponent(INSTRUMENT) + '/'
+          + encodeURIComponent(l.locale_code) + '/xliff">XLIFF</a>'
+          + ' <button class="btn btn-sm py-0 px-2 btn-outline-primary itr-xliff-btn"'
+          + ' data-locale="' + esc(l.locale_code) + '">Import XLIFF</button>';
       } else {
         actions = '<span class="text-muted small">base locale</span>';
       }
@@ -197,6 +227,12 @@
     });
     bindAll('.itr-edit-btn', function () {
       openStrings(this.getAttribute('data-locale'));
+    });
+    bindAll('.itr-xliff-btn', function () {
+      _xliffLocale = this.getAttribute('data-locale');
+      var input = document.getElementById('itr-xliff-file');
+      input.value = '';
+      input.click();
     });
   }
 
@@ -266,6 +302,55 @@
       : '<span class="text-success">Activated.</span>');
     else lines.push('<span class="text-warning">Not activated: coverage is below the threshold.</span>');
     out.innerHTML = '<div class="border rounded p-2 bg-light">' + lines.join('<br>') + '</div>';
+  }
+
+  // ── XLIFF 2.0 ─────────────────────────────────────────────────────────────
+
+  var _xliffLocale = null;
+
+  document.getElementById('itr-xliff-file').addEventListener('change', function () {
+    alertBox();
+    var out = document.getElementById('itr-xliff-result');
+    out.innerHTML = '';
+    if (!_xliffLocale || !this.files || !this.files.length) return;
+
+    var form = new FormData();
+    form.append('file', this.files[0]);
+    form.append('as', document.getElementById('itr-xliff-as').value);
+
+    var locale = _xliffLocale;
+    out.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the XLIFF document…';
+    fetch(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/xliff', {
+      method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form,
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    }).then(function (res) {
+      if (!res.ok) { out.innerHTML = ''; alertBox('danger', res.data.error || 'Import failed.'); return; }
+      renderXliffReport(res.data.report);
+      loadLocales();
+    }).catch(function () {
+      out.innerHTML = '';
+      alertBox('danger', 'Network error.');
+    });
+  });
+
+  function renderXliffReport(report) {
+    var lines = [
+      '<strong>' + esc(report.locale_code) + '</strong> as <code>' + esc(report.mark_as) + '</code>',
+      esc(report.units) + ' unit(s) read',
+      'written ' + esc(report.written) + ', unchanged ' + esc(report.unchanged)
+        + ', kept edited ' + esc(report.kept_edited),
+      'empty targets left alone: ' + esc(report.skipped_empty),
+      'units the reference lacks: ' + esc(report.skipped_unknown_count),
+      'targets over the length cap: ' + esc(report.skipped_too_long_count),
+      'version now ' + esc(report.version),
+    ];
+    if (report.skipped_unknown && report.skipped_unknown.length) {
+      lines.push('<span class="text-warning">skipped: <code>'
+        + report.skipped_unknown.map(esc).join('</code>, <code>') + '</code></span>');
+    }
+    document.getElementById('itr-xliff-result').innerHTML =
+      '<div class="border rounded p-2 bg-light">' + lines.join('<br>') + '</div>';
   }
 
   // ── strings ───────────────────────────────────────────────────────────────

@@ -28,6 +28,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from datetime import UTC, datetime
@@ -915,3 +916,420 @@ def active_locale_versions(instrument_code: str) -> dict[str, int]:
     ).all():
         versions[row.locale_code] = row.version
     return versions
+
+
+# ---------------------------------------------------------------------------
+# XLIFF 2.0 — the interchange format
+# ---------------------------------------------------------------------------
+#
+# Policy: docs/policy/va-form-project-configuration.md ("Interchange format").
+# XLIFF 2.0 is what a translator's CAT tool reads and writes, so a language can
+# be corrected outside this application and brought back without anyone
+# exchanging spreadsheets. The workbook importer stays the seeding path; XLIFF
+# neither creates a locale nor changes the coverage gate.
+
+#: The OASIS XLIFF 2.0 document namespace, and the only one accepted.
+XLIFF_NAMESPACE = "urn:oasis:names:tc:xliff:document:2.0"
+
+#: The only ``version`` this module writes or accepts.
+XLIFF_VERSION = "2.0"
+
+#: ``<segment state>`` per stored row. ``edited`` rows are an administrator's
+#: correction, which is what XLIFF calls ``reviewed``; an absent row is
+#: ``initial`` with an empty target, which is how a translator's tool shows
+#: "not started" -- and is exactly the item the form falls back to English for.
+_STATE_BY_SOURCE = {SOURCE_IMPORTED: "translated", SOURCE_EDITED: "reviewed"}
+_STATE_UNTRANSLATED = "initial"
+
+#: Longest field first, so ``.guidance_hint`` is never read as ``.hint``.
+_FIELD_SUFFIXES = tuple(
+    sorted(_TRANSLATABLE_FIELDS, key=len, reverse=True)
+)
+
+#: Accepted upload extensions, and the media type an export is served as.
+XLIFF_EXTENSIONS = (".xlf", ".xliff")
+XLIFF_MEDIA_TYPE = "application/xliff+xml"
+
+
+def resource_id(item_kind: str, item_key: str, field: str) -> str:
+    """The canonical XLIFF ``<unit id>`` for one stored string.
+
+    ``question.<name>.<field>`` for a survey row (a question or a group), and
+    ``choice.<list_name>.<choice_name>.label`` for a choice -- the item key of a
+    choice is stored as ``<list_name>/<choice_name>`` and is mapped to and from
+    the dotted form here.
+
+    **Names must not contain a dot.** The id is parsed back by splitting on
+    dots, so a dot inside a question name, list name or choice name would make
+    two different items share an id. No name in the curated reference form
+    contains one (checked over all 1,292 reference strings on 2026-09-19), and
+    XLSForm names are conventionally ``[A-Za-z0-9_-]``. A name that does
+    contain one raises here rather than emitting an id that cannot be parsed
+    back.
+    """
+    if field not in _TRANSLATABLE_FIELDS:
+        raise InstrumentTranslationError(f"{field!r} is not a translatable field.")
+    if item_kind == ITEM_KIND_QUESTION:
+        parts = [item_key]
+    elif item_kind == ITEM_KIND_CHOICE:
+        list_name, sep, choice_name = (item_key or "").partition("/")
+        if not sep or not list_name or not choice_name:
+            raise InstrumentTranslationError(
+                f"Choice key {item_key!r} is not '<list_name>/<choice_name>'."
+            )
+        parts = [list_name, choice_name]
+    else:
+        raise InstrumentTranslationError(f"{item_kind!r} is not a translatable item kind.")
+    for part in parts:
+        if "." in part:
+            raise InstrumentTranslationError(
+                f"{item_kind} name {part!r} contains a dot, which a resource id "
+                "cannot represent unambiguously."
+            )
+    return ".".join([item_kind, *parts, field])
+
+
+def parse_resource_id(rid: str) -> tuple[str, str, str]:
+    """``(item_kind, item_key, field)`` from a canonical resource id.
+
+    The inverse of :func:`resource_id`, and the only way a ``<unit id>`` from
+    an uploaded document becomes an item key. It is a syntax check, not an
+    existence check: the caller still has to find the key in the reference.
+    """
+    text = (rid or "").strip()
+    item_kind, sep, rest = text.partition(".")
+    if not sep or item_kind not in (ITEM_KIND_QUESTION, ITEM_KIND_CHOICE):
+        raise InstrumentTranslationError(f"{rid!r} is not a resource id.")
+    for candidate in _FIELD_SUFFIXES:
+        if rest.endswith(f".{candidate}"):
+            field = candidate
+            body = rest[: -len(candidate) - 1]
+            break
+    else:
+        raise InstrumentTranslationError(f"{rid!r} names no translatable field.")
+    if not body:
+        raise InstrumentTranslationError(f"{rid!r} names no item.")
+    if item_kind == ITEM_KIND_QUESTION:
+        return item_kind, body, field
+    list_name, sep, choice_name = body.rpartition(".")
+    if not sep or not list_name or not choice_name:
+        raise InstrumentTranslationError(
+            f"{rid!r} is not 'choice.<list_name>.<choice_name>.<field>'."
+        )
+    return item_kind, f"{list_name}/{choice_name}", field
+
+
+@lru_cache(maxsize=4)
+def _reference_notes_cached(path: str) -> dict[tuple[str, str], str]:
+    """``{(item_kind, item_key): translator note}`` from the reference form.
+
+    A question's note is the English label of the group that encloses it, a
+    choice's note is its list name. Both exist only to tell a translator what
+    they are looking at; nothing reads them back.
+    """
+    settings = pd.read_excel(path, sheet_name="settings")
+    survey = pd.read_excel(path, sheet_name="survey")
+    choices = pd.read_excel(path, sheet_name="choices")
+
+    raw_default = _text(settings.iloc[0].get("default_language")) if not settings.empty else None
+    default_locale = _default_language(raw_default)
+    label_column = _language_columns(survey, default_locale).get(FIELD_LABEL, {}).get(
+        BASE_LOCALE
+    )
+
+    notes: dict[tuple[str, str], str] = {}
+    stack: list[str] = []
+    for _, row in survey.iterrows():
+        row_type = (_text(row.get("type")) or "").strip().lower().replace(" ", "_")
+        name = _text(row.get("name"))
+        label = _text(row.get(label_column)) if label_column else None
+        if row_type.startswith(("begin_group", "begin_repeat")):
+            if name:
+                notes[(ITEM_KIND_QUESTION, name)] = stack[-1] if stack else (label or name)
+            stack.append(label or name or "")
+            continue
+        if row_type.startswith(("end_group", "end_repeat")):
+            if stack:
+                stack.pop()
+            continue
+        if row_type and name and stack and stack[-1]:
+            notes[(ITEM_KIND_QUESTION, name)] = stack[-1]
+
+    for _, row in choices.iterrows():
+        list_name = _text(row.get("list_name"))
+        value = _text(row.get("name"))
+        if list_name and value:
+            notes[(ITEM_KIND_CHOICE, f"{list_name}/{value}")] = list_name
+    return notes
+
+
+def reference_notes(
+    instrument_code: str = BASE_INSTRUMENT_CODE,
+) -> dict[tuple[str, str], str]:
+    """Cached translator notes for the curated reference form's items."""
+    if (instrument_code or "").strip().upper() != BASE_INSTRUMENT_CODE:
+        raise InstrumentTranslationError(
+            f"No reference form is bundled for instrument {instrument_code!r}."
+        )
+    return _reference_notes_cached(str(REFERENCE_WORKBOOK))
+
+
+def _xliff_locale(instrument_code: str, locale_code: str) -> tuple[str, str, MasInstrumentLocales]:
+    """Normalize the pair and return the locale row, or refuse."""
+    instrument_code = (instrument_code or "").strip().upper()
+    locale_code = (locale_code or "").strip()
+    if locale_code == BASE_LOCALE:
+        raise InstrumentTranslationError(
+            f"{BASE_LOCALE!r} is the instrument's own language: it is the XLIFF "
+            "source, never its target."
+        )
+    row = get_locale(instrument_code, locale_code)
+    if row is None:
+        raise InstrumentTranslationError(
+            f"No {locale_code!r} translation exists for {instrument_code}. A "
+            "language is seeded by importing its documented source workbook; "
+            "XLIFF exchanges the strings of a language that already exists."
+        )
+    return instrument_code, locale_code, row
+
+
+def export_xliff(instrument_code: str, locale_code: str) -> str:
+    """One locale as an XLIFF 2.0 document, one ``<unit>`` per reference item.
+
+    Every item the reference has is emitted, translated or not: an untranslated
+    item is an empty ``<target>`` in state ``initial``, which is both what a
+    CAT tool needs to show the work left and an honest statement that the form
+    shows English there.
+    """
+    instrument_code, locale_code, _row = _xliff_locale(instrument_code, locale_code)
+    reference = reference_items(instrument_code)
+    notes = reference_notes(instrument_code)
+    stored = {
+        (item.item_kind, item.item_key, item.field): item
+        for item in db.session.scalars(
+            sa.select(MapInstrumentTranslations).where(
+                MapInstrumentTranslations.instrument_code == instrument_code,
+                MapInstrumentTranslations.locale_code == locale_code,
+            )
+        )
+    }
+
+    # The namespace is declared once as an ordinary attribute on the root and
+    # the tags are written unprefixed, which is what ``xmlns`` means. Building
+    # the tree with ``{uri}tag`` names instead would force ElementTree to
+    # either prefix everything or refuse the document's unqualified attributes
+    # (``version``, ``srcLang``); this way the output is the plain, default-
+    # namespaced form a CAT tool expects.
+    root = ET.Element(
+        "xliff",
+        {
+            "xmlns": XLIFF_NAMESPACE,
+            "version": XLIFF_VERSION,
+            "srcLang": BASE_LOCALE,
+            "trgLang": locale_code,
+        },
+    )
+    file_el = ET.SubElement(root, "file", {"id": instrument_code})
+
+    for key in sorted(reference):
+        item_kind, item_key, field = key
+        unit = ET.SubElement(file_el, "unit", {"id": resource_id(*key)})
+        note_text = notes.get((item_kind, item_key))
+        if note_text:
+            note = ET.SubElement(
+                ET.SubElement(unit, "notes"), "note", {"category": "reference"}
+            )
+            note.text = note_text
+        row = stored.get(key)
+        state = _STATE_BY_SOURCE.get(row.source, "translated") if row else _STATE_UNTRANSLATED
+        segment = ET.SubElement(unit, "segment", {"state": state})
+        ET.SubElement(segment, "source").text = reference[key]
+        target = ET.SubElement(segment, "target")
+        if row:
+            target.text = row.text
+
+    return ET.tostring(root, encoding="unicode", xml_declaration=True)
+
+
+def xliff_filename(instrument_code: str, locale_code: str) -> str:
+    """The download name of an export: ``WHO_2022_VA-hi.xlf``."""
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", f"{instrument_code}-{locale_code}")
+    return f"{safe}.xlf"
+
+
+def _document_element(xliff_text: str) -> ET.Element:
+    """Parse one XLIFF document, refusing anything with a DOCTYPE.
+
+    ``defusedxml`` is not a dependency of this application, so the stdlib
+    parser is used with the one attack it does not close off -- an internal
+    entity declaration, which needs a DOCTYPE -- refused outright before
+    parsing. The stdlib parser never resolves *external* entities, so with no
+    DOCTYPE there is nothing left to expand.
+    """
+    if re.search(r"<!\s*DOCTYPE", xliff_text, re.IGNORECASE):
+        raise InstrumentTranslationError(
+            "The document declares a DOCTYPE. XLIFF needs none, and entity "
+            "declarations are refused."
+        )
+    try:
+        return ET.fromstring(xliff_text, parser=ET.XMLParser())
+    except ET.ParseError as exc:
+        raise InstrumentTranslationError(f"The document is not valid XML: {exc}") from exc
+
+
+def _target_text(unit: ET.Element) -> str:
+    """One unit's target text, with any inline markup flattened."""
+    parts = [
+        "".join(target.itertext())
+        for target in unit.iterfind(
+            f"{{{XLIFF_NAMESPACE}}}segment/{{{XLIFF_NAMESPACE}}}target"
+        )
+    ]
+    return "".join(parts).strip()
+
+
+def import_xliff(
+    instrument_code: str,
+    locale_code: str,
+    xliff_text: str,
+    *,
+    actor_id=None,
+    mark_as: str = SOURCE_IMPORTED,
+) -> dict:
+    """Write the targets of an XLIFF 2.0 document back into one locale.
+
+    The same rule the workbook importer enforces holds here: a unit whose id is
+    not a reference item is reported and skipped, never created. An empty
+    target is "not translated yet" and leaves whatever is stored alone --
+    deleting a string is not something an exchange format does. ``mark_as``
+    decides the row ``source``: ``imported`` for a bulk hand-back, which leaves
+    an administrator's ``edited`` corrections standing, and ``edited`` for a
+    reviewed file that is meant to outrank them.
+
+    Coverage and activation are untouched: a locale becomes servable by the
+    same gate as before.
+    """
+    if mark_as not in (SOURCE_IMPORTED, SOURCE_EDITED):
+        raise InstrumentTranslationError(
+            f"mark_as must be {SOURCE_IMPORTED!r} or {SOURCE_EDITED!r}."
+        )
+    instrument_code, locale_code, locale_row = _xliff_locale(instrument_code, locale_code)
+
+    root = _document_element(xliff_text)
+    if root.tag != f"{{{XLIFF_NAMESPACE}}}xliff":
+        raise InstrumentTranslationError(
+            f"The document root is not an XLIFF {XLIFF_VERSION} <xliff> element "
+            f"in {XLIFF_NAMESPACE}."
+        )
+    if (root.get("version") or "").strip() != XLIFF_VERSION:
+        raise InstrumentTranslationError(
+            f"Only XLIFF {XLIFF_VERSION} is accepted; this document is version "
+            f"{root.get('version')!r}."
+        )
+    src_lang = (root.get("srcLang") or "").strip().lower()
+    if src_lang != BASE_LOCALE:
+        raise InstrumentTranslationError(
+            f"The source language must be {BASE_LOCALE!r}; this document says {src_lang!r}."
+        )
+    trg_lang = (root.get("trgLang") or "").strip()
+    if trg_lang.lower() != locale_code.lower():
+        raise InstrumentTranslationError(
+            f"The document's target language is {trg_lang!r}, not {locale_code!r}."
+        )
+
+    reference = reference_items(instrument_code)
+    existing = {
+        (item.item_kind, item.item_key, item.field): item
+        for item in db.session.scalars(
+            sa.select(MapInstrumentTranslations).where(
+                MapInstrumentTranslations.instrument_code == instrument_code,
+                MapInstrumentTranslations.locale_code == locale_code,
+            )
+        )
+    }
+
+    units = 0
+    written = 0
+    unchanged = 0
+    skipped_empty = 0
+    kept_edited = 0
+    skipped_unknown: list[str] = []
+    skipped_too_long: list[str] = []
+    now = datetime.now(UTC)
+
+    for unit in root.iter(f"{{{XLIFF_NAMESPACE}}}unit"):
+        units += 1
+        rid = unit.get("id") or ""
+        try:
+            key = parse_resource_id(rid)
+        except InstrumentTranslationError:
+            skipped_unknown.append(rid)
+            continue
+        if key not in reference:
+            skipped_unknown.append(rid)
+            continue
+        text = _target_text(unit)
+        if not text:
+            skipped_empty += 1
+            continue
+        if len(text) > MAX_TRANSLATION_TEXT_CHARS:
+            # Skipped rather than truncated, and rather than failing the whole
+            # document: the rest of a translator's file is still good.
+            skipped_too_long.append(rid)
+            continue
+        row = existing.get(key)
+        if row is not None and row.source == SOURCE_EDITED and mark_as == SOURCE_IMPORTED:
+            # An administrator's correction outranks a bulk hand-back, exactly
+            # as it outranks a workbook re-import.
+            kept_edited += 1
+            continue
+        if row is not None and row.text == text and row.source == mark_as:
+            unchanged += 1
+            continue
+        if row is None:
+            item_kind, item_key, field = key
+            row = MapInstrumentTranslations(
+                instrument_code=instrument_code,
+                locale_code=locale_code,
+                item_kind=item_kind,
+                item_key=item_key,
+                field=field,
+            )
+            db.session.add(row)
+            existing[key] = row
+        row.text = text
+        row.source = mark_as
+        row.updated_by = actor_id
+        row.updated_at = now
+        written += 1
+
+    if written:
+        locale_row.version = (locale_row.version or 0) + 1
+        locale_row.updated_at = now
+    db.session.flush()
+
+    log.info(
+        "instrument translations xliff imported | %s/%s | mark_as=%s | by=%s | "
+        "units=%d | written=%d | unchanged=%d | empty=%d | unknown=%d | "
+        "too_long=%d | kept_edited=%d | version=%d",
+        instrument_code, locale_code, mark_as, actor_id, units, written, unchanged,
+        skipped_empty, len(skipped_unknown), len(skipped_too_long), kept_edited,
+        locale_row.version,
+    )
+    return {
+        "instrument_code": instrument_code,
+        "locale_code": locale_code,
+        "mark_as": mark_as,
+        "units": units,
+        "written": written,
+        "unchanged": unchanged,
+        "kept_edited": kept_edited,
+        "skipped_empty": skipped_empty,
+        # Capped: a document keyed to the wrong instrument would otherwise
+        # return every one of its ids as a JSON body.
+        "skipped_unknown": skipped_unknown[:50],
+        "skipped_unknown_count": len(skipped_unknown),
+        "skipped_too_long": skipped_too_long[:50],
+        "skipped_too_long_count": len(skipped_too_long),
+        "version": locale_row.version,
+    }

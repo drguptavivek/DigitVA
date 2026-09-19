@@ -13,6 +13,7 @@ from app.models.mas_instrument_locales import (
     MapInstrumentTranslations,
     MasInstrumentLocales,
 )
+from app.routes import admin_translations as svc_routes
 from app.services import instrument_translation_service as svc
 from tests.base import BaseTestCase
 
@@ -330,6 +331,146 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         payload = self.client.get(self._api("/export")).get_json()
         self.assertEqual(payload["locale"], "hi")
         self.assertEqual(payload["questions"][self.item_key]["label"], "पहला प्रश्न")
+
+    # -- XLIFF 2.0 interchange ---------------------------------------------
+
+    def _xliff_document(self, trg="hi"):
+        """A one-unit XLIFF 2.0 document for a real reference item."""
+        return (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            f'<xliff xmlns="{svc.XLIFF_NAMESPACE}" version="2.0" '
+            f'srcLang="en" trgLang="{trg}">'
+            f'<file id="{INSTRUMENT}">'
+            f'<unit id="{svc.resource_id("question", self.item_key, "label")}">'
+            '<segment state="translated"><source>First</source>'
+            "<target>एक्सलिफ़ से</target></segment></unit></file></xliff>"
+        )
+
+    def _upload(self, document, filename="hi.xlf", **form):
+        import io
+
+        data = {"file": (io.BytesIO(document.encode("utf-8")), filename)}
+        data.update(form)
+        return data
+
+    def test_the_xliff_routes_refuse_anonymous_non_admin_and_coder(self):
+        get_url, post_url = self._api("/xliff"), self._api("/xliff")
+        self.assertIn(self.client.get(get_url).status_code, (302, 401))
+        self.assertIn(self.client.post(post_url).status_code, (302, 400, 401))
+
+        for user_id in (str(self.plain_user.user_id), self.base_coder_id):
+            with self.subTest(user_id=user_id):
+                self._login(user_id)
+                self.assertIn(self.client.get(get_url).status_code, (302, 403))
+                self.assertIn(
+                    self.client.post(
+                        post_url,
+                        data=self._upload(self._xliff_document()),
+                        content_type="multipart/form-data",
+                        headers=self._csrf_headers(),
+                    ).status_code,
+                    (302, 403),
+                )
+
+    def test_export_serves_an_xliff_document_as_a_download(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(self._api("/xliff"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, svc.XLIFF_MEDIA_TYPE)
+        self.assertIn("attachment", response.headers["Content-Disposition"])
+        self.assertIn(
+            f"{INSTRUMENT}-hi.xlf", response.headers["Content-Disposition"]
+        )
+        body = response.get_data(as_text=True)
+        self.assertIn(svc.XLIFF_NAMESPACE, body)
+        self.assertIn('trgLang="hi"', body)
+
+    def test_export_of_an_unknown_locale_is_404(self):
+        self._login(self.base_admin_id)
+        self.assertEqual(self.client.get(self._api("/xliff", "zz")).status_code, 404)
+
+    def test_an_upload_writes_the_target_and_reports_it(self):
+        self._login(self.base_admin_id)
+        before = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).version
+        response = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(self._xliff_document(), **{"as": "edited"}),
+            content_type="multipart/form-data",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        report = response.get_json()["report"]
+        self.assertEqual(report["units"], 1)
+        self.assertEqual(report["written"], 1)
+        self.assertEqual(report["version"], before + 1)
+
+        db.session.expire_all()
+        row = db.session.get(
+            MapInstrumentTranslations,
+            (INSTRUMENT, "hi", "question", self.item_key, "label"),
+        )
+        self.assertEqual(row.text, "एक्सलिफ़ से")
+        self.assertEqual(row.source, "edited")
+
+    def test_an_upload_without_a_csrf_token_is_refused(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(self._xliff_document()),
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 400)
+        # Present first: the same upload with a token is accepted.
+        accepted = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(self._xliff_document()),
+            content_type="multipart/form-data",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(accepted.status_code, 200, accepted.get_json())
+
+    def test_an_oversized_upload_is_refused(self):
+        self._login(self.base_admin_id)
+        oversized = self._xliff_document().replace(
+            "एक्सलिफ़ से", "x" * (svc_routes.MAX_UPLOAD_BYTES + 1)
+        )
+        response = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(oversized),
+            content_type="multipart/form-data",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("MB", response.get_json()["error"])
+
+    def test_an_upload_that_is_not_an_xlf_or_a_bad_mark_as_is_refused(self):
+        self._login(self.base_admin_id)
+        wrong_suffix = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(self._xliff_document(), filename="hi.xml"),
+            content_type="multipart/form-data",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(wrong_suffix.status_code, 400)
+
+        bad_mark = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(self._xliff_document(), **{"as": "whatever"}),
+            content_type="multipart/form-data",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(bad_mark.status_code, 400)
+
+    def test_an_upload_for_another_language_is_refused(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            self._api("/xliff"),
+            data=self._upload(self._xliff_document(trg="ta")),
+            content_type="multipart/form-data",
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("target language", response.get_json()["error"])
 
     def test_import_refuses_anything_but_an_xlsx(self):
         self._login(self.base_admin_id)

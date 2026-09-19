@@ -319,8 +319,23 @@ they differ), and the active flag. Actions: import a workbook (xlsx only,
 activates below threshold and is logged), activate, deactivate, edit one
 string (search by question name or English text, English reference shown
 alongside; an edit marks the row `edited`, survives re-import and bumps
-the locale version), export JSON. All state changes go through JSON routes
-under `/admin/api/instrument-translations/` with `X-CSRFToken`.
+the locale version), export JSON, and exchange the language as **XLIFF 2.0**.
+All state changes go through JSON routes under
+`/admin/api/instrument-translations/` with `X-CSRFToken`.
+
+Each language's row carries an **XLIFF** link
+(`GET .../<instrument_code>/<locale>/xliff`, served as
+`application/xliff+xml` and downloaded as `<INSTRUMENT>-<locale>.xlf`) and an
+**Import XLIFF** button that uploads the returned file
+(`POST` the same path, `.xlf`/`.xliff` only, 5 MB cap, `X-CSRFToken`). The
+card below chooses whether the written rows are marked `imported` — a bulk
+hand-back that leaves an administrator's edits standing — or `edited`, which
+outranks a later workbook re-import. The result panel reports units read,
+written, unchanged, kept edited, empty targets left alone, units the reference
+form does not have, and targets over the length cap. XLIFF exchanges the
+strings of a language that already exists; a *new* language still starts from
+its documented source workbook. Rules:
+`docs/policy/va-form-project-configuration.md` ("Interchange format").
 
 The interviewer's form fetches
 `GET /api/v1/instruments/<instrument_code>/translations/<locale>` by version

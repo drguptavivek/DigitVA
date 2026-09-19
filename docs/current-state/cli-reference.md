@@ -76,6 +76,8 @@ docker compose exec minerva_app_service uv run flask instrument-translations imp
 docker compose exec minerva_app_service uv run flask instrument-translations activate WHO_2022_VA hi [--force]
 docker compose exec minerva_app_service uv run flask instrument-translations deactivate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations export WHO_2022_VA hi [--output hi.json]
+docker compose exec minerva_app_service uv run flask instrument-translations export-xliff WHO_2022_VA hi [--output hi.xlf]
+docker compose exec minerva_app_service uv run flask instrument-translations import-xliff WHO_2022_VA hi hi.xlf [--as imported|edited]
 ```
 
 `import` reads the language's **documented source workbook** — the one named
@@ -87,6 +89,21 @@ English and the target language, keeps rows an administrator has edited, and
 never creates a question. The locale is activated when coverage of the
 reference form's survey labels reaches 0.95; `--force` activates below that and
 logs it.
+
+`export-xliff` writes the locale as an **XLIFF 2.0** document — the standard a
+translator's CAT tool reads — with one `<unit>` per reference item: `<source>`
+the English reference text, `<target>` the stored translation, and a segment
+state of `translated`, `reviewed` or `initial` (empty target, nothing stored,
+so the form shows English there). `import-xliff` writes the targets back.
+`--as imported` is a bulk hand-back and leaves an administrator's `edited` rows
+standing; `--as edited` marks what it writes as reviewed, which outranks a
+later workbook re-import. It prints units read, written, unchanged, kept
+edited, empty targets left alone, units the reference lacks, and targets over
+the length cap. An empty target never deletes a string, a unit the reference
+form does not have is reported and skipped, and a document with a DOCTYPE or
+the wrong version, namespace, `srcLang` or `trgLang` is refused. The locale's
+version moves only when a row changed. Scheme and rules:
+`docs/policy/va-form-project-configuration.md` ("Interchange format").
 
 **Running one `import` per documented language is an operator step on a new
 install, not a migration** — migrations import no application code and must not

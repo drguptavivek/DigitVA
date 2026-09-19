@@ -98,6 +98,46 @@ test("switching locale re-applies from the base, never accumulating", () => {
   assert.equal(ta.questions[0].label.hi, undefined);
 });
 
+test("where no translation exists the form falls back to English", () => {
+  // The rule, pinned: docs/policy/va-web-form-options.md, "Adding a language".
+  // `localeCandidates` in the bundle resolves [locale, base language, "en"],
+  // so an item the map omits is rendered in English. What must therefore hold
+  // is that applying a partial map leaves such an item with ONLY `en` — never
+  // an empty `hi` string, which would be a present value and would blank the
+  // question on screen.
+  const base = instrument();
+  const before = JSON.stringify(base);
+  const localized = applyTranslations(base, hindi, "hi");
+
+  // Present first: the map really did translate something.
+  assert.equal(localized.questions[0].label.hi, "क्या उत्तरदाता ने सहमति दी?");
+
+  // The question the map omits carries English and nothing else.
+  assert.deepEqual(Object.keys(localized.questions[1].label), ["en"]);
+  assert.equal(localized.questions[1].label.en, "Name of respondent");
+  // Same for a field the map leaves out of a question it does translate,
+  // and for a choice it does not reach.
+  assert.deepEqual(Object.keys(localized.questions[1].hint), []);
+  assert.deepEqual(Object.keys(localized.questions[0].choices[1].label), ["en"]);
+
+  // And the base instrument the fallback is measured against never moved.
+  assert.equal(JSON.stringify(base), before);
+});
+
+test("an empty translation string is not applied, so English still wins", () => {
+  const base = instrument();
+  const blanked = {
+    version: 9,
+    questions: { Id10007: { label: "", hint: "" } },
+    choices: { "yesno/no": { label: "" } },
+  };
+  const localized = applyTranslations(base, blanked, "hi");
+
+  assert.deepEqual(Object.keys(localized.questions[1].label), ["en"]);
+  assert.equal(localized.questions[1].label.en, "Name of respondent");
+  assert.deepEqual(Object.keys(localized.questions[0].choices[1].label), ["en"]);
+});
+
 test("no translations (the base locale) returns an untouched copy", () => {
   const base = instrument();
   const same = applyTranslations(base, null, "en");

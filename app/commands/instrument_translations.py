@@ -11,13 +11,16 @@ import json
 import click
 
 from app import db
+from app.models.mas_instrument_locales import SOURCE_EDITED, SOURCE_IMPORTED
 from app.services.instrument_translation_service import (
     BASE_INSTRUMENT_CODE,
     TRANSLATION_COVERAGE_THRESHOLD,
     InstrumentTranslationError,
     documented_sources,
     export_translations,
+    export_xliff,
     import_translations,
+    import_xliff,
     locale_status,
     set_locale_active,
 )
@@ -97,6 +100,55 @@ def export(instrument_code, locale, output_path):
         click.echo(f"Wrote {locale} version {payload['version']} to {output_path}")
     else:
         click.echo(text)
+
+
+@instrument_translations_group.command("export-xliff")
+@click.argument("instrument_code")
+@click.argument("locale")
+@click.option("--output", "output_path", default=None, help="Write to this file instead of stdout.")
+def export_xliff_command(instrument_code, locale, output_path):
+    """Write LOCALE as an XLIFF 2.0 document for a translator's CAT tool."""
+    try:
+        document = export_xliff(instrument_code, locale)
+    except InstrumentTranslationError as exc:
+        _fail(exc)
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as handle:
+            handle.write(document)
+        click.echo(f"Wrote {locale} XLIFF to {output_path}")
+    else:
+        click.echo(document)
+
+
+@instrument_translations_group.command("import-xliff")
+@click.argument("instrument_code")
+@click.argument("locale")
+@click.argument("path", type=click.Path(exists=True, dir_okay=False))
+@click.option(
+    "--as",
+    "mark_as",
+    type=click.Choice([SOURCE_IMPORTED, SOURCE_EDITED]),
+    default=SOURCE_IMPORTED,
+    show_default=True,
+    help="How the written rows are marked. 'edited' outranks a later workbook re-import.",
+)
+def import_xliff_command(instrument_code, locale, path, mark_as):
+    """Write the targets of the XLIFF 2.0 document at PATH back into LOCALE."""
+    with open(path, encoding="utf-8") as handle:
+        document = handle.read()
+    try:
+        report = import_xliff(instrument_code, locale, document, mark_as=mark_as)
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        _fail(exc)
+    db.session.commit()
+    click.echo(
+        f"{report['instrument_code']}/{report['locale_code']} as {report['mark_as']}: "
+        f"units={report['units']}, written={report['written']}, "
+        f"unchanged={report['unchanged']}, kept_edited={report['kept_edited']}, "
+        f"empty={report['skipped_empty']}, unknown={report['skipped_unknown_count']}, "
+        f"too_long={report['skipped_too_long_count']}, version={report['version']}"
+    )
 
 
 @instrument_translations_group.command("activate")

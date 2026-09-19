@@ -210,6 +210,58 @@ a migration: `flask instrument-translations import <instrument_code> <locale>
 panel. Migrations import no application code and must not read reference
 workbooks.
 
+### Interchange format (decided 2026-09-19)
+
+**XLIFF 2.0 is the standard exchange for a language's strings.** A translator
+works in a CAT tool, not in this application's editor and not in a spreadsheet,
+so a language is handed out and taken back as an XLIFF 2.0 document
+(`urn:oasis:names:tc:xliff:document:2.0`, `version="2.0"`, `srcLang="en"`,
+`trgLang` the locale). The seeding path is unchanged: a language still *begins*
+by importing its one documented source workbook from the table above, and XLIFF
+exchanges the strings of a language that already exists.
+
+**Resource ids.** One canonical id per stored string, used wherever XLIFF is
+concerned and nowhere translated into something else:
+
+| Stored item | `<unit id>` |
+| --- | --- |
+| A question's (or group's) label, hint or guidance note | `question.<name>.label` / `.hint` / `.guidance_hint` |
+| A choice's label | `choice.<list_name>.<choice_name>.label` |
+
+The id is parsed back by splitting on dots, so **no name may contain a dot**.
+None in the curated reference form does (checked over all 1,292 reference
+strings), and XLSForm names are conventionally `[A-Za-z0-9_-]`; a name that did
+would raise rather than produce an id two items could share.
+
+**What an export says.** One `<unit>` per *reference* item, not per stored
+string, so a translator sees the work that is left. `<source>` is the English
+reference text; `<target>` is the stored translation. The segment state records
+where the string came from: `translated` for an `imported` row, `reviewed` for
+an `edited` one, and `initial` with an empty `<target>` where nothing is
+stored — which is the form falling back to English, said in the exchange
+format. A `<note category="reference">` carries the enclosing section title, or
+the choice's list name, so a translator knows what they are looking at.
+
+**What an import may and may not do.** The same rule as the workbook importer:
+
+| May | May not |
+| --- | --- |
+| Set the text of any item the reference form already has | Create an item, a question, a choice or a locale |
+| Mark what it writes `imported` (a bulk hand-back) or `edited` (reviewed) | Change coverage, the activation gate or the version scheme |
+| Leave an `edited` row standing when marked `imported` | Delete a string: an empty `<target>` leaves what is stored alone |
+
+A unit whose id is not a reference item is **reported and skipped**, exactly as
+an unknown workbook string is. A target longer than
+`MAX_TRANSLATION_TEXT_CHARS` is reported and skipped rather than truncated, so
+one bad segment does not cost a translator the rest of the file. The locale's
+version is bumped once, and only if at least one row changed. A document with a
+DOCTYPE is refused before it is parsed, and so is one whose `version`,
+namespace, `srcLang` or `trgLang` is not the one asked for.
+
+CLI: `flask instrument-translations export-xliff` / `import-xliff`. Admin:
+`GET`/`POST /admin/api/instrument-translations/<instrument_code>/<locale>/xliff`,
+admin-only, CSRF on the upload, 5 MB cap.
+
 ## Sign-off on a configuration change (P2, decided 2026-09-19)
 
 **The admin who saves the setting is the sign-off.** There is no pending

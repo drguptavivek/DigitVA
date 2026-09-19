@@ -116,6 +116,41 @@ name at an existing `role_required(...)` call site is accepted, and — as an
 `ast` check on the source — that `_ROLE_METHODS` remains a dict literal with
 written-out string keys.
 
+### The guard marker and the route-coverage test
+
+`role_required` stamps the wrapper it returns with `ROLE_MARKER_ATTR`
+(`__digitva_roles__`), holding the tuple of roles it gates on. The attribute has
+no runtime effect; it exists so a test can prove a route is guarded.
+
+`tests/test_route_auth_coverage.py` walks `app.url_map` at runtime — not an
+`ast` sweep, because only the runtime map sees dynamically registered
+blueprints — resolves each endpoint to its view function, walks the
+`__wrapped__` chain, and fails on any endpoint whose chain carries neither the
+marker nor Flask-Login's `login_required`. This closes the class of bug the
+role-name validation cannot touch: a mistyped role fails at import, a **missing**
+decorator fails open.
+
+**`__wrapped__` is not an auth signal.** Every `functools.wraps` decorator sets
+it; on this app 322 of 334 rules carry it, including routes with no auth
+decorator at all. For the same reason `login_required` cannot be detected by
+`__module__` or `__qualname__` — `wraps` overwrites both with the decorated
+view's — so it is matched on its wrapper's `__code__`, which `wraps` never
+rewrites.
+
+Two explicit allowlists live in that module, each entry carrying its reason:
+`PUBLIC_BY_DESIGN` (login, logout, health, static, the account-recovery flows,
+the maintenance banner) and `UNGUARDED_DECISION_PENDING` (the landing page, the
+WHO document endpoint, and the four `help` routes). An entry on the pending list
+must eventually be decorated or moved to `PUBLIC_BY_DESIGN`; separate tests fail
+if an allowlisted endpoint disappears from `url_map` or later becomes guarded,
+so neither list can drift.
+
+`API_PATH_PREFIXES` is the module constant behind the JSON-vs-HTML decision, and
+the same test file asserts that every registered rule that looks like an API
+route matches one of its prefixes. A new API blueprint at an unlisted prefix
+would answer an expired session with an HTML redirect, so `base.js` never shows
+the session-expired modal and the tab simply stops refreshing.
+
 ### Behavior
 
 The decorator performs these checks in order:

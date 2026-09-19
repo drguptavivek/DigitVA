@@ -15,14 +15,16 @@ clean.
 | `6ea5420` | `R10` selectable, bucketed to `VAs-06.01` |
 | `b247950`, `ae6d6fa`, `5c5473a`, `8f0f672`, `98b9816` | Policy and task records (below) |
 | `455eb34`, `d08fce7`, `63a3dcb`, `479b698`, `44ffbeb` | Tooling hygiene: Dolt log and backup pointer untracked, beads prefix fixed, droppings ignored |
-| (this session) | PII set fails closed per form type; PII cache versioned on `mas_field_display_config` `(count, max(updated_at))`. No migration. |
+| `4b0e308` | PII set fails closed per form type; PII cache versioned on `mas_field_display_config` `(count, max(updated_at))`. No migration. |
+| `711710e` | Policy: what a second form type must pass before it goes live |
+| (this session) | `tests/test_route_auth_coverage.py`: every `url_map` endpoint must carry `role_required` or `login_required`, or sit on an explicit allowlist |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,391 passed after the PII fail-closed change (1,381 on the rebased tree before it).
+Verified: full suite 1,402 passed after the route-coverage test (1,391 after the PII change, 1,381 on the rebased tree before both).
 
 ## The access model, as it now stands
 
@@ -46,35 +48,64 @@ Two things worth knowing before extending it:
 
 ## Start here
 
-Ranked across every session's input. Items 1 and 2 of the previous ranking
-(PII set failing open, PII cache never invalidating) are done; see "PII set
-confirmation" below for what that changed and the one exemption.
+Ranked across every session's input. Done since the previous ranking: the
+PII set failing open, the PII cache never invalidating, and the route
+decorator guarantee (see the two sections below). One decision is waiting on
+you before the next item: the six routes in `UNGUARDED_DECISION_PENDING`.
 
-1. **Nothing guarantees a route has a decorator at all.**
-   `.tasks/auth-decorator-followups.md`. A mistyped role now fails at import; a
-   *missing* decorator fails open, and three unguarded routes have been found by
-   audit rather than by a check. A test walking `app.url_map` and failing on any
-   unguarded, non-allowlisted endpoint closes it. Use the runtime map, not an
-   AST sweep — only `url_map` sees dynamically registered blueprints.
-
-2. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
+1. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
    unblocks removing the hardcoded `locale = "en"` at
    `va_intake_form.html:168` and the never-set `instrument` property. The form
    falls back to the bundled WHO 2022 instrument, which works only while
    exactly one form type is live.
 
-3. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
+2. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
    A project-scoped grant on a closed project still resolves, in two
    independent mechanisms. Fixing one alone leaves them disagreeing, so it needs
    a decision about what a closed project means for every grant scope.
 
-4. **Migrations importing live app code.** `.tasks/migrations-importing-app-code.md`.
+3. **Migrations importing live app code.** `.tasks/migrations-importing-app-code.md`.
    15 migration files import from `app.*`; the `mas_org_unit` break came from
    exactly this. A lint on `app.services` imports under `migrations/versions`
    plus the empty-database upgrade replay closes it.
 
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
+
+## Route decorator guarantee (landed this session)
+
+`role_required` now stamps its wrapper with `__digitva_roles__`, and
+`tests/test_route_auth_coverage.py` walks `app.url_map` at runtime, follows
+each view's `__wrapped__` chain, and fails on any endpoint that carries
+neither that marker nor Flask-Login's `login_required` (detected by code
+object, because `functools.wraps` rewrites `__module__` and `__qualname__`
+and a name check finds nothing). `hasattr(f, "__wrapped__")` was rejected
+as the signal: any `wraps`-based decorator sets it, and the test keeps one
+assertion proving unguarded-but-wrapped endpoints still exist so that
+rationale stays falsifiable. Positive control registers an unguarded view on
+a bare `flask.Flask` and asserts it is reported.
+
+Two allowlists, both checked for staleness. `PUBLIC_BY_DESIGN` holds nine
+endpoints: static, health, login, logout, the maintenance banner, and the
+four account-recovery flows. `UNGUARDED_DECISION_PENDING` holds six that are
+unwrapped today and not obviously public; an entry there must be decorated
+or moved to public, never left:
+
+- `va_main.va_index` (`/`, `/index`, `/vaindex`): landing page, no
+  `current_user` check at all.
+- `va_main.who_va_document`: streams a WHO reference PDF from a fixed slug
+  registry. Public WHO material, but nothing declares it so.
+- `help.index`, `help.page`: filter and 403 by role in the body, so guarded
+  by hand; pages registered `roles=None` render for anyone.
+- `help.docs_index`, `help.doc_page`: **serve curated internal engineering
+  docs to unauthenticated visitors with no check whatsoever.** Slug is a
+  registry key, so exposure is exactly the curated list, but that list is
+  internal.
+
+`API_PATH_PREFIXES` is now a constant on `role_required`, and a test asserts
+every `/api/`-shaped rule matches one of its prefixes, closing item 2 of
+`.tasks/auth-decorator-followups.md`. Item 3 (`project_pi` is the only
+predicate that queries) is still open.
 
 ## PII set confirmation (landed this session)
 

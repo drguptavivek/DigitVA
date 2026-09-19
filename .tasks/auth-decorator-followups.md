@@ -12,7 +12,11 @@ Raised by the session that made `role_required` reject unknown role names
 (`d1b75ee`). That change guarantees a route's role names are real. None of
 the below is covered by it.
 
-## 1. Nothing guarantees a route has a decorator at all
+## 1. Nothing guarantees a route has a decorator at all — DONE (2026-09-19)
+
+**Done:** `tests/test_route_auth_coverage.py` walks `app.url_map` and fails on any
+endpoint carrying neither `role_required`'s new `__digitva_roles__` marker nor
+Flask-Login's `login_required`, with two reasoned allowlists that cannot drift.
 
 An unguarded route is strictly worse than a mistyped one: a mistyped name now
 fails at import, while a missing decorator **fails open** and serves everyone.
@@ -26,7 +30,11 @@ allowlist (health, static, login).
 Use `url_map` at runtime, **not** an `ast` sweep: only the runtime map sees
 blueprints registered dynamically.
 
-## 2. `is_api` is a hardcoded prefix tuple
+## 2. `is_api` is a hardcoded prefix tuple — DONE (2026-09-19)
+
+**Done:** extracted to `API_PATH_PREFIXES` in `role_required.py`; asserted against
+the registered rules in `tests/test_route_auth_coverage.py`. Not derived from the
+blueprints — an unlisted prefix is now a test failure, not a silent HTML redirect.
 
 `role_required` decides JSON-vs-HTML from a literal tuple: `/api/`,
 `/admin/api/`, `/data-management/api/`, `/intake/api/`. A new API blueprint at

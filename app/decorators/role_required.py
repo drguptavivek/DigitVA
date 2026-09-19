@@ -23,7 +23,7 @@ HTTP status contract (must match base.js interceptor expectations):
   - User deactivated           → 401  (logout_user() first, then 401)
   - Authenticated, wrong role  → 403  (normal permission error, no modal)
 
-For API routes (/api/* or /admin/api/*): JSON response.
+For API routes (any path under API_PATH_PREFIXES): JSON response.
 For web routes: redirect to login (401) or flash + abort(403).
 
 This decorator subsumes @login_required — do not stack both.
@@ -31,6 +31,12 @@ This decorator subsumes @login_required — do not stack both.
 Role names are checked against _ROLE_METHODS when the decorator is applied, so
 an unknown or misspelled name fails at import rather than turning into a route
 that silently 403s everyone.
+
+The wrapper is stamped with ROLE_MARKER_ATTR (``__digitva_roles__``) carrying
+the tuple of gated roles, so tests/test_route_auth_coverage.py can walk
+app.url_map and prove each endpoint is guarded. A missing decorator fails open,
+and __wrapped__ cannot stand in for the marker: every functools.wraps decorator
+sets it.
 """
 
 import logging
@@ -61,6 +67,26 @@ _ROLE_METHODS = {
     "collaborator":     lambda u: u.is_viewer(),
     "collaborator_pii": lambda u: u.is_viewer(),
 }
+
+
+# Request paths under these prefixes get a JSON error body instead of an HTML
+# redirect/flash. base.js only shows the "Session Expired" modal for a JSON 401,
+# so an API blueprint mounted outside this tuple fails silently: the tab stops
+# refreshing and nothing tells the user why. tests/test_route_auth_coverage.py
+# asserts every registered api-ish rule matches one of these.
+API_PATH_PREFIXES = (
+    "/api/",
+    "/admin/api/",
+    "/data-management/api/",
+    "/intake/api/",
+)
+
+# Attribute stamped on the wrapper this decorator returns, holding the tuple of
+# roles it gates on. It exists so a test can prove a route is guarded: every
+# functools.wraps decorator sets __wrapped__, so the presence of __wrapped__
+# proves nothing about authentication. Do not rename without updating
+# tests/test_route_auth_coverage.py.
+ROLE_MARKER_ATTR = "__digitva_roles__"
 
 
 def role_required(*roles):
@@ -95,12 +121,7 @@ def role_required(*roles):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            is_api = (
-                request.path.startswith("/api/")
-                or request.path.startswith("/admin/api/")
-                or request.path.startswith("/data-management/api/")
-                or request.path.startswith("/intake/api/")
-            )
+            is_api = request.path.startswith(API_PATH_PREFIXES)
 
             # ── Layer 1: Authentication ──────────────────────────────────────
             if not current_user.is_authenticated:
@@ -136,5 +157,9 @@ def role_required(*roles):
 
             return f(*args, **kwargs)
 
+        # Declare the guard on the wrapper itself. functools.wraps has already
+        # copied f.__dict__ across at this point, so this assignment is what
+        # the route-coverage test reads, not something inherited from f.
+        setattr(decorated_function, ROLE_MARKER_ATTR, tuple(roles))
         return decorated_function
     return decorator

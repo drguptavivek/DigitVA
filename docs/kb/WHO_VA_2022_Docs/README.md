@@ -25,6 +25,7 @@ definitions only. `sha256` is the first twelve hex characters.
 | --- | --- | --- | --- | --- | --- |
 | `whova2022_xls_form_for_odk.xlsx` | `va_who_2022` | `2023072701` | 2022 WHO Verbal Autopsy instrument V1.1 (reference) | en, fr | `50b019ff163e` |
 | `2022whova_xls_form_for_odk_multilingual.xlsx` | `va_who_2022` | `2026081401` | 2022 WHO Verbal Autopsy instrument V2.0 (WHO multilingual release; translation source only) | en, fr, pt, ar, sw, es | `05e123884c04` |
+| `ND01_ICMRVA_WHOVA2022.xlsx` | `ND01_ICMRVA_WHOVA2022` | `ND01_ICMRVA_WHOVA2022_20251203` | (ND01 ICMR VA) 2022 WHO Verbal Autopsy Instrument V1.1; the most commonly deployed ICMR form, carries the DigitVA layer fields | en, hi | `ce79eb39eed9` |
 | `RJ01_ICMRVA_WHOVA2022.xlsx` | `RJ01_ICMRVA_WHOVA2022` | `RJ01_ICMRVA_WHOVA2022_20251203` | (RJ01 ICMR VA) 2022 WHO Verbal Autopsy Instrument V1.1 | en, hi | `3519fc20295a` |
 | `KA01_DS_WHOVA2022.xlsx` | `KA01_DS_WHOVA2022` | `KA01_DS_WHOVA2022_20250726` | (KA01) 2022 WHO Verbal Autopsy Instrument V1.1 | en, hi, kn, mr | `dee58c3d9828` |
 | `KEM_VAADU_WHOVA2022.xlsx` | `KEM_VAADU_WHOVA2022` | `KEM_VAADU_WHOVA2022_V2.2` | KEM VAADU 2022 WHO Verbal Autopsy Instrument V2.2 | en, hi, mr | `d826bc0e18b6` |

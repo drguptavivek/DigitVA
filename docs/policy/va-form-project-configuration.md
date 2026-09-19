@@ -148,7 +148,7 @@ in `docs/kb/WHO_VA_2022_Docs/`, inventoried by that folder's README.
 
 | Language | Locale | Source workbook | Project | ODK form id | Download date | Assigned by |
 | --- | --- | --- | --- | --- | --- | --- |
-| Hindi | hi | RJ01_ICMRVA_WHOVA2022.xlsx | RJ01 ICMR VA | RJ01_ICMRVA_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Hindi | hi | ND01_ICMRVA_WHOVA2022.xlsx | ND01 ICMR VA (the most commonly deployed ICMR form) | ND01_ICMRVA_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
 | Tamil | ta | JIPMER_DS_WHOVA2022.xlsx | JIPMER DS | JIPMER_DS_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
 | Kannada | kn | KA01_DS_WHOVA2022.xlsx | KA01 DS | KA01_DS_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
 | Marathi | mr | KEM_VAADU_WHOVA2022.xlsx | KEM VAADU | KEM_VAADU_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
@@ -164,7 +164,7 @@ in `docs/kb/WHO_VA_2022_Docs/`, inventoried by that folder's README.
 
 Cross-check workbooks carry the same language but are *not* its source. They
 are read only with `--cross-check`, which reports differences and writes
-nothing: Hindi against `KA01_DS_WHOVA2022.xlsx` and `KEM_VAADU_WHOVA2022.xlsx`,
+nothing: Hindi against `RJ01_ICMRVA_WHOVA2022.xlsx` (structurally identical to ND01; one Hindi string differs), `KA01_DS_WHOVA2022.xlsx` and `KEM_VAADU_WHOVA2022.xlsx`,
 Tamil against `PY01_ICMRVA_WHOVA2022.xlsx`, Marathi against
 `KA01_DS_WHOVA2022.xlsx`. The curated reference form
 `whova2022_xls_form_for_odk.xlsx` (V1.1) carries French on its choices sheet
@@ -173,6 +173,16 @@ form version `2026081401`) carries the same 479 question names with full
 French, Portuguese, Arabic, Swahili and Spanish labels and hints, and is the
 source for those five. It is a translation source only: whether the
 reference form itself moves from V1.1 to V2.0 is a separate decision.
+
+The ICMR deployment form (`ND01_ICMRVA_WHOVA2022.xlsx`, the version used
+most commonly, 2026-09-19) carries the WHO instrument plus the DigitVA
+layer the WHO reference does not have: `begin_screen`, `instructions`,
+`introduction` (the intake screen), `death_summary`, `ds_available`,
+`ds_im1` to `ds_im5` (death-summary images), `imagenarr` (image
+narration), `Site`, `deviceid` and other capture fields, 96 names in all.
+Those names are the structural reference for the `intake_screen` and
+`death_summary` layers when they are built; the importer reports them as
+"unknown in workbook" against the WHO reference today, which is expected.
 
 Instrument locale codes are a separate axis from `mas_languages` codes (`kha`
 here is `khasi` there). Nothing maps between them, and adding a

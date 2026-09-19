@@ -36,7 +36,9 @@ work packages WP0 to WP6 landed;
 | `5043448` | Web form type, welcome note, death-summary flag as project settings; `base_instrument_code` on `mas_form_types`; defaults for a new web project; migration `c3e8b5a1f4d2` |
 | `fe498e6` | Web-capture readiness: nine checks as JSON, Projects panel badge and list, `flask web-intake readiness` |
 | `383acef` | French, Portuguese, Arabic, Swahili and Spanish sourced from WHO's multilingual V2.0 form (`2022whova_xls_form_for_odk_multilingual.xlsx`); thirteen locales active on dev |
-| (this session) | XLIFF 2.0 export and import per locale as the industry-standard interchange (resource ids `question.<name>.<field>`, `choice.<list>.<name>.label`); English fallback pinned |
+| `2af0885` | XLIFF 2.0 export and import per locale as the industry-standard interchange (resource ids `question.<name>.<field>`, `choice.<list>.<name>.label`); English fallback pinned |
+| `8a4791b`, `d6902f3` | Hindi sourced from the ND01 ICMR form (the most commonly deployed); every DigitVA layer it carries inventoried in policy (social autopsy, death-certificate images, medical-record images, narration audio and image, intake screen, geography) |
+| `0dd80ea`, `347bbf1` | Translation-sources parser stops at its table's end; tests read the Hindi source from policy. `d6902f3` and `0dd80ea` were pushed on a red targeted run (exit status of `tail`, not pytest); `347bbf1` corrects it and the full suite is green on that tree |
 | `d497e0e` | Instrument translations stored, managed and served: `mas_instrument_locales`, `map_instrument_translations`, importer from one documented source workbook per language, admin panel, `GET /api/v1/instruments/<code>/translations/<locale>`, client-side apply in the intake page; migration `a7d4f1c9b0e6` |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
@@ -44,7 +46,7 @@ b8e3d1f7a2c4 -> f2a9c4d7e1b3 -> c3e8b5a1f4d2 -> a7d4f1c9b0e6`. Verified by an em
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,570 passed after WP6 (1,499 after WP1, 1,469 after the project_pi predicate, 1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite 1,602 passed at `347bbf1` (1,570 after WP6, 1,499 after WP1, 1,469 after the project_pi predicate, 1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -83,6 +85,10 @@ curated reference form itself moves from V1.1 to V2.0 is `digitva-13x`.
 
 Open after this pass, in order:
 
+0. `digitva-thr`: build the `intake_screen`, `death_summary`, social
+   autopsy and medical-records layers from the ND01 form's structure
+   (policy: `va-form-project-configuration.md`, "DigitVA layers in the
+   ND01 form"); the media parts are attachments phase 2.
 1. ICD-11 phases 3 to 6 with decisions D1 to D6 all recorded, plus the
    project ICD classification default (web forms have no ODK mapping row,
    so `get_icd_classification_for_submission` returns `icd10` for them);

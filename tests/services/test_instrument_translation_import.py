@@ -208,6 +208,182 @@ class InstrumentTranslationImportTests(BaseTestCase):
             "Some other line\nपहला प्रश्न",
         )
 
+    def _extend_reference(self, extra_choices=(), extra_survey=()):
+        """Rebuild the reference workbook with extra items for one test.
+
+        The default reference from ``setUp`` only carries ``yes_no``; a few
+        packed-cell conventions are documented against real choice lists
+        (``sa_tu``, ``language``) that need their own reference rows.
+        """
+        self.reference = _write_workbook(
+            self.tmp / "reference.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "hint::English (en)": "First hint"},
+                {"type": "select_one yes_no", "name": "Q2",
+                 "label::English (en)": "Second question"},
+                *extra_survey,
+            ],
+            [
+                {"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"},
+                {"list_name": "yes_no", "name": "no", "label::English (en)": "No"},
+                *extra_choices,
+            ],
+        )
+        self._clear_reference_caches()
+        self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
+
+    def test_a_slash_separated_cell_is_split(self):
+        """Regression: ``sa_tu/minutes`` packed 'Minutes / मिनट' in one cell."""
+        self._extend_reference(
+            extra_choices=[{"list_name": "sa_tu", "name": "minutes",
+                             "label::English (en)": "Minutes"}]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::Hindi (hi)": "पहला प्रश्न"}],
+            [
+                {"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"},
+                {"list_name": "sa_tu", "name": "minutes", "label::English (en)": "Minutes",
+                 "label::Hindi (hi)": "Minutes / मिनट"},
+            ],
+        )
+        self._import(workbook)
+        db.session.flush()
+        self.assertEqual(self._rows()[("choice", "sa_tu/minutes", "label")].text, "मिनट")
+
+    def test_a_parenthetical_cell_is_split(self):
+        """Regression: ``language/hindi`` packed 'Hindi (हिन्दी)' in one cell."""
+        self._extend_reference(
+            extra_choices=[{"list_name": "language", "name": "hindi",
+                             "label::English (en)": "Hindi"}]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::Hindi (hi)": "पहला प्रश्न"}],
+            [
+                {"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"},
+                {"list_name": "language", "name": "hindi", "label::English (en)": "Hindi",
+                 "label::Hindi (hi)": "Hindi (हिन्दी)"},
+            ],
+        )
+        self._import(workbook)
+        db.session.flush()
+        self.assertEqual(self._rows()[("choice", "language/hindi", "label")].text, "हिन्दी")
+
+    def test_a_slash_separated_cell_whose_english_half_does_not_match_is_kept_whole(self):
+        """Fail-closed: a near-miss (not an exact match) is never split."""
+        self._extend_reference(
+            extra_choices=[{"list_name": "sa_tu", "name": "minutes",
+                             "label::English (en)": "Minutes"}]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::Hindi (hi)": "पहला प्रश्न"}],
+            [
+                {"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"},
+                {"list_name": "sa_tu", "name": "minutes", "label::English (en)": "Minutes",
+                 "label::Hindi (hi)": "Some Other Word / मिनट"},
+            ],
+        )
+        self._import(workbook)
+        db.session.flush()
+        self.assertEqual(
+            self._rows()[("choice", "sa_tu/minutes", "label")].text,
+            "Some Other Word / मिनट",
+        )
+
+    def test_an_item_equal_to_english_after_splitting_is_untranslated(self):
+        """Regression: a social-autopsy group label ND01 leaves untranslated.
+
+        The cell is not packed at all -- both columns just carry the English
+        text verbatim. It must not count as a translation, or coverage lies.
+        """
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "socialautopsy",
+                 "label::English (en)": "Social Autopsy Questionnaire",
+                 "label::Hindi (hi)": "Social Autopsy Questionnaire"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self._extend_reference(
+            extra_survey=[{"type": "text", "name": "socialautopsy",
+                            "label::English (en)": "Social Autopsy Questionnaire"}]
+        )
+        report = self._import(workbook)
+        db.session.flush()
+        self.assertNotIn(("question", "socialautopsy", "label"), self._rows())
+        self.assertIn("question:socialautopsy:label", report.missing_from_workbook)
+
+    def test_a_parenthetical_that_reduces_to_english_is_untranslated(self):
+        """'English (English)' unpacks to plain English -- still untranslated."""
+        self._extend_reference(
+            extra_choices=[{"list_name": "language", "name": "english",
+                            "label::English (en)": "English"}]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::Hindi (hi)": "पहला प्रश्न"}],
+            [
+                {"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"},
+                {"list_name": "language", "name": "english", "label::English (en)": "English",
+                 "label::Hindi (hi)": "English (English)"},
+            ],
+        )
+        self._import(workbook)
+        db.session.flush()
+        self.assertNotIn(("choice", "language/english", "label"), self._rows())
+
+    def test_an_interleaved_cell_cannot_be_split_and_is_untranslated(self):
+        """Regression: sa05's hint alternates English and '*'-prefixed Hindi
+        lines bullet by bullet -- there is no single boundary to cut at, so
+        it is not stored as a mixed English/Hindi blob.
+        """
+        self._extend_reference(
+            extra_survey=[{
+                "type": "text", "name": "sa05",
+                "label::English (en)": "Type of consultation",
+                "hint::English (en)": (
+                    "Note:\nSmall Hospital(small nursing homes & clinics; <30 beds)\n"
+                    "Large Hospital(corporate hospitals; ≥ 200 beds)"
+                ),
+            }]
+        )
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "sa05",
+                 "label::English (en)": "Type of consultation",
+                 "label::Hindi (hi)": "परामर्श का प्रकार",
+                 "hint::English (en)": (
+                     "Note:\nSmall Hospital(small nursing homes & clinics; <30 beds)\n"
+                     "Large Hospital(corporate hospitals; ≥ 200 beds)"
+                 ),
+                 "hint::Hindi (hi)": (
+                     "Note:\nSmall Hospital(small nursing homes & clinics; <30 beds)\n"
+                     "*छोटा अस्पताल\n"
+                     "Large Hospital(corporate hospitals; ≥ 200 beds)\n"
+                     "*बड़ा अस्पताल"
+                 )},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self._import(workbook)
+        db.session.flush()
+        rows = self._rows()
+        self.assertEqual(rows[("question", "sa05", "label")].text, "परामर्श का प्रकार")
+        self.assertNotIn(("question", "sa05", "hint"), rows)
+
     def test_a_workbook_cannot_add_a_question(self):
         workbook = _write_workbook(
             self.tmp / "source_hi.xlsx",

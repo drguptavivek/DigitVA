@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # VA Form Project Configuration Policy
@@ -181,6 +181,55 @@ form version `2026081401`) carries the same 479 question names with full
 French, Portuguese, Arabic, Swahili and Spanish labels and hints, and is the
 source for those five. It is a translation source only: whether the
 reference form itself moves from V1.1 to V2.0 is a separate decision.
+
+### Packed cells: a workbook cell carrying English and the translation together
+
+A source workbook sometimes puts the English reference text and the target
+language in one cell rather than two columns. `split_packed` (in
+`app/services/instrument_translation_service.py`) recognises three
+conventions, all seen in the documented source workbooks above:
+
+- **newline-separated** — `"VA interviewer\nवीए साक्षात्कारकर्ता"` (a label or
+  hint column).
+- **`" / "`-separated** — `"Minutes / मिनट"` (choice labels, e.g. `sa_tu` in
+  ND01).
+- **`English (Translation)` parenthetical** — `"Hindi (हिन्दी)"` (the
+  narration `language` choice list).
+
+An English half is dropped only when it matches the reference English
+**exactly** (whitespace runs collapsed for that comparison only — a workbook's
+stray double space does not defeat an otherwise-exact match, but the kept
+text is never rewritten). A cell that does not match one of these three
+shapes exactly is stored whole, not guessed at: a translation that happens to
+start or end with an English word must never be truncated.
+
+A cell that **interleaves** the two languages line by line — ND01's `sa05`
+hint alternates an English bullet with its `*`-prefixed Hindi counterpart —
+has no single boundary to cut at; it is not a prefix, a suffix, or a two-part
+separator. When every line of the reference English shows up verbatim among
+the cell's lines in this shape, it is treated as not splittable at all and
+the item is left untranslated, rather than stored as a mixed English/Hindi
+blob.
+
+**A result equal to the reference English is not a translation.** Whether a
+cell was never packed (some ND01 group labels, e.g. `socialautopsy`, are
+simply left as English in both columns) or was packed but not cleanly
+splittable (the `sa05` case above), if the text that would be stored is
+identical to the reference English, the item is treated as untranslated so
+English fallback applies — which renders the same thing — and so coverage
+reports the truth instead of counting an unfinished translation as done.
+This equality check lives in `import_translations`, the caller that already
+holds the reference text and is deciding set membership for "translated";
+`split_packed` only performs the mechanical unpacking and has no opinion on
+what counts as a translation.
+
+**Operator note: re-importing corrects this, but only on request.** Rows
+already imported before this fix carry whatever `split_packed` produced at
+the time — English text, English-plus-translation, or a mixed blob — with
+`source = imported`. Re-running the import for that language rewrites every
+`imported` row with the corrected split (an administrator's `edited` row is
+never touched — see below). A language is only corrected when someone
+re-imports it; this is not applied retroactively in the background.
 
 ### DigitVA layers in the ND01 form
 

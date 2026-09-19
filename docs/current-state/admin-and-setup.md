@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # Admin And Setup Model
@@ -329,6 +329,16 @@ the DigitVA layer questions from the committed
 happens in `tooling/who-va-2022/build-layer-reference.mjs`). Base coverage
 excludes layer labels, so it keeps its original meaning as layers are added;
 each extension's own coverage is reported alongside it.
+
+A workbook cell that packs English and the target language together
+(newline-, `" / "`- or `English (Translation)`-separated) is unpacked on
+import (`split_packed` — conventions and the "equal to English is not a
+translation" rule are in `docs/policy/va-form-project-configuration.md`,
+"Translation sources"). **Operator step:** a language imported before that
+splitting logic changed keeps whatever it produced at the time until someone
+re-runs the import for that language; an administrator's `edited` correction
+is never overwritten by a re-import, but a stale `imported` row is only
+corrected on request.
 
 Each language's row carries an **XLIFF** link
 (`GET .../<instrument_code>/<locale>/xliff`, served as

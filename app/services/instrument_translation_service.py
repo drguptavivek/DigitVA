@@ -505,24 +505,96 @@ def _extension_coverage(
     }
 
 
+#: The " / "-separated packing convention seen in choice labels, e.g.
+#: "Minutes / मिनट".
+_PACKED_SLASH_SEPARATOR = " / "
+
+#: The "English (Translation)" parenthetical convention, e.g. "Hindi (हिन्दी)".
+#: A bare, non-nested parenthetical at the end of the cell only -- this must
+#: not match a translation that legitimately ends in its own parenthetical
+#: aside.
+_PACKED_PAREN_RE = re.compile(r"^(?P<head>.+?)\s*\((?P<paren>[^()]+)\)$")
+
+
+def _normalize_ws(text: str) -> str:
+    """Collapse whitespace runs for an exact-match *comparison* only.
+
+    Used solely to decide whether an English half matches the reference, so
+    a workbook's stray double space does not defeat a split that is
+    otherwise exact. Never applied to the text that gets kept -- that is
+    still stored exactly as the workbook wrote it.
+    """
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _interleaves_english_lines(value_lines: list[str], english: str) -> bool:
+    """True when every line of the reference English shows up verbatim among
+    ``value_lines``, e.g. sa05's hint, which alternates an English bullet
+    with its "*"-prefixed Hindi counterpart line by line. That shape has no
+    single English/translation boundary to cut at -- it is not a prefix, a
+    suffix, or a two-part separator -- so it is not "splittable" at all.
+    """
+    english_lines = [line for line in (p.strip() for p in english.split("\n")) if line]
+    if len(english_lines) < 2:
+        return False
+    value_norm = {_normalize_ws(line) for line in value_lines}
+    return all(_normalize_ws(line) in value_norm for line in english_lines)
+
+
 def split_packed(value: str, english: str | None) -> str:
     """Unpack a cell that carries English and the target language together.
 
-    The deployed workbooks sometimes put both in one cell separated by a
-    newline ("VA interviewer\\nवीए साक्षात्कारकर्ता"). Only a half that is
-    *exactly* the reference English is dropped: anything looser would silently
-    truncate a translation that happens to start with an English word.
+    The deployed workbooks pack both languages into one cell using one of
+    three conventions:
+
+    * newline-separated -- "VA interviewer\\nवीए साक्षात्कारकर्ता"
+    * " / "-separated choice labels -- "Minutes / मिनट"
+    * an "English (Translation)" parenthetical -- "Hindi (हिन्दी)"
+
+    A half is dropped only when it matches the reference English exactly
+    (whitespace runs collapsed for the comparison only, never for the text
+    kept -- see :func:`_normalize_ws`). Anything looser would risk silently
+    truncating a translation that happens to start or end with an English
+    word, so a cell that does not match one of these shapes exactly is
+    returned unchanged rather than guessed at.
+
+    A cell that interleaves the two languages line by line has no such
+    boundary at all -- see :func:`_interleaves_english_lines`. That shape
+    returns "" rather than the mixed blob, so the caller's existing
+    "equal to the reference English" check (which also fires here, since ""
+    is falsy) treats the item as untranslated instead of storing a value
+    that is neither English nor a clean translation.
     """
-    if not english or "\n" not in value:
+    if not english or not value:
         return value
-    parts = [part.strip() for part in value.split("\n")]
-    parts = [part for part in parts if part]
-    if len(parts) < 2:
+
+    if "\n" in value:
+        parts = [part for part in (p.strip() for p in value.split("\n")) if part]
+        if len(parts) >= 2:
+            ref_norm = _normalize_ws(english)
+            if _normalize_ws(parts[0]) == ref_norm:
+                return "\n".join(parts[1:])
+            if _normalize_ws(parts[-1]) == ref_norm:
+                return "\n".join(parts[:-1])
+            if _interleaves_english_lines(parts, english):
+                return ""
         return value
-    if parts[0] == english:
-        return "\n".join(parts[1:])
-    if parts[-1] == english:
-        return "\n".join(parts[:-1])
+
+    if _PACKED_SLASH_SEPARATOR in value:
+        parts = [part.strip() for part in value.split(_PACKED_SLASH_SEPARATOR)]
+        parts = [part for part in parts if part]
+        if len(parts) == 2:
+            ref_norm = _normalize_ws(english)
+            if _normalize_ws(parts[0]) == ref_norm:
+                return parts[1]
+            if _normalize_ws(parts[1]) == ref_norm:
+                return parts[0]
+        return value
+
+    match = _PACKED_PAREN_RE.match(value)
+    if match and _normalize_ws(match.group("head")) == _normalize_ws(english):
+        return match.group("paren").strip()
+
     return value
 
 
@@ -610,6 +682,14 @@ def import_translations(
         f"{kind}:{key}:{fld}" for (kind, key, fld) in incoming_raw if (kind, key, fld) not in reference
     )
 
+    # "Equal to the reference English" belongs here, not in split_packed:
+    # split_packed's job is the mechanical unpacking of one cell, with no
+    # opinion on what counts as a translation; this loop already holds the
+    # reference text and is building the "translated" set, so it is the one
+    # place that can decide a cell -- whether never packed at all (a group
+    # label left untranslated) or packed but not cleanly splittable (an
+    # interleaved hint, which split_packed reports as "") -- is not a
+    # translation and must not inflate coverage.
     incoming: dict[tuple[str, str, str], str] = {}
     for key, value in incoming_raw.items():
         if key not in reference:

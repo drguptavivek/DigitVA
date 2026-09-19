@@ -21,6 +21,47 @@ The test suite uses pytest with a session-scoped PostgreSQL schema against the
 - **Session end** (`conftest.pytest_sessionfinish`): drop schema, dispose engine.
 - **No per-class or per-test DDL.** The schema is created once and shared.
 
+### Choosing a test database: one per tree
+
+`TestConfig.SQLALCHEMY_DATABASE_URI` takes `TEST_DATABASE_URL` ahead of
+everything else, falling back to `minerva_test` on the configured host. **A
+worktree that is not on the same migrations as the shared checkout must set
+`TEST_DATABASE_URL` to a database of its own.** The server already carries
+several (`minerva_test_a`, `_b`, `_c`); add one rather than contend for the
+default.
+
+    TEST_DATABASE_URL=postgresql://<user>:<pass>@minerva_db_service:5432/minerva_test_<tree>
+
+The name must contain `test`, or `conftest.pytest_configure` skips its
+stale-connection cleanup.
+
+**Why it is not optional.** Session teardown calls `db.drop_all()`, which orders
+drops from `db.Model.metadata` -- the models *this* tree imports. A table created
+in that database by another tree's migration is not in this tree's metadata, so
+`drop_all` never learns it must go first, and any parent it references will not
+drop either:
+
+    DROP TABLE mas_org_unit
+    DETAIL: constraint fk_map_org_unit_coding_gate_org_unit_id_mas_org_unit
+            on table map_org_unit_coding_gate depends on table mas_org_unit
+
+That is not a flake and serializing runs does not help. It persists until the
+missing model lands in every tree or the database is rebuilt, and it fails in
+session setup -- so it presents as the whole suite being broken, in a tree whose
+own code is fine. The general rule: **`drop_all` cannot order a table its
+metadata has never seen.**
+
+Sharing one database across trees also means whoever runs second terminates the
+first run's connections (`pytest_configure` issues `pg_terminate_backend`
+against every other backend on the database), and the victim fails in ways that
+read as application bugs. Separate databases remove that class of collision
+outright; serializing runs only narrows the window.
+
+**One-off containers.** The image entrypoint runs `boot.sh`, which attempts
+`flask db upgrade` against the dev database. A throwaway `docker run` for a
+test database therefore needs `--entrypoint sh`, or it migrates something you
+did not mean to touch on its way to doing what you asked.
+
 ### Isolation: class transaction plus per-test savepoint
 
 Nothing a test class writes ever reaches the database. `BaseTestCase`

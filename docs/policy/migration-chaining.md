@@ -3,7 +3,7 @@ title: Migration Chaining Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Migration Chaining Policy
@@ -113,6 +113,34 @@ flask db --directory <worktree>/migrations upgrade
 
 `--directory` lets this read the worktree without touching the live
 `migrations/` folder.
+
+### 7. A migration must never import application code
+
+No file under `migrations/versions` may import `app` or any `app.*` module.
+A migration is a historical record: it must mean the same thing on a fresh
+clone in a year that it meant the day it was reviewed. Calling application
+code pins it to whatever that code means *today* instead, and the revision
+silently starts doing something else. The `mas_org_unit` break was exactly
+this — historical revisions calling
+`build_submission_analytics_core_mv_sql()` while the service grew columns
+underneath them.
+
+A materialized-view rebuild therefore **copies the SQL into the migration**.
+Duplicated SQL that is frozen is correct here; a shared builder that drifts
+is not. This is the one place in the repository where copying beats reuse.
+
+Fifteen historical migrations predate this rule, all importing MV SQL
+builders from `app.services.submission_analytics_mv`. They are pinned by
+filename and by the exact set of names each one imports in
+`tests/migrations/test_no_app_imports_in_migrations.py`. A pin may be
+**removed by inlining** that migration's SQL; it must never be extended, and
+no new file may be added to the list. The test fails on an unpinned import,
+on a pin that grew, and on a pin that has gone stale.
+
+Its pairing check is `tests/migrations/test_schema_drift.py`, which replays
+the whole chain into a throwaway empty database and compares the result with
+the models. That one proves the chain still runs; rule 7's test proves it
+still means what it said.
 
 ## What a healthy chain looks like
 

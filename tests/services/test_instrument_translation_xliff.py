@@ -431,7 +431,7 @@ class InstrumentTranslationXliffRealWorkbookTests(BaseTestCase):
 
     def test_the_real_hindi_round_trip_changes_nothing(self):
         report = svc.import_translations(
-            self.REAL, "hi", svc.WORKBOOK_DIR / "RJ01_ICMRVA_WHOVA2022.xlsx"
+            self.REAL, "hi", svc.WORKBOOK_DIR / svc.documented_sources()["hi"].workbook
         )
         db.session.flush()
         self.assertGreater(report.written, 400, "fixture guard: Hindi was imported")

@@ -389,7 +389,6 @@ class DocumentedSourceTableTests(unittest.TestCase):
     """The shipped policy table is the rule the importer reads."""
 
     def test_a_later_table_in_the_section_is_not_read_as_sources(self):
-        doc = self.tmp_path / "policy.md" if hasattr(self, "tmp_path") else None
         import tempfile
         from pathlib import Path
 

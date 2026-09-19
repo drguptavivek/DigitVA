@@ -198,7 +198,7 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertTrue(by_code["hi"]["is_active"])
         self.assertGreaterEqual(by_code["hi"]["reference_labels"], 400)
         self.assertEqual(
-            by_code["hi"]["documented_source"], "RJ01_ICMRVA_WHOVA2022.xlsx"
+            by_code["hi"]["documented_source"], svc.documented_sources()["hi"].workbook
         )
         # One string out of 400-odd labels: far below the gate.
         self.assertLess(by_code["hi"]["coverage"], svc.TRANSLATION_COVERAGE_THRESHOLD)
@@ -494,16 +494,16 @@ class InstrumentTranslationAdminTests(BaseTestCase):
                 headers=self._csrf_headers(),
             )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("RJ01_ICMRVA_WHOVA2022.xlsx", response.get_json()["error"])
+        self.assertIn(svc.documented_sources()["hi"].workbook, response.get_json()["error"])
 
     def test_import_of_the_documented_workbook_covers_and_activates(self):
         """The whole path: upload, parse, write, activate, serve."""
         self._login(self.base_admin_id)
-        path = svc.WORKBOOK_DIR / "RJ01_ICMRVA_WHOVA2022.xlsx"
+        path = svc.WORKBOOK_DIR / svc.documented_sources()["hi"].workbook
         with path.open("rb") as handle:
             response = self.client.post(
                 self._api("/import"),
-                data={"file": (handle, "RJ01_ICMRVA_WHOVA2022.xlsx")},
+                data={"file": (handle, svc.documented_sources()["hi"].workbook)},
                 content_type="multipart/form-data",
                 headers=self._csrf_headers(),
             )

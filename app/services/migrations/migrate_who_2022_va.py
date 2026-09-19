@@ -120,6 +120,19 @@ class Who2022VaMigrator:
             self._migrate_choices(form_type)
             print(f"[OK] Choice mappings: {self.stats['choices']}")
 
+            # Step 6: Flag PII fields. The rows created in step 3 land with
+            # is_pii at its default False; apply the registry to this form
+            # type now so a WHO instrument field such as Id10073 is never
+            # committed unflagged. `flask seed run` covers this by chaining
+            # a separate _seed_pii_flags step after the migration, but that
+            # chaining does not help an operator who runs this migrator
+            # standalone, which is the documented entry point.
+            db.session.flush()
+            from app.services.pii_field_registry import apply_pii_field_registry
+
+            apply_pii_field_registry(form_type.form_type_code)
+            print("[OK] PII field registry applied")
+
             # Commit all changes
             db.session.commit()
             print(f"\n{'='*60}")

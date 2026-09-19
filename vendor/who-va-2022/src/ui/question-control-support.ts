@@ -1,5 +1,6 @@
 import { AttachmentProcessingError } from "../attachments.js";
-import { localizeText, type WhoVaUiMessages } from "../i18n.js";
+import { type WhoVaUiMessages } from "../i18n.js";
+import { localized, localizedRich, plainText } from "./localize.js";
 import type { AnswerValue, AttachmentReference, InstrumentQuestion } from "../types.js";
 import { withWebTheme } from "./web-theme.js";
 
@@ -39,6 +40,37 @@ export const questionControlStyles = {
     { borderColor: "brand", backgroundColor: "brandSoft" }
   ),
   choiceText: withWebTheme({ color: "#213b34" }, { color: "inkSubtle" }),
+  // Layout appearances: `columns`, `columns-n`, `columns-pack`, `likert`,
+  // and the range `picker`/`rating` all lay choices out along a row.
+  choiceRow: {
+    flexDirection: "row" as const,
+    flexWrap: "wrap" as const,
+    alignItems: "flex-start" as const,
+    marginTop: 7
+  },
+  choiceInline: { marginTop: 0, marginRight: 7, flexGrow: 0, flexShrink: 1 },
+  // `columns-pack` fits as many choices per line as will go, so a cell must be
+  // free to size to its own label rather than to a share of the row.
+  choicePacked: { flexBasis: "auto" as const },
+  choiceLikert: {
+    flexGrow: 1,
+    flexBasis: 0,
+    marginRight: 7,
+    marginTop: 0,
+    alignItems: "center" as const
+  },
+  // `no-buttons`: the cell itself is the target, so drop the control chrome.
+  choiceBare: withWebTheme(
+    { borderWidth: 0, backgroundColor: "transparent" },
+    { backgroundColor: "surface" }
+  ),
+  searchInput: { marginBottom: 7 },
+  // `signature`/`draw` replace capture-or-select, so those buttons are removed
+  // from the layout rather than merely disabled.
+  hidden: { display: "none" as const },
+  star: { paddingHorizontal: 3, paddingVertical: 2 },
+  starFilled: withWebTheme({ color: "#147d64", fontSize: 26 }, { color: "brand" }),
+  starEmpty: withWebTheme({ color: "#9fb4ad", fontSize: 26 }, { color: "controlBorder" }),
   dropdownList: { marginTop: 6 },
   hint: withWebTheme({ color: "#536b64", fontSize: 13, marginBottom: 10 }, { color: "muted" }),
   actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, marginTop: 8 },
@@ -87,23 +119,7 @@ export const questionControlStyles = {
   )
 };
 
-function plainText(value: string | undefined): string {
-  if (!value) return "";
-  return value
-    .replace(/<br\s*\/?\s*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .trim();
-}
-
-export function localized(
-  text: Record<string, string | undefined>,
-  locale: string,
-  fallback: string
-): string {
-  return plainText(localizeText(text, locale, fallback));
-}
+export { localized, localizedRich } from "./localize.js";
 
 export function questionLabel(question: InstrumentQuestion, locale: string): string {
   return localized(question.label, locale, question.name).replace(

@@ -61,6 +61,16 @@ submission enters the workflow. Plan:
   consent question (`Id10013`) is answered. Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
+- Submission is refused if the draft's organization unit has been deactivated
+  or deleted since the draft was started (decision 2026-09-18). Routing only
+  attributes a submission to a live unit, so a stale unit would fall back to
+  the mapping's unit or leave the case unrouted — and since coding
+  eligibility is decided by the routed unit, an unrouted case in a project
+  with an organization tree reaches no coder at all. The draft is left
+  intact; the interviewer is told which unit and to have it reactivated or
+  the case moved before retrying. Failing at submit beats accepting a case
+  nobody can ever code. See
+  [Organization Model Policy](organization-model.md), "Submission routing".
 - The submission is created with the same projection and workflow entry as
   ODK sync (`build_submission_projection`, `ensure_active_payload_version`,
   `route_synced_submission`), so SmartVA, coding and reporting treat it like
@@ -93,3 +103,9 @@ submission enters the workflow. Plan:
 
 - Attachments (phase 2), the validator sidecar (W1), unit-scoped listing
   refinements, offline mode, native app.
+
+Web intake is path A of
+[Field Data Collection Policy](field-data-collection.md), which fixes the rule
+this path already follows — answers are never persisted in the browser — and
+sets the conditions an offline native collector must meet before it may hold
+interview data on a device.

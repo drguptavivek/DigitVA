@@ -25,10 +25,12 @@ const API = "/intake/api/drafts/" + encodeURIComponent(DRAFT.draft_id);
 let CSRF = "";
 const $ = (id) => document.getElementById(id);
 const alertBox = (kind, msg) => { const el = $("wv-alert"); if (!msg) { el.classList.add("d-none"); return; } el.className = `alert alert-${kind} small py-2`; el.textContent = msg; };
-const api = async (url, method = "GET", body) => {
+const api = async (url, method = "GET", body, { keepalive = false } = {}) => {
   const headers = { "X-CSRFToken": CSRF };
   if (body) headers["Content-Type"] = "application/json";
-  const r = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  // keepalive lets a save started during unload finish; sendBeacon cannot be
+  // used here because it carries no X-CSRFToken header.
+  const r = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined, keepalive });
   const data = await r.json().catch(() => ({}));
   return { ok: r.ok, status: r.status, data };
 };
@@ -47,13 +49,82 @@ function splitBySection(data) {
 
 // Server-backed draft store: sends only the sections whose answers changed.
 let lastSaved = {};
-let saving = Promise.resolve();
+let lastSavedSection;
+
+// The form calls save() on every answer change (auto-save-draft-on-change) and
+// awaits the promise before calling again, so the store's own latency sets the
+// callback rate. Unthrottled that is one PATCH per keystroke, which would put
+// hundreds of requests through a field connection while an interviewer types
+// the narrative.
+//
+// Measured in a browser against this code: 2 PATCHes on mount and 1 per
+// keystroke before; 1 on mount and roughly 1 per debounce period after, with
+// nothing sent at all when a section's answers are unchanged. Because the form
+// serializes on this promise, the sustained write rate is about one per
+// SAVE_DEBOUNCE_MS rather than one per pause — raising the constant lowers the
+// request rate and raises the amount of typing at risk in a tab crash.
+// Trailing debounce: the timer restarts on each keystroke so a burst of typing
+// becomes one write. SAVE_MAX_WAIT_MS bounds it, because a pure trailing
+// debounce would postpone the write for as long as someone keeps typing — and
+// the detailed narrative is a long field.
+const SAVE_DEBOUNCE_MS = 2000;
+const SAVE_MAX_WAIT_MS = 5000;
+let unloading = false;
+let firstPendingAt = 0;
+let pendingDraft;
+let debounceTimer;
+let waiters = [];
+let writing = Promise.resolve();
+
+async function writeDraft(draft) {
+  const sections = splitBySection(draft.data);
+  const changed = {};
+  for (const [name, answers] of Object.entries(sections)) {
+    const serialized = JSON.stringify(answers);
+    if (lastSaved[name] !== serialized) changed[name] = answers;
+  }
+  // Nothing new to persist: skip the round trip entirely rather than send an
+  // empty PATCH just to restamp metadata.
+  if (Object.keys(changed).length === 0 && draft.currentSection === lastSavedSection) return;
+
+  const meta = { schemaVersion: draft.schemaVersion, formVersion: draft.formVersion, instrumentId: draft.instrumentId, instrumentVersion: draft.instrumentVersion, createdAt: draft.createdAt, updatedAt: draft.updatedAt };
+  const res = await api(API, "PATCH", { sections: changed, meta, current_section: draft.currentSection }, { keepalive: unloading });
+  if (!res.ok) throw new Error(res.data.error || "Save failed.");
+  for (const [name, answers] of Object.entries(changed)) lastSaved[name] = JSON.stringify(answers);
+  lastSavedSection = draft.currentSection;
+  const count = Object.keys(changed).length;
+  $("wv-save-state").textContent = count
+    ? `Saved ${new Date().toLocaleTimeString()} (${count} section${count === 1 ? "" : "s"})`
+    : `Saved ${new Date().toLocaleTimeString()}`;
+}
+
+function flushDraft() {
+  if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = undefined; }
+  if (!pendingDraft) return writing;
+  const draft = pendingDraft;
+  const settle = waiters;
+  pendingDraft = undefined;
+  waiters = [];
+  firstPendingAt = 0;
+  // A rejected promise stays rejected and every later .then() would skip its
+  // callback, so one failed PATCH would silently stop all saving for the rest
+  // of the interview. The queue is cleared before chaining; each caller still
+  // learns about its own failure through the promise save() returned.
+  writing = writing.catch(() => {}).then(() => writeDraft(draft));
+  writing.then(
+    () => settle.forEach((w) => w.resolve()),
+    (error) => settle.forEach((w) => w.reject(error))
+  );
+  return writing;
+}
+
 const draftStore = {
   async load(id) {
     const res = await api(API);
     if (!res.ok) throw new Error(res.data.error || "Could not load the draft.");
     const envelope = res.data.envelope;
     lastSaved = Object.fromEntries(Object.entries(splitBySection(envelope.data)).map(([k, v]) => [k, JSON.stringify(v)]));
+    lastSavedSection = envelope.currentSection;
     if (!Object.keys(envelope.data || {}).length) {
       let data = {};
       try { data = WhoVa.createWhoVaInitialDataFromPrefill(PREFILL) || {}; } catch (e) { console.warn("prefill failed", e); }
@@ -64,22 +135,28 @@ const draftStore = {
     return envelope;
   },
   save(draft) {
-    saving = saving.then(async () => {
-      const sections = splitBySection(draft.data);
-      const changed = {};
-      for (const [name, answers] of Object.entries(sections)) {
-        const serialized = JSON.stringify(answers);
-        if (lastSaved[name] !== serialized) changed[name] = answers;
-      }
-      const meta = { schemaVersion: draft.schemaVersion, formVersion: draft.formVersion, instrumentId: draft.instrumentId, instrumentVersion: draft.instrumentVersion, createdAt: draft.createdAt, updatedAt: draft.updatedAt };
-      const res = await api(API, "PATCH", { sections: changed, meta, current_section: draft.currentSection });
-      if (!res.ok) throw new Error(res.data.error || "Save failed.");
-      for (const [name, answers] of Object.entries(changed)) lastSaved[name] = JSON.stringify(answers);
-      $("wv-save-state").textContent = `Saved ${new Date().toLocaleTimeString()} (${Object.keys(changed).length} section${Object.keys(changed).length === 1 ? "" : "s"})`;
-    });
-    return saving;
+    pendingDraft = draft;
+    const settled = new Promise((resolve, reject) => waiters.push({ resolve, reject }));
+    // Moving to another section is a deliberate checkpoint, not typing: write
+    // it out at once so Next never advances over an unsaved section.
+    if (draft.currentSection !== lastSavedSection) {
+      flushDraft();
+      return settled;
+    }
+    const now = Date.now();
+    if (!firstPendingAt) firstPendingAt = now;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    const remainingBudget = Math.max(0, SAVE_MAX_WAIT_MS - (now - firstPendingAt));
+    debounceTimer = setTimeout(
+      () => { debounceTimer = undefined; flushDraft(); },
+      Math.min(SAVE_DEBOUNCE_MS, remainingBudget)
+    );
+    return settled;
   }
 };
+
+// A reload or a closed tab must not discard the debounce window.
+window.addEventListener("beforeunload", () => { unloading = true; if (pendingDraft) flushDraft(); });
 
 async function main() {
   const boot = await api("/intake/api/bootstrap");
@@ -97,7 +174,7 @@ async function main() {
     const result = e.detail || {};
     if (!result.valid) { alertBox("warning", `The questionnaire has ${result.issues?.length || 0} unresolved issue(s).`); return; }
     alertBox("info", "Submitting…");
-    try { await saving; } catch (err) { /* reported already */ }
+    try { await flushDraft(); } catch (err) { /* surfaced by who-va-draft-error */ }
     const res = await api(API + "/submit", "POST", { completion: { data: result.data, valid: result.valid, issues: result.issues || [], formVersion: result.formVersion, instrumentId: result.instrumentId, instrumentVersion: result.instrumentVersion } });
     if (!res.ok) { alertBox("danger", res.data.error || "Submission failed."); return; }
     alertBox("success", `Submitted. Case ${DRAFT.unique_id} is now in the coding workflow.`);

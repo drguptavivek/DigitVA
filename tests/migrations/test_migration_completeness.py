@@ -29,6 +29,13 @@ from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator, WHO_2
 from tests.base import BaseTestCase
 
 
+# Registry fields with no row in the Excel mapping: the migration creates a
+# redaction-only row for each (NULL category/subcategory, never rendered).
+# Kept in step with tests/migrations/test_migrate_who_2022_va.py, which asserts
+# the same invariant from the other side.
+PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address"}
+
+
 LABELS_PATH = Path("resource/mapping/mapping_labels.xlsx")
 CHOICES_PATH = Path("resource/mapping/mapping_choices.xlsx")
 
@@ -72,17 +79,42 @@ class TestMigrationCompleteness(BaseTestCase):
     # ------------------------------------------------------------------ #
 
     def test_02_exact_field_count(self):
-        """DB field count matches unique valid field_ids in Excel."""
-        expected = int(
+        """DB field count matches Excel, plus the registry's own sentinel rows.
+
+        The migration applies ``pii_field_registry`` so a fresh database is
+        never left with personal-data fields unflagged. Three of the registry's
+        fields are not in the Excel mapping at all and get a redaction-only row
+        created (NULL category/subcategory, so they never render). They are
+        named here rather than absorbed into a tolerance: a fourth unexpected
+        row must still fail this test.
+        """
+        expected_excel = int(
             self.labels_df["name"].dropna().astype(str).str.strip()
             .replace("", pd.NA).dropna().nunique()
         )
+        expected = expected_excel + len(PII_REGISTRY_FIELDS_NOT_IN_EXCEL)
         actual = db.session.scalar(
             db.select(db.func.count())
             .select_from(MasFieldDisplayConfig)
             .where(MasFieldDisplayConfig.form_type_id == self.form_type.form_type_id)
         )
-        self.assertEqual(actual, expected, f"Expected {expected} fields, got {actual}")
+        self.assertEqual(
+            actual,
+            expected,
+            f"Expected {expected_excel} Excel fields plus "
+            f"{sorted(PII_REGISTRY_FIELDS_NOT_IN_EXCEL)}, got {actual}",
+        )
+
+        # The extras must be exactly those three, not merely three of something.
+        extra = set(
+            db.session.scalars(
+                db.select(MasFieldDisplayConfig.field_id).where(
+                    MasFieldDisplayConfig.form_type_id == self.form_type.form_type_id,
+                    MasFieldDisplayConfig.field_id.in_(PII_REGISTRY_FIELDS_NOT_IN_EXCEL),
+                )
+            )
+        )
+        self.assertEqual(extra, PII_REGISTRY_FIELDS_NOT_IN_EXCEL)
 
     # ------------------------------------------------------------------ #
     # test_03: Exact choice count                                          #

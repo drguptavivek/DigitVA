@@ -317,7 +317,13 @@ class FieldMappingService:
         )
 
     def _build_pii_field_ids(self, form_type_code: str) -> set[str]:
-        """Build the set of field ids marked as PII for a form type."""
+        """Build the set of field ids marked as PII for a form type.
+
+        Deliberately ignores ``is_active``: that flag governs whether a field
+        is displayed on the coding screen, not whether it is redacted from
+        exports. A field deactivated after being flagged PII must stay
+        redacted, not silently drop out of the export filter.
+        """
         form_type = self.get_form_type(form_type_code)
         if not form_type:
             return set()
@@ -326,7 +332,6 @@ class FieldMappingService:
             db.session.scalars(
                 select(MasFieldDisplayConfig.field_id).where(
                     MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
-                    MasFieldDisplayConfig.is_active == True,
                     MasFieldDisplayConfig.is_pii == True,
                 )
             ).all()

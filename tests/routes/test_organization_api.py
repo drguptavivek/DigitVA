@@ -142,11 +142,19 @@ class OrganizationApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertTrue(payload["scoped"])
-        unit_ids = {u["org_unit_id"] for u in payload["units"]}
-        self.assertIn(str(self.chc_a.org_unit_id), unit_ids)
-        self.assertIn(str(self.phc_a.org_unit_id), unit_ids)
-        self.assertNotIn(str(self.district.org_unit_id), unit_ids)
-        self.assertNotIn(str(self.chc_b.org_unit_id), unit_ids)
+        by_id = {u["org_unit_id"]: u for u in payload["units"]}
+        self.assertIn(str(self.chc_a.org_unit_id), by_id)
+        self.assertTrue(by_id[str(self.chc_a.org_unit_id)]["selectable"])
+        self.assertIn(str(self.phc_a.org_unit_id), by_id)
+        self.assertTrue(by_id[str(self.phc_a.org_unit_id)]["selectable"])
+        # The district is ancestor context for a cascading picker (rendered
+        # as fixed, non-editable text above the reachable levels), not a
+        # grantable choice -- present, but flagged unselectable.
+        self.assertIn(str(self.district.org_unit_id), by_id)
+        self.assertFalse(by_id[str(self.district.org_unit_id)]["selectable"])
+        # The sibling branch (not an ancestor of anything reachable) must
+        # never appear at all, context or otherwise.
+        self.assertNotIn(str(self.chc_b.org_unit_id), by_id)
 
     # -- project-wide interviewer --------------------------------------------
 

@@ -236,6 +236,12 @@ with submissions routed to the right organization unit by the standard
 
 ## Phases
 
+> Superseded 2026-09-18. Sequencing for this work now lives in
+> [VA Data Collection — Consolidated Plan](va-data-collection-plan.md); the
+> phases below are kept for the record of what phase 1 covered. In particular
+> phase 4's offline PWA is ruled out — see
+> [Field Data Collection Policy](../policy/field-data-collection.md).
+
 1. Spike results recorded here; `form_source` column and virtual web form;
    intake page with drafts and submission without media; workflow routing;
    sync scoping tests.

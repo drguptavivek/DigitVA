@@ -32,6 +32,12 @@ from tests.base import BaseTestCase
 LABELS_PATH = Path("resource/mapping/mapping_labels.xlsx")
 CHOICES_PATH = Path("resource/mapping/mapping_choices.xlsx")
 
+# Fields the PII registry creates redaction-only rows for (see PII_FIELDS in
+# app/services/pii_field_registry.py) that mapping_labels.xlsx does not carry
+# at all. run() applies the registry, so these are expected extras, not
+# migration data loss.
+PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address"}
+
 
 class TestWho2022VaMigration(BaseTestCase):
     """Test WHO_2022_VA data migration from Excel to database."""
@@ -161,13 +167,20 @@ class TestWho2022VaMigration(BaseTestCase):
         The Excel may contain duplicate field_ids (e.g., Id10233-Id10236 appear
         twice each). The DB stores one row per unique field_id, so we compare
         against the unique count.
+
+        run() also applies the PII field registry (see PII_FIELDS in
+        pii_field_registry.py), which creates redaction-only rows for
+        registered fields the Excel does not carry at all — Id10073,
+        abha_number, abha_address. Those are added on top of the Excel-derived
+        count, not part of it.
         """
         labels_df = pd.read_excel(LABELS_PATH)
         # Unique non-NaN, non-empty field names
-        expected_count = int(
+        expected_excel_count = int(
             labels_df["name"].dropna().astype(str).str.strip()
             .replace("", pd.NA).dropna().nunique()
         )
+        expected_count = expected_excel_count + len(PII_REGISTRY_FIELDS_NOT_IN_EXCEL)
 
         form_type = self._run_migration()
 
@@ -177,7 +190,10 @@ class TestWho2022VaMigration(BaseTestCase):
             .where(MasFieldDisplayConfig.form_type_id == form_type.form_type_id)
         )
         self.assertEqual(db_count, expected_count,
-                         f"Expected {expected_count} unique field configs, got {db_count}")
+                         f"Expected {expected_count} field configs "
+                         f"({expected_excel_count} from Excel + "
+                         f"{len(PII_REGISTRY_FIELDS_NOT_IN_EXCEL)} PII-registry-only), "
+                         f"got {db_count}")
 
     def test_07_all_choices_migrated(self):
         """All 1199 choice mappings from Excel are migrated."""
@@ -201,7 +217,12 @@ class TestWho2022VaMigration(BaseTestCase):
     # ------------------------------------------------------------------ #
 
     def test_08_no_field_ids_lost(self):
-        """Every field_id from Excel exists in DB (using unique set comparison)."""
+        """Every field_id from Excel exists in DB (using unique set comparison).
+
+        The only fields allowed to be "extra" (in DB, not in Excel) are the
+        ones the PII registry deliberately creates redaction-only rows for
+        (see test_06's docstring); anything beyond that is real data loss.
+        """
         labels_df = pd.read_excel(LABELS_PATH)
         excel_fields = set(
             labels_df["name"].dropna().astype(str).str.strip()
@@ -216,7 +237,7 @@ class TestWho2022VaMigration(BaseTestCase):
         ).all())
 
         missing = excel_fields - db_fields
-        extra = db_fields - excel_fields
+        extra = db_fields - excel_fields - PII_REGISTRY_FIELDS_NOT_IN_EXCEL
 
         self.assertEqual(len(missing), 0, f"Fields missing in DB: {missing}")
         self.assertEqual(len(extra), 0, f"Extra fields in DB (not in Excel): {extra}")
@@ -346,3 +367,47 @@ class TestWho2022VaMigration(BaseTestCase):
                          "Choice count must not change on re-run")
         self.assertEqual(cat_count_1, cat_count_2,
                          "Category count must not change on re-run")
+
+    # ------------------------------------------------------------------ #
+    # PII registry wiring                                                  #
+    # ------------------------------------------------------------------ #
+
+    def test_13_migration_applies_the_pii_field_registry(self):
+        """The standalone migrator must leave PII fields flagged on its own.
+
+        `flask seed run` chains a separate _seed_pii_flags step after this
+        migration, but the documented standalone entry point
+        (`python -m app.services.migrations.migrate_who_2022_va`) does not go
+        through that chain. Without the registry applied inside run() itself,
+        following that documented path produces a fully unflagged database:
+        Id10073 (national ID) and the name fields would export unredacted
+        until someone separately reseeds.
+        """
+        form_type = self._run_migration()
+
+        national_id = db.session.scalar(
+            db.select(MasFieldDisplayConfig).where(
+                MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+                MasFieldDisplayConfig.field_id == "Id10073",
+            )
+        )
+        self.assertIsNotNone(
+            national_id,
+            "expected the migrator to create a redaction-only row for Id10073",
+        )
+        self.assertTrue(
+            national_id.is_pii,
+            "migrator did not apply the PII registry to Id10073",
+        )
+
+        deceased_first_name = db.session.scalar(
+            db.select(MasFieldDisplayConfig).where(
+                MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+                MasFieldDisplayConfig.field_id == "Id10017",
+            )
+        )
+        self.assertIsNotNone(deceased_first_name)
+        self.assertTrue(
+            deceased_first_name.is_pii,
+            "migrator did not flag the mapped field Id10017 as PII",
+        )

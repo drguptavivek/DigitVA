@@ -25,6 +25,7 @@ def seed_run(test):
     _seed_admin()
     _seed_form_types()
     _seed_who_2022_va_fields()
+    _seed_pii_flags()
     if test:
         _seed_test_users()
 
@@ -159,6 +160,26 @@ def _seed_who_2022_va_fields():
         click.echo("  [ok]   WHO_2022_VA field mapping populated")
     else:
         click.echo("  [warn] WHO_2022_VA field migration reported errors — check logs")
+
+
+def _seed_pii_flags():
+    """Flag payload fields that carry personal data.
+
+    Always runs: the Excel source has no is_pii column, so a mapping reseed
+    resets the flag to its default. Idempotent — see
+    app/services/pii_field_registry.py.
+    """
+    from app.services.pii_field_registry import apply_pii_field_registry
+
+    totals = apply_pii_field_registry()
+    db.session.commit()
+    if totals["created"] or totals["updated"]:
+        click.echo(
+            f"  [ok]   PII flags applied (created {totals['created']}, "
+            f"updated {totals['updated']})"
+        )
+    else:
+        click.echo(f"  [skip] PII flags already set ({totals['unchanged']} fields)")
 
 
 def _seed_test_users():

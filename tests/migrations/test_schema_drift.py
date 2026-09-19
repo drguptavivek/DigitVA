@@ -72,7 +72,11 @@ class SchemaDriftTest(unittest.TestCase):
         try:
             app = create_app_without_celery_takeover(DriftConfig)
             with app.app_context():
-                alembic_upgrade()
+                # "heads" (plural), not the default "head": two uncommitted
+                # migration heads sharing a committed parent is a normal,
+                # correct state in a shared working tree (Migration Chaining
+                # Policy rule 4), not a defect for this test to fail on.
+                alembic_upgrade(revision="heads")
                 with db.engine.connect() as conn:
                     context = MigrationContext.configure(
                         conn,

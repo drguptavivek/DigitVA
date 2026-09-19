@@ -20,7 +20,6 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
-    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaDeathRegister,
@@ -41,6 +40,7 @@ from app.models.va_web_intake import (
     WEB_INTAKE_MODES,
 )
 from app.services import org_grant_service
+from app.services import organization_service as org
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services import org_unit_routing_service as org_routing
 from app.services.submission_payload_version_service import ensure_active_payload_version
@@ -200,18 +200,83 @@ def interviewer_context(user: VaUsers) -> list[dict]:
     return context
 
 
+def _reachable_unit_ids(user: VaUsers, project_id: str) -> set[uuid.UUID] | None:
+    """Active units of *project_id* this interviewer may attribute an entry to.
+
+    ``None`` means the whole tree: the user holds a project- or site-scoped
+    interviewer grant there, which by design reaches every unit (that is the
+    point of a grant wider than one unit) — mirroring what
+    ``org_grant_service.project_wide_grant_exists`` means for the
+    organization API's picker. Otherwise the union of the user's
+    interviewer unit-scoped grants' subtrees, filtered to this project.
+
+    Mirrors ``app/routes/api/organization.py::_reachable_unit_ids`` for
+    ``role=interviewer`` — no admin/project-manager bypass here, since web
+    intake access is strictly grant-based. Both share
+    ``org_grant_service.project_wide_grant_exists`` so the unit picker an
+    interviewer sees and this check their submission is held to cannot
+    silently disagree.
+    """
+    roles = frozenset({VaAccessRoles.interviewer})
+    if org_grant_service.project_wide_grant_exists(user.user_id, project_id, roles):
+        return None
+    reachable = org_grant_service.scope_unit_ids(user.user_id, VaAccessRoles.interviewer)
+    if not reachable:
+        return set()
+    in_project = db.session.scalars(
+        sa.select(MasOrgUnit.org_unit_id).where(
+            MasOrgUnit.project_id == project_id,
+            MasOrgUnit.org_unit_id.in_(sorted(reachable)),
+        )
+    ).all()
+    return set(in_project)
+
+
 def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: object | None) -> dict:
-    """Return the context entry for (project, site) or raise 403."""
-    for entry in interviewer_context(user):
-        if entry["project_id"] == project_id and entry["site_id"] == site_id:
-            if org_unit_id:
-                allowed = {u["org_unit_id"] for u in entry["org_units"]}
-                if str(org_unit_id) not in allowed:
-                    raise WebIntakeError("You are not attached to that organization unit.", 403)
-            elif entry["org_units"]:
-                raise WebIntakeError("Choose the organization unit for this entry.", 400)
-            return entry
-    raise WebIntakeError("You do not have interviewer access to that project and site.", 403)
+    """Return the context entry for (project, site) or raise 403.
+
+    In a project with an organization tree, a unit must always be named,
+    whatever the grant's scope — the routed unit is what makes a submission
+    codeable at all (docs/policy/organization-model.md phase 4), and an
+    unrouted one is invisible to every coder. A project- or site-scoped
+    interviewer grant may name *any* active unit of the project; a
+    unit-scoped grant is held to its own subtree. A project with no tree
+    keeps the pre-phase-4 behaviour: no unit is required.
+    """
+    entry = None
+    for candidate in interviewer_context(user):
+        if candidate["project_id"] == project_id and candidate["site_id"] == site_id:
+            entry = candidate
+            break
+    if entry is None:
+        raise WebIntakeError("You do not have interviewer access to that project and site.", 403)
+
+    has_tree = project_id in org_grant_service.projects_with_org_tree({project_id})
+    if not has_tree:
+        if org_unit_id:
+            allowed = {u["org_unit_id"] for u in entry["org_units"]}
+            if str(org_unit_id) not in allowed:
+                raise WebIntakeError("You are not attached to that organization unit.", 403)
+        elif entry["org_units"]:
+            raise WebIntakeError("Choose the organization unit for this entry.", 400)
+        return entry
+
+    if not org_unit_id:
+        raise WebIntakeError("Choose the organization unit for this entry.", 400)
+    try:
+        unit_id = uuid.UUID(str(org_unit_id))
+    except (ValueError, TypeError, AttributeError):
+        raise WebIntakeError("Invalid organization unit.", 400) from None
+
+    reachable = _reachable_unit_ids(user, project_id)
+    if reachable is not None and unit_id not in reachable:
+        raise WebIntakeError("That organization unit is outside what you may access.", 403)
+
+    unit = db.session.get(MasOrgUnit, unit_id)
+    if unit is None or unit.project_id != project_id or not unit.is_active:
+        raise WebIntakeError("That organization unit is not active in this project.", 400)
+
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -232,15 +297,14 @@ def _unit_context(org_unit_id: object | None) -> dict:
     if unit is None:
         return {}
     codes = str(unit.path).split(".")
-    rows = db.session.execute(
-        sa.select(MasOrgUnit.unit_code, MasOrgLevel.level_code, MasOrgUnit.unit_name)
-        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
-        .where(MasOrgUnit.project_id == unit.project_id, MasOrgUnit.unit_code.in_(codes))
-    ).all()
+    # Routing attributes a submission to the deepest code naming a *live*
+    # unit, so a deactivated ancestor's code would be inert at best and
+    # misleading in the stored payload -- keep the active-only default.
+    rows = org.list_units_by_codes(unit.project_id, codes)
     context: dict = {}
-    for unit_code, level_code, unit_name in rows:
-        context[f"org_{level_code}_code"] = unit_code
-        context[f"org_{level_code}_name"] = unit_name
+    for row in rows:
+        context[f"org_{row['level_code']}_code"] = row["unit_code"]
+        context[f"org_{row['level_code']}_name"] = row["unit_name"]
     return context
 
 
@@ -603,6 +667,36 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     return payload, references
 
 
+def _require_live_org_unit(draft: VaWebIntakeDraft) -> None:
+    """Refuse a submission whose organization unit is no longer active.
+
+    A unit can be deactivated between starting a draft and submitting it.
+    Routing only attributes a submission to a live unit, so the case would fall
+    back to the mapping's unit or stay unrouted — and since coding eligibility
+    is decided by the routed unit, an unrouted case in a project with an
+    organization tree is visible to no coder at all. Failing here tells the
+    interviewer while the draft is still safe, instead of filing a death
+    nobody can see.
+    """
+    if not draft.org_unit_id:
+        return
+    unit = db.session.get(MasOrgUnit, uuid.UUID(str(draft.org_unit_id)))
+    if unit is None:
+        raise WebIntakeError(
+            "The organization unit for this case no longer exists. Ask an "
+            "administrator to restore it or move the case before submitting.",
+            409,
+        )
+    if not unit.is_active:
+        raise WebIntakeError(
+            f"The organization unit for this case ({unit.unit_name}) is no "
+            "longer active, so the case could not be attributed to it or "
+            "reach a coder. Ask an administrator to reactivate it or move the "
+            "case before submitting.",
+            409,
+        )
+
+
 def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) -> VaSubmissions:
     """Turn a completed draft into a submission and route it into the workflow."""
     if draft.status != "draft":
@@ -615,6 +709,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict) ->
     consent = normalize_consent(data.get("Id10013"))
     if not consent:
         raise WebIntakeError("The consent question (Id10013) must be answered.", 422)
+    _require_live_org_unit(draft)
 
     submitted_at = _utcnow()
     payload, references = build_web_payload(draft, data, user, submitted_at=submitted_at)

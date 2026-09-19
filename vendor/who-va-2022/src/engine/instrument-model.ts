@@ -30,16 +30,35 @@ const compiledExpressions = new WeakMap<SourceExpression, ExpressionNode>();
 const DATA_TYPES_BY_CONTROL: Readonly<Record<QuestionControl, readonly AnswerDataType[]>> = {
   text: ["string"],
   integer: ["number"],
+  decimal: ["decimal"],
   singleChoice: ["string"],
   multipleChoice: ["string[]"],
   date: ["date"],
+  time: ["time"],
+  datetime: ["dateTime"],
+  barcode: ["string"],
+  // A range may step in whole numbers or fractions; the parameters column
+  // decides which, so both are accepted here.
+  range: ["number", "decimal"],
+  geopoint: ["geopoint"],
   audio: ["attachment"],
   image: ["attachment"],
   file: ["attachment"],
   confirm: ["boolean"],
   note: ["none"],
   calculated: ["calculated"],
-  system: ["string", "number", "boolean", "date", "dateTime", "string[]", "attachment", "audit", "none"]
+  system: [
+    "string",
+    "number",
+    "boolean",
+    "date",
+    "time",
+    "dateTime",
+    "string[]",
+    "attachment",
+    "audit",
+    "none"
+  ]
 };
 
 function sameExpressionNode(left: ExpressionNode, right: ExpressionNode): boolean {

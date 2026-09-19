@@ -121,6 +121,13 @@ function representativeAnswer(item: InstrumentQuestion): AnswerValue | undefined
   if (firstChoice) return item.dataType === "string[]" ? [firstChoice.value] : firstChoice.value;
   switch (item.dataType) {
     case "string":
+      // A handful of string fields carry a regex constraint that "E2E
+      // answer" cannot satisfy (it contains digits): Id10007/Id10010 accept
+      // letters and spaces only, and the DigitVA ABHA fields
+      // (src/digitva-extension.ts) require a specific ID/handle shape.
+      if (item.name === "abha_number") return "12-3456-7890-1234";
+      if (item.name === "abha_address") return "jane.doe@abdm";
+      if (item.constraint?.source.includes("regex(., '^[A-Za-z ]+$')")) return "E answer";
       return "E2E answer";
     case "number":
       return 30;

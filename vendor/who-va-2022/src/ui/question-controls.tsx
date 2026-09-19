@@ -20,6 +20,13 @@ import type {
   SubmissionData,
   ValidationIssue
 } from "../types.js";
+import {
+  columnLayout,
+  formatGrouped,
+  hasAppearance,
+  rangeParameters,
+  rangeValues
+} from "./appearance.js";
 import { dateFormatPlaceholder, formatDisplayDate, parseDisplayDate } from "./date-value.js";
 import { ENGLISH_UI_MESSAGES, type WhoVaUiMessages } from "../i18n.js";
 import {
@@ -29,6 +36,7 @@ import {
   attachmentReference,
   languageChoiceLabel,
   localized,
+  localizedRich,
   questionControlStyles,
   questionLabel
 } from "./question-control-support.js";
@@ -65,6 +73,20 @@ export interface WhoVaPlatformServices {
     data: SubmissionData,
     acceptedMimeTypes: string[]
   ) => Promise<AttachmentCandidate | undefined>;
+  /**
+   * Open a drawing surface for the `draw` and `signature` appearances and
+   * return the resulting image. The host owns the canvas, as it owns the
+   * camera and the recorder.
+   */
+  captureDrawing?: (
+    question: InstrumentQuestion,
+    data: SubmissionData,
+    mode: "draw" | "signature"
+  ) => Promise<AttachmentCandidate | undefined>;
+  /** Return an ODK geopoint string: "latitude longitude altitude accuracy". */
+  captureLocation?: (question: InstrumentQuestion, data: SubmissionData) => Promise<string | undefined>;
+  /** Return the scanned barcode value, or undefined when the user cancels. */
+  scanBarcode?: (question: InstrumentQuestion, data: SubmissionData) => Promise<string | undefined>;
   resolveAttachmentUri?: (attachment: AttachmentReference) => Promise<string | undefined>;
   releaseAttachmentUri?: (uri: string) => void;
   removeAttachment?: (attachment: AttachmentReference) => Promise<void>;
@@ -94,6 +116,11 @@ export interface WhoVaQuestionControlPrimitives {
   DateInput?: React.ElementType | undefined;
   Pressable: React.ElementType;
   Image?: React.ElementType | undefined;
+  /**
+   * Renders ODK's inline markup in choice labels. Optional: without it labels
+   * fall back to the tag-stripped text, which is what they were before.
+   */
+  RichText?: React.ComponentType<{ source: string }> | undefined;
   platform?: WhoVaPlatformServices | undefined;
 }
 
@@ -106,7 +133,7 @@ export function incompleteDateIssue(
   messages: WhoVaUiMessages = ENGLISH_UI_MESSAGES
 ): ValidationIssue | undefined {
   if (question.control !== "date" || !draft) return undefined;
-  if (question.appearance === "year") {
+  if (hasAppearance(question, "year")) {
     return /^\d{4}$/.test(draft)
       ? undefined
       : { question: question.name, code: "type", message: messages.fourDigitYear };
@@ -122,9 +149,25 @@ export function incompleteDateIssue(
 
 export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrimitives) {
   const { View, Text: PrimitiveText, TextInput, DateInput, Pressable, Image } = primitives;
+  const RichText = primitives.RichText;
+
+  /** A choice label, with its markup rendered when a renderer is supplied. */
+  function ChoiceLabel({
+    choice,
+    locale
+  }: {
+    choice: NonNullable<InstrumentQuestion["choices"]>[number];
+    locale: string;
+  }) {
+    if (!RichText) return <>{localized(choice.label, locale, choice.value)}</>;
+    return <RichText source={localizedRich(choice.label, locale, choice.value)} />;
+  }
 
   function Text({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
-    const multiline = question.appearance === "multiline";
+    const multiline = hasAppearance(question, "multiline");
+    const numbersOnly = hasAppearance(question, "numbers");
+    const masked = hasAppearance(question, "masked");
+    const grouped = hasAppearance(question, "thousands-sep");
     const readOnly = question.readOnly;
     return (
       <TextInput
@@ -140,16 +183,108 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         aria-readonly={readOnly || undefined}
         editable={!readOnly}
         readOnly={readOnly || undefined}
-        value={value == null ? "" : String(value)}
+        value={
+          grouped && !multiline && value != null && value !== ""
+            ? formatGrouped(String(value).replace(/[^\d.eE+-]/g, ""), locale)
+            : value == null
+              ? ""
+              : String(value)
+        }
         multiline={multiline}
+        secureTextEntry={masked || undefined}
+        keyboardType={numbersOnly ? "number-pad" : undefined}
+        inputMode={numbersOnly ? "numeric" : undefined}
         onChangeText={(text: string) => {
-          if (!readOnly) onAnswer(text || undefined);
+          if (readOnly) return;
+          // `numbers` restricts what can be typed but still stores text.
+          const next = numbersOnly ? text.replace(/[^\d.+-]/g, "") : text;
+          onAnswer(next || undefined);
         }}
       />
     );
   }
 
   function Integer({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+    const readOnly = question.readOnly;
+    const grouped = hasAppearance(question, "thousands-sep");
+    const [focused, setFocused] = useState(false);
+    return (
+      <TextInput
+        accessibilityLabel={questionLabel(question, locale)}
+        testID={`question-${question.name}`}
+        style={[
+          questionControlStyles.input,
+          issues.length > 0 && questionControlStyles.inputError,
+          readOnly && questionControlStyles.inputReadOnly
+        ]}
+        aria-invalid={issues.length > 0 || undefined}
+        aria-readonly={readOnly || undefined}
+        editable={!readOnly}
+        readOnly={readOnly || undefined}
+        value={
+          value == null
+            ? ""
+            : grouped && !focused
+              ? formatGrouped(value as number, locale)
+              : String(value)
+        }
+        keyboardType="number-pad"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChangeText={(text: string) => {
+          if (readOnly) return;
+          // Separators are display only, so strip whatever the locale inserted.
+          const raw = grouped ? text.replace(/[^\d-]/g, "") : text;
+          if (raw === "") onAnswer(undefined);
+          else if (/^-?\d+$/.test(raw)) onAnswer(Number(raw));
+        }}
+      />
+    );
+  }
+
+  function Decimal({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+    const readOnly = question.readOnly;
+    // Partial input has to survive keystrokes: "1." and "-" are not numbers
+    // yet, so they are held as draft text and only committed once parseable.
+    const [draft, setDraft] = useState<string>();
+    const grouped = hasAppearance(question, "thousands-sep");
+    const shown =
+      draft ??
+      (value == null ? "" : grouped ? formatGrouped(value as number, locale) : String(value));
+    return (
+      <TextInput
+        accessibilityLabel={questionLabel(question, locale)}
+        testID={`question-${question.name}`}
+        style={[
+          questionControlStyles.input,
+          issues.length > 0 && questionControlStyles.inputError,
+          readOnly && questionControlStyles.inputReadOnly
+        ]}
+        aria-invalid={issues.length > 0 || undefined}
+        aria-readonly={readOnly || undefined}
+        editable={!readOnly}
+        readOnly={readOnly || undefined}
+        value={shown}
+        keyboardType="decimal-pad"
+        onChangeText={(text: string) => {
+          if (readOnly) return;
+          if (text === "") {
+            setDraft(undefined);
+            onAnswer(undefined);
+            return;
+          }
+          const raw = grouped ? text.replace(/[^\d.eE+-]/g, "") : text;
+          if (!/^-?\d*([.]\d*)?$/.test(raw)) return;
+          setDraft(raw);
+          const parsed = Number(raw);
+          if (Number.isFinite(parsed) && /\d/.test(raw)) onAnswer(parsed);
+        }}
+        onBlur={() => setDraft(undefined)}
+      />
+    );
+  }
+
+  function Time({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
     const readOnly = question.readOnly;
     return (
       <TextInput
@@ -164,14 +299,272 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         aria-readonly={readOnly || undefined}
         editable={!readOnly}
         readOnly={readOnly || undefined}
-        value={value == null ? "" : String(value)}
-        keyboardType="number-pad"
+        // Web renders this as <input type="time">; native falls back to a
+        // validated text entry in the same canonical HH:MM shape.
+        {...({ type: "time", inputMode: "numeric" } as Record<string, unknown>)}
+        placeholder="HH:MM"
+        value={typeof value === "string" ? value : ""}
         onChangeText={(text: string) => {
           if (readOnly) return;
           if (text === "") onAnswer(undefined);
-          else if (/^-?\d+$/.test(text)) onAnswer(Number(text));
+          else onAnswer(text);
         }}
       />
+    );
+  }
+
+  function DateTime({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+    const readOnly = question.readOnly;
+    return (
+      <TextInput
+        accessibilityLabel={questionLabel(question, locale)}
+        testID={`question-${question.name}`}
+        style={[
+          questionControlStyles.input,
+          issues.length > 0 && questionControlStyles.inputError,
+          readOnly && questionControlStyles.inputReadOnly
+        ]}
+        aria-invalid={issues.length > 0 || undefined}
+        aria-readonly={readOnly || undefined}
+        editable={!readOnly}
+        readOnly={readOnly || undefined}
+        {...({ type: "datetime-local" } as Record<string, unknown>)}
+        placeholder="YYYY-MM-DDTHH:MM"
+        value={typeof value === "string" ? value : ""}
+        onChangeText={(text: string) => {
+          if (readOnly) return;
+          if (text === "") onAnswer(undefined);
+          else onAnswer(text);
+        }}
+      />
+    );
+  }
+
+  function Barcode({
+    question,
+    value,
+    data,
+    locale,
+    messages = ENGLISH_UI_MESSAGES,
+    issues,
+    platform: propPlatform,
+    onAnswer
+  }: WhoVaQuestionControlProps) {
+    const services = propPlatform ?? primitives.platform;
+    const readOnly = question.readOnly;
+    const [busy, setBusy] = useState(false);
+    return (
+      <View>
+        <TextInput
+          accessibilityLabel={questionLabel(question, locale)}
+          testID={`question-${question.name}`}
+          style={[
+            questionControlStyles.input,
+            issues.length > 0 && questionControlStyles.inputError,
+            readOnly && questionControlStyles.inputReadOnly
+          ]}
+          aria-invalid={issues.length > 0 || undefined}
+          editable={!readOnly}
+          readOnly={readOnly || undefined}
+          value={typeof value === "string" ? value : ""}
+          onChangeText={(text: string) => {
+            if (!readOnly) onAnswer(text || undefined);
+          }}
+        />
+        {services?.scanBarcode && !readOnly ? (
+          <Pressable
+            accessibilityRole="button"
+            testID={`question-${question.name}-scan`}
+            disabled={busy}
+            onPress={async () => {
+              setBusy(true);
+              try {
+                const scanned = await services.scanBarcode?.(question, data);
+                if (scanned) onAnswer(scanned);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            style={[questionControlStyles.button, questionControlStyles.buttonSecondary, busy && questionControlStyles.buttonDisabled]}
+          >
+            <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
+              {messages.scanBarcode}
+            </PrimitiveText>
+          </Pressable>
+        ) : null}
+      </View>
+    );
+  }
+
+  function Range({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+    const readOnly = question.readOnly;
+    const { start, end, step } = rangeParameters(question);
+    const fractional = !Number.isInteger(step);
+    const hasIssues = issues.length > 0;
+
+    // `picker` shows the range as a list of discrete options; `rating` shows
+    // the same values as stars. Both need the enumerated values.
+    const asPicker = hasAppearance(question, "picker");
+    const asRating = hasAppearance(question, "rating");
+    const values = useMemo(
+      () => (asPicker || asRating ? rangeValues(question) : []),
+      [asPicker, asRating, question]
+    );
+
+    if (asRating) {
+      const selected = typeof value === "number" ? value : undefined;
+      return (
+        <View style={questionControlStyles.choiceRow}>
+          {values.map((option) => {
+            const filled = selected != null && option <= selected;
+            return (
+              <Pressable
+                key={option}
+                accessibilityRole="radio"
+                accessibilityLabel={`${option}`}
+                accessibilityState={{ selected: selected === option, disabled: readOnly }}
+                disabled={readOnly}
+                testID={`question-${question.name}-star-${option}`}
+                style={[questionControlStyles.star, hasIssues && questionControlStyles.inputError]}
+                onPress={() => {
+                  if (!readOnly) onAnswer(option);
+                }}
+              >
+                <PrimitiveText
+                  style={filled ? questionControlStyles.starFilled : questionControlStyles.starEmpty}
+                >
+                  {filled ? "\u2605" : "\u2606"}
+                </PrimitiveText>
+              </Pressable>
+            );
+          })}
+        </View>
+      );
+    }
+
+    if (asPicker) {
+      return (
+        <View style={questionControlStyles.choiceRow}>
+          {values.map((option) => {
+            const selected = value === option;
+            return (
+              <Pressable
+                key={option}
+                accessibilityRole="radio"
+                accessibilityState={{ selected, disabled: readOnly }}
+                disabled={readOnly}
+                testID={`question-${question.name}-choice-${option}`}
+                style={[
+                  questionControlStyles.choice,
+                  questionControlStyles.choiceInline,
+                  hasIssues && questionControlStyles.inputError,
+                  selected && questionControlStyles.choiceSelected,
+                  readOnly && questionControlStyles.inputReadOnly
+                ]}
+                onPress={() => {
+                  if (!readOnly) onAnswer(option);
+                }}
+              >
+                <PrimitiveText style={questionControlStyles.choiceText}>{option}</PrimitiveText>
+              </Pressable>
+            );
+          })}
+        </View>
+      );
+    }
+
+    return (
+      <TextInput
+        accessibilityLabel={questionLabel(question, locale)}
+        testID={`question-${question.name}`}
+        style={[
+          questionControlStyles.input,
+          hasIssues && questionControlStyles.inputError,
+          readOnly && questionControlStyles.inputReadOnly
+        ]}
+        aria-invalid={hasIssues || undefined}
+        editable={!readOnly}
+        readOnly={readOnly || undefined}
+        value={value == null ? "" : String(value)}
+        keyboardType={fractional ? "decimal-pad" : "number-pad"}
+        {...({ min: start, max: end, step } as Record<string, unknown>)}
+        onChangeText={(text: string) => {
+          if (readOnly) return;
+          if (text === "") {
+            onAnswer(undefined);
+            return;
+          }
+          const pattern = fractional ? /^-?\d*([.]\d*)?$/ : /^-?\d+$/;
+          if (!pattern.test(text)) return;
+          const parsed = Number(text);
+          if (Number.isFinite(parsed)) onAnswer(parsed);
+        }}
+      />
+    );
+  }
+
+  function GeoPoint({
+    question,
+    value,
+    data,
+    locale,
+    messages = ENGLISH_UI_MESSAGES,
+    issues,
+    platform: propPlatform,
+    onAnswer
+  }: WhoVaQuestionControlProps) {
+    const services = propPlatform ?? primitives.platform;
+    const readOnly = question.readOnly;
+    const [busy, setBusy] = useState(false);
+    const current = typeof value === "string" ? value : "";
+    const [latitude, longitude] = current.split(/\s+/);
+    return (
+      <View>
+        <PrimitiveText
+          testID={`question-${question.name}-value`}
+          style={questionControlStyles.hint}
+        >
+          {current ? `${latitude}, ${longitude}` : ""}
+        </PrimitiveText>
+        <TextInput
+          accessibilityLabel={questionLabel(question, locale)}
+          testID={`question-${question.name}`}
+          style={[
+            questionControlStyles.input,
+            issues.length > 0 && questionControlStyles.inputError,
+            readOnly && questionControlStyles.inputReadOnly
+          ]}
+          aria-invalid={issues.length > 0 || undefined}
+          editable={!readOnly}
+          readOnly={readOnly || undefined}
+          placeholder="latitude longitude"
+          value={current}
+          onChangeText={(text: string) => {
+            if (!readOnly) onAnswer(text || undefined);
+          }}
+        />
+        {services?.captureLocation && !readOnly ? (
+          <Pressable
+            accessibilityRole="button"
+            testID={`question-${question.name}-capture`}
+            disabled={busy}
+            onPress={async () => {
+              setBusy(true);
+              try {
+                const captured = await services.captureLocation?.(question, data);
+                if (captured) onAnswer(captured);
+              } finally {
+                setBusy(false);
+              }
+            }}
+            style={[questionControlStyles.button, questionControlStyles.buttonSecondary, busy && questionControlStyles.buttonDisabled]}
+          >
+            <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
+              {current ? messages.updateLocation : messages.getLocation}
+            </PrimitiveText>
+          </Pressable>
+        ) : null}
+      </View>
     );
   }
 
@@ -200,7 +593,44 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       onDraftIssue?.(question.name, incompleteDateIssue(question, next, locale, messages));
     };
 
-    if (question.appearance === "year") {
+    if (hasAppearance(question, "month-year")) {
+      const shown = draft ?? (typeof value === "string" ? value.slice(0, 7) : "");
+      return (
+        <TextInput
+          accessibilityLabel={label}
+          testID={`question-${question.name}`}
+          style={[
+            questionControlStyles.input,
+            hasIssues && questionControlStyles.inputError,
+            readOnly && questionControlStyles.inputReadOnly
+          ]}
+          aria-invalid={hasIssues || undefined}
+          aria-readonly={readOnly || undefined}
+          editable={!readOnly}
+          readOnly={readOnly || undefined}
+          {...({ type: "month" } as Record<string, unknown>)}
+          value={shown}
+          maxLength={7}
+          placeholder="YYYY-MM"
+          onChangeText={(text: string) => {
+            if (readOnly || !/^[\d-]*$/.test(text)) return;
+            if (text === "") {
+              updateDraft(undefined);
+              onAnswer(undefined);
+            } else if (/^\d{4}-(0[1-9]|1[0-2])$/.test(text)) {
+              // Canonical storage stays a full ISO date, as `year` does.
+              onAnswer(`${text}-01`);
+              updateDraft(undefined);
+            } else {
+              updateDraft(text);
+              onAnswer(undefined);
+            }
+          }}
+        />
+      );
+    }
+
+    if (hasAppearance(question, "year")) {
       return (
         <TextInput
           accessibilityLabel={label}
@@ -257,6 +687,10 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       );
     }
 
+    // `no-calendar` asks for a spinner-style picker rather than no picker at
+    // all, and the host owns the picker. It receives `question`, so it reads
+    // the appearance itself; suppressing pickDate here would remove the picker
+    // the interviewer is meant to get.
     if (services?.pickDate) {
       return (
         <Pressable
@@ -370,7 +804,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             return (
               <Pressable
                 key={choice.value}
-                accessibilityRole="button"
+                accessibilityRole="option"
                 accessibilityState={{ selected, disabled: readOnly }}
                 disabled={readOnly}
                 testID={`question-${question.name}-choice-${choice.value}`}
@@ -392,12 +826,68 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
+  /**
+   * Shared presentation for the select appearances: `search` filters the list,
+   * `columns`/`columns-n`/`columns-pack` and `likert` lay choices along a row,
+   * and `no-buttons` drops the control chrome so the cell itself is the target.
+   * Unknown appearance tokens fall through to the default vertical list, which
+   * is what ODK clients do with an appearance they do not implement.
+   */
+  function useChoicePresentation(question: InstrumentQuestion, locale: string) {
+    const [query, setQuery] = useState("");
+    const layout = columnLayout(question);
+    const likert = hasAppearance(question, "likert");
+    const bare = hasAppearance(question, "no-buttons");
+    const searchable = hasAppearance(question, "search");
+
+    const choices = useMemo(() => {
+      const all = question.choices ?? [];
+      const needle = query.trim().toLowerCase();
+      if (!searchable || !needle) return all;
+      return all.filter((choice) =>
+        localized(choice.label, locale, choice.value).toLowerCase().includes(needle)
+      );
+    }, [question, locale, query, searchable]);
+
+    const inline = Boolean(layout) || likert;
+    const cellStyle: Record<string, unknown>[] = [];
+    if (likert) {
+      cellStyle.push(questionControlStyles.choiceLikert);
+    } else if (layout) {
+      cellStyle.push(questionControlStyles.choiceInline);
+      if (layout.mode === "fixed") {
+        const share = `${100 / layout.count}%`;
+        cellStyle.push({ flexBasis: share, maxWidth: share, flexGrow: 0 });
+      } else if (layout.mode === "responsive") {
+        // No measurement here: a comfortable minimum width lets the row hold
+        // more columns on a wide screen and fewer on a narrow one.
+        cellStyle.push({ flexBasis: 150, flexGrow: 1 });
+      } else {
+        cellStyle.push(questionControlStyles.choicePacked);
+      }
+    }
+    if (bare) cellStyle.push(questionControlStyles.choiceBare);
+
+    const searchNode = searchable ? (
+      <TextInput
+        accessibilityLabel={`${questionLabel(question, locale)} search`}
+        testID={`question-${question.name}-search`}
+        style={[questionControlStyles.input, questionControlStyles.searchInput]}
+        value={query}
+        onChangeText={setQuery}
+      />
+    ) : null;
+
+    return { choices, cellStyle, inline, searchNode };
+  }
+
   function SingleChoice(props: WhoVaQuestionControlProps) {
     const { question, value, locale, issues, onAnswer } = props;
     if (question.name === "language") return <SearchableSingleChoice {...props} />;
     const hasIssues = issues.length > 0;
     const readOnly = question.readOnly;
-    return (question.choices ?? []).map((choice) => {
+    const { choices, cellStyle, inline, searchNode } = useChoicePresentation(question, locale);
+    const cells = choices.map((choice) => {
       const selected = value === choice.value;
       return (
         <Pressable
@@ -409,6 +899,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           testID={`question-${question.name}-choice-${choice.value}`}
           style={[
             questionControlStyles.choice,
+            ...cellStyle,
             hasIssues && questionControlStyles.inputError,
             selected && questionControlStyles.choiceSelected,
             readOnly && questionControlStyles.inputReadOnly
@@ -418,11 +909,18 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <PrimitiveText style={questionControlStyles.choiceText}>
-            {localized(choice.label, locale, choice.value)}
+            <ChoiceLabel choice={choice} locale={locale} />
           </PrimitiveText>
         </Pressable>
       );
     });
+    if (!searchNode && !inline) return cells;
+    return (
+      <>
+        {searchNode}
+        {inline ? <View style={questionControlStyles.choiceRow}>{cells}</View> : cells}
+      </>
+    );
   }
 
   function MultipleChoice({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
@@ -430,7 +928,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const selectedSet = useMemo(() => new Set(selectedValues), [selectedValues]);
     const hasIssues = issues.length > 0;
     const readOnly = question.readOnly;
-    return (question.choices ?? []).map((choice) => {
+    const { choices, cellStyle, inline, searchNode } = useChoicePresentation(question, locale);
+    const cells = choices.map((choice) => {
       const selected = selectedSet.has(choice.value);
       return (
         <Pressable
@@ -442,6 +941,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           testID={`question-${question.name}-choice-${choice.value}`}
           style={[
             questionControlStyles.choice,
+            ...cellStyle,
             hasIssues && questionControlStyles.inputError,
             selected && questionControlStyles.choiceSelected,
             readOnly && questionControlStyles.inputReadOnly
@@ -456,11 +956,18 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           }}
         >
           <PrimitiveText style={questionControlStyles.choiceText}>
-            {localized(choice.label, locale, choice.value)}
+            <ChoiceLabel choice={choice} locale={locale} />
           </PrimitiveText>
         </Pressable>
       );
     });
+    if (!searchNode && !inline) return cells;
+    return (
+      <>
+        {searchNode}
+        {inline ? <View style={questionControlStyles.choiceRow}>{cells}</View> : cells}
+      </>
+    );
   }
 
   function Confirm({
@@ -607,7 +1114,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     onAnswer
   }: WhoVaQuestionControlProps) {
     const attachment = attachmentDetails(value);
-    const [busy, setBusy] = useState<"camera" | "library">();
+    const [busy, setBusy] = useState<"camera" | "library" | "draw">();
     const [rotation, setRotation] = useState(0);
     const [zoom, setZoom] = useState(1);
     const [visible, setVisible] = useState(true);
@@ -654,8 +1161,23 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       };
     }, [attachment.uri, messages.savedImageLoadFailed, releaseAttachmentUri, resolveAttachmentUri, value]);
 
-    const choose = async (source: "camera" | "library") => {
-      const picker = source === "camera" ? services?.captureImage : services?.selectImage;
+    // `signature` and `draw` replace capture-or-select with a drawing surface.
+    const drawMode = hasAppearance(question, "signature")
+      ? ("signature" as const)
+      : hasAppearance(question, "draw")
+        ? ("draw" as const)
+        : undefined;
+
+    const choose = async (source: "camera" | "library" | "draw") => {
+      const picker =
+        source === "draw"
+          ? services?.captureDrawing
+            ? (q: InstrumentQuestion, d: SubmissionData) =>
+                services.captureDrawing!(q, d, drawMode ?? "draw")
+            : undefined
+          : source === "camera"
+            ? services?.captureImage
+            : services?.selectImage;
       if (readOnly || !picker) return;
       setBusy(source);
       setProcessingError(undefined);
@@ -706,14 +1228,41 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           </PrimitiveText>
         ) : null}
         <View style={questionControlStyles.actions}>
+          {drawMode ? (
+            <Pressable
+              accessibilityRole="button"
+              aria-invalid={issues.length > 0 || undefined}
+              testID={`question-${question.name}-draw`}
+              disabled={readOnly || !services?.captureDrawing || busy != null}
+              style={[
+                questionControlStyles.button,
+                issues.length > 0 && questionControlStyles.buttonError,
+                (readOnly || !services?.captureDrawing || busy != null) &&
+                  questionControlStyles.buttonDisabled
+              ]}
+              onPress={() => void choose("draw")}
+            >
+              <PrimitiveText style={questionControlStyles.buttonText}>
+                {drawMode === "signature"
+                  ? attachment.uri
+                    ? messages.reSign
+                    : messages.sign
+                  : attachment.uri
+                    ? messages.redraw
+                    : messages.draw}
+              </PrimitiveText>
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             aria-invalid={issues.length > 0 || undefined}
-            disabled={readOnly || !services?.captureImage || busy != null}
+            disabled={readOnly || !services?.captureImage || busy != null || Boolean(drawMode)}
             style={[
               questionControlStyles.button,
               issues.length > 0 && questionControlStyles.buttonError,
-              (readOnly || !services?.captureImage || busy != null) && questionControlStyles.buttonDisabled
+              (readOnly || !services?.captureImage || busy != null || Boolean(drawMode)) &&
+                questionControlStyles.buttonDisabled,
+              Boolean(drawMode) && questionControlStyles.hidden
             ]}
             onPress={() => void choose("camera")}
           >
@@ -724,12 +1273,14 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           <Pressable
             accessibilityRole="button"
             aria-invalid={issues.length > 0 || undefined}
-            disabled={readOnly || !services?.selectImage || busy != null}
+            disabled={readOnly || !services?.selectImage || busy != null || Boolean(drawMode)}
             style={[
               questionControlStyles.button,
               questionControlStyles.buttonSecondary,
               issues.length > 0 && questionControlStyles.buttonSecondaryError,
-              (readOnly || !services?.selectImage || busy != null) && questionControlStyles.buttonDisabled
+              (readOnly || !services?.selectImage || busy != null || Boolean(drawMode)) &&
+                questionControlStyles.buttonDisabled,
+              Boolean(drawMode) && questionControlStyles.hidden
             ]}
             onPress={() => void choose("library")}
           >
@@ -819,7 +1370,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const readOnly = question.readOnly;
     const services = { ...primitives.platform, ...platform };
     const currentAttachment = attachmentReference(value);
-    const acceptsImages = question.appearance === "image-or-pdf";
+    const acceptsImages = hasAppearance(question, "image-or-pdf");
     const acceptedMimeTypes = acceptsImages
       ? [
           ...WHO_VA_ATTACHMENT_POLICY.image.acceptedMimeTypes,
@@ -943,8 +1494,20 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         return <Text {...props} />;
       case "integer":
         return <Integer {...props} />;
+      case "decimal":
+        return <Decimal {...props} />;
       case "date":
         return <Date {...props} />;
+      case "time":
+        return <Time {...props} />;
+      case "datetime":
+        return <DateTime {...props} />;
+      case "barcode":
+        return <Barcode {...props} />;
+      case "range":
+        return <Range {...props} />;
+      case "geopoint":
+        return <GeoPoint {...props} />;
       case "singleChoice":
         return <SingleChoice {...props} />;
       case "multipleChoice":
@@ -969,7 +1532,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     Control,
     Text,
     Integer,
+    Decimal,
     Date,
+    Time,
+    DateTime,
+    Barcode,
+    Range,
+    GeoPoint,
     SingleChoice,
     MultipleChoice,
     Confirm,

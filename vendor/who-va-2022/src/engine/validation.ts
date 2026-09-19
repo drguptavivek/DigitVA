@@ -40,16 +40,44 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+/** Canonical stored time, matching ODK: `HH:MM` with optional seconds. */
+const ISO_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+
+/**
+ * ODK stores a geopoint as "latitude longitude altitude accuracy". Altitude and
+ * accuracy are optional in practice, so two to four numbers are accepted, with
+ * latitude and longitude checked against their real ranges.
+ */
+function isValidGeopoint(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const parts = value.trim().split(/\s+/);
+  if (parts.length < 2 || parts.length > 4) return false;
+  const numbers = parts.map(Number);
+  if (numbers.some((part) => !Number.isFinite(part))) return false;
+  const latitude = numbers[0];
+  const longitude = numbers[1];
+  // The length check above guarantees both are present; the compiler cannot
+  // see that through an index, so state it rather than assert it away.
+  if (latitude === undefined || longitude === undefined) return false;
+  return latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+}
+
 function typeIsValid(question: InstrumentQuestion, value: unknown): boolean {
   switch (question.dataType) {
     case "string":
       return typeof value === "string";
     case "number":
       return typeof value === "number" && Number.isFinite(value) && Number.isInteger(value);
+    case "decimal":
+      return typeof value === "number" && Number.isFinite(value);
     case "boolean":
       return typeof value === "boolean";
     case "date":
       return isValidIsoDate(value);
+    case "time":
+      return typeof value === "string" && ISO_TIME_PATTERN.test(value);
+    case "geopoint":
+      return isValidGeopoint(value);
     case "dateTime":
       return typeof value === "string" && !Number.isNaN(Date.parse(value));
     case "string[]":

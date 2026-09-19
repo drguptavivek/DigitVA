@@ -3,7 +3,7 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-09-18
 ---
 
 # Field Mapping System
@@ -613,7 +613,30 @@ The language seed and the field-mapping seed are separate steps within
 | **Flip Color** | `flip_color` | Inverts the colour coding so "No" appears positive and "Yes" negative |
 | **Is Info** | `is_info` | Field is shown for reference only; it is not included in VA coding |
 | **Summary Include** | `summary_include` | Field appears in the live `Symptoms on VA Interview` summary panel |
-| **Is PII** | `is_pii` | Field contains personally identifiable information — masked in non-PII views |
+| **Is PII** | `is_pii` | Field carries personal data — redacted from the data-manager CSV export. No effect on the coding screen (see below) |
+
+### What `is_pii` actually does
+
+One consumer: `FieldMappingService.get_pii_field_ids()` feeds
+`data_management_service._filter_export_payload()`, which drops those payload
+keys from the data-manager CSV export, on top of the hardcoded
+`CSV_EXPORT_OMIT_PAYLOAD_FIELDS` list. It does **not** mask anything on the
+coding screen — the coding screen renders only fields that have a
+non-NULL `subcategory_code`, so identifier questions are excluded by never
+being mapped rather than by being flagged.
+
+That distinction is what makes `app/services/pii_field_registry.py` work. It
+records which payload fields carry personal data and flags them, creating a row
+with `category_code` and `subcategory_code` left NULL for fields that have no
+mapping (most identifiers, plus web intake's `abha_number` / `abha_address`).
+Such a row is visible to export redaction and invisible to the coding screen.
+
+The registry is applied by migration `b8e3d1f7a2c4` and re-applied by
+`flask seed run`, because the Excel mapping source has no `is_pii` column: flags
+set by hand in the admin panel do not survive a mapping reseed and are not
+reproducible on a fresh install. Applying it never replaces a `pii_type` an
+operator already chose — the registry decides *whether* a field is PII, not how
+it is labelled.
 
 Labels hierarchy (first non-null wins for display):
 
@@ -670,5 +693,5 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-03-31
+last_updated: 2026-09-18
 ---

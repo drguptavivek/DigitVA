@@ -192,6 +192,17 @@ class OdkSchemaSyncService:
             # which covers ALL sites. Any given ODK project form only contains
             # choices for its own site, so deactivating against a single
             # site's form would incorrectly remove other sites' choices.
+            if stats["fields_added"]:
+                # New rows land with is_pii at its default False. Reapply the
+                # registry to this form type now so a WHO instrument field
+                # such as Id10073 is never exported unredacted between now
+                # and the next seed run. Idempotent; the caller (here) owns
+                # the transaction.
+                db.session.flush()
+                from app.services.pii_field_registry import apply_pii_field_registry
+
+                apply_pii_field_registry(form_type_code)
+
             _t_commit = time.monotonic()
             db.session.commit()
             print(f"[sync] commit done in {time.monotonic()-_t_commit:.2f}s")
@@ -412,6 +423,17 @@ class OdkSchemaSyncService:
                     stats["choices_updated"] += 1
             print(f"[sync:apply] updated_choices done in {time.monotonic()-_t:.2f}s  "
                   f"updated={stats['choices_updated']}")
+
+            if stats["fields_added"]:
+                # New rows land with is_pii at its default False. Reapply the
+                # registry to this form type now so a WHO instrument field
+                # such as Id10073 is never exported unredacted between now
+                # and the next seed run. Idempotent; the caller (here) owns
+                # the transaction.
+                db.session.flush()
+                from app.services.pii_field_registry import apply_pii_field_registry
+
+                apply_pii_field_registry(form_type_code)
 
             _t_commit = time.monotonic()
             db.session.commit()

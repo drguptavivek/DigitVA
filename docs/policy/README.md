@@ -24,7 +24,9 @@ Current policy docs:
 - [Data Manager User and Grant Management Policy](dm-user-grant-management.md)
 - [Data Manager Workflow Policy](data-manager-workflow.md)
 - [Demo Coding Retention Policy](demo-coding-retention.md)
+- [Field Data Collection Policy](field-data-collection.md) — permitted collection paths, unmasked collection vs masked coding, device encryption rules
 - [Final COD Authority Policy](final-cod-authority.md)
+- [Migration Chaining Policy](migration-chaining.md) — chain onto committed revisions only, which head moves, why working-tree checks cannot verify it
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)
 - [Organization Model Policy](organization-model.md) — per-project health-system tree, unit codes, cadres, workers, export/import
@@ -39,6 +41,7 @@ Current policy docs:
 - [Test Harness Policy](test-harness.md) — session-scoped schema, savepoint isolation, fixture rules
 - [UI Notification Policy](ui-notifications.md)
 - [User Management CLI Policy](user-management-cli.md)
+- [VA Form Project Configuration Policy](va-form-project-configuration.md) — extensions a project enables, narration languages vs display translations, geography codes
 - [Web Intake Policy](web-intake.md) — WHO VA 2022 questionnaire filled in DigitVA, death register, interviewer role
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)
 - [WHO 2022 ICD-10 Coding Allowability Policy](who-2022-icd10-coding-allowability.md)

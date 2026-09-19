@@ -28,10 +28,8 @@ from app.models import (
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
-    VaAccessScopeTypes,
     VaProjectMaster,
     VaStatuses,
-    VaUserAccessGrants,
 )
 from app.services import organization_service as org
 from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, scope_unit_ids_for_roles
@@ -44,41 +42,18 @@ def _error(message: str, status_code: int = 400):
 
 
 def _project_wide_grant_exists(project_id: str, roles: frozenset) -> bool:
-    """A project- or site-scoped grant in *roles* reaches the project's whole tree."""
-    from app.models import VaProjectSites
+    """A project- or site-scoped grant in *roles* reaches the project's whole tree.
 
-    project_scope = sa.select(sa.literal(1)).where(
-        sa.exists(
-            sa.select(1).where(
-                VaUserAccessGrants.user_id == current_user.user_id,
-                VaUserAccessGrants.grant_status == VaStatuses.active,
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-                VaUserAccessGrants.project_id == project_id,
-                VaUserAccessGrants.role.in_(roles),
-            )
-        )
-    )
-    if db.session.scalar(project_scope):
-        return True
-    site_scope = sa.select(sa.literal(1)).where(
-        sa.exists(
-            sa.select(1)
-            .select_from(VaUserAccessGrants)
-            .join(
-                VaProjectSites,
-                VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
-            )
-            .where(
-                VaUserAccessGrants.user_id == current_user.user_id,
-                VaUserAccessGrants.grant_status == VaStatuses.active,
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-                VaUserAccessGrants.role.in_(roles),
-                VaProjectSites.project_id == project_id,
-                VaProjectSites.project_site_status == VaStatuses.active,
-            )
-        )
-    )
-    return bool(db.session.scalar(site_scope))
+    Delegates to ``org_grant_service.project_wide_grant_exists``, which is
+    the single definition of this rule and documents exactly what it promises
+    about inactive grants, inactive project-sites, and admin bypass. The web
+    intake service's scope check calls the same function, so the picker an
+    interviewer sees and the check their submission is held to cannot
+    disagree.
+    """
+    from app.services import org_grant_service as grants
+
+    return grants.project_wide_grant_exists(current_user.user_id, project_id, roles)
 
 
 def _parse_role(raw: str | None) -> "VaAccessRoles | None":
@@ -160,6 +135,15 @@ def project_units(project_id: str):
       ``role`` narrows scoping to that one role's grants (e.g.
       ``role=interviewer`` for the web intake picker) instead of the union of
       every role the user holds on the project. Unknown value -> 400.
+
+    Each returned unit carries ``selectable``: ``true`` for a unit the
+    caller's grants actually reach, ``false`` for an ancestor unit included
+    only so a cascading client can render context above the caller's
+    reachable branch (e.g. the District/CHC above a PHC-scoped
+    interviewer's own unit) -- never a grantable choice. This is a UI
+    affordance only; the server-side scope check a submission is held to
+    (``web_intake_service._require_scope``) validates the submitted
+    ``org_unit_id`` against the reachable set independently of this flag.
     """
     project_id = (project_id or "").strip().upper()
     project = db.session.get(VaProjectMaster, project_id)
@@ -180,6 +164,39 @@ def project_units(project_id: str):
     units = org.list_units(project_id, include_inactive=include_inactive)
     if reachable is not None:
         units = [u for u in units if u["org_unit_id"] in {str(x) for x in reachable}]
+
+    # A scoped caller's `units` are their reachable subtree only -- a
+    # PHC-scoped interviewer never gets the District or CHC rows above it.
+    # A cascading client still needs those ancestors' *names* to show fixed
+    # (non-editable) context above the level it can actually choose at, so
+    # resolve them from the reachable units' `path` codes, in one query, and
+    # mark them `selectable: false`: implied context, never a grantable
+    # choice. This doesn't widen access -- those codes are already present
+    # in `path` on every reachable unit -- and it changes nothing about what
+    # `org_unit_id` the server will accept: `_require_scope` in
+    # web_intake_service validates the submitted id against the reachable
+    # set independent of this flag, so a forged ancestor id is refused there
+    # regardless of what the client does with `selectable`.
+    if reachable is not None:
+        for unit in units:
+            unit["selectable"] = True
+        own_codes = {unit["unit_code"] for unit in units}
+        ancestor_codes = {
+            code
+            for unit in units
+            for code in str(unit["path"]).split(".")[:-1]
+        } - own_codes
+        ancestor_units = (
+            org.list_units_by_codes(project_id, ancestor_codes, include_inactive=include_inactive)
+            if ancestor_codes
+            else []
+        )
+        for unit in ancestor_units:
+            unit["selectable"] = False
+        units = ancestor_units + units
+    else:
+        for unit in units:
+            unit["selectable"] = True
 
     return jsonify({
         "project_id": project_id,
@@ -209,6 +226,11 @@ def project_units(project_id: str):
                 "parent_code": unit["parent_code"],
                 "path": unit["path"],
                 "is_active": unit["is_active"],
+                # Context only, not a grantable choice, when false -- see
+                # the comment above where this is computed. The server-side
+                # scope check does not read this field; it exists purely so
+                # the picker can render ancestor context as fixed text.
+                "selectable": unit["selectable"],
             }
             for unit in units
         ],

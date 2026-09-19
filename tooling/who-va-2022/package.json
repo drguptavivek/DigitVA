@@ -5,13 +5,19 @@
   "description": "Bundles vendor/who-va-2022 (with DigitVA's extension) into app/static/vendor/who-va-2022.",
   "scripts": {
     "build": "node build.mjs",
-    "check": "node check.mjs"
+    "check": "node check.mjs",
+    "build:validator": "node build-validator.mjs",
+    "validator": "node validator-server.mjs",
+    "dev": "vite",
+    "build:web": "vite build",
+    "check:types": "node build-validator.mjs && node check-engine-types.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-native-web": "^0.19.13",
-    "pdfjs-dist": "^6.1.200"
+    "pdfjs-dist": "^6.1.200",
+    "vite": "^7.1.0"
   }
 }

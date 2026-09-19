@@ -517,3 +517,132 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(web_form.form_source, "web")
         self.assertEqual(web_form.odk_form_id, "WEB_WHOVA2022")
         self.assertEqual(web_form.odk_project_id, "0")
+
+    # ── organization unit lifecycle ────────────────────────────────────────
+
+    def _org_unit(self, *, active=True):
+        """A one-level tree with a single unit for this project."""
+        from app.models.mas_organization import MasOrgLevel, MasOrgUnit
+
+        level = db.session.scalar(
+            sa.select(MasOrgLevel).where(
+                MasOrgLevel.project_id == self.PROJECT_ID,
+                MasOrgLevel.level_code == "district",
+            )
+        )
+        if level is None:
+            level = MasOrgLevel(
+                project_id=self.PROJECT_ID,
+                level_code="district",
+                level_name="District",
+                depth=1,
+            )
+            db.session.add(level)
+            db.session.flush()
+        code = f"D{uuid.uuid4().hex[:6]}"
+        unit = MasOrgUnit(
+            org_unit_id=uuid.uuid4(),
+            project_id=self.PROJECT_ID,
+            org_level_id=level.org_level_id,
+            unit_code=code,
+            unit_name="Test District",
+            # ltree path of unit codes; a root unit's path is its own code.
+            path=code,
+            is_active=active,
+        )
+        db.session.add(unit)
+        db.session.flush()
+        return unit
+
+    def test_submit_is_refused_when_the_unit_was_deactivated(self):
+        """Routing only attributes to a live unit, and since the routed unit
+        decides who may code, an unrouted case reaches no coder at all. Fail
+        loudly while the draft is still safe."""
+        unit = self._org_unit()
+        # self.interviewer holds a project-scoped grant, which reaches any
+        # active unit of this tree project (that is the point of a
+        # project-scoped grant) — a different rule from the one under test
+        # here, which is about a unit going inactive after routing.
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+            org_unit_id=unit.org_unit_id,
+        )
+        unit.is_active = False
+        db.session.flush()
+
+        with self.assertRaises(intake_svc.WebIntakeError) as caught:
+            intake_svc.submit_draft(draft, self.interviewer, completion=self._completion())
+        self.assertIn("no longer active", str(caught.exception))
+        self.assertEqual(draft.status, "draft", "the draft must survive the refusal")
+
+    def test_a_deactivated_unit_contributes_no_code_to_the_payload(self):
+        unit = self._org_unit(active=False)
+        self.assertNotIn("org_district_code", intake_svc._unit_context(unit.org_unit_id))
+
+    # ── unit routing is mandatory in a tree project (regression guard) ─────
+    #
+    # Before this rule, a project- or site-scoped interviewer grant produced
+    # an empty ``org_units`` list from ``interviewer_context`` (unit-scoped
+    # grants are the only source), so the "unit required" check never fired
+    # and the entry was created with ``org_unit_id = NULL`` — unroutable, and
+    # so invisible to every coder. See docs/policy/organization-model.md.
+
+    def test_project_scoped_interviewer_in_tree_project_refused_without_unit(self):
+        self._org_unit()  # gives WIT01 an organization tree
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            self._register_death()
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("organization unit", str(ctx.exception))
+
+    def test_project_scoped_interviewer_in_tree_project_succeeds_with_any_unit(self):
+        # self.interviewer's grant is project-scoped (no unit grant at all),
+        # but a project-scoped interviewer grant reaches every active unit of
+        # the project — that is the point of a scope wider than one unit.
+        unit = self._org_unit()
+        death = self._register_death(org_unit_id=str(unit.org_unit_id))
+        self.assertEqual(death.org_unit_id, unit.org_unit_id)
+
+    def test_unit_scoped_interviewer_refused_a_unit_outside_their_subtree(self):
+        granted_unit = self._org_unit()
+        other_unit = self._org_unit()
+        unit_interviewer = self._get_or_make_user(
+            "web.unit.interviewer@test.local", "WebIntake123"
+        )
+        db.session.add(VaUserAccessGrants(
+            user_id=unit_interviewer.user_id,
+            role=VaAccessRoles.interviewer,
+            scope_type=VaAccessScopeTypes.org_unit,
+            org_unit_id=granted_unit.org_unit_id,
+            notes="unit-scoped web intake test grant",
+            grant_status=VaStatuses.active,
+        ))
+        db.session.flush()
+
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.register_death(
+                unit_interviewer,
+                project_id=self.PROJECT_ID,
+                site_id=self.SITE_ID,
+                org_unit_id=str(other_unit.org_unit_id),
+                deceased_name="Outside Subtree",
+                deceased_sex="male",
+                date_of_death=date.today().isoformat(),
+            )
+        self.assertEqual(ctx.exception.status_code, 403)
+
+        death = intake_svc.register_death(
+            unit_interviewer,
+            project_id=self.PROJECT_ID,
+            site_id=self.SITE_ID,
+            org_unit_id=str(granted_unit.org_unit_id),
+            deceased_name="Inside Subtree",
+            deceased_sex="male",
+            date_of_death=date.today().isoformat(),
+        )
+        self.assertEqual(death.org_unit_id, granted_unit.org_unit_id)
+
+    def test_no_tree_project_still_creates_entry_with_null_unit(self):
+        # PROJECT_ID has no MasOrgLevel row unless a test opts in via
+        # _org_unit(); this test deliberately does not.
+        death = self._register_death()
+        self.assertIsNone(death.org_unit_id)

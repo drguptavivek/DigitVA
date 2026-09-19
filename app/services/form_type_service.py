@@ -255,6 +255,18 @@ class FormTypeService:
                 synced_at=ch.synced_at,
             ))
 
+        db.session.flush()
+        # The rows just copied carry is_pii/pii_type as they stood on the
+        # source form type at clone time. If the source was never flagged (or
+        # was flagged after this clone would otherwise have run), the new
+        # form type silently starts unredacted and stays that way until the
+        # next seed run. Reapply the registry to this form type now so a
+        # clone never ships behind the source. Idempotent and does not
+        # override an operator's existing pii_type.
+        from app.services.pii_field_registry import apply_pii_field_registry
+
+        apply_pii_field_registry(new_ft.form_type_code)
+
         db.session.commit()
         return new_ft
 
@@ -516,6 +528,16 @@ class FormTypeService:
                 synced_at=now,
             ))
             stats["choices_created"] += 1
+
+        db.session.flush()
+        # Imported field rows carry whatever is_pii/pii_type the export data
+        # had, which may predate the registry or come from a source that was
+        # never flagged. Reapply the registry so an import never starts
+        # behind it. Idempotent and does not override an operator's existing
+        # pii_type.
+        from app.services.pii_field_registry import apply_pii_field_registry
+
+        apply_pii_field_registry(new_ft.form_type_code)
 
         db.session.commit()
         return new_ft, stats

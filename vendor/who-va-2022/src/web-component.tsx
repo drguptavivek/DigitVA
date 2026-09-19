@@ -9,7 +9,13 @@ import { createDraftId } from "./draft.js";
 import { createWhoVaSession } from "./engine/session.js";
 import { whoVa2022Instrument } from "./instrument.js";
 import { loadWhoVa2022Language } from "./instrument-loader.js";
-import type { SubmissionData, SubmissionValidationResult, WhoVaDraftStore, WhoVaSession } from "./types.js";
+import type {
+  InstrumentDefinition,
+  SubmissionData,
+  SubmissionValidationResult,
+  WhoVaDraftStore,
+  WhoVaSession
+} from "./types.js";
 import type { WhoVaPlatformServices } from "./ui/create-who-va-form.js";
 import { WhoVaForm } from "./web.js";
 
@@ -25,15 +31,23 @@ export class WhoVaFormElement extends HTMLElement {
   }
 
   private root: Root | undefined;
-  private readonly session: WhoVaSession;
+  private session: WhoVaSession;
+  /**
+   * The instrument the current session was built from. `setInstrument` only
+   * accepts a translation of the same semantic contract, so switching to a
+   * different questionnaire needs a new session rather than a language swap.
+   */
+  private sessionBase: InstrumentDefinition;
   private readonly generatedDraftId = createDraftId();
   private configuredDraftStore: WhoVaDraftStore | undefined;
+  private configuredInstrument: InstrumentDefinition | undefined;
   private configuredPlatform: WhoVaPlatformServices | undefined;
   private configuredLockedQuestionNames: readonly string[] = [];
   private renderVersion = 0;
 
   constructor() {
     super();
+    this.sessionBase = whoVa2022Instrument;
     this.session = createWhoVaSession(whoVa2022Instrument);
   }
 
@@ -106,6 +120,40 @@ export class WhoVaFormElement extends HTMLElement {
     if (this.isConnected) void this.renderForm();
   }
 
+  /**
+   * Render a questionnaire other than the built-in WHO 2022 instrument — for
+   * example one DigitVA generated from an XLSForm. Assign before connecting.
+   * Unset, the element loads the built-in instrument as before.
+   *
+   * Setting this disables the locale attribute's language loading, which only
+   * knows about the built-in instrument's translations.
+   */
+  get instrument(): InstrumentDefinition | undefined {
+    return this.configuredInstrument;
+  }
+
+  set instrument(instrument: InstrumentDefinition | undefined) {
+    if (instrument === this.configuredInstrument) return;
+    this.configuredInstrument = instrument;
+    if (this.isConnected) void this.renderForm();
+  }
+
+  /** Identifies the rendered questionnaire: its host key, name and version. */
+  get instrumentIdentity(): {
+    formTypeCode?: string;
+    id: string;
+    title: string;
+    version: string;
+  } {
+    const instrument = this.configuredInstrument ?? whoVa2022Instrument;
+    return {
+      ...(instrument.formTypeCode ? { formTypeCode: instrument.formTypeCode } : {}),
+      id: instrument.id,
+      title: instrument.title,
+      version: instrument.version
+    };
+  }
+
   /** Host-controlled attachment, recording, picker, and lifecycle services. */
   get platform(): WhoVaPlatformServices | undefined {
     return this.configuredPlatform;
@@ -120,9 +168,22 @@ export class WhoVaFormElement extends HTMLElement {
   private async renderForm(): Promise<void> {
     const renderVersion = ++this.renderVersion;
     const requestedLocale = this.getAttribute("locale") ?? "en";
-    const language = await loadWhoVa2022Language(requestedLocale);
+    // A host-supplied instrument is used as given: the language loader only
+    // carries translations for the built-in WHO instrument.
+    const language = this.configuredInstrument
+      ? { instrument: this.configuredInstrument, locale: requestedLocale, uiTranslations: {} }
+      : await loadWhoVa2022Language(requestedLocale);
     if (!this.isConnected || renderVersion !== this.renderVersion) return;
-    this.session.setInstrument(language.instrument);
+    const base = this.configuredInstrument ?? whoVa2022Instrument;
+    if (base !== this.sessionBase) {
+      // A different questionnaire: start a session for it. Answers do not
+      // carry across, which is the only safe reading of a contract change.
+      this.sessionBase = base;
+      this.session = createWhoVaSession(base);
+      this.session.setLockedQuestionNames(this.configuredLockedQuestionNames);
+    } else {
+      this.session.setInstrument(language.instrument);
+    }
     this.session.setLocale(language.locale, language.uiTranslations);
     const autoSaveDraftIntervalMs = this.getAutoSaveDraftIntervalMs();
     this.root ??= createRoot(this);

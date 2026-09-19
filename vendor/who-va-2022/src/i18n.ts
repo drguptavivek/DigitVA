@@ -58,6 +58,13 @@ export interface WhoVaUiMessageTemplates {
   audioRecordingFailed: string;
   selectedImage: string;
   savedImageLoadFailed: string;
+  scanBarcode: string;
+  getLocation: string;
+  updateLocation: string;
+  sign: string;
+  reSign: string;
+  draw: string;
+  redraw: string;
   openingCamera: string;
   camera: string;
   openingImages: string;
@@ -152,6 +159,13 @@ export interface WhoVaUiMessages {
   audioRecordingFailed: string;
   selectedImage: string;
   savedImageLoadFailed: string;
+  scanBarcode: string;
+  getLocation: string;
+  updateLocation: string;
+  sign: string;
+  reSign: string;
+  draw: string;
+  redraw: string;
   openingCamera: string;
   camera: string;
   openingImages: string;
@@ -228,6 +242,13 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   audioRecordingFailed: "Audio recording failed. Please try again.",
   selectedImage: "Selected image",
   savedImageLoadFailed: "The saved image could not be loaded from this device.",
+  scanBarcode: "Scan",
+  getLocation: "Get location",
+  updateLocation: "Update location",
+  sign: "Sign",
+  reSign: "Re-sign",
+  draw: "Draw",
+  redraw: "Redraw",
   openingCamera: "Opening camera…",
   camera: "Camera",
   openingImages: "Opening images…",

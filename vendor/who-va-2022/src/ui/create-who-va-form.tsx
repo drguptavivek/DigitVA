@@ -27,6 +27,7 @@ import {
 } from "../engine/validation.js";
 import { localeFromLanguageName, resolveUiMessages, type WhoVaUiTranslations } from "../i18n.js";
 import { WHO_VA_FORM_VERSION } from "../version.js";
+import { createRichText } from "./rich-text-view.js";
 import {
   createWhoVaQuestionControls,
   questionControlStyles,
@@ -39,6 +40,7 @@ import {
   interpolateSubmissionReferences,
   interviewerQuestionLabel,
   localized,
+  localizedRich,
   previewAnswer
 } from "./form-presentation.js";
 
@@ -204,6 +206,11 @@ export function createWhoVaForm(
   loadDefaultInstrument?: () => Promise<InstrumentDefinition>
 ): React.ComponentType<WhoVaFormProps> {
   const { View, Text, Pressable, ScrollView } = primitives;
+  // Labels, hints, guidance and choice labels may carry ODK's inline markup;
+  // 337 of the WHO guidance fields do. The presentation layer used to strip it,
+  // discarding the distinctions the form author drew, so every user-facing
+  // text field now renders through this instead.
+  const RichText = createRichText(Text);
   const svgPrimitives =
     primitives.Svg && primitives.SvgCircle && primitives.SvgPath
       ? { Svg: primitives.Svg, SvgCircle: primitives.SvgCircle, SvgPath: primitives.SvgPath }
@@ -211,6 +218,7 @@ export function createWhoVaForm(
   const questionControls = createWhoVaQuestionControls({
     View,
     Text,
+    RichText,
     TextInput: primitives.TextInput,
     DateInput: primitives.DateInput,
     Pressable,
@@ -609,11 +617,17 @@ export function createWhoVaForm(
       );
       const issues = draftIssue ? [...sessionIssues, draftIssue] : sessionIssues;
       const label = interviewerQuestionLabel(
-        interpolateSubmissionReferences(localized(question.label, locale, question.name), snapshot.data)
+        interpolateSubmissionReferences(
+          localizedRich(question.label, locale, question.name),
+          snapshot.data
+        )
       );
-      const hint = interpolateSubmissionReferences(localized(question.hint, locale, ""), snapshot.data);
+      const hint = interpolateSubmissionReferences(
+        localizedRich(question.hint, locale, ""),
+        snapshot.data
+      );
       const guidance = interpolateSubmissionReferences(
-        localized(question.guidance, locale, ""),
+        localizedRich(question.guidance, locale, ""),
         snapshot.data
       );
       const hasIssues = issues.length > 0;
@@ -652,7 +666,7 @@ export function createWhoVaForm(
         >
           <View style={styles.questionHeader}>
             <Text style={[styles.label, isQuestionComplete && styles.labelWithStatus]}>
-              {label}
+              <RichText source={label} />
               {question.required && question.control !== "note" ? (
                 <Text style={styles.required}> *</Text>
               ) : null}
@@ -667,8 +681,16 @@ export function createWhoVaForm(
               </View>
             ) : null}
           </View>
-          {hint ? <Text style={styles.hint}>{hint}</Text> : null}
-          {props.showSourceGuidance && guidance ? <Text style={styles.guidance}>{guidance}</Text> : null}
+          {hint ? (
+            <Text style={styles.hint}>
+              <RichText source={hint} />
+            </Text>
+          ) : null}
+          {props.showSourceGuidance && guidance ? (
+            <Text style={styles.guidance}>
+              <RichText source={guidance} />
+            </Text>
+          ) : null}
           {control}
           {issues.map((issue) => (
             <Text
@@ -737,6 +759,7 @@ export function createWhoVaForm(
     if (view === "preview") {
       return (
         <ScrollView
+          key="preview"
           style={styles.root}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
@@ -782,6 +805,7 @@ export function createWhoVaForm(
 
     return (
       <ScrollView
+        key="form"
         ref={scrollViewRef}
         style={styles.root}
         contentContainerStyle={styles.content}

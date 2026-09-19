@@ -1,7 +1,8 @@
 /** Presentation-only helpers and styles for the shared questionnaire form. */
 import React from "react";
 
-import { localizeText, resolveUiMessages } from "../i18n.js";
+import { resolveUiMessages } from "../i18n.js";
+import { localized, localizedRich } from "./localize.js";
 import type { AnswerValue, InstrumentQuestion, SubmissionData } from "../types.js";
 import type { WhoVaPrimitiveSet } from "./create-who-va-form.js";
 import { withWebTheme } from "./web-theme.js";
@@ -42,23 +43,7 @@ export function FooterIcon({
   );
 }
 
-function plainText(value: string | undefined): string {
-  if (!value) return "";
-  return value
-    .replace(/<br\s*\/?\s*>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .trim();
-}
-
-export function localized(
-  text: Record<string, string | undefined>,
-  locale: string,
-  fallback: string
-): string {
-  return plainText(localizeText(text, locale, fallback));
-}
+export { localized, localizedRich } from "./localize.js";
 
 export function interpolateSubmissionReferences(value: string, data: SubmissionData): string {
   return value.replace(/\$\{([^}]+)\}/g, (_match, name: string) => {

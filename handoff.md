@@ -1,15 +1,18 @@
 # Handoff
 
-Updated 2026-09-19 (DigitVA layers session). On top of the
-morning's `5b22094`, `742ea9d` and `10267ee`: the approved plan
-`docs/planning/web-capture-project-configuration-plan.md` and all of its
-work packages WP0 to WP6 landed;
-`origin/main` is at the commit that updated this file, working tree clean.
+Updated 2026-09-20 (layer translation session). `digitva-thr` is closed:
+all four work packages landed, the social autopsy layer is authored, and
+layer questions can be translated. On top of the previous session's
+`e0164d9`; `origin/main` is at the commit that updated this file, working
+tree clean.
 
 ## What landed
 
 | Commit | What |
 | --- | --- |
+| `1e94b4c` | Layer questions enter the translation reference via a generated artifact; the 0.95 coverage activation gate and `--force` removed; per-extension coverage; the choice-code convention recorded |
+| `78757d4` | The social autopsy layer authored from ND01 verbatim (`sa01`-`sa19`), plus an expression-tokenizer fix: a backslash is now an ordinary character, matching XPath 1.0 |
+| `702f518` | The importer learns the packed-cell conventions ND01 actually uses (newline, `" / "`, `English (Translation)`), and treats an unsplittable interleaved cell as untranslated |
 | `3a17d8c` | Viewer roles wired to routes; two scope leaks closed; per-unit coding gates; migration `a40c38e73af4` |
 | `b8d05ef` | WHO 2026 annex ICD-10 ranges as the `WHO_2022_VA_2026` scheme; migration `c5f2a8d1e9b3` |
 | `926c212` | Web intake configurability, organization-API ancestors, PII field registry; migration `b8e3d1f7a2c4` |
@@ -49,9 +52,12 @@ e1b6c9a3d7f4`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite **1,605 passed at `d04a9f8`**, `PYTEST_EXIT=0` read
-from pytest itself, plus the vendored package's 674 vitest tests at
-`VITEST_EXIT=0`. Earlier: 1,602 at `347bbf1` (1,570 after WP6, 1,499 after WP1, 1,469 after the project_pi predicate, 1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite **1,624 passed at `702f518`**, `PYTEST_EXIT=0` read
+from pytest itself, plus 16 tooling tests at `EXIT=0`. The vendored suite is
+715 tests and passes on a quiet machine, but is timing-flaky under load
+(`digitva-3jj`): a different test fails each run, which is how you tell it
+from a regression. Earlier: 1,618 at `78757d4` and at `1e94b4c`, 1,605 at
+`d04a9f8`, 1,602 at `347bbf1` (1,570 after WP6, 1,499 after WP1, 1,469 after the project_pi predicate, 1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -120,15 +126,105 @@ Two traps for whoever builds the next layer:
   meaning. `docs/planning/social-autopsy-rendering-plan.md` is a stale
   draft superseded by the layers model.
 
-Open: `digitva-thr.3` (the social autopsy layer's `sa01`-`sa19` questions
-from ND01) and `digitva-thr.4` (layer questions have no translation import
-path -- `reference_items()` validates against the one curated reference
-workbook, so `sa01` or `consent_mode` cannot be imported or coverage-scored;
-and ND01 appends Hindi after the English inside the *same* cell, so it needs
-a parser, not a straight import). Also `digitva-aiy`: relevance is purely
+Both `digitva-thr.3` and `digitva-thr.4` are now closed -- see "Layer
+translation (landed 2026-09-20)" below. One thing recorded here earlier was
+wrong and is worth correcting rather than deleting: ND01 does NOT lack a
+Hindi column and did not need a general parser. It has `label::Hindi (hi)`,
+whose cells pack `English\nHindi`, and `split_packed` already handled that --
+which is how Hindi reached 100 percent on the base instrument. What was
+genuinely missing was narrower: two other packing conventions and a
+reference source that included the layers at all. Also `digitva-aiy`:
+relevance is purely
 presentational, so answering a gate "no" can orphan image answers already
 captured -- pre-existing, but the gates widen it, and attachments phase 2
 turns those references into real files.
+
+## Layer translation (landed 2026-09-20)
+
+`digitva-thr` is closed. What was actually wrong, and what it cost to fix:
+
+**Layer questions existed only as TypeScript.** `createDigitVaExtension`
+composed them at runtime and nothing serialized them, so
+`who-va-2022.instrument.json` held the 449 WHO questions and none of
+DigitVA's, and `reference_items()` raised for any code but `WHO_2022_VA`.
+`consent_mode` and `md_available` therefore could not be imported, exported
+as XLIFF, edited or scored. `tooling/who-va-2022/build-layer-reference.mjs`
+now emits `vendor/who-va-2022/src/generated/digitva-layers.reference.json`
+by set difference against the WHO base, so it cannot drift as layers are
+added. It is deterministic on purpose -- no `built_at` -- and a byte-identical
+regenerate is a test. It emits a data file only; the browser bundle is
+untouched by it, and that isolation is pinned by a test that fingerprints the
+bundle directory by content hash rather than asking git (the git version
+conflated "the generator did not write there" with "nothing did").
+
+**Entries carry every contributing extension, not one.** `digitva_documents`
+belongs to both `medical_records` and `death_summary`; attributing it to
+whichever came first in the extension list would score it under a layer the
+project had not enabled.
+
+**Activation is no longer gated on coverage** (owner, 2026-09-20: "whatever
+the translation in the tool is the translation"). The 0.95 threshold, the
+auto-activate on import and `--force` are gone. English fallback already
+answers the question per string -- an untranslated key is ABSENT from the
+served payload, not empty, verified in `export_translations` and in the
+client's `setLocalized` -- so a percentage was deciding something it could
+not see. Coverage is still computed and reported, now per extension too.
+Base coverage keeps the WHO instrument's own 476 question labels as its
+denominator; layer labels are deliberately NOT folded in.
+
+**The social autopsy layer is ND01 verbatim, and that is the decision.**
+`sas01`-`sas07` keep their ordinal values ("1".."8") although they are the
+outlier against WHO's conventions and DigitVA's own, which are semantic.
+`mas_choice_mappings` already carries those ordinals for `sa01` against form
+type `WHO_2022_VA_SOCIAL`, and `submission_analytics_mv.py:371-374` projects
+`sa01`-`sa19` raw into the COD-snapshot CSV export, so a semantic recode
+would put two value shapes under one field id and one column. The
+`sa13`-`sa19` relevance expressions stay literal string comparisons against
+`"na"/"Na"/"nA"/"NA"` rather than `selected()`, which would change which
+answers reveal the field.
+
+**The choice-code convention, settled by the owner 2026-09-20:** questions
+DigitVA authors itself save semantic codes; questions mirrored from a
+deployed form keep that form's codes verbatim. Everything DigitVA had already
+authored complied, so it cost nothing to adopt.
+
+Three traps for whoever works here next:
+
+- **The expression tokenizer no longer treats backslash as an escape.**
+  ND01's `regex(.,'^(?!0{1,3}$)\d{1,3}$')` was being tokenized to `d{1,3}`,
+  which no digit-only answer satisfies. The first fix unescaped only `\'`
+  and `\"` and made a literal ending in a backslash throw instead of parse;
+  the rule now matches XPath 1.0, where a backslash is ordinary and the
+  doubled quote is the only escape. Safe because the corpus contains no
+  backslash at all -- verified across the generated instrument JSON, the
+  extension source, and the curated workbook's shared strings and every
+  sheet. **The vendored engine is the only evaluator of this grammar in the
+  system.** No Python parses it: `xlsform_instrument_builder.py:169-172`
+  passes expression text through as opaque `{"source": ...}` and says so in
+  its own docstring, and there is no pyxform/formpack/xpath dependency.
+- **`split_packed` fails closed, and that is load-bearing.** It splits only
+  on an exact match against the reference English. An unrecognised cell is
+  kept whole and reported rather than guessed at. Do not add fuzzy or
+  similarity matching to make a near miss "work" -- a near miss should be
+  visible as untranslated. Whitespace runs are collapsed for the comparison
+  only, never for the stored text.
+- **`intake_screen` and `geography` contribute no instrument questions, and
+  that is correct.** ND01's three-item `begin_screen` group is substituted by
+  a single admin-configured `intake_note` rendered as a client welcome card,
+  and geography's fields are server-injected after validation per decision
+  O4. The policy table at `docs/policy/va-form-project-configuration.md:51`
+  still describes both as question-contributing, which is how someone ends up
+  "restoring" server-injected fields as interviewer questions -- filed as
+  `digitva-c48`. The `geography` flag itself is derived and served but has no
+  consumer anywhere: `digitva-ybt`.
+
+Filed this session and deliberately out of scope: `digitva-c48` (stale policy
+table), `digitva-ybt` (dead geography flag), `digitva-cal` (the server takes
+the client's own `valid` boolean as the validity gate -- pre-existing, and a
+decision to take rather than a bug to fix, given interviewers are
+authenticated), `digitva-ssi` (an ODK site-mapping POST may not be idempotent
+under extreme latency), `digitva-3jj` (the vendored vitest suite is
+timing-flaky under machine load).
 
 ## The vendored bundle was stale (fixed this session)
 
@@ -159,13 +255,24 @@ the panel or `flask instrument-translations export-xliff` / `import-xliff`;
 where a string has no translation the form shows English. Whether the
 curated reference form itself moves from V1.1 to V2.0 is `digitva-13x`.
 
+**`digitva-thr` is closed.** All four work packages landed; the section
+"Layer translation (landed 2026-09-20)" below has the detail and the traps.
+The media parts are still attachments phase 2.
+
+**Operator step, not optional:** re-import each language to pick up the
+corrected packed-cell splitting. Three items were being stored wrong on
+every deployment before `702f518` -- `language/hindi` as `Hindi (हिन्दी)`,
+`language/english` as `English (English)`, and `Id10184_a`'s hint as English
+-- and a re-import is the only thing that fixes rows already in the database.
+Administrator edits are never overwritten, so this is safe to run.
+
 Open after this pass, in order:
 
-0. `digitva-thr` WP-A landed (`d04a9f8`); what remains is `digitva-thr.3`
-   (the social autopsy layer's questions from ND01) and `digitva-thr.4`
-   (layer questions have no translation import path, which blocks Hindi
-   for them). See "DigitVA layers" below. The media parts are still
-   attachments phase 2.
+0. `digitva-aiy`: relevance is purely presentational, so answering a gate
+   "no" can orphan image answers already captured. Settle it before
+   attachments phase 2 turns those references into real files. Related and
+   newly filed: `digitva-cal`, the server accepting the client's own `valid`
+   boolean as the questionnaire validity gate.
 1. ICD-11 phases 3 to 6 with decisions D1 to D6 all recorded, plus the
    project ICD classification default (web forms have no ODK mapping row,
    so `get_icd_classification_for_submission` returns `icd10` for them);

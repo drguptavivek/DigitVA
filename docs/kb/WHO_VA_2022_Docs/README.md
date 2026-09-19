@@ -18,12 +18,13 @@ for each language is policy, recorded in
 this README only inventories the files.
 
 Downloaded from the projects' ODK Central deployments by the owner on
-2026-09-19 (the reference form on 2026-09-17). No respondent data; XLSForm
+2026-09-19 (the reference form on 2026-09-17; the WHO multilingual V2.0 form on 2026-09-19). No respondent data; XLSForm
 definitions only. `sha256` is the first twelve hex characters.
 
 | File | ODK form id | Version | Title | Label languages | sha256 |
 | --- | --- | --- | --- | --- | --- |
 | `whova2022_xls_form_for_odk.xlsx` | `va_who_2022` | `2023072701` | 2022 WHO Verbal Autopsy instrument V1.1 (reference) | en, fr | `50b019ff163e` |
+| `2022whova_xls_form_for_odk_multilingual.xlsx` | `va_who_2022` | `2026081401` | 2022 WHO Verbal Autopsy instrument V2.0 (WHO multilingual release; translation source only) | en, fr, pt, ar, sw, es | `05e123884c04` |
 | `RJ01_ICMRVA_WHOVA2022.xlsx` | `RJ01_ICMRVA_WHOVA2022` | `RJ01_ICMRVA_WHOVA2022_20251203` | (RJ01 ICMR VA) 2022 WHO Verbal Autopsy Instrument V1.1 | en, hi | `3519fc20295a` |
 | `KA01_DS_WHOVA2022.xlsx` | `KA01_DS_WHOVA2022` | `KA01_DS_WHOVA2022_20250726` | (KA01) 2022 WHO Verbal Autopsy Instrument V1.1 | en, hi, kn, mr | `dee58c3d9828` |
 | `KEM_VAADU_WHOVA2022.xlsx` | `KEM_VAADU_WHOVA2022` | `KEM_VAADU_WHOVA2022_V2.2` | KEM VAADU 2022 WHO Verbal Autopsy Instrument V2.2 | en, hi, mr | `d826bc0e18b6` |

@@ -156,13 +156,23 @@ in `docs/kb/WHO_VA_2022_Docs/`, inventoried by that folder's README.
 | Khasi | kha | ML01_ICMRVA_WHOVA2022.xlsx | ML01 ICMR VA | ML01_ICMRVA_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
 | Odia | or | OD01_ICMRVA_WHOVA2022.xlsx | OD01 ICMR VA | OD01_ICMRVA_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
 | Bangla | bn | TR01_DS_WHOVA2022.xlsx | TR01 DS | TR01_DS_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
-| French | fr | whova2022_xls_form_for_odk.xlsx | WHO reference form | va_who_2022 | 2026-09-17 | DigitVA Data Collection owner |
+| French | fr | 2022whova_xls_form_for_odk_multilingual.xlsx | WHO multilingual form V2.0 | va_who_2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Portuguese | pt | 2022whova_xls_form_for_odk_multilingual.xlsx | WHO multilingual form V2.0 | va_who_2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Arabic | ar | 2022whova_xls_form_for_odk_multilingual.xlsx | WHO multilingual form V2.0 | va_who_2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Swahili | sw | 2022whova_xls_form_for_odk_multilingual.xlsx | WHO multilingual form V2.0 | va_who_2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Spanish | es | 2022whova_xls_form_for_odk_multilingual.xlsx | WHO multilingual form V2.0 | va_who_2022 | 2026-09-19 | DigitVA Data Collection owner |
 
 Cross-check workbooks carry the same language but are *not* its source. They
 are read only with `--cross-check`, which reports differences and writes
 nothing: Hindi against `KA01_DS_WHOVA2022.xlsx` and `KEM_VAADU_WHOVA2022.xlsx`,
 Tamil against `PY01_ICMRVA_WHOVA2022.xlsx`, Marathi against
-`KA01_DS_WHOVA2022.xlsx`.
+`KA01_DS_WHOVA2022.xlsx`. The curated reference form
+`whova2022_xls_form_for_odk.xlsx` (V1.1) carries French on its choices sheet
+only; the WHO multilingual form V2.0 (`2022whova_xls_form_for_odk_multilingual.xlsx`,
+form version `2026081401`) carries the same 479 question names with full
+French, Portuguese, Arabic, Swahili and Spanish labels and hints, and is the
+source for those five. It is a translation source only: whether the
+reference form itself moves from V1.1 to V2.0 is a separate decision.
 
 Instrument locale codes are a separate axis from `mas_languages` codes (`kha`
 here is `khasi` there). Nothing maps between them, and adding a

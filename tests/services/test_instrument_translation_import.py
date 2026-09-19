@@ -392,7 +392,8 @@ class DocumentedSourceTableTests(unittest.TestCase):
         sources = svc.documented_sources()
         self.assertEqual(
             set(sources),
-            {"hi", "ta", "kn", "mr", "ml", "kha", "or", "bn", "fr"},
+            {"hi", "ta", "kn", "mr", "ml", "kha", "or", "bn",
+             "fr", "pt", "ar", "sw", "es"},
         )
         for locale, source in sources.items():
             with self.subTest(locale=locale):
@@ -417,9 +418,10 @@ class RealWorkbookCoverageTests(unittest.TestCase):
     with ``cross_check``, so it needs no database.
     """
 
-    #: The eight deployed Indian-language forms, all fully translated as
-    #: downloaded on 2026-09-19.
-    COVERED = ("hi", "ta", "kn", "mr", "ml", "kha", "or", "bn")
+    #: The eight deployed Indian-language forms plus the five languages of
+    #: the WHO multilingual V2.0 form, all fully translated as downloaded on
+    #: 2026-09-19.
+    COVERED = ("hi", "ta", "kn", "mr", "ml", "kha", "or", "bn", "fr", "pt", "ar", "sw", "es")
 
     def test_every_deployed_language_reaches_the_threshold(self):
         sources = svc.documented_sources()
@@ -438,16 +440,17 @@ class RealWorkbookCoverageTests(unittest.TestCase):
                     "reference's survey labels",
                 )
 
-    def test_french_is_documented_but_the_reference_has_no_french_survey_labels(self):
-        """The one documented language that cannot be activated as it stands.
+    def test_the_reference_form_alone_cannot_source_french(self):
+        """Why French is sourced from the WHO multilingual form, not the reference.
 
-        The WHO reference workbook carries French on its *choices* sheet only,
-        so `fr` reaches 0% of survey labels and the gate refuses it. Pinned
-        here so the gap is a recorded fact rather than a surprise.
+        The curated V1.1 reference carries French on its *choices* sheet
+        only, so it reaches 0% of survey labels. Pinned so the source choice
+        in the policy table stays explained; the documented source is
+        exercised by the coverage test above.
         """
-        sources = svc.documented_sources()
         report = svc.import_translations(
-            "WHO_2022_VA", "fr", svc.WORKBOOK_DIR / sources["fr"].workbook,
+            "WHO_2022_VA", "fr",
+            svc.WORKBOOK_DIR / "whova2022_xls_form_for_odk.xlsx",
             cross_check=True,
         )
         self.assertEqual(report.translated_labels, 0)

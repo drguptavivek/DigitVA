@@ -1,7 +1,7 @@
 # Review WHO 2026 Annex 1 ICD-10 changes and ICD-11 correspondences
 
-- **Status:** items 1-3 done (adopted, landed in dev DB, coder-facing PDF
-  regenerated — all 2026-09-18). Item 4 (ICD-11 support) still open, tracked
+- **Status:** items 1-3 done and committed (`3177f8a`); follow-ups in
+  `.tasks/who-2026-annex-followups.md`. Item 4 (ICD-11 support) still open, tracked
   separately.
 - **Priority:** medium
 - **Created:** 2026-09-16
@@ -192,9 +192,8 @@ passed, the full file passed (28), and `test_icd10_2019_2_service.py` passed (5)
 tests were not mutation-tested. No test covers the two new CLI commands or migration
 `c5f2a8d1e9b3`.
 
-**Not yet committed to git** — see git status for the full file list before
-committing (policy doc, this task file, the two service/command files, and
-the new migration-artifacts folder).
+**Committed:** `3177f8a` (2026-09-19). Migration `c5f2a8d1e9b3` re-chained onto `a40c38e73af4` at landing.
+Follow-ups: `.tasks/who-2026-annex-followups.md`.
 
 **Still open:** item 4 (ICD-11 catalog / self-hosted API / ECT integration,
 tracked separately in `docs/planning/icd11-self-hosted-api-and-ect-plan.md`).

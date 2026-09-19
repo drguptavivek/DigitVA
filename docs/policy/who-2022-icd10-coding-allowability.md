@@ -145,8 +145,17 @@ expands from `R95-R99` to `R00-R09; R11-R94; R96-R99`.
   selectable (three-character granularity; `R08` does not exist in ICD-10),
   both sexes, all ages.
 - `R11`-`R94` become selectable (three-character granularity) EXCEPT `R10`,
-  which stays reserved to `VAs-06.01` (Acute abdomen) and is excluded from
-  this grant.
+  which is excluded from this grant.
+
+  **Correction (2026-09-19):** an earlier version of this line said `R10`
+  "stays reserved to `VAs-06.01` (Acute abdomen)". That is not what the data
+  does. `R10` is not selectable at all, it is absent from the frozen
+  2026-revision workbook, and the live scheme maps it by manual override to
+  a non-WHO bucket, "Other Gastrointestinal Diseases". The override was
+  carried forward deliberately; the sentence describing it was wrong.
+  Whether `R10` should instead be reserved to `VAs-06.01` is a clinical
+  decision, recorded in `.tasks/who-2026-annex-followups.md`, not something
+  this document should assert until it is made.
 - `R96`-`R99` were already selectable and are unchanged.
 
 **`VAs-10.99` (Other and unspecified perinatal cause of death):** `R95` moves

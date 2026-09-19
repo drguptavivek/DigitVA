@@ -56,6 +56,9 @@ dolt-server.activity
 
 # Backup data (auto-exported JSONL, local-only)
 backup/
+# Backup pointer written by `bd init` -- contains an absolute path to this
+# machine's checkout, so it is wrong in every other clone.
+dolt-backup.json
 
 # Per-project environment file (Dolt connection config, GH#2520)
 .env

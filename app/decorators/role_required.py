@@ -27,6 +27,10 @@ For API routes (/api/* or /admin/api/*): JSON response.
 For web routes: redirect to login (401) or flash + abort(403).
 
 This decorator subsumes @login_required — do not stack both.
+
+Role names are checked against _ROLE_METHODS when the decorator is applied, so
+an unknown or misspelled name fails at import rather than turning into a route
+that silently 403s everyone.
 """
 
 import logging
@@ -60,7 +64,34 @@ _ROLE_METHODS = {
 
 
 def role_required(*roles):
-    """Gate a route by role. OR semantics — user must hold at least one role."""
+    """Gate a route by role. OR semantics — user must hold at least one role.
+
+    Role names are validated at decoration time (i.e. at import). An unknown
+    name raises ValueError rather than being silently dropped from the check —
+    otherwise a typo, or a role that exists in ``VaAccessRoles`` but has no
+    predicate here yet, produces a route that 403s every user including admins
+    while logging the bogus name as if it were real.
+
+    ``_ROLE_METHODS`` is deliberately NOT derived from ``VaAccessRoles``: a role
+    becomes routable only when someone adds an explicit predicate for it.
+    """
+    if not roles:
+        raise ValueError(
+            "role_required() requires at least one role name; a bare "
+            "role_required() would deny every user including admins. "
+            f"Valid roles: {', '.join(sorted(_ROLE_METHODS))}."
+        )
+
+    unknown = [role for role in roles if role not in _ROLE_METHODS]
+    if unknown:
+        raise ValueError(
+            "role_required() got unknown role name(s): "
+            f"{', '.join(repr(r) for r in unknown)}. "
+            f"Valid roles: {', '.join(sorted(_ROLE_METHODS))}. "
+            "A role in VaAccessRoles is not routable until it has an explicit "
+            "predicate in _ROLE_METHODS."
+        )
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -93,11 +124,7 @@ def role_required(*roles):
                 return redirect(url_for("va_auth.va_login"))
 
             # ── Layer 3: Role check ──────────────────────────────────────────
-            if not any(
-                _ROLE_METHODS[role](current_user)
-                for role in roles
-                if role in _ROLE_METHODS
-            ):
+            if not any(_ROLE_METHODS[role](current_user) for role in roles):
                 role_label = " or ".join(roles)
                 log.warning(
                     "Access denied — insufficient role: user=%s required=%s path=%s ip=%s",

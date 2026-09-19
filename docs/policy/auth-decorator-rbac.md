@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-05
+last_updated: 2026-09-19
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -38,7 +38,11 @@ DigitVA uses a 4-layer access control model. This policy governs **Layer 2
 
 ## 2. RBAC Role Definitions
 
-Roles are defined in `VaAccessRoles` enum (`app/models/va_selectives.py`):
+Roles are defined in `VaAccessRoles` enum (`app/models/va_selectives.py`).
+Being in that enum makes a role **grantable**; it does not make it **routable**.
+A role is routable only when `_ROLE_METHODS` carries an explicit predicate for
+it (see below), and `docs/policy/access-control-model.md` is the reference for
+what each role may reach.
 
 | Role | Enum value | Scope types | Access meaning |
 |---|---|---|---|
@@ -48,7 +52,10 @@ Roles are defined in `VaAccessRoles` enum (`app/models/va_selectives.py`):
 | `coder` | `coder` | `project`, `project_site` | Codes VA forms within assigned scope |
 | `reviewer` | `reviewer` | `project`, `project_site` | Reviews coded forms within assigned scope |
 | `data_manager` | `data_manager` | `project`, `project_site` | Manages data pipeline within assigned scope |
-| `collaborator` | `collaborator` | TBD | No routes currently serve this role |
+| `collaborator` | `collaborator` | `project`, `project_site`, `org_unit` | Read-only viewer, personal data redacted |
+| `collaborator_pii` | `collaborator_pii` | `project`, `project_site`, `org_unit` | Same reach as `collaborator`; personal data not redacted |
+| `coding_tester` | `coding_tester` | `project`, `project_site` | Exercises coding routes without affecting real workflow counts |
+| `interviewer` | `interviewer` | `project_site` | Web intake — records submissions for their site |
 
 ### Admin bypass
 
@@ -68,8 +75,46 @@ def role_required(*roles):
     """Gate route by role. OR semantics — user must have at least one."""
 ```
 
-Supported role strings: `"admin"`, `"coder"`, `"reviewer"`, `"data_manager"`,
-`"site_pi"`, `"project_pi"`
+Supported role strings are exactly the keys of `_ROLE_METHODS`: `"admin"`,
+`"coder"`, `"coding_tester"`, `"reviewer"`, `"data_manager"`, `"site_pi"`,
+`"project_pi"`, `"interviewer"`.
+
+### Role-name validation (at decoration time)
+
+`role_required()` checks its arguments against `_ROLE_METHODS` when the
+decorator is applied — that is, at import — and raises `ValueError` naming the
+unknown role(s) and listing the valid set. A bare `role_required()` with no
+arguments is rejected the same way.
+
+**Why this is not a runtime check.** The role check is an `any()` over the
+listed roles. Unknown names used to be filtered out before that `any()`, so a
+route decorated only with names absent from `_ROLE_METHODS` evaluated `any()`
+over an empty generator: **403 for every user, including admins**, with the
+bogus names printed in the log line as if they were real. It failed closed,
+which is the right direction, but silently — a typo was indistinguishable from
+a deliberately locked-down route. Validating at import converts that into a
+startup failure. This was hit twice independently on 2026-09-19.
+
+**`_ROLE_METHODS` must never be derived from `VaAccessRoles`.** A role may be
+grantable without being routable, and the gap is deliberate: a role becomes
+reachable over HTTP only when someone writes a predicate for it and thinks about
+what that opens. Auto-populating the dict from the enum — as a comprehension, a
+`dict()` call, or any other generated form — would turn every present and future
+enum member into a live gate, silently widening access behind what looks like a
+fix for the unknown-role error. The correct response to that error is always to
+add the predicate deliberately, or to correct the name.
+
+PII visibility is **not** decided here. `collaborator` and `collaborator_pii`
+have identical reach, so a route gating on one gates on the other; whether
+personal data is redacted is decided downstream by
+`viewer_pii_service.should_redact_pii`. Do not infer redaction from route access.
+
+Tests: `tests/test_role_required_validation.py` covers the raise, the positive
+controls (a valid role still admits its holder and still refuses a non-holder),
+that the raise happens at decoration rather than first request, that every role
+name at an existing `role_required(...)` call site is accepted, and — as an
+`ast` check on the source — that `_ROLE_METHODS` remains a dict literal with
+written-out string keys.
 
 ### Behavior
 

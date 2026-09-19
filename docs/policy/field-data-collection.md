@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Field Data Collection Policy
@@ -137,10 +137,10 @@ real interviews**, and must be pointed at a non-production DigitVA.
 
 | # | Question | Status |
 |---|---|---|
-| C1 | Device credential lifetime and refresh-rotation interval | **Open.** Sharpened by C2: the credential is per (device, interviewer), so a lifetime long enough for a multi-day offline circuit sits on a handset other people also use |
+| C1 | Device credential lifetime and refresh-rotation interval | ~~Open.~~ Sharpened by C2: the credential is per (device, interviewer), so a lifetime long enough for a multi-day offline circuit sits on a handset other people also use. **Deferred 2026-09-19:** with the native app, not open; decided when that work starts |
 | C2 | One device per interviewer, or shared? | **Decided 2026-09-18:** shared, with one encrypted store per interviewer |
 | C3 | Retention ceiling for an unsent interview | **Decided 2026-09-18:** no ceiling; purge only after a confirmed push. Accepted risk recorded above |
-| C4 | Distribution and signing-key custody | **Deferred 2026-09-18:** unsigned development builds for now; must be settled before the app collects real interviews |
+| C4 | Distribution and signing-key custody | ~~Deferred 2026-09-18: unsigned development builds for now; must be settled before the app collects real interviews~~ **Deferred 2026-09-19:** with the native app, not open; decided when that work starts |
 
 ## References
 

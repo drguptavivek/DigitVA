@@ -193,6 +193,12 @@ group paths and a payload key arrives the same way.
 Web-intake submissions route by the same rules: the web questionnaire carries
 the same fields and the project-site's mapping supplies the same fallback.
 
+**Web submissions route identically to ODK ones.** The web draft's
+`_unit_context` (`web_intake_service.py:292-308`) resolves the interviewer's
+unit the same way ODK submissions do, filling `org_<level_code>_code` from it
+rather than through a separate path; an end-to-end test of the routing lands
+as WP3 (`tests/routes/test_intake_org_routing_e2e.py`).
+
 ### When routing fails
 
 An unrouted submission of a tree project is codeable by **nobody** until a

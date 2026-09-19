@@ -3,7 +3,7 @@ title: WHO VA 2022 Web Intake — Integrating the who-2022-va Questionnaire Pack
 doc_type: planning
 status: proposed
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # WHO VA 2022 Web Intake — Integrating the who-2022-va Questionnaire Package
@@ -187,12 +187,12 @@ with submissions routed to the right organization unit by the standard
 
 | # | Question | Recommendation |
 |---|---|---|
-| W1 | Server-side validation | Node validator sidecar running the package's `validateSubmission()`; Python does structural checks only. Avoids porting 450 questions of skip logic. |
+| W1 | Server-side validation | Node validator sidecar running the package's `validateSubmission()`; Python does structural checks only. Avoids porting 450 questions of skip logic. **Resolved 2026-09-19:** the sidecar decision stands; wiring is scheduled in the consolidated plan's step 2, not here. |
 | W2 | Asset delivery | **Decided:** vendored source copy plus committed bundle under `app/static/vendor`, no CDN. |
 | W3 | Who may fill forms | New `interviewer` role, cadre-gated, unit-scoped when available. |
 | W4 | Virtual form granularity | One web form per project-site (container site for tree projects); routing to units happens by the code fields, as for ODK. |
 | W5 | Unique id format | **Decided:** PostgreSQL sequence, `<unit_code>-<seq>`, assigned at death registration or first draft save; UUID internally. |
-| W6 | Mandatory media | Same as the ODK form today (audio narration expected); confirm with the field lead. |
+| W6 | Mandatory media | Same as the ODK form today (audio narration expected); confirm with the field lead. **Resolved 2026-09-19:** no media is mandatory; audio narration is encouraged; a typed narrative is wanted; medical papers, discharge summaries and prior death certificates are uploaded as available. Mandatory-media rules, if ever, are project configuration added with attachments phase 2. |
 
 ## Spike results (2026-09-18, run on the host with Node 24 in a scratch project)
 

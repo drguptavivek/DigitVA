@@ -1,10 +1,10 @@
 # ICD-11 in the coding screen
 
-- Status: in progress (2026-09-17) — phases 1–2 implemented (catalog, importer,
+- Status: in progress (2026-09-19) — phases 1–2 implemented (catalog, importer,
   CLI, migration, read-only admin browser, `icd_classification` setting,
-  classification-aware code regex/helper); phases 3–6 not started. Decisions
-  D1 and D4 implemented as recommended; D2, D3, D5, D6 still pending the
-  lead's confirmation.
+  classification-aware code regex/helper); phases 3–6 still not started.
+  Decisions D1–D6 all recorded (see the plan's decisions table, resolved
+  2026-09-19); the ICD-11 policy draft generation is a follow-up.
 - Priority: high
 - Created: 2026-09-17
 

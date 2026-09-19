@@ -66,6 +66,14 @@ Earlier decisions stay in their own documents (W1–W6 in the web-intake plan,
 O1–O8 in the organization plan, C1–C4 in the collection policy). These are the
 ones taken while consolidating, which cut across all of them.
 
+**W6 (mandatory media), resolved 2026-09-19:** no media is mandatory; audio
+narration is encouraged; a typed narrative is wanted; medical papers,
+discharge summaries and prior death certificates are uploaded as available.
+Mandatory-media rules, if ever, are project configuration added with
+attachments phase 2. See
+[`who-va-2022-web-intake-plan.md`](who-va-2022-web-intake-plan.md#decisions-to-confirm)
+for the full record.
+
 | # | Decision | Date | Rationale |
 |---|---|---|---|
 | E1 | DigitVA keeps its own engine (`vendor/who-va-2022`) rather than adopting ODK Central's `@getodk/xforms-engine` | 2026-09-18 | It is ours to extend, it already has drafts, attachments and a React Native path, and phase 1 ships against it. ODK's engine covers more of the spec but has no offline drafts or audio capture, and needs a DOM. |
@@ -132,7 +140,7 @@ Verified means it was exercised, not merely written.
 | Submission with attachments never leaves `attachment_sync_pending` | `web_intake_service.submit_draft` | Latent: masked while no platform services exist. Must be fixed in the same change that enables attachments. |
 | Engine test suite: 13 stale failures | `vendor/who-va-2022/tests` | Expectations predate the vendored extension. [Task](../../.tasks/who-va-engine-test-suite-stale.md) |
 | Engine test suite is flaky | `web-validation-navigation` | One intermittent failure across full runs; passes in isolation. |
-| A project-scoped interviewer produces an unattributable case | `web_intake_service._require_scope` | In a project with an organization tree, an interviewer holding a project- or site-scoped grant has no units listed, so the draft is created with `org_unit_id = NULL`, fails to route, and — since organization phase 4 — is codeable by nobody. Fix needs the organization tree API so they can pick any unit in the project; then make the unit required whenever the project has levels. |
+| ~~A project-scoped interviewer produces an unattributable case~~ | `web_intake_service._require_scope` | **Resolved 2026-09-19:** `_require_scope` in `app/services/web_intake_service.py` (lines 235-279) now requires a unit in any tree project; `tests/services/test_web_intake_service.py` (lines ~590-644) cover it. An end-to-end routing test lands as WP3 (`tests/routes/test_intake_org_routing_e2e.py`). |
 | A converted instrument lacks DigitVA's extension fields | converter output | Language choices render as the workbook's placeholders. Either author those fields into each XLSForm or compose them after conversion. |
 
 ### Evidence for E7–E9 (measured 2026-09-18)
@@ -388,12 +396,12 @@ commit 4 because it verifies it.
 
 | # | Question | Blocking |
 |---|---|---|
-| C1 | Device credential lifetime and refresh rotation, on a shared handset | The native app |
+| C1 | ~~Device credential lifetime and refresh rotation, on a shared handset~~ | **Deferred 2026-09-19:** with the native app, not open; decided when that work starts. |
 | Q1 | ~~Extension fields: authored or composed?~~ | **Resolved 2026-09-18:** the deployed forms already carry them (`unique_id`, `Site`, `imagenarr`, `md_im*`), so converting a deployed form needs no composition step. Which fields exist still varies by site, so the reference form must be chosen deliberately. |
 | Q3 | ~~Which deployed form is the reference?~~ | **Resolved 2026-09-18 by survey:** `NC01_DS_WHOVA2022` for WHO_2022_VA (507 questions, every standard field but the server-generated `unique_id2`); any of the ICMRVA forms for WHO_2022_VA_SOCIAL (538 questions, 10/10 standard fields, structurally identical to each other). `KEM_VAADU` and `NC01_TVA` are **not** suitable — they lack `narr_language`, `ds_im*` and, for KEM, `survey_state`/`survey_district`. Who signs off on a rebuild is still open. |
 | Q4 | ~~Where do the configuration lists come from?~~ | **Resolved 2026-09-18:** narration languages from per-project language settings; geography codes from the project's organization hierarchy; display translations from the system-wide translation catalogue. |
 | Q5 | ~~Are `language` and `narr_language` duplicates?~~ | **Resolved 2026-09-18:** no. `language` is the language the form is displayed in; `narr_language` is the language the narrative was recorded in. Both stay, fed from different sources. |
-| Q6 | How do the standardized project geography codes bind to `org_<level_code>_code` routing — same codes, or a mapping? | The geography extension |
+| Q6 | ~~How do the standardized project geography codes bind to `org_<level_code>_code` routing — same codes, or a mapping?~~ | **Resolved 2026-09-19** by [`docs/policy/va-form-project-configuration.md`](../policy/va-form-project-configuration.md): geography codes are the unit codes themselves, no mapping table; the web form fills `org_<level_code>_code` from `_unit_context`. |
 | Q2 | ~~Upstream merge policy~~ | **Resolved 2026-09-18:** the vendored copy is DigitVA's own and may be restructured freely; upstream fidelity is not a constraint. |
 
 ## References

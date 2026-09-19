@@ -67,6 +67,33 @@ docker compose exec minerva_app_service uv run flask org import <project_id> org
 
 Policy: `docs/policy/organization-model.md`.
 
+## `instrument-translations` — Instrument display languages
+
+```bash
+docker compose exec minerva_app_service uv run flask instrument-translations status [--instrument-code WHO_2022_VA]
+docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi docs/kb/WHO_VA_2022_Docs/RJ01_ICMRVA_WHOVA2022.xlsx
+docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi <other.xlsx> --cross-check
+docker compose exec minerva_app_service uv run flask instrument-translations activate WHO_2022_VA hi [--force]
+docker compose exec minerva_app_service uv run flask instrument-translations deactivate WHO_2022_VA hi
+docker compose exec minerva_app_service uv run flask instrument-translations export WHO_2022_VA hi [--output hi.json]
+```
+
+`import` reads the language's **documented source workbook** — the one named
+for that locale in the "Translation sources" table of
+`docs/policy/va-form-project-configuration.md` — and refuses any other unless
+`--cross-check`, which reports differences and writes nothing. It merges by
+question `name` and by `list_name`/`name` for choices, splits cells packing
+English and the target language, keeps rows an administrator has edited, and
+never creates a question. The locale is activated when coverage of the
+reference form's survey labels reaches 0.95; `--force` activates below that and
+logs it.
+
+**Running one `import` per documented language is an operator step on a new
+install, not a migration** — migrations import no application code and must not
+read reference workbooks. The Instrument Translations admin panel does the same
+work through the browser. Policy: `docs/policy/va-web-form-options.md`
+("Adding a language").
+
 ## `icd11` — ICD-11 MMS master data
 
 ```bash

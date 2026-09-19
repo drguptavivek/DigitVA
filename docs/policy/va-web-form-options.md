@@ -64,14 +64,15 @@ list and `flask form-types list` show it, and the form-type PATCH sets it.
 | Option | Type | Set today | Notes |
 |---|---|---|---|
 | `locale` | string (attribute) | **Yes** — `default_locale` from the project (2026-09-19) | Always `en`, the instrument's base language. Decided 2026-09-19: there is no per-project default; the stored column is honoured only when it names a locale the instrument has, and is otherwise `en`. |
-| `available_locales` | string[] | **Yes** — served (2026-09-19) | `en` plus the languages the project adds, restricted to what the bundled instrument has translations for (`app/services/web_form_instruments.py`). Not drawn from `mas_languages`; those codes describe narration recordings. |
-| `uiTranslations` | `WhoVaUiTranslations` | **No** | Chrome strings (buttons, validation). Separate from instrument translations. |
+| `available_locales` | string[] | **Yes** — served (2026-09-19) | `en` plus the languages the project adds, restricted to the instrument's **active** locales (`mas_instrument_locales`, queried by `app/services/web_form_instruments.py`). Not drawn from `mas_languages`; those codes describe narration recordings. |
+| `uiTranslations` | `WhoVaUiTranslations` | **No** | Chrome strings (buttons, validation): "Next", "Required", the date picker. **Separate from instrument translations and staying separate** — they belong to the engine, not to a questionnaire, so they are not rows in `map_instrument_translations` and importing a workbook never touches them. |
 | `narration_languages` | `{code,label}[]` | **Yes** — served (2026-09-19) | Options for `narr_language` — the language the narrative was *recorded* in. Distinct from `locale` and from the instrument's own "Interview language" question. Per-project checkboxes. |
 | `geography` | level + unit codes | Partly — via the units API | Feeds `survey_state`/`survey_district`/`survey_block` and `org_<level_code>_code` routing. Comes from the project's organization hierarchy. |
 | `show-guidance` | boolean (attribute) | **Yes** — served and passed when true (2026-09-19) | Whether source guidance notes render. An interviewer-training setting. |
 | `attachment_policy` | image/audio/PDF limits | **No** — engine defaults | Size and dimension ceilings. |
 | `web_intake_form_type_id` | uuid | **Yes — project setting** (2026-09-19) | Which form type the project's browser questionnaire carries. Must be an active form type with a `base_instrument_code` and a confirmed PII set; NULL means `WHO_2022_VA`. |
 | `intake_screen` | note text | **Yes — project setting** (2026-09-19) | A welcome note shown before the questionnaire, `web_intake_intake_note`. NULL is the system default text (`DEFAULT_INTAKE_NOTE`), `""` is no welcome screen. In `enabled_extensions` exactly when the resolved note is non-empty; the text is served as `intake_note`. |
+| `translation_versions` | `{locale: int}` | **Yes** — served (2026-09-19) | The version of every locale this project's instrument currently serves, `en` at 0. A page caches a locale's strings and re-fetches only when its version moves. |
 | `death_summary` | boolean | **Yes — project setting** (2026-09-19) | Optional upload of death summary documents, `web_intake_death_summary_enabled`, on for every project. Never a mandatory response; rendering waits for attachments phase 2. |
 
 ### Tier 3 — session and runtime
@@ -128,7 +129,9 @@ narration only.
   ],
   "intake_note": "Before you begin: …",   // null when the welcome screen is off
   "default_locale": "en",
-  "available_locales": [{"code": "en", "label": "English"}],
+  "available_locales": [{"code": "en", "label": "English"}, {"code": "hi", "label": "Hindi"}],
+  "translation_versions": {"en": 0, "hi": 7},   // revalidate cached strings against this
+
   "narration_languages": [{"code": "hi", "label": "Hindi"}],
   "show_guidance": false
 }
@@ -164,18 +167,77 @@ Notes on the shape:
   `web_intake_death_summary_enabled`.
 - `intake_note` is the text the `intake_screen` extension renders, or `null`
   when the project turned the welcome screen off.
-- `available_locales` is the intersection of what the project allows and what
-  the bundled instrument has translations for. The form must tolerate a locale
-  it has no strings for by falling back, not by failing.
+- `available_locales` is the intersection of what the project allows and the
+  instrument's **active** locales. The form must tolerate a locale it has no
+  strings for by falling back, not by failing.
+- `translation_versions` carries one entry per served locale so a page that is
+  already open can tell whether its cached strings are stale without
+  downloading them. `en` is always present at version 0: it is the
+  instrument's own language and has no rows.
+
+### Instrument translations: the delivery contract
+
+**Implemented 2026-09-19 (WP6).** Translations are server data and are fetched
+separately from the instrument, by every frontend alike — the browser form
+today, the native app later:
+
+```
+GET /api/v1/instruments/<instrument_code>/translations/<locale>
+```
+
+`login_required`. Returns
+`{"instrument_code", "locale", "version", "questions": {name: {label, hint, guidance_hint}}, "choices": {"list/value": {label}}}`
+with a weak `ETag` over the version, so a client revalidates with
+`If-None-Match` and gets a 304 when nothing moved. An unknown locale, an
+unknown instrument and an **inactive** locale are all 404: a half-translated
+language is not served to interviewers. `en` is always served, at version 0
+with no strings, because the bundled instrument is already in English.
+
+The intake page applies the result client-side: `applyTranslations` in
+`app/static/js/intake/translations.js` is a pure function that returns a copy
+of the pre-built instrument with `label[locale]`, `hint[locale]` and
+`guidance[locale]` set on sections, questions and choices. Switching locale
+re-fetches and re-applies **from the same base copy**, so nothing accumulates
+across switches, and the draft records the new `locale` and
+`translation_version` through the existing PATCH.
 
 ### Adding a language
 
-Vendor an instrument bundle that carries the translations, then add the code to
-`INSTRUMENT_LOCALES` in `app/services/web_form_instruments.py`. The registry
-test (`tests/services/test_web_form_instruments.py`) reads the vendored bundle
-and fails until it really holds label translations for that code, so the
-registry cannot drift ahead of the bundle. Adding a row to `mas_languages` does
-*not* add a web form language; that list is for narration recordings.
+**Changed 2026-09-19 (WP6).** A display language is no longer vendored into the
+instrument bundle and is no longer a code in a Python registry. It is data:
+
+1. **Document the source.** Add the language to the "Translation sources"
+   table in
+   [VA Form Project Configuration Policy](va-form-project-configuration.md) —
+   language, locale code, the one source workbook, project, ODK form id,
+   download date and who assigned it. The importer parses that table and
+   refuses any other workbook for that locale, so this step is not optional and
+   comes first.
+2. **Import it.** `flask instrument-translations import <instrument_code>
+   <locale> <workbook>`, or upload the workbook in the Instrument Translations
+   admin panel. The importer merges by question `name` and by
+   `list_name`/`name` for choices, splits cells that pack English and the
+   target language on one line, and reports every reference item the workbook
+   lacks and every workbook item the reference lacks. It can never create a
+   question.
+3. **Reach the threshold.** Coverage of the reference form's survey labels must
+   reach `TRANSLATION_COVERAGE_THRESHOLD` (0.95,
+   `app/services/instrument_translation_service.py`). The import activates the
+   locale when it does and refuses to when it does not; activating anyway is
+   possible and is logged as forced.
+4. **The project opts in.** An active locale is only offered by a project that
+   lists it in `web_intake_available_locales` (or stores NULL, which means all
+   of them).
+
+Corrections are made string by string in the panel: the edit is marked
+`edited`, survives the next re-import, bumps the locale's version and is
+written to the log with the item key and the old and new text. Every
+submission records `intake_locale` and `intake_translation_version`, so what
+the respondent saw remains reconstructible.
+
+Adding a row to `mas_languages` does *not* add a web form language; that list
+is for narration recordings, and its codes are a different axis (`khasi` there,
+`kha` here). Nothing maps between them.
 
 ## Open questions
 

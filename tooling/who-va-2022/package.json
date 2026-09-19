@@ -10,7 +10,8 @@
     "validator": "node validator-server.mjs",
     "dev": "vite",
     "build:web": "vite build",
-    "check:types": "node build-validator.mjs && node check-engine-types.mjs"
+    "check:types": "node build-validator.mjs && node check-engine-types.mjs",
+    "test:web": "node --no-warnings=MODULE_TYPELESS_PACKAGE_JSON --test tests/*.test.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

@@ -180,6 +180,29 @@ class AdminPanelRoutingTests(BaseTestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, body)
 
+    def test_projects_panel_reads_the_web_capture_readiness_endpoint(self):
+        """The readiness badge and check list are client-side, per project.
+
+        WP2 of docs/planning/web-capture-project-configuration-plan.md. Nothing
+        about readiness is rendered server-side: the panel fetches
+        /admin/api/projects/<id>/web-intake-readiness once per visible row for
+        the badge, and again when an existing project is opened for editing.
+        """
+        self._login(self.base_admin_id)
+
+        response = self.client.get("/admin/panels/projects")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        for marker in (
+            "/web-intake-readiness",
+            'id="project-web-intake-readiness"',
+            'id="project-web-intake-readiness-list"',
+            "project-readiness-cell",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, body)
+
     def test_panel_response_is_html_fragment(self):
         """Panel responses must be HTML, not JSON — they are HTMX targets."""
         self._login(self.base_admin_id)
@@ -188,3 +211,42 @@ class AdminPanelRoutingTests(BaseTestCase):
                 response = self.client.get(url)
                 ct = response.content_type
                 self.assertIn("text/html", ct, f"{url} returned {ct}")
+
+
+class AdminShellInstrumentTranslationsPanelTests(BaseTestCase):
+    """The instrument translations panel is wired into the shell (WP6).
+
+    A panel nobody can reach is not shipped: the shell's navigation must carry
+    the link, and the fragment must render for an admin and refuse anyone else.
+    """
+
+    PANEL = "/admin/panels/instrument-translations"
+
+    def test_the_shell_navigation_links_the_panel(self):
+        self._login(self.base_admin_id)
+        body = self.client.get("/admin/").get_data(as_text=True)
+        self.assertIn(f'data-panel="{self.PANEL}"', body)
+        self.assertIn(f'hx-get="{self.PANEL}"', body)
+        self.assertIn("Instrument Translations", body)
+
+    def test_the_panel_renders_for_an_admin_and_names_its_endpoints(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(self.PANEL)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        for marker in (
+            "panel-instrument-translations",
+            "/admin/api/instrument-translations",
+            'id="itr-locales-wrap"',
+            'id="itr-import-file"',
+            'id="itr-strings-wrap"',
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, body)
+
+    def test_a_project_pi_is_refused(self):
+        self._login(self.base_project_pi_id)
+        self.assertEqual(self.client.get(self.PANEL).status_code, 403)
+
+    def test_it_redirects_unauthenticated(self):
+        self.assertIn(self.client.get(self.PANEL).status_code, [301, 302])

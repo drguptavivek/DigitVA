@@ -268,11 +268,19 @@ class IntakeApiTests(BaseTestCase):
         body = self.client.get(f"/intake/form/{draft['draft_id']}").get_data(as_text=True)
 
         self.assertNotIn('setAttribute("locale", "en")', body)
-        self.assertIn('setAttribute("locale", workingLocale(options))', body)
+        self.assertIn("const locale = workingLocale(options);", body)
+        # The attribute is set by applyLocale, alongside the instrument copy
+        # that carries that locale's translations.
+        self.assertIn('el.setAttribute("locale", locale);', body)
         # The working language is chosen from what the project serves and
         # remembered per browser, never stored server-side.
         self.assertIn("options.available_locales", body)
         self.assertIn('"digitva.intake.locale"', body)
+        # Translations are fetched per locale from the serving endpoint and
+        # applied client-side to a copy of the pre-built instrument (WP6).
+        self.assertIn("/api/v1/instruments/", body)
+        self.assertIn("applyTranslations(baseInstrument, translations, locale)", body)
+        self.assertIn("js/intake/translations.js", body)
         # The per-section autosave map must follow the selected instrument too,
         # or a second INSTRUMENTS entry would be split by WHO 2022's sections.
         self.assertNotIn("const instrument = WhoVa.whoVa2022Instrument", body)

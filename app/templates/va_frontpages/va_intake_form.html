@@ -29,6 +29,7 @@
 </div>
 <script type="module">
 import * as WhoVa from "{{ url_for('static', filename='vendor/who-va-2022/who-va-2022.web-component.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
+import { applyTranslations } from "{{ url_for('static', filename='js/intake/translations.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}";
 
 const DRAFT = {{ draft | tojson }};
 const PREFILL = {{ prefill | tojson }};
@@ -199,7 +200,39 @@ const workingLocale = (options) => {
   return (options.available_locales || []).some((l) => l.code === stored) ? stored : options.default_locale;
 };
 
-function renderLocalePicker(el, options) {
+// Instrument translations are server data, fetched per locale and cached by
+// the version the server reports (docs/policy/va-web-form-options.md). The
+// base locale needs no fetch: the bundled instrument is already in English.
+const TRANSLATIONS = new Map();
+
+async function translationsFor(instrumentCode, locale) {
+  if (!locale || locale === "en") return null;
+  if (TRANSLATIONS.has(locale)) return TRANSLATIONS.get(locale);
+  const res = await api("/api/v1/instruments/" + encodeURIComponent(instrumentCode)
+    + "/translations/" + encodeURIComponent(locale));
+  // A locale the server will not serve (deactivated between page loads) leaves
+  // the form in its base language rather than failing the interview.
+  const payload = res.ok ? res.data : null;
+  TRANSLATIONS.set(locale, payload);
+  return payload;
+}
+
+// Records what the respondent is being shown, so the submission carries it.
+// Fire-and-forget: a failed PATCH must not block a locale switch, and the next
+// answer's save restamps the meta anyway.
+function recordLocale(locale, version) {
+  api(API, "PATCH", { sections: {}, meta: { locale: locale, translation_version: version } })
+    .catch(() => {});
+}
+
+async function applyLocale(el, baseInstrument, instrumentCode, locale) {
+  const translations = await translationsFor(instrumentCode, locale);
+  el.instrument = applyTranslations(baseInstrument, translations, locale);
+  el.setAttribute("locale", locale);
+  recordLocale(locale, translations ? translations.version : 0);
+}
+
+function renderLocalePicker(el, options, onChange) {
   const locales = options.available_locales || [];
   if (locales.length < 2) return;
   const select = document.createElement("select");
@@ -212,10 +245,12 @@ function renderLocalePicker(el, options) {
     option.textContent = locale.label;
     select.appendChild(option);
   }
-  select.value = el.getAttribute("locale");
+  select.value = el.getAttribute("locale") || locales[0].code;
   select.addEventListener("change", () => {
-    el.setAttribute("locale", select.value);
     rememberLocale(select.value);
+    // Re-fetch and re-apply: the instrument is rebuilt from the base copy, so
+    // switching back and forth cannot accumulate another locale's strings.
+    onChange(select.value);
   });
   const bar = $("wv-locale-bar");
   bar.appendChild(select);
@@ -243,11 +278,15 @@ async function main() {
 
   const el = document.createElement("who-va-2022-form");
   el.setAttribute("draft-id", DRAFT.draft_id);
-  el.setAttribute("locale", workingLocale(options));
-  renderLocalePicker(el, options);
+  const instrumentCode = defaultFormType.instrument_code;
+  const locale = workingLocale(options);
+  renderLocalePicker(el, options, (code) => {
+    applyLocale(el, chosenInstrument, instrumentCode, code)
+      .catch((err) => alertBox("warning", "Could not switch language: " + (err.message || err)));
+  });
   if (options.show_guidance) el.setAttribute("show-guidance", "");
   el.setAttribute("auto-save-draft-on-change", "");
-  el.instrument = chosenInstrument;
+  await applyLocale(el, chosenInstrument, instrumentCode, locale);
   el.draftStore = draftStore;
   if (PREFILL.lockedQuestionNames && "lockedQuestionNames" in el) el.lockedQuestionNames = PREFILL.lockedQuestionNames;
   el.addEventListener("who-va-draft-error", (e) => alertBox("warning", "Draft could not be saved: " + (e.detail?.message || e.detail)));

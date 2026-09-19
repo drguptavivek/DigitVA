@@ -137,6 +137,69 @@ codes and its active rules.
 - A project with no organization tree attributes nothing; `org_unit_id` stays
   NULL by design.
 
+## Translation sources
+
+**Exactly one source form per language, documented here.** A language's
+strings are imported from one deployed ODK form definition and no other. This
+table *is* the rule: `app/services/instrument_translation_service.py` parses it
+and refuses any workbook that is not the documented source for the locale, so
+changing a language's source means editing this table first. The workbooks live
+in `docs/kb/WHO_VA_2022_Docs/`, inventoried by that folder's README.
+
+| Language | Locale | Source workbook | Project | ODK form id | Download date | Assigned by |
+| --- | --- | --- | --- | --- | --- | --- |
+| Hindi | hi | RJ01_ICMRVA_WHOVA2022.xlsx | RJ01 ICMR VA | RJ01_ICMRVA_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Tamil | ta | JIPMER_DS_WHOVA2022.xlsx | JIPMER DS | JIPMER_DS_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Kannada | kn | KA01_DS_WHOVA2022.xlsx | KA01 DS | KA01_DS_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Marathi | mr | KEM_VAADU_WHOVA2022.xlsx | KEM VAADU | KEM_VAADU_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Malayalam | ml | KL01_DS_WHOVA2022.xlsx | KL01 DS | KL01_DS_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Khasi | kha | ML01_ICMRVA_WHOVA2022.xlsx | ML01 ICMR VA | ML01_ICMRVA_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Odia | or | OD01_ICMRVA_WHOVA2022.xlsx | OD01 ICMR VA | OD01_ICMRVA_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| Bangla | bn | TR01_DS_WHOVA2022.xlsx | TR01 DS | TR01_DS_WHOVA2022 | 2026-09-19 | DigitVA Data Collection owner |
+| French | fr | whova2022_xls_form_for_odk.xlsx | WHO reference form | va_who_2022 | 2026-09-17 | DigitVA Data Collection owner |
+
+Cross-check workbooks carry the same language but are *not* its source. They
+are read only with `--cross-check`, which reports differences and writes
+nothing: Hindi against `KA01_DS_WHOVA2022.xlsx` and `KEM_VAADU_WHOVA2022.xlsx`,
+Tamil against `PY01_ICMRVA_WHOVA2022.xlsx`, Marathi against
+`KA01_DS_WHOVA2022.xlsx`.
+
+Instrument locale codes are a separate axis from `mas_languages` codes (`kha`
+here is `khasi` there). Nothing maps between them, and adding a
+`mas_languages` row does not add a display language.
+
+### What a translation may change, and what it may not
+
+Structure is pre-built from the curated reference form
+`docs/kb/WHO_VA_2022_Docs/whova2022_xls_form_for_odk.xlsx` and is immutable
+(decision O1). A translation supplies **only** the text an item is shown with:
+
+| May change | May not change |
+| --- | --- |
+| A question's `label`, `hint` and `guidance_hint` | Which questions exist, their names, order or section |
+| A section (group) label | Relevance, constraint or calculation expressions |
+| A choice's `label` | Choice *values*, or which choices a list holds |
+| | Data types, required flags, appearances |
+
+The importer keys every string to an item the reference already has. A string
+for an item the reference lacks is **reported and discarded**, never stored, so
+a project workbook that has drifted structurally cannot add a question by the
+back door. The strings a workbook lacks are reported the same way.
+
+A locale is served to forms only when it is **active**, and it is activated
+when its coverage of the reference's survey labels reaches
+`TRANSLATION_COVERAGE_THRESHOLD` (0.95). Activating below that is possible but
+is logged as forced. The version on `mas_instrument_locales` is bumped by every
+import and every edit; every submission records the locale and the version it
+was filled in (`intake_locale`, `intake_translation_version`), so what the
+respondent saw stays reconstructible.
+
+Importing the documented source for each language is an **operator step**, not
+a migration: `flask instrument-translations import <instrument_code> <locale>
+<workbook>` per language on a new install, or the Instrument Translations admin
+panel. Migrations import no application code and must not read reference
+workbooks.
+
 ## Sign-off on a configuration change (P2, decided 2026-09-19)
 
 **The admin who saves the setting is the sign-off.** There is no pending

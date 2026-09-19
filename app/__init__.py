@@ -224,6 +224,11 @@ def create_app(config_class=None):
     from app.commands.organization import init_app as init_org_commands
     init_org_commands(app)
 
+    from app.commands.instrument_translations import (
+        init_app as init_instrument_translation_commands,
+    )
+    init_instrument_translation_commands(app)
+
     from app.commands.repair import init_app as init_repair_commands
     init_repair_commands(app)
 
@@ -238,6 +243,9 @@ def create_app(config_class=None):
 
     from app.commands.backups import init_app as init_backup_commands
     init_backup_commands(app)
+
+    from app.commands.web_intake import init_app as init_web_intake_commands
+    init_web_intake_commands(app)
 
     @app.context_processor
     def inject_template_globals():

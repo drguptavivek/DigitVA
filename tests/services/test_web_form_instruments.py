@@ -1,23 +1,31 @@
-"""The web form instrument locale registry matches the vendored bundle.
+"""The web form's display languages come from the active locale rows.
 
-`app/services/web_form_instruments.py` claims which display languages each
-bundled VA questionnaire has. Nothing else can check that claim: the bundle is
-built outside this repo, so a code added to the registry without a bundle that
-carries it would serve an untranslated form. These tests read the bundle and
-hold the registry to it. Policy: docs/policy/va-web-form-options.md.
+Until 2026-09-19 `app/services/web_form_instruments.py` was a hand-maintained
+registry, and these tests held it to the vendored bundle. Translations are now
+server data (WP6 of
+docs/planning/web-capture-project-configuration-plan.md): a language is a row
+in `mas_instrument_locales`, activated when an import passes the coverage
+threshold, and it reaches interviewers without a bundle rebuild.
+
+So the bundle check narrows to the one thing still true of it -- `en` is the
+instrument's own language and the bundle carries it -- and everything else is
+a test of the query. Policy: docs/policy/va-web-form-options.md.
 """
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
+from app import db
+from app.models.mas_instrument_locales import MasInstrumentLocales
 from app.services.web_form_instruments import (
     DEFAULT_LOCALE,
-    INSTRUMENT_LOCALES,
+    FALLBACK_INSTRUMENT_CODE,
     all_instrument_locales,
     instrument_locales,
 )
 from tests.base import BaseTestCase
 
-#: instrument_code -> the vendored bundle that must carry its translations.
+#: instrument_code -> the vendored bundle that must carry its base language.
 BUNDLES = {
     "WHO_2022_VA": "app/static/vendor/who-va-2022/who-va-2022.web-component.js",
 }
@@ -38,19 +46,25 @@ def _has_label_translations(text, code):
     return bool(re.search(r"label:\{[^}]*\b" + re.escape(code) + r":", text))
 
 
-class WebFormInstrumentRegistryTests(BaseTestCase):
-    def test_every_instrument_offers_the_base_locale(self):
-        for instrument_code, locales in INSTRUMENT_LOCALES.items():
-            with self.subTest(instrument=instrument_code):
-                self.assertIn(DEFAULT_LOCALE, locales)
+def _locale(instrument_code, code, name, *, active):
+    row = db.session.get(MasInstrumentLocales, (instrument_code, code))
+    if row is None:
+        row = MasInstrumentLocales(
+            instrument_code=instrument_code, locale_code=code, language_name=name,
+            version=1, is_active=active, updated_at=datetime.now(UTC),
+        )
+        db.session.add(row)
+    row.is_active = active
+    db.session.flush()
+    return row
 
-    def test_every_registered_locale_is_in_the_vendored_bundle(self):
-        """Positive and negative controls first, then the registry itself.
 
-        Without them a regex that matched nothing — or everything — would make
-        this test pass for the wrong reason.
-        """
-        text = _bundle_text("WHO_2022_VA")
+class BundledBaseLocaleTests(BaseTestCase):
+    """The one bundle claim that survives: ``en`` is in it."""
+
+    def test_the_bundle_carries_the_base_locale(self):
+        """Positive and negative controls, so the regex cannot pass vacuously."""
+        text = _bundle_text(FALLBACK_INSTRUMENT_CODE)
         self.assertTrue(
             _has_label_translations(text, DEFAULT_LOCALE),
             "the WHO 2022 bundle must carry English labels",
@@ -60,23 +74,57 @@ class WebFormInstrumentRegistryTests(BaseTestCase):
             "a made-up locale must not match, or the check proves nothing",
         )
 
-        for instrument_code, locales in INSTRUMENT_LOCALES.items():
-            bundle = _bundle_text(instrument_code)
-            for code in locales:
-                with self.subTest(instrument=instrument_code, locale=code):
-                    self.assertTrue(
-                        _has_label_translations(bundle, code),
-                        f"{instrument_code} claims {code!r} but its bundle has "
-                        "no label translations for it",
-                    )
+
+class InstrumentLocaleQueryTests(BaseTestCase):
+    """``instrument_locales`` / ``all_instrument_locales`` read active rows."""
+
+    def test_the_base_locale_is_served_with_no_rows_at_all(self):
+        self.assertEqual(
+            instrument_locales(FALLBACK_INSTRUMENT_CODE),
+            {DEFAULT_LOCALE: "English"},
+        )
+
+    def test_an_active_locale_row_is_served_and_an_inactive_one_is_not(self):
+        """Present first: the row exists; it is still withheld until active."""
+        _locale(FALLBACK_INSTRUMENT_CODE, "hi", "Hindi", active=False)
+        db.session.flush()
+        self.assertIsNotNone(
+            db.session.get(MasInstrumentLocales, (FALLBACK_INSTRUMENT_CODE, "hi")),
+            "fixture guard: the row is there to be withheld",
+        )
+        self.assertNotIn("hi", instrument_locales(FALLBACK_INSTRUMENT_CODE))
+
+        _locale(FALLBACK_INSTRUMENT_CODE, "hi", "Hindi", active=True)
+        db.session.flush()
+        locales = instrument_locales(FALLBACK_INSTRUMENT_CODE)
+        self.assertEqual(locales["hi"], "Hindi")
+        self.assertEqual(list(locales)[0], DEFAULT_LOCALE)
+
+    def test_an_unknown_or_missing_instrument_falls_back_to_who_2022(self):
+        _locale(FALLBACK_INSTRUMENT_CODE, "hi", "Hindi", active=True)
+        db.session.flush()
+        who = instrument_locales(FALLBACK_INSTRUMENT_CODE)
+        self.assertEqual(instrument_locales(None), who)
+        self.assertEqual(instrument_locales("UNKNOWN"), who)
+
+    def test_another_instruments_locale_does_not_leak_into_this_one(self):
+        _locale("OTHER_VA", "ta", "Tamil", active=True)
+        _locale(FALLBACK_INSTRUMENT_CODE, "hi", "Hindi", active=True)
+        db.session.flush()
+        self.assertIn("ta", instrument_locales("OTHER_VA"))
+        self.assertNotIn("ta", instrument_locales(FALLBACK_INSTRUMENT_CODE))
 
     def test_all_instrument_locales_starts_with_the_base_locale(self):
         merged = all_instrument_locales()
         self.assertEqual(list(merged)[0], DEFAULT_LOCALE)
         self.assertEqual(merged[DEFAULT_LOCALE], "English")
 
-    def test_an_unknown_or_missing_instrument_falls_back_to_who_2022(self):
-        who = INSTRUMENT_LOCALES["WHO_2022_VA"]
-        self.assertEqual(instrument_locales("WHO_2022_VA"), who)
-        self.assertEqual(instrument_locales(None), who)
-        self.assertEqual(instrument_locales("UNKNOWN"), who)
+    def test_all_instrument_locales_merges_every_instruments_active_rows(self):
+        _locale(FALLBACK_INSTRUMENT_CODE, "hi", "Hindi", active=True)
+        _locale("OTHER_VA", "ta", "Tamil", active=True)
+        _locale("OTHER_VA", "kn", "Kannada", active=False)
+        db.session.flush()
+        merged = all_instrument_locales()
+        self.assertEqual(merged["hi"], "Hindi")
+        self.assertEqual(merged["ta"], "Tamil")
+        self.assertNotIn("kn", merged)

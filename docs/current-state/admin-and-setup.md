@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Admin And Setup Model
@@ -107,6 +107,31 @@ Current admin behavior:
 
 - the Projects panel can edit `coding_intake_mode`
 - new projects default to `random_form_allocation`
+
+### Web-capture readiness
+
+Whether a project can actually collect a VA through the browser form depends
+on settings spread over the Projects, Project Sites, Organization, Access
+Grants and Field Mapping panels. One read-only assessment answers it, and
+`docs/policy/web-intake.md` ("Ready for web capture") is the rule it
+implements — nine checks, each `ok`, `warn` or `fail`, with a project ready
+when none fails.
+
+- **Endpoint.** `GET /admin/api/projects/<project_id>/web-intake-readiness`,
+  open to `admin` and `project_pi`; a project PI reads only the projects they
+  manage (403 otherwise), an unknown project is 404. JSON only:
+  `{"project_id", "ready", "checks": [{"code", "status", "message",
+  "fix_hint"}]}`. Pure reads — it creates no site, web form or grant.
+- **Projects panel.** A "Web capture" column carries a badge per row —
+  `Ready`, `n issues`, or `Off` when the project's web intake mode is `off` —
+  fetched lazily, one request per visible project once the table has
+  rendered. Opening an existing project for editing fetches the same
+  assessment once more and lists every check with its status, message and fix
+  hint under the Web form questionnaire block. Nothing about readiness is
+  rendered server-side; the panel is a JSON client of the endpoint.
+- **CLI.** `flask web-intake readiness <project_id>` prints the same
+  assessment as a table and exits non-zero when the project is not ready, so
+  it can gate a deployment script.
 
 ## Project Forms Panel
 
@@ -281,6 +306,38 @@ the same rows twice. All five endpoints are `@role_required("admin")` plus
 These runs use their own `triggered_by` values (`att-repair`, `att-integrity`,
 `att-s3-upload`, `att-quarantine`) so they do not appear in the sync
 dashboard's history.
+
+## Instrument Translations Panel
+
+Admin-only. Lists each instrument locale from `mas_instrument_locales`:
+language, locale code, coverage against the 0.95 threshold
+(`TRANSLATION_COVERAGE_THRESHOLD` in
+`app/services/instrument_translation_service.py`), version, the workbook
+it was imported from against the documented source (a `drift` badge when
+they differ), and the active flag. Actions: import a workbook (xlsx only,
+5 MB cap; `cross-check` reports differences without writing; `force`
+activates below threshold and is logged), activate, deactivate, edit one
+string (search by question name or English text, English reference shown
+alongside; an edit marks the row `edited`, survives re-import and bumps
+the locale version), export JSON. All state changes go through JSON routes
+under `/admin/api/instrument-translations/` with `X-CSRFToken`.
+
+The interviewer's form fetches
+`GET /api/v1/instruments/<instrument_code>/translations/<locale>` by version
+and revalidates against `translation_versions` in the form-options
+payload, so an edit reaches interviewers on their next form. A locale is
+offered to a form only when it is active **and** the project lists it in
+`web_intake_available_locales`; "the language I imported is not in the
+picker" resolves to one of those two.
+
+**New-install operator step, after seeding (not a migration):** for each
+row of the "Translation sources" table in
+`docs/policy/va-form-project-configuration.md`, run
+`flask instrument-translations import WHO_2022_VA <locale> docs/kb/WHO_VA_2022_Docs/<workbook>`
+or upload through the panel, then activate. A fresh database serves `en`
+only until this is done. Changing a language's source workbook is a policy
+edit to that table first; the importer refuses an undocumented workbook
+unless run as a cross-check.
 
 ## Languages Panel
 

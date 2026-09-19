@@ -478,6 +478,52 @@ class WebIntakeServiceTests(BaseTestCase):
             intake_svc.submit_draft(draft, self.interviewer, completion=self._completion())
         self.assertEqual(ctx.exception.status_code, 409)
 
+    # -- the locale a draft was filled in -----------------------------------
+
+    def test_a_new_draft_starts_in_the_base_locale(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        self.assertEqual(draft.meta["locale"], "en")
+        self.assertEqual(draft.meta["translation_version"], 0)
+
+    def test_a_locale_switch_is_recorded_on_the_draft(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        intake_svc.save_draft_sections(
+            draft, sections={}, meta={"locale": "hi", "translation_version": 7}
+        )
+        self.assertEqual(draft.meta["locale"], "hi")
+        self.assertEqual(draft.meta["translation_version"], 7)
+        # The keys the envelope already carried are not disturbed by the switch.
+        self.assertIn("createdAt", draft.meta)
+
+    def test_a_malformed_locale_or_version_is_refused(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        for bad in ({"locale": "not a locale!"}, {"locale": 7},
+                    {"translation_version": -1}, {"translation_version": "7"}):
+            with self.subTest(meta=bad):
+                with self.assertRaises(intake_svc.WebIntakeError):
+                    intake_svc.save_draft_sections(draft, sections={}, meta=bad)
+        self.assertEqual(draft.meta["locale"], "en")
+
+    def test_the_payload_carries_the_locale_and_translation_version(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        intake_svc.save_draft_sections(
+            draft, sections={}, meta={"locale": "hi", "translation_version": 7}
+        )
+        payload, _ = intake_svc.build_web_payload(
+            draft, {"Id10013": "yes"}, self.interviewer,
+            submitted_at=datetime.now(timezone.utc),
+        )
+        self.assertEqual(payload["intake_locale"], "hi")
+        self.assertEqual(payload["intake_translation_version"], 7)
+
     def test_build_web_payload_lifts_attachment_answers_out_of_the_payload(self):
         draft = intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID

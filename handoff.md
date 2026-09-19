@@ -1,8 +1,9 @@
 # Handoff
 
-Updated 2026-09-19 (projects-panel session). The projects-panel inputs
-(`5b22094`), the instrument-locale rule (`742ea9d`) and the `project_pi`
-predicate fix landed on top of `85ca0ef`;
+Updated 2026-09-19 (web-capture configuration session). On top of the
+morning's `5b22094`, `742ea9d` and `10267ee`: the approved plan
+`docs/planning/web-capture-project-configuration-plan.md` and all of its
+work packages WP0 to WP6 landed;
 `origin/main` is at the commit that updated this file, working tree clean.
 
 ## What landed
@@ -26,14 +27,22 @@ predicate fix landed on top of `85ca0ef`;
 | `1369c0e` | Form types are layers on the standard instrument; intake resolves `instrument_code`, so `WHO_2022_VA_SOCIAL` renders |
 | `5b22094` | Projects admin panel reads and writes the four `web_intake_*` form options; project POST accepts them through the same validator as the PUT. No migration. |
 | `742ea9d` | Web form locale is `en` everywhere plus what the instrument has translations for (`app/services/web_form_instruments.py`); interviewer picks a working language, remembered in the browser. No migration. |
-| (this session) | `project_pi` role gate is an EXISTS (`VaUsers.is_project_pi`), closing `.tasks/auth-decorator-followups.md` item 3 |
+| `10267ee` | `project_pi` role gate is an EXISTS (`VaUsers.is_project_pi`), closing `.tasks/auth-decorator-followups.md` item 3 |
+| `32ea0fb` | The web-capture configuration plan and the register of every decision taken 2026-09-19 (Q6, P2, W6, extensions, base_instrument_code, D2, D3, D5, D6, C1/C4 deferred, annex follow-ups, translations delivery, API first) |
+| `2b4b869` | Nine deployed project workbooks under `docs/kb/WHO_VA_2022_Docs/` with a README (form id, version, languages, checksum) |
+| `0fb8d75` | End-to-end test: a web submission in a tree project routes to its unit and reaches only its coders |
+| `ab663ca` | Every decision recorded in the document that raised it |
+| `610f55d` | The 16 WHO_2022_VA_2026 overrides that depart from the annex documented and pinned by a file-based test; annex follow-ups 4-7 filed as `digitva-2g7`, `28a`, `jt3`, `2c1` |
+| `5043448` | Web form type, welcome note, death-summary flag as project settings; `base_instrument_code` on `mas_form_types`; defaults for a new web project; migration `c3e8b5a1f4d2` |
+| `fe498e6` | Web-capture readiness: nine checks as JSON, Projects panel badge and list, `flask web-intake readiness` |
+| (this session) | Instrument translations stored, managed and served: `mas_instrument_locales`, `map_instrument_translations`, importer from one documented source workbook per language, admin panel, `GET /api/v1/instruments/<code>/translations/<locale>`, client-side apply in the intake page; migration `a7d4f1c9b0e6` |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
-b8e3d1f7a2c4 -> f2a9c4d7e1b3`. Verified by an empty-database `flask db upgrade` replay of the
+b8e3d1f7a2c4 -> f2a9c4d7e1b3 -> c3e8b5a1f4d2 -> a7d4f1c9b0e6`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,469 passed after the project_pi predicate (1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite 1,570 passed after WP6 (1,499 after WP1, 1,469 after the project_pi predicate, 1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -57,12 +66,32 @@ Two things worth knowing before extending it:
 
 ## Start here
 
-**Approved plan for the next pass:** `docs/planning/web-capture-project-configuration-plan.md`
-(web form type and extensions as project settings, defaults for a web
-project, readiness check, routing confirmation, every open question
-recorded, stored and editable instrument translations from the nine
-deployed workbooks in `docs/kb/WHO_VA_2022_Docs/`, which are still
-untracked). Beads `digitva-6v1`, `xv9`, `shz`, `mze`, `9ff`, `0by`.
+**The web-capture configuration plan is fully landed**
+(`docs/planning/web-capture-project-configuration-plan.md`, beads
+`digitva-6v1`, `xv9`, `shz`, `mze`, `9ff`, `0by` all closed). Operator
+step on any database, dev included: import and activate each documented
+language with `flask instrument-translations import WHO_2022_VA <locale>
+docs/kb/WHO_VA_2022_Docs/<workbook>`; nothing serves Hindi until that is
+done. All eight deployed languages reach 100 percent coverage; French is
+documented but cannot activate because the WHO reference form has French
+on its choices sheet only (owner to decide keep-inactive or drop the row).
+
+Open after this pass, in order:
+
+1. ICD-11 phases 3 to 6 with decisions D1 to D6 all recorded, plus the
+   project ICD classification default (web forms have no ODK mapping row,
+   so `get_icd_classification_for_submission` returns `icd10` for them);
+   the ICD-11 policy draft generated from the annex CSV for the owner's
+   review, which also carries annex follow-up 2 (the full audit).
+2. Attachments phase 2 (renders `death_summary`; W6: nothing mandatory),
+   then the validator sidecar W1.
+3. Annex follow-ups `digitva-2g7`, `28a`, `jt3`, `2c1`.
+4. Older plans still carry "Open Questions" sections outside this pass's
+   scope: `docs/planning/project-sites-forms-refactor.md`,
+   `access-control-grants-design.md`, `social-autopsy-rendering-plan.md`,
+   `icd11-self-hosted-api-and-ect-plan.md`,
+   `docs/current-state/health-system-organization-model.md:298`. Most are
+   superseded drafts; sweep or archive them.
 
 
 Ranked across every session's input. Done since the previous ranking: the

@@ -243,7 +243,7 @@ class FormOptionsApiTests(BaseTestCase):
             {
                 "project_id", "config_version", "enabled_extensions", "form_types",
                 "default_locale", "available_locales", "narration_languages",
-                "show_guidance", "intake_note",
+                "show_guidance", "intake_note", "translation_versions",
             },
         )
         self.assertEqual(payload["project_id"], self.PROJECT)
@@ -1177,3 +1177,110 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
                 self.assertEqual(response.status_code, 400)
         db.session.expire_all()
         self.assertIsNone(db.session.get(VaProjectMaster, "FDEF05"))
+
+
+class FormOptionsInstrumentLocaleTests(BaseTestCase):
+    """available_locales and translation_versions come from active locale rows.
+
+    WP6 of docs/planning/web-capture-project-configuration-plan.md: a display
+    language is a row an administrator imported and activated, not a registry
+    entry, and the payload carries each served locale's version so a page that
+    is already open can revalidate its cached strings.
+    """
+
+    PROJECT = "FLOC01"
+    SITE = "FL01"
+    URL = "/api/v1/organization/FLOC01/form-options"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(UTC)
+        db.session.add(
+            VaProjectMaster(
+                project_id=cls.PROJECT,
+                project_code=cls.PROJECT,
+                project_name="Locale Project",
+                project_nickname="Locales",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+                social_autopsy_enabled=False,
+            )
+        )
+        db.session.add(
+            VaSiteMaster(
+                site_id=cls.SITE, site_name="Locale Site", site_abbr=cls.SITE,
+                site_status=VaStatuses.active,
+                site_registered_at=now, site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id=cls.PROJECT, site_id=cls.SITE,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now, project_site_updated_at=now,
+            )
+        )
+        cls.user = cls._get_or_make_user("floc.user@test.local", "Floc123")
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.user.user_id,
+                role=VaAccessRoles.interviewer,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=cls.PROJECT,
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+    def setUp(self):
+        super().setUp()
+        self.project = db.session.get(VaProjectMaster, self.PROJECT)
+
+    def _locale(self, code, name, *, active):
+        from app.models.mas_instrument_locales import MasInstrumentLocales
+
+        row = db.session.get(MasInstrumentLocales, ("WHO_2022_VA", code))
+        if row is None:
+            row = MasInstrumentLocales(
+                instrument_code="WHO_2022_VA", locale_code=code,
+                language_name=name, version=7, is_active=active,
+                updated_at=datetime.now(UTC),
+            )
+            db.session.add(row)
+        row.is_active = active
+        db.session.flush()
+        return row
+
+    def test_a_project_listing_hi_serves_it_only_once_hi_is_active(self):
+        """Present-before-absent in that order: inactive first, then active."""
+        self.project.web_intake_available_locales = ["en", "hi"]
+        self._locale("hi", "Hindi", active=False)
+        db.session.commit()
+
+        self._login(str(self.user.user_id))
+        payload = self.client.get(self.URL).get_json()
+        self.assertEqual(
+            payload["available_locales"], [{"code": "en", "label": "English"}]
+        )
+
+        self._locale("hi", "Hindi", active=True)
+        db.session.commit()
+        payload = self.client.get(self.URL).get_json()
+        self.assertIn(
+            {"code": "hi", "label": "Hindi"}, payload["available_locales"]
+        )
+        self.assertEqual(payload["available_locales"][0]["code"], "en")
+
+    def test_translation_versions_lists_every_served_locale(self):
+        self._locale("hi", "Hindi", active=True)
+        self._locale("kn", "Kannada", active=False)
+        db.session.commit()
+
+        self._login(str(self.user.user_id))
+        payload = self.client.get(self.URL).get_json()
+        self.assertEqual(payload["translation_versions"]["en"], 0)
+        self.assertEqual(payload["translation_versions"]["hi"], 7)
+        self.assertNotIn("kn", payload["translation_versions"])

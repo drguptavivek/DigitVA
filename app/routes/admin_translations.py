@@ -1,0 +1,260 @@
+"""Admin JSON API and panel for instrument display translations.
+
+Thin HTTP layer over ``app.services.instrument_translation_service``; every
+rule -- the documented-source check, the coverage gate, what an edit may touch
+-- lives there. Routes hang off the ``admin`` blueprint
+(``/admin/api/instrument-translations/...``) the same way
+``app/routes/admin_organization.py`` and ``app/routes/admin_icd11.py`` do.
+
+API first (decided 2026-09-19): every route here returns JSON and the panel is
+a JavaScript client of them. The panel template receives no state through
+template context beyond the instrument code it defaults to.
+
+Plan: docs/planning/web-capture-project-configuration-plan.md (WP6).
+"""
+
+import logging
+import tempfile
+from pathlib import Path
+
+from flask import jsonify, render_template, request
+from flask_login import current_user
+from werkzeug.utils import secure_filename
+
+from app import db
+from app.decorators import role_required
+from app.routes.admin import _json_error, admin
+from app.services.instrument_translation_service import (
+    BASE_INSTRUMENT_CODE,
+    MAX_STRING_PAGE_SIZE,
+    TRANSLATION_COVERAGE_THRESHOLD,
+    InstrumentTranslationError,
+    documented_sources,
+    export_translations,
+    import_translations,
+    list_strings,
+    locale_status,
+    set_locale_active,
+    update_string,
+)
+
+log = logging.getLogger(__name__)
+
+_API = "/api/instrument-translations"
+
+#: Upload ceiling. The largest committed source workbook is under 300 KB, so
+#: 5 MB is generous; the point is that an unbounded upload is never read into
+#: memory or written to disk.
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+#: Read the upload in chunks so the cap is enforced before the file exists.
+_UPLOAD_CHUNK = 64 * 1024
+
+
+def _guard():
+    """Admin only, checked again in the body as the ICD-11 panel routes do."""
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+    return None
+
+
+def _instrument(raw: str | None) -> str:
+    return (raw or BASE_INSTRUMENT_CODE).strip().upper()
+
+
+# ---------------------------------------------------------------------------
+# Panel
+# ---------------------------------------------------------------------------
+
+
+@admin.get("/panels/instrument-translations")
+@role_required("admin")
+def admin_panel_instrument_translations():
+    return render_template(
+        "admin/panels/instrument_translations.html",
+        instrument_code=_instrument(request.args.get("instrument_code")),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Locales
+# ---------------------------------------------------------------------------
+
+
+@admin.get(f"{_API}/locales")
+@role_required("admin")
+def admin_instrument_translation_locales():
+    if err := _guard():
+        return err
+    instrument_code = _instrument(request.args.get("instrument_code"))
+    try:
+        rows = locale_status(instrument_code)
+        documented = documented_sources()
+    except InstrumentTranslationError as exc:
+        return _json_error(str(exc), 400)
+    for row in rows:
+        source = documented.get(row["locale_code"])
+        row["documented_source"] = source.workbook if source else None
+        row["documented_project"] = source.project if source else None
+    return jsonify(
+        {
+            "instrument_code": instrument_code,
+            "coverage_threshold": TRANSLATION_COVERAGE_THRESHOLD,
+            "locales": rows,
+            "documented_locales": sorted(documented),
+        }
+    )
+
+
+@admin.post(f"{_API}/<instrument_code>/<locale>/import")
+@role_required("admin")
+def admin_instrument_translation_import(instrument_code, locale):
+    if err := _guard():
+        return err
+    uploaded = request.files.get("file")
+    if uploaded is None or not uploaded.filename:
+        return _json_error("Upload the source workbook as 'file'.", 400)
+    name = secure_filename(uploaded.filename)
+    if not name.lower().endswith(".xlsx"):
+        return _json_error("Only .xlsx workbooks are accepted.", 400)
+
+    cross_check = request.form.get("cross_check") == "1"
+    force = request.form.get("force") == "1"
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # The documented-source rule matches on the file name, so the upload
+        # keeps its own name inside a private directory rather than a random one.
+        path = Path(tmpdir) / name
+        written = 0
+        with path.open("wb") as handle:
+            while chunk := uploaded.stream.read(_UPLOAD_CHUNK):
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    return _json_error(
+                        f"The workbook is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+                        400,
+                    )
+                handle.write(chunk)
+        try:
+            report = import_translations(
+                instrument_code,
+                locale,
+                path,
+                cross_check=cross_check,
+                force=force,
+                actor_id=current_user.user_id,
+            )
+        except InstrumentTranslationError as exc:
+            db.session.rollback()
+            return _json_error(str(exc), 400)
+        except Exception:  # malformed workbook
+            db.session.rollback()
+            log.exception(
+                "instrument translation import failed | %s/%s", instrument_code, locale
+            )
+            return _json_error("The workbook could not be read.", 400)
+
+    if cross_check:
+        db.session.rollback()
+    else:
+        db.session.commit()
+    return jsonify({"report": report.as_dict()})
+
+
+@admin.post(f"{_API}/<instrument_code>/<locale>/activate")
+@role_required("admin")
+def admin_instrument_translation_activate(instrument_code, locale):
+    return _set_active(instrument_code, locale, True)
+
+
+@admin.post(f"{_API}/<instrument_code>/<locale>/deactivate")
+@role_required("admin")
+def admin_instrument_translation_deactivate(instrument_code, locale):
+    return _set_active(instrument_code, locale, False)
+
+
+def _set_active(instrument_code, locale, active):
+    if err := _guard():
+        return err
+    force = (request.get_json(silent=True) or {}).get("force") is True
+    try:
+        result = set_locale_active(
+            instrument_code, locale, active, force=force,
+            actor_id=current_user.user_id,
+        )
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Strings
+# ---------------------------------------------------------------------------
+
+
+@admin.get(f"{_API}/<instrument_code>/<locale>/strings")
+@role_required("admin")
+def admin_instrument_translation_strings(instrument_code, locale):
+    if err := _guard():
+        return err
+    try:
+        page = int(request.args.get("page") or 1)
+        page_size = int(request.args.get("page_size") or 50)
+    except ValueError:
+        return _json_error("page and page_size must be whole numbers.", 400)
+    try:
+        return jsonify(
+            list_strings(
+                instrument_code,
+                locale,
+                search=request.args.get("q"),
+                page=page,
+                # Clamped again in the service; the ceiling is never the
+                # caller's to choose.
+                page_size=min(page_size, MAX_STRING_PAGE_SIZE),
+            )
+        )
+    except InstrumentTranslationError as exc:
+        return _json_error(str(exc), 400)
+
+
+@admin.put(f"{_API}/<instrument_code>/<locale>/strings")
+@role_required("admin")
+def admin_instrument_translation_put_string(instrument_code, locale):
+    if err := _guard():
+        return err
+    payload = request.get_json(silent=True) or {}
+    fields = {
+        key: payload.get(key) for key in ("item_kind", "item_key", "field", "text")
+    }
+    for key, value in fields.items():
+        if not isinstance(value, str) or not value.strip():
+            return _json_error(f"{key} is required.", 400)
+    try:
+        result = update_string(
+            instrument_code,
+            locale,
+            item_kind=fields["item_kind"],
+            item_key=fields["item_key"],
+            field=fields["field"],
+            text=fields["text"],
+            actor_id=current_user.user_id,
+        )
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    return jsonify(result)
+
+
+@admin.get(f"{_API}/<instrument_code>/<locale>/export")
+@role_required("admin")
+def admin_instrument_translation_export(instrument_code, locale):
+    if err := _guard():
+        return err
+    try:
+        return jsonify(export_translations(instrument_code, locale))
+    except InstrumentTranslationError as exc:
+        return _json_error(str(exc), 404)

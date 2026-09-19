@@ -42,6 +42,7 @@ from app.models.va_web_intake import (
 from app.services import org_grant_service
 from app.services import organization_service as org
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
+from app.services.web_form_instruments import DEFAULT_LOCALE
 from app.services import org_unit_routing_service as org_routing
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
@@ -88,6 +89,8 @@ PAYLOAD_ROLE = "vainterviewer"
 _ABHA_NUMBER_RE = re.compile(r"^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$")
 _ABHA_ADDRESS_RE = re.compile(r"^[A-Za-z0-9._]{4,32}@(abdm|sbx)$")
 _SECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+#: An instrument locale code as the XLSForm writes it ("hi", "kha", "pt-BR").
+_LOCALE_CODE_RE = re.compile(r"^[A-Za-z0-9-]{2,16}$")
 
 #: The welcome note a project shows before the questionnaire starts when it
 #: has not written one of its own. A constant rather than a stored default so
@@ -552,7 +555,15 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
         form_id=form.form_id,
         user_id=user.user_id,
         unique_id=unique_id,
-        meta={"createdAt": now, "updatedAt": now, "instrumentId": INSTRUMENT_ID},
+        # The base locale until the page tells us otherwise; a locale switch
+        # PATCHes both keys and build_web_payload copies them to the payload.
+        meta={
+            "createdAt": now,
+            "updatedAt": now,
+            "instrumentId": INSTRUMENT_ID,
+            "locale": DEFAULT_LOCALE,
+            "translation_version": 0,
+        },
         prefill=_prefill_from_death(death, user),
     )
     db.session.add(draft)
@@ -601,10 +612,36 @@ def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
     }
 
 
+def _clean_locale_meta(meta: dict) -> dict:
+    """The working language and translation version out of a client's meta.
+
+    Recorded on the draft at every locale switch so the submission can say what
+    the respondent was actually shown (WP6 of
+    docs/planning/web-capture-project-configuration-plan.md). Both come from the
+    browser, so both are validated here: an unparseable value is refused rather
+    than stored and copied into a payload later.
+    """
+    out: dict = {}
+    if "locale" in meta:
+        locale = meta.get("locale")
+        if not isinstance(locale, str) or not _LOCALE_CODE_RE.match(locale):
+            raise WebIntakeError("Invalid locale.")
+        out["locale"] = locale
+    if "translation_version" in meta:
+        version = meta.get("translation_version")
+        if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+            raise WebIntakeError("Invalid translation version.")
+        out["translation_version"] = version
+    return out
+
+
 def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None) -> int:
     """Upsert the given sections' answers; returns the number of sections written."""
     if not isinstance(sections, dict):
         raise WebIntakeError("sections must be an object keyed by section name.")
+    # Validated before anything is written, so a bad locale cannot leave the
+    # answers saved and the meta refused.
+    locale_meta = _clean_locale_meta(meta) if meta else {}
     existing = {row.section_name: row for row in draft.sections}
     written = 0
     for name, answers in sections.items():
@@ -623,6 +660,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         written += 1
     if meta:
         keep = {k: meta[k] for k in ("schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt") if k in meta}
+        keep.update(locale_meta)
         draft.meta = {**(draft.meta or {}), **keep}
     if current_section is not None:
         if not _SECTION_NAME_RE.match(str(current_section)):
@@ -709,6 +747,10 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["AttachmentsExpected"] = len(references)
     payload["AttachmentsPresent"] = 0
     payload["intake_source"] = "web"
+    # What the respondent was shown: the working language and the exact
+    # translation version behind it, so the screen is reconstructible.
+    payload["intake_locale"] = meta.get("locale") or DEFAULT_LOCALE
+    payload["intake_translation_version"] = meta.get("translation_version") or 0
     payload["unique_id2"] = f"{draft.unique_id}_{submitted_at.strftime('%H%M%S')}{int(submitted_at.microsecond / 1000):03}"
     return payload, references
 

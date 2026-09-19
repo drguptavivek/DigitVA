@@ -37,7 +37,12 @@ from app.models import (
 )
 from app.services import organization_service as org
 from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, scope_unit_ids_for_roles
-from app.services.web_form_instruments import DEFAULT_LOCALE, instrument_locales
+from app.services.instrument_translation_service import active_locale_versions
+from app.services.web_form_instruments import (
+    DEFAULT_LOCALE,
+    FALLBACK_INSTRUMENT_CODE,
+    instrument_locales,
+)
 from app.services.web_intake_service import resolve_intake_note
 
 bp = Blueprint("organization_api", __name__)
@@ -650,6 +655,13 @@ def project_form_options(project_id: str):
     )
     narration_languages = _resolve_narration_languages(project, active)
     intake_note = resolve_intake_note(project)
+    # What an already-open page revalidates its cached translations against:
+    # the version of every locale this instrument currently serves.
+    translation_versions = active_locale_versions(
+        default_form_type["instrument_code"]
+        if default_form_type and default_form_type["instrument_code"]
+        else FALLBACK_INSTRUMENT_CODE
+    )
 
     return jsonify({
         "project_id": project_id,
@@ -663,6 +675,9 @@ def project_form_options(project_id: str):
         "intake_note": intake_note or None,
         "default_locale": default_locale,
         "available_locales": available_locales,
+        # {locale: version} for every locale served, "en" at 0. A client caches
+        # a locale's strings by version and re-fetches only when it moves.
+        "translation_versions": translation_versions,
         "narration_languages": narration_languages,
         "show_guidance": project.web_intake_show_guidance,
     })

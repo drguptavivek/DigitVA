@@ -296,6 +296,50 @@ columns), `c1d4e7f9a3b6` (additive; adds the routing columns),
 `e2a5c8b1d7f3` (widens the mapping uniqueness constraint),
 `f7b2d4e6a8c9` (additive; adds the project coding-scope columns).
 
+## Instrument Translation Tables
+
+Added 2026-09-19 (WP6 of
+`docs/planning/web-capture-project-configuration-plan.md`). A display language
+is data, not part of the instrument bundle; the instrument's structure stays
+pre-built and immutable.
+
+### `mas_instrument_locales`
+
+- one row per display language of one standard instrument; PK
+  `(instrument_code, locale_code)`
+- `language_name`, `is_active` (default false — a locale is served only once an
+  import passes the coverage threshold), `source_document`, `source_sha256`,
+  `imported_at`, `version`, `updated_at`
+- `version` is bumped by every import and every edit; clients cache a locale by
+  it and revalidate against `translation_versions` in the form-options payload
+  or the serving endpoint's `ETag`
+- `en` is the base locale of every instrument: always served, always first, and
+  has **no row here**
+- locale codes are the XLSForm `label::Name (code)` codes and are a different
+  axis from `mas_languages` codes (`kha` versus `khasi`); nothing maps between
+  them
+
+### `map_instrument_translations`
+
+- one translated string; PK is the five key columns
+  `(instrument_code, locale_code, item_kind, item_key, field)`, which is also
+  the uniqueness the importer upserts on
+- `item_kind` is `question` or `choice`; `item_key` is the question `name` or
+  `list_name` + `/` + the choice `name`; `field` is `label`, `hint` or
+  `guidance_hint`
+- `source` is `imported` or `edited`; a re-import overwrites `imported` rows and
+  keeps `edited` ones. `updated_by` FK `va_users`, `updated_at`
+- FK `(instrument_code, locale_code)` -> `mas_instrument_locales`, ON DELETE
+  CASCADE
+- roughly 2,800 rows per fully translated locale of `WHO_2022_VA`
+
+### What a submission records
+
+`va_web_intake_drafts.meta` carries `{"locale", "translation_version"}` from
+the draft's start and every locale switch, and `build_web_payload` copies them
+into the payload as `intake_locale` and `intake_translation_version`, so what
+the respondent was shown stays reconstructible.
+
 ## ICD Reference Master Table
 
 ### `mas_icd10_2019_2`

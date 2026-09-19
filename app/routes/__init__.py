@@ -11,6 +11,9 @@ from app.routes.profile import profile
 from app.routes.api import api_v1
 from app.routes.help import help_bp
 from app.routes.intake import intake
+# Extends the `admin` blueprint in place (like app/routes/admin_organization.py);
+# imported here so its rules are registered before the blueprint is.
+from app.routes import admin_translations  # noqa: F401
 
 
 def register_blueprints(app):

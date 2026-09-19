@@ -1,0 +1,382 @@
+{#
+  Instrument Translations panel
+  Lists a standard instrument's display languages with coverage, version and
+  source workbook; imports a documented source workbook; activates or
+  deactivates a locale; edits one string at a time against the English
+  reference; exports the serving JSON.
+
+  A JavaScript client of /admin/api/instrument-translations/... — every value
+  below the instrument code comes from those endpoints, never from template
+  context (API first, decided 2026-09-19).
+#}
+<div id="panel-instrument-translations" data-instrument-code="{{ instrument_code }}">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-language me-2 text-secondary"></i>Instrument Translations
+      <span class="text-muted small ms-2">{{ instrument_code }}</span>
+    </h5>
+    <div class="small text-muted" id="itr-threshold"></div>
+  </div>
+
+  <div class="alert alert-light border small py-2">
+    A language is served to the browser form only once it is <strong>active</strong>,
+    which needs coverage at or above the threshold. The source workbook for each
+    language is policy: see
+    <code>docs/policy/va-form-project-configuration.md</code> &rarr; Translation sources.
+  </div>
+
+  <div id="itr-alert" class="alert d-none small py-2"></div>
+
+  {# Locale table — filled by JS #}
+  <div id="itr-locales-wrap"></div>
+
+  {# Import form #}
+  <div class="card mb-4">
+    <div class="card-body">
+      <h6 class="card-title mb-3">Import a source workbook</h6>
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-2">
+          <label class="form-label small mb-1" for="itr-import-locale">Locale</label>
+          <input type="text" class="form-control form-control-sm" id="itr-import-locale"
+                 placeholder="hi" maxlength="16">
+        </div>
+        <div class="col-sm-5">
+          <label class="form-label small mb-1" for="itr-import-file">Workbook (.xlsx, max 5 MB)</label>
+          <input type="file" class="form-control form-control-sm" id="itr-import-file" accept=".xlsx">
+        </div>
+        <div class="col-sm-5 d-flex gap-3 align-items-center">
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="itr-cross-check">
+            <label class="form-check-label small" for="itr-cross-check">Cross-check only</label>
+          </div>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="itr-force">
+            <label class="form-check-label small" for="itr-force">Force activation</label>
+          </div>
+          <button class="btn btn-sm btn-primary ms-auto" id="itr-import-btn">
+            <i class="fa-solid fa-upload me-1"></i>Import
+          </button>
+        </div>
+      </div>
+      <div id="itr-import-result" class="small mt-3"></div>
+    </div>
+  </div>
+
+  {# String editor #}
+  <div class="card d-none" id="itr-strings-card">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="card-title mb-0">Strings &mdash; <span id="itr-strings-locale"></span></h6>
+        <div class="d-flex gap-2">
+          <input type="search" class="form-control form-control-sm" id="itr-search"
+                 placeholder="Search question name or English text" style="width:18rem;">
+          <button class="btn btn-sm btn-outline-secondary" id="itr-search-btn">Search</button>
+          <button class="btn btn-sm btn-outline-secondary" id="itr-strings-close">Close</button>
+        </div>
+      </div>
+      <div id="itr-strings-wrap"></div>
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        <div class="small text-muted" id="itr-strings-count"></div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary" id="itr-prev">Previous</button>
+          <button class="btn btn-outline-secondary" id="itr-next">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var ROOT = document.getElementById('panel-instrument-translations');
+  var INSTRUMENT = ROOT.getAttribute('data-instrument-code');
+  var API = '/admin/api/instrument-translations';
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function apiJson(url, method, body) {
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, {
+      method: method || 'GET', headers: headers,
+      body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function alertBox(kind, msg) {
+    var el = document.getElementById('itr-alert');
+    if (!msg) { el.className = 'alert d-none small py-2'; el.textContent = ''; return; }
+    el.className = 'alert alert-' + kind + ' small py-2';
+    el.textContent = msg;
+  }
+
+  function pct(value) { return (Number(value || 0) * 100).toFixed(1) + '%'; }
+
+  // ── locales ───────────────────────────────────────────────────────────────
+
+  var _threshold = 0.95;
+
+  function loadLocales() {
+    var wrap = document.getElementById('itr-locales-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+    apiJson(API + '/locales?instrument_code=' + encodeURIComponent(INSTRUMENT)).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
+        return;
+      }
+      _threshold = res.data.coverage_threshold;
+      document.getElementById('itr-threshold').textContent =
+        'Coverage threshold ' + pct(_threshold);
+      renderLocales(res.data.locales || []);
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function renderLocales(locales) {
+    var rows = locales.map(function (l) {
+      var actions = '';
+      if (!l.is_base) {
+        actions = '<button class="btn btn-sm py-0 px-2 btn-outline-'
+          + (l.is_active ? 'danger' : 'success') + ' itr-toggle-btn"'
+          + ' data-locale="' + esc(l.locale_code) + '"'
+          + ' data-active="' + (l.is_active ? '1' : '0') + '">'
+          + (l.is_active ? 'Deactivate' : 'Activate') + '</button>'
+          + ' <button class="btn btn-sm py-0 px-2 btn-outline-primary itr-edit-btn"'
+          + ' data-locale="' + esc(l.locale_code) + '">Strings</button>'
+          + ' <a class="btn btn-sm py-0 px-2 btn-outline-secondary" target="_blank" rel="noopener"'
+          + ' href="' + API + '/' + encodeURIComponent(INSTRUMENT) + '/'
+          + encodeURIComponent(l.locale_code) + '/export">JSON</a>';
+      } else {
+        actions = '<span class="text-muted small">base locale</span>';
+      }
+      var covered = Number(l.coverage || 0) >= _threshold;
+      return '<tr class="' + (l.is_active ? '' : 'text-muted') + '">'
+        + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(l.locale_code) + '</span></td>'
+        + '<td class="align-middle py-2 small">' + esc(l.language_name) + '</td>'
+        + '<td class="align-middle py-2 small text-center"><span class="badge text-bg-'
+        + (covered ? 'success' : 'warning') + '">' + pct(l.coverage) + '</span> '
+        + '<span class="text-muted">' + l.translated_labels + '/' + l.reference_labels + '</span></td>'
+        + '<td class="align-middle py-2 small text-center">' + esc(l.version) + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(l.source_document || '—')
+        + (l.documented_source && l.source_document && l.documented_source !== l.source_document
+            ? ' <span class="badge text-bg-danger" title="Not the documented source">drift</span>' : '')
+        + '</td>'
+        + '<td class="align-middle py-2 small">' + esc(l.documented_source || '—') + '</td>'
+        + '<td class="align-middle py-2">' + (l.is_active
+            ? '<span class="badge text-bg-success">Active</span>'
+            : '<span class="badge text-bg-secondary">Inactive</span>') + '</td>'
+        + '<td class="align-middle py-2 text-end">' + actions + '</td>'
+        + '</tr>';
+    }).join('');
+
+    document.getElementById('itr-locales-wrap').innerHTML =
+      '<div class="table-responsive mb-4"><table class="table table-sm table-hover align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted">Locale</th>'
+      + '<th class="fw-medium small text-muted">Language</th>'
+      + '<th class="fw-medium small text-muted text-center">Coverage</th>'
+      + '<th class="fw-medium small text-muted text-center">Version</th>'
+      + '<th class="fw-medium small text-muted">Imported from</th>'
+      + '<th class="fw-medium small text-muted">Documented source</th>'
+      + '<th class="fw-medium small text-muted">Status</th>'
+      + '<th class="fw-medium small text-muted text-end">Actions</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    bindAll('.itr-toggle-btn', function () {
+      toggleLocale(this.getAttribute('data-locale'), this.getAttribute('data-active') === '1');
+    });
+    bindAll('.itr-edit-btn', function () {
+      openStrings(this.getAttribute('data-locale'));
+    });
+  }
+
+  function bindAll(selector, handler) {
+    var nodes = document.querySelectorAll('#panel-instrument-translations ' + selector);
+    for (var i = 0; i < nodes.length; i++) nodes[i].addEventListener('click', handler);
+  }
+
+  function toggleLocale(locale, isActive) {
+    alertBox();
+    var action = isActive ? 'deactivate' : 'activate';
+    apiJson(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/' + action, 'POST', {})
+      .then(function (res) {
+        if (!res.ok) { alertBox('danger', res.data.error || 'Failed.'); return; }
+        loadLocales();
+      }).catch(function () { alertBox('danger', 'Network error.'); });
+  }
+
+  // ── import ────────────────────────────────────────────────────────────────
+
+  document.getElementById('itr-import-btn').addEventListener('click', function () {
+    alertBox();
+    var out = document.getElementById('itr-import-result');
+    out.innerHTML = '';
+    var locale = document.getElementById('itr-import-locale').value.trim();
+    var input = document.getElementById('itr-import-file');
+    if (!locale) { alertBox('warning', 'Enter the locale code.'); return; }
+    if (!input.files || !input.files.length) { alertBox('warning', 'Choose a workbook.'); return; }
+
+    var form = new FormData();
+    form.append('file', input.files[0]);
+    if (document.getElementById('itr-cross-check').checked) form.append('cross_check', '1');
+    if (document.getElementById('itr-force').checked) form.append('force', '1');
+
+    var btn = this;
+    btn.disabled = true;
+    out.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Reading the workbook…';
+    fetch(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(locale) + '/import', {
+      method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: form,
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { out.innerHTML = ''; alertBox('danger', res.data.error || 'Import failed.'); return; }
+      renderReport(res.data.report);
+      loadLocales();
+    }).catch(function () {
+      btn.disabled = false;
+      out.innerHTML = '';
+      alertBox('danger', 'Network error.');
+    });
+  });
+
+  function renderReport(report) {
+    var out = document.getElementById('itr-import-result');
+    var lines = [
+      '<strong>' + esc(report.locale_code) + '</strong> from <code>' + esc(report.workbook) + '</code>',
+      'coverage <strong>' + pct(report.coverage) + '</strong> ('
+        + report.translated_labels + '/' + report.reference_labels + ' survey labels)',
+      'written ' + report.written + ', kept edited ' + report.kept_edited,
+      'reference items the workbook lacks: ' + report.missing_from_workbook_count,
+      'workbook items the reference lacks: ' + report.unknown_in_workbook_count,
+    ];
+    if (report.cross_check) lines.push('<em>Cross-check only — nothing was written.</em>');
+    else if (report.activated) lines.push(report.forced
+      ? '<span class="text-warning">Activated below the threshold (forced, logged).</span>'
+      : '<span class="text-success">Activated.</span>');
+    else lines.push('<span class="text-warning">Not activated: coverage is below the threshold.</span>');
+    out.innerHTML = '<div class="border rounded p-2 bg-light">' + lines.join('<br>') + '</div>';
+  }
+
+  // ── strings ───────────────────────────────────────────────────────────────
+
+  var _locale = null;
+  var _page = 1;
+  var _pageSize = 50;
+  var _total = 0;
+
+  function openStrings(locale) {
+    _locale = locale;
+    _page = 1;
+    document.getElementById('itr-strings-locale').textContent = locale;
+    document.getElementById('itr-strings-card').classList.remove('d-none');
+    loadStrings();
+  }
+
+  function loadStrings() {
+    var wrap = document.getElementById('itr-strings-wrap');
+    wrap.innerHTML = '<div class="text-center text-muted py-4 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
+    var url = API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(_locale)
+      + '/strings?page=' + _page + '&page_size=' + _pageSize
+      + '&q=' + encodeURIComponent(document.getElementById('itr-search').value || '');
+    apiJson(url).then(function (res) {
+      if (!res.ok) {
+        wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed.') + '</div>';
+        return;
+      }
+      _total = res.data.total;
+      renderStrings(res.data.items || []);
+      document.getElementById('itr-strings-count').textContent =
+        _total + ' item(s), page ' + res.data.page + ' of ' + Math.max(1, Math.ceil(_total / res.data.page_size));
+    }).catch(function () {
+      wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+    });
+  }
+
+  function renderStrings(items) {
+    if (!items.length) {
+      document.getElementById('itr-strings-wrap').innerHTML =
+        '<p class="text-muted small text-center py-3">No matching items.</p>';
+      return;
+    }
+    var rows = items.map(function (it) {
+      return '<tr>'
+        + '<td class="align-middle py-2 small"><code>' + esc(it.item_key) + '</code>'
+        + '<div class="text-muted">' + esc(it.item_kind) + ' · ' + esc(it.field) + '</div></td>'
+        + '<td class="align-middle py-2 small">' + esc(it.english) + '</td>'
+        + '<td class="py-2"><textarea class="form-control form-control-sm itr-text" rows="2"'
+        + ' data-kind="' + esc(it.item_kind) + '" data-key="' + esc(it.item_key) + '"'
+        + ' data-field="' + esc(it.field) + '">' + esc(it.text || '') + '</textarea></td>'
+        + '<td class="align-middle py-2 text-center small">'
+        + (it.source ? '<span class="badge text-bg-' + (it.source === 'edited' ? 'info' : 'light') + ' border">'
+            + esc(it.source) + '</span>' : '<span class="text-muted">—</span>')
+        + '</td>'
+        + '<td class="align-middle py-2 text-end">'
+        + '<button class="btn btn-sm py-0 px-2 btn-outline-success itr-save-btn">Save</button></td>'
+        + '</tr>';
+    }).join('');
+
+    document.getElementById('itr-strings-wrap').innerHTML =
+      '<div class="table-responsive"><table class="table table-sm align-middle mb-0">'
+      + '<thead class="table-light"><tr>'
+      + '<th class="fw-medium small text-muted" style="width:20%;">Item</th>'
+      + '<th class="fw-medium small text-muted" style="width:32%;">English reference</th>'
+      + '<th class="fw-medium small text-muted" style="width:34%;">Translation</th>'
+      + '<th class="fw-medium small text-muted text-center" style="width:7%;">Source</th>'
+      + '<th class="fw-medium small text-muted text-end" style="width:7%;"></th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+    bindAll('.itr-save-btn', function () {
+      var row = this.closest('tr');
+      var box = row.querySelector('.itr-text');
+      saveString(this, box);
+    });
+  }
+
+  function saveString(btn, box) {
+    alertBox();
+    btn.disabled = true;
+    apiJson(API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(_locale) + '/strings', 'PUT', {
+      item_kind: box.getAttribute('data-kind'),
+      item_key: box.getAttribute('data-key'),
+      field: box.getAttribute('data-field'),
+      text: box.value,
+    }).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { alertBox('danger', res.data.error || 'Save failed.'); return; }
+      alertBox('success', 'Saved. ' + _locale + ' is now version ' + res.data.version + '.');
+      loadLocales();
+    }).catch(function () {
+      btn.disabled = false;
+      alertBox('danger', 'Network error.');
+    });
+  }
+
+  document.getElementById('itr-search-btn').addEventListener('click', function () { _page = 1; loadStrings(); });
+  document.getElementById('itr-prev').addEventListener('click', function () {
+    if (_page > 1) { _page -= 1; loadStrings(); }
+  });
+  document.getElementById('itr-next').addEventListener('click', function () {
+    if (_page * _pageSize < _total) { _page += 1; loadStrings(); }
+  });
+  document.getElementById('itr-strings-close').addEventListener('click', function () {
+    document.getElementById('itr-strings-card').classList.add('d-none');
+    _locale = null;
+  });
+
+  // ── init ──────────────────────────────────────────────────────────────────
+
+  loadLocales();
+
+}());
+</script>

@@ -43,6 +43,10 @@ ephemeral.sqlite3-shm
 # Dolt server management (auto-started by bd)
 dolt-server.pid
 dolt-server.log
+# Suffixed variants too: a pre-restore dump named
+# dolt-server-pre-restore-<timestamp>.log slipped the exact-name rule above
+# and was committed (5,608 lines) before being removed again.
+dolt-server*.log
 dolt-server.lock
 dolt-server.port
 dolt-server.activity

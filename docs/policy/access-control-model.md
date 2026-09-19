@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-19
 ---
 
 # Access Control Model
@@ -170,6 +170,56 @@ If that trade proves wrong in practice, the split is a third role
 (`collaborator_staff`), which is exactly the cost of using roles as the
 mechanism. Recorded here so the choice is revisited deliberately rather than
 rediscovered.
+
+#### Redaction coverage of the data-management exports
+
+As of 2026-09-19 these surfaces consult `should_redact_pii` and blank staff
+identity for a viewer who must not see it:
+
+| Surface | Redacted |
+| --- | --- |
+| `dm_submissions_page` | `va_data_collector`, `coded_by` |
+| `dm_submissions_export_csv` | the `*_by` user ids (`dm_review_by`, `initial_assess_by`, `coder_review_by`, `reviewer_review_by`, `final_assess_by`, `reviewer_final_assess_by`) |
+| `dm_coded_cod_snapshot_export_csv` | `coder_name`, `reviewer_name`, `nqa_name`, `social_autopsy_name`, `active_coder_assigned_name`, `active_reviewer_assigned_name` |
+| `dm_coder_daily_statistics` | all rows — see below |
+| `_dm_search_condition` | the collector, coder and reviewer name clauses |
+
+Two rules the implementations follow, both worth keeping:
+
+- **Empty the column, never drop it.** The submissions export records that
+  downstream consumers depend on its column order and offsets, so a redacted
+  export has the same shape as an unredacted one.
+- **`dm_coder_daily_statistics` returns no rows rather than pseudonymous
+  ones.** Every row of that panel *is* staff identity. Blanking the name
+  would leave `coder_id` as a stable per-person key across days and across
+  exports — the same disclosure by another route.
+
+The three SmartVA exports (`input`, `results`, `likelihoods`) emit no
+staff-identity column; the input export's payload already passes through
+`_filter_export_payload`.
+
+##### Blocker: `narrative_text` blocks wiring the snapshot export to viewers
+
+**Do not grant `collaborator` the coded-COD snapshot export until
+`narrative_text` is resolved.** The staff-identity columns above are handled;
+that column is not, and it is the one that carries the deceased's name.
+
+`narrative_text` is the free-text death narrative. It routinely contains the
+names of the deceased, the respondent and the attending clinician, in prose,
+where no field-level flag reaches them. It is deliberately **not** in
+`COD_SNAPSHOT_STAFF_IDENTITY_HEADERS`: it is subject personal data governed by
+`is_pii` on the payload field, not staff identity, and filing it under a
+staff-identity name would hand the next reader a category error. It is also
+not redacted anywhere else — `dm_submissions_export_csv` ships the same
+narrative to every role today — so redacting it on one export alone would be
+an inconsistent half-change.
+
+The failure this blocker exists to prevent: the staff columns now look
+handled, so the export reads as safe to widen, and a plain viewer gets the
+deceased's name in free text on the first row.
+
+Resolving it is the `is_pii` decision, applied consistently across both
+exports — not this one.
 
 ### `coder`
 

@@ -248,6 +248,55 @@ def _redact_staff_identity_row(row: dict, *, redact: bool) -> dict:
         row["coded_by"] = None
     return row
 
+
+# Staff-identity columns on the submissions CSV export. Each is the user id of
+# whoever reviewed, coded or finalized this death — the same "who did what for
+# which death" that `collaborator_pii` exists to grant. `va_data_collector` is
+# not listed because it is dropped for every role by
+# CSV_EXPORT_OMIT_BASE_HEADERS.
+CSV_EXPORT_STAFF_IDENTITY_HEADERS = frozenset(
+    {
+        "dm_review_by",
+        "initial_assess_by",
+        "coder_review_by",
+        "reviewer_review_by",
+        "final_assess_by",
+        "reviewer_final_assess_by",
+    }
+)
+
+# Staff-identity columns on the coded-COD snapshot CSV export. Every one of
+# these is a `va_users.name` in the materialized view, so unlike the export
+# above these are names rather than ids.
+COD_SNAPSHOT_STAFF_IDENTITY_HEADERS = frozenset(
+    {
+        "coder_name",
+        "reviewer_name",
+        "nqa_name",
+        "social_autopsy_name",
+        "active_coder_assigned_name",
+        "active_reviewer_assigned_name",
+    }
+)
+
+
+def _redact_staff_identity_export_row(
+    row: dict, *, redact: bool, headers: frozenset[str]
+) -> dict:
+    """Blank staff-identity CSV columns on one export row in place.
+
+    The columns are emptied rather than dropped: downstream consumers depend
+    on the existing column order and offsets, so a redacted export must have
+    the same shape as an unredacted one. See
+    docs/policy/access-control-model.md, "collaborator".
+    """
+    if redact:
+        for header in headers:
+            if header in row:
+                row[header] = ""
+    return row
+
+
 # ---------------------------------------------------------------------------
 # Scope helpers
 # ---------------------------------------------------------------------------
@@ -1019,6 +1068,7 @@ def dm_submissions_export_csv(
     sort_dir: str = "desc",
 ) -> str:
     """Return a CSV export for all filtered DM submissions."""
+    redact_pii = should_redact_pii(user)
     attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
         search=search,
@@ -1380,6 +1430,11 @@ def dm_submissions_export_csv(
             "reviewer_final_assess_created_at": row.get("va_rfinassess_createdat"),
             "reviewer_final_assess_updated_at": row.get("va_rfinassess_updatedat"),
         }
+        _redact_staff_identity_export_row(
+            export_row,
+            redact=redact_pii,
+            headers=CSV_EXPORT_STAFF_IDENTITY_HEADERS,
+        )
         for key in payload_headers:
             export_row[key] = _serialize_csv_cell(payload.get(key))
         org_unit_label = org_unit_labels.get(row.get("org_unit_id")) or {}
@@ -1409,6 +1464,7 @@ def dm_coded_cod_snapshot_export_csv(
     sort_dir: str = "desc",
 ) -> str:
     """Return the active COD snapshot CSV for all filtered DM submissions."""
+    redact_pii = should_redact_pii(user)
     from app.services.submission_analytics_mv import (
         COD_SNAPSHOT_MV_NAME,
         NQA_EXPORT_DETAIL_COLUMNS,
@@ -1603,7 +1659,13 @@ def dm_coded_cod_snapshot_export_csv(
     writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
     writer.writeheader()
     for row in rows:
-        writer.writerow({key: _serialize_csv_cell(row.get(key)) for key in headers})
+        export_row = {key: _serialize_csv_cell(row.get(key)) for key in headers}
+        _redact_staff_identity_export_row(
+            export_row,
+            redact=redact_pii,
+            headers=COD_SNAPSHOT_STAFF_IDENTITY_HEADERS,
+        )
+        writer.writerow(export_row)
     return handle.getvalue()
 
 
@@ -1961,7 +2023,16 @@ def dm_coder_daily_statistics(
     days: int = 7,
     timezone_name: str = "Asia/Kolkata",
 ) -> dict:
-    """Return coder-by-day first-pass finalization counts for filtered DM scope."""
+    """Return coder-by-day first-pass finalization counts for filtered DM scope.
+
+    Every row of this panel IS staff identity — a named coder and their
+    per-day throughput — so a viewer who must not see staff identity gets no
+    rows rather than pseudonymized ones. Blanking the name would leave
+    ``coder_id`` as a stable per-person key across days and across exports,
+    which is the same disclosure by another route. See
+    docs/policy/access-control-model.md, "collaborator".
+    """
+    redact_pii = should_redact_pii(user)
     days = max(1, min(int(days or 7), 14))
     try:
         user_tz = pytz.timezone(timezone_name or "Asia/Kolkata")
@@ -1972,6 +2043,22 @@ def dm_coder_daily_statistics(
     date_window = [today_local - timedelta(days=offset) for offset in range(days)]
     date_window.reverse()
     window_start = date_window[0]
+
+    if redact_pii:
+        return {
+            "dates": [
+                {
+                    "iso": day.isoformat(),
+                    "label": day.strftime("%d %b"),
+                    "is_today": day == today_local,
+                }
+                for day in date_window
+            ],
+            "rows": [],
+            "timezone": user_tz.zone,
+            "window_days": days,
+            "staff_identity_redacted": True,
+        }
 
     attachment_counts, smartva_sids, smartva_failed_sids, mv_ref, conditions = (
         _dm_submission_query_parts(
@@ -2120,6 +2207,7 @@ def dm_coder_daily_statistics(
         "rows": rows,
         "timezone": user_tz.zone,
         "window_days": days,
+        "staff_identity_redacted": False,
     }
 
 

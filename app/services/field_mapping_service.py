@@ -10,10 +10,21 @@ Provides the same data structures consumed by va_render_processcategorydata:
   - get_info_labels()  → [short_label, ...]  (where is_info=True)
 
 Results are cached per form_type_code to avoid repeated DB queries within
-the same process. Cache is invalidated by calling clear_cache().
+the same process. Most caches are invalidated by calling clear_cache(), which
+reaches the calling process only.
+
+The PII set is the exception. It is the control behind "viewer without PII"
+and export redaction, so a stale copy in one worker is a disclosure, not a
+display quirk: ``get_pii_set_status``/``get_pii_field_ids`` re-check a cheap
+version — ``(count(*), max(updated_at))`` over that form type's
+``mas_field_display_config`` rows — on every call and rebuild when it moves.
+A flag change made by an admin edit in one worker, or by a Celery-run sync,
+therefore reaches every other worker without a restart. Count is part of the
+version because a deleted row does not move ``max(updated_at)``.
 """
 from collections import OrderedDict, defaultdict
-from sqlalchemy import select
+from typing import NamedTuple
+from sqlalchemy import func, select
 from app import db
 from app.models import (
     MasFormTypes,
@@ -22,6 +33,27 @@ from app.models import (
     MasFieldDisplayConfig,
     MasChoiceMappings,
 )
+
+
+class PiiSetStatus(NamedTuple):
+    """Whether a form type's PII set has been considered, and what is in it.
+
+    ``confirmed`` is derived, not stored. ``apply_pii_field_registry`` creates
+    redaction-only rows (``Id10073``, ``abha_number``, ``abha_address``) for
+    *every* form type, so "this form type has is_pii rows" is vacuous — a
+    PHMRC or Ballabgarh questionnaire that has none of those WHO field ids
+    still gets three. The signal that someone has actually considered this
+    form type's PII set is an ``is_pii`` row on a field the form itself owns:
+    a row that is mapped (``subcategory_code``), or synced from ODK
+    (``odk_label``), or not registry-created (``is_custom = false``).
+
+    Unconfirmed fails closed at both redaction sites — see
+    docs/policy/access-control-model.md.
+    """
+
+    confirmed: bool
+    field_ids: frozenset[str]
+    owned_flagged_count: int
 
 
 class FieldMappingService:
@@ -92,11 +124,37 @@ class FieldMappingService:
     def get_pii_field_ids(self, form_type_code: str) -> set[str]:
         """
         Return field ids marked as PII for a form type.
+
+        Callers that redact must use ``get_pii_set_status`` instead: an empty
+        or registry-only set is not the same answer as "nothing here is
+        personal data".
         """
-        cache_key = f"pii_field_ids_{form_type_code}"
-        if cache_key not in self._cache:
-            self._cache[cache_key] = self._build_pii_field_ids(form_type_code)
-        return self._cache[cache_key]
+        return set(self.get_pii_set_status(form_type_code).field_ids)
+
+    def get_pii_set_status(self, form_type_code: str) -> PiiSetStatus:
+        """Return the PII set for a form type plus whether it is confirmed.
+
+        Version-checked on every call (see the module docstring): a flag
+        change in another worker is picked up without clear_cache(). An
+        unknown or inactive form type is unconfirmed with an empty set.
+        """
+        cache_key = f"pii_set_{form_type_code}"
+        version = self._pii_config_version(form_type_code)
+        cached = self._cache.get(cache_key)
+        if cached is not None and cached[0] == version:
+            return cached[1]
+
+        status = (
+            self._build_pii_set_status(version[0])
+            if version is not None
+            else PiiSetStatus(confirmed=False, field_ids=frozenset(), owned_flagged_count=0)
+        )
+        self._cache[cache_key] = (version, status)
+        return status
+
+    def is_pii_set_confirmed(self, form_type_code: str) -> bool:
+        """True when at least one field this form type owns is flagged is_pii."""
+        return self.get_pii_set_status(form_type_code).confirmed
 
     def get_subcategory_labels(self, form_type_code: str, category_code: str) -> dict[str, str]:
         """
@@ -316,25 +374,54 @@ class FieldMappingService:
             for subcategory in subcategories
         )
 
-    def _build_pii_field_ids(self, form_type_code: str) -> set[str]:
-        """Build the set of field ids marked as PII for a form type.
+    def _pii_config_version(self, form_type_code: str) -> tuple | None:
+        """Cheap change token for a form type's field display config.
+
+        ``(form_type_id, row count, max updated_at)``. The count is needed
+        because deleting a row does not move ``max(updated_at)``. Returns
+        None when the form type does not exist or is inactive.
+        """
+        form_type = self.get_form_type(form_type_code)
+        if not form_type:
+            return None
+
+        count, latest = db.session.execute(
+            select(
+                func.count(MasFieldDisplayConfig.config_id),
+                func.max(MasFieldDisplayConfig.updated_at),
+            ).where(MasFieldDisplayConfig.form_type_id == form_type.form_type_id)
+        ).one()
+        return (form_type.form_type_id, count, latest)
+
+    def _build_pii_set_status(self, form_type_id) -> PiiSetStatus:
+        """Build the PII set for a form type and decide whether it is confirmed.
 
         Deliberately ignores ``is_active``: that flag governs whether a field
         is displayed on the coding screen, not whether it is redacted from
         exports. A field deactivated after being flagged PII must stay
         redacted, not silently drop out of the export filter.
         """
-        form_type = self.get_form_type(form_type_code)
-        if not form_type:
-            return set()
+        rows = db.session.execute(
+            select(
+                MasFieldDisplayConfig.field_id,
+                MasFieldDisplayConfig.subcategory_code,
+                MasFieldDisplayConfig.odk_label,
+                MasFieldDisplayConfig.is_custom,
+            ).where(
+                MasFieldDisplayConfig.form_type_id == form_type_id,
+                MasFieldDisplayConfig.is_pii == True,
+            )
+        ).all()
 
-        return set(
-            db.session.scalars(
-                select(MasFieldDisplayConfig.field_id).where(
-                    MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
-                    MasFieldDisplayConfig.is_pii == True,
-                )
-            ).all()
+        owned = sum(
+            1
+            for _field_id, subcategory_code, odk_label, is_custom in rows
+            if subcategory_code is not None or odk_label is not None or not is_custom
+        )
+        return PiiSetStatus(
+            confirmed=owned > 0,
+            field_ids=frozenset(row[0] for row in rows),
+            owned_flagged_count=owned,
         )
 
 

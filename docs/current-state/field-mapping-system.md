@@ -3,7 +3,7 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Field Mapping System
@@ -637,6 +637,37 @@ set by hand in the admin panel do not survive a mapping reseed and are not
 reproducible on a fresh install. Applying it never replaces a `pii_type` an
 operator already chose — the registry decides *whether* a field is PII, not how
 it is labelled.
+
+### The PII set must be confirmed before anything is exported
+
+Because the registry applies a WHO-keyed field list to every form type, a form
+type always ends up with some `is_pii` rows — including a questionnaire that
+has none of those field ids. "Has is_pii rows" therefore says nothing. The set
+counts as **confirmed** only when at least one field the form type *owns* is
+flagged: a row with a `subcategory_code` (mapped), an `odk_label` (synced from
+ODK), or `is_custom = false`. `FieldMappingService.get_pii_set_status()`
+derives this on every read; nothing is stored.
+
+While a form type is unconfirmed the system fails closed — a viewer subject to
+PII redaction sees no payload on the submission page, and the submissions CSV
+export withholds every payload value for that form (column shape unchanged).
+The SmartVA input export is exempt — `_filter_export_payload` is called there
+with `withhold_unconfirmed=False`, so it strips the flagged fields and nothing
+more, because it is an admin/data_manager processing feed and withholding
+would make SmartVA unusable on a new questionnaire. It logs
+`pii set unconfirmed | <form_type_code> | smartva input export not withheld`
+once per form instead.
+The field-mapping panel shows a warning on that form type's card,
+`GET /admin/api/form-types` returns `pii_set_confirmed: false`, and
+`flask form-types stats --code=<code>` prints it. An admin clears it by
+flagging one owned field **Is PII**. Form type creation and activation are not
+blocked, since a new form type has no fields until ODK sync runs.
+
+The PII set is also the one mapping cache that is not
+`clear_cache()`-dependent: it re-checks `(count(*), max(updated_at))` over the
+form type's `mas_field_display_config` rows on every call, so a flag change
+made in another worker (admin edit, Celery-run sync) takes effect without a
+restart.
 
 Labels hierarchy (first non-null wins for display):
 

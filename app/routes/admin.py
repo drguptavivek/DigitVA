@@ -2838,18 +2838,25 @@ def admin_subcategory_delete(form_type_code, category_code, subcategory_code):
 @role_required("admin")
 def admin_form_types_list():
     """Return all active form types (code + name)."""
+    from app.services.field_mapping_service import get_mapping_service
     from app.services.form_type_service import get_form_type_service
     svc = get_form_type_service()
-    return jsonify({
-        "form_types": [
-            {
-                "form_type_id": str(ft.form_type_id),
-                "form_type_code": ft.form_type_code,
-                "form_type_name": ft.form_type_name,
-            }
-            for ft in svc.list_form_types()
-        ]
-    })
+    mapping_svc = get_mapping_service()
+
+    def _entry(ft):
+        # An unconfirmed PII set fails closed at both redaction sites, so it
+        # is reported here rather than left to be discovered from an empty
+        # export. See docs/policy/access-control-model.md.
+        pii_status = mapping_svc.get_pii_set_status(ft.form_type_code)
+        return {
+            "form_type_id": str(ft.form_type_id),
+            "form_type_code": ft.form_type_code,
+            "form_type_name": ft.form_type_name,
+            "pii_set_confirmed": pii_status.confirmed,
+            "pii_owned_flagged_count": pii_status.owned_flagged_count,
+        }
+
+    return jsonify({"form_types": [_entry(ft) for ft in svc.list_form_types()]})
 
 
 @admin.post("/api/form-types")

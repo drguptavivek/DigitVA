@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import MasFieldDisplayConfig, MasFormTypes
 from app.services.data_management_service import _filter_export_payload
-from app.services.field_mapping_service import get_mapping_service
+from app.services.field_mapping_service import PiiSetStatus, get_mapping_service
 from app.services.form_type_service import get_form_type_service
 from app.services.odk_schema_sync_service import get_sync_service
 from app.services.pii_field_registry import PII_FIELDS, apply_pii_field_registry
@@ -275,7 +275,13 @@ class ExportRedactionTests(BaseTestCase):
         filtered = _filter_export_payload(
             payload,
             form_id="TF01",
-            pii_fields_by_form={"TF01": set(PII_FIELDS)},
+            pii_status_by_form={
+                "TF01": PiiSetStatus(
+                    confirmed=True,
+                    field_ids=frozenset(PII_FIELDS),
+                    owned_flagged_count=len(PII_FIELDS),
+                )
+            },
         )
 
         self.assertNotIn("Id10017", filtered)

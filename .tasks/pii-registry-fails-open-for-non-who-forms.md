@@ -1,7 +1,7 @@
 ---
 title: The PII field set fails open for any non-WHO questionnaire
 doc_type: task
-status: open
+status: done
 owner: engineering
 last_updated: 2026-09-19
 ---
@@ -37,6 +37,18 @@ form type. Silence is currently indistinguishable from a deliberate answer.
 Not established: nobody has run a PHMRC import and watched it happen. What is
 established is that nothing prevents it.
 
+### Done (2026-09-19)
+
+"Zero `is_pii` rows" turned out to be a vacuous test — the registry creates
+rows for every form type — so confirmation is derived instead: a form type is
+confirmed when at least one row it *owns* (`subcategory_code IS NOT NULL OR
+odk_label IS NOT NULL OR is_custom = false`) is flagged. No migration.
+`FieldMappingService.get_pii_set_status()`. Unconfirmed withholds the whole
+payload at both redaction sites, and the admin panel, `GET
+/admin/api/form-types` and `flask form-types stats` carry the warning.
+Activation is deliberately *not* blocked: it would break register -> sync ->
+flag, since a form type has no fields at registration time.
+
 ## 2. The PII set is cached per process, with no invalidation
 
 `FieldMappingService.get_pii_field_ids()` (`app/services/field_mapping_service.py:92`)
@@ -53,6 +65,13 @@ Fix: key the cache on the newest `mas_field_display_config.updated_at` for the
 form type, or drop the cache for this one query and measure before adding it
 back.
 
+### Done (2026-09-19)
+
+Version-keyed on `(count(*), max(updated_at))` over the form type's
+`mas_field_display_config` rows, re-checked per call. The count is there
+because deleting a row does not move `max(updated_at)`. Only the PII set is
+versioned; the other caches on the service still rely on `clear_cache()`.
+
 ## Related, same shape
 
 Nothing stops a migration from calling live application code. The
@@ -62,3 +81,5 @@ importing from `app.*`; most are probably model or enum imports, but nobody has
 swept them. A lint flagging `app.services` imports inside `migrations/versions`
 would close it, paired with the empty-database `flask db upgrade` replay that
 is now known to work.
+
+Still open, moved to `.tasks/migrations-importing-app-code.md`.

@@ -511,14 +511,27 @@ def renderpartial(va_sid, va_partial):
             # For a no-PII viewer, strip payload fields flagged `is_pii` before
             # they ever reach summary/category rendering, rather than trying to
             # filter the rendered (label-keyed) output afterwards.
+            # An unconfirmed PII set means nobody has said which of this form
+            # type's fields are personal data, so no field can be trusted not
+            # to be: withhold the whole payload rather than redact by an
+            # answer that was never given. See
+            # docs/policy/access-control-model.md, "The PII set must be
+            # confirmed per form type".
             _render_payload_data = va_payload_data
             if _redact_pii and va_payload_data:
-                _pii_field_ids = _mapping_svc.get_pii_field_ids(_form_type_code)
-                _render_payload_data = {
-                    field_id: value
-                    for field_id, value in va_payload_data.items()
-                    if field_id not in _pii_field_ids
-                }
+                _pii_status = _mapping_svc.get_pii_set_status(_form_type_code)
+                if not _pii_status.confirmed:
+                    current_app.logger.warning(
+                        "pii set unconfirmed | %s | payload withheld",
+                        _form_type_code,
+                    )
+                    _render_payload_data = {}
+                else:
+                    _render_payload_data = {
+                        field_id: value
+                        for field_id, value in va_payload_data.items()
+                        if field_id not in _pii_status.field_ids
+                    }
             summary_items = build_submission_summary(
                 _form_type_code,
                 _render_payload_data,

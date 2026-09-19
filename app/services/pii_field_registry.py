@@ -43,8 +43,20 @@ The visible cost of that trade: a future non-WHO form type (a PHMRC import,
 say) gets three redaction-only rows created for fields it does not have
 (``Id10073``, ``abha_number``, ``abha_address``). Those rows have NULL
 category/subcategory so they never render on the coding screen and never
-leak anything — they just show up as noise in the admin field list's
-unmapped bucket.
+leak anything — they show up as noise in the admin field list's unmapped
+bucket.
+
+The larger cost is that those three rows are *not* an answer about that form
+type. The questionnaire's own name and identifier fields carry different
+field ids and stay unflagged, and an empty flag set reads as "nothing here is
+personal data" rather than "nobody has looked". So the set is treated as
+**unconfirmed** until at least one field the form type owns — a mapped row, an
+ODK-synced row, any row this registry did not create — is flagged ``is_pii``.
+Unconfirmed fails closed: a viewer without PII sees no payload at all and the
+exports withhold the payload, and the admin field-mapping panel carries a
+standing warning until someone flags an owned field. See
+``FieldMappingService.get_pii_set_status`` and
+``docs/policy/access-control-model.md``.
 
 Two kinds of row, per form type
 --------------------------------
@@ -55,7 +67,7 @@ Two kinds of row, per form type
 
    The NULL subcategory is load-bearing. ``_build_fieldsitepi`` requires
    ``subcategory_code IS NOT NULL`` to render a field, so a created row is
-   visible to redaction (``_build_pii_field_ids`` keys on ``is_pii`` alone,
+   visible to redaction (``_build_pii_set_status`` keys on ``is_pii`` alone,
    regardless of ``is_active`` — see below) and invisible to the coding
    screen. Flagging a field never changes what a coder sees.
 
@@ -69,7 +81,7 @@ Two kinds of row, per form type
 
 ``is_active`` is a display concern, not a redaction one. ``is_active`` governs
 whether ``_build_fieldsitepi`` shows a field on the coding screen;
-``is_pii``/``_build_pii_field_ids`` governs export redaction and does not
+``is_pii``/``_build_pii_set_status`` governs export redaction and does not
 consult ``is_active`` at all. Applying this registry therefore never touches
 ``is_active`` on a row it updates — doing so used to force-reactivate a field
 an operator had deliberately deactivated, resurrecting it onto the coding
@@ -235,9 +247,10 @@ def apply_pii_field_registry(form_type_code: str | None = None) -> dict[str, int
         )
 
     if totals["created"] or totals["updated"]:
-        # get_pii_field_ids() memoizes per form type. This clears the calling
-        # process only; other workers pick the change up on restart, which is
-        # how the rest of the mapping admin already behaves.
+        # The PII set is version-checked per call, so other workers see this
+        # change without a restart (see field_mapping_service's docstring).
+        # Clearing here still saves the calling process one rebuild, and the
+        # other caches on the service do rely on it.
         from app.services.field_mapping_service import get_mapping_service
 
         get_mapping_service().clear_cache()

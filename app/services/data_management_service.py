@@ -8,6 +8,7 @@ Imported by:
 
 import csv
 import io
+import logging
 import math
 import json
 import re
@@ -96,6 +97,9 @@ from app.services.workflow.upstream_changes import (
 )
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.services.viewer_pii_service import should_redact_pii
+
+
+log = logging.getLogger(__name__)
 
 
 NON_SUBSTANTIVE_REVIEW_FIELDS = frozenset(
@@ -1147,26 +1151,79 @@ CSV_EXPORT_OMIT_PAYLOAD_FIELDS = frozenset(
 )
 
 
-def _pii_payload_fields_by_form(rows) -> dict[str, set[str]]:
-    from app.services.field_mapping_service import get_mapping_service
+def _pii_status_by_form(
+    rows, *, withhold_unconfirmed: bool = True
+) -> dict[str, "PiiSetStatus"]:
+    """Resolve each row's form to its form type's PII set status, once per form.
+
+    A form whose form type cannot be resolved gets an unconfirmed status, so
+    an unknown form type withholds its payload rather than exporting it whole.
+
+    ``withhold_unconfirmed`` only selects the warning this logs; it must match
+    the value the caller passes to :func:`_filter_export_payload`, so the log
+    says what actually happened to the payload.
+    """
+    from app.services.field_mapping_service import PiiSetStatus, get_mapping_service
     from app.utils import va_get_form_type_code_for_form
 
-    pii_fields_by_form: dict[str, set[str]] = {}
+    unconfirmed = PiiSetStatus(
+        confirmed=False, field_ids=frozenset(), owned_flagged_count=0
+    )
+    status_by_form: dict[str, PiiSetStatus] = {}
     for row in rows:
         form_id = row.get("va_form_id")
-        if not form_id or form_id in pii_fields_by_form:
+        if not form_id or form_id in status_by_form:
             continue
         form_type_code = va_get_form_type_code_for_form(form_id)
-        pii_fields_by_form[form_id] = (
-            get_mapping_service().get_pii_field_ids(form_type_code)
+        status = (
+            get_mapping_service().get_pii_set_status(form_type_code)
             if form_type_code
-            else set()
+            else unconfirmed
         )
-    return pii_fields_by_form
+        if not status.confirmed:
+            # Once per form, not once per row: an export of an unconfirmed
+            # form type is thousands of withheld rows.
+            log.warning(
+                "pii set unconfirmed | %s | %s",
+                form_type_code or form_id,
+                "export payload withheld"
+                if withhold_unconfirmed
+                else "smartva input export not withheld",
+            )
+        status_by_form[form_id] = status
+    return status_by_form
 
 
-def _filter_export_payload(payload: dict, *, form_id: str, pii_fields_by_form: dict[str, set[str]]) -> dict:
-    blocked_fields = CSV_EXPORT_OMIT_PAYLOAD_FIELDS | pii_fields_by_form.get(form_id, set())
+def _filter_export_payload(
+    payload: dict,
+    *,
+    form_id: str,
+    pii_status_by_form: dict,
+    withhold_unconfirmed: bool = True,
+) -> dict:
+    """Drop the payload fields an export must not carry.
+
+    Withholds the payload entirely when the form type's PII set is
+    unconfirmed — nobody has said which of its fields are personal data, so
+    none of them can be exported on the strength of that silence. Column
+    shape is unaffected: headers come from the confirmed forms in the same
+    export and a withheld row writes those columns empty. See
+    docs/policy/access-control-model.md, "The PII set must be confirmed per
+    form type".
+
+    ``withhold_unconfirmed=False`` is the one documented exemption: the
+    SmartVA input export is an admin/data-manager processing feed, not a
+    viewer surface, and withholding there would make SmartVA unusable on any
+    new questionnaire. It still strips the flagged fields, exactly as it did
+    before the set was confirmable.
+    """
+    status = pii_status_by_form.get(form_id)
+    if (status is None or not status.confirmed) and withhold_unconfirmed:
+        return {}
+
+    blocked_fields = CSV_EXPORT_OMIT_PAYLOAD_FIELDS | set(
+        status.field_ids if status is not None else ()
+    )
     return {
         key: value for key, value in (payload or {}).items() if key not in blocked_fields
     }
@@ -1385,7 +1442,7 @@ def dm_submissions_export_csv(
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
     rows = db.session.execute(query).mappings().all()
-    pii_payload_fields_by_form = _pii_payload_fields_by_form(rows)
+    pii_payload_status_by_form = _pii_status_by_form(rows)
     org_unit_labels = resolve_org_unit_export_labels(
         row.get("org_unit_id") for row in rows
     )
@@ -1468,7 +1525,7 @@ def dm_submissions_export_csv(
         for key in _filter_export_payload(
             row.get("payload_data") or {},
             form_id=row.get("va_form_id"),
-            pii_fields_by_form=pii_payload_fields_by_form,
+            pii_status_by_form=pii_payload_status_by_form,
         ).keys()
     })
     # Appended after every existing column (base and payload): downstream
@@ -1484,7 +1541,7 @@ def dm_submissions_export_csv(
         payload = _filter_export_payload(
             row.get("payload_data") or {},
             form_id=row.get("va_form_id"),
-            pii_fields_by_form=pii_payload_fields_by_form,
+            pii_status_by_form=pii_payload_status_by_form,
         )
         export_row = {
             "va_sid": row.get("va_sid"),
@@ -1850,14 +1907,19 @@ def dm_smartva_input_export_csv(
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
     rows = db.session.execute(query).mappings().all()
-    pii_payload_fields_by_form = _pii_payload_fields_by_form(rows)
+    pii_payload_status_by_form = _pii_status_by_form(
+        rows, withhold_unconfirmed=False
+    )
 
     prepared_rows = []
     for row in rows:
         filtered_payload = _filter_export_payload(
             row.get("payload_data") or {},
             form_id=row.get("va_form_id"),
-            pii_fields_by_form=pii_payload_fields_by_form,
+            pii_status_by_form=pii_payload_status_by_form,
+            # Processing feed, not a viewer surface: strip the flagged fields
+            # but never withhold the whole payload. See the docstring.
+            withhold_unconfirmed=False,
         )
         prepared = _clean_payload_for_smartva(filtered_payload, va_sid=row["va_sid"])
         prepared.update(

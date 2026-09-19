@@ -1,7 +1,8 @@
 # Handoff
 
-Updated 2026-09-19. Five sessions worked one shared checkout and landed 16
-commits; `origin/main` is at `98b9816`, working tree clean.
+Updated 2026-09-19 (later session). The PII fail-closed fix landed on top of
+`648dce3`; `origin/main` is at the commit that updated this file, working tree
+clean.
 
 ## What landed
 
@@ -14,13 +15,14 @@ commits; `origin/main` is at `98b9816`, working tree clean.
 | `6ea5420` | `R10` selectable, bucketed to `VAs-06.01` |
 | `b247950`, `ae6d6fa`, `5c5473a`, `8f0f672`, `98b9816` | Policy and task records (below) |
 | `455eb34`, `d08fce7`, `63a3dcb`, `479b698`, `44ffbeb` | Tooling hygiene: Dolt log and backup pointer untracked, beads prefix fixed, droppings ignored |
+| (this session) | PII set fails closed per form type; PII cache versioned on `mas_field_display_config` `(count, max(updated_at))`. No migration. |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,381 passed on the rebased tree.
+Verified: full suite 1,391 passed after the PII fail-closed change (1,381 on the rebased tree before it).
 
 ## The access model, as it now stands
 
@@ -44,41 +46,70 @@ Two things worth knowing before extending it:
 
 ## Start here
 
-Ranked across every session's input. The first two are new and both fail open.
+Ranked across every session's input. Items 1 and 2 of the previous ranking
+(PII set failing open, PII cache never invalidating) are done; see "PII set
+confirmation" below for what that changed and the one exemption.
 
-1. **The PII set fails open for any non-WHO questionnaire.**
-   `.tasks/pii-registry-fails-open-for-non-who-forms.md`. `PII_FIELDS` is keyed
-   on WHO field ids and applied to every active form type without checking the
-   form contains them. A PHMRC or Ballabgarh form type gets no flags on its own
-   name and national-ID fields, and exports them in the clear. `is_pii` is now
-   the single source of truth behind the viewer split and five redaction
-   surfaces, so an empty set reads as "nothing here is personal data". Fail
-   closed.
-
-2. **The PII set is cached per process with no invalidation.** Same task file.
-   `get_pii_field_ids()` memoizes; nothing in the repo calls `cache_clear`. An
-   admin edit or a Celery-run sync does not reach a web worker until restart.
-
-3. **Nothing guarantees a route has a decorator at all.**
+1. **Nothing guarantees a route has a decorator at all.**
    `.tasks/auth-decorator-followups.md`. A mistyped role now fails at import; a
    *missing* decorator fails open, and three unguarded routes have been found by
    audit rather than by a check. A test walking `app.url_map` and failing on any
    unguarded, non-allowlisted endpoint closes it. Use the runtime map, not an
    AST sweep — only `url_map` sees dynamically registered blueprints.
 
-4. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
+2. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
    unblocks removing the hardcoded `locale = "en"` at
    `va_intake_form.html:168` and the never-set `instrument` property. The form
    falls back to the bundled WHO 2022 instrument, which works only while
    exactly one form type is live.
 
-5. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
+3. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
    A project-scoped grant on a closed project still resolves, in two
    independent mechanisms. Fixing one alone leaves them disagreeing, so it needs
    a decision about what a closed project means for every grant scope.
 
+4. **Migrations importing live app code.** `.tasks/migrations-importing-app-code.md`.
+   15 migration files import from `app.*`; the `mas_org_unit` break came from
+   exactly this. A lint on `app.services` imports under `migrations/versions`
+   plus the empty-database upgrade replay closes it.
+
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
+
+## PII set confirmation (landed this session)
+
+A form type's PII set is **confirmed** when at least one `is_pii` row sits on
+a field the form actually owns (`subcategory_code IS NOT NULL OR odk_label IS
+NOT NULL OR is_custom = false`). "Zero `is_pii` rows" was never a usable
+check: `apply_pii_field_registry` creates three redaction-only rows for every
+form type, WHO-shaped or not. Derived from data, so no migration and no
+confirm button: an admin confirms a PHMRC form by flagging one of its real
+fields in the field-mapping panel.
+
+Unconfirmed fails closed: a plain `collaborator` gets no payload at all on
+the submission page, and the submissions CSV export writes the payload
+columns empty for every role (it was already PII-filtered for every role).
+The admin form-type list, `get_form_type_stats`, the field-mapping panel and
+`flask form-types` all show the status.
+
+**One exemption, deliberate:** the SmartVA input export still only strips
+flagged fields on an unconfirmed form type, logged as
+`pii set unconfirmed | <code> | smartva input export not withheld`. It is a
+processing feed reachable only by data managers and admins, and withholding
+there would make SmartVA unusable on any new questionnaire. The remaining
+fail-open on that path is unchanged from before: a form whose form type
+cannot be resolved exports its payload with only the hardcoded omit list
+applied. Recorded in `docs/policy/access-control-model.md`.
+
+The PII status cache is keyed on `(count(*), max(updated_at))` of
+`mas_field_display_config` for the form type, so an admin edit or Celery-run
+sync reaches every worker on its next call. The other mapping caches
+(fieldsitepi, choices, labels) are still process-level and cleared only by
+`clear_cache()` — a test that mutates a mapping row and renders must clear
+them on cleanup, or later tests in the same process render the mutated
+build after the savepoint has rolled the row back.
+
+Test database for this tree: `minerva_test_pii` (created this session).
 
 ## Open and unexplained
 

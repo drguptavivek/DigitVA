@@ -37,6 +37,8 @@ def list_form_types():
         click.echo(f"  Fields:     {stats['field_count']}")
         click.echo(f"  Choices:    {stats['choice_count']}")
         click.echo(f"  Forms:      {stats['form_count']}")
+        if not stats["pii_set_confirmed"]:
+            click.echo("  PII set:    UNCONFIRMED — exports withhold the payload")
 
 
 @form_types_group.command("register")
@@ -88,6 +90,13 @@ def form_type_stats(code):
     click.echo(f"  Categories: {stats['category_count']}")
     click.echo(f"  Fields:     {stats['field_count']}")
     click.echo(f"  Choices:    {stats['choice_count']}")
+    if stats["pii_set_confirmed"]:
+        click.echo(f"  PII set:    confirmed ({stats['pii_owned_flagged_count']} owned field(s) flagged)")
+    else:
+        click.echo(
+            "  PII set:    UNCONFIRMED — no field this form owns is flagged is_pii; "
+            "viewers without PII see no payload and exports withhold it"
+        )
 
 
 @form_types_group.command("deactivate")

@@ -248,6 +248,61 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         self.assertIn(self.PII_VALUE, body)
         self.assertIn(self.PUBLIC_VALUE, body)
 
+    def test_unconfirmed_pii_set_withholds_the_whole_payload(self):
+        """Fail-closed: strip this form type's only is_pii row down to what
+        the registry would have created (no subcategory, no odk_label,
+        is_custom) and the set is no longer confirmed — a viewer without PII
+        then sees no payload value at all, not just the flagged one."""
+        from app import cache as flask_cache
+        from app.services.field_mapping_service import get_mapping_service
+
+        # The mapping service's fieldsitepi cache is process-level and not
+        # versioned; the render below rebuilds it from the mutated row, and
+        # the savepoint rollback in tearDown does not undo that. Clear both
+        # caches on exit so later tests in this class see the fixture again.
+        self.addCleanup(get_mapping_service().clear_cache)
+        self.addCleanup(flask_cache.clear)
+
+        self._login(self.dm_user_id)
+        # Present before: with the set confirmed, a redacting viewer still
+        # sees the non-PII value.
+        with patch("app.routes.va_form.should_redact_pii", return_value=True):
+            before = self._get_partial()
+        self.assertIn(self.PUBLIC_VALUE, before.get_data(as_text=True))
+
+        pii_row = db.session.scalar(
+            sa.select(MasFieldDisplayConfig).where(
+                MasFieldDisplayConfig.form_type_id == self.form_type_id,
+                MasFieldDisplayConfig.field_id == "PiiField1",
+            )
+        )
+        pii_row.category_code = None
+        pii_row.subcategory_code = None
+        pii_row.odk_label = None
+        pii_row.is_custom = True
+        db.session.flush()
+        self.assertFalse(
+            get_mapping_service().is_pii_set_confirmed(self.FORM_TYPE_CODE)
+        )
+        # The rendered section is cached per (sid, partial, redaction), and
+        # that key does not depend on the mapping config, so the warmed entry
+        # above would otherwise answer this request.
+        flask_cache.clear()
+        get_mapping_service().clear_cache()
+
+        with patch("app.routes.va_form.should_redact_pii", return_value=True):
+            withheld = self._get_partial()
+        self.assertEqual(withheld.status_code, 200)
+        withheld_body = withheld.get_data(as_text=True)
+        self.assertNotIn(self.PUBLIC_VALUE, withheld_body)
+        self.assertNotIn(self.PII_VALUE, withheld_body)
+
+        # Positive control: a viewer entitled to PII is unaffected.
+        flask_cache.clear()
+        with patch("app.routes.va_form.should_redact_pii", return_value=False):
+            full = self._get_partial()
+        self.assertIn(self.PUBLIC_VALUE, full.get_data(as_text=True))
+
     def test_cache_does_not_leak_full_render_into_a_later_redacted_one(self):
         """The bug the cache-key fix closes: render unredacted first (warms
         the plain cache entry), then redacted — the second call must not be

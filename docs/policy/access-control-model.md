@@ -171,6 +171,54 @@ If that trade proves wrong in practice, the split is a third role
 mechanism. Recorded here so the choice is revisited deliberately rather than
 rediscovered.
 
+#### The PII set must be confirmed per form type
+
+Redaction keys on `mas_field_display_config.is_pii`, and an unflagged field is
+indistinguishable from a field nobody has classified. That silence is not a
+safe default: `apply_pii_field_registry` applies a WHO-keyed field list to
+*every* form type, so a non-WHO questionnaire (PHMRC, Ballabgarh) receives
+three redaction-only rows for field ids it does not contain while its own name
+and identifier fields stay unflagged.
+
+So a form type's PII set counts as **confirmed** only when at least one field
+the form type *owns* carries `is_pii = true` — a row that is mapped
+(`subcategory_code`), synced from ODK (`odk_label`), or otherwise not created
+by the registry (`is_custom = false`). The rule is derived from the rows on
+every read (`FieldMappingService.get_pii_set_status`); nothing is stored, so
+there is no state to migrate or to fall out of date.
+
+Unconfirmed fails closed:
+
+- the submission detail render withholds the **entire** payload from a viewer
+  subject to redaction, not just the flagged fields, and logs
+  `pii set unconfirmed | <form_type_code> | payload withheld`
+- `_filter_export_payload` returns `{}` for every submission on that form, so
+  the submissions CSV export carries no payload values. Column shape is
+  unchanged — the headers still come from the confirmed forms in the same
+  export and the withheld rows write those columns empty, per "empty the
+  column, never drop it" below.
+
+One export is exempt. The **SmartVA input export** passes
+`withhold_unconfirmed=False` and keeps stripping only the flagged `is_pii`
+fields, exactly as it did before the set became confirmable. Withholding there
+would leave SmartVA unable to process any new questionnaire at all, and the
+export is a data_manager/admin processing feed rather than a viewer surface —
+it is already reachable only by roles that may see full submission data. It
+logs one warning per form instead:
+`pii set unconfirmed | <form_type_code> | smartva input export not withheld`.
+The exemption is a parameter at that one call site so it stays greppable; the
+submissions CSV export keeps the default, which is consistent because it was
+already PII-filtered for every role.
+
+An admin confirms the set by flagging one owned field **Is PII** in the
+admin field-mapping panel. Until then that form type's card in the panel
+carries a standing warning, `GET /admin/api/form-types` reports
+`pii_set_confirmed: false`, and `flask form-types stats` says so.
+
+Activation and creation of a form type are deliberately *not* blocked on this:
+a form type has no fields at registration time, so the working order is
+register -> ODK sync -> flag.
+
 #### Route wiring (2026-09-19): what a viewer can actually reach
 
 The role and the redaction helper existed before any route granted them —

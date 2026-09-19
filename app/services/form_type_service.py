@@ -112,6 +112,11 @@ class FormTypeService:
             )
         ) or 0
 
+        # Derived, never stored: whether anyone has confirmed this form type's
+        # PII set. See FieldMappingService.PiiSetStatus.
+        from app.services.field_mapping_service import get_mapping_service
+        pii_status = get_mapping_service().get_pii_set_status(form_type_code)
+
         return {
             "form_type_code": form_type_code,
             "form_type_name": form_type.form_type_name,
@@ -121,6 +126,8 @@ class FormTypeService:
             "field_count": field_count,
             "choice_count": choice_count,
             "is_active": form_type.is_active,
+            "pii_set_confirmed": pii_status.confirmed,
+            "pii_owned_flagged_count": pii_status.owned_flagged_count,
         }
 
     def duplicate_form_type(

@@ -34,6 +34,13 @@
             <h6 class="card-title fw-semibold mb-0">{{ stat.form_type_name }}</h6>
           </div>
           <p class="text-muted small font-monospace mb-1">{{ stat.form_type_code }}</p>
+          {% if not stat.pii_set_confirmed %}
+          <div class="alert alert-warning py-2 px-2 mb-2" style="font-size:0.75rem;">
+            <strong>PII set unconfirmed</strong> — no field this form owns is flagged
+            personal data. Viewers without PII see no payload and exports withhold the
+            payload until at least one owned field is flagged Is PII.
+          </div>
+          {% endif %}
           {% if stat.form_type_description %}
           <p class="text-muted small mb-2" style="font-size:0.78rem;">{{ stat.form_type_description }}</p>
           {% endif %}

@@ -7,6 +7,7 @@
     "build": "node build.mjs",
     "check": "node check.mjs",
     "build:validator": "node build-validator.mjs",
+    "build:layer-reference": "node build-layer-reference.mjs",
     "validator": "node validator-server.mjs",
     "dev": "vite",
     "build:web": "vite build",

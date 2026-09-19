@@ -14,7 +14,6 @@ from app import db
 from app.models.mas_instrument_locales import SOURCE_EDITED, SOURCE_IMPORTED
 from app.services.instrument_translation_service import (
     BASE_INSTRUMENT_CODE,
-    TRANSLATION_COVERAGE_THRESHOLD,
     InstrumentTranslationError,
     documented_sources,
     export_translations,
@@ -45,18 +44,15 @@ def _fail(exc: InstrumentTranslationError) -> None:
     default=False,
     help="Report differences against a workbook that is not the documented source; writes nothing.",
 )
-@click.option(
-    "--force",
-    is_flag=True,
-    default=False,
-    help="Activate the locale even when coverage is below the threshold (logged).",
-)
-def import_workbook(instrument_code, locale, workbook, cross_check, force):
-    """Import LOCALE for INSTRUMENT_CODE from WORKBOOK."""
+def import_workbook(instrument_code, locale, workbook, cross_check):
+    """Import LOCALE for INSTRUMENT_CODE from WORKBOOK.
+
+    This never activates or deactivates the locale -- coverage is reported
+    here but decides nothing; run ``activate`` explicitly once you are ready
+    to serve it.
+    """
     try:
-        report = import_translations(
-            instrument_code, locale, workbook, cross_check=cross_check, force=force
-        )
+        report = import_translations(instrument_code, locale, workbook, cross_check=cross_check)
     except InstrumentTranslationError as exc:
         db.session.rollback()
         _fail(exc)
@@ -72,14 +68,17 @@ def import_workbook(instrument_code, locale, workbook, cross_check, force):
         f"missing={len(report.missing_from_workbook)}, "
         f"unknown={len(report.unknown_in_workbook)}"
     )
+    for name, counts in sorted(report.extension_coverage.items()):
+        total = counts["total"]
+        pct = (counts["translated"] / total) if total else 0.0
+        click.echo(f"  {name}: {pct:.1%} ({counts['translated']}/{total} labels)")
     if report.cross_check:
         click.echo("Cross-check only: nothing was written.")
-    elif report.activated:
-        click.echo("Locale is active." + (" (forced below threshold)" if report.forced else ""))
     else:
         click.echo(
-            "Locale is NOT active: coverage is below "
-            f"{TRANSLATION_COVERAGE_THRESHOLD:.0%}. Re-run with --force to activate anyway."
+            "Locale is not activated by an import. Run "
+            f"'instrument-translations activate {instrument_code} {locale}' "
+            "when ready to serve it."
         )
 
 
@@ -154,11 +153,10 @@ def import_xliff_command(instrument_code, locale, path, mark_as):
 @instrument_translations_group.command("activate")
 @click.argument("instrument_code")
 @click.argument("locale")
-@click.option("--force", is_flag=True, default=False, help="Activate below the coverage threshold.")
-def activate(instrument_code, locale, force):
+def activate(instrument_code, locale):
     """Serve LOCALE to forms."""
     try:
-        result = set_locale_active(instrument_code, locale, True, force=force)
+        result = set_locale_active(instrument_code, locale, True)
     except InstrumentTranslationError as exc:
         db.session.rollback()
         _fail(exc)
@@ -182,8 +180,16 @@ def deactivate(instrument_code, locale):
 
 @instrument_translations_group.command("status")
 @click.option("--instrument-code", default=BASE_INSTRUMENT_CODE, show_default=True)
-def status(instrument_code):
-    """Coverage, version, source and active flag for every locale."""
+@click.option(
+    "--extensions", is_flag=True, default=False,
+    help="Also print each locale's per-extension (layer) coverage.",
+)
+def status(instrument_code, extensions):
+    """Coverage, version, source and active flag for every locale.
+
+    Coverage is informational: activation (the 'active' column) is a separate
+    administrative action and is never decided by it.
+    """
     try:
         rows = locale_status(instrument_code)
         documented = documented_sources()
@@ -204,6 +210,12 @@ def status(instrument_code):
             f"{(row['source_document'] or '-'):<34}"
             f"{expected.workbook if expected else '-'}"
         )
+        if extensions:
+            for name, counts in sorted(row.get("extension_coverage", {}).items()):
+                click.echo(
+                    f"    {name}: {counts['coverage']:.1%} "
+                    f"({counts['translated']}/{counts['total']})"
+                )
 
 
 def init_app(app):

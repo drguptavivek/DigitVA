@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-20
+last_updated: 2026-09-19
 ---
 
 # Current Data Model
@@ -307,9 +307,10 @@ pre-built and immutable.
 
 - one row per display language of one standard instrument; PK
   `(instrument_code, locale_code)`
-- `language_name`, `is_active` (default false — a locale is served only once an
-  import passes the coverage threshold), `source_document`, `source_sha256`,
-  `imported_at`, `version`, `updated_at`
+- `language_name`, `is_active` (default false — set only by an explicit
+  `set_locale_active` call; coverage is reported but never gates it, decided
+  2026-09-19), `source_document`, `source_sha256`, `imported_at`, `version`,
+  `updated_at`
 - `version` is bumped by every import and every edit; clients cache a locale by
   it and revalidate against `translation_versions` in the form-options payload
   or the serving endpoint's `ETag`
@@ -332,6 +333,19 @@ pre-built and immutable.
 - FK `(instrument_code, locale_code)` -> `mas_instrument_locales`, ON DELETE
   CASCADE
 - roughly 2,800 rows per fully translated locale of `WHO_2022_VA`
+
+### The reference an item's key is checked against
+
+`instrument_translation_service.reference_items()` is the WHO base workbook
+**plus** the DigitVA layer entries from the committed
+`vendor/who-va-2022/src/generated/digitva-layers.reference.json` artifact
+(built by `tooling/who-va-2022/build-layer-reference.mjs`; Python only reads
+it). `reference_item_extensions()` maps each reference key to the extension
+name(s) it belongs to (a WHO base item maps to an empty set); base survey-label
+coverage (`reference_label_keys()`) deliberately excludes layer labels, so it
+keeps its original meaning, and per-extension coverage is reported alongside
+it. A layer entry colliding with a WHO base key raises rather than one
+silently shadowing the other — the two namespaces are disjoint today.
 
 ### What a submission records
 

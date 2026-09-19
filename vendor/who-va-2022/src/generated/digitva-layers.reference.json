@@ -1,0 +1,595 @@
+{
+  "entries": [
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "CONSENT_MODE/in_person",
+      "itemKind": "choice",
+      "text": "In person"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "CONSENT_MODE/telephonic",
+      "itemKind": "choice",
+      "text": "Telephonic"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "language/bangla",
+      "itemKind": "choice",
+      "text": "Bangla"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "language/english",
+      "itemKind": "choice",
+      "text": "English"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "language/hindi",
+      "itemKind": "choice",
+      "text": "Hindi"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "language/kannada",
+      "itemKind": "choice",
+      "text": "Kannada"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "language/malayalam",
+      "itemKind": "choice",
+      "text": "Malayalam"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "language/marathi",
+      "itemKind": "choice",
+      "text": "Marathi"
+    },
+    {
+      "extensions": [
+        "abha"
+      ],
+      "field": "hint",
+      "itemKey": "abha_address",
+      "itemKind": "question",
+      "text": "e.g. name@abdm"
+    },
+    {
+      "extensions": [
+        "abha"
+      ],
+      "field": "label",
+      "itemKey": "abha_address",
+      "itemKind": "question",
+      "text": "ABHA address of the deceased, if known"
+    },
+    {
+      "extensions": [
+        "abha"
+      ],
+      "field": "hint",
+      "itemKey": "abha_number",
+      "itemKind": "question",
+      "text": "Ayushman Bharat Health Account number, e.g. 12-3456-7890-1234"
+    },
+    {
+      "extensions": [
+        "abha"
+      ],
+      "field": "label",
+      "itemKey": "abha_number",
+      "itemKind": "question",
+      "text": "ABHA number of the deceased (14 digits), if known"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "consent_mode",
+      "itemKind": "question",
+      "text": "Mode in which consent was taken"
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "hint",
+      "itemKey": "custom_medical_certificate_upload",
+      "itemKind": "question",
+      "text": "Choose a JPEG or PNG image, or a PDF document."
+    },
+    {
+      "extensions": [
+        "digitva_core"
+      ],
+      "field": "label",
+      "itemKey": "custom_medical_certificate_upload",
+      "itemKind": "question",
+      "text": "Upload medical certificate (image or PDF)"
+    },
+    {
+      "extensions": [
+        "death_summary",
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "digitva_documents",
+      "itemKind": "question",
+      "text": "Medical and death documents"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "label",
+      "itemKey": "ds_available",
+      "itemKind": "question",
+      "text": "Is there any death summary / certificate document (images) available for the deceased?"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "hint",
+      "itemKey": "ds_count",
+      "itemKind": "question",
+      "text": "0 to 5"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "label",
+      "itemKey": "ds_count",
+      "itemKind": "question",
+      "text": "How many death document pages will you photograph?"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "label",
+      "itemKey": "ds_im1",
+      "itemKind": "question",
+      "text": "Death Document Image 01"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "label",
+      "itemKey": "ds_im2",
+      "itemKind": "question",
+      "text": "Death Document Image 02"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "label",
+      "itemKey": "ds_im3",
+      "itemKind": "question",
+      "text": "Death Document Image 03"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "label",
+      "itemKey": "ds_im4",
+      "itemKind": "question",
+      "text": "Death Document Image 04"
+    },
+    {
+      "extensions": [
+        "death_summary"
+      ],
+      "field": "label",
+      "itemKey": "ds_im5",
+      "itemKind": "question",
+      "text": "Death Document Image 05"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "imagenarr",
+      "itemKind": "question",
+      "text": "(Capture image for narration) Photograph of the written narrative, if the narrative was recorded on paper"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_available",
+      "itemKind": "question",
+      "text": "Are there any medical documents available related to the deceased?"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "hint",
+      "itemKey": "md_count",
+      "itemKind": "question",
+      "text": "0 to 30"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_count",
+      "itemKind": "question",
+      "text": "How many medical document pages will you photograph?"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im1",
+      "itemKind": "question",
+      "text": "Medical Document Image 01"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im10",
+      "itemKind": "question",
+      "text": "Medical Document Image 10"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im11",
+      "itemKind": "question",
+      "text": "Medical Document Image 11"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im12",
+      "itemKind": "question",
+      "text": "Medical Document Image 12"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im13",
+      "itemKind": "question",
+      "text": "Medical Document Image 13"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im14",
+      "itemKind": "question",
+      "text": "Medical Document Image 14"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im15",
+      "itemKind": "question",
+      "text": "Medical Document Image 15"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im16",
+      "itemKind": "question",
+      "text": "Medical Document Image 16"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im17",
+      "itemKind": "question",
+      "text": "Medical Document Image 17"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im18",
+      "itemKind": "question",
+      "text": "Medical Document Image 18"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im19",
+      "itemKind": "question",
+      "text": "Medical Document Image 19"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im2",
+      "itemKind": "question",
+      "text": "Medical Document Image 02"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im20",
+      "itemKind": "question",
+      "text": "Medical Document Image 20"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im21",
+      "itemKind": "question",
+      "text": "Medical Document Image 21"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im22",
+      "itemKind": "question",
+      "text": "Medical Document Image 22"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im23",
+      "itemKind": "question",
+      "text": "Medical Document Image 23"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im24",
+      "itemKind": "question",
+      "text": "Medical Document Image 24"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im25",
+      "itemKind": "question",
+      "text": "Medical Document Image 25"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im26",
+      "itemKind": "question",
+      "text": "Medical Document Image 26"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im27",
+      "itemKind": "question",
+      "text": "Medical Document Image 27"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im28",
+      "itemKind": "question",
+      "text": "Medical Document Image 28"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im29",
+      "itemKind": "question",
+      "text": "Medical Document Image 29"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im3",
+      "itemKind": "question",
+      "text": "Medical Document Image 03"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im30",
+      "itemKind": "question",
+      "text": "Medical Document Image 30"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im4",
+      "itemKind": "question",
+      "text": "Medical Document Image 04"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im5",
+      "itemKind": "question",
+      "text": "Medical Document Image 05"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im6",
+      "itemKind": "question",
+      "text": "Medical Document Image 06"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im7",
+      "itemKind": "question",
+      "text": "Medical Document Image 07"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im8",
+      "itemKind": "question",
+      "text": "Medical Document Image 08"
+    },
+    {
+      "extensions": [
+        "medical_records"
+      ],
+      "field": "label",
+      "itemKey": "md_im9",
+      "itemKind": "question",
+      "text": "Medical Document Image 09"
+    },
+    {
+      "extensions": [
+        "narration_language"
+      ],
+      "field": "label",
+      "itemKey": "narr_language",
+      "itemKind": "question",
+      "text": "Narration language"
+    }
+  ],
+  "extensionCounts": {
+    "abha": {
+      "choices": 0,
+      "questions": 2,
+      "sections": 0
+    },
+    "death_summary": {
+      "choices": 0,
+      "questions": 7,
+      "sections": 1
+    },
+    "digitva_core": {
+      "choices": 2,
+      "questions": 2,
+      "sections": 0
+    },
+    "geography": {
+      "choices": 0,
+      "questions": 0,
+      "sections": 0
+    },
+    "intake_screen": {
+      "choices": 0,
+      "questions": 0,
+      "sections": 0
+    },
+    "medical_records": {
+      "choices": 0,
+      "questions": 32,
+      "sections": 1
+    },
+    "narration_language": {
+      "choices": 6,
+      "questions": 2,
+      "sections": 0
+    },
+    "social_autopsy": {
+      "choices": 0,
+      "questions": 0,
+      "sections": 0
+    }
+  },
+  "schemaVersion": 2,
+  "source": {
+    "baseInstrument": "vendor/who-va-2022/src/generated/who-va-2022.instrument.json",
+    "extensions": [
+      "digitva_core",
+      "social_autopsy",
+      "intake_screen",
+      "geography",
+      "narration_language",
+      "death_summary",
+      "medical_records",
+      "abha"
+    ],
+    "generatedBy": "tooling/who-va-2022/build-layer-reference.mjs",
+    "package": "@drguptavivek/who-2022-va",
+    "vendoredVersion": "0.1.0"
+  }
+}

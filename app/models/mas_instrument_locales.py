@@ -7,12 +7,15 @@ A translation is *data*, not part of the instrument bundle. The instrument's
 structure is pre-built and immutable (decision O1); a locale only supplies the
 text shown for a question, hint, guidance note or choice. That is why these two
 tables carry no structure of their own: ``item_key`` names something the
-curated reference form already has, and an import can never create a question.
+reference already has -- the curated reference form or a DigitVA layer -- and
+an import can never create a question.
 
 ``en`` is the base locale of every bundled instrument. It needs no rows here
-and is always served; every other locale is served to a form only once
-``is_active`` is set, which happens when an import reaches the coverage
-threshold (``app/services/instrument_translation_service.py``).
+and is always served; every other locale is served to a form once ``is_active``
+is set, which is an explicit administrative action. Coverage is reported but
+decides nothing: an untranslated string is absent from the served payload, so
+the form falls back to English for that string alone
+(``app/services/instrument_translation_service.py``).
 """
 
 import uuid

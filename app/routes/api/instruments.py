@@ -7,9 +7,11 @@ form-options payload) whenever it loads a form, and re-fetches only when the
 version moved — so an administrator's edit reaches interviewers on their next
 form without a rebuild or a redeploy.
 
-Read-only and signed-in only. A locale that is not active is not served: an
-administrator activates a language when its coverage passes the threshold, and
-until then the form must not be switched into a half-translated questionnaire.
+Read-only and signed-in only. A locale that is not active is not served;
+activating one is an explicit administrative action and is not gated on how
+much of it is translated. A half-translated locale is safe to serve because an
+untranslated string is absent from this payload rather than empty, so the form
+falls back to English for that string alone.
 Policy: docs/policy/va-web-form-options.md.
 """
 

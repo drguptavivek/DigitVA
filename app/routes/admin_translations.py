@@ -28,7 +28,6 @@ from app.routes.admin import _json_error, admin
 from app.services.instrument_translation_service import (
     BASE_INSTRUMENT_CODE,
     MAX_STRING_PAGE_SIZE,
-    TRANSLATION_COVERAGE_THRESHOLD,
     XLIFF_EXTENSIONS,
     XLIFF_MEDIA_TYPE,
     InstrumentTranslationError,
@@ -105,7 +104,6 @@ def admin_instrument_translation_locales():
     return jsonify(
         {
             "instrument_code": instrument_code,
-            "coverage_threshold": TRANSLATION_COVERAGE_THRESHOLD,
             "locales": rows,
             "documented_locales": sorted(documented),
         }
@@ -125,7 +123,6 @@ def admin_instrument_translation_import(instrument_code, locale):
         return _json_error("Only .xlsx workbooks are accepted.", 400)
 
     cross_check = request.form.get("cross_check") == "1"
-    force = request.form.get("force") == "1"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         # The documented-source rule matches on the file name, so the upload
@@ -147,7 +144,6 @@ def admin_instrument_translation_import(instrument_code, locale):
                 locale,
                 path,
                 cross_check=cross_check,
-                force=force,
                 actor_id=current_user.user_id,
             )
         except InstrumentTranslationError as exc:
@@ -182,11 +178,9 @@ def admin_instrument_translation_deactivate(instrument_code, locale):
 def _set_active(instrument_code, locale, active):
     if err := _guard():
         return err
-    force = (request.get_json(silent=True) or {}).get("force") is True
     try:
         result = set_locale_active(
-            instrument_code, locale, active, force=force,
-            actor_id=current_user.user_id,
+            instrument_code, locale, active, actor_id=current_user.user_id,
         )
     except InstrumentTranslationError as exc:
         db.session.rollback()

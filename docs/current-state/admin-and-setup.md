@@ -310,18 +310,25 @@ dashboard's history.
 ## Instrument Translations Panel
 
 Admin-only. Lists each instrument locale from `mas_instrument_locales`:
-language, locale code, coverage against the 0.95 threshold
-(`TRANSLATION_COVERAGE_THRESHOLD` in
-`app/services/instrument_translation_service.py`), version, the workbook
-it was imported from against the documented source (a `drift` badge when
-they differ), and the active flag. Actions: import a workbook (xlsx only,
-5 MB cap; `cross-check` reports differences without writing; `force`
-activates below threshold and is logged), activate, deactivate, edit one
-string (search by question name or English text, English reference shown
-alongside; an edit marks the row `edited`, survives re-import and bumps
-the locale version), export JSON, and exchange the language as **XLIFF 2.0**.
-All state changes go through JSON routes under
-`/admin/api/instrument-translations/` with `X-CSRFToken`.
+language, locale code, base coverage (WHO survey labels, informational —
+decided 2026-09-19 it never gates activation) alongside per-extension
+(layer) coverage badges, version, the workbook it was imported from against
+the documented source (a `drift` badge when they differ), and the active
+flag. Actions: import a workbook (xlsx only, 5 MB cap; `cross-check` reports
+differences without writing), activate, deactivate, edit one string (search
+by question name or English text, English reference shown alongside; an edit
+marks the row `edited`, survives re-import and bumps the locale version),
+export JSON, and exchange the language as **XLIFF 2.0**. All state changes go
+through JSON routes under `/admin/api/instrument-translations/` with
+`X-CSRFToken`.
+
+The reference a language is translated against is the WHO base workbook plus
+the DigitVA layer questions from the committed
+`vendor/who-va-2022/src/generated/digitva-layers.reference.json` artifact
+(`app/services/instrument_translation_service.py` reads it; production
+happens in `tooling/who-va-2022/build-layer-reference.mjs`). Base coverage
+excludes layer labels, so it keeps its original meaning as layers are added;
+each extension's own coverage is reported alongside it.
 
 Each language's row carries an **XLIFF** link
 (`GET .../<instrument_code>/<locale>/xliff`, served as

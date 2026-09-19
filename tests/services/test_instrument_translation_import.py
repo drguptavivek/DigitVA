@@ -1,18 +1,24 @@
 """Importing a language from a documented source workbook.
 
-WP6 of docs/planning/web-capture-project-configuration-plan.md. The rules this
-holds the importer to, all of them from
-docs/policy/va-form-project-configuration.md ("Translation sources"):
+WP6 of docs/planning/web-capture-project-configuration-plan.md, extended by
+digitva-thr.4 (WP2) for the DigitVA layer questions. The rules this holds the
+importer to, all of them from
+docs/policy/va-form-project-configuration.md ("Translation sources" and
+"The reference also carries the DigitVA layers"):
 
 * a workbook supplies text, never structure;
 * one documented source workbook per language, and the doc is the rule;
 * an administrator's edit outranks a re-import;
-* a locale is served only once its coverage passes the threshold.
+* the reference is the WHO base workbook plus the DigitVA layer entries, and a
+  layer item may never silently overwrite a WHO base one;
+* activation is an explicit administrative action, independent of coverage
+  (coverage is computed and reported, never a gate).
 
 Small synthetic workbooks are used throughout; exactly one test reads the nine
 committed workbooks, and it is the one that would notice a re-downloaded file
 silently dropping a language.
 """
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -59,6 +65,27 @@ def _write_workbook(path, survey_rows, choice_rows):
     return path
 
 
+def _write_layer_reference(path, entries=()):
+    """A ``digitva-layers.reference.json`` fixture, empty by default.
+
+    Matches the schema ``tooling/who-va-2022/build-layer-reference.mjs``
+    produces: ``entries[]`` with ``itemKind``, ``itemKey``, ``field``, ``text``
+    and ``extensions`` (a non-empty array).
+    """
+    path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "source": {"package": "@drguptavivek/who-2022-va"},
+                "extensionCounts": {},
+                "entries": list(entries),
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 class InstrumentTranslationImportTests(BaseTestCase):
     """A two-question reference and the workbooks that feed it."""
 
@@ -84,12 +111,21 @@ class InstrumentTranslationImportTests(BaseTestCase):
                 {"list_name": "yes_no", "name": "no", "label::English (en)": "No"},
             ],
         )
+        # No layers by default -- most of these tests are about the workbook
+        # importer and must not see the real, committed layer artifact.
+        self.layers = _write_layer_reference(self.tmp / "layers.json")
+        self._clear_reference_caches()
+        self.addCleanup(self._clear_reference_caches)
+        self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
+        self._patch(svc, "LAYER_REFERENCE_PATH", self.layers)
+        self._patch(svc, "BASE_INSTRUMENT_CODE", INSTRUMENT)
+
+    def _clear_reference_caches(self):
         # The reference is cached per path and the fixture path changes per
         # test, but clear it anyway so a stale entry can never leak across.
         svc._reference_items_cached.cache_clear()
-        self.addCleanup(svc._reference_items_cached.cache_clear)
-        self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
-        self._patch(svc, "BASE_INSTRUMENT_CODE", INSTRUMENT)
+        svc._reference_extensions_cached.cache_clear()
+        svc._layer_entries_cached.cache_clear()
 
     def _patch(self, module, name, value):
         old = getattr(module, name)
@@ -251,16 +287,23 @@ class InstrumentTranslationImportTests(BaseTestCase):
         second = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).version
         self.assertGreater(second, first)
 
-    # -- the coverage gate --------------------------------------------------
+    # -- activation is explicit, never gated on coverage ---------------------
+    #
+    # Decided 2026-09-19: English fallback is per-string, so a coverage
+    # percentage is never a serving decision. Coverage stays computed and
+    # reported; it just decides nothing.
 
-    def test_full_coverage_activates_the_locale(self):
+    def test_a_full_import_does_not_activate_the_locale(self):
         report = self._import(self._full_workbook())
         db.session.flush()
         self.assertEqual(report.coverage, 1.0)
-        self.assertTrue(report.activated)
-        self.assertTrue(db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).is_active)
+        # Present first: the row exists (the import created it)...
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        self.assertIsNotNone(row)
+        # ...but is not active: an import never activates, however complete.
+        self.assertFalse(row.is_active)
 
-    def test_partial_coverage_refuses_activation_until_forced(self):
+    def test_a_partial_import_still_reports_its_coverage(self):
         half = _write_workbook(
             self.tmp / "source_hi.xlsx",
             [
@@ -273,17 +316,13 @@ class InstrumentTranslationImportTests(BaseTestCase):
         )
         report = self._import(half)
         db.session.flush()
-        self.assertLess(report.coverage, svc.TRANSLATION_COVERAGE_THRESHOLD)
-        self.assertFalse(report.activated)
+        # Present first: the partial coverage is reported accurately.
+        self.assertAlmostEqual(report.coverage, 0.5)
+        # An import never activates or refuses to activate; that decision
+        # belongs to set_locale_active alone.
         self.assertFalse(db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).is_active)
 
-        forced = self._import(half, force=True)
-        db.session.flush()
-        self.assertTrue(forced.activated)
-        self.assertTrue(forced.forced)
-        self.assertTrue(db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).is_active)
-
-    def test_set_locale_active_honours_the_same_gate(self):
+    def test_set_locale_active_activates_regardless_of_coverage(self):
         half = _write_workbook(
             self.tmp / "source_hi.xlsx",
             [
@@ -296,10 +335,21 @@ class InstrumentTranslationImportTests(BaseTestCase):
         )
         self._import(half)
         db.session.flush()
-        with self.assertRaises(svc.InstrumentTranslationError):
-            svc.set_locale_active(INSTRUMENT, "hi", True)
-        result = svc.set_locale_active(INSTRUMENT, "hi", True, force=True)
+        # Present first: coverage really is partial (the fixture guard).
+        status = {row["locale_code"]: row for row in svc.locale_status(INSTRUMENT)}
+        self.assertLess(status["hi"]["coverage"], 1.0)
+
+        result = svc.set_locale_active(INSTRUMENT, "hi", True)
         self.assertTrue(result["is_active"])
+        self.assertLess(result["coverage"], 1.0)
+        self.assertTrue(db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).is_active)
+
+    def test_import_translations_and_set_locale_active_take_no_force_argument(self):
+        """The gate is gone, and so is the flag that only ever bypassed it."""
+        with self.assertRaises(TypeError):
+            self._import(self._full_workbook(), force=True)
+        with self.assertRaises(TypeError):
+            svc.set_locale_active(INSTRUMENT, "hi", True, force=True)
 
     # -- the documented-source rule -----------------------------------------
 
@@ -378,11 +428,171 @@ class InstrumentTranslationImportTests(BaseTestCase):
     def test_active_locale_versions_always_carries_the_base_locale(self):
         versions = svc.active_locale_versions(INSTRUMENT)
         self.assertEqual(versions, {"en": 0})
+
+        # An import alone never activates a locale, so it still does not
+        # appear here...
         self._import(self._full_workbook())
         db.session.flush()
         versions = svc.active_locale_versions(INSTRUMENT)
         self.assertIn("en", versions)
+        self.assertNotIn("hi", versions)
+
+        # ...only the explicit activation adds it.
+        svc.set_locale_active(INSTRUMENT, "hi", True)
+        db.session.flush()
+        versions = svc.active_locale_versions(INSTRUMENT)
         self.assertIn("hi", versions)
+
+
+class LayerReferenceMergeTests(BaseTestCase):
+    """The reference is the WHO base workbook plus the DigitVA layer entries.
+
+    docs/policy/va-form-project-configuration.md ("The reference also carries
+    the DigitVA layers").
+    """
+
+    INSTRUMENT = "LAYER_VA"
+
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+
+        self.reference = _write_workbook(
+            self.tmp / "reference.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question"}],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self.layers = _write_layer_reference(
+            self.tmp / "layers.json",
+            entries=[
+                {"itemKind": "question", "itemKey": "consent_mode", "field": "label",
+                 "text": "Mode in which consent was taken", "extensions": ["digitva_core"]},
+                {"itemKind": "choice", "itemKey": "CONSENT_MODE/in_person", "field": "label",
+                 "text": "In person", "extensions": ["digitva_core"]},
+                {"itemKind": "question", "itemKey": "md_available", "field": "label",
+                 "text": "Medical records available?", "extensions": ["medical_records"]},
+            ],
+        )
+        self._clear_reference_caches()
+        self.addCleanup(self._clear_reference_caches)
+        self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
+        self._patch(svc, "LAYER_REFERENCE_PATH", self.layers)
+        self._patch(svc, "BASE_INSTRUMENT_CODE", self.INSTRUMENT)
+
+    def _clear_reference_caches(self):
+        svc._reference_items_cached.cache_clear()
+        svc._reference_extensions_cached.cache_clear()
+        svc._layer_entries_cached.cache_clear()
+        svc._layer_notes_cached.cache_clear()
+
+    def _patch(self, module, name, value):
+        old = getattr(module, name)
+        setattr(module, name, value)
+        self.addCleanup(setattr, module, name, old)
+
+    def test_a_layer_question_and_a_who_base_question_both_appear(self):
+        reference = svc.reference_items(self.INSTRUMENT)
+        # Present first: the WHO base item is still there.
+        self.assertIn(("question", "Q1", "label"), reference)
+        # And the layer item is now there too, with its own English text.
+        self.assertIn(("question", "consent_mode", "label"), reference)
+        self.assertEqual(
+            reference[("question", "consent_mode", "label")],
+            "Mode in which consent was taken",
+        )
+        self.assertIn(("choice", "CONSENT_MODE/in_person", "label"), reference)
+
+    def test_base_label_keys_exclude_layer_labels(self):
+        """Base coverage keeps its original meaning as layers are added."""
+        label_keys = svc.reference_label_keys(self.INSTRUMENT)
+        self.assertIn(("question", "Q1", "label"), label_keys)
+        self.assertNotIn(("question", "consent_mode", "label"), label_keys)
+        self.assertNotIn(("question", "md_available", "label"), label_keys)
+
+    def test_reference_item_extensions_maps_layer_and_base_items(self):
+        extensions = svc.reference_item_extensions(self.INSTRUMENT)
+        self.assertEqual(
+            extensions[("question", "consent_mode", "label")], frozenset({"digitva_core"})
+        )
+        # A WHO base item belongs to no extension.
+        self.assertEqual(extensions[("question", "Q1", "label")], frozenset())
+
+    def test_extension_label_keys_groups_labels_by_extension(self):
+        by_extension = svc.extension_label_keys(self.INSTRUMENT)
+        self.assertIn(("question", "consent_mode", "label"), by_extension["digitva_core"])
+        self.assertIn(("question", "md_available", "label"), by_extension["medical_records"])
+        # A WHO base label is not counted under any extension.
+        self.assertNotIn(("question", "Q1", "label"), by_extension.get("digitva_core", set()))
+
+    def test_a_colliding_layer_entry_raises(self):
+        """A layer item must never silently overwrite a WHO base item."""
+        colliding = _write_layer_reference(
+            self.tmp / "colliding.json",
+            entries=[
+                {"itemKind": "question", "itemKey": "Q1", "field": "label",
+                 "text": "Collides with the WHO base item", "extensions": ["digitva_core"]},
+            ],
+        )
+        self._patch(svc, "LAYER_REFERENCE_PATH", colliding)
+        self._clear_reference_caches()
+        with self.assertRaises(svc.InstrumentTranslationError) as ctx:
+            svc.reference_items(self.INSTRUMENT)
+        self.assertIn("Q1", str(ctx.exception))
+
+    def test_layer_items_round_trip_through_resource_id(self):
+        reference = svc.reference_items(self.INSTRUMENT)
+        layer_keys = {
+            key for key, extensions in svc.reference_item_extensions(self.INSTRUMENT).items()
+            if extensions
+        }
+        self.assertTrue(layer_keys, "fixture guard: layer items loaded")
+        for key in layer_keys:
+            with self.subTest(key=key):
+                rid = svc.resource_id(*key)
+                self.assertEqual(svc.parse_resource_id(rid), key)
+        self.assertGreater(len(reference), len(layer_keys), "fixture guard: base items too")
+
+    def test_reference_notes_name_the_extension_for_a_layer_item(self):
+        notes = svc.reference_notes(self.INSTRUMENT)
+        self.assertEqual(notes[("question", "consent_mode")], "digitva_core")
+        self.assertEqual(notes[("choice", "CONSENT_MODE/in_person")], "digitva_core")
+
+    def test_a_layer_item_is_translated_like_any_other(self):
+        doc = self.tmp / "policy.md"
+        doc.write_text(POLICY_DOC, encoding="utf-8")
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "consent_mode",
+                 "label::English (en)": "Mode in which consent was taken",
+                 "label::Hindi (hi)": "सहमति का तरीका"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        report = svc.import_translations(self.INSTRUMENT, "hi", workbook, doc_path=doc)
+        db.session.flush()
+        rows = {
+            (r.item_kind, r.item_key, r.field): r
+            for r in db.session.scalars(
+                db.select(MapInstrumentTranslations).where(
+                    MapInstrumentTranslations.instrument_code == self.INSTRUMENT
+                )
+            )
+        }
+        # Present first: the layer item's translation really landed...
+        self.assertIn(("question", "consent_mode", "label"), rows)
+        self.assertEqual(rows[("question", "consent_mode", "label")].text, "सहमति का तरीका")
+        # ...and it is not double-counted into base coverage (base is 1/1: Q1
+        # only), even though a layer item was also written.
+        self.assertEqual(report.reference_labels, 1)
+        self.assertEqual(report.translated_labels, 1)
+        self.assertEqual(
+            report.extension_coverage["digitva_core"], {"translated": 1, "total": 1}
+        )
 
 
 class DocumentedSourceTableTests(unittest.TestCase):
@@ -434,8 +644,16 @@ class RealWorkbookCoverageTests(unittest.TestCase):
 
     This is the check that would notice a re-downloaded source workbook
     silently dropping a language. It writes nothing -- every locale is read
-    with ``cross_check``, so it needs no database.
+    with ``cross_check``, so it needs no database. Coverage is no longer a
+    serving gate, but a deployed language is still expected to be
+    near-complete; this test still holds that quality bar, it just is not the
+    mechanism that decides whether the language may be served.
     """
+
+    #: The quality bar a documented, deployed language is expected to clear.
+    #: Not read by the service any more (there is no gate) -- this test's own
+    #: expectation of what "near-complete" means.
+    EXPECTED_COVERAGE = 0.95
 
     #: The eight deployed Indian-language forms plus the five languages of
     #: the WHO multilingual V2.0 form, all fully translated as downloaded on
@@ -454,7 +672,7 @@ class RealWorkbookCoverageTests(unittest.TestCase):
                 self.assertGreater(report.reference_labels, 400)
                 self.assertGreaterEqual(
                     report.coverage,
-                    svc.TRANSLATION_COVERAGE_THRESHOLD,
+                    self.EXPECTED_COVERAGE,
                     f"{locale} covers only {report.coverage:.1%} of the "
                     "reference's survey labels",
                 )
@@ -473,4 +691,4 @@ class RealWorkbookCoverageTests(unittest.TestCase):
             cross_check=True,
         )
         self.assertEqual(report.translated_labels, 0)
-        self.assertLess(report.coverage, svc.TRANSLATION_COVERAGE_THRESHOLD)
+        self.assertLess(report.coverage, self.EXPECTED_COVERAGE)

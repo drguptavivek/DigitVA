@@ -9,6 +9,14 @@ to an item the reference already has, so a deployed project workbook can supply
 Hindi for a question but can never add one. What the reference lacks is
 reported, not stored.
 
+The reference an import is checked against is the curated WHO workbook
+**plus** the DigitVA layer questions (``consent_mode``, ``md_im1``..30,
+``ds_*``, ``narr_language``, ``abha_*`` and so on), which exist only in the
+TypeScript instrument builder. ``tooling/who-va-2022/build-layer-reference.mjs``
+serializes their English strings to the committed
+``vendor/who-va-2022/src/generated/digitva-layers.reference.json`` artifact;
+this module reads it rather than duplicating the layer definitions in Python.
+
 Two rules this module exists to enforce:
 
 * **One documented source workbook per language.** Which workbook is a
@@ -17,15 +25,21 @@ Two rules this module exists to enforce:
   table rather than keeping a second copy, so changing a source means editing
   the doc. Any other workbook is refused unless the caller asks for a
   cross-check, which reports differences and writes nothing.
-* **A locale is served only once it is covered.** An import activates a locale
-  when its coverage of the reference's survey labels reaches
-  ``TRANSLATION_COVERAGE_THRESHOLD``; below that it refuses to activate unless
-  forced, and the forcing is logged.
+* **A layer item never overwrites a WHO base item.** The WHO base and the
+  DigitVA layers are disjoint namespaces today; a collision is a bug in one of
+  the two sources, so it raises rather than silently letting one shadow the
+  other.
+
+Locale activation (whether a language is served to forms) is an explicit
+administrative action, independent of coverage (decided 2026-09-19: English
+fallback is per-string, so a coverage percentage is not a serving decision).
+Coverage is still computed and reported everywhere it was before.
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -73,15 +87,20 @@ SOURCE_POLICY_DOC = REPO_ROOT / "docs/policy/va-form-project-configuration.md"
 #: Where a documented source workbook is looked up by file name.
 WORKBOOK_DIR = REPO_ROOT / "docs/kb/WHO_VA_2022_Docs"
 
+#: Generated artifact carrying the DigitVA-only delta (layer questions,
+#: choices and hints) that the TypeScript instrument builder owns. Produced by
+#: ``tooling/who-va-2022/build-layer-reference.mjs``; this module only reads
+#: it. Each entry: ``itemKind`` ("question"|"choice"), ``itemKey``, ``field``,
+#: ``text`` (English) and ``extensions`` (the layer name(s) it belongs to).
+LAYER_REFERENCE_PATH = (
+    REPO_ROOT / "vendor/who-va-2022/src/generated/digitva-layers.reference.json"
+)
+
 #: The base locale of every bundled instrument: always served, never imported.
 BASE_LOCALE = "en"
 
 #: The standard instrument DigitVA bundles today.
 BASE_INSTRUMENT_CODE = "WHO_2022_VA"
-
-#: Fraction of the reference's survey labels a locale must translate before it
-#: may be activated. The owner may change this; every caller reads it here.
-TRANSLATION_COVERAGE_THRESHOLD = 0.95
 
 #: Cap on one page of the admin string list, applied server-side.
 MAX_STRING_PAGE_SIZE = 200
@@ -121,7 +140,13 @@ class DocumentedSource:
 
 @dataclass
 class ImportReport:
-    """What one import (or cross-check) found and did."""
+    """What one import (or cross-check) found and did.
+
+    Activation is a separate, explicit administrative action
+    (:func:`set_locale_active`); an import never sets or refuses it, so this
+    report carries no ``activated``/``forced`` outcome. Coverage stays
+    informational: computed and reported, never a gate.
+    """
 
     instrument_code: str
     locale_code: str
@@ -134,8 +159,9 @@ class ImportReport:
     kept_edited: int = 0
     missing_from_workbook: list[str] = dataclass_field(default_factory=list)
     unknown_in_workbook: list[str] = dataclass_field(default_factory=list)
-    activated: bool = False
-    forced: bool = False
+    #: ``{extension: {"translated": n, "total": n}}`` for the layer question
+    #: labels this locale carries. Empty when the reference has no layers yet.
+    extension_coverage: dict[str, dict[str, int]] = dataclass_field(default_factory=dict)
 
     @property
     def coverage(self) -> float:
@@ -161,8 +187,16 @@ class ImportReport:
             "missing_from_workbook_count": len(self.missing_from_workbook),
             "unknown_in_workbook": self.unknown_in_workbook[:50],
             "unknown_in_workbook_count": len(self.unknown_in_workbook),
-            "activated": self.activated,
-            "forced": self.forced,
+            "extension_coverage": {
+                name: {
+                    "translated": counts["translated"],
+                    "total": counts["total"],
+                    "coverage": round(counts["translated"] / counts["total"], 4)
+                    if counts["total"]
+                    else 0.0,
+                }
+                for name, counts in sorted(self.extension_coverage.items())
+            },
         }
 
 
@@ -330,15 +364,53 @@ def read_workbook_items(
 
 
 @lru_cache(maxsize=4)
-def _reference_items_cached(path: str) -> dict[tuple[str, str, str], str]:
-    items, _ = read_workbook_items(path)
+def _layer_entries_cached(path: str) -> tuple[dict, ...]:
+    """The DigitVA layer artifact's ``entries``, or an empty tuple.
+
+    A missing file is treated as "no layers yet" rather than an error: the
+    artifact is generated by a separate TypeScript pipeline
+    (``tooling/who-va-2022/build-layer-reference.mjs``) and a fresh checkout or
+    a test fixture may legitimately not have built it.
+    """
+    text_path = Path(path)
+    if not text_path.exists():
+        return ()
+    try:
+        data = json.loads(text_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise InstrumentTranslationError(
+            f"{text_path.name} could not be read as the DigitVA layer "
+            f"reference: {exc}"
+        ) from exc
+    return tuple(data.get("entries", ()))
+
+
+def _layer_key(entry: dict) -> tuple[str, str, str]:
+    return (entry["itemKind"], entry["itemKey"], entry["field"])
+
+
+@lru_cache(maxsize=4)
+def _reference_items_cached(
+    workbook_path: str, layer_path: str
+) -> dict[tuple[str, str, str], str]:
+    items, _ = read_workbook_items(workbook_path)
     english = items.get(BASE_LOCALE)
     if not english:
         raise InstrumentTranslationError(
-            f"{Path(path).name} carries no English strings; it cannot be the "
-            "structural reference."
+            f"{Path(workbook_path).name} carries no English strings; it "
+            "cannot be the structural reference."
         )
-    return english
+    merged = dict(english)
+    for entry in _layer_entries_cached(layer_path):
+        key = _layer_key(entry)
+        if key in merged:
+            raise InstrumentTranslationError(
+                f"Layer entry {key[0]}:{key[1]}:{key[2]} collides with a WHO "
+                f"base reference item; the WHO base and the DigitVA layers "
+                "must name disjoint items."
+            )
+        merged[key] = entry["text"]
+    return merged
 
 
 def reference_items(
@@ -346,24 +418,90 @@ def reference_items(
 ) -> dict[tuple[str, str, str], str]:
     """The curated reference form's English strings, keyed by item.
 
-    Cached: the workbook is committed reference material and does not change
-    between requests, and reading it costs three pandas passes.
+    This is the WHO base workbook plus the DigitVA layer questions from
+    ``LAYER_REFERENCE_PATH`` -- everything a translation may be supplied for.
+    Cached: both sources are committed reference material and do not change
+    between requests, and reading the workbook costs three pandas passes.
     """
     if (instrument_code or "").strip().upper() != BASE_INSTRUMENT_CODE:
         raise InstrumentTranslationError(
             f"No reference form is bundled for instrument {instrument_code!r}."
         )
-    return _reference_items_cached(str(REFERENCE_WORKBOOK))
+    return _reference_items_cached(str(REFERENCE_WORKBOOK), str(LAYER_REFERENCE_PATH))
+
+
+@lru_cache(maxsize=4)
+def _reference_extensions_cached(
+    layer_path: str,
+) -> dict[tuple[str, str, str], frozenset[str]]:
+    return {
+        _layer_key(entry): frozenset(entry["extensions"])
+        for entry in _layer_entries_cached(layer_path)
+    }
+
+
+def reference_item_extensions(
+    instrument_code: str = BASE_INSTRUMENT_CODE,
+) -> dict[tuple[str, str, str], frozenset[str]]:
+    """``{reference key: frozenset of extension names}`` for every item.
+
+    A WHO base item maps to an empty set: it belongs to no extension and is
+    always present. Pure over the same cached sources ``reference_items``
+    reads; nothing here queries the database.
+    """
+    reference = reference_items(instrument_code)
+    by_key = _reference_extensions_cached(str(LAYER_REFERENCE_PATH))
+    return {key: by_key.get(key, frozenset()) for key in reference}
 
 
 def reference_label_keys(
     instrument_code: str = BASE_INSTRUMENT_CODE,
 ) -> set[tuple[str, str, str]]:
-    """The survey-label items coverage is measured over."""
+    """The WHO base survey-label items coverage is measured over.
+
+    Deliberately excludes layer question labels -- base coverage keeps its
+    original meaning even though ``reference_items`` now also carries layers.
+    Per-layer coverage is reported separately (:func:`extension_label_keys`).
+    """
+    extensions = reference_item_extensions(instrument_code)
     return {
         key
         for key in reference_items(instrument_code)
-        if key[0] == ITEM_KIND_QUESTION and key[2] == FIELD_LABEL
+        if key[0] == ITEM_KIND_QUESTION
+        and key[2] == FIELD_LABEL
+        and not extensions.get(key)
+    }
+
+
+def extension_label_keys(
+    instrument_code: str = BASE_INSTRUMENT_CODE,
+) -> dict[str, set[tuple[str, str, str]]]:
+    """``{extension name: {question-label keys it owns}}``.
+
+    An item belonging to more than one extension (the generator allows it)
+    counts toward each. Used to compute per-extension coverage alongside the
+    base coverage from :func:`reference_label_keys`.
+    """
+    out: dict[str, set[tuple[str, str, str]]] = {}
+    for key, extensions in reference_item_extensions(instrument_code).items():
+        if key[0] != ITEM_KIND_QUESTION or key[2] != FIELD_LABEL:
+            continue
+        for name in extensions:
+            out.setdefault(name, set()).add(key)
+    return out
+
+
+def _extension_coverage(
+    instrument_code: str, translated: set[tuple[str, str, str]]
+) -> dict[str, dict[str, int]]:
+    """``{extension: {"translated": n, "total": n}}`` for one locale.
+
+    ``translated`` is the locale's set of question-label keys that carry
+    text; each extension's count is how many of its own labels are in it.
+    """
+    return {
+        name: {"translated": len(keys & translated), "total": len(keys)}
+        for name, keys in extension_label_keys(instrument_code).items()
     }
 
 
@@ -417,7 +555,6 @@ def import_translations(
     workbook: Path | str,
     *,
     cross_check: bool = False,
-    force: bool = False,
     actor_id=None,
     doc_path: Path | None = None,
 ) -> ImportReport:
@@ -425,7 +562,9 @@ def import_translations(
 
     ``cross_check`` reads and reports without writing a single row, and is the
     only way to look at a workbook that is not the documented source for this
-    locale. ``force`` activates a locale whose coverage is below the threshold.
+    locale. This never activates or deactivates the locale: activation is a
+    separate, explicit administrative action (:func:`set_locale_active`),
+    independent of coverage.
     """
     instrument_code = (instrument_code or "").strip().upper()
     locale_code = (locale_code or "").strip()
@@ -485,6 +624,7 @@ def import_translations(
 
     if cross_check:
         report.translated_labels = len(label_keys & set(incoming))
+        report.extension_coverage = _extension_coverage(instrument_code, set(incoming))
         log.info(
             "instrument translations cross-check | %s/%s | workbook=%s | "
             "coverage=%.3f | missing=%d | unknown=%d",
@@ -535,26 +675,13 @@ def import_translations(
 
     translated = {key for key, row in existing.items() if row.text}
     report.translated_labels = len(label_keys & translated)
+    report.extension_coverage = _extension_coverage(instrument_code, translated)
 
     locale_row.source_document = path.name
     locale_row.source_sha256 = report.sha256
     locale_row.imported_at = now
     locale_row.updated_at = now
     locale_row.version = (locale_row.version or 0) + 1
-
-    if report.coverage >= TRANSLATION_COVERAGE_THRESHOLD:
-        locale_row.is_active = True
-        report.activated = True
-    elif force:
-        locale_row.is_active = True
-        report.activated = True
-        report.forced = True
-        log.warning(
-            "instrument locale activated below threshold | %s/%s | coverage=%.3f "
-            "| threshold=%.2f | forced by=%s",
-            instrument_code, locale_code, report.coverage,
-            TRANSLATION_COVERAGE_THRESHOLD, actor_id,
-        )
     db.session.flush()
 
     log.info(
@@ -636,32 +763,46 @@ def export_translations(instrument_code: str, locale_code: str) -> dict:
     }
 
 
-def _coverage_by_locale(instrument_code: str) -> dict[str, int]:
-    """``{locale: translated survey-label count}`` in one grouped query."""
+def _translated_label_keys_by_locale(
+    instrument_code: str,
+) -> dict[str, set[tuple[str, str, str]]]:
+    """``{locale: {question-label keys with text}}`` in one grouped query.
+
+    Keys, not counts: a count alone cannot tell a WHO base label from a layer
+    label apart, and both base and per-extension coverage need to intersect
+    against their own subset of keys.
+    """
     rows = db.session.execute(
         sa.select(
             MapInstrumentTranslations.locale_code,
-            sa.func.count().label("n"),
-        )
-        .where(
+            MapInstrumentTranslations.item_key,
+        ).where(
             MapInstrumentTranslations.instrument_code == instrument_code,
             MapInstrumentTranslations.item_kind == ITEM_KIND_QUESTION,
             MapInstrumentTranslations.field == FIELD_LABEL,
         )
-        .group_by(MapInstrumentTranslations.locale_code)
     ).all()
-    return {row.locale_code: row.n for row in rows}
+    out: dict[str, set[tuple[str, str, str]]] = {}
+    for row in rows:
+        out.setdefault(row.locale_code, set()).add(
+            (ITEM_KIND_QUESTION, row.item_key, FIELD_LABEL)
+        )
+    return out
 
 
 def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
     """Every locale of one instrument with coverage, version and source.
 
     ``en`` leads the list: it is the base locale, always active, and needs no
-    rows. Two queries regardless of how many locales exist.
+    rows. Coverage (base and per-extension) is informational -- it decides
+    nothing about whether a locale is served; see :func:`set_locale_active`.
+    One query regardless of how many locales exist.
     """
     instrument_code = (instrument_code or "").strip().upper()
-    reference_labels = len(reference_label_keys(instrument_code))
-    translated = _coverage_by_locale(instrument_code)
+    label_keys = reference_label_keys(instrument_code)
+    reference_labels = len(label_keys)
+    ext_keys = extension_label_keys(instrument_code)
+    translated_by_locale = _translated_label_keys_by_locale(instrument_code)
     rows = db.session.scalars(
         sa.select(MasInstrumentLocales)
         .where(MasInstrumentLocales.instrument_code == instrument_code)
@@ -676,6 +817,10 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
             "coverage": 1.0,
             "translated_labels": reference_labels,
             "reference_labels": reference_labels,
+            "extension_coverage": {
+                name: {"translated": len(keys), "total": len(keys), "coverage": 1.0}
+                for name, keys in ext_keys.items()
+            },
             "source_document": REFERENCE_WORKBOOK.name,
             "source_sha256": None,
             "imported_at": None,
@@ -685,7 +830,12 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
     for row in rows:
         if row.locale_code == BASE_LOCALE:
             continue
-        count = translated.get(row.locale_code, 0)
+        translated = translated_by_locale.get(row.locale_code, set())
+        count = len(label_keys & translated)
+        extension_coverage = {
+            name: {"translated": len(keys & translated), "total": len(keys)}
+            for name, keys in ext_keys.items()
+        }
         out.append(
             {
                 "locale_code": row.locale_code,
@@ -695,6 +845,16 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
                 "coverage": round(count / reference_labels, 4) if reference_labels else 0.0,
                 "translated_labels": count,
                 "reference_labels": reference_labels,
+                "extension_coverage": {
+                    name: {
+                        "translated": counts["translated"],
+                        "total": counts["total"],
+                        "coverage": round(counts["translated"] / counts["total"], 4)
+                        if counts["total"]
+                        else 0.0,
+                    }
+                    for name, counts in sorted(extension_coverage.items())
+                },
                 "source_document": row.source_document,
                 "source_sha256": row.source_sha256,
                 "imported_at": row.imported_at.isoformat() if row.imported_at else None,
@@ -862,10 +1022,15 @@ def update_string(
 
 
 def set_locale_active(
-    instrument_code: str, locale_code: str, active: bool, *, force: bool = False,
-    actor_id=None,
+    instrument_code: str, locale_code: str, active: bool, *, actor_id=None,
 ) -> dict:
-    """Activate or deactivate a locale; activation respects the coverage gate."""
+    """Activate or deactivate a locale.
+
+    An explicit administrative action, independent of coverage (decided
+    2026-09-19): English fallback is per-string, so a coverage percentage is
+    never a serving decision. Coverage is reported here for context, not
+    consulted.
+    """
     instrument_code = (instrument_code or "").strip().upper()
     locale_code = (locale_code or "").strip()
     if locale_code == BASE_LOCALE:
@@ -877,23 +1042,20 @@ def set_locale_active(
         raise InstrumentTranslationError(
             f"No {locale_code!r} translation exists for {instrument_code}."
         )
-    reference_labels = len(reference_label_keys(instrument_code))
-    translated = _coverage_by_locale(instrument_code).get(locale_code, 0)
+    label_keys = reference_label_keys(instrument_code)
+    reference_labels = len(label_keys)
+    locale_translated = _translated_label_keys_by_locale(instrument_code).get(
+        locale_code, set()
+    )
+    translated = len(label_keys & locale_translated)
     coverage = translated / reference_labels if reference_labels else 0.0
-    if active and coverage < TRANSLATION_COVERAGE_THRESHOLD and not force:
-        raise InstrumentTranslationError(
-            f"{locale_code!r} covers {coverage:.1%} of the reference's survey "
-            f"labels, below the {TRANSLATION_COVERAGE_THRESHOLD:.0%} threshold. "
-            "Import a more complete workbook, or force the activation."
-        )
     row.is_active = bool(active)
     row.updated_at = datetime.now(UTC)
     db.session.flush()
     log.info(
-        "instrument locale %s | %s/%s | coverage=%.3f | forced=%s | by=%s",
+        "instrument locale %s | %s/%s | coverage=%.3f | by=%s",
         "activated" if active else "deactivated",
-        instrument_code, locale_code, coverage,
-        bool(active and coverage < TRANSLATION_COVERAGE_THRESHOLD), actor_id,
+        instrument_code, locale_code, coverage, actor_id,
     )
     return {
         "locale_code": locale_code,
@@ -1068,15 +1230,33 @@ def _reference_notes_cached(path: str) -> dict[tuple[str, str], str]:
     return notes
 
 
+@lru_cache(maxsize=4)
+def _layer_notes_cached(layer_path: str) -> dict[tuple[str, str], str]:
+    """``{(item_kind, item_key): translator note}`` naming the extension(s).
+
+    A layer item has no enclosing workbook section to name, so its note names
+    the extension(s) it belongs to instead -- still "what a translator is
+    looking at", just from the other source.
+    """
+    extensions_by_item: dict[tuple[str, str], set[str]] = {}
+    for entry in _layer_entries_cached(layer_path):
+        item = (entry["itemKind"], entry["itemKey"])
+        extensions_by_item.setdefault(item, set()).update(entry["extensions"])
+    return {item: ", ".join(sorted(exts)) for item, exts in extensions_by_item.items()}
+
+
 def reference_notes(
     instrument_code: str = BASE_INSTRUMENT_CODE,
 ) -> dict[tuple[str, str], str]:
-    """Cached translator notes for the curated reference form's items."""
+    """Cached translator notes for every reference item, base and layer."""
     if (instrument_code or "").strip().upper() != BASE_INSTRUMENT_CODE:
         raise InstrumentTranslationError(
             f"No reference form is bundled for instrument {instrument_code!r}."
         )
-    return _reference_notes_cached(str(REFERENCE_WORKBOOK))
+    notes = dict(_reference_notes_cached(str(REFERENCE_WORKBOOK)))
+    for item, note in _layer_notes_cached(str(LAYER_REFERENCE_PATH)).items():
+        notes.setdefault(item, note)
+    return notes
 
 
 def _xliff_locale(instrument_code: str, locale_code: str) -> tuple[str, str, MasInstrumentLocales]:

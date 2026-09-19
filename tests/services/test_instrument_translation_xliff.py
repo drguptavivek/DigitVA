@@ -18,6 +18,7 @@ Most tests run against a small synthetic reference form. Exactly one runs the
 real Hindi workbook through import -> export -> re-import, which is the test
 that would notice the round trip losing or re-writing a string.
 """
+import json
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
@@ -69,6 +70,22 @@ def _write_workbook(path, survey_rows, choice_rows):
         pd.DataFrame(survey_rows).to_excel(writer, sheet_name="survey", index=False)
         pd.DataFrame(choice_rows).to_excel(writer, sheet_name="choices", index=False)
         settings.to_excel(writer, sheet_name="settings", index=False)
+    return path
+
+
+def _write_layer_reference(path, entries=()):
+    """A ``digitva-layers.reference.json`` fixture, empty by default."""
+    path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "source": {"package": "@drguptavivek/who-2022-va"},
+                "extensionCounts": {},
+                "entries": list(entries),
+            }
+        ),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -161,10 +178,18 @@ class InstrumentTranslationXliffTests(BaseTestCase):
                 {"list_name": "yes_no", "name": "no", "label::English (en)": "No"},
             ],
         )
-        for cache in (svc._reference_items_cached, svc._reference_notes_cached):
+        self.layers = _write_layer_reference(self.tmp / "layers.json")
+        for cache in (
+            svc._reference_items_cached,
+            svc._reference_notes_cached,
+            svc._reference_extensions_cached,
+            svc._layer_entries_cached,
+            svc._layer_notes_cached,
+        ):
             cache.cache_clear()
             self.addCleanup(cache.cache_clear)
         self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
+        self._patch(svc, "LAYER_REFERENCE_PATH", self.layers)
         self._patch(svc, "BASE_INSTRUMENT_CODE", INSTRUMENT)
 
         self.source = _write_workbook(
@@ -186,9 +211,7 @@ class InstrumentTranslationXliffTests(BaseTestCase):
                 {"list_name": "yes_no", "name": "no", "label::English (en)": "No"},
             ],
         )
-        svc.import_translations(
-            INSTRUMENT, "hi", self.source, doc_path=self.doc, force=True
-        )
+        svc.import_translations(INSTRUMENT, "hi", self.source, doc_path=self.doc)
         db.session.flush()
 
     def _patch(self, module, name, value):
@@ -418,6 +441,108 @@ class InstrumentTranslationXliffTests(BaseTestCase):
         document = svc.export_xliff(INSTRUMENT, "hi")
         with self.assertRaises(svc.InstrumentTranslationError):
             svc.import_xliff(INSTRUMENT, "hi", document, mark_as="whatever")
+
+
+class LayerXliffTests(BaseTestCase):
+    """A DigitVA layer item exports and imports through XLIFF like any other.
+
+    docs/policy/va-form-project-configuration.md ("The reference also carries
+    the DigitVA layers"): a layer item is translated, exported and edited
+    exactly like a workbook item.
+    """
+
+    INSTRUMENT = "LAYER_XLIFF_VA"
+
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+
+        self.doc = self.tmp / "policy.md"
+        self.doc.write_text(POLICY_DOC, encoding="utf-8")
+
+        self.reference = _write_workbook(
+            self.tmp / "reference.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question"}],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self.layers = _write_layer_reference(
+            self.tmp / "layers.json",
+            entries=[
+                {"itemKind": "question", "itemKey": "consent_mode", "field": "label",
+                 "text": "Mode in which consent was taken", "extensions": ["digitva_core"]},
+            ],
+        )
+        for cache in (
+            svc._reference_items_cached,
+            svc._reference_notes_cached,
+            svc._reference_extensions_cached,
+            svc._layer_entries_cached,
+            svc._layer_notes_cached,
+        ):
+            cache.cache_clear()
+            self.addCleanup(cache.cache_clear)
+        self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
+        self._patch(svc, "LAYER_REFERENCE_PATH", self.layers)
+        self._patch(svc, "BASE_INSTRUMENT_CODE", self.INSTRUMENT)
+
+        source = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [{"type": "text", "name": "Q1", "label::English (en)": "First question",
+              "label::Hindi (hi)": "पहला प्रश्न"}],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        svc.import_translations(self.INSTRUMENT, "hi", source, doc_path=self.doc)
+        db.session.flush()
+
+    def _patch(self, module, name, value):
+        old = getattr(module, name)
+        setattr(module, name, value)
+        self.addCleanup(setattr, module, name, old)
+
+    def test_export_carries_a_unit_for_the_layer_item(self):
+        document = svc.export_xliff(self.INSTRUMENT, "hi")
+        units = _units(document)
+        # Present first: the WHO base unit is there, as always.
+        self.assertIn("question.Q1.label", units)
+        # And the layer unit is there too: untranslated so far (initial, no
+        # target), with the layer's own English source text.
+        self.assertIn("question.consent_mode.label", units)
+        self.assertEqual(
+            units["question.consent_mode.label"],
+            ("initial", "Mode in which consent was taken", None),
+        )
+
+    def test_export_notes_a_layer_unit_with_its_extension(self):
+        root = ET.fromstring(svc.export_xliff(self.INSTRUMENT, "hi"))
+        notes = {
+            unit.get("id"): [n.text for n in unit.iterfind(f"{Q}notes/{Q}note")]
+            for unit in root.iter(f"{Q}unit")
+        }
+        self.assertEqual(notes["question.consent_mode.label"], ["digitva_core"])
+
+    def test_import_can_set_a_layer_target(self):
+        document = svc.export_xliff(self.INSTRUMENT, "hi")
+        root = ET.fromstring(document)
+        for unit in root.iter(f"{Q}unit"):
+            if unit.get("id") == "question.consent_mode.label":
+                unit.find(f"{Q}segment/{Q}target").text = "सहमति का तरीका"
+        report = svc.import_xliff(
+            self.INSTRUMENT, "hi", ET.tostring(root, encoding="unicode")
+        )
+        db.session.flush()
+
+        self.assertGreaterEqual(report["written"], 1, report)
+        row = db.session.get(
+            MapInstrumentTranslations,
+            (self.INSTRUMENT, "hi", "question", "consent_mode", "label"),
+        )
+        # Present first: the layer target really landed...
+        self.assertIsNotNone(row)
+        self.assertEqual(row.text, "सहमति का तरीका")
+        # ...and base coverage (Q1 only) is untouched by writing a layer item.
+        self.assertEqual(len(svc.reference_label_keys(self.INSTRUMENT)), 1)
 
 
 class InstrumentTranslationXliffRealWorkbookTests(BaseTestCase):

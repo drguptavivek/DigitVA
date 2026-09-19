@@ -70,10 +70,10 @@ Policy: `docs/policy/organization-model.md`.
 ## `instrument-translations` — Instrument display languages
 
 ```bash
-docker compose exec minerva_app_service uv run flask instrument-translations status [--instrument-code WHO_2022_VA]
+docker compose exec minerva_app_service uv run flask instrument-translations status [--instrument-code WHO_2022_VA] [--extensions]
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi docs/kb/WHO_VA_2022_Docs/RJ01_ICMRVA_WHOVA2022.xlsx
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi <other.xlsx> --cross-check
-docker compose exec minerva_app_service uv run flask instrument-translations activate WHO_2022_VA hi [--force]
+docker compose exec minerva_app_service uv run flask instrument-translations activate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations deactivate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations export WHO_2022_VA hi [--output hi.json]
 docker compose exec minerva_app_service uv run flask instrument-translations export-xliff WHO_2022_VA hi [--output hi.xlf]
@@ -84,11 +84,15 @@ docker compose exec minerva_app_service uv run flask instrument-translations imp
 for that locale in the "Translation sources" table of
 `docs/policy/va-form-project-configuration.md` — and refuses any other unless
 `--cross-check`, which reports differences and writes nothing. It merges by
-question `name` and by `list_name`/`name` for choices, splits cells packing
-English and the target language, keeps rows an administrator has edited, and
-never creates a question. The locale is activated when coverage of the
-reference form's survey labels reaches 0.95; `--force` activates below that and
-logs it.
+question `name` and by `list_name`/`name` for choices (against the WHO base
+workbook **and** the DigitVA layer questions from the committed
+`vendor/who-va-2022/src/generated/digitva-layers.reference.json` artifact),
+splits cells packing English and the target language, keeps rows an
+administrator has edited, and never creates a question. `import` never
+activates or deactivates a locale — `activate`/`deactivate` are the only way,
+independent of coverage (decided 2026-09-19; no `--force` flag exists any
+more, since there is no threshold left to bypass). `status --extensions` also
+prints each locale's per-extension coverage.
 
 `export-xliff` writes the locale as an **XLIFF 2.0** document — the standard a
 translator's CAT tool reads — with one `<unit>` per reference item: `<source>`

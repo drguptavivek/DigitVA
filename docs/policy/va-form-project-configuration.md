@@ -257,19 +257,85 @@ for an item the reference lacks is **reported and discarded**, never stored, so
 a project workbook that has drifted structurally cannot add a question by the
 back door. The strings a workbook lacks are reported the same way.
 
-A locale is served to forms only when it is **active**, and it is activated
-when its coverage of the reference's survey labels reaches
-`TRANSLATION_COVERAGE_THRESHOLD` (0.95). Activating below that is possible but
-is logged as forced. The version on `mas_instrument_locales` is bumped by every
-import and every edit; every submission records the locale and the version it
-was filled in (`intake_locale`, `intake_translation_version`), so what the
-respondent saw stays reconstructible.
+### The reference also carries the DigitVA layers (decided 2026-09-19)
+
+The DigitVA layer questions (`consent_mode`, `md_available`, `md_im1`..`30`,
+`ds_*`, `narr_language`, `abha_*`, and later the social autopsy `sa01`..`sa19`)
+exist only in the TypeScript instrument builder
+(`vendor/who-va-2022/src/*`), not in the curated WHO workbook. They are still
+things a translator must be able to translate, so
+`app/services/instrument_translation_service.py` treats the reference as the
+WHO workbook **plus** the DigitVA layer entries, read from the committed
+`vendor/who-va-2022/src/generated/digitva-layers.reference.json` artifact
+(built by `tooling/who-va-2022/build-layer-reference.mjs`). Python never
+authors this file or duplicates the layer definitions; it only reads the
+artifact's English strings and, per item, which extension(s) it belongs to
+(an item may belong to more than one, e.g. `digitva_documents` names both
+`death_summary` and `medical_records`).
+
+The WHO base and the DigitVA layers are disjoint namespaces today. If a layer
+entry's `(item_kind, item_key, field)` ever collided with a WHO base item, the
+merge **raises** rather than letting one silently shadow the other — a
+collision is a bug in one of the two sources, never something to paper over.
+A layer item is translated, exported to XLIFF and edited exactly like a
+workbook item, and round-trips through the same resource-id scheme
+(`resource_id`/`parse_resource_id`).
+
+Base coverage (the survey-label percentage shown everywhere) keeps its
+original meaning — the WHO base question labels only — precisely so it does
+not silently shrink as layers are added; layer coverage is reported
+separately, per extension (`{extension: translated/total}`), computed the
+same way but scoped to the labels that extension owns.
+
+### Activation is explicit, not gated on coverage (decided 2026-09-19)
+
+*"Whatever the translation in the tool is the translation; it may be a single
+language or two languages."* The serving payload already falls back to
+English **per string** (an item absent from the payload renders in English;
+see "Where no translation exists the form shows English" in
+[VA Web Form Options Contract](va-web-form-options.md)), so a whole-locale
+coverage percentage was never a fact about whether the language could be
+served safely — it only measured how much of it was done. A locale is served
+once an administrator **activates** it (`set_locale_active`), full stop;
+there is no coverage threshold to pass, and the `--force` flag/`force=`
+parameter that existed only to bypass that threshold have been removed from
+the importer, `set_locale_active`, the CLI, the admin API and the panel.
+Coverage (base and per-extension) stays **computed and reported** everywhere
+it was before — `locale_status`, `ImportReport`, the CLI `status` command, the
+admin panel — it simply decides nothing.
+
+The version on `mas_instrument_locales` is bumped by every import and every
+edit; every submission records the locale and the version it was filled in
+(`intake_locale`, `intake_translation_version`), so what the respondent saw
+stays reconstructible.
 
 Importing the documented source for each language is an **operator step**, not
 a migration: `flask instrument-translations import <instrument_code> <locale>
 <workbook>` per language on a new install, or the Instrument Translations admin
 panel. Migrations import no application code and must not read reference
 workbooks.
+
+### Choice-code convention (decided 2026-09-19)
+
+A question **DigitVA authors itself** saves semantic choice codes — `yes`,
+`no`, `ref`, `in_person`, `telephonic` and the like — because there is no
+existing decode path to protect and a semantic code is what the next person
+reading `map_instrument_translations` or an export expects. A question
+**mirrored from a deployed form** (an overlay layer built from ND01 or another
+project's workbook, decisions E7/E8) keeps that form's own codes verbatim,
+because fidelity to a working instrument outranks our own naming consistency
+— changing a mirrored code would fork the decode path a live deployment
+already depends on.
+
+ND01's `sas01`–`sas07` social-autopsy ordinals (`"1"`..`"8"`, not a semantic
+code) are the deliberate outlier against *both* conventions above, kept under
+the second clause: `mas_choice_mappings` already carries live ND01-ordinal
+rows for `sa01` against form type `WHO_2022_VA_SOCIAL`, and
+`submission_analytics_mv.py:371-374` projects `sa01`..`sa19` raw into the
+COD-snapshot CSV export. Renumbering them to a semantic scheme would fork that
+already-live decode path for no gain; when the social autopsy layer
+(`sa01`..`sa19`) is built, its choice values follow ND01's ordinals, not
+DigitVA's own convention.
 
 ### Interchange format (decided 2026-09-19)
 
@@ -308,7 +374,7 @@ the choice's list name, so a translator knows what they are looking at.
 | May | May not |
 | --- | --- |
 | Set the text of any item the reference form already has | Create an item, a question, a choice or a locale |
-| Mark what it writes `imported` (a bulk hand-back) or `edited` (reviewed) | Change coverage, the activation gate or the version scheme |
+| Mark what it writes `imported` (a bulk hand-back) or `edited` (reviewed) | Change coverage or the version scheme, or activate/deactivate a locale |
 | Leave an `edited` row standing when marked `imported` | Delete a string: an empty `<target>` leaves what is stored alone |
 
 A unit whose id is not a reference item is **reported and skipped**, exactly as

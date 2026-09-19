@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-20
+last_updated: 2026-09-19
 ---
 
 # VA Web Form Options Contract
@@ -192,9 +192,12 @@ GET /api/v1/instruments/<instrument_code>/translations/<locale>
 `{"instrument_code", "locale", "version", "questions": {name: {label, hint, guidance_hint}}, "choices": {"list/value": {label}}}`
 with a weak `ETag` over the version, so a client revalidates with
 `If-None-Match` and gets a 304 when nothing moved. An unknown locale, an
-unknown instrument and an **inactive** locale are all 404: a half-translated
-language is not served to interviewers. `en` is always served, at version 0
-with no strings, because the bundled instrument is already in English.
+unknown instrument and an **inactive** locale are all 404: a locale reaches
+interviewers only once an administrator activates it. Activation is not gated
+on how much of the locale is translated -- an untranslated string is absent
+from this payload, so the form falls back to English for that string alone.
+`en` is always served, at version 0 with no strings, because the bundled
+instrument is already in English.
 
 The intake page applies the result client-side: `applyTranslations` in
 `app/static/js/intake/translations.js` is a pure function that returns a copy
@@ -223,11 +226,12 @@ instrument bundle and is no longer a code in a Python registry. It is data:
    target language on one line, and reports every reference item the workbook
    lacks and every workbook item the reference lacks. It can never create a
    question.
-3. **Reach the threshold.** Coverage of the reference form's survey labels must
-   reach `TRANSLATION_COVERAGE_THRESHOLD` (0.95,
-   `app/services/instrument_translation_service.py`). The import activates the
-   locale when it does and refuses to when it does not; activating anyway is
-   possible and is logged as forced.
+3. **Activate it.** `flask instrument-translations activate <instrument_code>
+   <locale>`, or the **Activate** button in the admin panel. Activation is an
+   explicit administrative decision, independent of coverage (changed
+   2026-09-19: see "Activation is explicit, not gated on coverage" in
+   [VA Form Project Configuration Policy](va-form-project-configuration.md));
+   coverage is still shown, for context, on every locale's row.
 4. **The project opts in.** An active locale is only offered by a project that
    lists it in `web_intake_available_locales` (or stores NULL, which means all
    of them).

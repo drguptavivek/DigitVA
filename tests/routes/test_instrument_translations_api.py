@@ -189,7 +189,7 @@ class InstrumentTranslationAdminTests(BaseTestCase):
     def test_the_locale_list_carries_coverage_version_source_and_documented(self):
         self._login(self.base_admin_id)
         payload = self.client.get(self.LOCALES_URL).get_json()
-        self.assertEqual(payload["coverage_threshold"], svc.TRANSLATION_COVERAGE_THRESHOLD)
+        self.assertNotIn("coverage_threshold", payload)
         by_code = {row["locale_code"]: row for row in payload["locales"]}
 
         self.assertEqual(payload["locales"][0]["locale_code"], "en")
@@ -200,10 +200,14 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(
             by_code["hi"]["documented_source"], svc.documented_sources()["hi"].workbook
         )
-        # One string out of 400-odd labels: far below the gate.
-        self.assertLess(by_code["hi"]["coverage"], svc.TRANSLATION_COVERAGE_THRESHOLD)
+        # Coverage is still reported, purely informational: one string out of
+        # 400-odd labels is a low percentage, but nothing about the response
+        # depends on where it sits relative to any threshold.
+        self.assertLess(by_code["hi"]["coverage"], 1.0)
+        self.assertIn("extension_coverage", by_code["hi"])
 
-    def test_deactivate_and_reactivate(self):
+    def test_activation_is_explicit_and_independent_of_coverage(self):
+        """Decided 2026-09-19: activation is never gated on coverage."""
         self._login(self.base_admin_id)
         headers = self._csrf_headers()
 
@@ -211,15 +215,27 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertFalse(response.get_json()["is_active"])
 
-        # Below the coverage gate, so plain activation is refused...
-        refused = self.client.post(self._api("/activate"), json={}, headers=headers)
-        self.assertEqual(refused.status_code, 400)
-        # ...and forcing it is the documented way through.
-        forced = self.client.post(
+        # Coverage is still low (the fixture guard)...
+        locales = self.client.get(self.LOCALES_URL).get_json()["locales"]
+        by_code = {row["locale_code"]: row for row in locales}
+        self.assertLess(by_code["hi"]["coverage"], 1.0)
+
+        # ...but a plain activation succeeds anyway: there is no gate to pass
+        # or bypass, and no 'force' parameter left to bypass it with.
+        activated = self.client.post(self._api("/activate"), json={}, headers=headers)
+        self.assertEqual(activated.status_code, 200, activated.get_json())
+        self.assertTrue(activated.get_json()["is_active"])
+        self.assertLess(activated.get_json()["coverage"], 1.0)
+
+    def test_an_unexpected_force_parameter_is_simply_ignored(self):
+        """'force' has no meaning left; the route does not special-case it."""
+        self._login(self.base_admin_id)
+        headers = self._csrf_headers()
+        response = self.client.post(
             self._api("/activate"), json={"force": True}, headers=headers
         )
-        self.assertEqual(forced.status_code, 200, forced.get_json())
-        self.assertTrue(forced.get_json()["is_active"])
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertTrue(response.get_json()["is_active"])
 
     # -- strings ------------------------------------------------------------
 
@@ -496,9 +512,12 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn(svc.documented_sources()["hi"].workbook, response.get_json()["error"])
 
-    def test_import_of_the_documented_workbook_covers_and_activates(self):
-        """The whole path: upload, parse, write, activate, serve."""
+    def test_import_of_the_documented_workbook_writes_but_does_not_activate(self):
+        """The whole path: upload, parse, write, then an explicit activate, serve."""
         self._login(self.base_admin_id)
+        # setUp starts "hi" active; deactivate first so the import's own
+        # effect on is_active (none) is what this test observes.
+        self.client.post(self._api("/deactivate"), json={}, headers=self._csrf_headers())
         path = svc.WORKBOOK_DIR / svc.documented_sources()["hi"].workbook
         with path.open("rb") as handle:
             response = self.client.post(
@@ -509,9 +528,22 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             )
         self.assertEqual(response.status_code, 200, response.get_json())
         report = response.get_json()["report"]
-        self.assertGreaterEqual(report["coverage"], svc.TRANSLATION_COVERAGE_THRESHOLD)
-        self.assertTrue(report["activated"])
+        self.assertGreaterEqual(report["coverage"], 0.95)
+        self.assertNotIn("activated", report)
         self.assertGreater(report["written"], 400)
+        self.assertIn("extension_coverage", report)
+
+        # The import alone does not activate...
+        locales = self.client.get(self.LOCALES_URL).get_json()["locales"]
+        by_code = {row["locale_code"]: row for row in locales}
+        self.assertFalse(by_code["hi"]["is_active"])
+
+        # ...activation is the separate, explicit step.
+        activated = self.client.post(
+            self._api("/activate"), json={}, headers=self._csrf_headers()
+        )
+        self.assertEqual(activated.status_code, 200, activated.get_json())
+        self.assertTrue(activated.get_json()["is_active"])
 
         payload = self.client.get(self._api("/export")).get_json()
         self.assertGreater(len(payload["questions"]), 400)

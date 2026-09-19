@@ -16,13 +16,14 @@
       <i class="fa-solid fa-language me-2 text-secondary"></i>Instrument Translations
       <span class="text-muted small ms-2">{{ instrument_code }}</span>
     </h5>
-    <div class="small text-muted" id="itr-threshold"></div>
   </div>
 
   <div class="alert alert-light border small py-2">
-    A language is served to the browser form only once it is <strong>active</strong>,
-    which needs coverage at or above the threshold. The source workbook for each
-    language is policy: see
+    A language is served to the browser form once an administrator
+    <strong>activates</strong> it &mdash; coverage is shown for context but does not
+    gate activation; whatever is translated is served, and English is the
+    per-string fallback for the rest. The source workbook for each language is
+    policy: see
     <code>docs/policy/va-form-project-configuration.md</code> &rarr; Translation sources.
   </div>
 
@@ -49,10 +50,6 @@
           <div class="form-check mb-0">
             <input class="form-check-input" type="checkbox" id="itr-cross-check">
             <label class="form-check-label small" for="itr-cross-check">Cross-check only</label>
-          </div>
-          <div class="form-check mb-0">
-            <input class="form-check-input" type="checkbox" id="itr-force">
-            <label class="form-check-label small" for="itr-force">Force activation</label>
           </div>
           <button class="btn btn-sm btn-primary ms-auto" id="itr-import-btn">
             <i class="fa-solid fa-upload me-1"></i>Import
@@ -148,7 +145,14 @@
 
   // ── locales ───────────────────────────────────────────────────────────────
 
-  var _threshold = 0.95;
+  // Purely a readability scale for the coverage badge -- it decides nothing;
+  // activation is a separate administrative action (decided 2026-09-19).
+  function coverageBadge(value) {
+    var v = Number(value || 0);
+    if (v >= 0.8) return 'success';
+    if (v >= 0.4) return 'info';
+    return 'secondary';
+  }
 
   function loadLocales() {
     var wrap = document.getElementById('itr-locales-wrap');
@@ -158,9 +162,6 @@
         wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
         return;
       }
-      _threshold = res.data.coverage_threshold;
-      document.getElementById('itr-threshold').textContent =
-        'Coverage threshold ' + pct(_threshold);
       renderLocales(res.data.locales || []);
     }).catch(function () {
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
@@ -189,13 +190,19 @@
       } else {
         actions = '<span class="text-muted small">base locale</span>';
       }
-      var covered = Number(l.coverage || 0) >= _threshold;
+      var extBadges = Object.keys(l.extension_coverage || {}).map(function (name) {
+        var c = l.extension_coverage[name];
+        return '<span class="badge text-bg-' + coverageBadge(c.coverage) + ' border me-1" '
+          + 'title="' + esc(c.translated) + '/' + esc(c.total) + ' labels">'
+          + esc(name) + ' ' + pct(c.coverage) + '</span>';
+      }).join('');
       return '<tr class="' + (l.is_active ? '' : 'text-muted') + '">'
         + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(l.locale_code) + '</span></td>'
         + '<td class="align-middle py-2 small">' + esc(l.language_name) + '</td>'
         + '<td class="align-middle py-2 small text-center"><span class="badge text-bg-'
-        + (covered ? 'success' : 'warning') + '">' + pct(l.coverage) + '</span> '
-        + '<span class="text-muted">' + l.translated_labels + '/' + l.reference_labels + '</span></td>'
+        + coverageBadge(l.coverage) + '">' + pct(l.coverage) + '</span> '
+        + '<span class="text-muted">' + l.translated_labels + '/' + l.reference_labels + '</span>'
+        + (extBadges ? '<div class="mt-1">' + extBadges + '</div>' : '') + '</td>'
         + '<td class="align-middle py-2 small text-center">' + esc(l.version) + '</td>'
         + '<td class="align-middle py-2 small">' + esc(l.source_document || '—')
         + (l.documented_source && l.source_document && l.documented_source !== l.source_document
@@ -265,7 +272,6 @@
     var form = new FormData();
     form.append('file', input.files[0]);
     if (document.getElementById('itr-cross-check').checked) form.append('cross_check', '1');
-    if (document.getElementById('itr-force').checked) form.append('force', '1');
 
     var btn = this;
     btn.disabled = true;
@@ -296,11 +302,12 @@
       'reference items the workbook lacks: ' + report.missing_from_workbook_count,
       'workbook items the reference lacks: ' + report.unknown_in_workbook_count,
     ];
+    Object.keys(report.extension_coverage || {}).forEach(function (name) {
+      var c = report.extension_coverage[name];
+      lines.push(esc(name) + ' coverage ' + pct(c.coverage) + ' (' + c.translated + '/' + c.total + ')');
+    });
     if (report.cross_check) lines.push('<em>Cross-check only — nothing was written.</em>');
-    else if (report.activated) lines.push(report.forced
-      ? '<span class="text-warning">Activated below the threshold (forced, logged).</span>'
-      : '<span class="text-success">Activated.</span>');
-    else lines.push('<span class="text-warning">Not activated: coverage is below the threshold.</span>');
+    else lines.push('<em>Import does not activate a locale — use Activate below once ready.</em>');
     out.innerHTML = '<div class="border rounded p-2 bg-light">' + lines.join('<br>') + '</div>';
   }
 

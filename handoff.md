@@ -1,42 +1,131 @@
 # Handoff
 
-Updated 2026-09-18 (session: organization phase 1, ICD-11 catalog delegation, WHO VA 2022 web intake).
+Updated 2026-09-19. Five sessions worked one shared checkout and landed 16
+commits; `origin/main` is at `98b9816`, working tree clean.
 
-## State of `main`
+## What landed
 
-- 91882f6 Organization model phase 1 (levels, units, cadres, workers, Organization panel, `flask org`).
-- d3788eb ICD-11 MMS catalog, importer, `flask icd11`, read-only browser, form-level `icd_classification` (decisions D1/D4 as recommended; D3 allowability needs clinical sign-off; coding screen still ICD-10 only).
-- b7480dc Organization phase 2, unit-scoped access grants (other session).
-- 2fc60ea Vendored `vendor/who-va-2022` with DigitVA extension; bundle under `app/static/vendor/who-va-2022` built by `tooling/who-va-2022` (`npm ci && npm run check && npm run build`).
-- This commit: web intake phase 1 (see below).
+| Commit | What |
+| --- | --- |
+| `3a17d8c` | Viewer roles wired to routes; two scope leaks closed; per-unit coding gates; migration `a40c38e73af4` |
+| `b8d05ef` | WHO 2026 annex ICD-10 ranges as the `WHO_2022_VA_2026` scheme; migration `c5f2a8d1e9b3` |
+| `926c212` | Web intake configurability, organization-API ancestors, PII field registry; migration `b8e3d1f7a2c4` |
+| `e16ea30` | `role_required` raises at decoration time on an unknown role name |
+| `6ea5420` | `R10` selectable, bucketed to `VAs-06.01` |
+| `b247950`, `ae6d6fa`, `5c5473a`, `8f0f672`, `98b9816` | Policy and task records (below) |
+| `455eb34`, `d08fce7`, `63a3dcb`, `479b698`, `44ffbeb` | Tooling hygiene: Dolt log and backup pointer untracked, beads prefix fixed, droppings ignored |
 
-## Web intake phase 1 (this commit) — what exists and what is unverified
+Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
+b8e3d1f7a2c4`. Verified by an empty-database `flask db upgrade` replay of the
+whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
+four COD bucket schemes.
 
-Code: `app/models/va_web_intake.py`, migration `e5f6a7b8c9d1` (applied on the dev DB), `app/services/web_intake_service.py` (deep module), `app/routes/intake.py` (`/intake/...`), templates `va_frontpages/va_intake*.html`, `interviewer` role (enum, grants constraint, `role_required`, admin scope sets, org grant roles, navbar, landing page), project setting `web_intake_mode` (admin Projects panel), `va_forms.form_source`, `ensure_web_runtime_form`.
+Verified: full suite 1,381 passed on the rebased tree.
 
-Tests (41, all passing; whole suite 1145 green):
+## The access model, as it now stands
 
-- `tests/services/test_web_intake_service.py` (24) — mode gating, interviewer scope, death-register validation and sequence-allocated unique ids, draft section merge and envelope reassembly, submit -> `va_submissions` + active payload version + `smartva_pending`, attachment answers lifted out of the payload, web form vs ODK runtime sync.
-- `tests/routes/test_intake_api.py` (17) — 401/403 for pages and API, CSRF on every state change, bootstrap, register -> draft -> save -> submit, owner-only form page, `WebIntakeError` status mapping, discard; plus `WebOnlyProjectIntakeTests` for the two authorization fixes below.
+`collaborator` and `collaborator_pii` reach **five** read-only routes:
+`/data-management/`, `/data-management/dashboard`, and the `submissions`,
+`filter-options` and `kpi` APIs. Nothing else, no writes.
 
-Fixed while writing them:
+Two things worth knowing before extending it:
 
-- `sync_runtime_forms_from_site_mappings()` keyed its form lookup by (project, site) over every `va_forms` row, so an ODK mapping for a project-site that also had a web form overwrote the web form's `odk_form_id`/`odk_project_id`. Web-sourced rows are now excluded from the rewrite; their ids still reserve against `_next_form_id`.
-- Web-only projects could not bootstrap: `is_interviewer()` resolves through `va_forms`, and the web form was only created lazily inside `start_draft()`. `admin_update_project` now calls `ensure_web_forms_for_project()` whenever `web_intake_mode` is set to something other than `off` (idempotent, every active site).
-- Unit-scoped interviewer grants never satisfied the role gate (`_get_granted_va_forms()` ignores `org_unit` scope). `is_interviewer()` now also honours an active unit-scoped interviewer grant — role gate only; `interviewer_context()`/`_require_scope()` still decide project, site and unit.
-- `tests/migrations/test_attachment_state_backfill.py` seeded `va_forms` through the model at `PREVIOUS_HEAD`, which broke once the model gained `form_source`; it now inserts that row as SQL, like the attachment rows.
-- `tests/conftest.py` creates `va_death_register_number_seq` — standalone DDL from `e5f6a7b8c9d1` that `create_all()` cannot produce.
+- **`dm_scope_filter` is wider than the grant and fails open.** An `org_unit`
+  grant is bridged to the unit's whole project, because a unit does not name a
+  site. Callers that enumerate submissions must AND in
+  `dm_submission_org_unit_condition`. Two callers were not doing that and were
+  serving a project's whole site roster to a viewer granted one leaf unit;
+  both now narrow themselves. If you add a caller, apply the condition or write
+  down why the coarse answer is right.
+- **`/data-management/cod-buckets` is deliberately NOT viewer-reachable.** The
+  page is a shell and all three endpoints behind it are `data_manager`/`admin`,
+  so granting the page alone gives a screen that 403s on every fetch. Opening
+  that API is a separate widening: `export.csv` emits staff identity.
 
-Still not verified: the questionnaire page has never been opened in a browser (draft store adapter, prefill, `lockedQuestionNames`, submit flow). `list_deaths` scoping for unit grants remains a first cut.
+## Start here
 
-## First steps for the next session
+Ranked across every session's input. The first two are new and both fail open.
 
-1. Grant `interviewer` to a test user on a project with `web_intake_mode = both`, open `/intake/`, register a death, start the questionnaire, check section saves in `va_web_intake_draft_sections`, submit, confirm the case appears for coders.
-2. Phase 2 attachments: upload `who-va-attachment:` references through `attachment_service` (store-first), then `mark_attachment_sync_completed`.
-3. Decisions still open: W1 validator sidecar, W6 mandatory media; mobile performance profiling of the bundle.
+1. **The PII set fails open for any non-WHO questionnaire.**
+   `.tasks/pii-registry-fails-open-for-non-who-forms.md`. `PII_FIELDS` is keyed
+   on WHO field ids and applied to every active form type without checking the
+   form contains them. A PHMRC or Ballabgarh form type gets no flags on its own
+   name and national-ID fields, and exports them in the clear. `is_pii` is now
+   the single source of truth behind the viewer split and five redaction
+   surfaces, so an empty set reads as "nothing here is personal data". Fail
+   closed.
 
-## Cross-stream notes
+2. **The PII set is cached per process with no invalidation.** Same task file.
+   `get_pii_field_ids()` memoizes; nothing in the repo calls `cache_clear`. An
+   admin edit or a Celery-run sync does not reach a web worker until restart.
 
-- Migration chain: c8d2e4f6a1b3 -> b6edb1b7d01a -> f4b8dd6e3568 -> d9e3f5a7b2c4 -> e5f6a7b8c9d1. Always `flask db heads` before adding one.
-- Shared test databases collide when two sessions run pytest at once; run the suite in chunks (services/routes/integration/migrations, then the rest) because the app container has a 756 MiB limit.
-- Plans: `docs/planning/health-system-organization-model-plan.md`, `docs/planning/icd11-coding-screen-integration-plan.md` (parked), `docs/planning/who-va-2022-web-intake-plan.md`. Tasks in `.tasks/`.
+3. **Nothing guarantees a route has a decorator at all.**
+   `.tasks/auth-decorator-followups.md`. A mistyped role now fails at import; a
+   *missing* decorator fails open, and three unguarded routes have been found by
+   audit rather than by a check. A test walking `app.url_map` and failing on any
+   unguarded, non-allowlisted endpoint closes it. Use the runtime map, not an
+   AST sweep — only `url_map` sees dynamically registered blueprints.
+
+4. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
+   unblocks removing the hardcoded `locale = "en"` at
+   `va_intake_form.html:168` and the never-set `instrument` property. The form
+   falls back to the bundled WHO 2022 instrument, which works only while
+   exactly one form type is live.
+
+5. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
+   A project-scoped grant on a closed project still resolves, in two
+   independent mechanisms. Fixing one alone leaves them disagreeing, so it needs
+   a decision about what a closed project means for every grant scope.
+
+Then: attachments phase 2, the validator sidecar (written, unwired, decision
+W1), ICD-11 coding screen phases 3-6.
+
+## Open and unexplained
+
+- **The dev DB stamp moved backwards two revisions** with the later migrations'
+  data still present. Fixed by re-running `flask db upgrade`; cause unknown.
+  A stamp regressing without a downgrade is a data-integrity signal. Likely
+  contributor: `boot.sh` retries `flask db upgrade` forever against a DB
+  stamped at a revision the tree lacks, hanging silently instead of failing.
+  `.tasks/dev-db-stamp-regression-and-infra.md`.
+- **Dev and a fresh clone have diverged**: dev's `WHO_2022_VA` carries 2,414
+  mappings against a fresh clone's 2,380. That is how a test passes here and
+  fails everywhere else.
+- **`test_odk_site_mappings`** failed once in a full run with its POST and GET
+  each taking 35,118ms to within 3ms. Not reproduced, not explained. The
+  identical timings are the fingerprint if it recurs.
+- **15 migration files import from `app.*`**, unswept. The `mas_org_unit` break
+  came from exactly this.
+- **`stash@{0}`** is still present from the incident earlier this week.
+
+## How to work in this repo now
+
+- **One test database per tree.** `TestConfig` honours `TEST_DATABASE_URL`
+  above everything. `drop_all` cannot order a table its metadata has never
+  seen, so a tree lacking another tree's uncommitted model cannot tear down a
+  schema containing it — persistently, not as a race. See
+  `docs/policy/test-harness.md`.
+- **Shared checkout discipline.** Git read-only unless you are the session that
+  owns landing commits; never `stash` (one swept 37 files across four sessions
+  this week). Build file lists from `git diff`, never from memory of your own
+  edits — in a shared tree the diff is the only source of truth about what a
+  commit will contain.
+- **Six vacuity rules** are in `docs/policy/test-harness.md`, each from a check
+  that passed today while proving nothing: assert the subject is present before
+  asserting it is absent; patch the module object, not a dotted path through a
+  package that re-exports it; a missing fixture can make an authorization test
+  vacuous; defeat the bytecode cache when mutation testing; treat an errored
+  `setUpClass` as the whole class unverified; the dual-table FK trap.
+- **Migrations chain onto committed revisions only**, verified in `git log`. An
+  `origin/main` was broken this week by a revision naming a parent that existed
+  only in a working tree. Three migrations named one parent today; each
+  re-chained as it landed.
+
+## Known gaps in what was verified
+
+No suite has been mutation-tested except `tests/test_role_required_validation.py`.
+The two new ICD CLI commands and migration `c5f2a8d1e9b3` have no automated
+test. The intake page's JavaScript is inline in a Jinja template and
+structurally untestable — which is why the optional-level reachability bug
+lived there undetected. About 27 docs were last updated in March and have never
+been checked against the code.

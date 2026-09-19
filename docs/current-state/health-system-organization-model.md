@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -368,11 +368,54 @@ implemented.
   database from the migration chain alone and compares it to the models.
 - Migrations applied and cycled on the development database.
 
+## Web form options API
+
+`GET /api/v1/organization/<project_id>/form-options` sits on the same
+blueprint as `/units`, with the same decorators (`login_required` plus the
+120/minute limiter) and the same grant check: a signed-in user with no grant
+reaching the project gets 403, an unknown or deactivated project 404. Unlike
+`/units` the body is *not* narrowed by what the caller's grants reach —
+project configuration is the same for everyone who may see the project.
+
+It serves the tier-2 options of `docs/policy/va-web-form-options.md`:
+`form_types` (with exactly one `is_default`), `default_locale`,
+`available_locales`, `narration_languages`, `show_guidance`, a derived
+`enabled_extensions`, and a `config_version` that moves — exactly like
+`tree_version` — when the project row, its `map_project_site_odk` rows, or the
+form types they reach change.
+
+Geography is deliberately not repeated here: it is the tree served by
+`/units`, and duplicating it would create two sources for the codes that drive
+routing.
+
+Four columns on `va_project_master` back it (migration `f2a9c4d7e1b3`,
+additive, reversible):
+
+| Column | Type | Null | Meaning |
+|---|---|---|---|
+| `web_intake_default_locale` | `String(16)` NOT NULL, default `'en'` | — | The language the form opens in |
+| `web_intake_available_locales` | JSONB list of codes | yes | NULL = every active `mas_languages` row |
+| `web_intake_narration_languages` | JSONB list of codes | yes | NULL = none offered |
+| `web_intake_show_guidance` | Boolean NOT NULL, default false | — | Whether source guidance notes render |
+
+They are read and written by the project settings serializer and
+`PUT /admin/api/projects/<project_id>`, which validates every code against the
+active language list. The admin projects panel UI is unchanged — the panel is
+JS-driven and these need more than a plain input each.
+
+`app/templates/va_frontpages/va_intake_form.html` fetches the endpoint after
+bootstrap and uses it for the `locale` attribute, the `show-guidance`
+attribute, and the `instrument` property, which it looks up by the default
+form type's `form_type_code`. A form type with no bundled instrument is an
+error shown in the page's alert box, never a WHO 2022 form rendered under
+another name.
+
 ## Where the code lives
 
 | Concern | Module |
 |---|---|
 | Tree, cadres, workers, export/import, unit label lookup for submission exports | `app/services/organization_service.py` |
+| Organization tree and web form options JSON API | `app/routes/api/organization.py` |
 | Unit-scoped grants, coding scope rule | `app/services/org_grant_service.py` |
 | Submission routing, ODK field preflight | `app/services/org_unit_routing_service.py` |
 | Runtime form materialization per mapping | `app/services/runtime_form_sync_service.py` |

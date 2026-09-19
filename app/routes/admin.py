@@ -365,7 +365,25 @@ def _serialize_project(project):
         "demo_retention_minutes": project.demo_retention_minutes,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
         "web_intake_mode": project.web_intake_mode,
+        # Tier-2 web form options — docs/policy/va-web-form-options.md.
+        "web_intake_default_locale": project.web_intake_default_locale,
+        "web_intake_available_locales": project.web_intake_available_locales,
+        "web_intake_narration_languages": project.web_intake_narration_languages,
+        "web_intake_show_guidance": project.web_intake_show_guidance,
     }
+
+
+def _active_language_codes():
+    """Codes of the active canonical languages, for validating form options."""
+    from app.models import MasLanguages
+
+    return set(
+        db.session.scalars(
+            sa.select(MasLanguages.language_code).where(
+                MasLanguages.is_active.is_(True)
+            )
+        ).all()
+    )
 
 
 def _serialize_site(site):
@@ -1111,6 +1129,49 @@ def admin_update_project(project_id):
         if web_intake_mode not in WEB_INTAKE_MODES:
             return _json_error("Invalid web_intake_mode.", 400)
         updates["web_intake_mode"] = web_intake_mode
+
+    # Tier-2 web form options (docs/policy/va-web-form-options.md). Every code
+    # is validated against the active language list here, so the form-options
+    # endpoint never has to serve a locale it cannot label. NULL is a
+    # meaningful stored value for the two lists — "every active language" and
+    # "none offered" respectively — so an explicit null is accepted.
+    language_fields = (
+        "web_intake_available_locales",
+        "web_intake_narration_languages",
+    )
+    if "web_intake_default_locale" in payload or any(
+        field in payload for field in language_fields
+    ):
+        active_codes = _active_language_codes()
+
+        if "web_intake_default_locale" in payload:
+            default_locale = (payload["web_intake_default_locale"] or "").strip()
+            if default_locale not in active_codes:
+                return _json_error("Invalid web_intake_default_locale.", 400)
+            updates["web_intake_default_locale"] = default_locale
+
+        for field in language_fields:
+            if field not in payload:
+                continue
+            raw = payload[field]
+            if raw is None:
+                updates[field] = None
+                continue
+            if not isinstance(raw, list) or not all(
+                isinstance(code, str) for code in raw
+            ):
+                return _json_error(f"{field} must be a list of language codes.", 400)
+            unknown = [code for code in raw if code not in active_codes]
+            if unknown:
+                return _json_error(
+                    f"{field} contains inactive language codes: "
+                    f"{', '.join(sorted(unknown))}.",
+                    400,
+                )
+            updates[field] = list(dict.fromkeys(raw))
+
+    if "web_intake_show_guidance" in payload:
+        updates["web_intake_show_guidance"] = bool(payload["web_intake_show_guidance"])
 
     if "demo_retention_minutes" in payload:
         try:

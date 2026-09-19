@@ -1,7 +1,7 @@
 ---
 title: VA Web Form Options Contract
 doc_type: policy
-status: draft
+status: active
 owner: DigitVA Data Collection
 last_updated: 2026-09-19
 ---
@@ -37,20 +37,20 @@ questionnaire differ only by tier-2 options.
 
 | Option | Type | Set today | Notes |
 |---|---|---|---|
-| `instrument` | `InstrumentDefinition` (property) | **No** — falls back to the bundled WHO 2022 instrument | The host must pass this once more than one form type is live. Built offline; never compiled at request time. |
+| `instrument` | `InstrumentDefinition` (property) | **Yes** — set from the project's default `form_type_code` (2026-09-19) | The host must pass this once more than one form type is live. Built offline; never compiled at request time. |
 | `formTypeCode` | string, inside the instrument | Emitted by the builder | The mapping key. Survives a republish that changes `version`. |
-| `enabled_extensions` | string[] | **No** — not yet an option | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `abha`. Decides which sections exist. |
+| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `abha`. Decides which sections exist. |
 
 ### Tier 2 — project configuration
 
 | Option | Type | Set today | Notes |
 |---|---|---|---|
-| `locale` | string (attribute) | **Hardcoded `"en"`** | The display language of labels, hints and choices. |
-| `available_locales` | string[] | **No** | Which languages this project's users may switch to. Drawn from the system-wide translation catalogue, not from the form. |
+| `locale` | string (attribute) | **Yes** — `default_locale` from the project (2026-09-19) | The display language of labels, hints and choices. |
+| `available_locales` | string[] | **Yes** — served (2026-09-19) | Which languages this project's users may switch to. Drawn from the system-wide translation catalogue, not from the form. |
 | `uiTranslations` | `WhoVaUiTranslations` | **No** | Chrome strings (buttons, validation). Separate from instrument translations. |
-| `narration_languages` | `{code,label}[]` | **No** | Options for `narr_language` — the language the narrative was *recorded* in. Distinct from `locale` and from the instrument's own "Interview language" question. Per-project checkboxes. |
+| `narration_languages` | `{code,label}[]` | **Yes** — served (2026-09-19) | Options for `narr_language` — the language the narrative was *recorded* in. Distinct from `locale` and from the instrument's own "Interview language" question. Per-project checkboxes. |
 | `geography` | level + unit codes | Partly — via the units API | Feeds `survey_state`/`survey_district`/`survey_block` and `org_<level_code>_code` routing. Comes from the project's organization hierarchy. |
-| `show-guidance` | boolean (attribute) | **No** — defaults off | Whether source guidance notes render. An interviewer-training setting. |
+| `show-guidance` | boolean (attribute) | **Yes** — served and passed when true (2026-09-19) | Whether source guidance notes render. An interviewer-training setting. |
 | `attachment_policy` | image/audio/PDF limits | **No** — engine defaults | Size and dimension ceilings. |
 
 ### Tier 3 — session and runtime
@@ -76,6 +76,13 @@ per-project configuration the intake page fetches:
 GET /api/v1/organization/<project_id>/form-options
 ```
 
+**Implemented 2026-09-19** in `app/routes/api/organization.py`, on the same
+blueprint and behind the same grant check as `/units`. Backed by four columns
+on `va_project_master` (`web_intake_default_locale`,
+`web_intake_available_locales`, `web_intake_narration_languages`,
+`web_intake_show_guidance`), edited through the project settings PUT in
+`app/routes/admin.py`.
+
 ```jsonc
 {
   "project_id": "...",
@@ -99,6 +106,15 @@ Notes on the shape:
 - Geography is **not** repeated here. It is the organization tree, served by
   `GET /api/v1/organization/<project_id>/units`, and duplicating it would
   create two sources for the codes that drive routing.
+- `form_types` are the distinct active form types the project reaches
+  through `map_project_site_odk`. Exactly one is the default: the one linked
+  to the most sites, ties broken by `form_type_code` so the answer is stable.
+- `enabled_extensions` is derived, never stored: `digitva_core` always;
+  `social_autopsy` from `social_autopsy_enabled`; `geography` when the project
+  has an organization hierarchy; `narration_language` when narration languages
+  resolve to a non-empty list; `abha` when the default form type has an active
+  `abha_number` field display config. `intake_screen` and `death_summary` are
+  omitted — nothing in the data model derives them yet.
 - `available_locales` is the intersection of what the project allows and what
   the system has translations for. The form must tolerate a locale it has no
   strings for by falling back, not by failing.

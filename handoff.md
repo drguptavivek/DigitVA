@@ -17,14 +17,16 @@ clean.
 | `455eb34`, `d08fce7`, `63a3dcb`, `479b698`, `44ffbeb` | Tooling hygiene: Dolt log and backup pointer untracked, beads prefix fixed, droppings ignored |
 | `4b0e308` | PII set fails closed per form type; PII cache versioned on `mas_field_display_config` `(count, max(updated_at))`. No migration. |
 | `711710e` | Policy: what a second form type must pass before it goes live |
-| (this session) | `tests/test_route_auth_coverage.py`: every `url_map` endpoint must carry `role_required` or `login_required`, or sit on an explicit allowlist |
+| `b159e53`, `e0d2300`, `4a7c623` | `tests/test_route_auth_coverage.py`: every `url_map` endpoint must carry `role_required` or `login_required`, or sit on an explicit allowlist; public set settled |
+| `89c1b79` | CLAUDE.md trimmed; subagent working model written down |
+| (this session) | `GET /api/v1/organization/<project_id>/form-options`; four `web_intake_*` columns on `va_project_master`; migration `f2a9c4d7e1b3`; intake form takes locale and instrument from the project |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
-b8e3d1f7a2c4`. Verified by an empty-database `flask db upgrade` replay of the
+b8e3d1f7a2c4 -> f2a9c4d7e1b3`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,409 passed after the public-route decisions (1,402 after the route-coverage test, 1,391 after the PII change, 1,381 on the rebased tree before all three).
+Verified: full suite 1,423 passed with the form-options endpoint (1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -52,26 +54,47 @@ Ranked across every session's input. Done since the previous ranking: the
 PII set failing open, the PII cache never invalidating, and the route
 decorator guarantee (see the two sections below). The six routes that were
 pending a decision are settled: help, WHO documents and the home page are
-public.
+public. The `form-options` endpoint is in (section below); its one open
+consequence is the `WHO_2022_VA_SOCIAL` instrument.
 
-1. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
-   unblocks removing the hardcoded `locale = "en"` at
-   `va_intake_form.html:168` and the never-set `instrument` property. The form
-   falls back to the bundled WHO 2022 instrument, which works only while
-   exactly one form type is live.
-
-2. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
+1. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
    A project-scoped grant on a closed project still resolves, in two
    independent mechanisms. Fixing one alone leaves them disagreeing, so it needs
    a decision about what a closed project means for every grant scope.
 
-3. **Migrations importing live app code.** `.tasks/migrations-importing-app-code.md`.
+2. **Migrations importing live app code.** `.tasks/migrations-importing-app-code.md`.
    15 migration files import from `app.*`; the `mas_org_unit` break came from
    exactly this. A lint on `app.services` imports under `migrations/versions`
    plus the empty-database upgrade replay closes it.
 
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
+
+## form-options endpoint (landed this session)
+
+`GET /api/v1/organization/<project_id>/form-options` serves the tier-2
+options from `docs/policy/va-web-form-options.md`, with the same grant check
+as `/units`. Four explicit columns on `va_project_master`
+(`web_intake_default_locale`, `web_intake_available_locales`,
+`web_intake_narration_languages`, `web_intake_show_guidance`; migration
+`f2a9c4d7e1b3`, additive, no `app.*` import). `form_types` is derived from
+`map_project_site_odk`; `enabled_extensions` is derived from existing flags,
+with `intake_screen` and `death_summary` omitted until something can derive
+them. The admin project PUT validates the four fields; the projects panel UI
+does not expose them yet, because its settings form is built from explicit
+element handles and the four inputs are more than a few lines of JS.
+
+The intake template no longer hardcodes `locale="en"` and now sets
+`el.instrument` from a map keyed on the project's default form type code.
+**Only `WHO_2022_VA` is mapped.** Five dev projects map to
+`WHO_2022_VA_SOCIAL`, and web intake is off on every project today, so
+nothing breaks now. But turning web intake on for a SOCIAL project shows an
+error box instead of a form until a SOCIAL instrument variant is bundled.
+That is the policy's own decision (pre-built variants, resolved O1): before
+this change those projects would have rendered the base WHO instrument and
+recorded submissions against a form type the respondent was not shown.
+Bundling the SOCIAL variant, or deciding the base instrument is acceptable
+for it, is the next step on this path.
 
 ## Route decorator guarantee (landed this session)
 

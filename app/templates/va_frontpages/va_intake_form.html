@@ -35,9 +35,22 @@ const api = async (url, method = "GET", body, { keepalive = false } = {}) => {
   return { ok: r.ok, status: r.status, data };
 };
 
-// Question name -> deepest section name, so each section is saved as its own JSON.
-const instrument = WhoVa.whoVa2022Instrument;
-const sectionOf = new Map(instrument.questions.map((q) => [q.name, q.sectionPath[q.sectionPath.length - 1] || "_root"]));
+// form_type_code -> the bundled instrument that renders it. The form itself
+// decides nothing (docs/policy/va-web-form-options.md): the project's default
+// form type picks the instrument, and a form type with nothing bundled for it
+// is an error we show, not a WHO 2022 form rendered under the wrong name.
+const INSTRUMENTS = {
+  "WHO_2022_VA": WhoVa.whoVa2022Instrument,
+};
+
+// Question name -> deepest section name, so each section is saved as its own
+// JSON. Built in main() from the instrument the project's default form type
+// selected, never from a hardcoded one: a second INSTRUMENTS entry must not be
+// split by WHO 2022's section names. Nothing calls splitBySection before main()
+// assigns it -- the form only reaches draftStore once it is mounted.
+const sectionMapFor = (instr) =>
+  new Map(instr.questions.map((q) => [q.name, q.sectionPath[q.sectionPath.length - 1] || "_root"]));
+let sectionOf = new Map();
 function splitBySection(data) {
   const out = {};
   for (const [name, value] of Object.entries(data || {})) {
@@ -163,10 +176,25 @@ async function main() {
   if (!boot.ok) { alertBox("danger", boot.data.error || "Could not load."); return; }
   CSRF = boot.data.csrf_token;
 
+  const opts = await api("/api/v1/organization/" + encodeURIComponent(DRAFT.project_id) + "/form-options");
+  if (!opts.ok) { alertBox("danger", opts.data.error || "Could not load this project's form options."); return; }
+  const options = opts.data;
+  const defaultFormType = (options.form_types || []).find((ft) => ft.is_default);
+  const chosenInstrument = defaultFormType ? INSTRUMENTS[defaultFormType.form_type_code] : undefined;
+  if (!chosenInstrument) {
+    alertBox("danger", defaultFormType
+      ? `No questionnaire is bundled for form type ${defaultFormType.form_type_code}.`
+      : "This project has no questionnaire configured.");
+    return;
+  }
+  sectionOf = sectionMapFor(chosenInstrument);
+
   const el = document.createElement("who-va-2022-form");
   el.setAttribute("draft-id", DRAFT.draft_id);
-  el.setAttribute("locale", "en");
+  el.setAttribute("locale", options.default_locale);
+  if (options.show_guidance) el.setAttribute("show-guidance", "");
   el.setAttribute("auto-save-draft-on-change", "");
+  el.instrument = chosenInstrument;
   el.draftStore = draftStore;
   if (PREFILL.lockedQuestionNames && "lockedQuestionNames" in el) el.lockedQuestionNames = PREFILL.lockedQuestionNames;
   el.addEventListener("who-va-draft-error", (e) => alertBox("warning", "Draft could not be saved: " + (e.detail?.message || e.detail)));

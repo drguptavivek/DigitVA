@@ -254,6 +254,27 @@ class IntakeApiTests(BaseTestCase):
             db.session.get(VaDeathRegister, death["death_id"]).status, "va_submitted"
         )
 
+    def test_form_page_takes_its_locale_and_instrument_from_form_options(self):
+        """The rendered page must not decide anything the project owns.
+
+        Contract: docs/policy/va-web-form-options.md. The locale used to be
+        hardcoded ``"en"`` in the template; it now comes from
+        ``/api/v1/organization/<project_id>/form-options``, which the page can
+        only call because the draft JSON carries ``project_id``.
+        """
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        body = self.client.get(f"/intake/form/{draft['draft_id']}").get_data(as_text=True)
+
+        self.assertNotIn('setAttribute("locale", "en")', body)
+        self.assertIn('setAttribute("locale", options.default_locale)', body)
+        # The per-section autosave map must follow the selected instrument too,
+        # or a second INSTRUMENTS entry would be split by WHO 2022's sections.
+        self.assertNotIn("const instrument = WhoVa.whoVa2022Instrument", body)
+        self.assertIn("sectionOf = sectionMapFor(chosenInstrument)", body)
+        self.assertIn("/form-options", body)
+        self.assertIn(f'"project_id": "{self.PROJECT_ID}"', body)
+
     def test_form_page_renders_for_the_owner_and_404s_for_anyone_else(self):
         self._login(self.interviewer_id)
         draft = self._start_draft()

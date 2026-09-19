@@ -20,11 +20,15 @@ Policy: docs/policy/organization-model.md.
 """
 
 import sqlalchemy as sa
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user, login_required
 
 from app import db, limiter
 from app.models import (
+    MapProjectSiteOdk,
+    MasFieldDisplayConfig,
+    MasFormTypes,
+    MasLanguages,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -234,4 +238,263 @@ def project_units(project_id: str):
             }
             for unit in units
         ],
+    })
+
+
+# ---------------------------------------------------------------------------
+# Form options — docs/policy/va-web-form-options.md
+# ---------------------------------------------------------------------------
+
+#: Field whose presence in a form type's display config means the ABHA
+#: extension is in play for that questionnaire.
+_ABHA_FIELD_ID = "abha_number"
+
+
+def _config_version(project_id: str) -> str | None:
+    """The latest change to anything this project's form options are built from.
+
+    Serves the same purpose as ``_tree_version``: a client caches the options
+    and revalidates, so a settings change reaches a page that is already open.
+    What moves it is exactly what the response is derived from -- the project
+    row (which carries all four tier-2 settings), the project-site/ODK form
+    mappings (which decide ``form_types``), and the form type rows themselves
+    (which carry the titles).
+    """
+    project_stamp = db.session.scalar(
+        sa.select(VaProjectMaster.project_updated_at).where(
+            VaProjectMaster.project_id == project_id
+        )
+    )
+    latest_mapping = db.session.scalar(
+        sa.select(sa.func.max(MapProjectSiteOdk.updated_at)).where(
+            MapProjectSiteOdk.project_id == project_id
+        )
+    )
+    latest_form_type = db.session.scalar(
+        sa.select(sa.func.max(MasFormTypes.updated_at)).where(
+            MasFormTypes.form_type_id.in_(
+                sa.select(MapProjectSiteOdk.form_type_id).where(
+                    MapProjectSiteOdk.project_id == project_id,
+                    MapProjectSiteOdk.form_type_id.is_not(None),
+                )
+            )
+        )
+    )
+    stamps = [
+        value
+        for value in (project_stamp, latest_mapping, latest_form_type)
+        if value is not None
+    ]
+    return max(stamps).isoformat() if stamps else None
+
+
+def _project_form_types(project_id: str) -> list[dict]:
+    """Active form types linked to this project, with exactly one default.
+
+    One query: the distinct form types reached through this project's
+    ``map_project_site_odk`` rows, each with the number of *sites* that link
+    it. The default is the form type linked to the most sites; ties are broken
+    by ``form_type_code`` so the answer is stable across requests. With a
+    single form type -- today's normal case -- that rule trivially picks it.
+    An empty list means the project has no mapped questionnaire yet, and the
+    caller has nothing to render.
+    """
+    site_count = sa.func.count(sa.distinct(MapProjectSiteOdk.site_id)).label("sites")
+    rows = db.session.execute(
+        sa.select(
+            MasFormTypes.form_type_code,
+            MasFormTypes.form_type_name,
+            site_count,
+        )
+        .join(MapProjectSiteOdk, MapProjectSiteOdk.form_type_id == MasFormTypes.form_type_id)
+        .where(
+            MapProjectSiteOdk.project_id == project_id,
+            MasFormTypes.is_active.is_(True),
+        )
+        .group_by(MasFormTypes.form_type_code, MasFormTypes.form_type_name)
+        .order_by(site_count.desc(), MasFormTypes.form_type_code)
+    ).all()
+    return [
+        {
+            "form_type_code": row.form_type_code,
+            "title": row.form_type_name,
+            "is_default": index == 0,
+        }
+        for index, row in enumerate(rows)
+    ]
+
+
+def _active_languages() -> dict[str, str]:
+    """Active ``{code: label}`` from the canonical language list, in code order."""
+    rows = db.session.execute(
+        sa.select(MasLanguages.language_code, MasLanguages.language_name)
+        .where(MasLanguages.is_active.is_(True))
+        .order_by(MasLanguages.language_code)
+    ).all()
+    return {row.language_code: row.language_name for row in rows}
+
+
+def _resolve_locales(
+    project: VaProjectMaster, active: dict[str, str]
+) -> tuple[str, list[dict]]:
+    """The project's default locale and the locales it may switch to.
+
+    ``web_intake_available_locales`` NULL means every active language. A
+    stored code that is not an active language is dropped. The default locale
+    is always present in the result: if the stored default is not available,
+    the first available locale is used instead and a warning is logged -- a
+    misconfigured language must degrade the form, never fail the page.
+    """
+    stored = project.web_intake_available_locales
+    if stored is None:
+        codes = list(active)
+    else:
+        codes = [code for code in stored if code in active]
+
+    default = project.web_intake_default_locale
+    if default not in codes:
+        if default in active:
+            # Active language that the project simply did not list: honour the
+            # project's own default by including it rather than overriding it.
+            codes = [default] + codes
+        elif codes:
+            current_app.logger.warning(
+                "Project %s web_intake_default_locale %r is not an active "
+                "language; falling back to %r.",
+                project.project_id,
+                default,
+                codes[0],
+            )
+            default = codes[0]
+        else:
+            current_app.logger.warning(
+                "Project %s has no available web intake locales; serving the "
+                "stored default %r unresolved.",
+                project.project_id,
+                default,
+            )
+            codes = [default]
+
+    available = [
+        {"code": code, "label": active.get(code, code)} for code in codes
+    ]
+    return default, available
+
+
+def _resolve_narration_languages(
+    project: VaProjectMaster, active: dict[str, str]
+) -> list[dict]:
+    """Stored narration language codes resolved against the language list.
+
+    NULL means none are offered. An unknown or deactivated code is dropped
+    with a warning rather than served as an option the form cannot label.
+    """
+    stored = project.web_intake_narration_languages or []
+    resolved = []
+    for code in stored:
+        if code in active:
+            resolved.append({"code": code, "label": active[code]})
+        else:
+            current_app.logger.warning(
+                "Project %s web_intake_narration_languages contains %r, which "
+                "is not an active language; dropped.",
+                project.project_id,
+                code,
+            )
+    return resolved
+
+
+def _enabled_extensions(
+    project: VaProjectMaster,
+    form_types: list[dict],
+    narration_languages: list[dict],
+) -> list[str]:
+    """Which form sections this project's configuration turns on.
+
+    Derived from configuration that already exists; nothing here is a new
+    setting. ``intake_screen`` and ``death_summary`` are deliberately omitted:
+    neither has anything in the data model to derive them from yet, and
+    guessing a value would be worse than the form applying its own default.
+    """
+    extensions = ["digitva_core"]
+    if project.social_autopsy_enabled:
+        extensions.append("social_autopsy")
+
+    has_geography = db.session.scalar(
+        sa.select(sa.func.count())
+        .select_from(MasOrgLevel)
+        .where(MasOrgLevel.project_id == project.project_id)
+    )
+    if has_geography:
+        extensions.append("geography")
+
+    if narration_languages:
+        extensions.append("narration_language")
+
+    default_code = next(
+        (ft["form_type_code"] for ft in form_types if ft["is_default"]), None
+    )
+    if default_code is not None:
+        abha_configured = db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(MasFieldDisplayConfig)
+            .join(
+                MasFormTypes,
+                MasFormTypes.form_type_id == MasFieldDisplayConfig.form_type_id,
+            )
+            .where(
+                MasFormTypes.form_type_code == default_code,
+                MasFieldDisplayConfig.field_id == _ABHA_FIELD_ID,
+                MasFieldDisplayConfig.is_active.is_(True),
+            )
+        )
+        if abha_configured:
+            extensions.append("abha")
+
+    return extensions
+
+
+@bp.get("/<project_id>/form-options")
+@login_required
+@limiter.limit("120 per minute")
+def project_form_options(project_id: str):
+    """The tier-2 (per-project) options the VA web form must be given.
+
+    The contract is docs/policy/va-web-form-options.md: the form itself
+    decides nothing, so every option that differs between two projects
+    running the same questionnaire is served from here. Geography is
+    deliberately *not* repeated -- it is the organization tree served by
+    ``/units``, and duplicating it would create two sources for the codes
+    that drive routing.
+
+    Read-only, and gated exactly as ``/units`` is: a signed-in user with no
+    grant reaching this project is refused. Unlike ``/units`` the response is
+    not narrowed by what the grants reach -- project configuration is the same
+    for everyone who may see the project at all.
+    """
+    project_id = (project_id or "").strip().upper()
+    project = db.session.get(VaProjectMaster, project_id)
+    if project is None or project.project_status != VaStatuses.active:
+        return _error("Project not found.", 404)
+
+    reachable = _reachable_unit_ids(project_id, None)
+    if reachable is not None and not reachable:
+        return _error("You do not have access to that project.", 403)
+
+    active = _active_languages()
+    form_types = _project_form_types(project_id)
+    default_locale, available_locales = _resolve_locales(project, active)
+    narration_languages = _resolve_narration_languages(project, active)
+
+    return jsonify({
+        "project_id": project_id,
+        "config_version": _config_version(project_id),
+        "enabled_extensions": _enabled_extensions(
+            project, form_types, narration_languages
+        ),
+        "form_types": form_types,
+        "default_locale": default_locale,
+        "available_locales": available_locales,
+        "narration_languages": narration_languages,
+        "show_guidance": project.web_intake_show_guidance,
     })

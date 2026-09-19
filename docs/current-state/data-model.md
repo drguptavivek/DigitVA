@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Current Data Model
@@ -1022,7 +1022,13 @@ Other important tables:
 - `va_users`
 - `va_project_master` — also carries `project_target_completion_date` (DATE, nullable), the
   admin-set target the DM burndown KPI projects against
-  (`app/routes/api/dm_kpi/dm_kpi_burndown.py`)
+  (`app/routes/api/dm_kpi/dm_kpi_burndown.py`), and the four web intake form
+  options served by `GET /api/v1/organization/<project_id>/form-options`
+  (migration `f2a9c4d7e1b3`): `web_intake_default_locale` (String(16), NOT
+  NULL, default `'en'`), `web_intake_available_locales` (JSONB, nullable —
+  NULL means every active language), `web_intake_narration_languages` (JSONB,
+  nullable — NULL means none offered) and `web_intake_show_guidance` (Boolean,
+  NOT NULL, default false). Policy: `docs/policy/va-web-form-options.md`
 - `va_site_master`
 - `va_project_sites`
 - `va_user_access_grants` — see [Unit-scoped access grants](#unit-scoped-access-grants)

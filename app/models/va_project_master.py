@@ -2,6 +2,7 @@ import uuid
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
+from sqlalchemy.dialects.postgresql import JSONB
 from app import db
 from typing import Optional
 from datetime import date, datetime, timezone
@@ -100,6 +101,29 @@ class VaProjectMaster(db.Model):
     # off | direct | death_register | both.
     web_intake_mode: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="off", server_default="off"
+    )
+    # Tier-2 web form options (docs/policy/va-web-form-options.md), served by
+    # GET /api/v1/organization/<project_id>/form-options. Explicit columns, not
+    # a settings blob, like every other project setting on this table.
+    #
+    # The language the form opens in. Must be an active mas_languages code.
+    web_intake_default_locale: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="en", server_default="en"
+    )
+    # Language codes this project's users may switch to. NULL means every
+    # active language in mas_languages.
+    web_intake_available_locales: so.Mapped[Optional[list]] = so.mapped_column(
+        JSONB, nullable=True
+    )
+    # Language codes offered for `narr_language` -- the language the narrative
+    # was *recorded* in, distinct from the display locale. NULL means none
+    # are offered.
+    web_intake_narration_languages: so.Mapped[Optional[list]] = so.mapped_column(
+        JSONB, nullable=True
+    )
+    # Whether source guidance notes render. An interviewer-training setting.
+    web_intake_show_guidance: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
     )
 
     def __repr__(self) -> str:

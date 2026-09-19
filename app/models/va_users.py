@@ -167,6 +167,30 @@ class VaUsers(UserMixin, db.Model):
         ))
         return bool(db.session.scalar(stmt))
 
+    def is_project_pi(self) -> bool:
+        """Answer the project_pi role gate: does the user hold any live PI grant?
+
+        Scope — *which* projects — is answered by get_project_pi_projects();
+        this is an EXISTS over the same four conditions plus the active-project
+        rule, so the gate costs one indexed lookup instead of a project-id set.
+        """
+        from app.models import (
+            VaAccessRoles,
+            VaAccessScopeTypes,
+            VaUserAccessGrants,
+            VaStatuses,
+        )
+        from app.services.org_grant_service import active_project_condition
+
+        stmt = sa.select(sa.exists().where(
+            VaUserAccessGrants.user_id == self.user_id,
+            VaUserAccessGrants.role == VaAccessRoles.project_pi,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            active_project_condition(VaUserAccessGrants.project_id),
+        ))
+        return bool(db.session.scalar(stmt))
+
     def has_demo_training_access(self) -> bool:
         from app.services.demo_project_service import get_demo_training_project_ids
 

@@ -59,7 +59,7 @@ _ROLE_METHODS = {
     "reviewer":       lambda u: u.is_reviewer(),
     "data_manager":   lambda u: u.is_data_manager(),
     "site_pi":        lambda u: u.is_site_pi(),
-    "project_pi":     lambda u: bool(u.get_project_pi_projects()),
+    "project_pi":     lambda u: u.is_project_pi(),
     "interviewer":    lambda u: u.is_interviewer(),
     # collaborator / collaborator_pii: identical reach, so both spellings
     # gate on the same check. What differs (PII visibility) is decided by

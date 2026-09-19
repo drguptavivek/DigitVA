@@ -53,13 +53,33 @@ stopped refreshing".
 Either derive it from the blueprint, or assert the tuple against the registered
 blueprints in a test.
 
-## 3. `project_pi` is the only predicate that queries
+## 3. `project_pi` is the only predicate that queries — DONE (2026-09-19)
 
-`"project_pi": lambda u: bool(u.get_project_pi_projects())` runs a query;
-every other predicate reads a cached flag. On routes gated
-`("admin", "project_pi")` admins short-circuit before it because `any()`
-evaluates left to right -- but that ordering is incidental. Reversing the
-argument order at any call site would make the query unconditional.
+**Corrected premise.** "Every other predicate reads a cached flag" was wrong.
+`VaUsers.is_admin()` is itself a query -- an EXISTS over the global-scope admin
+grant -- and the role predicates generally resolve grants rather than read
+flags. Nothing is cached per request. So the Layer-3 `any()` runs over booleans
+that each cost a round trip, and the decision is already order-independent:
+reversing `role_required("admin", "project_pi")` changes which query runs
+first, not whether one runs.
+
+**Done:** what was actually wrong was the cost class. The gate asked *which*
+projects in order to answer *any* project. `VaUsers.is_project_pi()` asks the
+second question directly -- an `sa.exists()` over the same four grant
+conditions plus `active_project_condition`, so a closed project still yields
+False -- and `_ROLE_METHODS["project_pi"]` now calls it.
+`get_project_pi_projects()` is unchanged and still answers scope.
+
+**Proved by** `tests/test_role_required_project_pi_predicate.py`: the semantics
+including the closed-project flip, both argument orders returning identical
+statuses (200/200, 200/200, 403/403) for an admin, a project PI and a plain
+user, and a `before_cursor_execute` count showing one statement whose SELECT
+list is a boolean -- with `get_project_pi_projects()` as the positive control
+in the same test, since both statements contain EXISTS and only the SELECT list
+discriminates.
+
+Per-request caching of the predicates was considered and left out of scope: it
+is a change to every role gate, not to this one.
 
 ## Known seams in the tests that landed with `d1b75ee`
 

@@ -1,7 +1,8 @@
 # Handoff
 
 Updated 2026-09-19 (projects-panel session). The projects-panel inputs
-(`5b22094`) and the instrument-locale rule landed on top of `85ca0ef`;
+(`5b22094`), the instrument-locale rule (`742ea9d`) and the `project_pi`
+predicate fix landed on top of `85ca0ef`;
 `origin/main` is at the commit that updated this file, working tree clean.
 
 ## What landed
@@ -24,14 +25,15 @@ Updated 2026-09-19 (projects-panel session). The projects-panel inputs
 | `705021e` | Closed projects resolve no grant of any scope; one shared predicate in twelve resolvers plus the redaction check |
 | `1369c0e` | Form types are layers on the standard instrument; intake resolves `instrument_code`, so `WHO_2022_VA_SOCIAL` renders |
 | `5b22094` | Projects admin panel reads and writes the four `web_intake_*` form options; project POST accepts them through the same validator as the PUT. No migration. |
-| (this session) | Web form locale is `en` everywhere plus what the instrument has translations for (`app/services/web_form_instruments.py`); interviewer picks a working language, remembered in the browser. No migration. |
+| `742ea9d` | Web form locale is `en` everywhere plus what the instrument has translations for (`app/services/web_form_instruments.py`); interviewer picks a working language, remembered in the browser. No migration. |
+| (this session) | `project_pi` role gate is an EXISTS (`VaUsers.is_project_pi`), closing `.tasks/auth-decorator-followups.md` item 3 |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4 -> f2a9c4d7e1b3`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,464 passed after the instrument-locale rule (1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite 1,469 passed after the project_pi predicate (1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -70,13 +72,33 @@ projects-panel inputs are in (section below). Open, in order:
    dev database's projects still store `mas_languages` codes in
    `web_intake_available_locales` from before, which the resolver drops
    silently.
-2. `project_pi` is the only grant predicate that queries
-   (`.tasks/auth-decorator-followups.md` item 3).
+2. The `project_pi` predicate item is closed (section below).
 3. The `base_instrument_code` column when a second standard instrument is
    bundled.
 
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
+
+## `project_pi` role gate is an EXISTS (landed this session)
+
+Item 3 of `.tasks/auth-decorator-followups.md` said `project_pi` was the
+only `role_required` predicate that queries and that reordering
+`("admin", "project_pi")` would make its query unconditional. The premise
+was stale: `is_admin()` is itself an EXISTS query, so every predicate costs
+one statement and `any()` over booleans is order-independent already. What
+remained was cost class: the gate fetched the user's whole PI project set to
+answer yes/no. `VaUsers.is_project_pi()` is now an EXISTS over the same four
+grant conditions plus `active_project_condition`, so a closed project still
+yields False, and the predicate calls it. `get_project_pi_projects()` is
+unchanged and still answers scope. `tests/test_role_required_project_pi_predicate.py`
+asserts the semantics including the closed-project rule, identical statuses
+under both argument orders for an admin, a PI and a plain user, and that
+the gate is exactly one `SELECT EXISTS` statement with the scope query as
+the discriminating control (both contain the word EXISTS because
+`active_project_condition` is one; the outer select list is what differs).
+Per-request caching of role checks was deliberately not added: admin routes
+call `get_project_pi_projects()` several times per request and a memo on
+`flask.g` would go stale inside the grant-mutating requests themselves.
 
 ## Web form locale is `en` plus the instrument's translations (landed this session)
 

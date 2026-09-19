@@ -153,6 +153,33 @@ class AdminPanelRoutingTests(BaseTestCase):
                 self.assertIn(marker, body)
         self.assertNotIn("project-web-intake-default-locale-input", body)
 
+    def test_projects_panel_renders_the_web_questionnaire_inputs(self):
+        """The web form type and the two extensions are edited from here.
+
+        WP1 of docs/planning/web-capture-project-configuration-plan.md. The
+        form types come from /admin/api/web-form-types, which also carries the
+        default welcome note: the panel is a JSON client, so nothing about
+        these settings is rendered into the page.
+        """
+        self._login(self.base_admin_id)
+
+        response = self.client.get("/admin/panels/projects")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        # The id is asserted in its `id="..."` form: the panel's JavaScript
+        # mentions every id it reads, so a bare substring would pass even if
+        # the input itself were gone.
+        for marker in (
+            'id="project-web-intake-form-type-input"',
+            'id="project-web-intake-intake-note-input"',
+            'id="project-web-intake-intake-note-default-btn"',
+            'id="project-web-intake-death-summary-input"',
+            "/admin/api/web-form-types",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, body)
+
     def test_panel_response_is_html_fragment(self):
         """Panel responses must be HTML, not JSON — they are HTMX targets."""
         self._login(self.base_admin_id)

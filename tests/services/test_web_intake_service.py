@@ -646,3 +646,165 @@ class WebIntakeServiceTests(BaseTestCase):
         # _org_unit(); this test deliberately does not.
         death = self._register_death()
         self.assertIsNone(death.org_unit_id)
+
+
+class WebFormTypeFromProjectSettingTests(BaseTestCase):
+    """The web ``va_forms`` row carries the project's configured form type.
+
+    WP1 of docs/planning/web-capture-project-configuration-plan.md: the form
+    type was hardcoded to ``WHO_2022_VA``, so a project could not collect on
+    the ``_SOCIAL`` layer through the browser at all.
+    """
+
+    PROJECT_ID = "WFT01"
+    SITE_ID = "WF01"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(timezone.utc)
+        db.session.add(VaProjectMaster(
+            project_id=cls.PROJECT_ID,
+            project_code=cls.PROJECT_ID,
+            project_name="Web Form Type Project",
+            project_nickname="WebFormType",
+            project_status=VaStatuses.active,
+            project_registered_at=now,
+            project_updated_at=now,
+            web_intake_mode="direct",
+        ))
+        db.session.add(VaSiteMaster(
+            site_id=cls.SITE_ID,
+            site_name="Web Form Type Site",
+            site_abbr=cls.SITE_ID,
+            site_status=VaStatuses.active,
+            site_registered_at=now,
+            site_updated_at=now,
+        ))
+        db.session.flush()
+        db.session.add(VaProjectSites(
+            project_id=cls.PROJECT_ID,
+            site_id=cls.SITE_ID,
+            project_site_status=VaStatuses.active,
+            project_site_registered_at=now,
+            project_site_updated_at=now,
+        ))
+        db.session.flush()
+        _ensure_legacy_project_site_rows(cls.PROJECT_ID, cls.SITE_ID)
+
+        # Interviewer grants resolve through va_forms, and the web form row is
+        # what this class is about creating — so the grant hangs off an ODK
+        # form, as it does for a project that collects both ways.
+        db.session.add(VaForms(
+            form_id="WFT01WF0101",
+            project_id=cls.PROJECT_ID,
+            site_id=cls.SITE_ID,
+            odk_form_id="ODK_WFT01WF0101",
+            odk_project_id="7",
+            form_type="WHO VA 2022",
+            form_source="odk",
+            form_status=VaStatuses.active,
+            form_registered_at=now,
+            form_updated_at=now,
+        ))
+        db.session.flush()
+
+        cls.base_type = cls._ensure_form_type("WHO_2022_VA", "WHO 2022 VA Form")
+        cls.social_type = cls._ensure_form_type(
+            "WHO_2022_VA_SOCIAL", "WHO 2022 VA with social autopsy"
+        )
+        cls.retired_type = cls._ensure_form_type(
+            "WFT_RETIRED", "Web Form Type Retired", is_active=False
+        )
+
+        cls.interviewer = cls._get_or_make_user(
+            "web.formtype@test.local", "WebIntake123"
+        )
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.interviewer.user_id,
+            role=VaAccessRoles.interviewer,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=cls.PROJECT_ID,
+            notes="web form type test grant",
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+
+    def setUp(self):
+        super().setUp()
+        self.project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        self.project.web_intake_form_type_id = None
+        db.session.commit()
+
+    def _web_form(self):
+        return db.session.scalar(
+            sa.select(VaForms).where(
+                VaForms.project_id == self.PROJECT_ID,
+                VaForms.site_id == self.SITE_ID,
+                VaForms.form_source == "web",
+            )
+        )
+
+    def test_an_unconfigured_project_still_gets_the_default_form_type(self):
+        form = ensure_web_runtime_form(self.PROJECT_ID, self.SITE_ID)
+        self.assertEqual(form.form_type_id, self.base_type.form_type_id)
+
+    def test_start_draft_creates_a_web_form_carrying_the_configured_type(self):
+        """Positive control first: the row does not exist before start_draft."""
+        self.assertIsNone(self._web_form())
+
+        self.project.web_intake_form_type_id = self.social_type.form_type_id
+        db.session.commit()
+
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        form = db.session.get(VaForms, draft.form_id)
+        self.assertEqual(form.form_source, "web")
+        self.assertEqual(form.form_type_id, self.social_type.form_type_id)
+        self.assertEqual(form.form_type, self.social_type.form_type_name)
+
+    def test_an_inactive_configured_form_type_is_refused(self):
+        """Positive control first: an active type materializes the row."""
+        self.project.web_intake_form_type_id = self.social_type.form_type_id
+        db.session.commit()
+        self.assertIsNotNone(ensure_web_runtime_form(self.PROJECT_ID, self.SITE_ID))
+
+        db.session.delete(self._web_form())
+        self.project.web_intake_form_type_id = self.retired_type.form_type_id
+        db.session.commit()
+
+        with self.assertRaises(ValueError) as ctx:
+            ensure_web_runtime_form(self.PROJECT_ID, self.SITE_ID)
+        self.assertIn("not an active form type", str(ctx.exception))
+        self.assertIsNone(self._web_form())
+
+    def test_an_existing_web_form_keeps_the_type_it_was_created_with(self):
+        first = ensure_web_runtime_form(self.PROJECT_ID, self.SITE_ID)
+        self.assertEqual(first.form_type_id, self.base_type.form_type_id)
+
+        self.project.web_intake_form_type_id = self.social_type.form_type_id
+        db.session.commit()
+
+        again = ensure_web_runtime_form(self.PROJECT_ID, self.SITE_ID)
+        self.assertEqual(again.form_id, first.form_id)
+        self.assertEqual(again.form_type_id, self.base_type.form_type_id)
+
+
+class IntakeNoteResolutionTests(BaseTestCase):
+    """NULL is the system default note; "" is no welcome screen at all."""
+
+    def test_null_resolves_to_the_default_note(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.web_intake_intake_note = None
+        self.assertEqual(
+            intake_svc.resolve_intake_note(project), intake_svc.DEFAULT_INTAKE_NOTE
+        )
+
+    def test_a_stored_note_is_served_and_a_blank_one_means_no_screen(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.web_intake_intake_note = "Say this first."
+        self.assertEqual(intake_svc.resolve_intake_note(project), "Say this first.")
+
+        project.web_intake_intake_note = "   "
+        self.assertEqual(intake_svc.resolve_intake_note(project), "")

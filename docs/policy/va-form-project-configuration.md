@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # VA Form Project Configuration Policy
@@ -47,10 +47,10 @@ which layers it collects:
 |---|---|
 | `digitva_core` (always on) | `unique_id`, `Site`, `imagenarr`, `md_count` + `md_im1..30`, `comment` |
 | `social_autopsy` | the social-autopsy sections |
-| `intake_screen` | `introduction`, `instructions`, `confirm_inst` |
+| `intake_screen` | `introduction`, `instructions`, `confirm_inst` — project setting `web_intake_intake_note` (2026-09-19) |
 | `geography` | `survey_state`, `survey_district`, `survey_block`, `site_individual_id` |
 | `narration_language` | `narr_language` |
-| `death_summary` | `ds_available`, `ds_count`, `ds_im1..5` |
+| `death_summary` | `ds_available`, `ds_count`, `ds_im1..5` — project setting `web_intake_death_summary_enabled`, on by default (2026-09-19) |
 | `abha` | `abha_number`, `abha_address` (web intake only) |
 
 A project picks layers; it does not pick a whole form. The deployed forms
@@ -137,11 +137,24 @@ codes and its active rules.
 - A project with no organization tree attributes nothing; `org_unit_id` stays
   NULL by design.
 
+## Sign-off on a configuration change (P2, decided 2026-09-19)
+
+**The admin who saves the setting is the sign-off.** There is no pending
+state and no second approver: the save is recorded in the admin activity log
+([Admin Activity Log](admin-activity-log.md)), which is the audit trail.
+
+This is affordable because instruments are pre-built *per standard
+instrument*, not per project: changing a project's configuration selects
+layers and option lists, it never rebuilds a questionnaire. What a project
+picks — the web form type (`web_intake_form_type_id`), the extensions, the
+languages — is served as options by the project API, and a form type may only
+be chosen once its PII set is confirmed
+([New Form Type Onboarding](new-form-type-onboarding.md)), which is where the
+second pair of eyes already sits.
+
 ## Open
 
-| # | Question |
-|---|---|
-| P2 | Who signs off on rebuilding a project's instrument after its configuration changes? |
+*Nothing open.*
 
 ## References
 

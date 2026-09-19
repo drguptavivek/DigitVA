@@ -24,6 +24,12 @@ class MasFormTypes(db.Model):
     form_type_name: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=False)
     form_type_description: so.Mapped[str | None] = so.mapped_column(sa.Text)
     base_template_path: so.Mapped[str | None] = so.mapped_column(sa.String(256))
+    # The standard instrument this form type layers on, e.g. WHO_2022_VA for
+    # both WHO_2022_VA and WHO_2022_VA_SOCIAL. Read by instrument_code_for()
+    # in app/routes/api/organization.py to tell the web form which bundled
+    # questionnaire to render; NULL means nothing is bundled for it.
+    # Policy: docs/policy/va-web-form-options.md.
+    base_instrument_code: so.Mapped[str | None] = so.mapped_column(sa.String(32))
     mapping_version: so.Mapped[int] = so.mapped_column(sa.Integer, default=1)
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, default=True)
     created_at: so.Mapped[datetime] = so.mapped_column(

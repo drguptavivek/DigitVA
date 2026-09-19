@@ -38,8 +38,9 @@ questionnaire differ only by tier-2 options.
 | Option | Type | Set today | Notes |
 |---|---|---|---|
 | `instrument` | `InstrumentDefinition` (property) | **Yes** — selected by the default form type's `instrument_code` (2026-09-19) | The host must pass this once a second *standard instrument* is bundled. Built offline; never compiled at request time. |
-| `instrument_code` | string, served per form type | **Yes** (2026-09-19) | The standard instrument a form type layers on. `WHO_2022_VA` for any code equal to or prefixed with `WHO_2022_VA`; `null` otherwise, which the page renders as an error. |
+| `instrument_code` | string, served per form type | **Yes** (2026-09-19) | The standard instrument a form type layers on, read from `mas_form_types.base_instrument_code`; `null` when nothing is bundled for that form type, which the page renders as an error. |
 | `formTypeCode` | string, inside the instrument | Emitted by the builder | The mapping key for the instrument's own identity. Not the instrument selector — `instrument_code` is. |
+| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `abha`. Decides which sections exist. |
 
 **DigitVA form types are layers, not instruments.** `WHO_2022_VA_SOCIAL` and
 any future `WHO_2022_VA_*` are layers on the one standard WHO 2022 VA
@@ -48,12 +49,15 @@ questionnaire. So the intake page keys `INSTRUMENTS` on `instrument_code`, and
 O1's "pre-built variants" means pre-built **per standard instrument**, never
 per layer.
 
-*Follow-up:* `instrument_code` is derived from a naming convention in
-`instrument_code_for()` (`app/routes/api/organization.py`). It stands in for a
-`base_instrument_code` column on `mas_form_types`, which must be added when a
-second standard instrument (PHMRC) is bundled, since no prefix rule will cover
-two instrument families.
-| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `abha`. Decides which sections exist. |
+**Landed 2026-09-19:** `mas_form_types.base_instrument_code` (String(32),
+nullable) records which standard instrument a form type layers on, backfilled
+from the naming convention that stood in for it. `instrument_code_for()`
+(`app/routes/api/organization.py`) reads the column and nothing else — **the
+prefix rule is gone**, so a `WHO_2022_VA*` code whose column is NULL now
+resolves to `null` rather than to the WHO instrument. A new form type records
+the column as part of
+[New Form Type Onboarding](new-form-type-onboarding.md); the form-type admin
+list and `flask form-types list` show it, and the form-type PATCH sets it.
 
 ### Tier 2 — project configuration
 
@@ -66,6 +70,9 @@ two instrument families.
 | `geography` | level + unit codes | Partly — via the units API | Feeds `survey_state`/`survey_district`/`survey_block` and `org_<level_code>_code` routing. Comes from the project's organization hierarchy. |
 | `show-guidance` | boolean (attribute) | **Yes** — served and passed when true (2026-09-19) | Whether source guidance notes render. An interviewer-training setting. |
 | `attachment_policy` | image/audio/PDF limits | **No** — engine defaults | Size and dimension ceilings. |
+| `web_intake_form_type_id` | uuid | **Yes — project setting** (2026-09-19) | Which form type the project's browser questionnaire carries. Must be an active form type with a `base_instrument_code` and a confirmed PII set; NULL means `WHO_2022_VA`. |
+| `intake_screen` | note text | **Yes — project setting** (2026-09-19) | A welcome note shown before the questionnaire, `web_intake_intake_note`. NULL is the system default text (`DEFAULT_INTAKE_NOTE`), `""` is no welcome screen. In `enabled_extensions` exactly when the resolved note is non-empty; the text is served as `intake_note`. |
+| `death_summary` | boolean | **Yes — project setting** (2026-09-19) | Optional upload of death summary documents, `web_intake_death_summary_enabled`, on for every project. Never a mandatory response; rendering waits for attachments phase 2. |
 
 ### Tier 3 — session and runtime
 
@@ -92,11 +99,14 @@ GET /api/v1/organization/<project_id>/form-options
 ```
 
 **Implemented 2026-09-19** in `app/routes/api/organization.py`, on the same
-blueprint and behind the same grant check as `/units`. Backed by four columns
+blueprint and behind the same grant check as `/units`. Backed by seven columns
 on `va_project_master` (`web_intake_default_locale`,
 `web_intake_available_locales`, `web_intake_narration_languages`,
-`web_intake_show_guidance`), and accepted by the project POST and PUT in
-`app/routes/admin.py`.
+`web_intake_show_guidance`, and since 2026-09-19 `web_intake_form_type_id`,
+`web_intake_intake_note`, `web_intake_death_summary_enabled`), and accepted by
+the project POST and PUT in `app/routes/admin.py`. The POST also applies
+`WEB_PROJECT_DEFAULTS` (`app/services/web_intake_service.py`) to every web
+setting a create payload omits when `web_intake_mode` is not `off`.
 
 `available_locales` is the intersection of what the project stores and what
 the bundled instrument has translations for, never the `mas_languages` list.
@@ -116,6 +126,7 @@ narration only.
     {"form_type_code": "WHO_2022_VA_SOCIAL", "instrument_code": "WHO_2022_VA",
      "title": "...", "is_default": true}
   ],
+  "intake_note": "Before you begin: …",   // null when the welcome screen is off
   "default_locale": "en",
   "available_locales": [{"code": "en", "label": "English"}],
   "narration_languages": [{"code": "hi", "label": "Hindi"}],
@@ -131,17 +142,28 @@ Notes on the shape:
 - Geography is **not** repeated here. It is the organization tree, served by
   `GET /api/v1/organization/<project_id>/units`, and duplicating it would
   create two sources for the codes that drive routing.
-- `form_types` are the distinct active form types the project reaches
-  through `map_project_site_odk`. Exactly one is the default: the one linked
-  to the most sites, ties broken by `form_type_code` so the answer is stable.
-  Each carries `instrument_code`, the standard instrument it layers on, or
-  `null` when nothing is bundled for it.
+- `form_types` are the distinct active form types the project collects on:
+  those reached through `map_project_site_odk`, **union** those of the
+  project's active `form_source='web'` `va_forms` rows, plus the configured
+  web questionnaire when the project collects on the web and no web form row
+  exists yet. Exactly one is the default: the configured web questionnaire
+  when `web_intake_mode` is not `off` (`web_intake_form_type_id`, falling back
+  to the existing web row's type and then to `WHO_2022_VA`), otherwise the
+  form type linked to the most sites, ties broken by `form_type_code` so the
+  answer is stable. Each carries `instrument_code`, the standard instrument it
+  layers on, or `null` when nothing is bundled for it. A configured form type
+  that has been deactivated is skipped here rather than raised on — the
+  interviewer's page degrades to the fallback questionnaire, and the readiness
+  check reports the misconfiguration.
 - `enabled_extensions` is derived, never stored: `digitva_core` always;
   `social_autopsy` from `social_autopsy_enabled`; `geography` when the project
   has an organization hierarchy; `narration_language` when narration languages
   resolve to a non-empty list; `abha` when the default form type has an active
-  `abha_number` field display config. `intake_screen` and `death_summary` are
-  omitted — nothing in the data model derives them yet.
+  `abha_number` field display config; `intake_screen` when the resolved
+  welcome note is non-empty; `death_summary` from
+  `web_intake_death_summary_enabled`.
+- `intake_note` is the text the `intake_screen` extension renders, or `null`
+  when the project turned the welcome screen off.
 - `available_locales` is the intersection of what the project allows and what
   the bundled instrument has translations for. The form must tolerate a locale
   it has no strings for by falling back, not by failing.
@@ -159,7 +181,7 @@ registry cannot drift ahead of the bundle. Adding a row to `mas_languages` does
 
 | # | Question |
 |---|---|
-| Q6 | Do the standardized project geography codes bind to `org_<level_code>_code` as the same codes, or through a mapping? |
+| ~~Q6~~ | ~~Do the standardized project geography codes bind to `org_<level_code>_code` as the same codes, or through a mapping?~~ **Resolved 2026-09-19 by [VA Form Project Configuration Policy](va-form-project-configuration.md):** they are the same codes. `mas_org_unit.unit_code` *is* the geography code, there is no mapping table, and the web form fills `org_<level_code>_code` from `_unit_context`. |
 | ~~O1~~ | ~~Pre-built instrument variants, or a filter over one superset at load?~~ **Resolved 2026-09-19: pre-built variants.** Not for tidiness — an instrument whose identity depends on request state cannot be tied back to what the respondent was actually shown, which makes a submission hard to defend evidentially. Immutable instruments, pre-built per *standard instrument* and selected by `instrument_code` — not one variant per form type, since form types are layers. |
 | ~~O2~~ | ~~Who owns `attachment_policy`?~~ **Resolved 2026-09-19:** a system-wide constant until a project has a real reason otherwise; making it project-level later is additive. |
 

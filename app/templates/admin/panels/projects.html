@@ -133,6 +133,46 @@
         </div>
       </div>
 
+      {# Web questionnaire and its two extensions — WP1 of
+         docs/planning/web-capture-project-configuration-plan.md #}
+      <div class="border rounded p-2 mt-3">
+        <div class="fw-semibold small mb-1">Web form questionnaire</div>
+        <div class="text-muted small mb-2">
+          Which questionnaire the browser VA form renders for this project, and
+          the two optional sections. A form type whose PII set is unconfirmed
+          cannot collect real interviews
+          (docs/policy/new-form-type-onboarding.md).
+        </div>
+        <div id="project-web-intake-form-types-error" class="text-danger small mb-2 d-none">
+          Could not load form types.
+        </div>
+        <div class="row g-2 align-items-start">
+          <div class="col-sm-6">
+            <label class="form-label small mb-1" for="project-web-intake-form-type-input">Questionnaire</label>
+            <select class="form-select form-select-sm" id="project-web-intake-form-type-input"></select>
+            <div class="form-text small">Default: WHO 2022 VA.</div>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label small mb-1">Death summary upload</label>
+            <div class="form-check form-switch pt-2">
+              <input class="form-check-input" type="checkbox" id="project-web-intake-death-summary-input" role="switch" checked>
+              <label class="form-check-label small" for="project-web-intake-death-summary-input">Offer document upload</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1" for="project-web-intake-intake-note-input">Welcome note</label>
+            <textarea class="form-control form-control-sm" rows="2" id="project-web-intake-intake-note-input"></textarea>
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="form-text small">
+                Shown before the questionnaire starts.
+                <span id="project-web-intake-intake-note-state" class="fst-italic"></span>
+              </div>
+              <button type="button" class="btn btn-sm btn-link p-0 small" id="project-web-intake-intake-note-default-btn">Use default note</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
           <button class="btn btn-sm btn-outline-secondary" id="project-cancel-btn">Cancel</button>
@@ -199,6 +239,18 @@
   // then left out of the payload so an outage cannot blank a project's stored
   // settings.
   var _formLocales = null;
+  // Form types the web questionnaire may run on, from
+  // /admin/api/web-form-types. Null while its fetch has not succeeded.
+  var _formTypes = null;
+  // The welcome note is tri-state: the default note (stored NULL), a note of
+  // the project's own, or no welcome screen at all (stored ""). The textarea
+  // alone cannot say which of the first and last an empty box means.
+  var _intakeNoteIsDefault = true;
+  // Which create-form controls the admin actually changed. On create, a
+  // control left alone is omitted from the payload so the server applies
+  // WEB_PROJECT_DEFAULTS — the panel never sends a default the server would
+  // reject (e.g. a language this deployment has not vendored).
+  var _touched = {};
 
   function loadProjects() {
     var wrap = document.getElementById('project-table-wrap');
@@ -445,7 +497,13 @@
   var availableLocalesList = document.getElementById('project-web-intake-available-locales-list');
   var narrationLanguagesList = document.getElementById('project-web-intake-narration-languages-list');
   var showGuidanceInput = document.getElementById('project-web-intake-show-guidance-input');
+  var formTypeInput = document.getElementById('project-web-intake-form-type-input');
+  var deathSummaryInput = document.getElementById('project-web-intake-death-summary-input');
+  var intakeNoteInput = document.getElementById('project-web-intake-intake-note-input');
+  var intakeNoteStateEl = document.getElementById('project-web-intake-intake-note-state');
+  var intakeNoteDefaultBtn = document.getElementById('project-web-intake-intake-note-default-btn');
   var languagesErrEl = document.getElementById('project-web-intake-languages-error');
+  var formTypesErrEl = document.getElementById('project-web-intake-form-types-error');
   var errEl = document.getElementById('project-form-error');
 
   // ── web form language inputs ──────────────────────────────────────────────
@@ -530,10 +588,69 @@
 
   allLocalesInput.addEventListener('change', syncAvailableLocalesEnabled);
 
+  // ── questionnaire, welcome note and death summary ─────────────────────────
+
+  function renderFormTypeInputs() {
+    var html = '<option value="">WHO 2022 VA (default)</option>';
+    for (var i = 0; i < _formTypes.length; i++) {
+      var ft = _formTypes[i];
+      // A form type with no bundled instrument has no questionnaire to
+      // render, and one whose PII set is unconfirmed may not collect real
+      // interviews (docs/policy/new-form-type-onboarding.md). The server
+      // refuses both; the select says why rather than offering them.
+      var usable = ft.pii_confirmed && !!ft.base_instrument_code;
+      var suffix = ft.pii_confirmed
+        ? (ft.base_instrument_code ? '' : ' (no bundled questionnaire)')
+        : ' (PII set unconfirmed)';
+      html += '<option value="' + esc(ft.form_type_id) + '"'
+        + (usable ? '' : ' disabled')
+        + '>' + esc(ft.form_type_code) + ' — ' + esc(ft.form_type_name)
+        + esc(suffix) + '</option>';
+    }
+    formTypeInput.innerHTML = html;
+  }
+
+  function syncIntakeNoteState() {
+    if (_intakeNoteIsDefault) {
+      intakeNoteStateEl.textContent = 'Using the default note.';
+    } else if (!intakeNoteInput.value.trim()) {
+      intakeNoteStateEl.textContent = 'No welcome screen.';
+    } else {
+      intakeNoteStateEl.textContent = '';
+    }
+  }
+
+  intakeNoteInput.addEventListener('input', function () {
+    _intakeNoteIsDefault = false;
+    _touched.web_intake_intake_note = true;
+    syncIntakeNoteState();
+  });
+
+  intakeNoteDefaultBtn.addEventListener('click', function () {
+    _intakeNoteIsDefault = true;
+    intakeNoteInput.value = '';
+    _touched.web_intake_intake_note = true;
+    syncIntakeNoteState();
+  });
+
+  // One handler per control the create defaults cover, so an untouched
+  // control is omitted on create.
+  function markTouched(el, key) {
+    el.addEventListener('change', function () { _touched[key] = true; });
+  }
+  markTouched(formTypeInput, 'web_intake_form_type_id');
+  markTouched(deathSummaryInput, 'web_intake_death_summary_enabled');
+  markTouched(allLocalesInput, 'web_intake_available_locales');
+  markTouched(availableLocalesList, 'web_intake_available_locales');
+  markTouched(narrationLanguagesList, 'web_intake_narration_languages');
+  markTouched(codingIntakeModeInput, 'coding_intake_mode');
+  markTouched(socialAutopsyEnabledInput, 'social_autopsy_enabled');
+  markTouched(reviewerSocialAutopsyEnabledInput, 'reviewer_social_autopsy_enabled');
+
   function readWebIntakeOptions() {
-    // Both catalogues must be in hand: a partially rendered form would send a
+    // Every catalogue must be in hand: a partially rendered form would send a
     // narrowed list built from whichever fetch happened to succeed.
-    if (!_languages || !_formLocales) return null;
+    if (!_languages || !_formLocales || !_formTypes) return null;
     var available = null;
     if (!allLocalesInput.checked) {
       // The base locale is always offered, so it belongs in a narrowed list
@@ -547,7 +664,11 @@
     return {
       web_intake_available_locales: available,
       web_intake_narration_languages: narration.length ? narration : null,
-      web_intake_show_guidance: showGuidanceInput.checked
+      web_intake_show_guidance: showGuidanceInput.checked,
+      web_intake_form_type_id: formTypeInput.value || null,
+      // null is "use the default note"; "" is "no welcome screen".
+      web_intake_intake_note: _intakeNoteIsDefault ? null : intakeNoteInput.value,
+      web_intake_death_summary_enabled: deathSummaryInput.checked
     };
   }
 
@@ -586,11 +707,33 @@
     });
   }
 
+  function loadFormTypes() {
+    apiJson('/admin/api/web-form-types').then(function (res) {
+      if (!res.ok || !res.data || !res.data.form_types) {
+        formTypesErrEl.classList.remove('d-none');
+        return;
+      }
+      _formTypes = res.data.form_types;
+      // The default note is served, never rendered into the page: the panel
+      // is a JSON client of /admin/api/web-form-types.
+      intakeNoteInput.placeholder = res.data.default_intake_note || '';
+      renderFormTypeInputs();
+      refillOpenWebIntakeForm();
+    }).catch(function () {
+      formTypesErrEl.classList.remove('d-none');
+    });
+  }
+
   function resetWebIntakeInputs() {
     allLocalesInput.checked = true;
     setTicked(availableLocalesList, AVAILABLE_LOCALE_CLASS, []);
     setTicked(narrationLanguagesList, NARRATION_LANGUAGE_CLASS, []);
     showGuidanceInput.checked = false;
+    formTypeInput.value = '';
+    deathSummaryInput.checked = true;
+    intakeNoteInput.value = '';
+    _intakeNoteIsDefault = true;
+    syncIntakeNoteState();
     syncAvailableLocalesEnabled();
   }
 
@@ -604,11 +747,18 @@
       project.web_intake_narration_languages || []
     );
     showGuidanceInput.checked = !!project.web_intake_show_guidance;
+    formTypeInput.value = project.web_intake_form_type_id || '';
+    deathSummaryInput.checked = project.web_intake_death_summary_enabled !== false;
+    _intakeNoteIsDefault = (project.web_intake_intake_note === null
+      || project.web_intake_intake_note === undefined);
+    intakeNoteInput.value = project.web_intake_intake_note || '';
+    syncIntakeNoteState();
     syncAvailableLocalesEnabled();
   }
 
   function resetForm() {
     _editingId = null;
+    _touched = {};
     formTitle.textContent = 'Create Project';
     idInput.value = '';
     idInput.disabled = false;
@@ -632,6 +782,7 @@
     if (!project) return;
     
     _editingId = projectId;
+    _touched = {};
     formTitle.textContent = 'Edit Project: ' + projectId;
     idInput.value = project.project_id;
     idInput.disabled = true;
@@ -702,9 +853,32 @@
 
     var webIntakeOptions = readWebIntakeOptions();
     if (webIntakeOptions) {
-      data.web_intake_available_locales = webIntakeOptions.web_intake_available_locales;
-      data.web_intake_narration_languages = webIntakeOptions.web_intake_narration_languages;
-      data.web_intake_show_guidance = webIntakeOptions.web_intake_show_guidance;
+      for (var key in webIntakeOptions) {
+        if (Object.prototype.hasOwnProperty.call(webIntakeOptions, key)) {
+          data[key] = webIntakeOptions[key];
+        }
+      }
+    }
+
+    // Creating a web-capture project: whatever the admin did not touch is
+    // left out so the server applies its own defaults (WEB_PROJECT_DEFAULTS).
+    // Sending this form's initial values instead would store them as if they
+    // had been chosen, and would send language lists this deployment may not
+    // support.
+    if (!_editingId && data.web_intake_mode !== 'off') {
+      var defaulted = [
+        'web_intake_form_type_id',
+        'web_intake_intake_note',
+        'web_intake_death_summary_enabled',
+        'web_intake_available_locales',
+        'web_intake_narration_languages',
+        'coding_intake_mode',
+        'social_autopsy_enabled',
+        'reviewer_social_autopsy_enabled'
+      ];
+      for (var i = 0; i < defaulted.length; i++) {
+        if (!_touched[defaulted[i]]) delete data[defaulted[i]];
+      }
     }
 
     var btn = this;
@@ -724,6 +898,7 @@
 
   loadLanguages();
   loadFormLocales();
+  loadFormTypes();
   loadProjects();
 
 }());

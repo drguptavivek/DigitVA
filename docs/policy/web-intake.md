@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Web Intake Policy
@@ -48,6 +48,30 @@ submission enters the workflow. Plan:
   questionnaire section. The page sends only the sections whose answers
   changed. One active draft per registered death; only its author may edit
   it.
+- **Which questionnaire a web form carries** (decided 2026-09-19):
+  `va_project_master.web_intake_form_type_id`, a form type that must be
+  active, carry a `base_instrument_code`, and have a confirmed PII set
+  ([New Form Type Onboarding](new-form-type-onboarding.md)). NULL means
+  `WHO_2022_VA`, the behaviour before the setting existed. A new web
+  `va_forms` row takes the configured type; an existing row keeps the type it
+  was created with, so the questionnaire cannot change under drafts already
+  being filled.
+- **The two project-level extensions** (decided 2026-09-19):
+  - `intake_screen` — a welcome note shown before the questionnaire starts.
+    `web_intake_intake_note` NULL means the system default text (a module
+    constant, `DEFAULT_INTAKE_NOTE`), an empty string means no welcome
+    screen. The extension is served exactly when the resolved note is
+    non-empty, and the note travels with it in the form-options JSON.
+  - `death_summary` — the optional upload of death summary documents, on for
+    every project unless an administrator switches
+    `web_intake_death_summary_enabled` off. Never a mandatory response.
+    Rendering waits for attachments phase 2; the flag and the extension are
+    served now.
+- **Media (decision W6, 2026-09-19)**: no media is mandatory. Audio narration
+  is encouraged, a typed narrative is wanted, and medical papers, discharge
+  summaries and prior death certificates are uploaded as available.
+  Mandatory-media rules, if they are ever wanted, are project configuration
+  added with attachments phase 2.
 - **Questionnaire content**: the WHO instrument plus DigitVA's extension
   questions (`abha_number`, `abha_address`, `narr_language`, `imagenarr`,
   `md_count`, `md_im1..30`, `ds_count`, `ds_im1..5`). Context fields
@@ -101,8 +125,10 @@ submission enters the workflow. Plan:
 
 ## Not yet implemented
 
-- Attachments (phase 2), the validator sidecar (W1), unit-scoped listing
-  refinements, offline mode, native app.
+- Attachments (phase 2), the validator sidecar (W1), offline mode, native
+  app. ("Unit-scoped listing refinements" was struck on 2026-09-19: there was
+  no concrete item behind it, and `list_deaths` already scopes by unit
+  grants.)
 
 Web intake is path A of
 [Field Data Collection Policy](field-data-collection.md), which fixes the rule

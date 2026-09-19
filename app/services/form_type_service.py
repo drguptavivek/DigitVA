@@ -30,9 +30,14 @@ class FormTypeService:
         form_type_name: str,
         description: str | None = None,
         base_template_path: str | None = None,
+        base_instrument_code: str | None = None,
     ) -> MasFormTypes:
         """
         Register a new form type.
+
+        ``base_instrument_code`` names the standard instrument the form type
+        layers on (docs/policy/new-form-type-onboarding.md); NULL means no
+        questionnaire is bundled for it and the web form refuses to render it.
 
         Raises ValueError if a form type with the same code already exists
         (active or inactive).
@@ -50,6 +55,7 @@ class FormTypeService:
             form_type_name=form_type_name,
             form_type_description=description,
             base_template_path=base_template_path,
+            base_instrument_code=base_instrument_code,
             mapping_version=1,
             is_active=True,
         )

@@ -38,6 +38,7 @@ from app.models import (
 from app.services import organization_service as org
 from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, scope_unit_ids_for_roles
 from app.services.web_form_instruments import DEFAULT_LOCALE, instrument_locales
+from app.services.web_intake_service import resolve_intake_note
 
 bp = Blueprint("organization_api", __name__)
 
@@ -288,70 +289,191 @@ def _config_version(project_id: str) -> str | None:
     ]
     return max(stamps).isoformat() if stamps else None
 
-#: The one standard instrument DigitVA bundles today. Every ``WHO_2022_VA*``
-#: form type is a layer on it, not a separate questionnaire.
-_WHO_2022_VA_INSTRUMENT = "WHO_2022_VA"
-
-
-def instrument_code_for(form_type_code: str | None) -> str | None:
+def instrument_code_for(form_type: "MasFormTypes | str | None") -> str | None:
     """The standard instrument a form type layers on, or ``None``.
 
     A DigitVA form type is not its own questionnaire: ``WHO_2022_VA_SOCIAL``
     and any future ``WHO_2022_VA_*`` are layers on the one standard WHO 2022
-    VA instrument, and which layers apply is ``enabled_extensions``. So any
-    code equal to or prefixed with ``WHO_2022_VA`` resolves to
-    ``"WHO_2022_VA"``; anything else has no bundled instrument and resolves
-    to ``None``, which the client renders as an error rather than guessing.
+    VA instrument, and which layers apply is ``enabled_extensions``. Which
+    instrument a form type layers on is recorded per form type in
+    ``mas_form_types.base_instrument_code`` -- the naming convention that
+    stood in for it until 2026-09-19 could not have covered a second
+    instrument family (PHMRC). NULL means nothing is bundled for that form
+    type, which the client renders as an error rather than guessing.
 
-    This naming convention stands in for a ``base_instrument_code`` column on
-    ``mas_form_types``, which is the follow-up recorded in
-    docs/policy/va-web-form-options.md and becomes necessary as soon as a
-    second standard instrument (PHMRC) is bundled.
+    Accepts a ``MasFormTypes`` row, which costs no query, or a form type code,
+    which costs exactly one. Policy: docs/policy/va-web-form-options.md.
     """
-    if not form_type_code:
+    if form_type is None:
         return None
-    code = form_type_code.strip().upper()
-    if code == _WHO_2022_VA_INSTRUMENT or code.startswith(
-        _WHO_2022_VA_INSTRUMENT + "_"
-    ):
-        return _WHO_2022_VA_INSTRUMENT
-    return None
+    if isinstance(form_type, MasFormTypes):
+        base = form_type.base_instrument_code
+    else:
+        code = form_type.strip().upper()
+        if not code:
+            return None
+        base = db.session.scalar(
+            sa.select(MasFormTypes.base_instrument_code).where(
+                MasFormTypes.form_type_code == code
+            )
+        )
+    base = (base or "").strip()
+    return base or None
 
 
-def _project_form_types(project_id: str) -> list[dict]:
-    """Active form types linked to this project, with exactly one default.
+def _web_form_type_row(project: VaProjectMaster) -> MasFormTypes | None:
+    """The active form type this project's web questionnaire carries.
 
-    One query: the distinct form types reached through this project's
-    ``map_project_site_odk`` rows, each with the number of *sites* that link
-    it. The default is the form type linked to the most sites; ties are broken
-    by ``form_type_code`` so the answer is stable across requests. With a
-    single form type -- today's normal case -- that rule trivially picks it.
-    An empty list means the project has no mapped questionnaire yet, and the
-    caller has nothing to render.
+    The project's own setting decides it; a project that has not chosen one
+    falls back to the form type its existing web ``va_forms`` row carries,
+    and then to ``WHO_2022_VA`` -- the same order
+    ``runtime_form_sync_service.resolve_web_form_type`` materializes a new web
+    form with, so what the form-options endpoint serves and what the web form
+    row carries cannot disagree.
+
+    A configured form type that has been deactivated is skipped rather than
+    raised on: this endpoint is what the interviewer's page loads, and
+    degrading to the fallback questionnaire beats a page that will not open.
+    The readiness check (WP2) is where that misconfiguration is reported.
     """
+    from app.models import VaForms
+    from app.services.runtime_form_sync_service import (
+        WEB_FORM_DEFAULT_FORM_TYPE_CODE,
+    )
+
+    if project.web_intake_form_type_id is not None:
+        configured = db.session.get(MasFormTypes, project.web_intake_form_type_id)
+        if configured is not None and configured.is_active:
+            return configured
+        current_app.logger.warning(
+            "Project %s web_intake_form_type_id %s is not an active form type; "
+            "serving the fallback questionnaire.",
+            project.project_id,
+            project.web_intake_form_type_id,
+        )
+
+    from_web_form = db.session.scalar(
+        sa.select(MasFormTypes)
+        .join(VaForms, VaForms.form_type_id == MasFormTypes.form_type_id)
+        .where(
+            VaForms.project_id == project.project_id,
+            VaForms.form_source == "web",
+            VaForms.form_status == VaStatuses.active,
+            MasFormTypes.is_active.is_(True),
+        )
+        .order_by(MasFormTypes.form_type_code)
+        .limit(1)
+    )
+    if from_web_form is not None:
+        return from_web_form
+
+    return db.session.scalar(
+        sa.select(MasFormTypes).where(
+            MasFormTypes.form_type_code == WEB_FORM_DEFAULT_FORM_TYPE_CODE,
+            MasFormTypes.is_active.is_(True),
+        )
+    )
+
+
+def _project_form_types(project: VaProjectMaster) -> list[dict]:
+    """Active form types this project collects on, with exactly one default.
+
+    Two sources, unioned: the form types reached through the project's
+    ``map_project_site_odk`` rows, each with the number of *sites* that link
+    it, and the form types of the project's active ``form_source='web'``
+    ``va_forms`` rows. A project that collects on the web but has no web form
+    row yet still gets its configured questionnaire listed, so a web-only
+    project is never served an empty list -- the defect this fixes was the
+    intake page stopping with "This project has no questionnaire configured".
+
+    The default is the configured web questionnaire whenever the project
+    collects on the web; otherwise it is the form type linked to the most
+    sites, ties broken by ``form_type_code`` so the answer is stable across
+    requests.
+    """
+    from app.models import VaForms
+
     site_count = sa.func.count(sa.distinct(MapProjectSiteOdk.site_id)).label("sites")
-    rows = db.session.execute(
+    odk_rows = db.session.execute(
         sa.select(
             MasFormTypes.form_type_code,
             MasFormTypes.form_type_name,
+            MasFormTypes.base_instrument_code,
             site_count,
         )
         .join(MapProjectSiteOdk, MapProjectSiteOdk.form_type_id == MasFormTypes.form_type_id)
         .where(
-            MapProjectSiteOdk.project_id == project_id,
+            MapProjectSiteOdk.project_id == project.project_id,
             MasFormTypes.is_active.is_(True),
         )
-        .group_by(MasFormTypes.form_type_code, MasFormTypes.form_type_name)
-        .order_by(site_count.desc(), MasFormTypes.form_type_code)
+        .group_by(
+            MasFormTypes.form_type_code,
+            MasFormTypes.form_type_name,
+            MasFormTypes.base_instrument_code,
+        )
     ).all()
+
+    web_rows = db.session.execute(
+        sa.select(
+            MasFormTypes.form_type_code,
+            MasFormTypes.form_type_name,
+            MasFormTypes.base_instrument_code,
+        )
+        .distinct()
+        .join(VaForms, VaForms.form_type_id == MasFormTypes.form_type_id)
+        .where(
+            VaForms.project_id == project.project_id,
+            VaForms.form_source == "web",
+            VaForms.form_status == VaStatuses.active,
+            MasFormTypes.is_active.is_(True),
+        )
+    ).all()
+
+    entries: dict[str, dict] = {}
+
+    def _remember(code, name, base_instrument_code, sites):
+        entry = entries.setdefault(
+            code,
+            {
+                "form_type_code": code,
+                "instrument_code": (base_instrument_code or "").strip() or None,
+                "title": name,
+                "sites": 0,
+            },
+        )
+        entry["sites"] = max(entry["sites"], sites)
+
+    for row in odk_rows:
+        _remember(row.form_type_code, row.form_type_name, row.base_instrument_code, row.sites)
+    for row in web_rows:
+        _remember(row.form_type_code, row.form_type_name, row.base_instrument_code, 0)
+
+    default_code = None
+    if project.web_intake_mode != "off":
+        web_form_type = _web_form_type_row(project)
+        if web_form_type is not None:
+            _remember(
+                web_form_type.form_type_code,
+                web_form_type.form_type_name,
+                web_form_type.base_instrument_code,
+                0,
+            )
+            default_code = web_form_type.form_type_code
+
+    ordered = sorted(
+        entries.values(), key=lambda entry: (-entry["sites"], entry["form_type_code"])
+    )
+    if default_code is None and ordered:
+        default_code = ordered[0]["form_type_code"]
+
     return [
         {
-            "form_type_code": row.form_type_code,
-            "instrument_code": instrument_code_for(row.form_type_code),
-            "title": row.form_type_name,
-            "is_default": index == 0,
+            "form_type_code": entry["form_type_code"],
+            "instrument_code": entry["instrument_code"],
+            "title": entry["title"],
+            "is_default": entry["form_type_code"] == default_code,
         }
-        for index, row in enumerate(rows)
+        for entry in ordered
     ]
 
 
@@ -439,17 +561,25 @@ def _enabled_extensions(
     project: VaProjectMaster,
     form_types: list[dict],
     narration_languages: list[dict],
+    intake_note: str,
 ) -> list[str]:
     """Which form sections this project's configuration turns on.
 
-    Derived from configuration that already exists; nothing here is a new
-    setting. ``intake_screen`` and ``death_summary`` are deliberately omitted:
-    neither has anything in the data model to derive them from yet, and
-    guessing a value would be worse than the form applying its own default.
+    Derived, never stored. ``intake_screen`` follows the resolved welcome note
+    -- a project that blanked the note wants no welcome screen -- and
+    ``death_summary`` follows the project switch, which is on unless an
+    administrator turned it off (decided 2026-09-19,
+    docs/policy/va-web-form-options.md). The document upload itself lands with
+    attachments phase 2; the extension is served now so the page can be built
+    against the contract rather than against a constant.
     """
     extensions = ["digitva_core"]
     if project.social_autopsy_enabled:
         extensions.append("social_autopsy")
+    if intake_note:
+        extensions.append("intake_screen")
+    if project.web_intake_death_summary_enabled:
+        extensions.append("death_summary")
 
     has_geography = db.session.scalar(
         sa.select(sa.func.count())
@@ -513,20 +643,24 @@ def project_form_options(project_id: str):
         return _error("You do not have access to that project.", 403)
 
     active = _active_languages()
-    form_types = _project_form_types(project_id)
+    form_types = _project_form_types(project)
     default_form_type = next((ft for ft in form_types if ft["is_default"]), None)
     default_locale, available_locales = _resolve_locales(
         project, default_form_type["instrument_code"] if default_form_type else None
     )
     narration_languages = _resolve_narration_languages(project, active)
+    intake_note = resolve_intake_note(project)
 
     return jsonify({
         "project_id": project_id,
         "config_version": _config_version(project_id),
         "enabled_extensions": _enabled_extensions(
-            project, form_types, narration_languages
+            project, form_types, narration_languages, intake_note
         ),
         "form_types": form_types,
+        # The text the intake_screen extension renders, or null when the
+        # project turned the welcome screen off.
+        "intake_note": intake_note or None,
         "default_locale": default_locale,
         "available_locales": available_locales,
         "narration_languages": narration_languages,

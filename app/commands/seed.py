@@ -117,6 +117,9 @@ def _seed_form_types():
             "code": "WHO_2022_VA",
             "name": "WHO 2022 VA Form",
             "description": "World Health Organization 2022 Verbal Autopsy Form",
+            # The bundled standard instrument this form type layers on; the
+            # web form selects its questionnaire by this code.
+            "base_instrument_code": "WHO_2022_VA",
         },
     ]
 
@@ -129,6 +132,7 @@ def _seed_form_types():
                 form_type_code=ft["code"],
                 form_type_name=ft["name"],
                 description=ft["description"],
+                base_instrument_code=ft["base_instrument_code"],
             )
             click.echo(f"  [ok]   registered form type: {ft['code']}")
 

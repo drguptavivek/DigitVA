@@ -31,9 +31,11 @@ sections to the one standard WHO 2022 VA instrument; which layers apply is
 selected by the form type's `instrument_code`
 (`docs/policy/va-web-form-options.md`). So a new `WHO_2022_VA_*` code renders
 on the bundled instrument with no client change, while a genuinely new
-instrument (PHMRC, Ballabgarh) needs its own bundled instrument and the
-`base_instrument_code` column recorded as the follow-up there. Either way the
-sequence below applies in full: the PII set is per form type.
+instrument (PHMRC, Ballabgarh) needs its own bundled instrument. Which
+instrument a form type layers on is recorded per form type in
+`mas_form_types.base_instrument_code` (landed 2026-09-19); there is no naming
+convention behind it any more. Either way the sequence below applies in full:
+the PII set is per form type.
 
 ## Core rule
 
@@ -51,21 +53,28 @@ closed on personal data and the form type is treated as under test.
 2. **Map and sync.** Link the ODK form to a project-site pair with the new
    form type in the Project Forms panel and run the schema sync. Fields now
    exist as `mas_field_display_config` rows with `odk_label` set.
-3. **Confirm the PII set.** In the field-mapping panel, flag every field
+3. **Record the base instrument.** Set `base_instrument_code` to the standard
+   instrument this form type layers on — `WHO_2022_VA` for a WHO 2022 layer,
+   the new instrument's own code for a new instrument family — through
+   `PATCH /admin/api/form-types/<code>`. It is shown by
+   `GET /admin/api/form-types` and `flask form-types list`. A form type with
+   no `base_instrument_code` has no bundled questionnaire: the web form
+   refuses to render it and a project may not be configured to collect on it.
+4. **Confirm the PII set.** In the field-mapping panel, flag every field
    that carries personal data as **Is PII**: at minimum the deceased's and
    respondent's names, any national or health identifier, free-text place
    fields, and the interviewer's name and id. The form type's card shows a
    standing warning until at least one owned field is flagged; the warning
    clearing means the set is confirmed, not that it is complete. Completeness
-   is the reviewer's job in step 5.
-4. **Check SmartVA input.** Run the SmartVA input export for a test
+   is the reviewer's job in step 6.
+5. **Check SmartVA input.** Run the SmartVA input export for a test
    submission on the new form type and confirm the columns SmartVA needs are
    present and the flagged PII fields are absent. This export is deliberately
    not withheld while the set is unconfirmed, so it can be checked in either
    order; the log line
    `pii set unconfirmed | <CODE> | smartva input export not withheld` is
-   expected during this step and must be gone once step 3 is done.
-5. **Review before real data.** Someone other than the person who did step 3
+   expected during this step and must be gone once step 4 is done.
+6. **Review before real data.** Someone other than the person who did step 4
    compares the flagged set against the questionnaire and signs off. Record
    the sign-off in the form type's description or a `.tasks` entry with the
    date. Only then do real submissions sync against the form type.
@@ -89,7 +98,7 @@ closed on personal data and the form type is treated as under test.
 
 - It does not know which of a new form's fields are personal data. The
   registry's field list is WHO-keyed and will not flag PHMRC or Ballabgarh
-  ids. Step 3 is manual by design.
+  ids. Step 4 is manual by design.
 - It does not block registering or activating an unconfirmed form type.
   Refusing activation was rejected because a form has no fields at
   registration; the sequence above is the guard instead.

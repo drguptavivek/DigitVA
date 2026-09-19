@@ -1028,7 +1028,15 @@ Other important tables:
   NULL, default `'en'`), `web_intake_available_locales` (JSONB, nullable —
   NULL means every active language), `web_intake_narration_languages` (JSONB,
   nullable — NULL means none offered) and `web_intake_show_guidance` (Boolean,
-  NOT NULL, default false). Policy: `docs/policy/va-web-form-options.md`
+  NOT NULL, default false). Migration `c3e8b5a1f4d2` adds the web
+  questionnaire and its two extension settings:
+  `web_intake_form_type_id` (UUID, nullable, FK
+  `fk_va_project_master_web_intake_form_type` -> `mas_form_types.form_type_id`
+  — NULL means `WHO_2022_VA`), `web_intake_intake_note` (Text, nullable —
+  NULL means the system default welcome note, `''` means no welcome screen)
+  and `web_intake_death_summary_enabled` (Boolean, NOT NULL, default true).
+  Policy: `docs/policy/va-web-form-options.md`,
+  `docs/policy/va-form-project-configuration.md`
 - `va_site_master`
 - `va_project_sites`
 - `va_user_access_grants` — see [Unit-scoped access grants](#unit-scoped-access-grants)
@@ -1171,6 +1179,11 @@ Key fields:
 - `form_type_id`
 - `form_type_code`
 - `form_type_name`
+- `base_instrument_code` — String(32), nullable (migration `c3e8b5a1f4d2`,
+  backfilled `WHO_2022_VA` for every `WHO_2022_VA%` code): the standard
+  instrument this form type layers on. Read by `instrument_code_for()` to tell
+  the web form which bundled questionnaire to render; NULL means none is
+  bundled. Policy: `docs/policy/new-form-type-onboarding.md`
 - `base_template_path`
 - `mapping_version`
 - `is_active`

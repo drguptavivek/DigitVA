@@ -15,6 +15,15 @@
 <div id="wv-alert" class="alert d-none small py-2"></div>
 {# Filled in by main() only when the project offers more than one language. #}
 <div id="wv-locale-bar" class="d-none justify-content-end mb-2"></div>
+{# The intake_screen extension's welcome note, filled in by main() only when
+   the project serves one. #}
+<div id="wv-intake-screen" class="card mb-3 d-none">
+  <div class="card-body">
+    <h5 class="card-title mb-2">Before you begin</h5>
+    <p class="mb-3" id="wv-intake-note"></p>
+    <button type="button" class="btn btn-primary" id="wv-intake-start">Start questionnaire</button>
+  </div>
+</div>
 <div id="wv-host" class="bg-white border rounded p-2" style="min-height: 60vh;">
   <div class="text-center text-muted py-5"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading the questionnaire…</div>
 </div>
@@ -255,6 +264,23 @@ async function main() {
   const host = $("wv-host");
   host.innerHTML = "";
   host.appendChild(el);
+
+  // enabled_extensions is the project's list of form sections
+  // (docs/policy/va-web-form-options.md). Unknown names are ignored, so an
+  // extension the page does not render yet -- death_summary until attachments
+  // phase 2 -- costs nothing here.
+  const extensions = options.enabled_extensions || [];
+  if (extensions.includes("intake_screen") && options.intake_note) {
+    // The note is project text: set it as text, never as markup.
+    $("wv-intake-note").textContent = options.intake_note;
+    const screen = $("wv-intake-screen");
+    screen.classList.remove("d-none");
+    host.classList.add("d-none");
+    $("wv-intake-start").addEventListener("click", () => {
+      screen.classList.add("d-none");
+      host.classList.remove("d-none");
+    });
+  }
 }
 main().catch((err) => alertBox("danger", err.message || String(err)));
 </script>

@@ -234,6 +234,44 @@ def ensure_runtime_form_for_mapping(
 
 WEB_FORM_ODK_FORM_ID = "WEB_WHOVA2022"
 
+#: The form type a web form carries when the project names none. It is the
+#: behaviour every web form had before ``web_intake_form_type_id`` existed.
+WEB_FORM_DEFAULT_FORM_TYPE_CODE = "WHO_2022_VA"
+
+
+def resolve_web_form_type(project_id: str):
+    """The active form type a *new* web form for this project must carry.
+
+    The project's ``web_intake_form_type_id`` decides it
+    (docs/policy/va-form-project-configuration.md); NULL falls back to
+    ``WHO_2022_VA``. Returns ``None`` only when neither the configured type
+    nor the fallback code is registered at all, which leaves the web form
+    without a form type exactly as it did before this setting existed.
+
+    Raises ``ValueError`` when the project names a form type that has been
+    deactivated: materializing a form against it would silently collect on a
+    questionnaire an administrator retired.
+    """
+    from app.models import MasFormTypes
+
+    project = db.session.get(VaProjectMaster, project_id)
+    configured_id = project.web_intake_form_type_id if project is not None else None
+    if configured_id is not None:
+        configured = db.session.get(MasFormTypes, configured_id)
+        if configured is None or not configured.is_active:
+            raise ValueError(
+                f"Project {project_id} is configured with web form type "
+                f"{configured_id}, which is not an active form type. Set an "
+                "active form type on the project before collecting on the web."
+            )
+        return configured
+
+    return db.session.scalar(
+        sa.select(MasFormTypes).where(
+            MasFormTypes.form_type_code == WEB_FORM_DEFAULT_FORM_TYPE_CODE
+        )
+    )
+
 
 def ensure_web_runtime_form(project_id: str, site_id: str) -> VaForms:
     """Return the project-site's DigitVA web intake form, creating it on first use.
@@ -241,9 +279,13 @@ def ensure_web_runtime_form(project_id: str, site_id: str) -> VaForms:
     Web forms carry ``form_source='web'``; they are never enumerated by ODK sync
     (which iterates ``map_project_site_odk``) and never retired as missing in
     ODK. Policy: docs/policy/web-intake.md.
-    """
-    from app.models import MasFormTypes
 
+    A new row takes the project's configured form type
+    (``resolve_web_form_type``). An existing row keeps the form type it was
+    created with, whatever the project now says: rewriting it would change the
+    questionnaire under drafts already being filled. The readiness check
+    reports that drift instead.
+    """
     existing = db.session.scalar(
         sa.select(VaForms).where(
             VaForms.project_id == project_id,
@@ -257,9 +299,7 @@ def ensure_web_runtime_form(project_id: str, site_id: str) -> VaForms:
         return existing
 
     _ensure_legacy_project_site_rows(project_id, site_id)
-    form_type = db.session.scalar(
-        sa.select(MasFormTypes).where(MasFormTypes.form_type_code == "WHO_2022_VA")
-    )
+    form_type = resolve_web_form_type(project_id)
     form_ids_in_use = set(db.session.scalars(sa.select(VaForms.form_id)).all())
     form = VaForms(
         form_id=_next_form_id(project_id, site_id, form_ids_in_use),

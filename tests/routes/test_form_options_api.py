@@ -243,7 +243,7 @@ class FormOptionsApiTests(BaseTestCase):
             {
                 "project_id", "config_version", "enabled_extensions", "form_types",
                 "default_locale", "available_locales", "narration_languages",
-                "show_guidance",
+                "show_guidance", "intake_note",
             },
         )
         self.assertEqual(payload["project_id"], self.PROJECT)
@@ -615,21 +615,52 @@ class FormOptionsAdminCreationTests(BaseTestCase):
 
 
 class InstrumentCodeHelperTests(BaseTestCase):
-    """``instrument_code_for`` — the layer-to-instrument naming convention.
+    """``instrument_code_for`` reads ``mas_form_types.base_instrument_code``.
 
-    A DigitVA form type is a layer on a standard instrument, so every
-    ``WHO_2022_VA*`` code must resolve to the one bundled WHO 2022 instrument.
+    A DigitVA form type is a layer on a standard instrument, and which
+    instrument it layers on is recorded per form type since 2026-09-19. The
+    naming convention that stood in for the column is gone: a ``WHO_2022_VA*``
+    code whose column is NULL resolves to nothing, which is exactly the state
+    the form-type PUT can leave behind.
     """
 
-    def test_the_exact_code_resolves_to_itself(self):
-        self.assertEqual(instrument_code_for("WHO_2022_VA"), "WHO_2022_VA")
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._ensure_form_type("ICF_BASE", "Instrument Column Base")
+        cls._ensure_form_type("ICF_LAYER", "Instrument Column Layer")
+        cls._ensure_form_type(
+            "WHO_2022_VA_ICFNULL",
+            "WHO prefixed with no instrument",
+            base_instrument_code=None,
+        )
+        cls.unbundled = cls._ensure_form_type(
+            "ICF_PHMRC", "Instrument Column PHMRC", base_instrument_code=None
+        )
+        db.session.commit()
 
-    def test_a_layer_code_resolves_to_the_standard_instrument(self):
-        self.assertEqual(instrument_code_for("WHO_2022_VA_SOCIAL"), "WHO_2022_VA")
-        self.assertEqual(instrument_code_for("WHO_2022_VA_2026"), "WHO_2022_VA")
+    def test_a_code_resolves_to_its_stored_base_instrument(self):
+        self.assertEqual(instrument_code_for("ICF_BASE"), "WHO_2022_VA")
+        self.assertEqual(instrument_code_for("ICF_LAYER"), "WHO_2022_VA")
 
-    def test_an_unrelated_code_has_no_bundled_instrument(self):
-        self.assertIsNone(instrument_code_for("PHMRC_2016"))
+    def test_a_form_type_row_resolves_without_a_query(self):
+        row = db.session.scalar(
+            db.select(MasFormTypes).where(MasFormTypes.form_type_code == "ICF_BASE")
+        )
+        self.assertEqual(instrument_code_for(row), "WHO_2022_VA")
+
+    def test_the_who_prefix_alone_no_longer_resolves(self):
+        """Positive control first: the prefix rule really is gone.
+
+        ``WHO_2022_VA_ICFNULL`` carries the prefix the old rule matched on and
+        a NULL column, which the form-type PUT can produce.
+        """
+        self.assertEqual(instrument_code_for("ICF_BASE"), "WHO_2022_VA")
+        self.assertIsNone(instrument_code_for("WHO_2022_VA_ICFNULL"))
+
+    def test_an_unregistered_or_unbundled_code_has_no_instrument(self):
+        self.assertIsNone(instrument_code_for("ICF_PHMRC"))
+        self.assertIsNone(instrument_code_for("ICF_NOT_REGISTERED"))
         self.assertIsNone(instrument_code_for(None))
 
 
@@ -682,22 +713,12 @@ class FormOptionsInstrumentCodeTests(BaseTestCase):
         )
         db.session.flush()
 
-        # The social layer may already be registered by the seed; reuse it
-        # rather than colliding on the unique form_type_code.
-        social = db.session.execute(
-            db.select(MasFormTypes).where(
-                MasFormTypes.form_type_code == "WHO_2022_VA_SOCIAL"
-            )
-        ).scalar_one_or_none()
-        if social is None:
-            social = MasFormTypes(
-                form_type_id=uuid.uuid4(),
-                form_type_code="WHO_2022_VA_SOCIAL",
-                form_type_name="WHO 2022 VA with social autopsy",
-                is_active=True,
-            )
-            db.session.add(social)
-            db.session.flush()
+        # The social layer may already be registered by the seed; the helper
+        # is get-or-create and sets the base_instrument_code the migration
+        # backfills on a real database but cannot on a create_all schema.
+        social = cls._ensure_form_type(
+            "WHO_2022_VA_SOCIAL", "WHO 2022 VA with social autopsy"
+        )
         db.session.add(
             MapProjectSiteOdk(
                 project_id=cls.PROJECT, site_id=cls.SITE,
@@ -726,3 +747,433 @@ class FormOptionsInstrumentCodeTests(BaseTestCase):
         )
         self.assertEqual(default["form_type_code"], "WHO_2022_VA_SOCIAL")
         self.assertEqual(default["instrument_code"], "WHO_2022_VA")
+
+
+class WebFormTypeAndExtensionOptionsTests(BaseTestCase):
+    """The web questionnaire and the two extensions are project settings.
+
+    WP1 of docs/planning/web-capture-project-configuration-plan.md. A project
+    that collects only on the web has no ODK mapping, so before this the
+    endpoint served an empty ``form_types`` list and the intake page stopped
+    with "This project has no questionnaire configured".
+    """
+
+    PROJECT = "FOPT07"
+    URL = "/api/v1/organization/FOPT07/form-options"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(UTC)
+        db.session.add(
+            VaProjectMaster(
+                project_id=cls.PROJECT,
+                project_code=cls.PROJECT,
+                project_name="Web Only Project",
+                project_nickname="WebOnly",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+                web_intake_mode="direct",
+            )
+        )
+        db.session.flush()
+        cls.base_type = cls._ensure_form_type("WHO_2022_VA", "WHO 2022 VA Form")
+        cls.social_type = cls._ensure_form_type(
+            "WHO_2022_VA_SOCIAL", "WHO 2022 VA with social autopsy"
+        )
+        cls.web_user = cls._get_or_make_user("fopt.webonly@test.local", "FormOpts123")
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.web_user.user_id,
+                role=VaAccessRoles.interviewer,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=cls.PROJECT,
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+    def setUp(self):
+        super().setUp()
+        self.project = db.session.get(VaProjectMaster, self.PROJECT)
+        self.project.web_intake_mode = "direct"
+        self.project.web_intake_form_type_id = None
+        self.project.web_intake_intake_note = None
+        self.project.web_intake_death_summary_enabled = True
+        db.session.commit()
+        self._login(str(self.web_user.user_id))
+
+    def _payload(self):
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return response.get_json()
+
+    def test_a_web_only_project_gets_the_default_questionnaire(self):
+        payload = self._payload()
+        self.assertEqual(
+            [
+                (ft["form_type_code"], ft["instrument_code"], ft["is_default"])
+                for ft in payload["form_types"]
+            ],
+            [("WHO_2022_VA", "WHO_2022_VA", True)],
+        )
+
+    def test_a_configured_layer_is_the_default_questionnaire(self):
+        """Positive control first: the fallback answers before it is configured."""
+        self.assertEqual(
+            [ft["form_type_code"] for ft in self._payload()["form_types"]],
+            ["WHO_2022_VA"],
+        )
+
+        self.project.web_intake_form_type_id = self.social_type.form_type_id
+        db.session.commit()
+
+        payload = self._payload()
+        default = next(ft for ft in payload["form_types"] if ft["is_default"])
+        self.assertEqual(default["form_type_code"], "WHO_2022_VA_SOCIAL")
+        self.assertEqual(default["instrument_code"], "WHO_2022_VA")
+
+    def test_web_intake_off_does_not_invent_a_questionnaire(self):
+        """The most-sites rule still answers for an ODK-only project."""
+        self.project.web_intake_mode = "off"
+        db.session.commit()
+        self.assertEqual(self._payload()["form_types"], [])
+
+    def test_intake_screen_carries_the_default_note_and_goes_when_blanked(self):
+        from app.services.web_intake_service import DEFAULT_INTAKE_NOTE
+
+        payload = self._payload()
+        self.assertIn("intake_screen", payload["enabled_extensions"])
+        self.assertEqual(payload["intake_note"], DEFAULT_INTAKE_NOTE)
+
+        self.project.web_intake_intake_note = "Read this first."
+        db.session.commit()
+        payload = self._payload()
+        self.assertEqual(payload["intake_note"], "Read this first.")
+        self.assertIn("intake_screen", payload["enabled_extensions"])
+
+        self.project.web_intake_intake_note = ""
+        db.session.commit()
+        payload = self._payload()
+        self.assertIsNone(payload["intake_note"])
+        self.assertNotIn("intake_screen", payload["enabled_extensions"])
+
+    def test_death_summary_is_on_by_default_and_goes_when_switched_off(self):
+        self.assertIn("death_summary", self._payload()["enabled_extensions"])
+
+        self.project.web_intake_death_summary_enabled = False
+        db.session.commit()
+        self.assertNotIn("death_summary", self._payload()["enabled_extensions"])
+
+
+class WebFormTypeAdminValidationTests(BaseTestCase):
+    """A project may only be configured with a usable, confirmed form type."""
+
+    PROJECT = "FOPT08"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(UTC)
+        db.session.add(
+            VaProjectMaster(
+                project_id=cls.PROJECT,
+                project_code=cls.PROJECT,
+                project_name="Web Form Type Admin Project",
+                project_nickname="WebTypeAdmin",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+                web_intake_mode="direct",
+            )
+        )
+        # One active site, so switching web intake on really materializes a
+        # web va_forms row — the path that reads the configured form type.
+        db.session.add(
+            VaSiteMaster(
+                site_id="FT08",
+                site_name="Web Form Type Admin Site",
+                site_abbr="FT08",
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id=cls.PROJECT,
+                site_id="FT08",
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        cls.good = cls._ensure_form_type("FTV_GOOD", "Validated Good")
+        cls.inactive = cls._ensure_form_type(
+            "FTV_INACTIVE", "Validated Inactive", is_active=False
+        )
+        cls.unconfirmed = cls._ensure_form_type(
+            "FTV_UNCONFIRMED", "Validated Unconfirmed", pii_confirmed=False
+        )
+        cls.no_instrument = cls._ensure_form_type(
+            "FTV_NO_INSTRUMENT", "Validated Without Instrument",
+            base_instrument_code=None,
+        )
+        db.session.commit()
+
+    def _put(self, payload):
+        self._login(str(self.base_admin_user.user_id))
+        return self.client.put(
+            f"/admin/api/projects/{self.PROJECT}",
+            json=payload,
+            headers=self._csrf_headers(),
+        )
+
+    def test_put_accepts_an_active_confirmed_type_and_serves_its_code(self):
+        response = self._put(
+            {"web_intake_form_type_id": str(self.good.form_type_id)}
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        project = response.get_json()["project"]
+        self.assertEqual(
+            project["web_intake_form_type_id"], str(self.good.form_type_id)
+        )
+        self.assertEqual(project["web_intake_form_type_code"], "FTV_GOOD")
+
+    def test_put_rejects_inactive_unconfirmed_and_uninstrumented_types(self):
+        """Positive control first: the good type is accepted in this same test."""
+        self.assertEqual(
+            self._put({"web_intake_form_type_id": str(self.good.form_type_id)}).status_code,
+            200,
+        )
+
+        for form_type, expected in (
+            (self.inactive, "is not active"),
+            (self.unconfirmed, "unconfirmed PII set"),
+            (self.no_instrument, "no base_instrument_code"),
+        ):
+            with self.subTest(form_type=form_type.form_type_code):
+                response = self._put(
+                    {"web_intake_form_type_id": str(form_type.form_type_id)}
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(expected, response.get_json()["error"])
+
+        # ... and the rejected values were not written to the project.
+        db.session.expire_all()
+        self.assertEqual(
+            db.session.get(VaProjectMaster, self.PROJECT).web_intake_form_type_id,
+            self.good.form_type_id,
+        )
+
+    def test_put_rejects_an_unknown_or_malformed_id(self):
+        malformed = self._put({"web_intake_form_type_id": "not-a-uuid"})
+        self.assertEqual(malformed.status_code, 400)
+        self.assertIn("Invalid web_intake_form_type_id", malformed.get_json()["error"])
+
+        unknown = self._put({"web_intake_form_type_id": str(uuid.uuid4())})
+        self.assertEqual(unknown.status_code, 400)
+        self.assertIn("Form type not found", unknown.get_json()["error"])
+
+    def test_put_clears_the_setting_with_null(self):
+        self.assertEqual(
+            self._put({"web_intake_form_type_id": str(self.good.form_type_id)}).status_code,
+            200,
+        )
+        response = self._put({"web_intake_form_type_id": None})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.get_json()["project"]["web_intake_form_type_id"])
+
+    def test_put_sets_the_note_and_the_death_summary_switch(self):
+        response = self._put({
+            "web_intake_intake_note": "  Welcome to the study.  ",
+            "web_intake_death_summary_enabled": False,
+        })
+        self.assertEqual(response.status_code, 200, response.get_json())
+        project = response.get_json()["project"]
+        self.assertEqual(project["web_intake_intake_note"], "Welcome to the study.")
+        self.assertFalse(project["web_intake_death_summary_enabled"])
+
+        response = self._put({"web_intake_intake_note": None})
+        self.assertIsNone(response.get_json()["project"]["web_intake_intake_note"])
+
+    def test_put_rejects_a_non_text_note(self):
+        response = self._put({"web_intake_intake_note": 7})
+        self.assertEqual(response.status_code, 400)
+
+    def test_web_form_types_endpoint_lists_active_types_with_their_status(self):
+        self._login(str(self.base_admin_user.user_id))
+        response = self.client.get("/admin/api/web-form-types")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        by_code = {ft["form_type_code"]: ft for ft in payload["form_types"]}
+
+        self.assertIn("FTV_GOOD", by_code)
+        self.assertEqual(by_code["FTV_GOOD"]["base_instrument_code"], "WHO_2022_VA")
+        self.assertTrue(by_code["FTV_GOOD"]["pii_confirmed"])
+        self.assertTrue(by_code["FTV_GOOD"]["is_active"])
+
+        self.assertIn("FTV_UNCONFIRMED", by_code)
+        self.assertFalse(by_code["FTV_UNCONFIRMED"]["pii_confirmed"])
+        self.assertIsNone(by_code["FTV_NO_INSTRUMENT"]["base_instrument_code"])
+        # Inactive types are not offered at all.
+        self.assertNotIn("FTV_INACTIVE", by_code)
+
+    def test_switching_web_intake_on_with_a_retired_type_is_a_400(self):
+        """Materializing a web form on a deactivated type is refused, not a 500.
+
+        Positive control first: the same PUT succeeds while the configured
+        type is active.
+        """
+        self.assertEqual(
+            self._put({
+                "web_intake_form_type_id": str(self.good.form_type_id),
+                "web_intake_mode": "direct",
+            }).status_code,
+            200,
+        )
+
+        # A form type can be deactivated after a project was configured with
+        # it. The stored setting is then only discovered when a *new* web form
+        # row has to be materialized, so clear the rows the control created.
+        from app.models import VaForms
+
+        for form in db.session.scalars(
+            db.select(VaForms).where(
+                VaForms.project_id == self.PROJECT, VaForms.form_source == "web"
+            )
+        ).all():
+            db.session.delete(form)
+        project = db.session.get(VaProjectMaster, self.PROJECT)
+        project.web_intake_form_type_id = self.inactive.form_type_id
+        db.session.commit()
+
+        response = self._put({"web_intake_mode": "both"})
+        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertIn("not an active form type", response.get_json()["error"])
+
+    def test_web_form_types_endpoint_is_admin_only(self):
+        self._login(str(self.base_project_pi_user.user_id))
+        self.assertEqual(self.client.get("/admin/api/web-form-types").status_code, 403)
+
+
+class WebProjectDefaultsOnCreateTests(BaseTestCase):
+    """POST /admin/api/projects applies WEB_PROJECT_DEFAULTS.
+
+    Decided 2026-09-19: a project created with web intake on gets the whole
+    web-capture configuration, not only the keys the caller happened to send.
+    An explicit value always wins, and a project created with web intake off
+    keeps the model defaults.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.default_type = cls._ensure_form_type("WHO_2022_VA", "WHO 2022 VA Form")
+        cls.other_type = cls._ensure_form_type(
+            "WHO_2022_VA_SOCIAL", "WHO 2022 VA with social autopsy"
+        )
+        for code, name in (("english", "English"), ("hindi", "Hindi")):
+            existing = db.session.get(MasLanguages, code)
+            if existing is None:
+                db.session.add(
+                    MasLanguages(language_code=code, language_name=name, is_active=True)
+                )
+        db.session.commit()
+
+    def _post(self, project_id, **extra):
+        self._login(str(self.base_admin_user.user_id))
+        payload = {
+            "project_id": project_id,
+            "project_name": "Defaults Project",
+            "project_nickname": "Defaults",
+        }
+        payload.update(extra)
+        return self.client.post(
+            "/admin/api/projects", json=payload, headers=self._csrf_headers()
+        )
+
+    def test_a_web_project_is_created_with_every_default(self):
+        from app.services.web_form_instruments import all_instrument_locales
+
+        response = self._post("FDEF01", web_intake_mode="direct")
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, "FDEF01")
+        self.assertEqual(project.web_intake_mode, "direct")
+        self.assertEqual(project.web_intake_form_type_id, self.default_type.form_type_id)
+        self.assertIsNone(project.web_intake_intake_note)
+        self.assertTrue(project.web_intake_death_summary_enabled)
+        self.assertFalse(project.social_autopsy_enabled)
+        self.assertEqual(project.coding_intake_mode, "pick_and_choose")
+        # The two language lists keep only the codes their validators accept:
+        # "hi" is not an instrument locale yet, so it is dropped rather than
+        # failing the create.
+        self.assertEqual(
+            project.web_intake_available_locales,
+            [code for code in ("en", "hi") if code in all_instrument_locales()],
+        )
+        self.assertEqual(
+            project.web_intake_narration_languages, ["english", "hindi"]
+        )
+
+    def test_web_intake_off_keeps_the_model_defaults(self):
+        response = self._post("FDEF02")
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, "FDEF02")
+        self.assertEqual(project.web_intake_mode, "off")
+        self.assertIsNone(project.web_intake_form_type_id)
+        self.assertIsNone(project.web_intake_available_locales)
+        self.assertIsNone(project.web_intake_narration_languages)
+        self.assertTrue(project.social_autopsy_enabled)
+        self.assertEqual(project.coding_intake_mode, "random_form_allocation")
+
+    def test_an_explicit_value_wins_over_the_default(self):
+        response = self._post(
+            "FDEF03",
+            web_intake_mode="both",
+            web_intake_form_type_id=str(self.other_type.form_type_id),
+            web_intake_intake_note="",
+            web_intake_death_summary_enabled=False,
+            social_autopsy_enabled=True,
+            coding_intake_mode="random_form_allocation",
+            web_intake_narration_languages=["english"],
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, "FDEF03")
+        self.assertEqual(project.web_intake_mode, "both")
+        self.assertEqual(project.web_intake_form_type_id, self.other_type.form_type_id)
+        self.assertEqual(project.web_intake_intake_note, "")
+        self.assertFalse(project.web_intake_death_summary_enabled)
+        self.assertTrue(project.social_autopsy_enabled)
+        self.assertEqual(project.coding_intake_mode, "random_form_allocation")
+        self.assertEqual(project.web_intake_narration_languages, ["english"])
+
+    def test_the_payload_modes_are_honoured_on_create(self):
+        response = self._post(
+            "FDEF04", web_intake_mode="death_register",
+            coding_intake_mode="pick_and_choose",
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        served = response.get_json()["project"]
+        self.assertEqual(served["web_intake_mode"], "death_register")
+        self.assertEqual(served["coding_intake_mode"], "pick_and_choose")
+
+    def test_an_invalid_mode_is_refused_and_creates_nothing(self):
+        for field, value in (
+            ("web_intake_mode", "sideways"),
+            ("coding_intake_mode", "whatever"),
+        ):
+            with self.subTest(field=field):
+                response = self._post("FDEF05", **{field: value})
+                self.assertEqual(response.status_code, 400)
+        db.session.expire_all()
+        self.assertIsNone(db.session.get(VaProjectMaster, "FDEF05"))

@@ -125,6 +125,29 @@ class VaProjectMaster(db.Model):
     web_intake_show_guidance: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"
     )
+    # The form type the project's browser questionnaire carries
+    # (docs/policy/va-form-project-configuration.md). NULL means WHO_2022_VA,
+    # the behaviour before the column existed.
+    web_intake_form_type_id: so.Mapped[Optional[uuid.UUID]] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey(
+            "mas_form_types.form_type_id",
+            name="fk_va_project_master_web_intake_form_type",
+        ),
+        nullable=True,
+    )
+    # The welcome note shown before the questionnaire starts. NULL means the
+    # system default text (DEFAULT_INTAKE_NOTE in app/services/
+    # web_intake_service.py, a constant so the wording changes without a
+    # migration); an empty string means no welcome screen at all.
+    web_intake_intake_note: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.Text, nullable=True
+    )
+    # Whether the questionnaire offers the death summary document upload
+    # section. On for every project; a project may opt out.
+    web_intake_death_summary_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=True, server_default="true"
+    )
 
     def __repr__(self) -> str:
         return f"VA Project Master -> {self.project_id} ({self.project_status})"

@@ -331,6 +331,70 @@ class BaseTestCase(unittest.TestCase):
         cls.base_coder_id = str(cls.base_coder_user.user_id)
 
     @classmethod
+    def _ensure_form_type(
+        cls,
+        form_type_code,
+        form_type_name=None,
+        *,
+        base_instrument_code="WHO_2022_VA",
+        pii_confirmed=True,
+        is_active=True,
+    ):
+        """Get-or-create a `mas_form_types` row and return it.
+
+        Get-or-create per harness rule 5: form type codes are shared reference
+        data and a class-level unconditional insert raises UniqueViolation as
+        soon as another class has committed the same code.
+
+        `base_instrument_code` must be set explicitly here because the
+        migration that backfills it does not run against a `create_all`
+        schema: a fixture form type created without it serves
+        `instrument_code: null` and the web form refuses to render.
+        `pii_confirmed` flags one owned field `is_pii`, which is what
+        `FieldMappingService.is_pii_set_confirmed` reads — without it a
+        project may not be configured to collect on the form type
+        (docs/policy/new-form-type-onboarding.md).
+        """
+        from app.models import MasFieldDisplayConfig, MasFormTypes
+
+        form_type = db.session.scalar(
+            sa.select(MasFormTypes).where(
+                MasFormTypes.form_type_code == form_type_code
+            )
+        )
+        if form_type is None:
+            form_type = MasFormTypes(
+                form_type_id=uuid.uuid4(),
+                form_type_code=form_type_code,
+                form_type_name=form_type_name or form_type_code,
+            )
+            db.session.add(form_type)
+        form_type.base_instrument_code = base_instrument_code
+        form_type.is_active = is_active
+        db.session.flush()
+
+        if pii_confirmed:
+            flagged = db.session.scalar(
+                sa.select(MasFieldDisplayConfig).where(
+                    MasFieldDisplayConfig.form_type_id == form_type.form_type_id,
+                    MasFieldDisplayConfig.is_pii.is_(True),
+                )
+            )
+            if flagged is None:
+                db.session.add(
+                    MasFieldDisplayConfig(
+                        form_type_id=form_type.form_type_id,
+                        field_id=f"{form_type_code.lower()}_pii_field",
+                        odk_label="Name of the deceased",
+                        is_pii=True,
+                        is_custom=False,
+                        is_active=True,
+                    )
+                )
+                db.session.flush()
+        return form_type
+
+    @classmethod
     def _ensure_base_research_project_and_site(cls):
         """
         Get-or-create the legacy `va_research_projects` / `va_sites` rows for

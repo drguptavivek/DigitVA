@@ -36,8 +36,8 @@ from app.routes.admin import (
     _json_error,
     _resolve_scope_from_payload,
     _serialize_grant,
-    _serialize_project,
     _serialize_project_site,
+    _serialize_projects,
     _serialize_user,
 )
 from app.services.submission_analytics_mv import get_dm_kpi_from_mv
@@ -396,7 +396,7 @@ def manage_projects():
             .order_by(VaProjectMaster.project_id)
         )
         projects = db.session.scalars(stmt).all()
-        return jsonify({"projects": [_serialize_project(p) for p in projects]})
+        return jsonify({"projects": _serialize_projects(projects)})
     if not all_project_ids:
         return jsonify({"projects": []})
     stmt = (
@@ -408,7 +408,7 @@ def manage_projects():
         .order_by(VaProjectMaster.project_id)
     )
     projects = db.session.scalars(stmt).all()
-    return jsonify({"projects": [_serialize_project(p) for p in projects]})
+    return jsonify({"projects": _serialize_projects(projects)})
 
 
 @data_management.get("/api/project-sites")

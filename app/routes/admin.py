@@ -346,7 +346,43 @@ def _cod_bucket_slugify(value):
     return slug or "node"
 
 
-def _serialize_project(project):
+def _form_type_codes_by_id(form_type_ids):
+    """``{form_type_id: form_type_code}`` for the ids given, in one query.
+
+    Batched so serializing a list of projects costs one lookup rather than one
+    per project.
+    """
+    from app.models import MasFormTypes
+
+    wanted = {ft_id for ft_id in form_type_ids if ft_id is not None}
+    if not wanted:
+        return {}
+    rows = db.session.execute(
+        sa.select(MasFormTypes.form_type_id, MasFormTypes.form_type_code).where(
+            MasFormTypes.form_type_id.in_(wanted)
+        )
+    ).all()
+    return {row.form_type_id: row.form_type_code for row in rows}
+
+
+def _serialize_projects(projects):
+    """Serialize a list of projects, resolving every web form type code once."""
+    projects = list(projects)
+    codes = _form_type_codes_by_id(
+        [project.web_intake_form_type_id for project in projects]
+    )
+    return [_serialize_project(project, form_type_codes=codes) for project in projects]
+
+
+def _serialize_project(project, form_type_codes=None):
+    """One project as the admin API serves it.
+
+    ``form_type_codes`` is the prefetched ``{form_type_id: code}`` map
+    ``_serialize_projects`` builds; a single-project caller may omit it and
+    pay one lookup.
+    """
+    if form_type_codes is None:
+        form_type_codes = _form_type_codes_by_id([project.web_intake_form_type_id])
     return {
         "project_id": project.project_id,
         "project_code": project.project_code,
@@ -370,6 +406,16 @@ def _serialize_project(project):
         "web_intake_available_locales": project.web_intake_available_locales,
         "web_intake_narration_languages": project.web_intake_narration_languages,
         "web_intake_show_guidance": project.web_intake_show_guidance,
+        # The web questionnaire and its two extension settings — WP1 of
+        # docs/planning/web-capture-project-configuration-plan.md.
+        "web_intake_form_type_id": str(project.web_intake_form_type_id)
+        if project.web_intake_form_type_id
+        else None,
+        "web_intake_form_type_code": form_type_codes.get(
+            project.web_intake_form_type_id
+        ),
+        "web_intake_intake_note": project.web_intake_intake_note,
+        "web_intake_death_summary_enabled": project.web_intake_death_summary_enabled,
     }
 
 
@@ -456,7 +502,156 @@ def _web_intake_form_option_updates(payload):
     if "web_intake_show_guidance" in payload:
         updates["web_intake_show_guidance"] = bool(payload["web_intake_show_guidance"])
 
+    if "web_intake_form_type_id" in payload:
+        form_type_id, error = _validated_web_form_type_id(
+            payload["web_intake_form_type_id"]
+        )
+        if error:
+            return {}, error
+        updates["web_intake_form_type_id"] = form_type_id
+
+    if "web_intake_intake_note" in payload:
+        note = payload["web_intake_intake_note"]
+        if note is None:
+            # NULL is "this project never wrote one", which resolves to the
+            # system default note; an empty string is "no welcome screen".
+            updates["web_intake_intake_note"] = None
+        elif isinstance(note, str):
+            updates["web_intake_intake_note"] = note.strip()
+        else:
+            return {}, "web_intake_intake_note must be text or null."
+
+    if "web_intake_death_summary_enabled" in payload:
+        updates["web_intake_death_summary_enabled"] = bool(
+            payload["web_intake_death_summary_enabled"]
+        )
+
     return updates, None
+
+
+#: Valid values of va_project_master.coding_intake_mode.
+CODING_INTAKE_MODES = {"random_form_allocation", "pick_and_choose"}
+
+
+def _default_web_form_type_id(form_type_code):
+    """The id of the default web questionnaire, or ``None`` when unusable.
+
+    The default is only applied when it would pass ``_web_intake_form_option_updates``
+    -- a deployment whose ``WHO_2022_VA`` rows are not registered or whose PII
+    set is not confirmed yet must still be able to create a project, and a
+    default that 400s the create would be worse than no default at all.
+    """
+    from app.models import MasFormTypes
+
+    form_type = db.session.scalar(
+        sa.select(MasFormTypes).where(MasFormTypes.form_type_code == form_type_code)
+    )
+    if form_type is None:
+        return None
+    form_type_id, error = _validated_web_form_type_id(form_type.form_type_id)
+    return None if error else form_type_id
+
+
+def _with_web_project_defaults(payload):
+    """``payload`` plus the web-capture defaults for every key it omits.
+
+    WP1 of docs/planning/web-capture-project-configuration-plan.md: a project
+    created with web intake switched on gets the whole web-capture
+    configuration, not only the keys whoever called the API happened to know
+    about. An explicit value in the payload always wins, and only project
+    creation applies defaults -- an update means exactly what it says.
+
+    The two language lists are filtered to the codes their validators accept
+    (instrument locales for the display languages, active ``mas_languages``
+    rows for the narration ones) and what is dropped is logged. A deployment
+    that has not vendored Hindi translations or seeded the language rows
+    therefore creates the project with what it does have rather than failing
+    on a default nobody asked for.
+    """
+    from app.services.web_form_instruments import all_instrument_locales
+    from app.services.web_intake_service import WEB_PROJECT_DEFAULTS
+
+    merged = dict(payload)
+    dropped: dict[str, object] = {}
+
+    for key, value in WEB_PROJECT_DEFAULTS.items():
+        if key == "web_intake_form_type_code":
+            if "web_intake_form_type_id" in merged:
+                continue
+            form_type_id = _default_web_form_type_id(value)
+            if form_type_id is None:
+                dropped["web_intake_form_type_code"] = value
+            else:
+                merged["web_intake_form_type_id"] = str(form_type_id)
+            continue
+
+        if key in merged:
+            continue
+
+        if key == "web_intake_available_locales":
+            allowed = all_instrument_locales()
+        elif key == "web_intake_narration_languages":
+            allowed = _active_language_codes()
+        else:
+            merged[key] = value
+            continue
+
+        kept = [code for code in value if code in allowed]
+        if len(kept) != len(value):
+            dropped[key] = [code for code in value if code not in allowed]
+        merged[key] = kept
+
+    if dropped:
+        current_app.logger.info(
+            "Web project defaults not applied in full: %s. The deployment does "
+            "not have them yet; the project was created with what it has.",
+            dropped,
+        )
+    return merged
+
+
+def _validated_web_form_type_id(raw):
+    """``(form_type_id, error)`` for a project's web questionnaire setting.
+
+    A project may only collect on a form type that is active, knows which
+    standard instrument it layers on (``base_instrument_code``, or the web
+    form has nothing to render), and has had its PII set confirmed -- an
+    unconfirmed set fails closed at every redaction site, so collecting real
+    interviews on it would produce cases nobody can read. The onboarding
+    sequence that ends in confirmation is
+    docs/policy/new-form-type-onboarding.md.
+
+    NULL is accepted and means "the default questionnaire", today
+    ``WHO_2022_VA``.
+    """
+    from app.models import MasFormTypes
+    from app.services.field_mapping_service import get_mapping_service
+
+    if raw in (None, ""):
+        return None, None
+    try:
+        form_type_uuid = uuid.UUID(str(raw))
+    except (TypeError, ValueError):
+        return None, "Invalid web_intake_form_type_id."
+
+    form_type = db.session.get(MasFormTypes, form_type_uuid)
+    if form_type is None:
+        return None, "Form type not found."
+    if not form_type.is_active:
+        return None, f"Form type {form_type.form_type_code} is not active."
+    if not (form_type.base_instrument_code or "").strip():
+        return None, (
+            f"Form type {form_type.form_type_code} has no base_instrument_code, "
+            "so no questionnaire is bundled for it. See "
+            "docs/policy/new-form-type-onboarding.md."
+        )
+    if not get_mapping_service().is_pii_set_confirmed(form_type.form_type_code):
+        return None, (
+            f"Form type {form_type.form_type_code} has an unconfirmed PII set "
+            "and may not collect real interviews. See "
+            "docs/policy/new-form-type-onboarding.md."
+        )
+    return form_type.form_type_id, None
 
 
 def _serialize_site(site):
@@ -1035,7 +1230,7 @@ def admin_projects():
                 VaProjectMaster.project_id.in_(list(current_user.get_project_pi_projects()))
             )
     projects = db.session.scalars(stmt.order_by(VaProjectMaster.project_id)).all()
-    return jsonify({"projects": [_serialize_project(project) for project in projects]})
+    return jsonify({"projects": _serialize_projects(projects)})
 
 
 @admin.post("/api/projects")
@@ -1066,6 +1261,24 @@ def admin_create_project():
     if existing:
         return _json_error("Project ID already exists.", 400)
 
+    from app.models.va_web_intake import WEB_INTAKE_MODES
+
+    web_intake_mode = (payload.get("web_intake_mode") or "off").strip()
+    if web_intake_mode not in WEB_INTAKE_MODES:
+        return _json_error("Invalid web_intake_mode.", 400)
+
+    # A project that collects on the web is created with the whole web-capture
+    # configuration, not only the keys the caller supplied. Applied before
+    # validation so a default is held to the same rules as an explicit value.
+    if web_intake_mode != "off":
+        payload = _with_web_project_defaults(payload)
+
+    coding_intake_mode = (
+        payload.get("coding_intake_mode") or "random_form_allocation"
+    ).strip()
+    if coding_intake_mode not in CODING_INTAKE_MODES:
+        return _json_error("Invalid coding_intake_mode.", 400)
+
     # Validated before the row is built so a rejected payload adds nothing.
     form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
     if form_option_error:
@@ -1084,7 +1297,8 @@ def admin_create_project():
                 payload.get("social_autopsy_enabled", True),
             )
         ),
-        coding_intake_mode="random_form_allocation",
+        coding_intake_mode=coding_intake_mode,
+        web_intake_mode=web_intake_mode,
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
         demo_retention_minutes=demo_retention_minutes,
         # Only the keys the payload supplied, so the column defaults stand.
@@ -1149,10 +1363,7 @@ def admin_update_project(project_id):
 
     if "coding_intake_mode" in payload:
         coding_intake_mode = (payload["coding_intake_mode"] or "").strip()
-        if coding_intake_mode not in {
-            "random_form_allocation",
-            "pick_and_choose",
-        }:
+        if coding_intake_mode not in CODING_INTAKE_MODES:
             return _json_error("Invalid coding_intake_mode.", 400)
         updates["coding_intake_mode"] = coding_intake_mode
 
@@ -1236,7 +1447,13 @@ def admin_update_project(project_id):
             ensure_web_forms_for_project,
         )
 
-        ensure_web_forms_for_project(project.project_id)
+        try:
+            ensure_web_forms_for_project(project.project_id)
+        except ValueError as exc:
+            # The project names a form type that has since been deactivated.
+            # A misconfiguration is the caller's to fix, not a server error.
+            db.session.rollback()
+            return _json_error(str(exc), 400)
 
     db.session.commit()
     return jsonify({"project": _serialize_project(project)})
@@ -2955,6 +3172,9 @@ def admin_form_types_list():
             "form_type_id": str(ft.form_type_id),
             "form_type_code": ft.form_type_code,
             "form_type_name": ft.form_type_name,
+            # The standard instrument this form type layers on; a form type
+            # without one has no bundled questionnaire to render.
+            "base_instrument_code": ft.base_instrument_code,
             "pii_set_confirmed": pii_status.confirmed,
             "pii_owned_flagged_count": pii_status.owned_flagged_count,
         }
@@ -3006,10 +3226,23 @@ def admin_form_types_update(form_type_code):
     if not name:
         return _json_error("form_type_name is required.", 400)
 
+    if "base_instrument_code" in data:
+        base_instrument_code = data["base_instrument_code"]
+        if base_instrument_code is None:
+            ft.base_instrument_code = None
+        elif isinstance(base_instrument_code, str):
+            ft.base_instrument_code = base_instrument_code.strip().upper() or None
+        else:
+            return _json_error("base_instrument_code must be text or null.", 400)
+
     ft.form_type_name = name
     ft.form_type_description = description
     db.session.commit()
-    return jsonify({"form_type_code": ft.form_type_code, "form_type_name": ft.form_type_name})
+    return jsonify({
+        "form_type_code": ft.form_type_code,
+        "form_type_name": ft.form_type_name,
+        "base_instrument_code": ft.base_instrument_code,
+    })
 
 
 @admin.post("/api/form-types/<source_code>/duplicate")
@@ -6968,6 +7201,47 @@ def _get_sync_schedule_hours() -> int | None:
 
 
 # ── Language Management API ──────────────────────────────────────────────────
+
+
+@admin.get("/api/web-form-types")
+@role_required("admin")
+def admin_web_form_types_list():
+    """The form types a project may run its browser questionnaire on.
+
+    Active form types only, each with the standard instrument it layers on
+    and whether its PII set has been confirmed. The Projects panel builds its
+    "Web form questionnaire" select from here and disables the unconfirmed
+    ones, which the project PUT/POST refuse anyway
+    (docs/policy/new-form-type-onboarding.md). Distinct from
+    ``/admin/api/form-types``, which is the field-mapping panel's list.
+    """
+    from app.models import MasFormTypes
+    from app.services.field_mapping_service import get_mapping_service
+    from app.services.web_intake_service import DEFAULT_INTAKE_NOTE
+
+    mapping_svc = get_mapping_service()
+    form_types = db.session.scalars(
+        sa.select(MasFormTypes)
+        .where(MasFormTypes.is_active.is_(True))
+        .order_by(MasFormTypes.form_type_code)
+    ).all()
+    return jsonify({
+        # The welcome note a project with none of its own shows. A constant,
+        # not a stored value, so it is served here rather than rendered into
+        # the panel: the panel is a JSON client like any other.
+        "default_intake_note": DEFAULT_INTAKE_NOTE,
+        "form_types": [
+            {
+                "form_type_id": str(ft.form_type_id),
+                "form_type_code": ft.form_type_code,
+                "form_type_name": ft.form_type_name,
+                "base_instrument_code": ft.base_instrument_code,
+                "pii_confirmed": mapping_svc.is_pii_set_confirmed(ft.form_type_code),
+                "is_active": ft.is_active,
+            }
+            for ft in form_types
+        ]
+    })
 
 
 @admin.get("/api/web-form-locales")

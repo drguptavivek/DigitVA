@@ -60,7 +60,10 @@ log = logging.getLogger(__name__)
 __all__ = [
     "WebIntakeError",
     "WEB_INTAKE_MODES",
+    "WEB_PROJECT_DEFAULTS",
+    "DEFAULT_INTAKE_NOTE",
     "INSTRUMENT_ID",
+    "resolve_intake_note",
     "get_web_intake_mode",
     "interviewer_context",
     "register_death",
@@ -85,6 +88,49 @@ PAYLOAD_ROLE = "vainterviewer"
 _ABHA_NUMBER_RE = re.compile(r"^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$")
 _ABHA_ADDRESS_RE = re.compile(r"^[A-Za-z0-9._]{4,32}@(abdm|sbx)$")
 _SECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+
+#: The welcome note a project shows before the questionnaire starts when it
+#: has not written one of its own. A constant rather than a stored default so
+#: the wording can change without a migration: a NULL
+#: ``web_intake_intake_note`` resolves to this text, an empty string means the
+#: project wants no welcome screen. Decided 2026-09-19,
+#: docs/policy/va-web-form-options.md.
+DEFAULT_INTAKE_NOTE = (
+    "Before you begin: confirm the respondent has consented, is comfortable, "
+    "and has time for the interview. Answers are saved as you go."
+)
+
+#: What a project that collects on the web is created with when the client
+#: says nothing (docs/planning/web-capture-project-configuration-plan.md, WP1).
+#: Applied by POST /admin/api/projects to every key the payload omits whenever
+#: ``web_intake_mode`` is not ``off``; an explicit value always wins. The two
+#: language lists are filtered to the codes the validators accept before they
+#: are applied, so a deployment that has not vendored Hindi translations or
+#: seeded the language rows still creates the project instead of failing it.
+WEB_PROJECT_DEFAULTS = {
+    "web_intake_form_type_code": "WHO_2022_VA",
+    "web_intake_intake_note": None,
+    "web_intake_death_summary_enabled": True,
+    "social_autopsy_enabled": False,
+    "web_intake_available_locales": ["en", "hi"],
+    "web_intake_narration_languages": ["english", "hindi"],
+    "coding_intake_mode": "pick_and_choose",
+}
+
+
+def resolve_intake_note(project: VaProjectMaster) -> str:
+    """The welcome note this project shows, ``""`` when it shows none.
+
+    NULL is "the project never set one", which is the system default text;
+    a stored empty (or whitespace-only) string is a project that deliberately
+    turned the welcome screen off. The ``intake_screen`` extension is served
+    exactly when this is non-empty.
+    """
+    note = project.web_intake_intake_note
+    if note is None:
+        return DEFAULT_INTAKE_NOTE
+    return note.strip()
+
 
 
 class WebIntakeError(ValueError):

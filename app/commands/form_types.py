@@ -33,6 +33,7 @@ def list_form_types():
         stats = service.get_form_type_stats(ft.form_type_code)
         click.echo(f"\n{ft.form_type_code}")
         click.echo(f"  Name:       {ft.form_type_name}")
+        click.echo(f"  Instrument: {ft.base_instrument_code or '(none bundled)'}")
         click.echo(f"  Categories: {stats['category_count']}")
         click.echo(f"  Fields:     {stats['field_count']}")
         click.echo(f"  Choices:    {stats['choice_count']}")

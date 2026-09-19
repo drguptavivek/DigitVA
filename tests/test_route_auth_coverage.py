@@ -69,6 +69,10 @@ PUBLIC_BY_DESIGN = frozenset({
     "va_auth.reset_password",
     "va_auth.resend_verification",
     "va_auth.verify_email",
+    # The public home page (/, /index, /vaindex). The system has a dedicated
+    # login page; the landing page is what an anonymous visitor lands on and
+    # renders no user data.
+    "va_main.va_index",
     # Streams a WHO VA reference PDF from a fixed on-disk registry
     # (WHO_VA_DOCUMENTS); the slug must be a registry key, so no arbitrary read.
     # Published WHO material, deliberately readable without an account.

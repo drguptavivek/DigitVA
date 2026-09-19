@@ -51,8 +51,8 @@ Two things worth knowing before extending it:
 Ranked across every session's input. Done since the previous ranking: the
 PII set failing open, the PII cache never invalidating, and the route
 decorator guarantee (see the two sections below). The six routes that were
-pending a decision are settled: help and WHO documents public, `/` requires
-login.
+pending a decision are settled: help, WHO documents and the home page are
+public.
 
 1. **The `form-options` endpoint** (`docs/policy/va-web-form-options.md`). It
    unblocks removing the hardcoded `locale = "en"` at
@@ -87,14 +87,15 @@ rationale stays falsifiable. Positive control registers an unguarded view on
 a bare `flask.Flask` and asserts it is reported.
 
 One allowlist, `PUBLIC_BY_DESIGN`, checked for stale entries and for
-entries that later became guarded. It holds fourteen endpoints: static,
+entries that later became guarded. It holds fifteen endpoints: static,
 health, the seven `va_auth` account-access flows (login, logout, maintenance
 banner, forgot password, reset link, resend verification, verify email), the
-WHO reference documents, and the four help pages. Decided 2026-09-19: help
-and WHO documents are public so a prospective user can read them before
-logging in; `help.page` keeps its in-body role filter for role-restricted
-pages. `va_main.va_index` (`/`, `/index`, `/vaindex`) now carries
-`login_required`; an anonymous visitor is redirected to the login page.
+home page (`/`, `/index`, `/vaindex`), the WHO reference documents, and the
+four help pages. Decided 2026-09-19: help and WHO documents are public so a
+prospective user can read them before logging in; `help.page` keeps its
+in-body role filter for role-restricted pages. The home page is public
+because the site has a dedicated login page; a `login_required` on `/` was
+landed and reverted the same day, so do not put it back.
 `tests/routes/test_public_route_access.py` asserts the anonymous behaviour
 of each class at runtime.
 

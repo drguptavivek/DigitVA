@@ -1,17 +1,8 @@
-"""The landing page and the WHO VA reference documents it links to.
-
-`va_main.va_index` requires a login as of 2026-09-19 (see
-docs/policy/auth-decorator-rbac.md section 3), so these render it as a
-logged-in user. `va_main.who_va_document` stays public by design -- published
-WHO material -- and is covered unauthenticated in
-tests/routes/test_public_route_access.py.
-"""
 from tests.base import BaseTestCase
 
 
 class VaIndexDocumentLinksTests(BaseTestCase):
     def test_vaindex_shows_who_related_document_links(self):
-        self._login(self.base_coder_id)
         response = self.client.get("/vaindex")
 
         self.assertEqual(response.status_code, 200)

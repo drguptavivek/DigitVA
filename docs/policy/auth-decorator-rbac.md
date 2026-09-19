@@ -147,7 +147,8 @@ or later becomes guarded, so the list cannot drift.
 endpoint of the `va_auth` blueprint -- `va_login`, `va_logout`,
 `site_maintenance_status`, `forgot_password`, `reset_password`,
 `resend_verification`, `verify_email` -- because an anonymous user must reach
-every account-access flow to obtain a session at all; `va_main.who_va_document`,
+every account-access flow to obtain a session at all; `va_main.va_index`, the
+home page; `va_main.who_va_document`,
 which streams published WHO reference material from a fixed on-disk registry;
 and the four `help` routes (`index`, `page`, `docs_index`, `doc_page`). The help
 surface is the sign-in and account instructions a logged-out user needs.
@@ -156,13 +157,13 @@ surface is the sign-in and account instructions a logged-out user needs.
 render for an anonymous visitor. That in-body filtering is the guard for the
 role-restricted help pages and must stay.
 
-**The landing page requires a login.** `va_main.va_index` (`/`, `/index`,
-`/vaindex`) carries Flask-Login's `login_required` -- not `role_required`, since
-every authenticated role may see it, matching `profile.view`. With
-`login.login_view = 'va_auth.va_login'` set in `app/__init__.py`, an anonymous
-GET `/` is a redirect to the login form, and the login view redirects only when
-`current_user.is_authenticated`, so there is no loop.
-`tests/routes/test_public_route_access.py` exercises both halves at runtime.
+**The landing page is public.** `va_main.va_index` (`/`, `/index`,
+`/vaindex`) is the home page an anonymous visitor lands on; the system has a
+dedicated login page, so `/` is not it and must not redirect there. It renders
+no user data. Guarding it with `login_required` was tried and reverted the same
+day: bouncing every visitor from the home page to the login form is not how the
+site is meant to greet them. `tests/routes/test_public_route_access.py` asserts
+an anonymous GET of each of the three paths is 200.
 
 `API_PATH_PREFIXES` is the module constant behind the JSON-vs-HTML decision, and
 the same test file asserts that every registered rule that looks like an API

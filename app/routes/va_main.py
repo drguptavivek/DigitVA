@@ -1,9 +1,8 @@
-"""Landing page (login-gated) and the public WHO VA reference documents."""
+"""Core public routes — index page."""
 
 from pathlib import Path
 
 from flask import Blueprint, abort, current_app, render_template, send_from_directory, url_for
-from flask_login import login_required
 
 va_main = Blueprint("va_main", __name__)
 
@@ -79,7 +78,6 @@ def _who_va_related_documents() -> dict[str, list[dict[str, str | bool]]]:
 @va_main.route("/")
 @va_main.route("/index")
 @va_main.route("/vaindex")
-@login_required
 def va_index():
     return render_template(
         "va_frontpages/va_index.html",

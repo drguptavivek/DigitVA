@@ -5,10 +5,9 @@ on `PUBLIC_BY_DESIGN`. That is a statement about decorators; this module is the
 runtime counterpart, exercising the two halves of the 2026-09-19 decision
 recorded in docs/policy/auth-decorator-rbac.md section 3:
 
-  - the landing page (`/`, `/index`, `/vaindex`) now requires a login, and an
-    anonymous GET must *redirect to the login form* rather than 401 -- which is
-    what `login_manager.login_view = "va_auth.va_login"` buys, and what would
-    silently regress if that setting were dropped;
+  - the landing page (`/`, `/index`, `/vaindex`) is the public home page; the
+    system has a dedicated login page, so `/` must answer an anonymous visitor
+    with 200, never bounce them to the login form;
   - the help/docs surface and the WHO reference PDFs stay reachable logged out.
 """
 from tests.base import BaseTestCase
@@ -16,12 +15,13 @@ from tests.base import BaseTestCase
 LOGIN_PATH = "/vaauth/valogin"
 
 
-class LandingPageRequiresLoginTests(BaseTestCase):
-    def test_anonymous_get_root_redirects_to_login(self):
-        response = self.client.get("/")
-
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(LOGIN_PATH, response.headers["Location"])
+class LandingPageIsPublicTests(BaseTestCase):
+    def test_anonymous_get_root_renders_home_page(self):
+        for path in ("/", "/index", "/vaindex"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertNotIn("Location", response.headers)
 
     def test_logged_in_get_root_renders(self):
         self._login(self.base_coder_id)
@@ -29,10 +29,9 @@ class LandingPageRequiresLoginTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_login_page_does_not_redirect_anonymous_visitors(self):
-        """No loop: `/` sends an anonymous visitor to the login form, so the
-        login form itself must answer them with 200. It redirects only when
-        `current_user.is_authenticated`."""
+    def test_login_page_answers_anonymous_visitors(self):
+        """The dedicated login page must render for an anonymous visitor; it
+        redirects only when `current_user.is_authenticated`."""
         response = self.client.get(LOGIN_PATH)
 
         self.assertEqual(response.status_code, 200)

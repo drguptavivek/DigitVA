@@ -177,3 +177,59 @@ override the dotted `K70.2`, `K70.3`, `K71.7` codes already carved out to
 `VAs-06.02`: those three dotted codes are more specific than the three-character
 `K70`/`K71` range and win the conflict. The same rule applies to any future
 range expansion that overlaps an existing dotted-code exception.
+
+## Carried-forward overrides in WHO_2022_VA_2026
+
+The `WHO_2022_VA_2026` COD bucket scheme carries forward 33 manual bucket
+overrides that already existed in the live `WHO_2022_VA` scheme, so the 2026
+revision does not regress prior clinical curation. Of those 33, the 16 below
+land in a different bucket from the one the WHO 2026 annex (Annex 1 Table A1,
+`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_cause_list_icd10_icd11.csv`)
+would give the code; the remaining 17 agree with the annex and need no record
+here.
+
+"Bucket the annex gives" is derived by expanding the annex ICD-10 ranges with
+the granularity rules under "Allowability Rules" and the specific-beats-range
+rule under "Overlap Rules". `(none)` means no annex range covers the code at
+its own granularity: `UU1` and `UU2` are local pseudo-codes that are not ICD-10
+at all, `U07` appears in the annex only as the dotted `U07.1`/`U07.2`, `I11`
+falls between the annex's `I11.0` and `I11.9-I15`, and `Y91` is in no annex
+range.
+
+| ICD-10 code | Title | Bucket kept | Bucket the annex gives | Decided by |
+| --- | --- | --- | --- | --- |
+| `G46` | Vascular syndromes of brain in cerebrovascular diseasesI60-I67 | `VAs-04.02` Stroke | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `G47` | Sleep disorders | `VAs-99` Cause of death unknown | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `I11` | Hypertensive heart disease | `VAs-04.01` Acute cardiac disease | (none) | clinical lead 2026-09-19 (keep) |
+| `I46` | Cardiac arrest | `VAs-04.01` Acute cardiac disease | `VAs-04.99` Other and unspecified cardiac disease | clinical lead 2026-09-19 (keep) |
+| `I50` | Heart failure | `VAs-04.01` Acute cardiac disease | `VAs-04.99` Other and unspecified cardiac disease | clinical lead 2026-09-19 (keep) |
+| `K64` | Haemorrhoids and perianal venous thrombosis | Other Gastrointestinal Diseases | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `K70` | Alcoholic liver disease | `VAs-06.02` Liver cirrhosis | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `K72` | Hepatic failure, not elsewhere classified | `VAs-06.02` Liver cirrhosis | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `K73` | Chronic hepatitis, not elsewhere classified | `VAs-06.02` Liver cirrhosis | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `K75` | Other inflammatory liver diseases | Other Gastrointestinal Diseases | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `K76` | Other diseases of liver | Other Gastrointestinal Diseases | `VAs-98` Other and unspecified non-communicable disease | clinical lead 2026-09-19 (keep) |
+| `R50` | Fever of other and unknown origin | `VAs-01.99` Unspecified infectious disease | `VAs-99` Unknown and ill-defined cause of death | clinical lead 2026-09-19 (keep) |
+| `U07` | Emergency use of U07 | `VAs-01.13` Coronavirus disease (COVID-19) | (none) | clinical lead 2026-09-19 (keep) |
+| `Y91` | Evidence of alcohol involvement determined by level of intoxication | `VAs-99` Cause of death unknown | (none) | clinical lead 2026-09-19 (keep) |
+| `UU1` | Other Non-communicable Diseases | `VAs-98` Other and unspecified non-communicable disease | (none) | clinical lead 2026-09-19 (keep) |
+| `UU2` | Other Defined Causes of Child Deaths | Other Defined cause of Child Death | (none) | clinical lead 2026-09-19 (keep) |
+
+**Rule.** These overrides are kept deliberately: the bucket in the artifact
+wins over the annex-derived bucket for these codes. A future annex revision
+re-evaluates each of them one at a time; none is dropped silently, and none is
+"fixed" to the annex value without the clinical lead's sign-off. Titles are
+reproduced verbatim from the derived workbook, including the `G46` title's
+trailing `I60-I67` fragment, so the row stays traceable to its source.
+
+None of the 16 codes is ICD-10 coding-selectable today; these are bucket
+mappings for reporting and legacy-data coverage. Adding one to the selectable
+set is a separate decision under "Allowability Rules".
+
+**`R10` — confirmed 2026-09-19 by the clinical lead.** In `WHO_2022_VA_2026`,
+`R10` is selectable, both sexes, all ages, and bucketed to `VAs-06.01` Acute
+abdomen, as the WHO 2026 annex lists it (see "2026 Annex Adjustments" above).
+The 34th manual override in the live `WHO_2022_VA` scheme, which mapped `R10`
+to "Other Gastrointestinal Diseases", is deliberately not carried forward and
+so does not appear in the table. The old `WHO_2022_VA` scheme keeps its own
+mapping unchanged.

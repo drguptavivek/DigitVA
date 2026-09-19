@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-09-19
 ---
 
 # CLI Reference
@@ -83,6 +83,34 @@ upserts on `(release, linearization_uri)`, marks source-missing rows inactive,
 and preserves local policy columns unless `--apply-policy-columns` is passed.
 `generate-seed-csv` regenerates the checked-in seed CSV consumed by the
 `mas_icd11_mms` migration. Policy: `docs/policy/icd11-reference-catalog.md`.
+
+## `icd10` — ICD-10 2019-2 master data and coding policy
+
+| Command | Description |
+|---------|-------------|
+| `icd10 policy-import --path=...` | Full-replacement import of the ICD-10 coding-selectability policy JSON. Global and table-wide: every code absent from the file is reset to not selectable, for every project. |
+
+The 2026 revision's payload is
+`docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision/who_2022_icd10_2019_2_policy_reviewed.json`
+(2,489 items). Policy: [`docs/policy/who-2022-icd10-coding-allowability.md`](../policy/who-2022-icd10-coding-allowability.md).
+
+---
+
+## `cod-buckets` — Cause-of-death reporting buckets
+
+| Command | Description |
+|---------|-------------|
+| `cod-buckets import-who-2022-va-2026` | Import or re-import the `WHO_2022_VA_2026` COD bucket scheme from its derived workbook (`--path` overrides the default). |
+
+`WHO_2022_VA_2026` is the WHO 2026 annex revision of the WHO 2022 VA cause
+list. It coexists with `WHO_2022_VA`, which is unchanged: it adds the 109 annex
+codes, moves `R95` to `VAs-10.99`, buckets `R10` to `VAs-06.01`, and carries
+forward 33 manual bucket overrides from the older scheme (see the policy doc's
+"Carried-forward overrides in WHO_2022_VA_2026"). Fresh databases get both this
+scheme and the policy import from migration `c5f2a8d1e9b3`; the two commands
+above are the manual equivalent.
+
+---
 
 ## `odk-sync` — ODK Central schema sync
 

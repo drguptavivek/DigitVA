@@ -67,3 +67,8 @@ vendor/who-va-2022/dist/
 # Beads / Dolt files (added by bd init)
 .beads/proxieddb/
 *.gate.lock*
+
+# Tooling droppings -- local caches and one-off exports, never shared
+.trace-mcp/
+issue-export.jsonl
+.tasks/scripts/

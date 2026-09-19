@@ -37,6 +37,7 @@ from app.models import (
 )
 from app.services import organization_service as org
 from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, scope_unit_ids_for_roles
+from app.services.web_form_instruments import DEFAULT_LOCALE, instrument_locales
 
 bp = Blueprint("organization_api", __name__)
 
@@ -355,7 +356,13 @@ def _project_form_types(project_id: str) -> list[dict]:
 
 
 def _active_languages() -> dict[str, str]:
-    """Active ``{code: label}`` from the canonical language list, in code order."""
+    """Active ``{code: label}`` from the canonical language list, in code order.
+
+    Narration languages only. The form's *display* languages come from the
+    bundled instrument (``app/services/web_form_instruments.py``), not from
+    ``mas_languages``: a code here describes the language a narrative was
+    recorded in and says nothing about what the questionnaire can render.
+    """
     rows = db.session.execute(
         sa.select(MasLanguages.language_code, MasLanguages.language_name)
         .where(MasLanguages.is_active.is_(True))
@@ -365,50 +372,44 @@ def _active_languages() -> dict[str, str]:
 
 
 def _resolve_locales(
-    project: VaProjectMaster, active: dict[str, str]
+    project: VaProjectMaster, instrument_code: str | None
 ) -> tuple[str, list[dict]]:
-    """The project's default locale and the locales it may switch to.
+    """The locale the form opens in and the locales it may be switched to.
 
-    ``web_intake_available_locales`` NULL means every active language. A
-    stored code that is not an active language is dropped. The default locale
-    is always present in the result: if the stored default is not available,
-    the first available locale is used instead and a warning is logged -- a
-    misconfigured language must degrade the form, never fail the page.
+    Decided 2026-09-19 (docs/policy/va-web-form-options.md): the display
+    languages are the ones the bundled instrument actually has translations
+    for, so they come from ``app/services/web_form_instruments.py`` and never
+    from ``mas_languages``. ``DEFAULT_LOCALE`` is the instrument's base
+    language: it is always offered, always first, and is the default whenever
+    the stored default names something the instrument does not have.
+
+    ``web_intake_available_locales`` NULL means every instrument locale; a
+    stored list keeps the codes the instrument has, in stored order, and drops
+    the rest. A misconfigured language degrades the form, never fails the page.
     """
-    stored = project.web_intake_available_locales
-    if stored is None:
-        codes = list(active)
-    else:
-        codes = [code for code in stored if code in active]
+    locales = instrument_locales(instrument_code)
 
     default = project.web_intake_default_locale
-    if default not in codes:
-        if default in active:
-            # Active language that the project simply did not list: honour the
-            # project's own default by including it rather than overriding it.
-            codes = [default] + codes
-        elif codes:
+    if default not in locales:
+        if default and default != DEFAULT_LOCALE:
             current_app.logger.warning(
-                "Project %s web_intake_default_locale %r is not an active "
-                "language; falling back to %r.",
+                "Project %s web_intake_default_locale %r is not a locale of "
+                "instrument %r; opening in %r.",
                 project.project_id,
                 default,
-                codes[0],
+                instrument_code,
+                DEFAULT_LOCALE,
             )
-            default = codes[0]
-        else:
-            current_app.logger.warning(
-                "Project %s has no available web intake locales; serving the "
-                "stored default %r unresolved.",
-                project.project_id,
-                default,
-            )
-            codes = [default]
+        default = DEFAULT_LOCALE
 
-    available = [
-        {"code": code, "label": active.get(code, code)} for code in codes
-    ]
-    return default, available
+    stored = project.web_intake_available_locales
+    codes = list(locales) if stored is None else [c for c in stored if c in locales]
+
+    ordered: list[str] = []
+    for code in [DEFAULT_LOCALE, *codes, default]:
+        if code not in ordered:
+            ordered.append(code)
+    return default, [{"code": code, "label": locales[code]} for code in ordered]
 
 
 def _resolve_narration_languages(
@@ -513,7 +514,10 @@ def project_form_options(project_id: str):
 
     active = _active_languages()
     form_types = _project_form_types(project_id)
-    default_locale, available_locales = _resolve_locales(project, active)
+    default_form_type = next((ft for ft in form_types if ft["is_default"]), None)
+    default_locale, available_locales = _resolve_locales(
+        project, default_form_type["instrument_code"] if default_form_type else None
+    )
     narration_languages = _resolve_narration_languages(project, active)
 
     return jsonify({

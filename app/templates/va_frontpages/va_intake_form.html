@@ -13,6 +13,8 @@
   </div>
 </div>
 <div id="wv-alert" class="alert d-none small py-2"></div>
+{# Filled in by main() only when the project offers more than one language. #}
+<div id="wv-locale-bar" class="d-none justify-content-end mb-2"></div>
 <div id="wv-host" class="bg-white border rounded p-2" style="min-height: 60vh;">
   <div class="text-center text-muted py-5"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading the questionnaire…</div>
 </div>
@@ -173,6 +175,45 @@ const draftStore = {
 // A reload or a closed tab must not discard the debounce window.
 window.addEventListener("beforeunload", () => { unloading = true; if (pendingDraft) flushDraft(); });
 
+// The interviewer's working language. The project serves the languages the
+// bundled questionnaire has translations for (docs/policy/va-web-form-options.md);
+// the choice is this browser's, remembered so the next form opens the same way,
+// and falls back to the project default when the remembered code is not offered.
+// localStorage throws in a browser with site data blocked, so every access is
+// guarded — a form that will not open is worse than a forgotten preference.
+const LOCALE_KEY = "digitva.intake.locale";
+const rememberedLocale = () => { try { return localStorage.getItem(LOCALE_KEY); } catch (e) { return null; } };
+const rememberLocale = (code) => { try { localStorage.setItem(LOCALE_KEY, code); } catch (e) { /* not remembered */ } };
+
+const workingLocale = (options) => {
+  const stored = rememberedLocale();
+  return (options.available_locales || []).some((l) => l.code === stored) ? stored : options.default_locale;
+};
+
+function renderLocalePicker(el, options) {
+  const locales = options.available_locales || [];
+  if (locales.length < 2) return;
+  const select = document.createElement("select");
+  select.id = "wv-locale";
+  select.className = "form-select form-select-sm w-auto";
+  select.setAttribute("aria-label", "Form language");
+  for (const locale of locales) {
+    const option = document.createElement("option");
+    option.value = locale.code;
+    option.textContent = locale.label;
+    select.appendChild(option);
+  }
+  select.value = el.getAttribute("locale");
+  select.addEventListener("change", () => {
+    el.setAttribute("locale", select.value);
+    rememberLocale(select.value);
+  });
+  const bar = $("wv-locale-bar");
+  bar.appendChild(select);
+  bar.classList.remove("d-none");
+  bar.classList.add("d-flex");
+}
+
 async function main() {
   const boot = await api("/intake/api/bootstrap");
   if (!boot.ok) { alertBox("danger", boot.data.error || "Could not load."); return; }
@@ -193,7 +234,8 @@ async function main() {
 
   const el = document.createElement("who-va-2022-form");
   el.setAttribute("draft-id", DRAFT.draft_id);
-  el.setAttribute("locale", options.default_locale);
+  el.setAttribute("locale", workingLocale(options));
+  renderLocalePicker(el, options);
   if (options.show_guidance) el.setAttribute("show-guidance", "");
   el.setAttribute("auto-save-draft-on-change", "");
   el.instrument = chosenInstrument;

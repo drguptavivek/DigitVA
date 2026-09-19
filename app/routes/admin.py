@@ -389,44 +389,62 @@ def _active_language_codes():
 def _web_intake_form_option_updates(payload):
     """Validated tier-2 web form options from a project create/update payload.
 
-    Policy: docs/policy/va-web-form-options.md. Every code is validated against
-    the active language list here, so the form-options endpoint never has to
-    serve a locale it cannot label. NULL is a meaningful stored value for the
-    two lists -- "every active language" and "none offered" respectively -- so
-    an explicit null is accepted and is not the same as omitting the field.
+    Policy: docs/policy/va-web-form-options.md. The two *display* language
+    fields are validated against the bundled instruments
+    (``app/services/web_form_instruments.py``), because a language the
+    questionnaire has no translations for cannot be shown however active it is
+    in ``mas_languages``. Narration languages are the other way round: they
+    name the language a narrative was recorded in, so they stay validated
+    against the active canonical list. NULL is a meaningful stored value for
+    the two lists -- "every instrument locale" and "none offered" respectively
+    -- so an explicit null is accepted and is not the same as omitting the
+    field.
 
     Returns ``(updates, error_message)``. ``updates`` holds only the keys the
     payload supplied, so a caller may pass it straight to a model constructor
     without overriding the column defaults. On error it is empty and the
     message is the text to return with 400.
     """
+    from app.services.web_form_instruments import all_instrument_locales
+
     updates: dict[str, object] = {}
-    language_fields = (
-        "web_intake_available_locales",
-        "web_intake_narration_languages",
-    )
-    if "web_intake_default_locale" in payload or any(
-        field in payload for field in language_fields
-    ):
-        active_codes = _active_language_codes()
+    form_locales = all_instrument_locales()
 
-        if "web_intake_default_locale" in payload:
-            default_locale = (payload["web_intake_default_locale"] or "").strip()
-            if default_locale not in active_codes:
-                return {}, "Invalid web_intake_default_locale."
-            updates["web_intake_default_locale"] = default_locale
+    if "web_intake_default_locale" in payload:
+        default_locale = (payload["web_intake_default_locale"] or "").strip()
+        if default_locale not in form_locales:
+            return {}, "Invalid web_intake_default_locale."
+        updates["web_intake_default_locale"] = default_locale
 
-        for field in language_fields:
-            if field not in payload:
-                continue
-            raw = payload[field]
-            if raw is None:
-                updates[field] = None
-                continue
+    field = "web_intake_available_locales"
+    if field in payload:
+        raw = payload[field]
+        if raw is None:
+            updates[field] = None
+        else:
             if not isinstance(raw, list) or not all(
                 isinstance(code, str) for code in raw
             ):
                 return {}, f"{field} must be a list of language codes."
+            unknown = [code for code in raw if code not in form_locales]
+            if unknown:
+                return {}, (
+                    f"{field} contains languages the questionnaire has no "
+                    f"translations for: {', '.join(sorted(unknown))}."
+                )
+            updates[field] = list(dict.fromkeys(raw))
+
+    field = "web_intake_narration_languages"
+    if field in payload:
+        raw = payload[field]
+        if raw is None:
+            updates[field] = None
+        else:
+            if not isinstance(raw, list) or not all(
+                isinstance(code, str) for code in raw
+            ):
+                return {}, f"{field} must be a list of language codes."
+            active_codes = _active_language_codes()
             unknown = [code for code in raw if code not in active_codes]
             if unknown:
                 return {}, (
@@ -6950,6 +6968,27 @@ def _get_sync_schedule_hours() -> int | None:
 
 
 # ── Language Management API ──────────────────────────────────────────────────
+
+
+@admin.get("/api/web-form-locales")
+@role_required("admin")
+def admin_web_form_locales_list():
+    """The display languages the bundled VA web form instruments really have.
+
+    Distinct from ``/admin/api/languages``: that list is ``mas_languages``,
+    which describes narration recordings. A project's available web form
+    languages must come from the instrument bundle, so the Projects panel
+    builds that checkbox list from here. ``en`` is always first and always
+    offered. Policy: docs/policy/va-web-form-options.md.
+    """
+    from app.services.web_form_instruments import all_instrument_locales
+
+    return jsonify({
+        "locales": [
+            {"code": code, "label": label}
+            for code, label in all_instrument_locales().items()
+        ]
+    })
 
 
 @admin.get("/api/languages")

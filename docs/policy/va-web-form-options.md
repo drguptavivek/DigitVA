@@ -59,8 +59,8 @@ two instrument families.
 
 | Option | Type | Set today | Notes |
 |---|---|---|---|
-| `locale` | string (attribute) | **Yes** — `default_locale` from the project (2026-09-19) | The display language of labels, hints and choices. |
-| `available_locales` | string[] | **Yes** — served (2026-09-19) | Which languages this project's users may switch to. Drawn from the system-wide translation catalogue, not from the form. |
+| `locale` | string (attribute) | **Yes** — `default_locale` from the project (2026-09-19) | Always `en`, the instrument's base language. Decided 2026-09-19: there is no per-project default; the stored column is honoured only when it names a locale the instrument has, and is otherwise `en`. |
+| `available_locales` | string[] | **Yes** — served (2026-09-19) | `en` plus the languages the project adds, restricted to what the bundled instrument has translations for (`app/services/web_form_instruments.py`). Not drawn from `mas_languages`; those codes describe narration recordings. |
 | `uiTranslations` | `WhoVaUiTranslations` | **No** | Chrome strings (buttons, validation). Separate from instrument translations. |
 | `narration_languages` | `{code,label}[]` | **Yes** — served (2026-09-19) | Options for `narr_language` — the language the narrative was *recorded* in. Distinct from `locale` and from the instrument's own "Interview language" question. Per-project checkboxes. |
 | `geography` | level + unit codes | Partly — via the units API | Feeds `survey_state`/`survey_district`/`survey_block` and `org_<level_code>_code` routing. Comes from the project's organization hierarchy. |
@@ -79,6 +79,7 @@ two instrument families.
 | `lockedQuestionNames` | string[] | Yes, via `PREFILL.lockedQuestionNames` | Answers carried from death registration that the interviewer may not contradict. |
 | `platform` | `WhoVaPlatformServices` | **No** | Capture hooks: audio, image, file, date picker, barcode, geopoint, drawing. Web supplies browser implementations; the native app supplies its own. This is the single seam between the shared engine and the host platform. |
 | `org_unit_id` | uuid | Yes, via the picker | The deepest unit selected. Server re-validates against grants regardless of what the client sends. |
+| `locale (user choice)` | string (attribute) | **Yes** (2026-09-19) | The interviewer's working language, chosen on the intake page from `available_locales`, remembered in the browser (`localStorage` key `digitva.intake.locale`, last choice wins), and applied by setting the component's `locale` attribute. Falls back to the project default when the remembered code is not available. |
 
 ## What the project API must serve
 
@@ -94,9 +95,17 @@ GET /api/v1/organization/<project_id>/form-options
 blueprint and behind the same grant check as `/units`. Backed by four columns
 on `va_project_master` (`web_intake_default_locale`,
 `web_intake_available_locales`, `web_intake_narration_languages`,
-`web_intake_show_guidance`), set from the Projects admin panel
-(`app/templates/admin/panels/projects.html`) on both create and edit, and
-accepted by the project POST and PUT in `app/routes/admin.py`.
+`web_intake_show_guidance`), and accepted by the project POST and PUT in
+`app/routes/admin.py`.
+
+`available_locales` is the intersection of what the project stores and what
+the bundled instrument has translations for, never the `mas_languages` list.
+Three of the four columns are edited from the Projects admin panel
+(`app/templates/admin/panels/projects.html`): available languages, narration
+languages and guidance. The default locale is not exposed there — it is always
+`en` — and the panel builds its available-language checkboxes from
+`GET /admin/api/web-form-locales`, keeping `GET /admin/api/languages` for
+narration only.
 
 ```jsonc
 {
@@ -134,8 +143,17 @@ Notes on the shape:
   `abha_number` field display config. `intake_screen` and `death_summary` are
   omitted — nothing in the data model derives them yet.
 - `available_locales` is the intersection of what the project allows and what
-  the system has translations for. The form must tolerate a locale it has no
-  strings for by falling back, not by failing.
+  the bundled instrument has translations for. The form must tolerate a locale
+  it has no strings for by falling back, not by failing.
+
+### Adding a language
+
+Vendor an instrument bundle that carries the translations, then add the code to
+`INSTRUMENT_LOCALES` in `app/services/web_form_instruments.py`. The registry
+test (`tests/services/test_web_form_instruments.py`) reads the vendored bundle
+and fails until it really holds label translations for that code, so the
+registry cannot drift ahead of the bundle. Adding a row to `mas_languages` does
+*not* add a web form language; that list is for narration recordings.
 
 ## Open questions
 

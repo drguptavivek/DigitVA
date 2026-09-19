@@ -95,26 +95,22 @@
       <div class="border rounded p-2 mt-3">
         <div class="fw-semibold small mb-1">Web form languages</div>
         <div class="text-muted small mb-2">
-          Applies to the browser VA form only. Languages come from the Languages
-          panel; only active languages can be chosen.
+          Applies to the browser VA form only. English is always available; tick
+          the additional languages the questionnaire has translations for.
+          Narration languages come from the Languages panel.
         </div>
         <div id="project-web-intake-languages-error" class="text-danger small mb-2 d-none">
           Could not load languages.
         </div>
         <div class="row g-2 align-items-start">
-          <div class="col-sm-4">
-            <label class="form-label small mb-1" for="project-web-intake-default-locale-input">Default language</label>
-            <select class="form-select form-select-sm" id="project-web-intake-default-locale-input"></select>
-            <div class="form-text small">The language the form opens in.</div>
-          </div>
-          <div class="col-sm-4">
+          <div class="col-sm-6">
             <label class="form-label small mb-1">Language choice</label>
             <div class="form-check form-switch pt-2">
               <input class="form-check-input" type="checkbox" id="project-web-intake-all-locales-input" role="switch" checked>
-              <label class="form-check-label small" for="project-web-intake-all-locales-input">Offer every active language</label>
+              <label class="form-check-label small" for="project-web-intake-all-locales-input">Offer every questionnaire language</label>
             </div>
           </div>
-          <div class="col-sm-4">
+          <div class="col-sm-6">
             <label class="form-label small mb-1">Guidance</label>
             <div class="form-check form-switch pt-2">
               <input class="form-check-input" type="checkbox" id="project-web-intake-show-guidance-input" role="switch">
@@ -195,18 +191,14 @@
 
   var _projects = [];
   var _editingId = null;
-  // Active languages from /admin/api/languages. Stays null when that fetch
-  // fails, and every web-form-option field is then left out of the payload so
-  // a language-API outage cannot blank a project's stored settings.
+  // Active languages from /admin/api/languages — narration languages only.
   var _languages = null;
-
-  function languageName(code) {
-    if (!_languages) return code;
-    for (var i = 0; i < _languages.length; i++) {
-      if (_languages[i].language_code === code) return _languages[i].language_name;
-    }
-    return code;
-  }
+  // Web form display languages from /admin/api/web-form-locales: what the
+  // bundled questionnaire actually has translations for.
+  // Either stays null when its fetch fails, and every web-form-option field is
+  // then left out of the payload so an outage cannot blank a project's stored
+  // settings.
+  var _formLocales = null;
 
   function loadProjects() {
     var wrap = document.getElementById('project-table-wrap');
@@ -247,10 +239,6 @@
       var socialAutopsyEnabled = p.social_autopsy_enabled !== false;
       var reviewerSocialAutopsyEnabled = p.reviewer_social_autopsy_enabled !== false;
       var demoEnabled = !!p.demo_training_enabled;
-      var webLocaleLine = (_languages && p.web_intake_default_locale)
-        ? '<div class="text-muted" style="font-size:.75rem">Form: '
-          + esc(languageName(p.web_intake_default_locale)) + '</div>'
-        : '';
       var intakeLabel = p.coding_intake_mode === 'pick_and_choose'
         ? 'Pick and choose'
         : 'Random allocation';
@@ -286,7 +274,6 @@
         +   (socialAutopsyEnabled ? '<div><span class="badge text-bg-info mt-1">Coder SA On</span></div>' : '')
         +   (reviewerSocialAutopsyEnabled ? '<div><span class="badge text-bg-primary mt-1">Reviewer SA On</span></div>' : '')
         +   (demoEnabled ? '<div><span class="badge text-bg-warning mt-1">Demo / Training</span></div>' : '')
-        +   webLocaleLine
         + '</td>'
         + '<td class="align-middle py-2">'
         + (isActive
@@ -454,7 +441,6 @@
   var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
   var demoRetentionMinutesInput = document.getElementById('project-demo-retention-minutes-input');
-  var defaultLocaleInput = document.getElementById('project-web-intake-default-locale-input');
   var allLocalesInput = document.getElementById('project-web-intake-all-locales-input');
   var availableLocalesList = document.getElementById('project-web-intake-available-locales-list');
   var narrationLanguagesList = document.getElementById('project-web-intake-narration-languages-list');
@@ -467,29 +453,45 @@
   var AVAILABLE_LOCALE_CLASS = 'project-web-intake-available-locale';
   var NARRATION_LANGUAGE_CLASS = 'project-web-intake-narration-language';
 
-  function languageCheckHtml(cls, code, name) {
+  // 'en' is the questionnaire's base language: it is offered by every project
+  // and cannot be unticked, so its box is rendered checked and disabled.
+  var BASE_LOCALE = 'en';
+
+  function languageCheckHtml(cls, code, name, fixed) {
     var id = cls + '-' + esc(code);
     return '<div class="form-check form-check-inline">'
       + '<input class="form-check-input ' + cls + '" type="checkbox"'
-      + ' value="' + esc(code) + '" id="' + id + '">'
-      + '<label class="form-check-label small" for="' + id + '">' + esc(name) + '</label>'
+      + ' value="' + esc(code) + '" id="' + id + '"'
+      + (fixed ? ' checked disabled' : '') + '>'
+      + '<label class="form-check-label small" for="' + id + '">' + esc(name)
+      + (fixed ? ' <span class="text-muted">(always available)</span>' : '')
+      + '</label>'
       + '</div>';
   }
 
-  function renderLanguageInputs() {
-    var options = '';
-    var available = '';
-    var narration = '';
-    for (var i = 0; i < _languages.length; i++) {
-      var code = _languages[i].language_code;
-      var name = _languages[i].language_name;
-      options += '<option value="' + esc(code) + '">' + esc(name) + '</option>';
-      available += languageCheckHtml(AVAILABLE_LOCALE_CLASS, code, name);
-      narration += languageCheckHtml(NARRATION_LANGUAGE_CLASS, code, name);
+  function renderAvailableLocaleInputs() {
+    var html = '';
+    for (var i = 0; i < _formLocales.length; i++) {
+      var locale = _formLocales[i];
+      html += languageCheckHtml(
+        AVAILABLE_LOCALE_CLASS, locale.code, locale.label,
+        locale.code === BASE_LOCALE
+      );
     }
-    defaultLocaleInput.innerHTML = options;
-    availableLocalesList.innerHTML = available;
-    narrationLanguagesList.innerHTML = narration;
+    availableLocalesList.innerHTML = html;
+  }
+
+  function renderNarrationLanguageInputs() {
+    var html = '';
+    for (var i = 0; i < _languages.length; i++) {
+      html += languageCheckHtml(
+        NARRATION_LANGUAGE_CLASS,
+        _languages[i].language_code,
+        _languages[i].language_name,
+        false
+      );
+    }
+    narrationLanguagesList.innerHTML = html;
   }
 
   function boxes(container, cls) {
@@ -499,6 +501,8 @@
   function setTicked(container, cls, codes) {
     var all = boxes(container, cls);
     for (var i = 0; i < all.length; i++) {
+      // The base locale stays ticked whatever is stored.
+      if (cls === AVAILABLE_LOCALE_CLASS && all[i].value === BASE_LOCALE) continue;
       all[i].checked = codes.indexOf(all[i].value) !== -1;
     }
   }
@@ -512,41 +516,10 @@
     return out;
   }
 
-  function clearStaleLocaleOption() {
-    var stale = defaultLocaleInput.querySelector('option[data-stale="1"]');
-    if (stale) stale.parentNode.removeChild(stale);
-  }
-
-  function selectLocaleOption(code) {
-    var options = defaultLocaleInput.options;
-    for (var i = 0; i < options.length; i++) {
-      if (options[i].value === code) {
-        defaultLocaleInput.selectedIndex = i;
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function selectFirstLocaleOption() {
-    defaultLocaleInput.selectedIndex = defaultLocaleInput.options.length ? 0 : -1;
-  }
-
-  function addStaleLocaleOption(code) {
-    // The stored code is no longer active. Show it rather than silently
-    // switching the project to some other language behind the admin's back.
-    var option = document.createElement('option');
-    option.value = code;
-    option.textContent = code + ' (inactive)';
-    option.setAttribute('data-stale', '1');
-    defaultLocaleInput.appendChild(option);
-    defaultLocaleInput.value = code;
-  }
-
   function syncAvailableLocalesEnabled() {
     var all = boxes(availableLocalesList, AVAILABLE_LOCALE_CLASS);
     for (var i = 0; i < all.length; i++) {
-      all[i].disabled = allLocalesInput.checked;
+      all[i].disabled = allLocalesInput.checked || all[i].value === BASE_LOCALE;
     }
     if (allLocalesInput.checked) {
       availableLocalesList.classList.add('opacity-50');
@@ -558,24 +531,31 @@
   allLocalesInput.addEventListener('change', syncAvailableLocalesEnabled);
 
   function readWebIntakeOptions() {
-    if (!_languages) return null;
+    // Both catalogues must be in hand: a partially rendered form would send a
+    // narrowed list built from whichever fetch happened to succeed.
+    if (!_languages || !_formLocales) return null;
     var available = null;
     if (!allLocalesInput.checked) {
-      // Keep the stored list honest: the form always opens in the default
-      // locale, so it belongs in a narrowed list.
-      var all = boxes(availableLocalesList, AVAILABLE_LOCALE_CLASS);
-      for (var i = 0; i < all.length; i++) {
-        if (all[i].value === defaultLocaleInput.value) all[i].checked = true;
-      }
+      // The base locale is always offered, so it belongs in a narrowed list
+      // even though its box is disabled.
       available = tickedCodes(availableLocalesList, AVAILABLE_LOCALE_CLASS);
+      if (available.indexOf(BASE_LOCALE) === -1) {
+        available = [BASE_LOCALE].concat(available);
+      }
     }
     var narration = tickedCodes(narrationLanguagesList, NARRATION_LANGUAGE_CLASS);
     return {
-      web_intake_default_locale: defaultLocaleInput.value,
       web_intake_available_locales: available,
       web_intake_narration_languages: narration.length ? narration : null,
       web_intake_show_guidance: showGuidanceInput.checked
     };
+  }
+
+  // Either catalogue can arrive after an Edit form is already open; refill it
+  // from the project rather than wiping it back to create defaults.
+  function refillOpenWebIntakeForm() {
+    var editing = _editingId && _projects.find(function (p) { return p.project_id === _editingId; });
+    if (editing) fillWebIntakeInputs(editing); else resetWebIntakeInputs();
   }
 
   function loadLanguages() {
@@ -585,22 +565,28 @@
         return;
       }
       _languages = res.data.languages;
-      renderLanguageInputs();
-      // Languages can arrive after an Edit form is already open; refill it
-      // from the project rather than wiping it back to create defaults.
-      var editing = _editingId && _projects.find(function (p) { return p.project_id === _editingId; });
-      if (editing) fillWebIntakeInputs(editing); else resetWebIntakeInputs();
-      if (_projects.length) {
-        renderTable(document.getElementById('project-show-inactive').checked);
+      renderNarrationLanguageInputs();
+      refillOpenWebIntakeForm();
+    }).catch(function () {
+      languagesErrEl.classList.remove('d-none');
+    });
+  }
+
+  function loadFormLocales() {
+    apiJson('/admin/api/web-form-locales').then(function (res) {
+      if (!res.ok || !res.data || !res.data.locales) {
+        languagesErrEl.classList.remove('d-none');
+        return;
       }
+      _formLocales = res.data.locales;
+      renderAvailableLocaleInputs();
+      refillOpenWebIntakeForm();
     }).catch(function () {
       languagesErrEl.classList.remove('d-none');
     });
   }
 
   function resetWebIntakeInputs() {
-    clearStaleLocaleOption();
-    if (!selectLocaleOption('en')) selectFirstLocaleOption();
     allLocalesInput.checked = true;
     setTicked(availableLocalesList, AVAILABLE_LOCALE_CLASS, []);
     setTicked(narrationLanguagesList, NARRATION_LANGUAGE_CLASS, []);
@@ -609,12 +595,6 @@
   }
 
   function fillWebIntakeInputs(project) {
-    clearStaleLocaleOption();
-    var storedLocale = project.web_intake_default_locale;
-    if (!selectLocaleOption(storedLocale)) {
-      if (storedLocale) addStaleLocaleOption(storedLocale);
-      else selectFirstLocaleOption();
-    }
     var storedAvailable = project.web_intake_available_locales;
     allLocalesInput.checked = (storedAvailable === null || storedAvailable === undefined);
     setTicked(availableLocalesList, AVAILABLE_LOCALE_CLASS, storedAvailable || []);
@@ -720,20 +700,8 @@
       return;
     }
 
-    if (_languages && !allLocalesInput.checked
-        && !tickedCodes(availableLocalesList, AVAILABLE_LOCALE_CLASS).length) {
-      errEl.textContent = 'Tick at least one available language, or offer every active language.';
-      return;
-    }
-    var selectedLocale = defaultLocaleInput.options[defaultLocaleInput.selectedIndex];
-    if (_languages && selectedLocale && selectedLocale.getAttribute('data-stale') === '1') {
-      errEl.textContent = 'Default language "' + selectedLocale.value
-        + '" is not an active language. Pick one from the list.';
-      return;
-    }
     var webIntakeOptions = readWebIntakeOptions();
     if (webIntakeOptions) {
-      data.web_intake_default_locale = webIntakeOptions.web_intake_default_locale;
       data.web_intake_available_locales = webIntakeOptions.web_intake_available_locales;
       data.web_intake_narration_languages = webIntakeOptions.web_intake_narration_languages;
       data.web_intake_show_guidance = webIntakeOptions.web_intake_show_guidance;
@@ -755,6 +723,7 @@
   // ── init ──────────────────────────────────────────────────────────────────
 
   loadLanguages();
+  loadFormLocales();
   loadProjects();
 
 }());

@@ -1939,3 +1939,32 @@ class AdminApiTests(BaseTestCase):
             )
         )
         self.assertFalse(_is_interrupted_sync_error("Cancelled by admin."))
+
+
+class AdminWebFormLocalesApiTests(BaseTestCase):
+    """GET /admin/api/web-form-locales — the bundled questionnaire's languages.
+
+    Separate from /admin/api/languages on purpose: that endpoint is
+    ``mas_languages``, which describes narration recordings, while this one is
+    what the browser VA form can actually render.
+    Policy: docs/policy/va-web-form-options.md.
+    """
+
+    URL = "/admin/api/web-form-locales"
+
+    def test_admin_gets_the_base_locale_first(self):
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self.URL)
+
+        self.assertEqual(response.status_code, 200)
+        locales = response.get_json()["locales"]
+        self.assertEqual(locales[0], {"code": "en", "label": "English"})
+
+    def test_project_pi_is_refused(self):
+        self._login(self.base_project_pi_id)
+
+        self.assertEqual(self.client.get(self.URL).status_code, 403)
+
+    def test_anonymous_is_refused(self):
+        self.assertEqual(self.client.get(self.URL).status_code, 401)

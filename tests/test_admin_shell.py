@@ -129,8 +129,11 @@ class AdminPanelRoutingTests(BaseTestCase):
     def test_projects_panel_renders_the_web_form_language_inputs(self):
         """The tier-2 web form options are editable from the Projects panel.
 
-        docs/policy/va-web-form-options.md: the four columns are set from here,
-        and the language choices come from the admin languages API.
+        docs/policy/va-web-form-options.md: three of the four columns are set
+        from here. The available web form languages come from the bundled
+        questionnaire (/admin/api/web-form-locales) and the narration languages
+        from mas_languages (/admin/api/languages). There is no per-project
+        default locale to edit — it is always "en".
         """
         self._login(self.base_admin_id)
 
@@ -139,15 +142,16 @@ class AdminPanelRoutingTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         body = response.get_data(as_text=True)
         for marker in (
-            "project-web-intake-default-locale-input",
             "project-web-intake-all-locales-input",
             "project-web-intake-available-locales-list",
             "project-web-intake-narration-languages-list",
             "project-web-intake-show-guidance-input",
+            "/admin/api/web-form-locales",
             "/admin/api/languages",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, body)
+        self.assertNotIn("project-web-intake-default-locale-input", body)
 
     def test_panel_response_is_html_fragment(self):
         """Panel responses must be HTML, not JSON — they are HTMX targets."""

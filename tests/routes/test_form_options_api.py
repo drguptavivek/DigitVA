@@ -182,7 +182,7 @@ class FormOptionsApiTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.project = db.session.get(VaProjectMaster, self.PROJECT)
-        self.project.web_intake_default_locale = "fopt_en"
+        self.project.web_intake_default_locale = "en"
         self.project.web_intake_available_locales = None
         self.project.web_intake_narration_languages = None
         self.project.web_intake_show_guidance = False
@@ -283,18 +283,64 @@ class FormOptionsApiTests(BaseTestCase):
 
     # -- locales ------------------------------------------------------------
 
-    def test_null_available_locales_means_every_active_language(self):
+    def test_null_available_locales_means_every_instrument_locale(self):
+        """NULL offers what the bundled questionnaire has, not ``mas_languages``.
+
+        Today the WHO 2022 bundle carries English only, so an active language
+        row is *not* enough to make a code a web form language.
+        """
         self._login(str(self.granted_user.user_id))
         payload = self.client.get(self.URL).get_json()
-        codes = {entry["code"] for entry in payload["available_locales"]}
-        self.assertIn("fopt_en", codes)
-        self.assertIn("fopt_hi", codes)
-        self.assertNotIn("fopt_old", codes)
-        self.assertIn(payload["default_locale"], codes)
-        labels = {e["code"]: e["label"] for e in payload["available_locales"]}
-        self.assertEqual(labels["fopt_hi"], "Form Options Hindi")
+        self.assertEqual(
+            payload["available_locales"], [{"code": "en", "label": "English"}]
+        )
+        self.assertEqual(payload["default_locale"], "en")
 
-    def test_inactive_stored_default_falls_back_and_still_appears(self):
+    def test_default_locale_is_en_with_no_matching_language_row(self):
+        """The form opens in ``en`` even though no ``mas_languages`` row says so.
+
+        This is the bug the 2026-09-19 decision fixes: ``mas_languages`` on a
+        seeded install holds ``english``/``hindi``, never ``en``, and the old
+        resolver read that as "``en`` is not a language" and opened the form in
+        whichever code sorted first.
+        """
+        self.assertIsNone(
+            db.session.get(MasLanguages, "en"),
+            "fixture guard: this test is about there being no 'en' row",
+        )
+        self._login(str(self.granted_user.user_id))
+        payload = self.client.get(self.URL).get_json()
+        self.assertEqual(payload["default_locale"], "en")
+
+    def test_stored_codes_the_instrument_cannot_render_are_dropped(self):
+        """Positive control first: the base locale survives, ``zz`` does not."""
+        self.project.web_intake_available_locales = ["en"]
+        db.session.commit()
+        self._login(str(self.granted_user.user_id))
+        self.assertEqual(
+            self.client.get(self.URL).get_json()["available_locales"],
+            [{"code": "en", "label": "English"}],
+        )
+
+        self.project.web_intake_available_locales = ["zz"]
+        db.session.commit()
+        self.assertEqual(
+            self.client.get(self.URL).get_json()["available_locales"],
+            [{"code": "en", "label": "English"}],
+        )
+
+    def test_a_stored_list_of_language_codes_serves_only_the_base_locale(self):
+        """``mas_languages`` codes are narration codes; the screen cannot use them."""
+        self.project.web_intake_available_locales = ["fopt_en", "fopt_hi"]
+        db.session.commit()
+
+        self._login(str(self.granted_user.user_id))
+        payload = self.client.get(self.URL).get_json()
+        self.assertEqual(
+            payload["available_locales"], [{"code": "en", "label": "English"}]
+        )
+
+    def test_a_stored_default_the_instrument_lacks_resolves_to_en(self):
         self.project.web_intake_default_locale = "fopt_old"
         self.project.web_intake_available_locales = ["fopt_hi"]
         db.session.commit()
@@ -303,7 +349,7 @@ class FormOptionsApiTests(BaseTestCase):
         response = self.client.get(self.URL)
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["default_locale"], "fopt_hi")
+        self.assertEqual(payload["default_locale"], "en")
         self.assertIn(
             payload["default_locale"],
             {entry["code"] for entry in payload["available_locales"]},
@@ -375,48 +421,73 @@ class FormOptionsAdminEditingTests(BaseTestCase):
 
     def test_put_sets_the_four_web_intake_form_option_fields(self):
         response = self._put({
-            "web_intake_default_locale": "fopt2_hi",
-            "web_intake_available_locales": ["fopt2_en", "fopt2_hi"],
+            "web_intake_default_locale": "en",
+            "web_intake_available_locales": ["en"],
             "web_intake_narration_languages": ["fopt2_hi"],
             "web_intake_show_guidance": True,
         })
         self.assertEqual(response.status_code, 200, response.get_json())
         project = response.get_json()["project"]
-        self.assertEqual(project["web_intake_default_locale"], "fopt2_hi")
-        self.assertEqual(
-            project["web_intake_available_locales"], ["fopt2_en", "fopt2_hi"]
-        )
+        self.assertEqual(project["web_intake_default_locale"], "en")
+        self.assertEqual(project["web_intake_available_locales"], ["en"])
         self.assertEqual(project["web_intake_narration_languages"], ["fopt2_hi"])
         self.assertTrue(project["web_intake_show_guidance"])
 
-    def test_put_rejects_an_inactive_default_locale(self):
-        response = self._put({"web_intake_default_locale": "fopt2_old"})
-        self.assertEqual(response.status_code, 400)
+    def test_put_takes_the_base_locale_and_rejects_a_language_code(self):
+        """Positive control first, so the rejection is not a broken payload."""
+        self.assertEqual(
+            self._put({"web_intake_default_locale": "en"}).status_code, 200
+        )
+        self.assertEqual(
+            self._put({"web_intake_default_locale": "fopt2_hi"}).status_code, 400
+        )
+        self.assertEqual(
+            self._put({"web_intake_default_locale": "fopt2_old"}).status_code, 400
+        )
 
-    def test_put_rejects_an_inactive_code_in_a_list(self):
-        response = self._put({"web_intake_available_locales": ["fopt2_old"]})
+    def test_put_rejects_an_untranslated_code_in_the_available_list(self):
+        """An active ``mas_languages`` code is still not a web form language."""
+        self.assertEqual(
+            self._put({"web_intake_available_locales": ["en"]}).status_code, 200
+        )
+
+        response = self._put({"web_intake_available_locales": ["fopt2_hi"]})
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.get_json()["error"],
+            "web_intake_available_locales contains languages the questionnaire "
+            "has no translations for: fopt2_hi.",
+        )
+
+    def test_put_accepts_an_active_narration_language_and_rejects_a_retired_one(self):
+        self.assertEqual(
+            self._put({"web_intake_narration_languages": ["fopt2_hi"]}).status_code,
+            200,
+        )
+        response = self._put({"web_intake_narration_languages": ["fopt2_old"]})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("inactive language codes", response.get_json()["error"])
 
     def test_put_rejects_a_non_list_locale_field_and_keeps_the_stored_value(self):
         self.assertEqual(
-            self._put({"web_intake_available_locales": ["fopt2_en"]}).status_code, 200
+            self._put({"web_intake_available_locales": ["en"]}).status_code, 200
         )
         db.session.expire_all()
         self.assertEqual(
             db.session.get(VaProjectMaster, self.PROJECT).web_intake_available_locales,
-            ["fopt2_en"],
+            ["en"],
         )
 
-        response = self._put({"web_intake_available_locales": "fopt2_hi"})
+        response = self._put({"web_intake_available_locales": "en"})
         self.assertEqual(response.status_code, 400)
         db.session.expire_all()
         self.assertEqual(
             db.session.get(VaProjectMaster, self.PROJECT).web_intake_available_locales,
-            ["fopt2_en"],
+            ["en"],
         )
 
     def test_put_rejects_a_list_holding_a_non_string(self):
-        response = self._put({"web_intake_available_locales": ["fopt2_en", 7]})
+        response = self._put({"web_intake_available_locales": ["en", 7]})
         self.assertEqual(response.status_code, 400)
 
     def test_empty_narration_list_stores_empty_and_disables_the_extension(self):
@@ -493,8 +564,8 @@ class FormOptionsAdminCreationTests(BaseTestCase):
     def test_post_creates_a_project_with_the_four_web_intake_form_option_fields(self):
         payload = self._base_payload(self.PROJECT)
         payload.update({
-            "web_intake_default_locale": "fopt5_hi",
-            "web_intake_available_locales": ["fopt5_en", "fopt5_hi"],
+            "web_intake_default_locale": "en",
+            "web_intake_available_locales": ["en"],
             "web_intake_narration_languages": ["fopt5_hi"],
             "web_intake_show_guidance": True,
         })
@@ -502,33 +573,29 @@ class FormOptionsAdminCreationTests(BaseTestCase):
         self.assertEqual(response.status_code, 201, response.get_json())
 
         served = response.get_json()["project"]
-        self.assertEqual(served["web_intake_default_locale"], "fopt5_hi")
-        self.assertEqual(
-            served["web_intake_available_locales"], ["fopt5_en", "fopt5_hi"]
-        )
+        self.assertEqual(served["web_intake_default_locale"], "en")
+        self.assertEqual(served["web_intake_available_locales"], ["en"])
         self.assertEqual(served["web_intake_narration_languages"], ["fopt5_hi"])
         self.assertTrue(served["web_intake_show_guidance"])
 
         db.session.expire_all()
         stored = db.session.get(VaProjectMaster, self.PROJECT)
         self.assertIsNotNone(stored)
-        self.assertEqual(stored.web_intake_default_locale, "fopt5_hi")
-        self.assertEqual(
-            stored.web_intake_available_locales, ["fopt5_en", "fopt5_hi"]
-        )
+        self.assertEqual(stored.web_intake_default_locale, "en")
+        self.assertEqual(stored.web_intake_available_locales, ["en"])
         self.assertEqual(stored.web_intake_narration_languages, ["fopt5_hi"])
         self.assertTrue(stored.web_intake_show_guidance)
 
-    def test_post_rejects_an_inactive_locale_and_creates_nothing(self):
+    def test_post_rejects_an_untranslated_locale_and_creates_nothing(self):
         """Positive control first, so the absence assertion is not vacuous."""
         control = self._base_payload("FOPT06")
-        control["web_intake_default_locale"] = "fopt5_en"
+        control["web_intake_default_locale"] = "en"
         self.assertEqual(self._post(control).status_code, 201)
         db.session.expire_all()
         self.assertIsNotNone(db.session.get(VaProjectMaster, "FOPT06"))
 
         payload = self._base_payload(self.PROJECT)
-        payload["web_intake_default_locale"] = "fopt5_old"
+        payload["web_intake_default_locale"] = "fopt5_hi"
         response = self._post(payload)
         self.assertEqual(response.status_code, 400)
 

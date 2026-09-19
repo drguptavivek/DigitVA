@@ -1,8 +1,8 @@
 # Handoff
 
-Updated 2026-09-19 (projects-panel session). The projects-panel inputs for
-the four web form options landed on top of `85ca0ef`; `origin/main` is at
-the commit that updated this file, working tree clean.
+Updated 2026-09-19 (projects-panel session). The projects-panel inputs
+(`5b22094`) and the instrument-locale rule landed on top of `85ca0ef`;
+`origin/main` is at the commit that updated this file, working tree clean.
 
 ## What landed
 
@@ -23,14 +23,15 @@ the commit that updated this file, working tree clean.
 | `10d38c8` | Fifteen migrations importing MV builders pinned; any new application import in a migration fails the suite |
 | `705021e` | Closed projects resolve no grant of any scope; one shared predicate in twelve resolvers plus the redaction check |
 | `1369c0e` | Form types are layers on the standard instrument; intake resolves `instrument_code`, so `WHO_2022_VA_SOCIAL` renders |
-| (this session) | Projects admin panel reads and writes the four `web_intake_*` form options; project POST accepts them through the same validator as the PUT. No migration. |
+| `5b22094` | Projects admin panel reads and writes the four `web_intake_*` form options; project POST accepts them through the same validator as the PUT. No migration. |
+| (this session) | Web form locale is `en` everywhere plus what the instrument has translations for (`app/services/web_form_instruments.py`); interviewer picks a working language, remembered in the browser. No migration. |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4 -> f2a9c4d7e1b3`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,453 passed after the projects-panel inputs (1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite 1,464 passed after the instrument-locale rule (1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -64,22 +65,11 @@ consequence is the `WHO_2022_VA_SOCIAL` instrument.
 The ranked list from the start of 2026-09-19 is exhausted, and the
 projects-panel inputs are in (section below). Open, in order:
 
-1. **`digitva-4ym` (P1, needs a domain decision): the web form locale codes
-   do not exist.** `web_intake_default_locale` defaults to `en` (model and
-   migration `f2a9c4d7e1b3`), but `flask seed run` creates `mas_languages`
-   codes `english`, `hindi`, ... So on every seeded deployment the resolver
-   in `app/routes/api/organization.py` logs "`en` is not an active language"
-   and falls back to the first active code: verified on dev, every project's
-   web form opens with `locale="assamese"`. The projects panel now shows
-   `en (inactive)` and refuses Save until an admin picks an active code,
-   which makes the problem visible rather than hiding it. The deeper
-   question: the WHO VA component's `locale` attribute wants instrument
-   locale codes (the bundle names its language `English (en)`), while
-   `mas_languages` codes exist for narration-language alias mapping. Either
-   `mas_languages` gains a locale code the resolver serves, or the seed and
-   default agree on one code set. Do not patch the seed to `en` without
-   deciding, because `va_users.vacode_language` and 8,223 submissions carry
-   the long codes.
+1. `digitva-4ym` is closed (section below). Left open by it: no bundled
+   language other than `en` exists yet, so the picker never shows; and the
+   dev database's projects still store `mas_languages` codes in
+   `web_intake_available_locales` from before, which the resolver drops
+   silently.
 2. `project_pi` is the only grant predicate that queries
    (`.tasks/auth-decorator-followups.md` item 3).
 3. The `base_instrument_code` column when a second standard instrument is
@@ -87,6 +77,36 @@ projects-panel inputs are in (section below). Open, in order:
 
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
+
+## Web form locale is `en` plus the instrument's translations (landed this session)
+
+Decided by the owner 2026-09-19 after the projects panel exposed the
+problem: `web_intake_default_locale` defaulted to `en` while the seed creates
+`mas_languages` codes `english`, `hindi`, ..., so on every seeded deployment
+the resolver fell back to the first active code and dev's forms opened in
+`assamese`. The rule now: **`en` is the default on every project and always
+available; a project adds languages from what the bundled instrument
+actually has translations for; the interviewer picks a working language on
+the intake page and the browser remembers the last choice.** Narration
+languages stay on `mas_languages`, because they describe the recording, not
+the screen. The instrument's locales are an explicit registry,
+`INSTRUMENT_LOCALES` in `app/services/web_form_instruments.py` (today
+`WHO_2022_VA: {en}`), pinned to the vendored bundle by
+`tests/services/test_web_form_instruments.py`, which greps the bundle for
+`label:{<code>:` with positive and negative controls; there is no vendoring
+script, so the registry is hand-maintained and the test is what keeps it
+honest. The stored default column stays and is honoured only when it names
+an instrument locale. The PUT/POST validate `available_locales` against the
+registry and narration against `mas_languages`. `GET
+/admin/api/web-form-locales` (admin) feeds the panel's available-languages
+list, where `en` is ticked and disabled; the per-project default select is
+gone. The intake page sets the component's `locale` attribute from
+`localStorage` key `digitva.intake.locale` when the code is in the project's
+list, else the default, and renders a picker only when more than one locale
+is available; the component re-renders on the attribute change. Both JS
+surfaces were exercised in jsdom (panel 21 checks, intake 9 including
+blocked `localStorage`); the harness is in the session scratchpad, not the
+repo.
 
 ## Projects panel inputs for the web form options (landed this session)
 

@@ -260,14 +260,19 @@ class IntakeApiTests(BaseTestCase):
         Contract: docs/policy/va-web-form-options.md. The locale used to be
         hardcoded ``"en"`` in the template; it now comes from
         ``/api/v1/organization/<project_id>/form-options``, which the page can
-        only call because the draft JSON carries ``project_id``.
+        only call because the draft JSON carries ``project_id``, narrowed by
+        the interviewer's own remembered choice.
         """
         self._login(self.interviewer_id)
         draft = self._start_draft()
         body = self.client.get(f"/intake/form/{draft['draft_id']}").get_data(as_text=True)
 
         self.assertNotIn('setAttribute("locale", "en")', body)
-        self.assertIn('setAttribute("locale", options.default_locale)', body)
+        self.assertIn('setAttribute("locale", workingLocale(options))', body)
+        # The working language is chosen from what the project serves and
+        # remembered per browser, never stored server-side.
+        self.assertIn("options.available_locales", body)
+        self.assertIn('"digitva.intake.locale"', body)
         # The per-section autosave map must follow the selected instrument too,
         # or a second INSTRUMENTS entry would be split by WHO 2022's sections.
         self.assertNotIn("const instrument = WhoVa.whoVa2022Instrument", body)

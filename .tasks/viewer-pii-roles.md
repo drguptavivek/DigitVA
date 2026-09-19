@@ -251,11 +251,47 @@ the viewer roles as delivered until that is done.**
    safely without dedicated review, and unreachable by collaborator today.
    **This must be done as part of wiring collaborator access, not after.**
 
-2. **`dm_coded_cod_snapshot_export_csv`** — emits `narrative_text`,
-   `coder_name`, `reviewer_name`, `active_coder_assigned_name` and
-   `active_reviewer_assigned_name` as plain columns with no redaction of any
-   kind. Harmless today (only data managers reach it); a leak the moment
-   collaborators are wired in.
+2. ~~**`dm_coded_cod_snapshot_export_csv`**~~ — closed 2026-09-19, together
+   with two more of the same shape found while closing it:
 
-Both are gated on the same event. Whoever wires collaborator access owns
-closing them at the same time, or the wiring itself creates the leak.
+   - `dm_coded_cod_snapshot_export_csv` — `coder_name`, `reviewer_name`,
+     `nqa_name`, `social_autopsy_name`, `active_coder_assigned_name`,
+     `active_reviewer_assigned_name`
+   - `dm_submissions_export_csv` — the `*_by` user ids: `dm_review_by`,
+     `initial_assess_by`, `coder_review_by`, `reviewer_review_by`,
+     `final_assess_by`, `reviewer_final_assess_by`
+   - `dm_coder_daily_statistics` — every row is a named coder and their
+     throughput, so a redacted viewer gets **no rows**. Blanking the name
+     would leave `coder_id` as a stable per-person key across days, which is
+     the same disclosure by another route
+
+   All three route through `should_redact_pii`; the columns are emptied, not
+   dropped, because the submissions export documents that downstream
+   consumers depend on its column offsets.
+
+   The three SmartVA exports (`input`, `results`, `likelihoods`) were checked
+   at the same time and have no gap: they emit no staff-identity column, and
+   the input export's payload already passes through `_filter_export_payload`.
+
+   **`narrative_text` is a BLOCKER on wiring the snapshot export to viewers,
+   not a leftover.** Do not grant `collaborator` that export until it is
+   resolved. It is the free-text death narrative and routinely carries the
+   names of the deceased, the respondent and the attending clinician, in
+   prose, where no field-level flag reaches them.
+
+   It is deliberately NOT in `COD_SNAPSHOT_STAFF_IDENTITY_HEADERS`: it is
+   subject personal data governed by `is_pii` on the payload field, not staff
+   identity, and filing it under a staff-identity name would hand the next
+   reader a category error. It is also unredacted everywhere else —
+   `dm_submissions_export_csv` ships the same narrative to every role today —
+   so redacting it on one export alone is an inconsistent half-change.
+
+   The failure this wording exists to prevent: the staff columns now look
+   handled, so the export reads as safe to widen, and a plain viewer gets the
+   deceased's name in free text on the first row. Recorded as a blocker
+   rather than an open item because an open item reads as deferrable
+   tidy-up.
+
+Surface 1 is still open and still gated on the wiring event. Whoever wires
+collaborator access owns closing it at the same time, or the wiring itself
+creates the leak.

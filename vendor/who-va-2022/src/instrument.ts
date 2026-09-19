@@ -116,7 +116,8 @@ export function createWhoVa2022Instrument(enabledExtensions: ReadonlySet<string>
       ...withDeceased.slice(0, narrativeIndex + 1),
       ...digitva.narrativeQuestions,
       ...withDeceased.slice(narrativeIndex + 1),
-      ...digitva.documentQuestions
+      ...digitva.documentQuestions,
+      ...digitva.socialAutopsyQuestions
     ]
   };
 }

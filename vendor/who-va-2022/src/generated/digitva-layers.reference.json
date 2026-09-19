@@ -20,6 +20,33 @@
     },
     {
       "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "YES_NO_DK/DK",
+      "itemKind": "choice",
+      "text": "Doesn't Know"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "YES_NO_DK/no",
+      "itemKind": "choice",
+      "text": "No"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "YES_NO_DK/yes",
+      "itemKind": "choice",
+      "text": "Yes"
+    },
+    {
+      "extensions": [
         "narration_language"
       ],
       "field": "label",
@@ -71,6 +98,402 @@
       "itemKey": "language/marathi",
       "itemKind": "choice",
       "text": "Marathi"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu/days",
+      "itemKind": "choice",
+      "text": "Days"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu/hours",
+      "itemKind": "choice",
+      "text": "Hours"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu/minutes",
+      "itemKind": "choice",
+      "text": "Minutes"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu/na",
+      "itemKind": "choice",
+      "text": "Not Applicable"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas01/1",
+      "itemKind": "choice",
+      "text": "Private Cashless"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas01/2",
+      "itemKind": "choice",
+      "text": "Private Reimbursement"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas01/3",
+      "itemKind": "choice",
+      "text": "Ayushman Bharat"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas01/4",
+      "itemKind": "choice",
+      "text": "State/Central Government"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas01/5",
+      "itemKind": "choice",
+      "text": "Employee based(ESI/CGHS/Others)"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas01/6",
+      "itemKind": "choice",
+      "text": "None"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas02/1",
+      "itemKind": "choice",
+      "text": "Died very soon"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas02/2",
+      "itemKind": "choice",
+      "text": "Financial barrier"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas02/3",
+      "itemKind": "choice",
+      "text": "Lack of transport"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas02/4",
+      "itemKind": "choice",
+      "text": "Lack of people to help"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas02/5",
+      "itemKind": "choice",
+      "text": "Health facility too far"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas02/6",
+      "itemKind": "choice",
+      "text": "Others"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas03/1",
+      "itemKind": "choice",
+      "text": "Home visit by physician"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas03/2",
+      "itemKind": "choice",
+      "text": "Individual Practitioner"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas03/3",
+      "itemKind": "choice",
+      "text": "Small hospital"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas03/4",
+      "itemKind": "choice",
+      "text": "Medium Hospital"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas03/5",
+      "itemKind": "choice",
+      "text": "Large hospital (Government/private medical colleges)"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas03/6",
+      "itemKind": "choice",
+      "text": "Others"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas04/1",
+      "itemKind": "choice",
+      "text": "Home"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas04/2",
+      "itemKind": "choice",
+      "text": "HCF"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas04/3",
+      "itemKind": "choice",
+      "text": "In transit"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas04/4",
+      "itemKind": "choice",
+      "text": "Others"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/1",
+      "itemKind": "choice",
+      "text": "Govt Ambulance"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/2",
+      "itemKind": "choice",
+      "text": "Non- Govt Ambulance"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/3",
+      "itemKind": "choice",
+      "text": "Own Motor Vehicle"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/4",
+      "itemKind": "choice",
+      "text": "Own non-motor vehicle"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/5",
+      "itemKind": "choice",
+      "text": "Hired Motor Vehicle"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/6",
+      "itemKind": "choice",
+      "text": "Hired non-motor vehicle"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/7",
+      "itemKind": "choice",
+      "text": "Physically carried"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas05/8",
+      "itemKind": "choice",
+      "text": "Others"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas06/1",
+      "itemKind": "choice",
+      "text": "Govt Ambulance"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas06/2",
+      "itemKind": "choice",
+      "text": "Non- Govt Ambulance"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas06/3",
+      "itemKind": "choice",
+      "text": "Own Motor Vehicle"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas06/4",
+      "itemKind": "choice",
+      "text": "Own non-motor vehicle"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas06/5",
+      "itemKind": "choice",
+      "text": "Physically carried"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas06/6",
+      "itemKind": "choice",
+      "text": "Not Applicable"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas07/1",
+      "itemKind": "choice",
+      "text": "Lack of facility"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas07/2",
+      "itemKind": "choice",
+      "text": "Specialist not available"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas07/3",
+      "itemKind": "choice",
+      "text": "Financial constraints"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sas07/4",
+      "itemKind": "choice",
+      "text": "Patient/family decision"
     },
     {
       "extensions": [
@@ -216,6 +639,15 @@
       "itemKey": "ds_im5",
       "itemKind": "question",
       "text": "Death Document Image 05"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "eventchronology",
+      "itemKind": "question",
+      "text": "Event Chronology"
     },
     {
       "extensions": [
@@ -531,6 +963,330 @@
       "itemKey": "narr_language",
       "itemKind": "question",
       "text": "Narration language"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "reachinghealthcare",
+      "itemKind": "question",
+      "text": "Reaching health care facility (HCF)"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa01",
+      "itemKind": "question",
+      "text": "1. Did the deceased have any health insurance?"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa02",
+      "itemKind": "question",
+      "text": "3. Was any health care sought for the illness that led to death?"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa03",
+      "itemKind": "question",
+      "text": "4. If No health care was sought or treatment provided as per the advise, what were the reasons for the same?"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa04",
+      "itemKind": "question",
+      "text": "4.1 Please specify the other reasons"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "hint",
+      "itemKey": "sa05",
+      "itemKind": "question",
+      "text": "Note:\nSmall Hospital(small nursing homes & clinics; <30 beds)\nMedium Hospital (polyclinics; 30-200 beds)\nLarge Hospital (corporate hospitals, Government/private medical colleges; ≥ 200 beds)"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa05",
+      "itemKind": "question",
+      "text": "5. If yes, type of first consultation"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa05_a",
+      "itemKind": "question",
+      "text": "5.1 Please specify the other type of first consultation"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa06",
+      "itemKind": "question",
+      "text": "2. Place of death"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa06_a",
+      "itemKind": "question",
+      "text": "2.1 Please specify the other place of death"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa07",
+      "itemKind": "question",
+      "text": "6. What transport was used to reach HCF from home"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa07_a",
+      "itemKind": "question",
+      "text": "6.1 Please specify the other transport used to reach HCF from home"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa08",
+      "itemKind": "question",
+      "text": "11. In case of referral to higher center, transport used"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa09",
+      "itemKind": "question",
+      "text": "7. How many HCF did you take the patient"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa10",
+      "itemKind": "question",
+      "text": "8. Was the patient referred to another health facility?"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa11",
+      "itemKind": "question",
+      "text": "9. What was the reason for referral?"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa12",
+      "itemKind": "question",
+      "text": "10. Did the patient go to the referred institution?"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa13",
+      "itemKind": "question",
+      "text": "12.1. Enter the time taken to make the decision to seek healthcare (in ${sa_tu13})"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa14",
+      "itemKind": "question",
+      "text": "13.1. Enter the time taken to make transport arrangement (in ${sa_tu14})"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa15",
+      "itemKind": "question",
+      "text": "14.1. Enter the time taken to reach first HCF/physician consultation (in ${sa_tu15})"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa16",
+      "itemKind": "question",
+      "text": "15.1. Enter the time taken for the doctor to attend the patient (in ${sa_tu16})"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa17",
+      "itemKind": "question",
+      "text": "16.1. Enter the time taken for the initiation of the treatment or referral to higher center (in ${sa_tu17})"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa18",
+      "itemKind": "question",
+      "text": "17.1. Enter the time taken to reach the HCF where he/she died  (in ${sa_tu18})"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "hint",
+      "itemKey": "sa19",
+      "itemKind": "question",
+      "text": "Please enter the total duration from the time the decision to seek healthcare was made until the time of death (in ${sa_tu19})."
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa19",
+      "itemKind": "question",
+      "text": "18.1. Time of Death (in ${sa_tu19})"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_note",
+      "itemKind": "question",
+      "text": "Take the first onset of sign/symptom as “zero”. Please give the time taken for each of the following action points."
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu13",
+      "itemKind": "question",
+      "text": "12. Time taken to make the decision to seek healthcare"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu14",
+      "itemKind": "question",
+      "text": "13. Time taken to make transport arrangement"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu15",
+      "itemKind": "question",
+      "text": "14. Time taken to reach first HCF/physician consultant"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu16",
+      "itemKind": "question",
+      "text": "15. Time taken for the doctor to attend the patient"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu17",
+      "itemKind": "question",
+      "text": "16. Time taken for the initiation of the treatment or referral to higher center"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu18",
+      "itemKind": "question",
+      "text": "17. Time taken to reach the HCF where he/she died"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "hint",
+      "itemKey": "sa_tu19",
+      "itemKind": "question",
+      "text": "Please mention the total duration from the time the decision to seek healthcare was made until the time of death."
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "sa_tu19",
+      "itemKind": "question",
+      "text": "18. Unit for Time of Death"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "socialautopsy",
+      "itemKind": "question",
+      "text": "Social Autopsy Questionnaire"
+    },
+    {
+      "extensions": [
+        "social_autopsy"
+      ],
+      "field": "label",
+      "itemKey": "socioeconomic",
+      "itemKind": "question",
+      "text": "Socio Economic Details"
     }
   ],
   "extensionCounts": {
@@ -570,9 +1326,9 @@
       "sections": 0
     },
     "social_autopsy": {
-      "choices": 0,
-      "questions": 0,
-      "sections": 0
+      "choices": 47,
+      "questions": 30,
+      "sections": 4
     }
   },
   "schemaVersion": 2,

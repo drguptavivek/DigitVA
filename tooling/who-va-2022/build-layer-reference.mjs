@@ -151,6 +151,14 @@ export function buildEntries({ questionAttribution, sectionAttribution, composed
   const questionsByName = new Map(composedAll.questions.map((q) => [q.name, q]));
   const sectionsByName = new Map(composedAll.sections.map((s) => [s.name, s]));
   const entries = [];
+  // A choice list can be reused across more than one question attributed to
+  // the same layer (e.g. social_autopsy's `sa_tu` on sa_tu13..sa_tu19, or
+  // `YES_NO_DK` on sa10/sa12): key by (itemKind, itemKey, field) so the
+  // second question referencing the same list/value contributes its
+  // extensions to the existing entry instead of pushing a second, duplicate
+  // one -- which would collide with itself once merged in Python's
+  // reference_items().
+  const choiceEntriesByKey = new Map();
 
   for (const [name, extensions] of sectionAttribution) {
     assertNoDot("Section name", name, "digitva-extension.ts");
@@ -181,8 +189,28 @@ export function buildEntries({ questionAttribution, sectionAttribution, composed
         assertChoiceLabelMatchesBase(question.listName, choice.value, text, baseChoices.get(key));
         continue;
       }
-      if (text) entries.push({ itemKind: "choice", itemKey: key, field: "label", extensions: extensionList, text });
+      if (!text) continue;
+      const existing = choiceEntriesByKey.get(key);
+      if (existing) {
+        if (existing.text !== text) {
+          throw new Error(
+            `Choice ${JSON.stringify(key)} is authored with two different labels across questions ` +
+              `sharing its list (${JSON.stringify(existing.text)} vs ${JSON.stringify(text)}).`
+          );
+        }
+        for (const extension of extensions) existing.extensions.add(extension);
+        continue;
+      }
+      const entry = { itemKind: "choice", itemKey: key, field: "label", extensions: new Set(extensions), text };
+      choiceEntriesByKey.set(key, entry);
+      entries.push(entry);
     }
+  }
+
+  // Freeze each choice entry's accumulated extension set into the same
+  // sorted array shape every other entry carries.
+  for (const entry of choiceEntriesByKey.values()) {
+    entry.extensions = [...entry.extensions].sort();
   }
 
   entries.sort((a, b) => {

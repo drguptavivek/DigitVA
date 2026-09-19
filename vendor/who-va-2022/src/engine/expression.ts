@@ -60,11 +60,16 @@ function tokenize(source: string): Token[] {
           index += 1;
           break;
         }
-        if (next === "\\" && source[index + 1]) {
-          value += source[index + 1];
-          index += 2;
-          continue;
-        }
+        // XPath 1.0 string literals have no backslash escape mechanism at
+        // all -- a backslash is an ordinary literal character. The only
+        // quote-escaping convention is the doubled-quote handling above
+        // (`''`/`""`). This matters for `regex()` patterns, which are the
+        // main source of backslashes in XLSForm expressions: ND01's
+        // social-autopsy duration constraint uses `\d`, and it must survive
+        // as `\d`, not collapse to `d`. Do not special-case `\'`/`\"` here:
+        // that reading of the backslash consumes the closing quote of a
+        // literal that ends in a backslash (e.g. `'a\' = 'x'`), running the
+        // literal into the rest of the expression.
         value += next;
         index += 1;
       }

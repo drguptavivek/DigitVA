@@ -98,6 +98,8 @@ function validCurrentValue(question: InstrumentQuestion): AnswerValue {
     // constraints require a specific shape "Jane Doe" does not satisfy.
     if (question.name === "abha_number") return "12-3456-7890-1234";
     if (question.name === "abha_address") return "jane.doe@abdm";
+    // ND01's social_autopsy duration fields (sa13..sa19): 1-3 digits, not all zero.
+    if (source.includes("0{1,3}")) return "5";
     if (source.includes("regex(")) return "Jane Doe";
     if (source.includes("Id10413")) return question.choices?.[0]?.value ?? "yes";
     return "yes";
@@ -125,6 +127,8 @@ function invalidCurrentValue(question: InstrumentQuestion): AnswerValue {
   if (question.dataType === "string") {
     if (question.name === "abha_number") return "not-an-abha-number";
     if (question.name === "abha_address") return "jane.doe@invalid-domain";
+    // ND01's social_autopsy duration fields (sa13..sa19): all-zero is excluded.
+    if (source.includes("0{1,3}")) return "000";
     if (source.includes("regex(")) return "Jane123";
     if (source.includes("Id10387")) return "no";
     if (source.includes("Id10413")) return "cigarettes";
@@ -166,14 +170,15 @@ describe("exhaustive WHO VA runtime expressions", () => {
   });
 
   it("accepts a valid current value for every configured constraint", () => {
-    // 93 = the generated WHO VA instrument's constrained questions plus the
+    // 101 = the generated WHO VA instrument's constrained questions plus the
     // 4 DigitVA extension questions that carry a constraint (abha_number,
     // abha_address, md_count, ds_count), added when the extension was
     // composed into the instrument (src/digitva-extension.ts, commit
-    // 2fc60ea). Asserted explicitly rather than derived from
-    // whoVa2022Instrument, since the count under test is that instrument's
-    // own constrained-question count.
-    expect(constrainedQuestions).toHaveLength(93);
+    // 2fc60ea), plus the 8 social_autopsy questions mirrored from ND01 that
+    // carry a constraint (sa09, sa13..sa19). Asserted explicitly rather than
+    // derived from whoVa2022Instrument, since the count under test is that
+    // instrument's own constrained-question count.
+    expect(constrainedQuestions).toHaveLength(101);
 
     for (const question of constrainedQuestions) {
       const data = constraintData(question);

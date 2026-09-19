@@ -328,10 +328,122 @@ def _get_excluded_sites_for_coding(form_ids: list, user) -> set:
     return excluded
 
 
-def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
+def _get_excluded_org_units_for_coding(form_ids: list, user) -> set:
+    """Return org_unit_ids that are ineligible for new coding allocations.
+
+    Per-unit counterpart of ``_get_excluded_sites_for_coding``: a unit gate
+    (``map_org_unit_coding_gate``, resolved to the nearest gated ancestor via
+    ``org_grant_service.resolve_unit_coding_gates``) can only narrow what the
+    site gate already allows, never widen it, so this is checked in addition
+    to the site exclusion, not instead of it. A unit with no gate at all --
+    its own or inherited -- is unaffected.
+
+    Same coding_tester and PI waivers as the site gate, checked at the same
+    project/site granularity (a unit gate never has its own waiver).
+
+    The daily limit is counted once per gate (allocations today whose
+    submission falls anywhere in the gated unit's subtree) and compared
+    against that gate's own ``daily_coder_limit`` -- a second ceiling beside
+    the site's, never a replacement for it.
+    """
+    from app.models import MasOrgUnit
+    from app.services.org_grant_service import resolve_unit_coding_gates
+
+    if not form_ids:
+        return set()
+
+    today = datetime.utcnow().date()
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    user_id = user.user_id
+
+    rows = db.session.execute(
+        sa.select(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id)
+        .join(VaSubmissions, VaSubmissions.va_form_id == VaForms.form_id)
+        .where(VaForms.form_id.in_(form_ids), VaSubmissions.org_unit_id.isnot(None))
+        .distinct()
+    ).all()
+    if not rows:
+        return set()
+
+    site_by_unit = {}
+    for r in rows:
+        site_by_unit.setdefault(r.org_unit_id, (r.project_id, r.site_id))
+
+    gates = resolve_unit_coding_gates(set(site_by_unit))
+    if not gates:
+        return set()
+
+    pi_project_ids = set(user.get_project_pi_projects())
+    pi_site_ids = set(user.get_site_pi_sites())
+    tester_projects = set(user.get_coding_tester_projects())
+    tester_pairs = user.get_coding_tester_project_site_pairs()
+
+    gate_unit_ids = {gate.org_unit_id for gate in gates.values()}
+    submission_unit = sa.orm.aliased(MasOrgUnit, name="submission_unit")
+    gate_unit = sa.orm.aliased(MasOrgUnit, name="gate_unit")
+    today_counts_by_gate_unit = {
+        r.gate_unit_id: r.cnt
+        for r in db.session.execute(
+            sa.select(gate_unit.org_unit_id.label("gate_unit_id"), sa.func.count().label("cnt"))
+            .select_from(VaAllocations)
+            .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+            .join(
+                submission_unit,
+                submission_unit.org_unit_id == VaSubmissions.org_unit_id,
+            )
+            .join(
+                gate_unit,
+                sa.and_(
+                    gate_unit.project_id == submission_unit.project_id,
+                    sa.text("submission_unit.path <@ gate_unit.path"),
+                ),
+            )
+            .where(
+                VaAllocations.va_allocated_to == user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_createdat >= today_start,
+                gate_unit.org_unit_id.in_(gate_unit_ids),
+            )
+            .group_by(gate_unit.org_unit_id)
+        ).all()
+    }
+
+    excluded_units = set()
+    for target_unit_id, gate in gates.items():
+        project_id, site_id = site_by_unit.get(target_unit_id, (None, None))
+        if project_id is None:
+            continue
+        is_pi = project_id in pi_project_ids or site_id in pi_site_ids
+        is_tester = project_id in tester_projects or (project_id, site_id) in tester_pairs
+        if is_pi or is_tester:
+            continue
+        if not gate.coding_enabled:
+            excluded_units.add(target_unit_id)
+            continue
+        if gate.coding_start_date and gate.coding_start_date > today:
+            excluded_units.add(target_unit_id)
+            continue
+        if gate.coding_end_date and gate.coding_end_date < today:
+            excluded_units.add(target_unit_id)
+            continue
+        if gate.daily_coder_limit is not None:
+            count = today_counts_by_gate_unit.get(gate.org_unit_id, 0)
+            if count >= gate.daily_coder_limit:
+                excluded_units.add(target_unit_id)
+    return excluded_units
+
+
+def _get_site_coding_error(
+    project_id: str, site_id: str, user, org_unit_id: uuid.UUID | None = None
+) -> str:
     """Return a human-readable reason why a specific site is blocked.
 
-    PI and coding_tester waivers apply to all coding gates.
+    PI and coding_tester waivers apply to all coding gates. When
+    *org_unit_id* is given and the site's own gate does not block the
+    submission, the unit's own or inherited gate (nearest ancestor) is
+    checked next and, if it is what actually blocks coding, the message
+    names the unit -- "Coding for Yelahanka PHC ended on ..." -- rather than
+    repeating a site-level reason that would not be true for this submission.
     """
     from app.models.va_project_sites import VaProjectSites
 
@@ -363,6 +475,44 @@ def _get_site_coding_error(project_id: str, site_id: str, user) -> str:
     if not is_pi and not is_tester:
         if ps.coding_end_date and ps.coding_end_date < today:
             return f"Coding for this site ended on {ps.coding_end_date.strftime('%B %-d, %Y')}."
+
+    if org_unit_id is not None and not is_pi and not is_tester:
+        from app.models import MasOrgUnit
+        from app.services.org_grant_service import resolve_unit_coding_gates
+
+        gate = resolve_unit_coding_gates({org_unit_id}).get(org_unit_id)
+        if gate is not None:
+            unit_name = gate.unit.unit_name or "this unit"
+            if not gate.coding_enabled:
+                return f"Coding is currently disabled for {unit_name}."
+            if gate.coding_start_date and gate.coding_start_date > today:
+                return f"Coding for {unit_name} opens on {gate.coding_start_date.strftime('%B %-d, %Y')}."
+            if gate.coding_end_date and gate.coding_end_date < today:
+                return f"Coding for {unit_name} ended on {gate.coding_end_date.strftime('%B %-d, %Y')}."
+            if gate.daily_coder_limit is not None:
+                submission_unit = sa.orm.aliased(MasOrgUnit, name="submission_unit")
+                unit_count = db.session.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(VaAllocations)
+                    .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+                    .join(
+                        submission_unit,
+                        submission_unit.org_unit_id == VaSubmissions.org_unit_id,
+                    )
+                    .where(
+                        VaAllocations.va_allocated_to == user_id,
+                        VaAllocations.va_allocation_for == VaAllocation.coding,
+                        VaAllocations.va_allocation_createdat >= today_start,
+                        sa.text("submission_unit.path <@ CAST(:gate_path AS ltree)"),
+                    )
+                    .params(gate_path=str(gate.unit.path))
+                ) or 0
+                if unit_count >= gate.daily_coder_limit:
+                    return (
+                        f"You have reached today's coding limit of {gate.daily_coder_limit} "
+                        f"form{'s' if gate.daily_coder_limit != 1 else ''} for {unit_name}."
+                    )
+
     count = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(VaAllocations)
@@ -500,6 +650,12 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
             )
         )
 
+    # Per-unit gates narrow further within otherwise-open sites (never widen
+    # what the site gate above already allows).
+    excluded_units = _get_excluded_org_units_for_coding(random_form_ids, user)
+    if excluded_units:
+        base_filters.append(VaSubmissions.org_unit_id.not_in(excluded_units))
+
     va_new_sid = db.session.scalar(
         sa.select(VaSubmissions.va_sid)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
@@ -574,6 +730,14 @@ def allocate_pick_form(user, va_sid: str) -> AllocationResult:
     excluded = _get_excluded_sites_for_coding([form.va_form_id], user)
     if sub_row.site_id in excluded:
         raise AllocationError(_get_site_coding_error(sub_row.project_id, sub_row.site_id, user))
+
+    excluded_units = _get_excluded_org_units_for_coding([form.va_form_id], user)
+    if form.org_unit_id and form.org_unit_id in excluded_units:
+        raise AllocationError(
+            _get_site_coding_error(
+                sub_row.project_id, sub_row.site_id, user, org_unit_id=form.org_unit_id
+            )
+        )
 
     actiontype = _actiontype_for_submission(va_sid, "vapickcoding")
     _create_coding_allocation(

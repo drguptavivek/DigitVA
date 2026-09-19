@@ -3,7 +3,7 @@ title: Test Harness Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Test Harness Policy
@@ -156,6 +156,90 @@ When creating test data inside savepoint-rollback tests, use unique names for
 fields with unique constraints (e.g. `connection_name`). This prevents
 conflicts when `commit()` inside the test releases the savepoint, making the
 row visible to subsequent tests in the same class.
+
+## Checks that cannot fail for what they appear to test
+
+Four separate times in one week a check passed while proving nothing. They
+did not share a bug — each one was honest about its own logic. What they
+shared is that the **subject of the assertion was absent**, so the
+assertion passed against nothing:
+
+- a migration replay that replayed the in-tree revisions rather than the
+  committed chain, so a broken `down_revision` on origin could not surface
+- two test classes whose `setUpClass` errored on a missing FK row (see the
+  dual-table trap below); an errored class is not a failing class, and the
+  suite stayed green
+- a per-unit coding-gate test whose call short-circuited on a null
+  `org_unit_id` and never reached the gate logic at all — it also passed the
+  wrong form id, so the query it did run saw zero rows
+- a redaction test written against a fixture (`DataManagerDashboardTests`)
+  whose `coder_name`, `reviewer_name` and allocation-name columns are all
+  empty, so "the name is gone after redaction" was true before redaction too
+
+### Rule: assert the subject is present before asserting it is absent
+
+Any test of the form *"X is not there after we do Y"* must first assert that
+**X is there before Y**. Without that line the test cannot distinguish the
+behaviour it is named for from a fixture that never contained X.
+
+This applies most sharply to redaction, filtering, scoping and exclusion
+tests, which are exactly the tests that guard access to personal data — and
+exactly the ones whose silent passing is most expensive.
+
+Two supporting habits:
+
+- **A positive control in the same test.** Where the behaviour is
+  differential ("this project is affected, that one is not"), assert the
+  affected case in the same test. If the machinery is dead, the control
+  fails and tells you so; the negative case alone cannot.
+- **Treat an errored `setUpClass` as the whole class unverified.** pytest
+  reports it distinctly from a failure and it is easy to skim past. A class
+  that errored in setup has tested nothing, regardless of what the summary
+  line says.
+
+### Rule: patch the module object, not a dotted path through a package
+
+`monkeypatch.setattr("pkg.module.attr", value)` resolves `pkg.module` by
+attribute traversal, not by import. If the package's `__init__.py` re-exports a
+name from the submodule, that name in the package namespace is the **function**,
+and the traversal stops there: the patch hangs a stray attribute off a function
+object and the real module global is never touched.
+
+`app/decorators/__init__.py` does exactly this with `role_required`, so
+`monkeypatch.setattr("app.decorators.role_required.current_user", stub)` is a
+silent no-op. `raising=False` suppresses the one complaint that would have
+surfaced it.
+
+Patch the module object instead:
+
+```python
+_decorator_module = importlib.import_module("app.decorators.role_required")
+monkeypatch.setattr(_decorator_module, "current_user", stub)
+```
+
+and do not pass `raising=False` to silence a target you have not verified --
+that flag is for attributes that legitimately may not exist, not for making a
+bad path quiet.
+
+This one is worth calling out separately because the vacuity is structural
+rather than fixture-shaped: nothing about the test data is wrong, and the test
+reads correctly. Whether it fails loudly depends only on which branch the
+un-patched object happens to take. The case that found it was patching a
+`current_user` stub; it failed only because an anonymous user 401s on the deny
+path. The same mistake on an admit-path test would have passed while asserting
+against a decorator it never touched.
+
+### Rule: a missing fixture can make an authorization test vacuous too
+
+Three route tests for the viewer roles returned 500 because the analytics
+materialized views did not exist -- conftest drops them and never rebuilds
+them. Authorization had passed; only the MV query failed. Had those tests
+asserted `!= 403` rather than `== 200`, they would have gone green while
+proving nothing about either the route or the view.
+
+Assert the status you actually expect. `not forbidden` is not a proof of
+`reachable`, and on a route whose gate you are changing, the difference is
+the whole test.
 
 ## Seeding a project: the dual-table trap
 

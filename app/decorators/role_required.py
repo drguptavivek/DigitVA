@@ -51,6 +51,11 @@ _ROLE_METHODS = {
     "site_pi":        lambda u: u.is_site_pi(),
     "project_pi":     lambda u: bool(u.get_project_pi_projects()),
     "interviewer":    lambda u: u.is_interviewer(),
+    # collaborator / collaborator_pii: identical reach, so both spellings
+    # gate on the same check. What differs (PII visibility) is decided by
+    # viewer_pii_service.should_redact_pii, not by route access.
+    "collaborator":     lambda u: u.is_viewer(),
+    "collaborator_pii": lambda u: u.is_viewer(),
 }
 
 

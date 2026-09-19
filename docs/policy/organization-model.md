@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Organization Model Policy
@@ -226,6 +226,21 @@ import/export is already restricted to admins and project PIs.
 - A grant may carry `scope_type = 'org_unit'` with an `org_unit_id`. The grant
   covers that unit **and its whole subtree**, resolved through the unit's
   ltree path.
+- A grant expands **downwards only**. It never confers access to anything
+  above the granted unit.
+- **Ancestors are visible, deliberately.** The units API
+  (`GET /api/v1/organization/<project_id>/units`) returns, alongside the units
+  a caller's grants reach, the units **above** them on the path to the root,
+  each flagged `selectable: false`. A unit-scoped interviewer therefore learns
+  the names and codes of every level above their grant — their own reporting
+  line. This is deliberate: a cascading picker cannot show the levels above a
+  grant as fixed context without their names, and the same chain is printed on
+  any paper form. It is strictly more than a unit-scoped user could see before
+  2026-09-19, so a deployment that treats the tree above a site as sensitive
+  must know it. An `selectable: false` unit is context only — it is never a
+  grantable choice, and submitting one as `org_unit_id` is refused by
+  `web_intake_service._require_scope`, which validates against the grant-derived
+  reachable set and ignores the flag entirely.
 - Roles accepted at unit scope: `site_pi` (oversight of a subtree),
   `collaborator`, `coder`, `coding_tester`, `reviewer`, `data_manager`.
   `admin` stays global and `project_pi` stays project-scoped.
@@ -329,6 +344,9 @@ levels API, the exports, the panel and routing all read from it:
   fallback.
 - Deactivating a unit does not rewrite the submissions already attributed to
   it; the next sync of an affected submission re-routes it.
+- Web intake refuses submission outright if a draft's unit was deactivated
+  after the draft was started, rather than letting it fall back or go
+  unrouted silently — see [Web Intake Policy](web-intake.md), "Submission".
 
 ## Coding scope
 
@@ -344,6 +362,35 @@ unit-based coding scope.
 - `view_only` means the person **sees the cause of death and the submission
   data for their subtree, read-only, and codes nothing** (decision
   2026-09-18). Both halves are implemented.
+
+### Per-unit coding gates
+
+Coding can additionally be gated per organization unit, not only per
+project-site. `map_org_unit_coding_gate` holds at most one row per gated
+unit (`coding_enabled`, `coding_start_date`, `coding_end_date`,
+`daily_coder_limit`); **no row means no gate**, never a closed unit.
+
+- **Inheritance:** the nearest gated ancestor wins. A gate on a CHC applies
+  to every PHC beneath it unless that PHC sets its own gate, which then
+  governs its own subtree. Resolved with one ltree query
+  (`org_grant_service.resolve_unit_coding_gates`), never a per-row walk up
+  the tree.
+- **Precedence against the site gate:** both apply; the stricter of the two
+  wins. A unit gate can only narrow what `va_project_sites` already allows
+  for that submission's site, never widen it — enabled only if both are
+  enabled, the window is the intersection of both windows, and the daily
+  limit is enforced as two separate ceilings (site and unit) against the
+  same allocation count, never merged into one number and never
+  double-counted.
+- **Waivers:** `coding_tester` and PI waive unit gates exactly as they waive
+  site gates today, at the same project/site granularity.
+- The on-screen reason a coder sees names the specific unit when a unit gate
+  is what actually blocks coding (e.g. "Coding for Yelahanka PHC ended on
+  ..."), not a site-level reason that would not be true for that submission.
+- A project with no organization tree is unaffected, as everywhere else in
+  this policy.
+
+See `.tasks/org-per-unit-coding-gates.md` for the full design record.
 
 ### Viewing scope
 

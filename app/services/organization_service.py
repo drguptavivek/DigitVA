@@ -16,6 +16,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
+from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 
 import sqlalchemy as sa
@@ -24,6 +25,7 @@ from openpyxl import Workbook, load_workbook
 from app import db
 from app.models import (
     MapOrgLevelCadre,
+    MapOrgUnitCodingGate,
     MasCadre,
     MasOrgLevel,
     MasOrgUnit,
@@ -45,8 +47,10 @@ __all__ = [
     # levels
     "list_levels", "create_level", "update_level",
     # units
-    "list_units", "get_unit_tree", "create_unit", "update_unit", "set_unit_active",
+    "list_units", "list_units_by_codes", "get_unit_tree", "create_unit", "update_unit", "set_unit_active",
     "find_unit_by_code", "subtree_unit_ids",
+    "get_unit_coding_gate", "set_unit_coding_gate", "clear_unit_coding_gate",
+    "serialize_unit_coding_gate",
     # cadres and level permissions
     "list_cadres", "create_cadre", "update_cadre",
     "list_level_cadres", "upsert_level_cadre", "get_level_cadre_permission",
@@ -402,6 +406,34 @@ def list_units(project_id: str, *, include_inactive: bool = False) -> list[dict]
     return [serialize_unit(unit, level=level, parent_code=parent_code) for unit, level, parent_code in rows]
 
 
+def list_units_by_codes(project_id: str, unit_codes, *, include_inactive: bool = False) -> list[dict]:
+    """Units in *project_id* named by *unit_codes*, in one query.
+
+    For resolving the codes packed into another unit's ``path`` ltree back
+    into full unit rows — e.g. the ancestor units implied by a scoped
+    picker's reachable units, or the ancestor context of one submission's
+    unit — without a per-unit or per-code round trip. Shared by
+    ``app/routes/api/organization.py`` (ancestor context for a scoped
+    picker) and ``web_intake_service._unit_context`` (ancestor codes/names
+    for a submitted payload); keep both callers' semantics in mind before
+    changing the active-only default.
+    """
+    codes = {c for c in unit_codes if c}
+    if not codes:
+        return []
+    parent = _aliased_parent()
+    stmt = (
+        sa.select(MasOrgUnit, MasOrgLevel, parent.unit_code)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .outerjoin(parent, parent.org_unit_id == MasOrgUnit.parent_org_unit_id)
+        .where(MasOrgUnit.project_id == project_id, MasOrgUnit.unit_code.in_(sorted(codes)))
+    )
+    if not include_inactive:
+        stmt = stmt.where(MasOrgUnit.is_active.is_(True))
+    rows = db.session.execute(stmt.order_by(MasOrgUnit.path)).all()
+    return [serialize_unit(unit, level=level, parent_code=parent_code) for unit, level, parent_code in rows]
+
+
 def resolve_org_unit_export_labels(org_unit_ids) -> dict[uuid.UUID, dict]:
     """Batched unit code/name/level-path lookup for exports.
 
@@ -684,6 +716,98 @@ def set_unit_active(project_id: str, org_unit_id: object, active: bool) -> int:
     )
     db.session.expire_all()
     return result.rowcount or 0
+
+
+def serialize_unit_coding_gate(gate: MapOrgUnitCodingGate | None) -> dict | None:
+    if gate is None:
+        return None
+    return {
+        "org_unit_id": str(gate.org_unit_id),
+        "coding_enabled": gate.coding_enabled,
+        "coding_start_date": gate.coding_start_date.isoformat() if gate.coding_start_date else None,
+        "coding_end_date": gate.coding_end_date.isoformat() if gate.coding_end_date else None,
+        "daily_coder_limit": gate.daily_coder_limit,
+    }
+
+
+def get_unit_coding_gate(project_id: str, org_unit_id: object) -> MapOrgUnitCodingGate | None:
+    """Return this unit's own gate row, or None -- absence is not a closed unit.
+
+    This is the unit's own row only, not the resolved (nearest-ancestor) gate
+    that actually governs coding -- see
+    ``app.services.org_grant_service.resolve_unit_coding_gates`` for that.
+    """
+    unit = _get_unit(project_id, org_unit_id)
+    return db.session.get(MapOrgUnitCodingGate, unit.org_unit_id)
+
+
+def set_unit_coding_gate(
+    project_id: str,
+    org_unit_id: object,
+    *,
+    coding_enabled: object,
+    coding_start_date: object = None,
+    coding_end_date: object = None,
+    daily_coder_limit: object = None,
+) -> MapOrgUnitCodingGate:
+    """Create or update this unit's own coding gate row.
+
+    ``daily_coder_limit`` is optional (unlike the site column it is checked
+    alongside): leaving it unset means this gate carries no unit-specific
+    cap, only whatever ``coding_enabled``/date window it sets.
+    """
+    unit = _get_unit(project_id, org_unit_id)
+    if not isinstance(coding_enabled, bool):
+        raise OrganizationError("coding_enabled must be a boolean.")
+
+    start = None
+    end = None
+    try:
+        if coding_start_date:
+            start = date_type.fromisoformat(coding_start_date)
+        if coding_end_date:
+            end = date_type.fromisoformat(coding_end_date)
+    except (ValueError, TypeError) as exc:
+        raise OrganizationError(
+            "coding_start_date and coding_end_date must be ISO date strings (YYYY-MM-DD)."
+        ) from exc
+    if start and end and end < start:
+        raise OrganizationError("coding_end_date must be on or after coding_start_date.")
+
+    limit = None
+    if daily_coder_limit is not None:
+        try:
+            limit = int(daily_coder_limit)
+        except (ValueError, TypeError) as exc:
+            raise OrganizationError("daily_coder_limit must be an integer.") from exc
+        if limit < 1:
+            raise OrganizationError("daily_coder_limit must be at least 1.")
+
+    gate = db.session.get(MapOrgUnitCodingGate, unit.org_unit_id)
+    if gate is None:
+        gate = MapOrgUnitCodingGate(org_unit_id=unit.org_unit_id)
+        db.session.add(gate)
+    gate.coding_enabled = coding_enabled
+    gate.coding_start_date = start
+    gate.coding_end_date = end
+    gate.daily_coder_limit = limit
+    db.session.flush()
+    return gate
+
+
+def clear_unit_coding_gate(project_id: str, org_unit_id: object) -> bool:
+    """Delete this unit's own gate row, if any. Returns whether one existed.
+
+    The unit then inherits its nearest gated ancestor (if any), same as a
+    unit that never had a gate of its own.
+    """
+    unit = _get_unit(project_id, org_unit_id)
+    gate = db.session.get(MapOrgUnitCodingGate, unit.org_unit_id)
+    if gate is None:
+        return False
+    db.session.delete(gate)
+    db.session.flush()
+    return True
 
 
 def find_unit_by_code(project_id: str, unit_code: object) -> MasOrgUnit | None:

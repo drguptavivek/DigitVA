@@ -8,7 +8,7 @@ is kept as an ltree ``path`` of unit codes so subtree queries are one index
 lookup (``path <@ 'DIST01.CHC01'``).
 """
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date as date_type, datetime
 from decimal import Decimal
 
 import sqlalchemy as sa
@@ -151,6 +151,52 @@ class MasOrgUnit(db.Model):
 
     def __repr__(self) -> str:
         return f"<MasOrgUnit {self.project_id}/{self.unit_code}>"
+
+
+class MapOrgUnitCodingGate(db.Model):
+    """Per-unit coding gate that narrows the site coding gate for one subtree.
+
+    One row per gated unit (``org_unit_id`` unique via the primary key). A
+    unit with **no row is not gated** — absence is not a closed unit. Where a
+    row exists, it applies to this unit and to every descendant that does not
+    set its own row (nearest gated ancestor wins — resolved with a single
+    ltree containment query, see
+    ``app.services.org_grant_service.resolve_unit_coding_gates``).
+
+    A unit gate can only narrow what ``VaProjectSites`` already allows for
+    the submission's site, never widen it: both gates are evaluated and the
+    stricter of the two applies. ``daily_coder_limit`` is nullable here
+    (unlike the site column) because a unit gate may exist purely to close a
+    date window or disable coding, with no unit-specific cap.
+
+    See docs/policy/organization-model.md ("Coding scope") and
+    .tasks/org-per-unit-coding-gates.md for the full design.
+    """
+
+    __tablename__ = "map_org_unit_coding_gate"
+
+    org_unit_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True),
+        sa.ForeignKey("mas_org_unit.org_unit_id"),
+        primary_key=True,
+    )
+    coding_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=True, server_default=sa.true()
+    )
+    coding_start_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    coding_end_date: so.Mapped[date_type | None] = so.mapped_column(sa.Date, nullable=True)
+    daily_coder_limit: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
+    created_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    updated_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
+    )
+
+    unit: so.Mapped["MasOrgUnit"] = so.relationship("MasOrgUnit")
+
+    def __repr__(self) -> str:
+        return f"<MapOrgUnitCodingGate unit={self.org_unit_id} enabled={self.coding_enabled}>"
 
 
 class MasCadre(db.Model):

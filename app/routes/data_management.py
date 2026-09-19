@@ -193,11 +193,16 @@ def require_dm_scope(f):
 
 
 @data_management.get("/")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "admin", "collaborator", "collaborator_pii")
 def dashboard():
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
-    if not current_user.is_admin() and not project_ids and not project_site_pairs:
+    project_ids = sorted(current_user.get_dm_view_projects())
+    project_site_pairs = current_user.get_dm_view_project_sites()
+    if (
+        not current_user.is_admin()
+        and not project_ids
+        and not project_site_pairs
+        and not current_user.get_viewer_org_unit_ids()
+    ):
         va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     kpi = get_dm_kpi_from_mv(
@@ -214,28 +219,50 @@ def dashboard():
 
 
 @data_management.get("/dashboard")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "admin", "collaborator", "collaborator_pii")
 def kpi_dashboard():
     """Data manager KPI analytics dashboard.
 
     Shell template only — all data fetched client-side from /api/v1/analytics/dm-kpi/* endpoints.
+
+    Those dm-kpi endpoints are data_manager/admin only today (they resolve
+    scope through their own dm_kpi_scope.py, separate from dm_scope_filter,
+    and several surface staff identity with no redaction) — a viewer who
+    reaches this shell will see a KPI dashboard with no data. Documented as
+    a known gap rather than fixed here; see the access-control-model.md note
+    on this route's blast radius.
     """
     if not current_user.is_admin():
-        project_ids = current_user.get_data_manager_projects()
-        project_site_pairs = current_user.get_data_manager_project_sites()
-        if not project_ids and not project_site_pairs:
+        project_ids = current_user.get_dm_view_projects()
+        project_site_pairs = current_user.get_dm_view_project_sites()
+        if (
+            not project_ids
+            and not project_site_pairs
+            and not current_user.get_viewer_org_unit_ids()
+        ):
             va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     return render_template("va_frontpages/va_dm_kpi_dashboard.html")
 
 
 @data_management.get("/cod-buckets")
+# NOT viewer-reachable. The page itself is only a shell: every value on it
+# comes from app/routes/api/cod_buckets.py (/schemes, /aggregates,
+# /export.csv), all three of which are data_manager/admin only. Granting the
+# page alone would hand a collaborator a screen that 403s on every fetch.
+# Opening the API to viewers is a separate widening -- export.csv carries
+# staff identity and has no redaction path yet -- so it needs its own review
+# rather than being pulled in as a side effect of granting the page.
 @role_required("data_manager", "admin")
 def cod_bucket_reporting():
     if not current_user.is_admin():
-        project_ids = current_user.get_data_manager_projects()
-        project_site_pairs = current_user.get_data_manager_project_sites()
-        if not project_ids and not project_site_pairs:
+        project_ids = current_user.get_dm_view_projects()
+        project_site_pairs = current_user.get_dm_view_project_sites()
+        if (
+            not project_ids
+            and not project_site_pairs
+            and not current_user.get_viewer_org_unit_ids()
+        ):
             va_permission_abortwithflash("No data-manager scope has been assigned.", 403)
 
     forms = dm_scoped_forms(current_user)

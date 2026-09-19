@@ -44,6 +44,7 @@ from app.services.reviewer_final_assessment_service import (
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
 from app.services.submission_summary_service import build_submission_summary
+from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_CODER_STEP1_SAVED,
@@ -487,7 +488,15 @@ def renderpartial(va_sid, va_partial):
             va_partial,
         )
         # --- Cache expensive form-data queries (not user-specific) ---
+        # Redaction depends on the viewer's role (should_redact_pii), so the
+        # redacted and unredacted renders must not share a cache entry —
+        # otherwise whichever viewer renders a section first decides what
+        # every later viewer of that section sees. See
+        # docs/policy/access-control-model.md, "collaborator".
+        _redact_pii = should_redact_pii(current_user)
         _data_cache_key = _section_data_cache_key(va_sid, va_partial)
+        if _redact_pii:
+            _data_cache_key += ":nopii"
         _cached_data = flask_cache.get(_data_cache_key)
         if _cached_data is not None:
             summary_items = _cached_data["summary_items"]
@@ -499,16 +508,27 @@ def renderpartial(va_sid, va_partial):
             cod_health_history_labels = _cached_data["cod_health_history_labels"]
             smartva = _cached_data["smartva"]
         else:
+            # For a no-PII viewer, strip payload fields flagged `is_pii` before
+            # they ever reach summary/category rendering, rather than trying to
+            # filter the rendered (label-keyed) output afterwards.
+            _render_payload_data = va_payload_data
+            if _redact_pii and va_payload_data:
+                _pii_field_ids = _mapping_svc.get_pii_field_ids(_form_type_code)
+                _render_payload_data = {
+                    field_id: value
+                    for field_id, value in va_payload_data.items()
+                    if field_id not in _pii_field_ids
+                }
             summary_items = build_submission_summary(
                 _form_type_code,
-                va_payload_data,
+                _render_payload_data,
             )
             va_datalevel = va_get_render_datalevel(
                 va_action,
                 _form_type_code,
                 visible_category_codes,
             )
-            va_processedcategorydata = va_render_processcategorydata(va_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial, va_sid=va_submission.va_sid)
+            va_processedcategorydata = va_render_processcategorydata(_render_payload_data, va_submission.va_form_id, va_datalevel, va_mapping_choice, va_partial, va_sid=va_submission.va_sid)
             cod_attachments_data = {}
             cod_attachments_labels = {}
             cod_attachments_render_modes = {}
@@ -516,7 +536,7 @@ def renderpartial(va_sid, va_partial):
             cod_health_history_labels = {}
             if category_config and category_config.render_mode == "workflow_panel":
                 cod_attachments_data = va_render_processcategorydata(
-                    va_payload_data,
+                    _render_payload_data,
                     va_submission.va_form_id,
                     va_datalevel,
                     va_mapping_choice,
@@ -532,7 +552,7 @@ def renderpartial(va_sid, va_partial):
                     "vanarrationanddocuments",
                 )
                 cod_health_history_data = va_render_processcategorydata(
-                    va_payload_data,
+                    _render_payload_data,
                     va_submission.va_form_id,
                     va_datalevel,
                     va_mapping_choice,

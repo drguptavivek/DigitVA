@@ -1,6 +1,12 @@
 # Viewer roles: with and without PII
 
-- Status: role + redaction built 2026-09-18; NOT reachable until collaborator is wired into routes
+- Status: role + redaction built 2026-09-18; route wiring landed 2026-09-19
+  for the redaction-safe surfaces only (dashboard, KPI shell, cod-bucket
+  reporting page, and the submissions/filter-options/kpi JSON APIs) — see
+  docs/policy/access-control-model.md, "Route wiring (2026-09-19)" under
+  `collaborator_pii`, for the full reached/not-reached list. Submission
+  detail rendering ("Two surfaces still unredacted" below) is still
+  unreached and still needs its own change.
 - Priority: high
 - Created: 2026-09-18
 
@@ -242,14 +248,16 @@ somebody grants collaborators access to these routes — which is an
 access-WIDENING change and deliberately out of scope here. **Do not describe
 the viewer roles as delivered until that is done.**
 
-## Two surfaces still unredacted
+## Two surfaces still unredacted (update 2026-09-19: one closed, one open)
 
 1. **Submission detail rendering** — `app/routes/data_management.py`
    `view_submission` -> `render_va_coding_page` -> the ~1300-line
    `renderpartial` route in `app/routes/va_form.py`. This is where subject PII
-   actually renders to a viewer. Not touched: too large and coupled to change
-   safely without dedicated review, and unreachable by collaborator today.
-   **This must be done as part of wiring collaborator access, not after.**
+   actually renders to a viewer. Still not touched: too large and coupled to
+   change safely without dedicated review. `role_required` on
+   `view_submission` deliberately keeps `collaborator`/`collaborator_pii` out
+   (route wiring, 2026-09-19) precisely so this stays unreachable until it
+   is.
 
 2. ~~**`dm_coded_cod_snapshot_export_csv`**~~ — closed 2026-09-19, together
    with two more of the same shape found while closing it:

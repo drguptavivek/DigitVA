@@ -171,6 +171,88 @@ If that trade proves wrong in practice, the split is a third role
 mechanism. Recorded here so the choice is revisited deliberately rather than
 rediscovered.
 
+#### Route wiring (2026-09-19): what a viewer can actually reach
+
+The role and the redaction helper existed before any route granted them —
+see `.tasks/viewer-pii-roles.md`. This wired `role_required("collaborator",
+"collaborator_pii")` (both spellings gate on the same check,
+`VaUsers.is_viewer()`, since the two roles have identical reach) into the
+read-only data-management surfaces that go through
+`data_management_service.dm_scope_filter` and are already redaction-safe:
+
+- `GET /data-management/` (dashboard), `/data-management/dashboard` (KPI
+  shell)
+- `GET /api/v1/data-management/submissions`, `/filter-options`, `/kpi`
+
+That is the complete list — five routes.
+
+Deliberately **not** widened, and still `data_manager`/`admin` only:
+
+- every POST/PUT/DELETE in `app/routes/data_management.py` and
+  `app/routes/api/data_management.py` (sync, screening, upstream-change
+  resolution, org-unit correction, user and grant management) — writes
+- `GET /data-management/view/<va_sid>` (submission detail) — renders the
+  ~1300-line `renderpartial` route in `app/routes/va_form.py`, which is not
+  yet redaction-safe for a viewer (see `.tasks/viewer-pii-roles.md`, "Two
+  surfaces still unredacted"); wiring it needs its own change
+- `GET /data-management/cod-buckets` (COD bucket reporting) — the page is
+  only a shell; every value on it is fetched from
+  `app/routes/api/cod_buckets.py` (`/schemes`, `/aggregates`,
+  `/export.csv`), all three `data_manager`/`admin` only. Granting the page
+  alone would give a viewer a screen that 403s on every fetch. Opening the
+  API is a separate widening — `export.csv` emits staff identity with no
+  redaction path — so it needs its own review rather than arriving as a
+  side effect of granting the page
+- `GET /data-management/submissions/<va_sid>/odk-edit` — an edit-adjacent
+  affordance (a link into ODK Central's own editor), not a read
+- `GET /api/v1/data-management/coder-daily-stats` and
+  `/submissions/export.csv` — both emit staff identity (`coder_name`;
+  `dm_review_by`/`coder_review_by`/`reviewer_review_by`/`final_assess_by`
+  user ids) with no `should_redact_pii` call at all
+- `GET /api/v1/data-management/submissions/unrouted` and
+  `/project-site-submissions` — each resolves scope through its own private
+  helper (`_dm_submission_scope_filter()`, and a direct
+  `get_data_manager_projects()`/`get_data_manager_project_sites()` read,
+  respectively), not `dm_scope_filter`
+- the whole `dm_kpi/*` analytics blueprint and `/api/v1/analytics/*` — these
+  resolve scope through `dm_kpi_scope.py` / a separate `_mv_scope_filter`
+  helper, not `dm_scope_filter`, and several surface coder/reviewer
+  performance data by name with no redaction
+
+`dm_scope_filter` (and the `_dm_scope_pairs` it calls) now resolves
+`collaborator`/`collaborator_pii` grants at all three scope types:
+
+- `project` / `project_site` — exactly like `data_manager`, via
+  `VaUsers.get_viewer_projects()` / `get_viewer_project_sites()`
+- `org_unit` — reuses `org_grant_service.scope_unit_ids_for_roles()` (no
+  ltree logic reimplemented) but **bridges the granted unit to its whole
+  project** rather than to a site, because a unit does not name one. That
+  makes `dm_scope_filter` alone coarser than the grant for an org_unit
+  viewer, so it **fails open**: a caller that forgets the question serves
+  the whole project. Every caller must therefore decide explicitly.
+  `dm_scoped_forms` and `dm_filter_options` carry no personal data, but a
+  project's site roster, its ODK project/form ids and its distinct value
+  lists are still more than an org_unit grant conveys, so both narrow
+  themselves to forms and submissions the user can actually see (an
+  `EXISTS` on a visible submission, and a `VaSubmissions` join,
+  respectively). A plain `data_manager` never reaches that branch and keeps
+  the original queries unchanged. For the two callers that
+  enumerate actual submissions (`dm_submissions_page`,
+  `_dm_submission_query_parts`, behind the submissions API and the
+  dashboard), a second condition
+  (`dm_submission_org_unit_condition`) is ANDed in alongside it, restricting
+  by `VaSubmissions.org_unit_id`; combined, the net effect is the correct
+  grain — visible if inside a direct project/project_site grant, or inside
+  the project **and** the submission's own unit is granted.
+
+Inherited, not introduced by this change: neither `_expand_project_ids_to_active_pairs`
+nor `get_data_manager_projects()`/`get_viewer_projects()` checks the
+**project's own** status (only `va_project_sites.project_site_status` is
+checked). A project-scoped grant — `data_manager` or a viewer — on a closed
+project still resolves. This was already true for `data_manager` before
+this change and is left as is for consistency; it is not this change's
+concern to fix.
+
 #### Redaction coverage of the data-management exports
 
 As of 2026-09-19 these surfaces consult `should_redact_pii` and blank staff

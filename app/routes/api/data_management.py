@@ -213,7 +213,7 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) 
 # ---------------------------------------------------------------------------
 
 @bp.get("/submissions")
-@role_required("data_manager")
+@role_required("data_manager", "collaborator", "collaborator_pii")
 @limiter.limit("120 per minute")
 def submissions():
 
@@ -305,12 +305,12 @@ def submissions_export_coded_cod_snapshot_csv():
 # ---------------------------------------------------------------------------
 
 @bp.get("/kpi")
-@role_required("data_manager")
+@role_required("data_manager", "collaborator", "collaborator_pii")
 @limiter.limit("120 per minute")
 def kpi():
 
-    project_ids = sorted(current_user.get_data_manager_projects())
-    project_site_pairs = current_user.get_data_manager_project_sites()
+    project_ids = sorted(current_user.get_dm_view_projects())
+    project_site_pairs = current_user.get_dm_view_project_sites()
     return jsonify(_cached("kpi", lambda:
         get_dm_kpi_from_mv(
             project_ids,
@@ -352,7 +352,7 @@ def coder_daily_stats():
 # ---------------------------------------------------------------------------
 
 @bp.get("/filter-options")
-@role_required("data_manager")
+@role_required("data_manager", "collaborator", "collaborator_pii")
 @limiter.limit("120 per minute")
 def filter_options():
     return jsonify(dm_filter_options(current_user))

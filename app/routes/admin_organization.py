@@ -216,6 +216,63 @@ def admin_org_toggle_unit(project_id, org_unit_id):
 
 
 # ---------------------------------------------------------------------------
+# Per-unit coding gate
+#
+# A unit's own gate row narrows the site coding gate for its subtree; a unit
+# with no row is not gated. See docs/policy/organization-model.md
+# ("Coding scope") and .tasks/org-per-unit-coding-gates.md.
+# ---------------------------------------------------------------------------
+
+
+@admin.get(f"{_API}/units/<org_unit_id>/coding-gate")
+@role_required("admin", "project_pi")
+def admin_org_get_unit_coding_gate(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        gate = org.get_unit_coding_gate(project_id, org_unit_id)
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 400)
+    return jsonify({"coding_gate": org.serialize_unit_coding_gate(gate)})
+
+
+@admin.put(f"{_API}/units/<org_unit_id>/coding-gate")
+@role_required("admin", "project_pi")
+def admin_org_set_unit_coding_gate(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    p = _payload()
+    try:
+        gate = org.set_unit_coding_gate(
+            project_id,
+            org_unit_id,
+            coding_enabled=p.get("coding_enabled"),
+            coding_start_date=p.get("coding_start_date"),
+            coding_end_date=p.get("coding_end_date"),
+            daily_coder_limit=p.get("daily_coder_limit"),
+        )
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    _commit_and_log("unit-coding-gate-set", project_id, f"unit={org_unit_id}")
+    return jsonify({"coding_gate": org.serialize_unit_coding_gate(gate)})
+
+
+@admin.delete(f"{_API}/units/<org_unit_id>/coding-gate")
+@role_required("admin", "project_pi")
+def admin_org_clear_unit_coding_gate(project_id, org_unit_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        cleared = org.clear_unit_coding_gate(project_id, org_unit_id)
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    _commit_and_log("unit-coding-gate-clear", project_id, f"unit={org_unit_id} cleared={cleared}")
+    return jsonify({"cleared": cleared})
+
+
+# ---------------------------------------------------------------------------
 # Cadres and level permissions
 # ---------------------------------------------------------------------------
 

@@ -66,6 +66,7 @@ from app.models.mas_organization import (
     MasOrgUnit,
     MasCadre,
     MapOrgLevelCadre,
+    MapOrgUnitCodingGate,
     MasOrgUnitWorker,
 )
 from app.models.va_field_mapping import (
@@ -146,6 +147,7 @@ __all__ = [
     "MasOrgUnit",
     "MasCadre",
     "MapOrgLevelCadre",
+    "MapOrgUnitCodingGate",
     "MasOrgUnitWorker",
     "VaDeathRegister",
     "VaWebIntakeDraft",

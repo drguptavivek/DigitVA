@@ -22,6 +22,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapOrgUnitCodingGate,
     MasCadre,
     MasOrgUnit,
     VaAccessRoles,
@@ -318,6 +319,96 @@ def codeable_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]
     return set(db.session.scalars(stmt).all())
 
 
+def project_wide_grant_exists(
+    user_id: uuid.UUID, project_id: str, roles: frozenset[VaAccessRoles]
+) -> bool:
+    """Whether *user_id* holds a project- or site-scoped grant in *roles* on
+    *project_id*.
+
+    Such a grant reaches the project's *whole* organization tree, not one
+    subtree, so it can't be answered by expanding org_unit-scoped grants
+    (``scope_unit_ids``) — it needs its own existence check.
+
+    Shared by the organization API's unit picker
+    (``app/routes/api/organization.py::_reachable_unit_ids``) and the web
+    intake service's create-time scope check
+    (``app/services/web_intake_service.py::_reachable_unit_ids``). Both must
+    apply the same reachability rule, or the picker an interviewer sees and
+    the check their submission is held to would disagree about which units
+    they reach.
+
+    Exact promises, because callers outside this module depend on them:
+
+    * **Inactive grants never count.** Both branches require
+      ``grant_status == active``.
+    * **Inactive project-sites never count.** The site-scoped branch joins
+      ``VaProjectSites`` and requires ``project_site_status == active``.
+    * **An admin or project-manager bypass is NOT applied here.** This
+      function answers one narrow question — does an *explicit* project- or
+      site-scoped grant in *roles* exist — and nothing else. A caller that
+      wants admins to reach the whole tree must check that itself, before
+      calling (the organization API does; web intake deliberately does not,
+      because intake access is strictly grant-based).
+    * **An org_unit-scoped grant never counts**, by construction: that is
+      what ``scope_unit_ids`` expands.
+    * **Asymmetry, inherited and codebase-wide:** the site-scoped branch
+      checks the *site's* status, but the project-scoped branch does not
+      check the *project's* status. A project-scoped grant on a closed
+      project therefore still returns True here.
+
+      Do not read this as a quirk of this function with a mitigating caller.
+      The same gap exists independently on the data-management path, which
+      never calls this function at all:
+      ``VaUsers._get_granted_project_ids`` (app/models/va_users.py) filters
+      grant status, scope type and role but not project status, and
+      ``submission_analytics_mv._expand_project_ids_to_active_pairs``
+      expands those ids filtering only ``project_site_status``. A
+      data_manager grant on a closed project resolves to active pairs today.
+
+      So: two known instances, two independent mechanisms, one shared
+      assumption that a closed project's grants are already gone. Nothing
+      here relies on a caller to be safe — the organization API happens to
+      404 on a non-active project before reaching this, but that is a
+      property of that caller only, and a new caller inherits the gap.
+      Closing it means deciding what a closed project means for *every*
+      grant scope, which is why it has not been done piecemeal.
+    """
+    from app.models import VaProjectSites
+
+    project_scope = sa.select(sa.literal(1)).where(
+        sa.exists(
+            sa.select(1).where(
+                VaUserAccessGrants.user_id == user_id,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                VaUserAccessGrants.project_id == project_id,
+                VaUserAccessGrants.role.in_(roles),
+            )
+        )
+    )
+    if db.session.scalar(project_scope):
+        return True
+    site_scope = sa.select(sa.literal(1)).where(
+        sa.exists(
+            sa.select(1)
+            .select_from(VaUserAccessGrants)
+            .join(
+                VaProjectSites,
+                VaProjectSites.project_site_id == VaUserAccessGrants.project_site_id,
+            )
+            .where(
+                VaUserAccessGrants.user_id == user_id,
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.role.in_(roles),
+                VaProjectSites.project_id == project_id,
+                VaProjectSites.project_site_status == VaStatuses.active,
+            )
+        )
+    )
+    return bool(db.session.scalar(site_scope))
+
+
 def projects_with_org_tree(project_ids: set[str] | None = None) -> set[str]:
     """Projects that have at least one active organization level."""
     from app.models import MasOrgLevel
@@ -430,3 +521,49 @@ def has_view_only_scope(user_id: uuid.UUID, role: VaAccessRoles) -> bool:
     if not viewable:
         return False
     return bool(viewable - codeable_unit_ids(user_id, role))
+
+
+def resolve_unit_coding_gates(
+    unit_ids: Iterable[uuid.UUID],
+) -> dict[uuid.UUID, MapOrgUnitCodingGate]:
+    """Nearest gated ancestor (inclusive) for each of *unit_ids*.
+
+    A ``map_org_unit_coding_gate`` row on a unit applies to that unit and to
+    every descendant that does not carry its own row -- the nearest gated
+    ancestor wins. Resolved with one ltree containment query across all
+    requested units (never a per-row walk up the tree): each target unit is
+    joined to every ancestor-or-self unit carrying a gate row, then the
+    deepest match per target is kept.
+
+    Returns a mapping from a requested unit id to the ``MapOrgUnitCodingGate``
+    that governs it. A unit id absent from the result has no gate at all --
+    neither its own nor an inherited one -- and callers must treat that as
+    "not gated", never as closed.
+    """
+    unit_id_set = set(unit_ids)
+    if not unit_id_set:
+        return {}
+
+    target = sa.orm.aliased(MasOrgUnit, name="gate_target_unit")
+    ancestor = sa.orm.aliased(MasOrgUnit, name="gate_ancestor_unit")
+    rows = db.session.execute(
+        sa.select(target.org_unit_id, MapOrgUnitCodingGate)
+        .select_from(target)
+        .join(
+            ancestor,
+            sa.and_(
+                ancestor.project_id == target.project_id,
+                sa.text("gate_target_unit.path <@ gate_ancestor_unit.path"),
+            ),
+        )
+        .join(MapOrgUnitCodingGate, MapOrgUnitCodingGate.org_unit_id == ancestor.org_unit_id)
+        .where(target.org_unit_id.in_(unit_id_set))
+        .order_by(target.org_unit_id, sa.func.nlevel(ancestor.path).desc())
+    ).all()
+
+    resolved: dict[uuid.UUID, MapOrgUnitCodingGate] = {}
+    for target_unit_id, gate in rows:
+        # Rows are grouped by target and ordered deepest-ancestor-first within
+        # each group, so the first row seen per target is its nearest gate.
+        resolved.setdefault(target_unit_id, gate)
+    return resolved

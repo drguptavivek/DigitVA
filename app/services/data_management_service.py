@@ -302,11 +302,32 @@ def _redact_staff_identity_export_row(
 # ---------------------------------------------------------------------------
 
 def dm_scope_filter(user):
-    """SQLAlchemy WHERE clause scoped to the user's data-manager grants.
+    """SQLAlchemy WHERE clause scoped to the user's data-management grants.
 
-    Project-level grants are expanded to their currently active
-    (project_id, site_id) pairs so that sites removed from a project are
-    not included.
+    Covers ``data_manager`` (full access) and the two read-only viewer
+    roles, ``collaborator``/``collaborator_pii`` (identical reach — what
+    they may *see* once in scope is decided separately by
+    viewer_pii_service.should_redact_pii, not by this filter). Project-level
+    grants are expanded to their currently active (project_id, site_id)
+    pairs so that sites removed from a project are not included.
+
+    A viewer's org_unit-scoped grant does not name a site, so it is
+    resolved to its whole project here (see ``_dm_viewer_org_project_ids``)
+    — coarser than the unit itself. That is only safe because this filter
+    decides which (project, site) pairs exist at all, not which submissions
+    within them are visible: callers that enumerate individual submissions
+    (``dm_submissions_page``, ``_dm_submission_query_parts``) additionally
+    apply ``dm_submission_org_unit_condition``, which restricts by
+    ``VaSubmissions.org_unit_id`` and restores the true unit-level grain.
+    Every caller that can be reached by a viewer must decide what to do
+    about that coarsening -- this filter alone is wider than the grant, so
+    forgetting the question fails open. ``dm_scoped_forms`` and
+    ``dm_filter_options`` carry no personal data, but their project/site
+    rosters, ODK ids and distinct value lists are still more than an
+    org_unit grant conveys, so both narrow themselves to forms and
+    submissions the user can actually see. If you add a caller, apply
+    ``dm_submission_org_unit_condition`` or write down why the coarse
+    answer is the right one.
     """
     all_pairs = _dm_scope_pairs(user)
 
@@ -316,16 +337,88 @@ def dm_scope_filter(user):
     return sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(all_pairs))
 
 
-def _dm_scope_pairs(user) -> set[tuple[str, str]]:
-    """Return active project/site pairs visible to this data manager."""
+def _dm_direct_scope_pairs(user) -> set[tuple[str, str]]:
+    """Project/project_site grants only — data_manager plus both viewer roles.
+
+    Excludes org_unit grants, which cannot be expressed as a site. This is
+    the base both ``_dm_scope_pairs`` (bridged to org-project granularity,
+    below) and ``dm_submission_org_unit_condition`` (the finer per-submission
+    check) build on.
+    """
     from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
 
-    project_ids = sorted(user.get_data_manager_projects())
-    project_site_pairs = user.get_data_manager_project_sites()
+    project_ids = user.get_dm_view_projects()
+    project_site_pairs = user.get_dm_view_project_sites()
 
     all_pairs: set[tuple[str, str]] = set(project_site_pairs)
-    all_pairs |= _expand_project_ids_to_active_pairs(project_ids)
+    all_pairs |= _expand_project_ids_to_active_pairs(sorted(project_ids))
     return all_pairs
+
+
+def _dm_viewer_org_unit_ids(user) -> set[uuid.UUID]:
+    """Org units reachable by this user's collaborator/collaborator_pii grants."""
+    return user.get_viewer_org_unit_ids()
+
+
+def _dm_viewer_org_project_ids(user) -> set[str]:
+    """Projects reached through a viewer org_unit grant (unit -> its project)."""
+    unit_ids = _dm_viewer_org_unit_ids(user)
+    if not unit_ids:
+        return set()
+    from app.models import MasOrgUnit
+
+    return set(
+        db.session.scalars(
+            sa.select(MasOrgUnit.project_id)
+            .where(MasOrgUnit.org_unit_id.in_(unit_ids))
+            .distinct()
+        ).all()
+    )
+
+
+def _dm_scope_pairs(user) -> set[tuple[str, str]]:
+    """Return active project/site pairs visible for the data-management view.
+
+    See the ``dm_scope_filter`` docstring for why a viewer org_unit grant is
+    bridged to its whole project here rather than a specific site.
+    """
+    from app.services.submission_analytics_mv import _expand_project_ids_to_active_pairs
+
+    all_pairs = _dm_direct_scope_pairs(user)
+    org_project_ids = _dm_viewer_org_project_ids(user)
+    if org_project_ids:
+        all_pairs |= _expand_project_ids_to_active_pairs(sorted(org_project_ids))
+    return all_pairs
+
+
+def dm_submission_org_unit_condition(user):
+    """Extra AND-condition that restores unit-level grain for a viewer.
+
+    ``dm_scope_filter`` grants an entire project once ANY unit inside it is
+    granted. ANDed into a query that already joins ``VaSubmissions`` to
+    ``VaForms`` (both ``dm_submissions_page`` and
+    ``_dm_submission_query_parts`` do), the combination becomes:
+
+        (direct project/project_site grant) OR
+        (org-bridged project AND submission's org_unit_id is granted)
+
+    which is the correct grain — a unit-scoped viewer cannot see submissions
+    outside their granted subtree just because they share a project with
+    it. Returns ``None`` when the user holds no viewer org_unit grant, so
+    callers can skip appending it (and so a plain data_manager, who never
+    reaches this branch, gets the exact same query as before this change).
+    """
+    unit_ids = _dm_viewer_org_unit_ids(user)
+    if not unit_ids:
+        return None
+
+    direct_pairs = _dm_direct_scope_pairs(user)
+    direct_clause = (
+        sa.tuple_(VaForms.project_id, VaForms.site_id).in_(list(direct_pairs))
+        if direct_pairs
+        else sa.false()
+    )
+    return sa.or_(direct_clause, VaSubmissions.org_unit_id.in_(unit_ids))
 
 
 def dm_form_in_scope(user, form_id: str) -> bool:
@@ -338,9 +431,31 @@ def dm_form_in_scope(user, form_id: str) -> bool:
 
 
 def dm_scoped_forms(user) -> list[dict]:
+    """Forms visible for the data-management view, with their ODK mapping.
+
+    A viewer holding only an org_unit grant is widened by ``_dm_scope_pairs``
+    to the unit's whole project, so without the extra restriction below this
+    would hand them every site name and ODK project/form id in that project.
+    When ``dm_submission_org_unit_condition`` applies, each form must
+    therefore also have at least one submission the user can actually see.
+    A plain data_manager gets ``None`` from that helper and keeps the
+    original query unchanged.
+    """
     scoped_pairs = _dm_scope_pairs(user)
     if not scoped_pairs:
         return []
+
+    org_unit_condition = dm_submission_org_unit_condition(user)
+    visible_submission_exists = (
+        sa.exists(
+            sa.select(sa.literal(1))
+            .select_from(VaSubmissions)
+            .where(VaSubmissions.va_form_id == VaForms.form_id, org_unit_condition)
+            .correlate(VaForms)
+        )
+        if org_unit_condition is not None
+        else sa.true()
+    )
 
     sync_runtime_forms_from_site_mappings()
     return [
@@ -390,7 +505,8 @@ def dm_scoped_forms(user) -> list[dict]:
             .where(
                 sa.tuple_(MapProjectSiteOdk.project_id, MapProjectSiteOdk.site_id).in_(
                     list(scoped_pairs)
-                )
+                ),
+                visible_submission_exists,
             )
             .order_by(VaForms.project_id, VaForms.site_id, VaForms.form_id)
         ).mappings().all()
@@ -668,6 +784,9 @@ def dm_submissions_page(
 
     scope = dm_scope_filter(user)
     conditions = [scope]
+    org_unit_condition = dm_submission_org_unit_condition(user)
+    if org_unit_condition is not None:
+        conditions.append(org_unit_condition)
     project_values = _csv_values(project)
     site_values = _csv_values(site)
 
@@ -904,6 +1023,9 @@ def _dm_submission_query_parts(
         )
     scope = dm_scope_filter(user)
     conditions = [scope]
+    org_unit_condition = dm_submission_org_unit_condition(user)
+    if org_unit_condition is not None:
+        conditions.append(org_unit_condition)
     project_values = _csv_values(project)
     site_values = _csv_values(site)
 
@@ -1654,6 +1776,7 @@ def dm_coded_cod_snapshot_export_csv(
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
 
     rows = db.session.execute(query).mappings().all()
+    redact_pii = should_redact_pii(user)
 
     handle = io.StringIO()
     writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
@@ -2212,26 +2335,45 @@ def dm_coder_daily_statistics(
 
 
 def dm_filter_options(user) -> dict:
-    """Return distinct filter values available to the data manager."""
+    """Return distinct filter values available to the data manager.
+
+    ``dm_scope_filter`` alone is too coarse for a viewer holding only an
+    org_unit grant: it widens to the unit's whole project, so the raw
+    project/site lists would disclose every site in that project. Whenever
+    ``dm_submission_org_unit_condition`` applies, each list is therefore
+    derived from the submissions the user can actually see -- joining
+    ``VaSubmissions`` so the finer per-submission condition can be ANDed in.
+    A site with no visible submission then does not appear, which is the
+    right answer for options that filter a submission list.
+
+    A plain data_manager gets ``None`` from that helper and so keeps the
+    original, cheaper queries with no ``VaSubmissions`` join.
+    """
     scope = dm_scope_filter(user)
+    org_unit_condition = dm_submission_org_unit_condition(user)
+
+    project_stmt = sa.select(VaForms.project_id)
+    site_stmt = sa.select(VaForms.project_id, VaForms.site_id)
+    if org_unit_condition is not None:
+        join_on = VaForms.form_id == VaSubmissions.va_form_id
+        project_stmt = project_stmt.join(VaSubmissions, join_on).where(org_unit_condition)
+        site_stmt = site_stmt.join(VaSubmissions, join_on).where(org_unit_condition)
+
     projects = db.session.scalars(
-        sa.select(VaForms.project_id)
-        .where(scope)
-        .distinct()
-        .order_by(VaForms.project_id)
+        project_stmt.where(scope).distinct().order_by(VaForms.project_id)
     ).all()
     sites = db.session.execute(
-        sa.select(VaForms.project_id, VaForms.site_id)
-        .where(scope)
-        .distinct()
-        .order_by(VaForms.project_id, VaForms.site_id)
+        site_stmt.where(scope).distinct().order_by(VaForms.project_id, VaForms.site_id)
     ).mappings().all()
-    genders = db.session.scalars(
+    gender_stmt = (
         sa.select(VaSubmissions.va_deceased_gender)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .where(scope, VaSubmissions.va_deceased_gender.is_not(None))
-        .distinct()
-        .order_by(VaSubmissions.va_deceased_gender)
+    )
+    if org_unit_condition is not None:
+        gender_stmt = gender_stmt.where(org_unit_condition)
+    genders = db.session.scalars(
+        gender_stmt.distinct().order_by(VaSubmissions.va_deceased_gender)
     ).all()
     return {
         "projects": list(projects),

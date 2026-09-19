@@ -253,6 +253,56 @@ class VaUsers(UserMixin, db.Model):
     def get_data_manager_project_sites(self):
         return self._get_granted_project_site_pairs("data_manager")
 
+    def get_viewer_projects(self) -> set[str]:
+        """Projects granted to this user as a read-only viewer.
+
+        ``collaborator`` and ``collaborator_pii`` have identical reach — the
+        only difference is whether personal data is redacted once access is
+        granted (app/services/viewer_pii_service.py), which is decided
+        separately from scope. Combined here so a scope check only has to
+        ask once. See docs/policy/access-control-model.md, "collaborator".
+        """
+        return (
+            self._get_granted_project_ids("collaborator")
+            | self._get_granted_project_ids("collaborator_pii")
+        )
+
+    def get_viewer_project_sites(self) -> set[tuple[str, str]]:
+        return (
+            self._get_granted_project_site_pairs("collaborator")
+            | self._get_granted_project_site_pairs("collaborator_pii")
+        )
+
+    def get_viewer_org_unit_ids(self):
+        """Org units reachable through a collaborator/collaborator_pii grant.
+
+        Reuses the shared subtree resolution in org_grant_service rather
+        than walking ``path`` (ltree) itself.
+        """
+        from app.models import VaAccessRoles
+        from app.services.org_grant_service import scope_unit_ids_for_roles
+
+        return scope_unit_ids_for_roles(
+            self.user_id,
+            (VaAccessRoles.collaborator, VaAccessRoles.collaborator_pii),
+        )
+
+    def is_viewer(self) -> bool:
+        """Whether this user holds any active collaborator/collaborator_pii grant."""
+        return bool(
+            self.get_viewer_projects()
+            or self.get_viewer_project_sites()
+            or self.get_viewer_org_unit_ids()
+        )
+
+    def get_dm_view_projects(self) -> set[str]:
+        """Projects reachable for the data-management view: data_manager OR viewer."""
+        return self.get_data_manager_projects() | self.get_viewer_projects()
+
+    def get_dm_view_project_sites(self) -> set[tuple[str, str]]:
+        """Project/site pairs reachable for the data-management view."""
+        return self.get_data_manager_project_sites() | self.get_viewer_project_sites()
+
     def has_data_manager_submission_access(self, project_id: str, site_id: str) -> bool:
         if project_id in self.get_data_manager_projects():
             return True

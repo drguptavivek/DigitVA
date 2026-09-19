@@ -136,6 +136,108 @@ class ShouldRedactPiiTests(BaseTestCase):
         )
         self.assertTrue(should_redact_pii(user))
 
+    def test_pii_grant_on_a_closed_project_does_not_unlock_pii(self):
+        """A collaborator_pii grant stops counting while its project is
+        closed, and counts again when it reopens. Present-before-absent: the
+        grant unlocks PII while the project is active first."""
+        user = self._get_or_make_user("vpr.collab.closed@test.local", "VprClosed123")
+        closed_project = "VPR002"
+        now = datetime.now(timezone.utc)
+        if db.session.get(VaProjectMaster, closed_project) is None:
+            db.session.add(VaProjectMaster(
+                project_id=closed_project,
+                project_code=closed_project,
+                project_name="Viewer PII Closed Project",
+                project_nickname="ViewerPiiClosed",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            ))
+            db.session.flush()
+        self._grant(user, VaAccessRoles.collaborator)  # on the open project
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id,
+            role=VaAccessRoles.collaborator_pii,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=closed_project,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self.assertFalse(should_redact_pii(user), "grant must unlock PII while active")
+
+        project = db.session.get(VaProjectMaster, closed_project)
+        project.project_status = VaStatuses.deactive
+        db.session.flush()
+        self.assertTrue(should_redact_pii(user), "closed project's grant must not unlock PII")
+
+        project.project_status = VaStatuses.active
+        db.session.flush()
+        self.assertFalse(should_redact_pii(user), "reopening restores it")
+
+    def test_site_scoped_pii_grant_on_a_closed_project_does_not_unlock_pii(self):
+        """Same rule for a project_site-scoped grant, whose project is reached
+        through va_project_sites rather than named on the grant row. Two
+        grants on the user so the per-scope subquery must stay correlated to
+        its own grant row."""
+        user = self._get_or_make_user("vpr.site.closed@test.local", "VprSiteClosed123")
+        closed_project = "VPR003"
+        now = datetime.now(timezone.utc)
+        if db.session.get(VaProjectMaster, closed_project) is None:
+            db.session.add(VaProjectMaster(
+                project_id=closed_project,
+                project_code=closed_project,
+                project_name="Viewer PII Closed Site Project",
+                project_nickname="ViewerPiiClosedSite",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            ))
+            db.session.flush()
+        pair = db.session.scalar(sa.select(VaProjectSites).where(
+            VaProjectSites.project_id == closed_project,
+            VaProjectSites.site_id == self.SITE,
+        ))
+        if pair is None:
+            pair = VaProjectSites(
+                project_id=closed_project,
+                site_id=self.SITE,
+                project_site_status=VaStatuses.active,
+            )
+            db.session.add(pair)
+            db.session.flush()
+        self._grant(user, VaAccessRoles.collaborator)  # on the open project
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id,
+            role=VaAccessRoles.collaborator_pii,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=pair.project_site_id,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self.assertFalse(should_redact_pii(user), "site grant must unlock PII while active")
+
+        project = db.session.get(VaProjectMaster, closed_project)
+        project.project_status = VaStatuses.deactive
+        db.session.flush()
+        self.assertTrue(should_redact_pii(user), "closed project's site grant must not unlock PII")
+
+        project.project_status = VaStatuses.active
+        db.session.flush()
+        self.assertFalse(should_redact_pii(user), "reopening restores it")
+
+    def test_admin_global_grant_still_unlocks_pii(self):
+        """Global scope names no project, so the active-project condition must
+        not silently exclude it."""
+        user = self._get_or_make_user("vpr.admin@test.local", "VprAdmin123")
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id,
+            role=VaAccessRoles.admin,
+            scope_type=VaAccessScopeTypes.global_scope,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self.assertFalse(should_redact_pii(user))
+
 
 class DmSearchConditionRedactionTests(BaseTestCase):
     """_dm_search_condition: staff-name clauses must disappear, not just the

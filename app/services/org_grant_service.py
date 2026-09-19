@@ -127,6 +127,32 @@ def validate_org_unit_grant(
     return unit, cadre
 
 
+def active_project_condition(project_id_expr):
+    """SQL predicate: *project_id_expr* names a project that is still active.
+
+    The single expression of the rule that a project whose ``project_status``
+    is not ``active`` resolves **no** grant of any scope for any non-admin
+    role (docs/policy/access-control-model.md, "Closed projects"). Grants on
+    such a project stay on the row, untouched, and resolve again the moment
+    the project is reopened.
+
+    Every resolver that turns grants into access ANDs this into its own
+    query, as a correlated EXISTS against the primary key, so the rule costs
+    one indexed lookup inside the same round trip -- never a per-grant
+    lookup -- and cannot drift between mechanisms. Admin grants are global
+    scope and are never resolved through any of those resolvers, so admin
+    bypass is unaffected.
+    """
+    from app.models import VaProjectMaster
+
+    return sa.exists(
+        sa.select(1).where(
+            VaProjectMaster.project_id == project_id_expr,
+            VaProjectMaster.project_status == VaStatuses.active,
+        )
+    )
+
+
 def _grant_units_stmt(user_id: uuid.UUID, role: VaAccessRoles):
     return (
         sa.select(MasOrgUnit)
@@ -140,6 +166,7 @@ def _grant_units_stmt(user_id: uuid.UUID, role: VaAccessRoles):
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
             VaUserAccessGrants.grant_status == VaStatuses.active,
             MasOrgUnit.is_active.is_(True),
+            active_project_condition(MasOrgUnit.project_id),
         )
     )
 
@@ -176,6 +203,7 @@ def scope_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]:
             VaUserAccessGrants.grant_status == VaStatuses.active,
             granted.is_active.is_(True),
             covered.is_active.is_(True),
+            active_project_condition(granted.project_id),
         )
     )
     return set(db.session.scalars(stmt).all())
@@ -214,6 +242,7 @@ def scope_unit_ids_for_roles(
             VaUserAccessGrants.grant_status == VaStatuses.active,
             granted.is_active.is_(True),
             covered.is_active.is_(True),
+            active_project_condition(granted.project_id),
         )
     )
     return set(db.session.scalars(stmt).all())
@@ -284,6 +313,7 @@ def codeable_unit_ids(user_id: uuid.UUID, role: VaAccessRoles) -> set[uuid.UUID]
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
             VaUserAccessGrants.grant_status == VaStatuses.active,
             granted.is_active.is_(True),
+            active_project_condition(granted.project_id),
         )
     ).all()
     if not rows:
@@ -343,6 +373,12 @@ def project_wide_grant_exists(
       ``grant_status == active``.
     * **Inactive project-sites never count.** The site-scoped branch joins
       ``VaProjectSites`` and requires ``project_site_status == active``.
+    * **Closed projects never count.** Both branches apply
+      ``active_project_condition``: a grant on a project whose
+      ``project_status`` is not ``active`` resolves to nothing, in every
+      scope and every mechanism (docs/policy/access-control-model.md,
+      "Closed projects"). The grant row is untouched, so reopening the
+      project restores it unchanged.
     * **An admin or project-manager bypass is NOT applied here.** This
       function answers one narrow question — does an *explicit* project- or
       site-scoped grant in *roles* exist — and nothing else. A caller that
@@ -351,27 +387,6 @@ def project_wide_grant_exists(
       because intake access is strictly grant-based).
     * **An org_unit-scoped grant never counts**, by construction: that is
       what ``scope_unit_ids`` expands.
-    * **Asymmetry, inherited and codebase-wide:** the site-scoped branch
-      checks the *site's* status, but the project-scoped branch does not
-      check the *project's* status. A project-scoped grant on a closed
-      project therefore still returns True here.
-
-      Do not read this as a quirk of this function with a mitigating caller.
-      The same gap exists independently on the data-management path, which
-      never calls this function at all:
-      ``VaUsers._get_granted_project_ids`` (app/models/va_users.py) filters
-      grant status, scope type and role but not project status, and
-      ``submission_analytics_mv._expand_project_ids_to_active_pairs``
-      expands those ids filtering only ``project_site_status``. A
-      data_manager grant on a closed project resolves to active pairs today.
-
-      So: two known instances, two independent mechanisms, one shared
-      assumption that a closed project's grants are already gone. Nothing
-      here relies on a caller to be safe — the organization API happens to
-      404 on a non-active project before reaching this, but that is a
-      property of that caller only, and a new caller inherits the gap.
-      Closing it means deciding what a closed project means for *every*
-      grant scope, which is why it has not been done piecemeal.
     """
     from app.models import VaProjectSites
 
@@ -383,6 +398,7 @@ def project_wide_grant_exists(
                 VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
                 VaUserAccessGrants.project_id == project_id,
                 VaUserAccessGrants.role.in_(roles),
+                active_project_condition(project_id),
             )
         )
     )
@@ -403,6 +419,7 @@ def project_wide_grant_exists(
                 VaUserAccessGrants.role.in_(roles),
                 VaProjectSites.project_id == project_id,
                 VaProjectSites.project_site_status == VaStatuses.active,
+                active_project_condition(project_id),
             )
         )
     )

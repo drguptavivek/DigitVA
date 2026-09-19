@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-18
+last_updated: 2026-09-19
 ---
 
 # Workflow And Permissions
@@ -639,6 +639,19 @@ For example:
   nothing for them, so the form-and-site model is unchanged
 - an unrouted submission of a tree project is codeable by nobody until a data
   manager routes it (policy: `docs/policy/organization-model.md`)
+
+### Closed projects resolve no grant
+
+Every resolver that turns a grant into access requires the grant's project to
+have `project_status = active`, through the shared predicate
+`app/services/org_grant_service.py::active_project_condition`. A project- ,
+site- or unit-scoped grant on a closed project resolves to nothing for every
+non-admin role, in both mechanisms (`org_grant_service` and the
+`VaUsers._get_granted_*` helpers the data-management path uses). The grant
+rows are untouched, so reopening the project restores access unchanged.
+Admins hold a `global` grant and are not grant-resolved against a project, so
+admin access is unaffected. Policy:
+`docs/policy/access-control-model.md`, "Closed Projects".
 
 ### Language as second filter
 

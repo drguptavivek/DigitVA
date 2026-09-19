@@ -223,6 +223,12 @@ import/export is already restricted to admins and project PIs.
 
 ## Unit-scoped grants
 
+A unit-scoped grant on a project whose `project_status` is not `active`
+resolves to nothing, like every other grant scope on a closed project. The
+grant row is left untouched and resolves again when the project is reopened.
+The rule and the shared predicate that implements it live in
+[Access Control Model](access-control-model.md), "Closed Projects".
+
 - A grant may carry `scope_type = 'org_unit'` with an `org_unit_id`. The grant
   covers that unit **and its whole subtree**, resolved through the unit's
   ltree path.

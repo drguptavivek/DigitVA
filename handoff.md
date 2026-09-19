@@ -19,14 +19,16 @@ clean.
 | `711710e` | Policy: what a second form type must pass before it goes live |
 | `b159e53`, `e0d2300`, `4a7c623` | `tests/test_route_auth_coverage.py`: every `url_map` endpoint must carry `role_required` or `login_required`, or sit on an explicit allowlist; public set settled |
 | `89c1b79` | CLAUDE.md trimmed; subagent working model written down |
-| (this session) | `GET /api/v1/organization/<project_id>/form-options`; four `web_intake_*` columns on `va_project_master`; migration `f2a9c4d7e1b3`; intake form takes locale and instrument from the project |
+| `ae8ace5` | `GET /api/v1/organization/<project_id>/form-options`; four `web_intake_*` columns on `va_project_master`; migration `f2a9c4d7e1b3`; intake form takes locale and instrument from the project |
+| `10d38c8` | Fifteen migrations importing MV builders pinned; any new application import in a migration fails the suite |
+| (this session) | Closed projects resolve no grant of any scope; one shared predicate in twelve resolvers |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4 -> f2a9c4d7e1b3`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,423 passed with the form-options endpoint (1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite 1,445 passed after the closed-project rule (1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -57,18 +59,46 @@ pending a decision are settled: help, WHO documents and the home page are
 public. The `form-options` endpoint is in (section below); its one open
 consequence is the `WHO_2022_VA_SOCIAL` instrument.
 
-1. **Closed-project grant revocation.** `.tasks/closed-project-grant-revocation.md`.
-   A project-scoped grant on a closed project still resolves, in two
-   independent mechanisms. Fixing one alone leaves them disagreeing, so it needs
-   a decision about what a closed project means for every grant scope.
-
-2. **Migrations importing live app code.** `.tasks/migrations-importing-app-code.md`.
-   15 migration files import from `app.*`; the `mas_org_unit` break came from
-   exactly this. A lint on `app.services` imports under `migrations/versions`
-   plus the empty-database upgrade replay closes it.
+The ranked list from the start of 2026-09-19 is exhausted. What is left is
+below under "Then", plus the open consequences named in each section: the
+`WHO_2022_VA_SOCIAL` instrument, the projects-panel inputs for the four
+form-option fields, and `project_pi` being the only grant predicate that
+queries (`.tasks/auth-decorator-followups.md` item 3).
 
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
+
+## Closed projects revoke every grant scope (landed this session)
+
+A project with `project_status != active` (that is `deactive` or `pending`)
+resolves no grant of any scope for any non-admin role. Grants are not
+deleted or status-changed; reopening the project restores them and the
+audit trail is untouched. The rule is one expression,
+`org_grant_service.active_project_condition`, a correlated EXISTS on
+`va_project_master`, applied inside every resolver's own query: seven in
+`org_grant_service` and five on `VaUsers`. Everything else that derives
+access (`dm_scope_filter` and friends, the organization and web-intake
+reachable-unit helpers, the `is_*` role predicates) goes through those
+twelve, plus `should_redact_pii`, which the security review caught: a
+PII-granting grant on a closed project would otherwise keep switching
+redaction off on screens reached through an open project. Its per-scope
+subqueries must stay correlated to the grant row; the first draft lost the
+correlation and scanned every grant, which eleven dashboard tests caught.
+Both mechanisms the task file named now agree because they share the
+predicate; a third resolver must use it too. Recorded in `docs/policy/access-control-model.md`, "Closed Projects".
+
+## Migrations may not import application code (landed this session)
+
+Fifteen historical migrations import the analytics MV SQL builders from
+`app.services.submission_analytics_mv`; none imports models or enums. They
+are pinned by filename and exact import set in
+`tests/migrations/test_no_app_imports_in_migrations.py`, which walks every
+file under `migrations/versions` with `ast` and fails on any application
+import outside the pins, on a pin whose set has grown, and on a stale pin.
+Inlining the fifteen was rejected: it would change what a replay executes
+on a database that has already run them. The pairing check is the existing
+schema-drift test, which builds a throwaway database from the chain alone.
+Rule 7 in `docs/policy/migration-chaining.md`.
 
 ## form-options endpoint (landed this session)
 
@@ -178,7 +208,7 @@ Test database for this tree: `minerva_test_pii` (created this session).
   identical timings are the fingerprint if it recurs.
 - **15 migration files import from `app.*`**, unswept. The `mas_org_unit` break
   came from exactly this.
-- **`stash@{0}`** is still present from the incident earlier this week.
+- **`stash@{0}`** is still present from the incident earlier this week. Not touched by this session; drop it only after someone confirms it holds nothing needed.
 
 ## How to work in this repo now
 

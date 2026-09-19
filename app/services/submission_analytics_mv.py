@@ -941,6 +941,15 @@ def _expand_project_ids_to_active_pairs(project_ids: list[str]) -> set[tuple[str
     whose ``va_project_sites.project_site_status`` is currently active.  This
     ensures that sites removed from a project are excluded from all scoped
     queries without requiring changes to ``va_forms.project_id``.
+
+    Site status is the only filter applied here, deliberately: the project's
+    own status is already guaranteed by whoever produced *project_ids*. Every
+    resolver that turns grants into project ids (``VaUsers``'
+    ``_get_granted_project_ids`` / ``get_viewer_projects``,
+    ``org_grant_service.granted_project_ids``) applies
+    ``org_grant_service.active_project_condition``, so a closed project's ids
+    never reach this function. A caller that assembles project ids some other
+    way must apply that condition itself.
     """
     if not project_ids:
         return set()

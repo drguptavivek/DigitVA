@@ -1,55 +1,68 @@
 # Closed projects do not revoke project-scoped grants
 
-- **Status**: open
+- **Status**: done (2026-09-19)
 - **Priority**: medium
 - **Created**: 2026-09-19
 
-## Goal
+## Decision
 
-Decide what a closed project (`va_project_master.project_status != active`)
-means for every grant scope, and apply that decision consistently in both
-mechanisms that currently ignore it.
+A project whose `va_project_master.project_status != active` resolves **no
+grant of any scope** — `project`, `project_site` or `org_unit` — for any
+non-admin role, in every mechanism.
 
-## Context
+Grants are **not** revoked: no row is deleted and no `grant_status` changes.
+Reopening the project restores the same access, and the grant's audit history
+is untouched. Admin bypass is unchanged (`admin` is a `global` grant and is
+never grant-resolved against a project).
 
-A grant with `scope_type = project` on a closed project still resolves to
-access, in two independent places that do not call each other:
+Rationale: the two mechanisms already assumed a closed project's grants were
+revoked. Making that true at resolution time is the smallest change that makes
+them agree. Revoking the rows would be a destructive rewrite of state that is
+meant to be reversible.
 
-1. `app/services/org_grant_service.py::project_wide_grant_exists` — the
-   site-scoped branch joins `VaProjectSites` and requires
-   `project_site_status == active`; the project-scoped branch checks only
-   `grant_status` and never checks the project's own status.
+## Implementation
 
-2. `app/models/va_users.py:430::_get_granted_project_ids` filters
-   `grant_status`, `scope_type` and `role`, but not project status.
-   `app/services/submission_analytics_mv.py:937::_expand_project_ids_to_active_pairs`
-   then expands those ids filtering only `project_site_status`, so a
-   `data_manager` grant on a closed project resolves to active
-   `(project_id, site_id)` pairs.
+One shared predicate, `app/services/org_grant_service.py::active_project_condition`,
+ANDed into each resolver's own query as a correlated `EXISTS` on the project's
+primary key — never a per-grant lookup. Applied in:
 
-Both behaviours predate 2026-09-19. The shared assumption is that a closed
-project's grants are already revoked; nothing enforces it.
+- `org_grant_service`: `_grant_units_stmt` (so `granted_units` /
+  `granted_project_ids`), `scope_unit_ids`, `scope_unit_ids_for_roles`,
+  `codeable_unit_ids`, and both branches of `project_wide_grant_exists`.
+- `app/models/va_users.py`: `_get_granted_project_ids`,
+  `_get_granted_project_site_pairs`, `_get_granted_va_forms` (one condition on
+  `VaForms.project_id` covers all three of its branches), `get_site_pi_sites`,
+  `get_project_pi_projects`.
 
-Impact today is bounded only by callers — the organization API 404s on a
-non-active project before reaching (1). That is a property of that caller,
-not of either mechanism, and any new caller inherits the gap.
+Everything else reaches the rule through those two mechanisms:
+`dm_scope_filter` / `_dm_scope_pairs`, `_expand_project_ids_to_active_pairs`
+(given ids by the fixed resolvers — its docstring now says so),
+`organization.py::_reachable_unit_ids`, `web_intake_service::_reachable_unit_ids`,
+`is_viewer`, `is_data_manager`, `can_manage_project`.
 
-## Expected Scope
+`viewer_pii_service.should_redact_pii` takes the predicate too. It was first
+left alone as "not an access check", and the security review showed why that
+was wrong: a user with a plain collaborator grant on an open project and a
+`collaborator_pii` grant on a closed one would keep seeing personal data on
+the open project's screens through the dormant grant. Redaction is an access
+decision about personal data, and it fails open when it disagrees with the
+resolvers. The grant names its project differently per scope, so the check
+resolves it per scope with subqueries correlated to the grant row; global
+(admin) grants count unconditionally.
 
-- Decide the rule for `project`, `project_site` and `org_unit` scopes.
-- Apply it in **both** mechanisms. Fixing one alone leaves two mechanisms
-  disagreeing, which is worse than one honest gap.
-- Tests: a project-scoped grant and a `data_manager` grant, each on a closed
-  project.
+## Verification
 
-## References
+`tests/test_closed_project_grants.py` — for each of a project-scoped
+interviewer grant, a `project_site` coder grant, an `org_unit` grant, a
+`data_manager` grant and a `project_pi` grant: access resolves while active,
+is gone while closed, and returns on reopen. Plus an end-to-end control
+through `GET /api/v1/data-management/filter-options` (a route with no
+project-status pre-check), a check that the grant row survives closure
+unchanged, and a positive control that a second, active project's grant for
+the same user is unaffected.
 
-- `app/services/org_grant_service.py` — `project_wide_grant_exists` docstring
-  carries the full semantics of that function.
-- `app/models/va_users.py:422-440`
-- `app/services/submission_analytics_mv.py:937`
-- `docs/policy/organization-model.md`
+## Docs
 
-Found while collapsing the organization API's copy of the project-wide check
-into `org_grant_service`. Second instance found by the Organization model
-session and verified independently against HEAD.
+- `docs/policy/access-control-model.md` — "Closed Projects" (owns the rule)
+- `docs/policy/organization-model.md` — cross-reference under "Unit-scoped grants"
+- `docs/current-state/workflow-and-permissions.md` — "Closed projects resolve no grant"

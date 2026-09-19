@@ -430,6 +430,36 @@ be defined at the unit's level, and a `coder` grant requires a cadre that may
 code at that level. Cadre rules live in
 [Organization Model Policy](organization-model.md).
 
+## Closed Projects
+
+A project whose `va_project_master.project_status` is not `active` resolves
+**no grant of any scope** — `project`, `project_site` or `org_unit` — for any
+non-admin role. A closed project is closed for everyone who reached it
+through a grant.
+
+- **Grants are not revoked.** Nothing deletes the row or changes its
+  `grant_status`. The grant is dormant, not gone: reopening the project
+  restores exactly the access that existed before, and the grant's audit
+  history is untouched. Closing a project is reversible and must stay so.
+- **Admin bypass is unchanged.** `admin` is a `global` grant and is never
+  grant-resolved against a project, so an admin still reaches a closed
+  project.
+- **Redaction uses it too.** `should_redact_pii` counts a PII-granting
+  grant only while its project is active, otherwise a dormant grant on a
+  closed project would keep personal data visible on an open project's
+  screens. It is a decision about personal data and fails open when it
+  disagrees with the resolvers.
+- **Every resolver uses the shared predicate.**
+  `app/services/org_grant_service.py::active_project_condition` is the only
+  place this rule is written. Any code that turns grants into access ANDs it
+  into its own query — as a correlated `EXISTS`, never a per-grant lookup. A
+  new resolver that enumerates grants without it silently reopens the gap,
+  which is exactly how the two mechanisms that predated this rule came to
+  disagree.
+
+See also [Organization Model Policy](organization-model.md), "Unit-scoped
+grants".
+
 ## Authorization Rule
 
 A request is allowed only if:

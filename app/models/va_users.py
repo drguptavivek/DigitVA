@@ -187,12 +187,14 @@ class VaUsers(UserMixin, db.Model):
             VaUserAccessGrants,
             VaStatuses,
         )
+        from app.services.org_grant_service import active_project_condition
 
         stmt = sa.select(VaUserAccessGrants.project_id).where(
             VaUserAccessGrants.user_id == self.user_id,
             VaUserAccessGrants.role == VaAccessRoles.project_pi,
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
             VaUserAccessGrants.grant_status == VaStatuses.active,
+            active_project_condition(VaUserAccessGrants.project_id),
         )
         return set(db.session.scalars(stmt).all())
 
@@ -222,6 +224,7 @@ class VaUsers(UserMixin, db.Model):
             VaAccessScopeTypes,
             VaStatuses,
         )
+        from app.services.org_grant_service import active_project_condition
 
         stmt = (
             sa.select(VaProjectSites.site_id)
@@ -235,6 +238,7 @@ class VaUsers(UserMixin, db.Model):
                 VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
                 VaUserAccessGrants.grant_status == VaStatuses.active,
                 VaProjectSites.project_site_status == VaStatuses.active,
+                active_project_condition(VaProjectSites.project_id),
             )
         )
         if project_id:
@@ -360,6 +364,7 @@ class VaUsers(UserMixin, db.Model):
             VaStatuses,
         )
         from app.services.demo_project_service import get_coder_demo_project_form_ids
+        from app.services.org_grant_service import active_project_condition
 
         role_enum = VaAccessRoles(role)
         active_status = VaStatuses.active
@@ -420,6 +425,10 @@ class VaUsers(UserMixin, db.Model):
         stmt = (
             sa.select(VaForms.form_id)
             .where(VaForms.form_status == active_status)
+            # A closed project resolves no grant of any scope, so one
+            # condition on the form's project covers all three branches
+            # below (docs/policy/access-control-model.md, "Closed projects").
+            .where(active_project_condition(VaForms.project_id))
             .where(
                 sa.or_(
                     project_scope_exists,
@@ -470,18 +479,25 @@ class VaUsers(UserMixin, db.Model):
         return granted_project_ids(self.user_id, VaAccessRoles(role))
 
     def _get_granted_project_ids(self, role: str) -> set[str]:
+        """Projects the user holds *role* in through a project-scoped grant.
+
+        Closed projects are excluded here, upstream of every caller -- see
+        ``org_grant_service.active_project_condition``.
+        """
         from app.models import (
             VaAccessRoles,
             VaAccessScopeTypes,
             VaUserAccessGrants,
             VaStatuses,
         )
+        from app.services.org_grant_service import active_project_condition
 
         stmt = sa.select(VaUserAccessGrants.project_id).where(
             VaUserAccessGrants.user_id == self.user_id,
             VaUserAccessGrants.role == VaAccessRoles(role),
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
             VaUserAccessGrants.grant_status == VaStatuses.active,
+            active_project_condition(VaUserAccessGrants.project_id),
         )
         return {
             project_id
@@ -490,6 +506,11 @@ class VaUsers(UserMixin, db.Model):
         }
 
     def _get_granted_project_site_pairs(self, role: str) -> set[tuple[str, str]]:
+        """Active (project_id, site_id) pairs the user holds *role* on.
+
+        Excludes pairs of a closed project -- see
+        ``org_grant_service.active_project_condition``.
+        """
         from app.models import (
             VaAccessRoles,
             VaAccessScopeTypes,
@@ -497,6 +518,7 @@ class VaUsers(UserMixin, db.Model):
             VaUserAccessGrants,
             VaStatuses,
         )
+        from app.services.org_grant_service import active_project_condition
 
         stmt = (
             sa.select(VaProjectSites.project_id, VaProjectSites.site_id)
@@ -510,6 +532,7 @@ class VaUsers(UserMixin, db.Model):
                 VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
                 VaUserAccessGrants.grant_status == VaStatuses.active,
                 VaProjectSites.project_site_status == VaStatuses.active,
+                active_project_condition(VaProjectSites.project_id),
             )
         )
         return {(project_id, site_id) for project_id, site_id in db.session.execute(stmt)}

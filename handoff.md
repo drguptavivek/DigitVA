@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-09-19 (web-capture configuration session). On top of the
+Updated 2026-09-19 (DigitVA layers session). On top of the
 morning's `5b22094`, `742ea9d` and `10267ee`: the approved plan
 `docs/planning/web-capture-project-configuration-plan.md` and all of its
 work packages WP0 to WP6 landed;
@@ -39,14 +39,19 @@ work packages WP0 to WP6 landed;
 | `2af0885` | XLIFF 2.0 export and import per locale as the industry-standard interchange (resource ids `question.<name>.<field>`, `choice.<list>.<name>.label`); English fallback pinned |
 | `8a4791b`, `d6902f3` | Hindi sourced from the ND01 ICMR form (the most commonly deployed); every DigitVA layer it carries inventoried in policy (social autopsy, death-certificate images, medical-record images, narration audio and image, intake screen, geography) |
 | `0dd80ea`, `347bbf1` | Translation-sources parser stops at its table's end; tests read the Hindi source from policy. `d6902f3` and `0dd80ea` were pushed on a red targeted run (exit status of `tail`, not pytest); `347bbf1` corrects it and the full suite is green on that tree |
+| `7bf1d5f` | The vendored WHO VA bundle rebuilt from its own source. The bundle committed in `926c212` was not built from the source beside it: three fixes in `src/` had never reached a browser (a language-dropdown `accessibilityRole` of `button` where source says `option`, and React keys on the form and preview roots). Found by a reproducibility check before layering on top |
+| `d04a9f8` | DigitVA layers become conditional on the project's `enabled_extensions`; `medical_records` named as the eighth extension with `web_intake_medical_records_enabled` (migration `e1b6c9a3d7f4`); `ds_available`/`md_available` gate questions and a separate `consent_mode` question. `digitva-thr.1`, `digitva-thr.2` closed |
 | `d497e0e` | Instrument translations stored, managed and served: `mas_instrument_locales`, `map_instrument_translations`, importer from one documented source workbook per language, admin panel, `GET /api/v1/instruments/<code>/translations/<locale>`, client-side apply in the intake page; migration `a7d4f1c9b0e6` |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
-b8e3d1f7a2c4 -> f2a9c4d7e1b3 -> c3e8b5a1f4d2 -> a7d4f1c9b0e6`. Verified by an empty-database `flask db upgrade` replay of the
+b8e3d1f7a2c4 -> f2a9c4d7e1b3 -> c3e8b5a1f4d2 -> a7d4f1c9b0e6 ->
+e1b6c9a3d7f4`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,602 passed at `347bbf1` (1,570 after WP6, 1,499 after WP1, 1,469 after the project_pi predicate, 1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite **1,605 passed at `d04a9f8`**, `PYTEST_EXIT=0` read
+from pytest itself, plus the vendored package's 674 vitest tests at
+`VITEST_EXIT=0`. Earlier: 1,602 at `347bbf1` (1,570 after WP6, 1,499 after WP1, 1,469 after the project_pi predicate, 1,464 after the instrument-locale rule, 1,453 after the projects-panel inputs, 1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -68,6 +73,77 @@ Two things worth knowing before extending it:
   so granting the page alone gives a screen that 403s on every fetch. Opening
   that API is a separate widening: `export.csv` emits staff identity.
 
+## DigitVA layers (landed this session)
+
+Layers are overlays on the one bundled WHO 2022 instrument (E7/E8), and
+until `d04a9f8` the mechanism was half-built in a way worth remembering:
+the server derived `enabled_extensions` and served it, but
+`vendor/who-va-2022/src/instrument.ts` spliced **every** DigitVA question
+into one module-level constant regardless, and the intake page branched on
+exactly one name (`intake_screen`). A project that disabled a layer still
+got its questions. Composition is now
+`createWhoVa2022Instrument(enabledExtensions)`; `whoVa2022Instrument`
+remains exported as the all-on composition so existing importers and the
+vendor suite are unaffected.
+
+`enabled_extensions` now has **eight** names: `medical_records` joins the
+seven, carrying `md_available`/`md_count`/`md_im1..30` out of
+`digitva_core`, derived from `web_intake_medical_records_enabled`
+(default true, migration `e1b6c9a3d7f4`).
+
+**ND01 was compared before adoption, and mostly not adopted.** Only
+`ds_available` and `md_available` were taken. Rejected and why:
+`Id10002`/`Id10003` gain a `calculation` hard-coding state `21` and
+district `412`, so every other site would silently record "very low" HIV
+and malaria mortality; `Id10365` loses the WHO constraint forbidding a
+baby recorded as neither under 2.5 kg nor over 4.5 kg. `Id10476` was left
+alone: its reference relevance `string-length(${Id10476_audio})=0` is
+already true while web intake has no audio capture, so the typed narrative
+shows today and the expression only becomes live with attachments phase 2.
+ND01 encodes telephonic interviews as a third `Id10013` value and a
+widened `consented` group; that was **not** adopted. `consent_mode` is a
+separate question recording how consent was taken, because `va_consent`
+stays the authoritative record that it was taken (owner, 2026-09-19).
+
+Two traps for whoever builds the next layer:
+
+- **Numbering.** `consent_mode` first shipped at `anchor.order + 1` and
+  collided with `Id10011`, because `Id10013` is followed immediately by
+  it. The neighbouring `custom_medical_certificate_upload` uses
+  `anchor + 1` safely only because the generated instrument happens to
+  leave a gap after `Id10473`. Number DigitVA questions from `maxOrder`.
+  A test now asserts `order` uniqueness across all sixteen layer
+  combinations; nothing held that invariant before.
+- **`social_autopsy_enabled` means two unrelated things.** It drives the
+  `social_autopsy` extension *and* the coder-side social-autopsy analysis
+  panel (`app/routes/api/so.py`). A third consumer must not assume one
+  meaning. `docs/planning/social-autopsy-rendering-plan.md` is a stale
+  draft superseded by the layers model.
+
+Open: `digitva-thr.3` (the social autopsy layer's `sa01`-`sa19` questions
+from ND01) and `digitva-thr.4` (layer questions have no translation import
+path -- `reference_items()` validates against the one curated reference
+workbook, so `sa01` or `consent_mode` cannot be imported or coverage-scored;
+and ND01 appends Hindi after the English inside the *same* cell, so it needs
+a parser, not a straight import). Also `digitva-aiy`: relevance is purely
+presentational, so answering a gate "no" can orphan image answers already
+captured -- pre-existing, but the gates widen it, and attachments phase 2
+turns those references into real files.
+
+## The vendored bundle was stale (fixed this session)
+
+`7bf1d5f`. The bundle committed in `926c212` was not built from the source
+committed beside it: three fixes lived in `src/` and had never reached a
+browser -- a language-dropdown `accessibilityRole` of `button` where source
+says `option`, and React keys on the form and preview roots that stop one
+subtree being reused across a view switch. Found only because a
+reproducibility check ran *before* layering new work on top. **Run that
+check first whenever you touch `vendor/who-va-2022`:** rebuild on an
+unmodified tree and confirm `git diff app/static/vendor/who-va-2022/` is
+empty but for `manifest.json`. That `built_at` timestamp dirties the
+manifest on every rebuild and is what let the drift hide; `digitva-cw9`
+proposes removing it so the invariant becomes testable.
+
 ## Start here
 
 **The web-capture configuration plan is fully landed**
@@ -85,10 +161,11 @@ curated reference form itself moves from V1.1 to V2.0 is `digitva-13x`.
 
 Open after this pass, in order:
 
-0. `digitva-thr`: build the `intake_screen`, `death_summary`, social
-   autopsy and medical-records layers from the ND01 form's structure
-   (policy: `va-form-project-configuration.md`, "DigitVA layers in the
-   ND01 form"); the media parts are attachments phase 2.
+0. `digitva-thr` WP-A landed (`d04a9f8`); what remains is `digitva-thr.3`
+   (the social autopsy layer's questions from ND01) and `digitva-thr.4`
+   (layer questions have no translation import path, which blocks Hindi
+   for them). See "DigitVA layers" below. The media parts are still
+   attachments phase 2.
 1. ICD-11 phases 3 to 6 with decisions D1 to D6 all recorded, plus the
    project ICD classification default (web forms have no ODK mapping row,
    so `get_icd_classification_for_submission` returns `icd10` for them);

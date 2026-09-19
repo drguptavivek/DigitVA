@@ -90,7 +90,11 @@ class AdminPanelRoutingTests(BaseTestCase):
         "/admin/panels/access-grants",
         "/admin/panels/project-sites",
         "/admin/panels/activity",
+        "/admin/panels/projects",
     ]
+
+    # Panels behind role_required("admin"): a project_pi gets 403, not a page.
+    ADMIN_ONLY_PANELS = {"/admin/panels/activity", "/admin/panels/projects"}
 
     def test_panel_redirects_unauthenticated(self):
         for url in self.PANELS:
@@ -110,7 +114,7 @@ class AdminPanelRoutingTests(BaseTestCase):
         for url in self.PANELS:
             with self.subTest(url=url):
                 response = self.client.get(url)
-                if url == "/admin/panels/activity":
+                if url in self.ADMIN_ONLY_PANELS:
                     self.assertEqual(response.status_code, 403)
                 else:
                     self.assertEqual(response.status_code, 200)
@@ -121,6 +125,29 @@ class AdminPanelRoutingTests(BaseTestCase):
             with self.subTest(url=url):
                 response = self.client.get(f"{url}?project_id={self.BASE_PROJECT_ID}")
                 self.assertEqual(response.status_code, 200)
+
+    def test_projects_panel_renders_the_web_form_language_inputs(self):
+        """The tier-2 web form options are editable from the Projects panel.
+
+        docs/policy/va-web-form-options.md: the four columns are set from here,
+        and the language choices come from the admin languages API.
+        """
+        self._login(self.base_admin_id)
+
+        response = self.client.get("/admin/panels/projects")
+
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        for marker in (
+            "project-web-intake-default-locale-input",
+            "project-web-intake-all-locales-input",
+            "project-web-intake-available-locales-list",
+            "project-web-intake-narration-languages-list",
+            "project-web-intake-show-guidance-input",
+            "/admin/api/languages",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, body)
 
     def test_panel_response_is_html_fragment(self):
         """Panel responses must be HTML, not JSON — they are HTMX targets."""

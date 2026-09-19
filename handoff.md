@@ -1,8 +1,8 @@
 # Handoff
 
-Updated 2026-09-19 (later session). The PII fail-closed fix landed on top of
-`648dce3`; `origin/main` is at the commit that updated this file, working tree
-clean.
+Updated 2026-09-19 (projects-panel session). The projects-panel inputs for
+the four web form options landed on top of `85ca0ef`; `origin/main` is at
+the commit that updated this file, working tree clean.
 
 ## What landed
 
@@ -22,14 +22,15 @@ clean.
 | `ae8ace5` | `GET /api/v1/organization/<project_id>/form-options`; four `web_intake_*` columns on `va_project_master`; migration `f2a9c4d7e1b3`; intake form takes locale and instrument from the project |
 | `10d38c8` | Fifteen migrations importing MV builders pinned; any new application import in a migration fails the suite |
 | `705021e` | Closed projects resolve no grant of any scope; one shared predicate in twelve resolvers plus the redaction check |
-| (this session) | Form types are layers on the standard instrument; intake resolves `instrument_code`, so `WHO_2022_VA_SOCIAL` renders |
+| `1369c0e` | Form types are layers on the standard instrument; intake resolves `instrument_code`, so `WHO_2022_VA_SOCIAL` renders |
+| (this session) | Projects admin panel reads and writes the four `web_intake_*` form options; project POST accepts them through the same validator as the PUT. No migration. |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4 -> f2a9c4d7e1b3`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,449 passed after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite 1,453 passed after the projects-panel inputs (1,449 after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -60,15 +61,57 @@ pending a decision are settled: help, WHO documents and the home page are
 public. The `form-options` endpoint is in (section below); its one open
 consequence is the `WHO_2022_VA_SOCIAL` instrument.
 
-The ranked list from the start of 2026-09-19 is exhausted. What is left is
-below under "Then", plus the open consequences named in each section: the
-projects-panel inputs for the four form-option fields, the
-`base_instrument_code` column when a second standard instrument is bundled,
-and `project_pi` being the only grant predicate that queries
-(`.tasks/auth-decorator-followups.md` item 3).
+The ranked list from the start of 2026-09-19 is exhausted, and the
+projects-panel inputs are in (section below). Open, in order:
+
+1. **`digitva-4ym` (P1, needs a domain decision): the web form locale codes
+   do not exist.** `web_intake_default_locale` defaults to `en` (model and
+   migration `f2a9c4d7e1b3`), but `flask seed run` creates `mas_languages`
+   codes `english`, `hindi`, ... So on every seeded deployment the resolver
+   in `app/routes/api/organization.py` logs "`en` is not an active language"
+   and falls back to the first active code: verified on dev, every project's
+   web form opens with `locale="assamese"`. The projects panel now shows
+   `en (inactive)` and refuses Save until an admin picks an active code,
+   which makes the problem visible rather than hiding it. The deeper
+   question: the WHO VA component's `locale` attribute wants instrument
+   locale codes (the bundle names its language `English (en)`), while
+   `mas_languages` codes exist for narration-language alias mapping. Either
+   `mas_languages` gains a locale code the resolver serves, or the seed and
+   default agree on one code set. Do not patch the seed to `en` without
+   deciding, because `va_users.vacode_language` and 8,223 submissions carry
+   the long codes.
+2. `project_pi` is the only grant predicate that queries
+   (`.tasks/auth-decorator-followups.md` item 3).
+3. The `base_instrument_code` column when a second standard instrument is
+   bundled.
 
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
+
+## Projects panel inputs for the web form options (landed this session)
+
+`app/templates/admin/panels/projects.html` gained a "Web form languages"
+block: default language select, an "offer every active language" switch
+(sends `null`) over an available-languages checkbox list, a narration
+languages checkbox list (none ticked sends `null`), and a show-guidance
+switch. Languages come from `GET /admin/api/languages` (active only),
+fetched once at panel init. If that fetch fails the four fields are omitted
+from the payload, so a languages outage never blanks a project's settings.
+When languages arrive after an Edit form is already open the form is
+refilled from the project, not reset to create defaults (a reviewer caught
+that race). A stored default that is no longer active renders as
+`<code> (inactive)` and Save is blocked with a message naming it; the
+server would 400 anyway, with a terser one. The default locale is ticked
+into a narrowed list on Save, matching what the resolver does. The PUT's
+validation block moved into `_web_intake_form_option_updates` in
+`app/routes/admin.py` and the project POST now calls it before constructing
+the row, so a bad payload creates nothing. Three POST tests and a render
+test cover the Python; the JavaScript was exercised in jsdom (21 checks:
+edit fill, stale default, empty restricted list, late-languages race,
+languages failure, create) but that harness is not checked in, because the
+repo has no JS toolchain. `admin_create_project` still ignores
+`coding_intake_mode` and `web_intake_mode` on create (pre-existing; the
+panel has always sent them and they take effect on the next edit).
 
 ## Closed projects revoke every grant scope (landed this session)
 

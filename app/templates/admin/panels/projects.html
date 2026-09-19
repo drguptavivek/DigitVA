@@ -90,6 +90,53 @@
           <input type="number" min="1" class="form-control form-control-sm" id="project-demo-retention-minutes-input" value="10">
         </div>
       </div>
+
+      {# Tier-2 web form options — docs/policy/va-web-form-options.md #}
+      <div class="border rounded p-2 mt-3">
+        <div class="fw-semibold small mb-1">Web form languages</div>
+        <div class="text-muted small mb-2">
+          Applies to the browser VA form only. Languages come from the Languages
+          panel; only active languages can be chosen.
+        </div>
+        <div id="project-web-intake-languages-error" class="text-danger small mb-2 d-none">
+          Could not load languages.
+        </div>
+        <div class="row g-2 align-items-start">
+          <div class="col-sm-4">
+            <label class="form-label small mb-1" for="project-web-intake-default-locale-input">Default language</label>
+            <select class="form-select form-select-sm" id="project-web-intake-default-locale-input"></select>
+            <div class="form-text small">The language the form opens in.</div>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small mb-1">Language choice</label>
+            <div class="form-check form-switch pt-2">
+              <input class="form-check-input" type="checkbox" id="project-web-intake-all-locales-input" role="switch" checked>
+              <label class="form-check-label small" for="project-web-intake-all-locales-input">Offer every active language</label>
+            </div>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small mb-1">Guidance</label>
+            <div class="form-check form-switch pt-2">
+              <input class="form-check-input" type="checkbox" id="project-web-intake-show-guidance-input" role="switch">
+              <label class="form-check-label small" for="project-web-intake-show-guidance-input">Show interviewer guidance</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1">Available languages</label>
+            <div id="project-web-intake-available-locales-list"></div>
+            <div class="form-text small">Languages the interviewer may switch the form to.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1">Narration languages</label>
+            <div id="project-web-intake-narration-languages-list"></div>
+            <div class="form-text small">
+              Options for the language the narrative was recorded in. Leave all
+              unticked to hide that question.
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="row g-2 mt-1">
         <div class="col-12 d-flex justify-content-end gap-2">
           <button class="btn btn-sm btn-outline-secondary" id="project-cancel-btn">Cancel</button>
@@ -148,6 +195,18 @@
 
   var _projects = [];
   var _editingId = null;
+  // Active languages from /admin/api/languages. Stays null when that fetch
+  // fails, and every web-form-option field is then left out of the payload so
+  // a language-API outage cannot blank a project's stored settings.
+  var _languages = null;
+
+  function languageName(code) {
+    if (!_languages) return code;
+    for (var i = 0; i < _languages.length; i++) {
+      if (_languages[i].language_code === code) return _languages[i].language_name;
+    }
+    return code;
+  }
 
   function loadProjects() {
     var wrap = document.getElementById('project-table-wrap');
@@ -188,6 +247,10 @@
       var socialAutopsyEnabled = p.social_autopsy_enabled !== false;
       var reviewerSocialAutopsyEnabled = p.reviewer_social_autopsy_enabled !== false;
       var demoEnabled = !!p.demo_training_enabled;
+      var webLocaleLine = (_languages && p.web_intake_default_locale)
+        ? '<div class="text-muted" style="font-size:.75rem">Form: '
+          + esc(languageName(p.web_intake_default_locale)) + '</div>'
+        : '';
       var intakeLabel = p.coding_intake_mode === 'pick_and_choose'
         ? 'Pick and choose'
         : 'Random allocation';
@@ -223,6 +286,7 @@
         +   (socialAutopsyEnabled ? '<div><span class="badge text-bg-info mt-1">Coder SA On</span></div>' : '')
         +   (reviewerSocialAutopsyEnabled ? '<div><span class="badge text-bg-primary mt-1">Reviewer SA On</span></div>' : '')
         +   (demoEnabled ? '<div><span class="badge text-bg-warning mt-1">Demo / Training</span></div>' : '')
+        +   webLocaleLine
         + '</td>'
         + '<td class="align-middle py-2">'
         + (isActive
@@ -390,7 +454,178 @@
   var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
   var demoRetentionMinutesInput = document.getElementById('project-demo-retention-minutes-input');
+  var defaultLocaleInput = document.getElementById('project-web-intake-default-locale-input');
+  var allLocalesInput = document.getElementById('project-web-intake-all-locales-input');
+  var availableLocalesList = document.getElementById('project-web-intake-available-locales-list');
+  var narrationLanguagesList = document.getElementById('project-web-intake-narration-languages-list');
+  var showGuidanceInput = document.getElementById('project-web-intake-show-guidance-input');
+  var languagesErrEl = document.getElementById('project-web-intake-languages-error');
   var errEl = document.getElementById('project-form-error');
+
+  // ── web form language inputs ──────────────────────────────────────────────
+
+  var AVAILABLE_LOCALE_CLASS = 'project-web-intake-available-locale';
+  var NARRATION_LANGUAGE_CLASS = 'project-web-intake-narration-language';
+
+  function languageCheckHtml(cls, code, name) {
+    var id = cls + '-' + esc(code);
+    return '<div class="form-check form-check-inline">'
+      + '<input class="form-check-input ' + cls + '" type="checkbox"'
+      + ' value="' + esc(code) + '" id="' + id + '">'
+      + '<label class="form-check-label small" for="' + id + '">' + esc(name) + '</label>'
+      + '</div>';
+  }
+
+  function renderLanguageInputs() {
+    var options = '';
+    var available = '';
+    var narration = '';
+    for (var i = 0; i < _languages.length; i++) {
+      var code = _languages[i].language_code;
+      var name = _languages[i].language_name;
+      options += '<option value="' + esc(code) + '">' + esc(name) + '</option>';
+      available += languageCheckHtml(AVAILABLE_LOCALE_CLASS, code, name);
+      narration += languageCheckHtml(NARRATION_LANGUAGE_CLASS, code, name);
+    }
+    defaultLocaleInput.innerHTML = options;
+    availableLocalesList.innerHTML = available;
+    narrationLanguagesList.innerHTML = narration;
+  }
+
+  function boxes(container, cls) {
+    return container.querySelectorAll('.' + cls);
+  }
+
+  function setTicked(container, cls, codes) {
+    var all = boxes(container, cls);
+    for (var i = 0; i < all.length; i++) {
+      all[i].checked = codes.indexOf(all[i].value) !== -1;
+    }
+  }
+
+  function tickedCodes(container, cls) {
+    var out = [];
+    var all = boxes(container, cls);
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].checked) out.push(all[i].value);
+    }
+    return out;
+  }
+
+  function clearStaleLocaleOption() {
+    var stale = defaultLocaleInput.querySelector('option[data-stale="1"]');
+    if (stale) stale.parentNode.removeChild(stale);
+  }
+
+  function selectLocaleOption(code) {
+    var options = defaultLocaleInput.options;
+    for (var i = 0; i < options.length; i++) {
+      if (options[i].value === code) {
+        defaultLocaleInput.selectedIndex = i;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function selectFirstLocaleOption() {
+    defaultLocaleInput.selectedIndex = defaultLocaleInput.options.length ? 0 : -1;
+  }
+
+  function addStaleLocaleOption(code) {
+    // The stored code is no longer active. Show it rather than silently
+    // switching the project to some other language behind the admin's back.
+    var option = document.createElement('option');
+    option.value = code;
+    option.textContent = code + ' (inactive)';
+    option.setAttribute('data-stale', '1');
+    defaultLocaleInput.appendChild(option);
+    defaultLocaleInput.value = code;
+  }
+
+  function syncAvailableLocalesEnabled() {
+    var all = boxes(availableLocalesList, AVAILABLE_LOCALE_CLASS);
+    for (var i = 0; i < all.length; i++) {
+      all[i].disabled = allLocalesInput.checked;
+    }
+    if (allLocalesInput.checked) {
+      availableLocalesList.classList.add('opacity-50');
+    } else {
+      availableLocalesList.classList.remove('opacity-50');
+    }
+  }
+
+  allLocalesInput.addEventListener('change', syncAvailableLocalesEnabled);
+
+  function readWebIntakeOptions() {
+    if (!_languages) return null;
+    var available = null;
+    if (!allLocalesInput.checked) {
+      // Keep the stored list honest: the form always opens in the default
+      // locale, so it belongs in a narrowed list.
+      var all = boxes(availableLocalesList, AVAILABLE_LOCALE_CLASS);
+      for (var i = 0; i < all.length; i++) {
+        if (all[i].value === defaultLocaleInput.value) all[i].checked = true;
+      }
+      available = tickedCodes(availableLocalesList, AVAILABLE_LOCALE_CLASS);
+    }
+    var narration = tickedCodes(narrationLanguagesList, NARRATION_LANGUAGE_CLASS);
+    return {
+      web_intake_default_locale: defaultLocaleInput.value,
+      web_intake_available_locales: available,
+      web_intake_narration_languages: narration.length ? narration : null,
+      web_intake_show_guidance: showGuidanceInput.checked
+    };
+  }
+
+  function loadLanguages() {
+    apiJson('/admin/api/languages').then(function (res) {
+      if (!res.ok || !res.data || !res.data.languages) {
+        languagesErrEl.classList.remove('d-none');
+        return;
+      }
+      _languages = res.data.languages;
+      renderLanguageInputs();
+      // Languages can arrive after an Edit form is already open; refill it
+      // from the project rather than wiping it back to create defaults.
+      var editing = _editingId && _projects.find(function (p) { return p.project_id === _editingId; });
+      if (editing) fillWebIntakeInputs(editing); else resetWebIntakeInputs();
+      if (_projects.length) {
+        renderTable(document.getElementById('project-show-inactive').checked);
+      }
+    }).catch(function () {
+      languagesErrEl.classList.remove('d-none');
+    });
+  }
+
+  function resetWebIntakeInputs() {
+    clearStaleLocaleOption();
+    if (!selectLocaleOption('en')) selectFirstLocaleOption();
+    allLocalesInput.checked = true;
+    setTicked(availableLocalesList, AVAILABLE_LOCALE_CLASS, []);
+    setTicked(narrationLanguagesList, NARRATION_LANGUAGE_CLASS, []);
+    showGuidanceInput.checked = false;
+    syncAvailableLocalesEnabled();
+  }
+
+  function fillWebIntakeInputs(project) {
+    clearStaleLocaleOption();
+    var storedLocale = project.web_intake_default_locale;
+    if (!selectLocaleOption(storedLocale)) {
+      if (storedLocale) addStaleLocaleOption(storedLocale);
+      else selectFirstLocaleOption();
+    }
+    var storedAvailable = project.web_intake_available_locales;
+    allLocalesInput.checked = (storedAvailable === null || storedAvailable === undefined);
+    setTicked(availableLocalesList, AVAILABLE_LOCALE_CLASS, storedAvailable || []);
+    setTicked(
+      narrationLanguagesList,
+      NARRATION_LANGUAGE_CLASS,
+      project.web_intake_narration_languages || []
+    );
+    showGuidanceInput.checked = !!project.web_intake_show_guidance;
+    syncAvailableLocalesEnabled();
+  }
 
   function resetForm() {
     _editingId = null;
@@ -408,6 +643,7 @@
     reviewerSocialAutopsyEnabledInput.checked = true;
     demoTrainingEnabledInput.checked = false;
     demoRetentionMinutesInput.value = '10';
+    resetWebIntakeInputs();
     errEl.textContent = '';
   }
 
@@ -430,6 +666,7 @@
     reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
     demoRetentionMinutesInput.value = project.demo_retention_minutes || 10;
+    fillWebIntakeInputs(project);
     errEl.textContent = '';
     
     formContainer.classList.remove('d-none');
@@ -483,6 +720,25 @@
       return;
     }
 
+    if (_languages && !allLocalesInput.checked
+        && !tickedCodes(availableLocalesList, AVAILABLE_LOCALE_CLASS).length) {
+      errEl.textContent = 'Tick at least one available language, or offer every active language.';
+      return;
+    }
+    var selectedLocale = defaultLocaleInput.options[defaultLocaleInput.selectedIndex];
+    if (_languages && selectedLocale && selectedLocale.getAttribute('data-stale') === '1') {
+      errEl.textContent = 'Default language "' + selectedLocale.value
+        + '" is not an active language. Pick one from the list.';
+      return;
+    }
+    var webIntakeOptions = readWebIntakeOptions();
+    if (webIntakeOptions) {
+      data.web_intake_default_locale = webIntakeOptions.web_intake_default_locale;
+      data.web_intake_available_locales = webIntakeOptions.web_intake_available_locales;
+      data.web_intake_narration_languages = webIntakeOptions.web_intake_narration_languages;
+      data.web_intake_show_guidance = webIntakeOptions.web_intake_show_guidance;
+    }
+
     var btn = this;
     btn.disabled = true;
     apiJson(url, method, data).then(function (res) {
@@ -498,6 +754,7 @@
 
   // ── init ──────────────────────────────────────────────────────────────────
 
+  loadLanguages();
   loadProjects();
 
 }());

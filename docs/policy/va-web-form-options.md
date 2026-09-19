@@ -94,8 +94,9 @@ GET /api/v1/organization/<project_id>/form-options
 blueprint and behind the same grant check as `/units`. Backed by four columns
 on `va_project_master` (`web_intake_default_locale`,
 `web_intake_available_locales`, `web_intake_narration_languages`,
-`web_intake_show_guidance`), edited through the project settings PUT in
-`app/routes/admin.py`.
+`web_intake_show_guidance`), set from the Projects admin panel
+(`app/templates/admin/panels/projects.html`) on both create and edit, and
+accepted by the project POST and PUT in `app/routes/admin.py`.
 
 ```jsonc
 {

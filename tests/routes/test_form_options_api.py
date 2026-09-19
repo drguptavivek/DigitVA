@@ -453,6 +453,100 @@ class FormOptionsAdminEditingTests(BaseTestCase):
         self.assertNotIn("narration_language", payload["enabled_extensions"])
 
 
+class FormOptionsAdminCreationTests(BaseTestCase):
+    """POST /admin/api/projects accepts the four tier-2 web form options.
+
+    The Projects admin panel sets them on create as well as on edit, so the
+    create route has to validate the same codes the update route does.
+    """
+
+    PROJECT = "FOPT05"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        for code, name, active in (
+            ("fopt5_en", "Create English", True),
+            ("fopt5_hi", "Create Hindi", True),
+            ("fopt5_old", "Create Retired", False),
+        ):
+            db.session.add(
+                MasLanguages(language_code=code, language_name=name, is_active=active)
+            )
+        db.session.commit()
+
+    def _post(self, payload):
+        self._login(str(self.base_admin_user.user_id))
+        return self.client.post(
+            "/admin/api/projects",
+            json=payload,
+            headers=self._csrf_headers(),
+        )
+
+    def _base_payload(self, project_id):
+        return {
+            "project_id": project_id,
+            "project_name": "Form Options Created Project",
+            "project_nickname": "FormOptsNew",
+        }
+
+    def test_post_creates_a_project_with_the_four_web_intake_form_option_fields(self):
+        payload = self._base_payload(self.PROJECT)
+        payload.update({
+            "web_intake_default_locale": "fopt5_hi",
+            "web_intake_available_locales": ["fopt5_en", "fopt5_hi"],
+            "web_intake_narration_languages": ["fopt5_hi"],
+            "web_intake_show_guidance": True,
+        })
+        response = self._post(payload)
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+        served = response.get_json()["project"]
+        self.assertEqual(served["web_intake_default_locale"], "fopt5_hi")
+        self.assertEqual(
+            served["web_intake_available_locales"], ["fopt5_en", "fopt5_hi"]
+        )
+        self.assertEqual(served["web_intake_narration_languages"], ["fopt5_hi"])
+        self.assertTrue(served["web_intake_show_guidance"])
+
+        db.session.expire_all()
+        stored = db.session.get(VaProjectMaster, self.PROJECT)
+        self.assertIsNotNone(stored)
+        self.assertEqual(stored.web_intake_default_locale, "fopt5_hi")
+        self.assertEqual(
+            stored.web_intake_available_locales, ["fopt5_en", "fopt5_hi"]
+        )
+        self.assertEqual(stored.web_intake_narration_languages, ["fopt5_hi"])
+        self.assertTrue(stored.web_intake_show_guidance)
+
+    def test_post_rejects_an_inactive_locale_and_creates_nothing(self):
+        """Positive control first, so the absence assertion is not vacuous."""
+        control = self._base_payload("FOPT06")
+        control["web_intake_default_locale"] = "fopt5_en"
+        self.assertEqual(self._post(control).status_code, 201)
+        db.session.expire_all()
+        self.assertIsNotNone(db.session.get(VaProjectMaster, "FOPT06"))
+
+        payload = self._base_payload(self.PROJECT)
+        payload["web_intake_default_locale"] = "fopt5_old"
+        response = self._post(payload)
+        self.assertEqual(response.status_code, 400)
+
+        db.session.expire_all()
+        self.assertIsNone(db.session.get(VaProjectMaster, self.PROJECT))
+
+    def test_post_without_the_fields_keeps_the_model_defaults(self):
+        response = self._post(self._base_payload(self.PROJECT))
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+        db.session.expire_all()
+        stored = db.session.get(VaProjectMaster, self.PROJECT)
+        self.assertEqual(stored.web_intake_default_locale, "en")
+        self.assertIsNone(stored.web_intake_available_locales)
+        self.assertIsNone(stored.web_intake_narration_languages)
+        self.assertFalse(stored.web_intake_show_guidance)
+
+
 class InstrumentCodeHelperTests(BaseTestCase):
     """``instrument_code_for`` — the layer-to-instrument naming convention.
 

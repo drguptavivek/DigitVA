@@ -44,6 +44,8 @@ from app.services.cod_bucket_mapping_service import (
     SCHEME_CODE_CMEA10,
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_WHO_2022_VA,
+    SCHEME_CODE_WHO_2022_VA_2026,
+    MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH,
     aggregate_coded_submissions_by_bucket,
     apply_admin_cod_bucket_mapping_metadata,
     create_cod_bucket_scheme,
@@ -53,6 +55,7 @@ from app.services.cod_bucket_mapping_service import (
     import_cod_bucket_scheme_json,
     import_srs_india_scheme,
     import_who_2022_va_scheme,
+    import_who_2022_va_2026_scheme,
     list_cod_bucket_unmapped_icd_rows,
     list_unmatched_coded_submission_icds_by_bucket,
     reset_cod_bucket_scheme_age_band_to_source,
@@ -427,6 +430,65 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(mapping.node_id, leaf.node_id)
         self.assertEqual(mapping.match_type, "exact")
         self.assertEqual(mapping.mapping_note, "Primary override")
+
+    def test_import_who_2022_va_2026_scheme_coexists_with_who_2022_va_scheme(self):
+        workbook_path = self._make_who_2022_va_workbook()
+
+        old_scheme = import_who_2022_va_scheme(workbook_path)
+        new_scheme = import_who_2022_va_2026_scheme(workbook_path)
+
+        self.assertEqual(new_scheme.scheme_code, SCHEME_CODE_WHO_2022_VA_2026)
+        self.assertNotEqual(new_scheme.scheme_id, old_scheme.scheme_id)
+        for scheme in (old_scheme, new_scheme):
+            mapping_count = db.session.scalar(
+                sa.select(sa.func.count()).select_from(MapIcdCodBucket).where(
+                    MapIcdCodBucket.scheme_id == scheme.scheme_id
+                )
+            )
+            self.assertEqual(mapping_count, 2)
+        age_band = db.session.scalar(
+            sa.select(MasCodBucketSchemeAgeBand).where(
+                MasCodBucketSchemeAgeBand.scheme_id == new_scheme.scheme_id
+            )
+        )
+        self.assertEqual(age_band.level_count, 2)
+
+    def test_import_who_2022_va_2026_frozen_workbook_applies_annex_and_overrides(self):
+        scheme = import_who_2022_va_2026_scheme(
+            MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH
+        )
+
+        def bucket_of(icd_code):
+            row = db.session.execute(
+                sa.select(MasCodBucketNode.node_label, MasCodBucketNode.parent_node_id)
+                .join(MapIcdCodBucket, MapIcdCodBucket.node_id == MasCodBucketNode.node_id)
+                .where(
+                    MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                    MapIcdCodBucket.icd_code == icd_code,
+                )
+            ).one()
+            return row.node_label
+
+        mapping_count = db.session.scalar(
+            sa.select(sa.func.count()).select_from(MapIcdCodBucket).where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id
+            )
+        )
+        self.assertEqual(mapping_count, 2498)
+        # 2026 annex additions
+        self.assertEqual(bucket_of("G43"), "Other and unspecified non-communicable disease")
+        self.assertEqual(bucket_of("K70.0"), "Other and unspecified non-communicable disease")
+        self.assertEqual(bucket_of("R00"), "Cause of death unknown")
+        # R95 moved from VAs-99 to VAs-10.99
+        self.assertEqual(bucket_of("R95"), "Other and unspecified perinatal cause of death")
+        # VAs-06.02 carve-out is not swallowed by the VAs-98 grant
+        for code in ("K70.2", "K70.3", "K71.7", "K74"):
+            self.assertEqual(bucket_of(code), "Liver cirrhosis")
+        # carried-forward manual overrides win over the blanket annex range
+        self.assertEqual(bucket_of("G46"), "Stroke")
+        self.assertEqual(bucket_of("K72"), "Liver cirrhosis")
+        self.assertEqual(bucket_of("K75"), "Other Gastrointestinal Diseases")
+        self.assertEqual(bucket_of("R50"), "Unspecified infectious disease")
 
     def test_admin_mapping_metadata_clears_override_when_who_mapping_returns_to_xlsx_default(self):
         workbook_path = self._make_who_2022_va_workbook()

@@ -33,6 +33,7 @@ from app.services.submission_analytics_mv import (
 SCHEME_CODE_SRS_INDIA = "SRS_INDIA"
 SCHEME_CODE_CMEA10 = "CMEA10"
 SCHEME_CODE_WHO_2022_VA = "WHO_2022_VA"
+SCHEME_CODE_WHO_2022_VA_2026 = "WHO_2022_VA_2026"
 
 AGE_SCOPE_ADULT_OVER5Y = "adult_over5y"
 AGE_SCOPE_CHILD_1_59M = "child_1_59m"
@@ -95,13 +96,20 @@ MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH = (
     "docs/icd-causegrp-mappings/migration-artifacts/"
     "who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx"
 )
+MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH = (
+    "docs/icd-causegrp-mappings/migration-artifacts/"
+    "who-2022-va-icd-cod-2026-revision/"
+    "WHO_2022_VA_Bucket_Mapping_document_derived_2026_revision.xlsx"
+)
 DEFAULT_SRS_WORKBOOK_PATH = MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH
 DEFAULT_CMEA10_WORKBOOK_PATH = MIGRATION_ARTIFACT_CMEA10_WORKBOOK_PATH
 DEFAULT_WHO_2022_VA_WORKBOOK_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH
+DEFAULT_WHO_2022_VA_2026_WORKBOOK_PATH = MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH
 SOURCE_RESETTABLE_SCHEME_CODES = {
     SCHEME_CODE_SRS_INDIA,
     SCHEME_CODE_CMEA10,
     SCHEME_CODE_WHO_2022_VA,
+    SCHEME_CODE_WHO_2022_VA_2026,
 }
 MANUAL_OVERRIDE_SOURCE_SHEET = "admin_cod_bucket_editor"
 MANUAL_OVERRIDE_MATCH_TYPE = "manual_override"
@@ -263,7 +271,11 @@ def _reporting_age_band_order():
 
 
 def _uses_reporting_age_band_detail_sections(scheme: MasCodBucketScheme) -> bool:
-    if scheme.scheme_code in {SCHEME_CODE_CMEA10, SCHEME_CODE_WHO_2022_VA}:
+    if scheme.scheme_code in {
+        SCHEME_CODE_CMEA10,
+        SCHEME_CODE_WHO_2022_VA,
+        SCHEME_CODE_WHO_2022_VA_2026,
+    }:
         return True
     age_scopes = db.session.scalars(
         sa.select(MasCodBucketSchemeAgeBand.age_scope).where(
@@ -440,6 +452,8 @@ def _scheme_default_source_path(scheme_code: str) -> str | None:
         return DEFAULT_CMEA10_WORKBOOK_PATH
     if scheme_code == SCHEME_CODE_WHO_2022_VA:
         return DEFAULT_WHO_2022_VA_WORKBOOK_PATH
+    if scheme_code == SCHEME_CODE_WHO_2022_VA_2026:
+        return DEFAULT_WHO_2022_VA_2026_WORKBOOK_PATH
     return None
 
 
@@ -457,6 +471,8 @@ def _scheme_reset_source_path(scheme: MasCodBucketScheme) -> Path | None:
         return Path(MIGRATION_ARTIFACT_CMEA10_WORKBOOK_PATH)
     if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
         return Path(MIGRATION_ARTIFACT_WHO_2022_VA_WORKBOOK_PATH)
+    if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026:
+        return Path(MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH)
     return None
 
 
@@ -480,6 +496,8 @@ def _age_band_can_reset_from_source(
     if scheme.scheme_code == SCHEME_CODE_CMEA10:
         return age_band.age_scope is None
     if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
+        return age_band.age_scope is None
+    if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026:
         return age_band.age_scope is None
     return False
 
@@ -571,7 +589,7 @@ def apply_admin_cod_bucket_mapping_metadata(
 ) -> None:
     """Stamp mapping provenance based on whether the target matches source defaults."""
     default_mapping = None
-    if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
+    if scheme.scheme_code in {SCHEME_CODE_WHO_2022_VA, SCHEME_CODE_WHO_2022_VA_2026}:
         source_path = _scheme_reset_source_path(scheme)
         default_mapping = _who_2022_default_mapping_by_code(
             str(source_path) if source_path else None
@@ -736,6 +754,16 @@ def _builtin_age_band_metadata(scheme_code: str, age_scope: str | None) -> dict:
             "sort_order": 1,
         }
     if scheme_code == SCHEME_CODE_WHO_2022_VA and age_scope is None:
+        return {
+            "age_label": "All Ages",
+            "min_age_value": DEFAULT_MIN_AGE_VALUE,
+            "min_age_unit": DEFAULT_MIN_AGE_UNIT,
+            "max_age_value": DEFAULT_MAX_AGE_VALUE,
+            "max_age_unit": DEFAULT_MAX_AGE_UNIT,
+            "level_count": 2,
+            "sort_order": 1,
+        }
+    if scheme_code == SCHEME_CODE_WHO_2022_VA_2026 and age_scope is None:
         return {
             "age_label": "All Ages",
             "min_age_value": DEFAULT_MIN_AGE_VALUE,
@@ -1084,6 +1112,48 @@ def import_who_2022_va_scheme(
     return scheme
 
 
+def import_who_2022_va_2026_scheme(
+    workbook_path: str | Path = DEFAULT_WHO_2022_VA_2026_WORKBOOK_PATH,
+) -> MasCodBucketScheme:
+    """Replace the WHO 2022 VA (2026 revision) bucket scheme from its workbook.
+
+    Coexists with `SCHEME_CODE_WHO_2022_VA`; this is a separate scheme_code,
+    not a replacement of it. Adopts the WHO 2026 annex ICD-10 ranges: VAs-98
+    gains G43-G47 and widens to K70-K93 (minus the VAs-06.02 liver-cirrhosis
+    carve-out), VAs-99 expands from R95-R99 to R00-R09; R11-R94; R96-R99, and
+    R95 moves from VAs-99 to VAs-10.99.
+    """
+    workbook_path = str(workbook_path)
+    scheme = _get_or_create_scheme(
+        scheme_code=SCHEME_CODE_WHO_2022_VA_2026,
+        scheme_name="WHO 2022 VA (2026 revision)",
+        scheme_description=(
+            "WHO 2022 verbal autopsy cause-of-death bucket mapping, adopting the "
+            "WHO 2026 manual for physician reviewers' Annex 1 Table A1 ICD-10 "
+            "ranges, imported from the generated ICD_Mapped workbook. Coexists "
+            "with the WHO_2022_VA scheme."
+        ),
+        source_path=workbook_path,
+    )
+    _replace_scheme_contents(scheme)
+    meta = _builtin_age_band_metadata(SCHEME_CODE_WHO_2022_VA_2026, None)
+    _create_age_band(
+        scheme=scheme,
+        age_scope=None,
+        age_label=meta["age_label"],
+        min_age_value=meta["min_age_value"],
+        min_age_unit=meta["min_age_unit"],
+        max_age_value=meta["max_age_value"],
+        max_age_unit=meta["max_age_unit"],
+        level_count=meta["level_count"],
+        sort_order=meta["sort_order"],
+    )
+    _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
+
+    db.session.commit()
+    return scheme
+
+
 def list_cod_bucket_schemes() -> list[MasCodBucketScheme]:
     return list(
         db.session.scalars(
@@ -1168,6 +1238,8 @@ def reset_cod_bucket_scheme_age_band_to_source(
             return import_cmea10_scheme(workbook_path)
         if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
             return import_who_2022_va_scheme(workbook_path)
+        if scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026:
+            return import_who_2022_va_2026_scheme(workbook_path)
         raise ValueError("This scheme does not support reset from source.")
 
     if scheme.scheme_code == SCHEME_CODE_SRS_INDIA:
@@ -1214,6 +1286,21 @@ def reset_cod_bucket_scheme_age_band_to_source(
     elif scheme.scheme_code == SCHEME_CODE_WHO_2022_VA:
         _replace_scheme_contents(scheme)
         meta = _builtin_age_band_metadata(SCHEME_CODE_WHO_2022_VA, None)
+        _create_age_band(
+            scheme=scheme,
+            age_scope=None,
+            age_label=meta["age_label"],
+            min_age_value=meta["min_age_value"],
+            min_age_unit=meta["min_age_unit"],
+            max_age_value=meta["max_age_value"],
+            max_age_unit=meta["max_age_unit"],
+            level_count=meta["level_count"],
+            sort_order=meta["sort_order"],
+        )
+        _populate_who_2022_va_scheme(scheme=scheme, workbook_path=workbook_path)
+    elif scheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026:
+        _replace_scheme_contents(scheme)
+        meta = _builtin_age_band_metadata(SCHEME_CODE_WHO_2022_VA_2026, None)
         _create_age_band(
             scheme=scheme,
             age_scope=None,

@@ -3,7 +3,7 @@ title: WHO 2022 VA Cause of Death List with ICD-10 and ICD-11 Codes
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-09-16
+last_updated: 2026-09-18
 ---
 
 # WHO 2022 VA Cause of Death List with ICD-10 and ICD-11 Codes
@@ -40,6 +40,17 @@ its readable form.
   (95 pages, PDF created 2026-01-07).
 - WHO download URL at the time of transcription:
   `https://cdn.who.int/media/docs/default-source/classification/other-classifications/autopsy/varg-workplans/pcva_manual-for-physician-reviewers_2026.pdf`
+
+A separate section of the same source document, printed pages 57-75 (PDF
+pages 64-82), gives per-VA-code clinical diagnostic guidelines for physician
+reviewers (a "VA code / VA title / Guidelines" table, ending at `VAs-99` with
+no specific guideline). That section was extracted verbatim on 2026-09-18 as
+`docs/icd-causegrp-mappings/ICD-to-VA-Buckets/WHO_2022_VA_diagnostic_guidelines.pdf`
+(19 pages). It is reference material only, not read by the application, and
+is distinct from Table A1 above: it does not carry ICD codes, only the
+clinical criteria used to assign each VA cause of death. PDF pages 83-85
+immediately after it are an unrelated chapter ("7 Physician reviewer
+training") and were deliberately excluded.
 
 Transcribed on 2026-09-16 from the repository copy. Every code string, title
 and footnote below was checked programmatically against the PDF text layer of
@@ -190,15 +201,36 @@ places:
 
 ## Relationship to Application Behaviour
 
-- Nothing in the application reads these files. They are reference data only.
-- ICD-10 coding allowability in the app is generated from the WHO 2022 VA
-  crosswalk workbook, as described in
-  `docs/policy/who-2022-icd10-coding-allowability.md`. It has not been
-  re-derived from the 2026 annex, so the four ICD-10 differences above are not
-  reflected in the coding policy yet.
+- Nothing in the application reads these files directly. They are reference
+  data only, but as of 2026-09-18 they are the source this session used to
+  build the app's regenerated ICD-10 policy and PDF (below); the app itself
+  still reads the migration-artifact JSON/workbook copies, not this file or
+  its CSVs.
+- ICD-10 coding allowability in the app was regenerated 2026-09-18 to adopt
+  the 2026 annex's ICD-10 ranges (the four differences listed above), via
+  `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision/who_2022_icd10_2019_2_policy_reviewed.json`.
+  See `docs/policy/who-2022-icd10-coding-allowability.md` ("2026 Annex
+  Adjustments") and `.tasks/who-2026-annex-icd10-icd11-review.md`
+  (Resolution, 2026-09-18) for the rules adopted and how the K70/K71 overlap
+  with the VAs-06.02 liver-cirrhosis carve-out was resolved.
 - WHO cause-of-death buckets in the app are loaded from
-  `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`.
-- The application has no ICD-11 catalog. This table gives VA bucket to ICD-11
-  range correspondences only; expanding ranges such as `1A60-1A9Z` into
-  selectable codes needs the WHO ICD-11 MMS linearization as a code master.
-- Follow-up work is tracked in `.tasks/who-2026-annex-icd10-icd11-review.md`.
+  `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`
+  (scheme `WHO_2022_VA`, unchanged). A second, coexisting scheme
+  `WHO_2022_VA_2026` was added 2026-09-18 from
+  `docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision/WHO_2022_VA_Bucket_Mapping_document_derived_2026_revision.xlsx`,
+  adopting the annex ranges plus 34 manual bucket overrides carried forward
+  from the live `WHO_2022_VA` scheme.
+- `app/static/WHO_2022_VA_CODES.pdf` (also kept in this folder) was replaced
+  2026-09-18 with a direct 5-page extract (printed pages 79-83) of Annex 1
+  Table A1 from the official WHO source PDF cited above
+  (`docs/kb/WHO_VA_2022_Docs/2026 - pcva_manual-for-physician-reviewers.pdf`),
+  carrying both the ICD-10 and ICD-11 columns as WHO published them. This
+  replaces the earlier ICD-10-only, pre-2026 extract described above.
+- The application has no ICD-11 catalog beyond the read-only reference
+  browser (`mas_icd11_mms`, phase 1 of
+  `.tasks/icd11-coding-screen-integration.md`). This table's ICD-11 column is
+  not used for coding-selectability; expanding ranges such as `1A60-1A9Z`
+  into selectable codes needs the WHO ICD-11 MMS linearization as a code
+  master, tracked in `docs/planning/icd11-self-hosted-api-and-ect-plan.md`.
+- Remaining follow-up work is tracked in
+  `.tasks/who-2026-annex-icd10-icd11-review.md`.

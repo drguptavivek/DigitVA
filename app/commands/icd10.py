@@ -4,6 +4,7 @@ from app.services.icd10_2019_2_service import (
     DEFAULT_ICD10_2019_2_CSV_PATH,
     get_icd10_2019_2_stats,
     import_icd10_2019_2_from_csv,
+    import_icd10_2019_2_policy_json,
 )
 
 
@@ -47,6 +48,26 @@ def stats_2019_2() -> None:
             ]
         )
     )
+
+
+@icd10_group.command("policy-import")
+@click.option("--path", required=True, help="Path to a policy import JSON file.")
+def policy_import(path: str) -> None:
+    """Full-replacement import of mas_icd10_2019_2 coding-selectability policy.
+
+    This is a global, table-wide change: it affects ICD-10 coding-search
+    selectability for every project the moment it runs.
+    """
+    with open(path, "r", encoding="utf-8") as f:
+        payload = f.read()
+    result = import_icd10_2019_2_policy_json(payload)
+    click.echo(
+        "Imported ICD-10 coding-selectability policy "
+        f"total_items={result.total_items} updated_items={result.updated_items} "
+        f"reset_items={result.reset_items} skipped_items={len(result.skipped_items)}"
+    )
+    for skipped in result.skipped_items:
+        click.echo(f"  skipped: {skipped}")
 
 
 def init_app(app):

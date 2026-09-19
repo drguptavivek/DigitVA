@@ -114,9 +114,60 @@ still narrows genital-organ neoplasm rows such as `D26` to the anatomically
 applicable sex. The COD bucket assignment remains unchanged and is not resolved
 by this ICD selection policy.
 
+## 2026 Annex Adjustments
+
+Adopted 2026-09-18. Only three of the 2026 annex's four ICD-10 differences
+change this policy; `VAs-12.99`'s change is punctuation only (`S00-T99` is
+already never-selectable, see above) and needs no action.
+
+**`VAs-98` (Other and unspecified non-communicable disease):** the allowed
+range's floor moves from `K77` to `K70`, and `G43-G47` is added.
+
+- `G43`, `G44`, `G45`, `G46`, `G47` become selectable (three-character
+  granularity), both sexes, all ages.
+- `K72`, `K73`, `K75`, `K76` become selectable (three-character granularity),
+  both sexes, all ages.
+- `K70` and `K71` are NOT made selectable at three-character granularity,
+  because that would swallow the existing liver-cirrhosis carve-out below.
+  Instead, every dotted (detailed) code under `K70` and `K71` other than
+  `K70.2`, `K70.3` and `K71.7` becomes selectable, both sexes, all ages.
+  `K74` was already selectable at three-character granularity and is
+  unaffected.
+
+**`VAs-06.02` (Liver cirrhosis) carve-out — unchanged:** `K70.2`, `K70.3`,
+`K71.7`, `K74` remain reserved to `VAs-06.02` and are excluded from the
+`VAs-98` grant above.
+
+**`VAs-99` (Unknown and ill-defined cause of death):** the allowed range
+expands from `R95-R99` to `R00-R09; R11-R94; R96-R99`.
+
+- `R00`, `R01`, `R02`, `R03`, `R04`, `R05`, `R06`, `R07`, `R09` become
+  selectable (three-character granularity; `R08` does not exist in ICD-10),
+  both sexes, all ages.
+- `R11`-`R94` become selectable (three-character granularity) EXCEPT `R10`,
+  which stays reserved to `VAs-06.01` (Acute abdomen) and is excluded from
+  this grant.
+- `R96`-`R99` were already selectable and are unchanged.
+
+**`VAs-10.99` (Other and unspecified perinatal cause of death):** `R95` moves
+into this bucket's range from the earlier `VAs-99`/"Cause of death unknown"
+assignment. `R95`'s selectability policy is unchanged (infant-only, both
+sexes, listed under "Infant-only, both sexes" above); only its WHO bucket
+assignment moves, from "Cause of death unknown" to `VAs-10.99`. See the COD
+bucket mapping (`who_2022_va_2026` scheme) rather than this ICD-selection
+policy for the bucket change itself.
+
 ## Overlap Rules
 
 Never-selectable rules win over all other rules. Age and sex exceptions win over
 default WHO allowability. Within exceptions, the most restrictive applicable
 rule wins. Bucket ambiguity may be recorded in notes where useful but is not
 resolved by this policy.
+
+A more specific ICD code wins over a broader range it falls inside, whenever
+the two are assigned to different buckets or carry different exceptions. This
+is why the `VAs-98` grant of `K70-K76` (2026 Annex Adjustments, above) does not
+override the dotted `K70.2`, `K70.3`, `K71.7` codes already carved out to
+`VAs-06.02`: those three dotted codes are more specific than the three-character
+`K70`/`K71` range and win the conflict. The same rule applies to any future
+range expansion that overlaps an existing dotted-code exception.

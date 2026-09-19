@@ -479,6 +479,8 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(bucket_of("G43"), "Other and unspecified non-communicable disease")
         self.assertEqual(bucket_of("K70.0"), "Other and unspecified non-communicable disease")
         self.assertEqual(bucket_of("R00"), "Cause of death unknown")
+        # R10 is selectable and bucketed to VAs-06.01 as the WHO annex lists it
+        self.assertEqual(bucket_of("R10"), "Acute abdomen")
         # R95 moved from VAs-99 to VAs-10.99
         self.assertEqual(bucket_of("R95"), "Other and unspecified perinatal cause of death")
         # VAs-06.02 carve-out is not swallowed by the VAs-98 grant

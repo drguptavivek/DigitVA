@@ -1,6 +1,6 @@
 {
   "source_version": "WHO_2022_ICD10_2019_2_2026_REVISION",
-  "row_count": 2488,
+  "row_count": 2489,
   "items": [
     {
       "code": "A00",
@@ -34833,6 +34833,20 @@
       "is_coding_selectable": true,
       "sex_selectable": "both",
       "age_group_selectable": "all"
+    },
+    {
+      "code": "R10",
+      "title": "Abdominal and pelvic pain",
+      "semantic_level": "three_character",
+      "chapter_code": "XVIII",
+      "chapter_title": "Symptoms, signs and abnormal clinical and laboratory findings, not elsewhere classified",
+      "block_code": "R10-R19",
+      "block_title": "Symptoms and signs involving the digestive system and abdomen",
+      "three_character_code": "R10",
+      "three_character_title": "Abdominal and pelvic pain",
+      "is_coding_selectable": true,
+      "sex_selectable": "both",
+      "age_group_selectable": "all"
     }
   ],
   "assignability_decision_source": "docs/icd-causegrp-mappings/archive/ICD-to-VA-Buckets/CMEA10_Blank_WHO_2022_Assignable_Audit- decision.xlsx",
@@ -34840,7 +34854,7 @@
   "who_2026_annex_adoption": {
     "adopted_on": "2026-09-18",
     "source": "WHO 2026 manual for physician reviewers, Annex 1 Table A1",
-    "added_codes_count": 108,
+    "added_codes_count": 109,
     "added_codes": [
       "G43",
       "G44",
@@ -34949,8 +34963,9 @@
       "R91",
       "R92",
       "R93",
-      "R94"
+      "R94",
+      "R10"
     ],
-    "note": "Additive on top of the 2026-04-27 reviewed policy. VAs-98 gains G43-G47, K72/K73/K75/K76, and K70.x/K71.x detailed codes excluding the VAs-06.02 liver-cirrhosis carve-out (K70.2, K70.3, K71.7). VAs-99 gains R00-R09 (minus R08, which does not exist) and R11-R94 (minus R10, reserved to VAs-06.01). R95 is unchanged here; its bucket move to VAs-10.99 is recorded in the who_2022_va_2026 COD bucket scheme, not in this ICD-selection policy."
+    "note": "Additive on top of the 2026-04-27 reviewed policy. VAs-98 gains G43-G47, K72/K73/K75/K76, and K70.x/K71.x detailed codes excluding the VAs-06.02 liver-cirrhosis carve-out (K70.2, K70.3, K71.7). VAs-99 gains R00-R09 (minus R08, which does not exist) and R11-R94 (minus R10, reserved to VAs-06.01). R95 is unchanged here; its bucket move to VAs-10.99 is recorded in the who_2022_va_2026 COD bucket scheme, not in this ICD-selection policy. R10 (VAs-06.01 Acute abdomen in the WHO annex) was added on 2026-09-19 at the user's direction: selectable, both sexes, all ages, bucketed to VAs-06.01."
   }
 }

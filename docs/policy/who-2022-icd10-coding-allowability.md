@@ -3,7 +3,7 @@ title: WHO 2022 ICD-10 Coding Allowability Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-27
+last_updated: 2026-09-19
 ---
 
 # WHO 2022 ICD-10 Coding Allowability Policy
@@ -144,19 +144,16 @@ expands from `R95-R99` to `R00-R09; R11-R94; R96-R99`.
 - `R00`, `R01`, `R02`, `R03`, `R04`, `R05`, `R06`, `R07`, `R09` become
   selectable (three-character granularity; `R08` does not exist in ICD-10),
   both sexes, all ages.
-- `R11`-`R94` become selectable (three-character granularity) EXCEPT `R10`,
-  which is excluded from this grant.
-
-  **Correction (2026-09-19):** an earlier version of this line said `R10`
-  "stays reserved to `VAs-06.01` (Acute abdomen)". That is not what the data
-  does. `R10` is not selectable at all, it is absent from the frozen
-  2026-revision workbook, and the live scheme maps it by manual override to
-  a non-WHO bucket, "Other Gastrointestinal Diseases". The override was
-  carried forward deliberately; the sentence describing it was wrong.
-  Whether `R10` should instead be reserved to `VAs-06.01` is a clinical
-  decision, recorded in `.tasks/who-2026-annex-followups.md`, not something
-  this document should assert until it is made.
+- `R11`-`R94` become selectable (three-character granularity). `R10` is not
+  part of this grant; it has its own rule under `VAs-06.01` below.
 - `R96`-`R99` were already selectable and are unchanged.
+
+**`VAs-06.01` (Acute abdomen):** `R10` becomes selectable (three-character
+granularity), both sexes, all ages, bucketed to `VAs-06.01` in the
+`WHO_2022_VA_2026` scheme, as the WHO annex lists it. Before 2026-09-19 `R10` was
+not selectable and the live `WHO_2022_VA` scheme mapped it by manual override to
+the non-WHO bucket "Other Gastrointestinal Diseases"; that override is
+deliberately not carried into `WHO_2022_VA_2026`. `WHO_2022_VA` is unchanged.
 
 **`VAs-10.99` (Other and unspecified perinatal cause of death):** `R95` moves
 into this bucket's range from the earlier `VAs-99`/"Cause of death unknown"

@@ -7,13 +7,11 @@
 
 ## Open items
 
-1. **R10 is not selectable, and its bucket contradicts the WHO annex.** The annex puts
-   `R10` in VAs-06.01 (Acute abdomen). In `mas_icd10_2019_2` it is `is_coding_selectable=false`,
-   the frozen 2026-04-27 workbook and policy have no `R10` row, and the live scheme maps it by
-   manual override to "Other Gastrointestinal Diseases", a bucket that is not in the WHO list.
-   `WHO_2022_VA_2026` carries that override forward. `docs/policy/who-2022-icd10-coding-allowability.md`
-   says `R10` "stays reserved to VAs-06.01"; that is not what the data does. Decide, then fix the
-   policy text or the data.
+1. ~~R10~~ **Resolved 2026-09-19 at the user's direction:** `R10` is now selectable (both sexes,
+   all ages) and bucketed to VAs-06.01 Acute abdomen in `WHO_2022_VA_2026`, via the artifacts read by
+   migration `c5f2a8d1e9b3` (policy JSON 2,489 items / 109 added codes; workbook R10 row changed). The old
+   `WHO_2022_VA` scheme still maps `R10` to "Other Gastrointestinal Diseases"; that override was not carried.
+   The clinical lead has not been asked to confirm.
 2. **Full annex-vs-policy audit not done.** Only the four ranges that differ between the old extract
    and the 2026 annex were compared. Codes the annex lists that are absent from the policy (like R10)
    in the other ranges were not checked.

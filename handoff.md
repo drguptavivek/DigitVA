@@ -21,14 +21,15 @@ clean.
 | `89c1b79` | CLAUDE.md trimmed; subagent working model written down |
 | `ae8ace5` | `GET /api/v1/organization/<project_id>/form-options`; four `web_intake_*` columns on `va_project_master`; migration `f2a9c4d7e1b3`; intake form takes locale and instrument from the project |
 | `10d38c8` | Fifteen migrations importing MV builders pinned; any new application import in a migration fails the suite |
-| (this session) | Closed projects resolve no grant of any scope; one shared predicate in twelve resolvers |
+| `705021e` | Closed projects resolve no grant of any scope; one shared predicate in twelve resolvers plus the redaction check |
+| (this session) | Form types are layers on the standard instrument; intake resolves `instrument_code`, so `WHO_2022_VA_SOCIAL` renders |
 
 Migration chain is linear: `f1c6a9d3e7b5 -> a40c38e73af4 -> c5f2a8d1e9b3 ->
 b8e3d1f7a2c4 -> f2a9c4d7e1b3`. Verified by an empty-database `flask db upgrade` replay of the
 whole chain, which reaches head and yields 2,489 selectable ICD-10 codes and
 four COD bucket schemes.
 
-Verified: full suite 1,445 passed after the closed-project rule (1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
+Verified: full suite 1,449 passed after the instrument-layer change (1,445 after the closed-project rule, 1,423 with form-options, 1,409 after the public-route decisions, 1,391 after the PII change, 1,381 on the rebased tree before all of them).
 
 ## The access model, as it now stands
 
@@ -61,9 +62,10 @@ consequence is the `WHO_2022_VA_SOCIAL` instrument.
 
 The ranked list from the start of 2026-09-19 is exhausted. What is left is
 below under "Then", plus the open consequences named in each section: the
-`WHO_2022_VA_SOCIAL` instrument, the projects-panel inputs for the four
-form-option fields, and `project_pi` being the only grant predicate that
-queries (`.tasks/auth-decorator-followups.md` item 3).
+projects-panel inputs for the four form-option fields, the
+`base_instrument_code` column when a second standard instrument is bundled,
+and `project_pi` being the only grant predicate that queries
+(`.tasks/auth-decorator-followups.md` item 3).
 
 Then: attachments phase 2, the validator sidecar (written, unwired, decision
 W1), ICD-11 coding screen phases 3-6.
@@ -114,17 +116,17 @@ them. The admin project PUT validates the four fields; the projects panel UI
 does not expose them yet, because its settings form is built from explicit
 element handles and the four inputs are more than a few lines of JS.
 
-The intake template no longer hardcodes `locale="en"` and now sets
-`el.instrument` from a map keyed on the project's default form type code.
-**Only `WHO_2022_VA` is mapped.** Five dev projects map to
-`WHO_2022_VA_SOCIAL`, and web intake is off on every project today, so
-nothing breaks now. But turning web intake on for a SOCIAL project shows an
-error box instead of a form until a SOCIAL instrument variant is bundled.
-That is the policy's own decision (pre-built variants, resolved O1): before
-this change those projects would have rendered the base WHO instrument and
-recorded submissions against a form type the respondent was not shown.
-Bundling the SOCIAL variant, or deciding the base instrument is acceptable
-for it, is the next step on this path.
+The intake template no longer hardcodes `locale="en"`. It sets
+`el.instrument` from a map keyed on the form type's `instrument_code`, which
+the endpoint now serves: `WHO_2022_VA` for every `WHO_2022_VA*` code. That
+follows the product rule stated 2026-09-19: **DigitVA form types are layers
+on top of the one standard WHO 2022 instrument, not separate
+questionnaires.** `WHO_2022_VA_SOCIAL` renders the base instrument and
+`enabled_extensions` says which layers apply. The first cut refused SOCIAL
+as unbundled; that reading was wrong and is gone. `instrument_code` is a
+naming convention today; when a second standard instrument (PHMRC) is
+bundled it becomes a `base_instrument_code` column on `mas_form_types`,
+recorded in `docs/policy/va-web-form-options.md`.
 
 ## Route decorator guarantee (landed this session)
 

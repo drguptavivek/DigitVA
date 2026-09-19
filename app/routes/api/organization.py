@@ -287,6 +287,35 @@ def _config_version(project_id: str) -> str | None:
     ]
     return max(stamps).isoformat() if stamps else None
 
+#: The one standard instrument DigitVA bundles today. Every ``WHO_2022_VA*``
+#: form type is a layer on it, not a separate questionnaire.
+_WHO_2022_VA_INSTRUMENT = "WHO_2022_VA"
+
+
+def instrument_code_for(form_type_code: str | None) -> str | None:
+    """The standard instrument a form type layers on, or ``None``.
+
+    A DigitVA form type is not its own questionnaire: ``WHO_2022_VA_SOCIAL``
+    and any future ``WHO_2022_VA_*`` are layers on the one standard WHO 2022
+    VA instrument, and which layers apply is ``enabled_extensions``. So any
+    code equal to or prefixed with ``WHO_2022_VA`` resolves to
+    ``"WHO_2022_VA"``; anything else has no bundled instrument and resolves
+    to ``None``, which the client renders as an error rather than guessing.
+
+    This naming convention stands in for a ``base_instrument_code`` column on
+    ``mas_form_types``, which is the follow-up recorded in
+    docs/policy/va-web-form-options.md and becomes necessary as soon as a
+    second standard instrument (PHMRC) is bundled.
+    """
+    if not form_type_code:
+        return None
+    code = form_type_code.strip().upper()
+    if code == _WHO_2022_VA_INSTRUMENT or code.startswith(
+        _WHO_2022_VA_INSTRUMENT + "_"
+    ):
+        return _WHO_2022_VA_INSTRUMENT
+    return None
+
 
 def _project_form_types(project_id: str) -> list[dict]:
     """Active form types linked to this project, with exactly one default.
@@ -317,6 +346,7 @@ def _project_form_types(project_id: str) -> list[dict]:
     return [
         {
             "form_type_code": row.form_type_code,
+            "instrument_code": instrument_code_for(row.form_type_code),
             "title": row.form_type_name,
             "is_default": index == 0,
         }

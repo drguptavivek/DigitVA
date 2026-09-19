@@ -35,10 +35,12 @@ const api = async (url, method = "GET", body, { keepalive = false } = {}) => {
   return { ok: r.ok, status: r.status, data };
 };
 
-// form_type_code -> the bundled instrument that renders it. The form itself
-// decides nothing (docs/policy/va-web-form-options.md): the project's default
-// form type picks the instrument, and a form type with nothing bundled for it
-// is an error we show, not a WHO 2022 form rendered under the wrong name.
+// instrument_code -> the bundled standard instrument. A DigitVA form type is
+// a layer on a standard instrument, not a questionnaire of its own: the server
+// resolves the form type's instrument_code (docs/policy/va-web-form-options.md)
+// and enabled_extensions says which layers apply. A form type whose
+// instrument_code is null or unbundled is an error we show, not a WHO 2022
+// form rendered under the wrong name.
 const INSTRUMENTS = {
   "WHO_2022_VA": WhoVa.whoVa2022Instrument,
 };
@@ -180,7 +182,7 @@ async function main() {
   if (!opts.ok) { alertBox("danger", opts.data.error || "Could not load this project's form options."); return; }
   const options = opts.data;
   const defaultFormType = (options.form_types || []).find((ft) => ft.is_default);
-  const chosenInstrument = defaultFormType ? INSTRUMENTS[defaultFormType.form_type_code] : undefined;
+  const chosenInstrument = defaultFormType ? INSTRUMENTS[defaultFormType.instrument_code] : undefined;
   if (!chosenInstrument) {
     alertBox("danger", defaultFormType
       ? `No questionnaire is bundled for form type ${defaultFormType.form_type_code}.`

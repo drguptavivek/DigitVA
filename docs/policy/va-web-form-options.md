@@ -37,8 +37,22 @@ questionnaire differ only by tier-2 options.
 
 | Option | Type | Set today | Notes |
 |---|---|---|---|
-| `instrument` | `InstrumentDefinition` (property) | **Yes** — set from the project's default `form_type_code` (2026-09-19) | The host must pass this once more than one form type is live. Built offline; never compiled at request time. |
-| `formTypeCode` | string, inside the instrument | Emitted by the builder | The mapping key. Survives a republish that changes `version`. |
+| `instrument` | `InstrumentDefinition` (property) | **Yes** — selected by the default form type's `instrument_code` (2026-09-19) | The host must pass this once a second *standard instrument* is bundled. Built offline; never compiled at request time. |
+| `instrument_code` | string, served per form type | **Yes** (2026-09-19) | The standard instrument a form type layers on. `WHO_2022_VA` for any code equal to or prefixed with `WHO_2022_VA`; `null` otherwise, which the page renders as an error. |
+| `formTypeCode` | string, inside the instrument | Emitted by the builder | The mapping key for the instrument's own identity. Not the instrument selector — `instrument_code` is. |
+
+**DigitVA form types are layers, not instruments.** `WHO_2022_VA_SOCIAL` and
+any future `WHO_2022_VA_*` are layers on the one standard WHO 2022 VA
+instrument; which layers apply is `enabled_extensions`, not a different
+questionnaire. So the intake page keys `INSTRUMENTS` on `instrument_code`, and
+O1's "pre-built variants" means pre-built **per standard instrument**, never
+per layer.
+
+*Follow-up:* `instrument_code` is derived from a naming convention in
+`instrument_code_for()` (`app/routes/api/organization.py`). It stands in for a
+`base_instrument_code` column on `mas_form_types`, which must be added when a
+second standard instrument (PHMRC) is bundled, since no prefix rule will cover
+two instrument families.
 | `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `abha`. Decides which sections exist. |
 
 ### Tier 2 — project configuration
@@ -88,8 +102,9 @@ on `va_project_master` (`web_intake_default_locale`,
   "project_id": "...",
   "config_version": "...",          // moves when any option changes, like tree_version
   "enabled_extensions": ["digitva_core", "geography", "narration_language"],
-  "form_types": [                    // questionnaires live for this project
-    {"form_type_code": "WHO_2022_VA_SOCIAL", "title": "...", "is_default": true}
+  "form_types": [                    // form types live for this project
+    {"form_type_code": "WHO_2022_VA_SOCIAL", "instrument_code": "WHO_2022_VA",
+     "title": "...", "is_default": true}
   ],
   "default_locale": "en",
   "available_locales": [{"code": "en", "label": "English"}],
@@ -109,6 +124,8 @@ Notes on the shape:
 - `form_types` are the distinct active form types the project reaches
   through `map_project_site_odk`. Exactly one is the default: the one linked
   to the most sites, ties broken by `form_type_code` so the answer is stable.
+  Each carries `instrument_code`, the standard instrument it layers on, or
+  `null` when nothing is bundled for it.
 - `enabled_extensions` is derived, never stored: `digitva_core` always;
   `social_autopsy` from `social_autopsy_enabled`; `geography` when the project
   has an organization hierarchy; `narration_language` when narration languages
@@ -124,7 +141,7 @@ Notes on the shape:
 | # | Question |
 |---|---|
 | Q6 | Do the standardized project geography codes bind to `org_<level_code>_code` as the same codes, or through a mapping? |
-| ~~O1~~ | ~~Pre-built instrument variants, or a filter over one superset at load?~~ **Resolved 2026-09-19: pre-built variants.** Not for tidiness — an instrument whose identity depends on request state cannot be tied back to what the respondent was actually shown, which makes a submission hard to defend evidentially. Immutable instruments, selected by `form_type_code`. |
+| ~~O1~~ | ~~Pre-built instrument variants, or a filter over one superset at load?~~ **Resolved 2026-09-19: pre-built variants.** Not for tidiness — an instrument whose identity depends on request state cannot be tied back to what the respondent was actually shown, which makes a submission hard to defend evidentially. Immutable instruments, pre-built per *standard instrument* and selected by `instrument_code` — not one variant per form type, since form types are layers. |
 | ~~O2~~ | ~~Who owns `attachment_policy`?~~ **Resolved 2026-09-19:** a system-wide constant until a project has a real reason otherwise; making it project-level later is additive. |
 
 ## Related

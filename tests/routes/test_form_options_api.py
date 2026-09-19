@@ -22,6 +22,7 @@ from app.models import (
     VaStatuses,
     VaUserAccessGrants,
 )
+from app.routes.api.organization import instrument_code_for
 from app.services import organization_service as org
 from tests.base import BaseTestCase
 
@@ -259,6 +260,9 @@ class FormOptionsApiTests(BaseTestCase):
         by_code = {ft["form_type_code"]: ft for ft in payload["form_types"]}
         self.assertEqual(set(by_code), {"FOPT_WIDE", "FOPT_NARROW"})
         self.assertEqual(by_code["FOPT_WIDE"]["title"], "Form Options Wide")
+        # Neither code layers on a bundled standard instrument.
+        self.assertIsNone(by_code["FOPT_WIDE"]["instrument_code"])
+        self.assertIsNone(by_code["FOPT_NARROW"]["instrument_code"])
         self.assertEqual(
             [ft["form_type_code"] for ft in payload["form_types"] if ft["is_default"]],
             ["FOPT_WIDE"],
@@ -447,3 +451,117 @@ class FormOptionsAdminEditingTests(BaseTestCase):
         ).get_json()
         self.assertEqual(payload["narration_languages"], [])
         self.assertNotIn("narration_language", payload["enabled_extensions"])
+
+
+class InstrumentCodeHelperTests(BaseTestCase):
+    """``instrument_code_for`` — the layer-to-instrument naming convention.
+
+    A DigitVA form type is a layer on a standard instrument, so every
+    ``WHO_2022_VA*`` code must resolve to the one bundled WHO 2022 instrument.
+    """
+
+    def test_the_exact_code_resolves_to_itself(self):
+        self.assertEqual(instrument_code_for("WHO_2022_VA"), "WHO_2022_VA")
+
+    def test_a_layer_code_resolves_to_the_standard_instrument(self):
+        self.assertEqual(instrument_code_for("WHO_2022_VA_SOCIAL"), "WHO_2022_VA")
+        self.assertEqual(instrument_code_for("WHO_2022_VA_2026"), "WHO_2022_VA")
+
+    def test_an_unrelated_code_has_no_bundled_instrument(self):
+        self.assertIsNone(instrument_code_for("PHMRC_2016"))
+        self.assertIsNone(instrument_code_for(None))
+
+
+class FormOptionsInstrumentCodeTests(BaseTestCase):
+    """A project whose default form type is a WHO 2022 layer.
+
+    ``WHO_2022_VA_SOCIAL`` is not a separate questionnaire: the endpoint must
+    serve it the standard instrument it layers on, so the intake page renders
+    rather than refusing it.
+    """
+
+    PROJECT = "FOPT04"
+    SITE = "FA04"
+    URL = "/api/v1/organization/FOPT04/form-options"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        now = datetime.now(UTC)
+        db.session.add(
+            VaProjectMaster(
+                project_id=cls.PROJECT,
+                project_code=cls.PROJECT,
+                project_name="Form Options Social Project",
+                project_nickname="FormOptsSocial",
+                project_status=VaStatuses.active,
+                project_registered_at=now,
+                project_updated_at=now,
+            )
+        )
+        db.session.add(
+            VaSiteMaster(
+                site_id=cls.SITE,
+                site_name="Form Options Social Site",
+                site_abbr=cls.SITE,
+                site_status=VaStatuses.active,
+                site_registered_at=now,
+                site_updated_at=now,
+            )
+        )
+        db.session.flush()
+        db.session.add(
+            VaProjectSites(
+                project_id=cls.PROJECT,
+                site_id=cls.SITE,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+            )
+        )
+        db.session.flush()
+
+        # The social layer may already be registered by the seed; reuse it
+        # rather than colliding on the unique form_type_code.
+        social = db.session.execute(
+            db.select(MasFormTypes).where(
+                MasFormTypes.form_type_code == "WHO_2022_VA_SOCIAL"
+            )
+        ).scalar_one_or_none()
+        if social is None:
+            social = MasFormTypes(
+                form_type_id=uuid.uuid4(),
+                form_type_code="WHO_2022_VA_SOCIAL",
+                form_type_name="WHO 2022 VA with social autopsy",
+                is_active=True,
+            )
+            db.session.add(social)
+            db.session.flush()
+        db.session.add(
+            MapProjectSiteOdk(
+                project_id=cls.PROJECT, site_id=cls.SITE,
+                odk_project_id=904, odk_form_id="FOPT_SOCIAL_A",
+                form_type_id=social.form_type_id,
+            )
+        )
+        cls.social_user = cls._get_or_make_user("fopt.social@test.local", "FormOpts123")
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=cls.social_user.user_id,
+                role=VaAccessRoles.interviewer,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=cls.PROJECT,
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+    def test_the_social_layer_is_served_the_standard_instrument(self):
+        self._login(str(self.social_user.user_id))
+        response = self.client.get(self.URL)
+        self.assertEqual(response.status_code, 200)
+        default = next(
+            ft for ft in response.get_json()["form_types"] if ft["is_default"]
+        )
+        self.assertEqual(default["form_type_code"], "WHO_2022_VA_SOCIAL")
+        self.assertEqual(default["instrument_code"], "WHO_2022_VA")

@@ -22,6 +22,19 @@ type is added. See `docs/policy/access-control-model.md` ("The PII set must
 be confirmed per form type") for the redaction rule this relies on and
 `docs/policy/smartva-generation-policy.md` for SmartVA gating.
 
+## Layers, not instruments
+
+A DigitVA form type is usually a *layer* on a standard instrument, not a
+questionnaire of its own. `WHO_2022_VA_SOCIAL` adds the social autopsy
+sections to the one standard WHO 2022 VA instrument; which layers apply is
+`enabled_extensions` from `/form-options`, and the instrument itself is
+selected by the form type's `instrument_code`
+(`docs/policy/va-web-form-options.md`). So a new `WHO_2022_VA_*` code renders
+on the bundled instrument with no client change, while a genuinely new
+instrument (PHMRC, Ballabgarh) needs its own bundled instrument and the
+`base_instrument_code` column recorded as the follow-up there. Either way the
+sequence below applies in full: the PII set is per form type.
+
 ## Core rule
 
 **A form type is not live until its PII set is confirmed and its SmartVA

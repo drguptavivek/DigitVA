@@ -5,4 +5,4 @@ export {
   loadWhoVa2022Instrument,
   loadWhoVa2022Language
 } from "./instrument-loader.js";
-export { whoVa2022Instrument } from "./instrument.js";
+export { createWhoVa2022Instrument, whoVa2022Instrument } from "./instrument.js";

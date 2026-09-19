@@ -159,6 +159,13 @@
               <label class="form-check-label small" for="project-web-intake-death-summary-input">Offer document upload</label>
             </div>
           </div>
+          <div class="col-sm-6">
+            <label class="form-label small mb-1">Medical records</label>
+            <div class="form-check form-switch pt-2">
+              <input class="form-check-input" type="checkbox" id="project-web-intake-medical-records-input" role="switch" checked>
+              <label class="form-check-label small" for="project-web-intake-medical-records-input">Offer medical-record fields</label>
+            </div>
+          </div>
           <div class="col-12">
             <label class="form-label small mb-1" for="project-web-intake-intake-note-input">Welcome note</label>
             <textarea class="form-control form-control-sm" rows="2" id="project-web-intake-intake-note-input"></textarea>
@@ -523,6 +530,7 @@
   var showGuidanceInput = document.getElementById('project-web-intake-show-guidance-input');
   var formTypeInput = document.getElementById('project-web-intake-form-type-input');
   var deathSummaryInput = document.getElementById('project-web-intake-death-summary-input');
+  var medicalRecordsInput = document.getElementById('project-web-intake-medical-records-input');
   var intakeNoteInput = document.getElementById('project-web-intake-intake-note-input');
   var intakeNoteStateEl = document.getElementById('project-web-intake-intake-note-state');
   var intakeNoteDefaultBtn = document.getElementById('project-web-intake-intake-note-default-btn');
@@ -769,6 +777,7 @@
   }
   markTouched(formTypeInput, 'web_intake_form_type_id');
   markTouched(deathSummaryInput, 'web_intake_death_summary_enabled');
+  markTouched(medicalRecordsInput, 'web_intake_medical_records_enabled');
   markTouched(allLocalesInput, 'web_intake_available_locales');
   markTouched(availableLocalesList, 'web_intake_available_locales');
   markTouched(narrationLanguagesList, 'web_intake_narration_languages');
@@ -797,7 +806,8 @@
       web_intake_form_type_id: formTypeInput.value || null,
       // null is "use the default note"; "" is "no welcome screen".
       web_intake_intake_note: _intakeNoteIsDefault ? null : intakeNoteInput.value,
-      web_intake_death_summary_enabled: deathSummaryInput.checked
+      web_intake_death_summary_enabled: deathSummaryInput.checked,
+      web_intake_medical_records_enabled: medicalRecordsInput.checked
     };
   }
 
@@ -860,6 +870,7 @@
     showGuidanceInput.checked = false;
     formTypeInput.value = '';
     deathSummaryInput.checked = true;
+    medicalRecordsInput.checked = true;
     intakeNoteInput.value = '';
     _intakeNoteIsDefault = true;
     syncIntakeNoteState();
@@ -878,6 +889,7 @@
     showGuidanceInput.checked = !!project.web_intake_show_guidance;
     formTypeInput.value = project.web_intake_form_type_id || '';
     deathSummaryInput.checked = project.web_intake_death_summary_enabled !== false;
+    medicalRecordsInput.checked = project.web_intake_medical_records_enabled !== false;
     _intakeNoteIsDefault = (project.web_intake_intake_note === null
       || project.web_intake_intake_note === undefined);
     intakeNoteInput.value = project.web_intake_intake_note || '';
@@ -1002,6 +1014,7 @@
         'web_intake_form_type_id',
         'web_intake_intake_note',
         'web_intake_death_summary_enabled',
+        'web_intake_medical_records_enabled',
         'web_intake_available_locales',
         'web_intake_narration_languages',
         'coding_intake_mode',

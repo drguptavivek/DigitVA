@@ -33,14 +33,17 @@ describe("WHO VA expression semantics", () => {
       ...whoVa2022Instrument.sections.flatMap((section) => (section.relevant ? [section.relevant] : []))
     ];
 
-    // 504 = 464 pristine WHO VA expressions + 40 added when the DigitVA
+    // 507 = 464 pristine WHO VA expressions + 40 added when the DigitVA
     // extension questions (ABHA, narration language, md_im1..30, ds_im1..5)
     // were composed into the instrument in src/digitva-extension.ts /
-    // src/instrument.ts (commit 2fc60ea). This count is asserted explicitly,
-    // not derived from whoVa2022Instrument, because the count under test is
-    // exactly whoVa2022Instrument's own expression count — deriving it from
-    // the instrument would make the assertion vacuous.
-    expect(expressions).toHaveLength(504);
+    // src/instrument.ts (commit 2fc60ea), + 3 added by WP-A2's conditional
+    // composition: consent_mode's own relevance, and the ds_available/
+    // md_available gate relevance now carried by ds_count/md_count. This
+    // count is asserted explicitly, not derived from whoVa2022Instrument,
+    // because the count under test is exactly whoVa2022Instrument's own
+    // expression count — deriving it from the instrument would make the
+    // assertion vacuous.
+    expect(expressions).toHaveLength(507);
     for (const expression of expressions) {
       expect(
         () =>

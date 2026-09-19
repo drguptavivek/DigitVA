@@ -572,8 +572,8 @@ def _enabled_extensions(
 
     Derived, never stored. ``intake_screen`` follows the resolved welcome note
     -- a project that blanked the note wants no welcome screen -- and
-    ``death_summary`` follows the project switch, which is on unless an
-    administrator turned it off (decided 2026-09-19,
+    ``death_summary`` and ``medical_records`` each follow their own project
+    switch, on unless an administrator turned it off (decided 2026-09-19,
     docs/policy/va-web-form-options.md). The document upload itself lands with
     attachments phase 2; the extension is served now so the page can be built
     against the contract rather than against a constant.
@@ -585,6 +585,8 @@ def _enabled_extensions(
         extensions.append("intake_screen")
     if project.web_intake_death_summary_enabled:
         extensions.append("death_summary")
+    if project.web_intake_medical_records_enabled:
+        extensions.append("medical_records")
 
     has_geography = db.session.scalar(
         sa.select(sa.func.count())

@@ -416,6 +416,7 @@ def _serialize_project(project, form_type_codes=None):
         ),
         "web_intake_intake_note": project.web_intake_intake_note,
         "web_intake_death_summary_enabled": project.web_intake_death_summary_enabled,
+        "web_intake_medical_records_enabled": project.web_intake_medical_records_enabled,
     }
 
 
@@ -524,6 +525,11 @@ def _web_intake_form_option_updates(payload):
     if "web_intake_death_summary_enabled" in payload:
         updates["web_intake_death_summary_enabled"] = bool(
             payload["web_intake_death_summary_enabled"]
+        )
+
+    if "web_intake_medical_records_enabled" in payload:
+        updates["web_intake_medical_records_enabled"] = bool(
+            payload["web_intake_medical_records_enabled"]
         )
 
     return updates, None

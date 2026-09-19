@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # VA Web Form Options Contract
@@ -40,7 +40,7 @@ questionnaire differ only by tier-2 options.
 | `instrument` | `InstrumentDefinition` (property) | **Yes** — selected by the default form type's `instrument_code` (2026-09-19) | The host must pass this once a second *standard instrument* is bundled. Built offline; never compiled at request time. |
 | `instrument_code` | string, served per form type | **Yes** (2026-09-19) | The standard instrument a form type layers on, read from `mas_form_types.base_instrument_code`; `null` when nothing is bundled for that form type, which the page renders as an error. |
 | `formTypeCode` | string, inside the instrument | Emitted by the builder | The mapping key for the instrument's own identity. Not the instrument selector — `instrument_code` is. |
-| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `abha`. Decides which sections exist. |
+| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `medical_records`, `abha`. Decides which sections exist. |
 
 **DigitVA form types are layers, not instruments.** `WHO_2022_VA_SOCIAL` and
 any future `WHO_2022_VA_*` are layers on the one standard WHO 2022 VA
@@ -74,6 +74,7 @@ list and `flask form-types list` show it, and the form-type PATCH sets it.
 | `intake_screen` | note text | **Yes — project setting** (2026-09-19) | A welcome note shown before the questionnaire, `web_intake_intake_note`. NULL is the system default text (`DEFAULT_INTAKE_NOTE`), `""` is no welcome screen. In `enabled_extensions` exactly when the resolved note is non-empty; the text is served as `intake_note`. |
 | `translation_versions` | `{locale: int}` | **Yes** — served (2026-09-19) | The version of every locale this project's instrument currently serves, `en` at 0. A page caches a locale's strings and re-fetches only when its version moves. |
 | `death_summary` | boolean | **Yes — project setting** (2026-09-19) | Optional upload of death summary documents, `web_intake_death_summary_enabled`, on for every project. Never a mandatory response; rendering waits for attachments phase 2. |
+| `medical_records` | boolean | **Yes — project setting** (2026-09-20) | The medical-record fields (`md_available`, `md_count`, `md_im1`..`md_im30`), `web_intake_medical_records_enabled`, on for every project. A project may opt out. |
 
 ### Tier 3 — session and runtime
 
@@ -100,11 +101,12 @@ GET /api/v1/organization/<project_id>/form-options
 ```
 
 **Implemented 2026-09-19** in `app/routes/api/organization.py`, on the same
-blueprint and behind the same grant check as `/units`. Backed by seven columns
+blueprint and behind the same grant check as `/units`. Backed by eight columns
 on `va_project_master` (`web_intake_default_locale`,
 `web_intake_available_locales`, `web_intake_narration_languages`,
 `web_intake_show_guidance`, and since 2026-09-19 `web_intake_form_type_id`,
-`web_intake_intake_note`, `web_intake_death_summary_enabled`), and accepted by
+`web_intake_intake_note`, `web_intake_death_summary_enabled`, and since
+2026-09-20 `web_intake_medical_records_enabled`), and accepted by
 the project POST and PUT in `app/routes/admin.py`. The POST also applies
 `WEB_PROJECT_DEFAULTS` (`app/services/web_intake_service.py`) to every web
 setting a create payload omits when `web_intake_mode` is not `off`.
@@ -164,7 +166,8 @@ Notes on the shape:
   resolve to a non-empty list; `abha` when the default form type has an active
   `abha_number` field display config; `intake_screen` when the resolved
   welcome note is non-empty; `death_summary` from
-  `web_intake_death_summary_enabled`.
+  `web_intake_death_summary_enabled`; `medical_records` from
+  `web_intake_medical_records_enabled`.
 - `intake_note` is the text the `intake_screen` extension renders, or `null`
   when the project turned the welcome screen off.
 - `available_locales` is the intersection of what the project allows and the

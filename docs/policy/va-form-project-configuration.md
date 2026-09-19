@@ -45,17 +45,25 @@ which layers it collects:
 
 | Extension | Questions |
 |---|---|
-| `digitva_core` (always on) | `unique_id`, `Site`, `imagenarr`, `md_count` + `md_im1..30`, `comment` |
+| `digitva_core` (always on) | `unique_id`, `Site`, `comment`, `consent_mode` |
 | `social_autopsy` | the social-autopsy sections |
 | `intake_screen` | `introduction`, `instructions`, `confirm_inst` — project setting `web_intake_intake_note` (2026-09-19) |
 | `geography` | `survey_state`, `survey_district`, `survey_block`, `site_individual_id` |
-| `narration_language` | `narr_language` |
+| `narration_language` | `narr_language`, `imagenarr` |
 | `death_summary` | `ds_available`, `ds_count`, `ds_im1..5` — project setting `web_intake_death_summary_enabled`, on by default (2026-09-19) |
+| `medical_records` | `md_available`, `md_count`, `md_im1..30` |
 | `abha` | `abha_number`, `abha_address` (web intake only) |
 
 A project picks layers; it does not pick a whole form. The deployed forms
 decompose exactly this way — KEM_VAADU is the base plus `social_autopsy`; the
-ICMRVA family adds `intake_screen`, `geography` and `death_summary`.
+ICMRVA family adds `intake_screen`, `geography`, `death_summary` and
+`medical_records`.
+
+Medical records was folded into `digitva_core` when this table was first
+written; the owner has since decided it is its own named extension
+(`medical_records`), matching how ND01 actually structures it as a separate
+"Medical Documents" group with its own availability gate. It is no longer
+part of `digitva_core`.
 
 ### 2. Narration languages
 
@@ -188,12 +196,44 @@ Hindi text, 96 names beyond the WHO reference:
 | `narration_language` | `narr_language`; narration capture `Id10476_audio` (audio) and `imagenarr` (image) |
 | `social_autopsy` | `socialautopsy` group: `socioeconomic` (`sa01` to `sa06_a`), `reachinghealthcare` (`sa07` to `sa12`), `eventchronology` (`sa13` to `sa19` with `sa_tu*` time units) |
 | `death_summary` | `death_summary` "Death Certificate (Images)": `ds_available`, `ds_count`, `ds_im1` to `ds_im5` |
-| medical records (not yet a named extension) | `md_records`: `md_available`, `md_count`, `md_im1` to `md_im30` |
+| `medical_records` | `md_records`: `md_available`, `md_count`, `md_im1` to `md_im30` |
 
 These are the structural reference for those layers when they are built
 (decisions E7 and E8: overlay from a deployed form, never invented). The
 importer reports them as "unknown in workbook" against the WHO reference
 today, which is expected. The `abha` layer is not in ND01.
+
+Medical records was recorded above as "not yet a named extension"; the owner
+has since decided it is one (`medical_records`), matching ND01's own
+`md_records` group and gate question. The Extensions table reflects this.
+
+#### ND01 comparison verdicts
+
+Building the `ds_available`/`md_available` gates against ND01's deployed
+`death_summary` and `md_records` groups surfaced structure this instrument
+does not adopt wholesale. Decided, so as not to relitigate:
+
+- **Adopt** ND01's `ds_available` and `md_available` gate questions and their
+  relevance (`selected(${ds_available}, 'yes')` / `selected(${md_available},
+  'yes')` gating `ds_count` / `md_count`) — this is exactly what WP-A2 builds.
+- **Reject** ND01's `Id10002`/`Id10003` calculations: they hard-code one
+  district, which is wrong for every deployment but ND01's own.
+- **Reject** ND01 dropping the `Id10365` constraint: it is a data-quality
+  check, not deployment-specific noise, and stays enforced.
+- **Reject** touching `Id10476`'s relevance: its reference expression is
+  already effectively true until audio capture lands in the attachments
+  phase 2 work; ND01's difference here is not a structural gap to close now.
+
+#### Consent mode
+
+Telephonic consent is recorded as a **separate field naming the mode of
+consent**, not as a third value on `Id10013`. `Id10013` (`va_consent`) stays
+the sole authoritative record that consent was taken, and the `consented`
+group's relevance (`selected(${Id10013}, 'yes')`) is unchanged. The new
+`consent_mode` question (`digitva_core`, always on) is optional and relevant
+only once `Id10013` is `'yes'`. ND01 has no precedent for this field — it
+folds the distinction into its own consent choice list instead — so the name
+and shape here are DigitVA's own.
 
 Instrument locale codes are a separate axis from `mas_languages` codes (`kha`
 here is `khasi` there). Nothing maps between them, and adding a

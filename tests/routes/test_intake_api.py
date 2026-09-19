@@ -287,8 +287,16 @@ class IntakeApiTests(BaseTestCase):
         self.assertIn("sectionOf = sectionMapFor(chosenInstrument)", body)
         # A form type is a layer on a standard instrument, so the instrument is
         # resolved from the served instrument_code, never from form_type_code.
-        self.assertNotIn("INSTRUMENTS[defaultFormType.form_type_code]", body)
-        self.assertIn("INSTRUMENTS[defaultFormType.instrument_code]", body)
+        self.assertNotIn(
+            "INSTRUMENT_FACTORIES[defaultFormType.form_type_code]", body
+        )
+        self.assertIn(
+            "INSTRUMENT_FACTORIES[defaultFormType.instrument_code]", body
+        )
+        # The layers a project enabled decide what the instrument carries, so
+        # the factory is called with the served list rather than the all-on
+        # constant (digitva-thr).
+        self.assertIn("buildInstrument(options.enabled_extensions || [])", body)
         self.assertIn("/form-options", body)
         self.assertIn(f'"project_id": "{self.PROJECT_ID}"', body)
 

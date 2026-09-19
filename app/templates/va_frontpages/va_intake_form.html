@@ -47,20 +47,22 @@ const api = async (url, method = "GET", body, { keepalive = false } = {}) => {
   return { ok: r.ok, status: r.status, data };
 };
 
-// instrument_code -> the bundled standard instrument. A DigitVA form type is
-// a layer on a standard instrument, not a questionnaire of its own: the server
-// resolves the form type's instrument_code (docs/policy/va-web-form-options.md)
-// and enabled_extensions says which layers apply. A form type whose
-// instrument_code is null or unbundled is an error we show, not a WHO 2022
-// form rendered under the wrong name.
-const INSTRUMENTS = {
-  "WHO_2022_VA": WhoVa.whoVa2022Instrument,
+// instrument_code -> a factory building the standard instrument for a given
+// set of enabled extensions. A DigitVA form type is a layer on a standard
+// instrument, not a questionnaire of its own: the server resolves the form
+// type's instrument_code (docs/policy/va-web-form-options.md) and
+// enabled_extensions says which layers apply, so the client composes the
+// instrument to match rather than always splicing every layer in. A form type
+// whose instrument_code is null or unbundled is an error we show, not a WHO
+// 2022 form rendered under the wrong name.
+const INSTRUMENT_FACTORIES = {
+  "WHO_2022_VA": WhoVa.createWhoVa2022Instrument,
 };
 
 // Question name -> deepest section name, so each section is saved as its own
 // JSON. Built in main() from the instrument the project's default form type
-// selected, never from a hardcoded one: a second INSTRUMENTS entry must not be
-// split by WHO 2022's section names. Nothing calls splitBySection before main()
+// selected, never from a hardcoded one: a second INSTRUMENT_FACTORIES entry
+// must not be split by WHO 2022's section names. Nothing calls splitBySection before main()
 // assigns it -- the form only reaches draftStore once it is mounted.
 const sectionMapFor = (instr) =>
   new Map(instr.questions.map((q) => [q.name, q.sectionPath[q.sectionPath.length - 1] || "_root"]));
@@ -267,13 +269,14 @@ async function main() {
   if (!opts.ok) { alertBox("danger", opts.data.error || "Could not load this project's form options."); return; }
   const options = opts.data;
   const defaultFormType = (options.form_types || []).find((ft) => ft.is_default);
-  const chosenInstrument = defaultFormType ? INSTRUMENTS[defaultFormType.instrument_code] : undefined;
-  if (!chosenInstrument) {
+  const buildInstrument = defaultFormType ? INSTRUMENT_FACTORIES[defaultFormType.instrument_code] : undefined;
+  if (!buildInstrument) {
     alertBox("danger", defaultFormType
       ? `No questionnaire is bundled for form type ${defaultFormType.form_type_code}.`
       : "This project has no questionnaire configured.");
     return;
   }
+  const chosenInstrument = buildInstrument(options.enabled_extensions || []);
   sectionOf = sectionMapFor(chosenInstrument);
 
   const el = document.createElement("who-va-2022-form");
@@ -304,10 +307,10 @@ async function main() {
   host.innerHTML = "";
   host.appendChild(el);
 
-  // enabled_extensions is the project's list of form sections
-  // (docs/policy/va-web-form-options.md). Unknown names are ignored, so an
-  // extension the page does not render yet -- death_summary until attachments
-  // phase 2 -- costs nothing here.
+  // enabled_extensions is the project's list of form layers
+  // (docs/policy/va-web-form-options.md). Layer questions were already
+  // composed into chosenInstrument above; this is only the welcome-screen
+  // check, which the instrument itself has no notion of.
   const extensions = options.enabled_extensions || [];
   if (extensions.includes("intake_screen") && options.intake_note) {
     // The note is project text: set it as text, never as markup.

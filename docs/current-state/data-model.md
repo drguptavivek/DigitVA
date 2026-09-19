@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # Current Data Model
@@ -1079,6 +1079,8 @@ Other important tables:
   — NULL means `WHO_2022_VA`), `web_intake_intake_note` (Text, nullable —
   NULL means the system default welcome note, `''` means no welcome screen)
   and `web_intake_death_summary_enabled` (Boolean, NOT NULL, default true).
+  Migration `e1b6c9a3d7f4` adds `web_intake_medical_records_enabled`
+  (Boolean, NOT NULL, default true), mirroring `web_intake_death_summary_enabled`.
   Policy: `docs/policy/va-web-form-options.md`,
   `docs/policy/va-form-project-configuration.md`
 - `va_site_master`

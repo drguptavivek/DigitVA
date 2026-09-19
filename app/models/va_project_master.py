@@ -148,6 +148,11 @@ class VaProjectMaster(db.Model):
     web_intake_death_summary_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=True, server_default="true"
     )
+    # Whether the questionnaire carries the medical-record fields (md_available
+    # / md_count / md_im1..30). On for every project; a project may opt out.
+    web_intake_medical_records_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=True, server_default="true"
+    )
 
     def __repr__(self) -> str:
         return f"VA Project Master -> {self.project_id} ({self.project_status})"

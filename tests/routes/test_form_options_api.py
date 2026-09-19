@@ -8,6 +8,8 @@ app/routes/admin.py.
 import uuid
 from datetime import UTC, datetime
 
+import sqlalchemy as sa
+
 from app import db
 from app.models import (
     MapProjectSiteOdk,
@@ -866,6 +868,13 @@ class WebFormTypeAndExtensionOptionsTests(BaseTestCase):
         db.session.commit()
         self.assertNotIn("death_summary", self._payload()["enabled_extensions"])
 
+    def test_medical_records_is_on_by_default_and_goes_when_switched_off(self):
+        self.assertIn("medical_records", self._payload()["enabled_extensions"])
+
+        self.project.web_intake_medical_records_enabled = False
+        db.session.commit()
+        self.assertNotIn("medical_records", self._payload()["enabled_extensions"])
+
 
 class WebFormTypeAdminValidationTests(BaseTestCase):
     """A project may only be configured with a usable, confirmed form type."""
@@ -1000,6 +1009,19 @@ class WebFormTypeAdminValidationTests(BaseTestCase):
         response = self._put({"web_intake_intake_note": None})
         self.assertIsNone(response.get_json()["project"]["web_intake_intake_note"])
 
+    def test_put_sets_the_medical_records_switch(self):
+        response = self._put({"web_intake_medical_records_enabled": False})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertFalse(
+            response.get_json()["project"]["web_intake_medical_records_enabled"]
+        )
+
+        response = self._put({"web_intake_medical_records_enabled": True})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertTrue(
+            response.get_json()["project"]["web_intake_medical_records_enabled"]
+        )
+
     def test_put_rejects_a_non_text_note(self):
         response = self._put({"web_intake_intake_note": 7})
         self.assertEqual(response.status_code, 400)
@@ -1108,6 +1130,7 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
         self.assertEqual(project.web_intake_form_type_id, self.default_type.form_type_id)
         self.assertIsNone(project.web_intake_intake_note)
         self.assertTrue(project.web_intake_death_summary_enabled)
+        self.assertTrue(project.web_intake_medical_records_enabled)
         self.assertFalse(project.social_autopsy_enabled)
         self.assertEqual(project.coding_intake_mode, "pick_and_choose")
         # The two language lists keep only the codes their validators accept:
@@ -1141,6 +1164,7 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
             web_intake_form_type_id=str(self.other_type.form_type_id),
             web_intake_intake_note="",
             web_intake_death_summary_enabled=False,
+            web_intake_medical_records_enabled=False,
             social_autopsy_enabled=True,
             coding_intake_mode="random_form_allocation",
             web_intake_narration_languages=["english"],
@@ -1153,6 +1177,7 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
         self.assertEqual(project.web_intake_form_type_id, self.other_type.form_type_id)
         self.assertEqual(project.web_intake_intake_note, "")
         self.assertFalse(project.web_intake_death_summary_enabled)
+        self.assertFalse(project.web_intake_medical_records_enabled)
         self.assertTrue(project.social_autopsy_enabled)
         self.assertEqual(project.coding_intake_mode, "random_form_allocation")
         self.assertEqual(project.web_intake_narration_languages, ["english"])
@@ -1177,6 +1202,37 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
                 self.assertEqual(response.status_code, 400)
         db.session.expire_all()
         self.assertIsNone(db.session.get(VaProjectMaster, "FDEF05"))
+
+    def test_medical_records_column_server_default_is_true(self):
+        """A row inserted without the column still gets ``true`` from the DB.
+
+        Proves the migration's ``server_default``, not the ORM's ``default``
+        (which never runs on this bare-SQL insert): the two are independent
+        and only the server-side one protects rows written outside the app.
+        """
+        db.session.execute(
+            sa.text(
+                "INSERT INTO va_project_master "
+                "(project_id, project_name, project_nickname, project_status, "
+                " project_registered_at, project_updated_at) "
+                "VALUES (:id, :name, :nickname, :status, now(), now())"
+            ),
+            {
+                "id": "FDEF06",
+                "name": "Default Col",
+                "nickname": "DefCol",
+                "status": VaStatuses.active.value,
+            },
+        )
+        db.session.commit()
+        value = db.session.execute(
+            sa.text(
+                "SELECT web_intake_medical_records_enabled FROM va_project_master "
+                "WHERE project_id = :id"
+            ),
+            {"id": "FDEF06"},
+        ).scalar()
+        self.assertTrue(value)
 
 
 class FormOptionsInstrumentLocaleTests(BaseTestCase):

@@ -114,6 +114,7 @@ WEB_PROJECT_DEFAULTS = {
     "web_intake_form_type_code": "WHO_2022_VA",
     "web_intake_intake_note": None,
     "web_intake_death_summary_enabled": True,
+    "web_intake_medical_records_enabled": True,
     "social_autopsy_enabled": False,
     "web_intake_available_locales": ["en", "hi"],
     "web_intake_narration_languages": ["english", "hindi"],

@@ -388,6 +388,26 @@ class InstrumentTranslationImportTests(BaseTestCase):
 class DocumentedSourceTableTests(unittest.TestCase):
     """The shipped policy table is the rule the importer reads."""
 
+    def test_a_later_table_in_the_section_is_not_read_as_sources(self):
+        doc = self.tmp_path / "policy.md" if hasattr(self, "tmp_path") else None
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "policy.md"
+            path.write_text(
+                "## Translation sources\n\n"
+                "| Language | Locale | Source workbook | Project | ODK form id | Download date | Assigned by |\n"
+                "| --- | --- | --- | --- | --- | --- | --- |\n"
+                "| Hindi | hi | ND01.xlsx | ND01 | ND01 | 2026-09-19 | owner |\n\n"
+                "Prose between tables.\n\n"
+                "| Layer | Structure |\n| --- | --- |\n| intake_screen | begin_screen |\n",
+                encoding="utf-8",
+            )
+            sources = svc.documented_sources(path)
+        self.assertIn("hi", sources)
+        self.assertEqual(set(sources), {"hi"})
+
     def test_the_policy_doc_documents_every_committed_language(self):
         sources = svc.documented_sources()
         self.assertEqual(

@@ -174,6 +174,8 @@ French, Portuguese, Arabic, Swahili and Spanish labels and hints, and is the
 source for those five. It is a translation source only: whether the
 reference form itself moves from V1.1 to V2.0 is a separate decision.
 
+### DigitVA layers in the ND01 form
+
 The ICMR deployment form (`ND01_ICMRVA_WHOVA2022.xlsx`, the version used
 most commonly, 2026-09-19) carries the WHO instrument plus every DigitVA
 layer the option contract names, as deployed structure with English and

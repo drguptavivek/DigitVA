@@ -207,6 +207,11 @@ def documented_sources(doc_path: Path | None = None) -> dict[str, DocumentedSour
         if stripped.startswith("#"):
             break
         if not stripped.startswith("|"):
+            # The sources table is the first table in the section; once it
+            # has ended, a later table (an inventory, a layer list) must not
+            # be read as more sources.
+            if header is not None and sources:
+                break
             continue
         cells = [_cell(c) for c in stripped.strip("|").split("|")]
         if header is None:

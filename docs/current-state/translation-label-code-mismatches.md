@@ -134,6 +134,93 @@ evidence.** The interviewer also sees the correct English line in ODK, so
 practice decides the outcome. Do not cite the workbook defect as proof that
 OD01's data is wrong.
 
+## Every affected question, by form
+
+68 rows, also in `translation-label-code-mismatches.csv` beside this
+file for working through in the string editor. Read the last two columns
+together: where they describe *different* questions, the interviewer may be
+reading the wrong one.
+
+Classes: **duplicate** = the translated line is byte-identical to the shown
+question's line, which is proof of copy-paste. *needs review* = the shown code
+is a real other question, so the wording may belong to it — a reader of that
+language must decide. *stale code* = the shown code is not a question at all,
+so only the number is wrong.
+
+| Workbook | Language | Question | Shows | Class | The question asks | The shown code's question asks |
+| --- | --- | --- | --- | --- | --- | --- |
+| `KA01_DS` | Kannada (kn) | `Id10471` | `Id10470` | **duplicate** | [Duration of third antecedent cause of death (Id):] | [Record the third antecedent cause of death from the cer |
+| `OD01_ICMRVA` | Odia (or) | `Id10192` | `Id10191` | **duplicate** | Was the vomit black? | Was there blood in the vomit? |
+| `JIPMER_DS` | Tamil (ta) | `Id10148_c` | `Id10148_b` | needs review | [Enter how long the fever lasted in months]: | [Enter how long the fever lasted in days]: |
+| `JIPMER_DS` | Tamil (ta) | `Id10414_b` | `Id10414_a` | needs review | Did s/he ever chew and/or sniff tobacco daily? | For how long did s/he chew and/or sniff tobacco? |
+| `KA01_DS` | Hindi (hi) | `Id10148_units` | `Id10148_a` | needs review | How long did the fever last? | How many days did the fever last? |
+| `KA01_DS` | Hindi (hi) | `Id10182_units` | `Id10181` | needs review | How long did (s)he have diarrhoea? | Did (s)he have diarrhoea? |
+| `KA01_DS` | Kannada (kn) | `Id10422` | `Id10423` | needs review | Did (s)he receive (or need) treatment/food through a tub | Did (s)he receive (or need) injectable antibiotics? |
+| `KA01_DS` | Marathi (mr) | `botecrn` | `Id10069_a` | needs review | Civil registration: "This refers to the legal death cert | Do you have a Death Certificate from the Civil Registry? |
+| `KA01_DS` | Marathi (mr) | `noteccd` | `Id10462` | needs review | Death certificate with cause of death: "This refers to t | Was a medical certificate of cause of death issued? |
+| `KEM_VAADU` | Hindi (hi) | `Id10148_units` | `Id10148_a` | needs review | How long did the fever last? | How many days did the fever last? |
+| `KEM_VAADU` | Hindi (hi) | `Id10182_units` | `Id10181` | needs review | How long did (s)he have diarrhoea? | Did (s)he have diarrhoea? |
+| `KEM_VAADU` | Marathi (mr) | `botecrn` | `Id10069_a` | needs review | Civil registration: "This refers to the legal death cert | Do you have a Death Certificate from the Civil Registry? |
+| `KEM_VAADU` | Marathi (mr) | `noteccd` | `Id10462` | needs review | Death certificate with cause of death: "This refers to t | Was a medical certificate of cause of death issued? |
+| `KL01_DS` | Malayalam (ml) | `Id10179_1` | `Id10179` | needs review | [Enter how long the chest pain lasted in days]: | [Enter how long the chest pain lasted in hours]: |
+| `KL01_DS` | Malayalam (ml) | `Id10184_c` | `Id10184_b` | needs review | [Enter how long before death the diarrhoea started in mo | [Enter how long before death the diarrhoea started in da |
+| `ND01_ICMRVA` | Hindi (hi) | `Id10148_units` | `Id10148_a` | needs review | How long did the fever last? | How many days did the fever last? |
+| `OD01_ICMRVA` | Odia (or) | `Id10194` | `Id10192` | needs review | Did (s)he have abdominal pain? | Was the vomit black? |
+| `OD01_ICMRVA` | Odia (or) | `Id10195` | `Id10194` | needs review | Was the abdominal pain severe? | Did (s)he have abdominal pain? |
+| `OD01_ICMRVA` | Odia (or) | `Id10213_units` | `Id10212` | needs review | How long did (s)he have mental confusion? | Did (s)he have mental confusion? |
+| `OD01_ICMRVA` | Odia (or) | `Id10248_b` | `Id10248_a` | needs review | [Enter how long (s)he had puffiness of the face in month | [Enter how long (s)he had puffiness of the face in days] |
+| `OD01_ICMRVA` | Odia (or) | `abdominal_pain` | `Id10195` | needs review | (not in DigitVA instrument) | Was the abdominal pain severe? |
+| `PY01_ICMRVA` | Tamil (ta) | `Id10148_c` | `Id10148_b` | needs review | [Enter how long the fever lasted in months]: | [Enter how long the fever lasted in days]: |
+| `PY01_ICMRVA` | Tamil (ta) | `Id10414_b` | `Id10414_a` | needs review | Did s/he ever chew and/or sniff tobacco daily? | For how long did s/he chew and/or sniff tobacco? |
+| `RJ01_ICMRVA` | Hindi (hi) | `Id10148_units` | `Id10148_a` | needs review | How long did the fever last? | How many days did the fever last? |
+| `JIPMER_DS` | Tamil (ta) | `Id10282` | `Id0282` | stale code | (Id0282) Did the baby become unresponsive or unconscious | (no such question) |
+| `KA01_DS` | Hindi (hi) | `Id10010` | `Id100010` | stale code | [Name of VA interviewer] | (no such question) |
+| `KA01_DS` | Hindi (hi) | `Id10322_a` | `Id10322` | stale code | Did she have foul smelling vaginal discharge during preg | (no such question) |
+| `KA01_DS` | Kannada (kn) | `Id10010` | `Id100010` | stale code | [Name of VA interviewer] | (no such question) |
+| `KA01_DS` | Kannada (kn) | `Id10282` | `Id0282` | stale code | (Id0282) Did the baby become unresponsive or unconscious | (no such question) |
+| `KA01_DS` | Marathi (mr) | `Id10010` | `Id100010` | stale code | [Name of VA interviewer] | (no such question) |
+| `KA01_DS` | Marathi (mr) | `Id10282` | `Id0282` | stale code | (Id0282) Did the baby become unresponsive or unconscious | (no such question) |
+| `KEM_VAADU` | Hindi (hi) | `Id10010` | `Id100010` | stale code | [Name of VA interviewer] | (no such question) |
+| `KEM_VAADU` | Hindi (hi) | `Id10322_a` | `Id10322` | stale code | Did she have foul smelling vaginal discharge during preg | (no such question) |
+| `KEM_VAADU` | Hindi (hi) | `reachinghealthcare` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `Id10010` | `Id100010` | stale code | [Name of VA interviewer] | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `Id10282` | `Id0282` | stale code | (Id0282) Did the baby become unresponsive or unconscious | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `reachinghealthcare` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `sa07_a` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `sa09` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `sa15` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `sa18` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `sa_note` | `0` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `sa_tu15` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `KEM_VAADU` | Marathi (mr) | `sa_tu18` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ML01_ICMRVA` | Khasi (kha) | `Interviewer` | `VA` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ML01_ICMRVA` | Khasi (kha) | `death_summary` | `Images` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ML01_ICMRVA` | Khasi (kha) | `ds_available` | `images` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ML01_ICMRVA` | Khasi (kha) | `g10366` | `gram` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ML01_ICMRVA` | Khasi (kha) | `introduction` | `2022` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ML01_ICMRVA` | Khasi (kha) | `reachinghealthcare` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ND01_ICMRVA` | Hindi (hi) | `Id10010` | `Id100010` | stale code | [Name of VA interviewer] | (no such question) |
+| `ND01_ICMRVA` | Hindi (hi) | `Id10322_a` | `Id10322` | stale code | Did she have foul smelling vaginal discharge during preg | (no such question) |
+| `ND01_ICMRVA` | Hindi (hi) | `introduction` | `2022` | stale code | (not in DigitVA instrument) | (no such question) |
+| `ND01_ICMRVA` | Hindi (hi) | `reachinghealthcare` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `OD01_ICMRVA` | Odia (or) | `Id10282` | `Id0282` | stale code | (Id0282) Did the baby become unresponsive or unconscious | (no such question) |
+| `OD01_ICMRVA` | Odia (or) | `Id10467` | `Ib` | stale code | [Duration of the first antecedent cause of death (Ib):] | (no such question) |
+| `OD01_ICMRVA` | Odia (or) | `introduction` | `2022` | stale code | (not in DigitVA instrument) | (no such question) |
+| `OD01_ICMRVA` | Odia (or) | `mother_deliv` | `Id10386` | stale code | (not in DigitVA instrument) | (no such question) |
+| `OD01_ICMRVA` | Odia (or) | `reachinghealthcare` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `OD01_ICMRVA` | Odia (or) | `sa_note` | `0` | stale code | (not in DigitVA instrument) | (no such question) |
+| `PY01_ICMRVA` | Tamil (ta) | `Id10282` | `Id0282` | stale code | (Id0282) Did the baby become unresponsive or unconscious | (no such question) |
+| `PY01_ICMRVA` | Tamil (ta) | `introduction` | `2022` | stale code | (not in DigitVA instrument) | (no such question) |
+| `PY01_ICMRVA` | Tamil (ta) | `reachinghealthcare` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+| `PY01_ICMRVA` | Tamil (ta) | `sa_note` | `0` | stale code | (not in DigitVA instrument) | (no such question) |
+| `RJ01_ICMRVA` | Hindi (hi) | `Id10010` | `Id100010` | stale code | [Name of VA interviewer] | (no such question) |
+| `RJ01_ICMRVA` | Hindi (hi) | `Id10322_a` | `Id10322` | stale code | Did she have foul smelling vaginal discharge during preg | (no such question) |
+| `RJ01_ICMRVA` | Hindi (hi) | `introduction` | `2022` | stale code | (not in DigitVA instrument) | (no such question) |
+| `RJ01_ICMRVA` | Hindi (hi) | `reachinghealthcare` | `HCF` | stale code | (not in DigitVA instrument) | (no such question) |
+
+Counts by workbook: JIPMER_DS 3, KA01_DS 12, KEM_VAADU 17, KL01_DS 2, ML01_ICMRVA 6, ND01_ICMRVA 5, OD01_ICMRVA 12, PY01_ICMRVA 6, RJ01_ICMRVA 5.
+By class: DUPLICATE 2, shifted? 22, stale code 44.
+
 ## What to do
 
 Fix in the admin string editor, which promotes the row to `edited` and so
@@ -157,5 +244,15 @@ where item_kind='question' and field='label'
   and substring(text from '\(([A-Za-z0-9_]+)\)') <> item_key
 order by locale_code, item_key;
 ```
+
+Odia and Kannada were demoted from `approved` to `in_review` and deactivated
+on 2026-09-20 by migration `c8e4a1f7b209`, so DigitVA's web form no longer
+serves them and falls back to English. ODK collection is unaffected. The
+migration captures each locale's prior state into
+`_mig_c8e4a1f7b209_prior_locale_state` so `downgrade` can restore it, and its
+UPDATE matches only a locale still `approved`, so re-running changes nothing.
+Re-approving a locale after review is a deliberate administrator action:
+`flask instrument-translations lifecycle WHO_2022_VA <locale> approved
+--approved-by <admin>` then `activate`.
 
 Tracked as `digitva-fb5`.

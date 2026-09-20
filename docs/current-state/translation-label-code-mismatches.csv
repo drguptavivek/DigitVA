@@ -1,0 +1,69 @@
+workbook,language,question,code_shown,kind,question_asks,text_shown_is
+JIPMER_DS,Tamil (ta),Id10148_c,Id10148_b,shifted?,[Enter how long the fever lasted in months]:,[Enter how long the fever lasted in days]:
+JIPMER_DS,Tamil (ta),Id10282,Id0282,stale code,(Id0282) Did the baby become unresponsive or unconscious within 24 hours,(no such question)
+JIPMER_DS,Tamil (ta),Id10414_b,Id10414_a,shifted?,Did s/he ever chew and/or sniff tobacco daily?,For how long did s/he chew and/or sniff tobacco?
+KA01_DS,Hindi (hi),Id10010,Id100010,stale code,[Name of VA interviewer],(no such question)
+KA01_DS,Hindi (hi),Id10148_units,Id10148_a,shifted?,How long did the fever last?,How many days did the fever last?
+KA01_DS,Hindi (hi),Id10182_units,Id10181,shifted?,How long did (s)he have diarrhoea?,Did (s)he have diarrhoea?
+KA01_DS,Hindi (hi),Id10322_a,Id10322,stale code,Did she have foul smelling vaginal discharge during pregnancy?,(no such question)
+KA01_DS,Kannada (kn),Id10010,Id100010,stale code,[Name of VA interviewer],(no such question)
+KA01_DS,Kannada (kn),Id10282,Id0282,stale code,(Id0282) Did the baby become unresponsive or unconscious within 24 hours,(no such question)
+KA01_DS,Kannada (kn),Id10422,Id10423,shifted?,Did (s)he receive (or need) treatment/food through a tube passed through,Did (s)he receive (or need) injectable antibiotics?
+KA01_DS,Kannada (kn),Id10471,Id10470,DUPLICATE,[Duration of third antecedent cause of death (Id):],[Record the third antecedent cause of death from the certificate (line 1
+KA01_DS,Marathi (mr),Id10010,Id100010,stale code,[Name of VA interviewer],(no such question)
+KA01_DS,Marathi (mr),Id10282,Id0282,stale code,(Id0282) Did the baby become unresponsive or unconscious within 24 hours,(no such question)
+KA01_DS,Marathi (mr),botecrn,Id10069_a,shifted?,"Civil registration: ""This refers to the legal death certificate obtained",Do you have a Death Certificate from the Civil Registry?
+KA01_DS,Marathi (mr),noteccd,Id10462,shifted?,"Death certificate with cause of death: ""This refers to the medical certi",Was a medical certificate of cause of death issued?
+KEM_VAADU,Hindi (hi),Id10010,Id100010,stale code,[Name of VA interviewer],(no such question)
+KEM_VAADU,Hindi (hi),Id10148_units,Id10148_a,shifted?,How long did the fever last?,How many days did the fever last?
+KEM_VAADU,Hindi (hi),Id10182_units,Id10181,shifted?,How long did (s)he have diarrhoea?,Did (s)he have diarrhoea?
+KEM_VAADU,Hindi (hi),Id10322_a,Id10322,stale code,Did she have foul smelling vaginal discharge during pregnancy?,(no such question)
+KEM_VAADU,Hindi (hi),reachinghealthcare,HCF,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),Id10010,Id100010,stale code,[Name of VA interviewer],(no such question)
+KEM_VAADU,Marathi (mr),Id10282,Id0282,stale code,(Id0282) Did the baby become unresponsive or unconscious within 24 hours,(no such question)
+KEM_VAADU,Marathi (mr),botecrn,Id10069_a,shifted?,"Civil registration: ""This refers to the legal death certificate obtained",Do you have a Death Certificate from the Civil Registry?
+KEM_VAADU,Marathi (mr),noteccd,Id10462,shifted?,"Death certificate with cause of death: ""This refers to the medical certi",Was a medical certificate of cause of death issued?
+KEM_VAADU,Marathi (mr),reachinghealthcare,HCF,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),sa07_a,HCF,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),sa09,HCF,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),sa15,HCF,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),sa18,HCF,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),sa_note,0,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),sa_tu15,HCF,stale code,(not in DigitVA instrument),(no such question)
+KEM_VAADU,Marathi (mr),sa_tu18,HCF,stale code,(not in DigitVA instrument),(no such question)
+KL01_DS,Malayalam (ml),Id10179_1,Id10179,shifted?,[Enter how long the chest pain lasted in days]:,[Enter how long the chest pain lasted in hours]:
+KL01_DS,Malayalam (ml),Id10184_c,Id10184_b,shifted?,[Enter how long before death the diarrhoea started in months]:,[Enter how long before death the diarrhoea started in days]:
+ML01_ICMRVA,Khasi (kha),Interviewer,VA,stale code,(not in DigitVA instrument),(no such question)
+ML01_ICMRVA,Khasi (kha),death_summary,Images,stale code,(not in DigitVA instrument),(no such question)
+ML01_ICMRVA,Khasi (kha),ds_available,images,stale code,(not in DigitVA instrument),(no such question)
+ML01_ICMRVA,Khasi (kha),g10366,gram,stale code,(not in DigitVA instrument),(no such question)
+ML01_ICMRVA,Khasi (kha),introduction,2022,stale code,(not in DigitVA instrument),(no such question)
+ML01_ICMRVA,Khasi (kha),reachinghealthcare,HCF,stale code,(not in DigitVA instrument),(no such question)
+ND01_ICMRVA,Hindi (hi),Id10010,Id100010,stale code,[Name of VA interviewer],(no such question)
+ND01_ICMRVA,Hindi (hi),Id10148_units,Id10148_a,shifted?,How long did the fever last?,How many days did the fever last?
+ND01_ICMRVA,Hindi (hi),Id10322_a,Id10322,stale code,Did she have foul smelling vaginal discharge during pregnancy?,(no such question)
+ND01_ICMRVA,Hindi (hi),introduction,2022,stale code,(not in DigitVA instrument),(no such question)
+ND01_ICMRVA,Hindi (hi),reachinghealthcare,HCF,stale code,(not in DigitVA instrument),(no such question)
+OD01_ICMRVA,Odia (or),Id10192,Id10191,DUPLICATE,Was the vomit black?,Was there blood in the vomit?
+OD01_ICMRVA,Odia (or),Id10194,Id10192,shifted?,Did (s)he have abdominal pain?,Was the vomit black?
+OD01_ICMRVA,Odia (or),Id10195,Id10194,shifted?,Was the abdominal pain severe?,Did (s)he have abdominal pain?
+OD01_ICMRVA,Odia (or),Id10213_units,Id10212,shifted?,How long did (s)he have mental confusion?,Did (s)he have mental confusion?
+OD01_ICMRVA,Odia (or),Id10248_b,Id10248_a,shifted?,[Enter how long (s)he had puffiness of the face in months]:,[Enter how long (s)he had puffiness of the face in days]:
+OD01_ICMRVA,Odia (or),Id10282,Id0282,stale code,(Id0282) Did the baby become unresponsive or unconscious within 24 hours,(no such question)
+OD01_ICMRVA,Odia (or),Id10467,Ib,stale code,[Duration of the first antecedent cause of death (Ib):],(no such question)
+OD01_ICMRVA,Odia (or),abdominal_pain,Id10195,shifted?,(not in DigitVA instrument),Was the abdominal pain severe?
+OD01_ICMRVA,Odia (or),introduction,2022,stale code,(not in DigitVA instrument),(no such question)
+OD01_ICMRVA,Odia (or),mother_deliv,Id10386,stale code,(not in DigitVA instrument),(no such question)
+OD01_ICMRVA,Odia (or),reachinghealthcare,HCF,stale code,(not in DigitVA instrument),(no such question)
+OD01_ICMRVA,Odia (or),sa_note,0,stale code,(not in DigitVA instrument),(no such question)
+PY01_ICMRVA,Tamil (ta),Id10148_c,Id10148_b,shifted?,[Enter how long the fever lasted in months]:,[Enter how long the fever lasted in days]:
+PY01_ICMRVA,Tamil (ta),Id10282,Id0282,stale code,(Id0282) Did the baby become unresponsive or unconscious within 24 hours,(no such question)
+PY01_ICMRVA,Tamil (ta),Id10414_b,Id10414_a,shifted?,Did s/he ever chew and/or sniff tobacco daily?,For how long did s/he chew and/or sniff tobacco?
+PY01_ICMRVA,Tamil (ta),introduction,2022,stale code,(not in DigitVA instrument),(no such question)
+PY01_ICMRVA,Tamil (ta),reachinghealthcare,HCF,stale code,(not in DigitVA instrument),(no such question)
+PY01_ICMRVA,Tamil (ta),sa_note,0,stale code,(not in DigitVA instrument),(no such question)
+RJ01_ICMRVA,Hindi (hi),Id10010,Id100010,stale code,[Name of VA interviewer],(no such question)
+RJ01_ICMRVA,Hindi (hi),Id10148_units,Id10148_a,shifted?,How long did the fever last?,How many days did the fever last?
+RJ01_ICMRVA,Hindi (hi),Id10322_a,Id10322,stale code,Did she have foul smelling vaginal discharge during pregnancy?,(no such question)
+RJ01_ICMRVA,Hindi (hi),introduction,2022,stale code,(not in DigitVA instrument),(no such question)
+RJ01_ICMRVA,Hindi (hi),reachinghealthcare,HCF,stale code,(not in DigitVA instrument),(no such question)

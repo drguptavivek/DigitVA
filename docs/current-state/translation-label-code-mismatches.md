@@ -83,9 +83,9 @@ guessed at.**
 
 ## The same defect in the deployed workbooks
 
-The 34 rows above are only what DigitVA imported. Sweeping the eleven deployed
+The 34 rows above are only what DigitVA imported. Sweeping the ten deployed
 project workbooks directly is worse: **68 translated label lines carry a code
-that is not their row's own**, in *every* workbook, ICMR and DS alike.
+that is not their row's own**, in *every* one of the ten, ICMR and DS alike.
 
 | Workbook | Duplicated line | Stale code only |
 | --- | --- | --- |
@@ -220,6 +220,36 @@ so only the number is wrong.
 
 Counts by workbook: JIPMER_DS 3, KA01_DS 12, KEM_VAADU 17, KL01_DS 2, ML01_ICMRVA 6, ND01_ICMRVA 5, OD01_ICMRVA 12, PY01_ICMRVA 6, RJ01_ICMRVA 5.
 By class: DUPLICATE 2, shifted? 22, stale code 44.
+
+## The choices sheet
+
+Audited separately 2026-09-20, since a wrong answer option changes which answer
+is recorded. **The reusable lists are clean**, which is the result that matters
+most: `YES_NO_DK_REF` (224 questions), `D_M_DK_REF` and `units_2` are
+byte-correct in every workbook and every language. A defect there would have
+reached hundreds of questions.
+
+Four defects found, each reaching exactly one question:
+
+| Workbook | Language | List | Defect |
+| --- | --- | --- | --- |
+| `KA01_DS` | Marathi | `units_5` (`Id10262_units`) | **cascade**: days→"hours", weeks→"days", months→"doesn't know", DK→"doesn't know" |
+| `KA01_DS` | Kannada | `select_531` (`Id10484`) | cell is `Don't know\n` — English only, no Kannada |
+| `JIPMER_DS`, `PY01_ICMRVA` | Tamil | `select_510` (`Id10477`) | "Heart attack" and "Heart problem" both `மாரடைப்பு` |
+| `TR01_DS` | Bangla | `select_512` (`Id10479`) | "asphyxia" and "respiratory distress" both `শ্বাসকষ্ট` |
+
+The Marathi cascade is the worst of the four: every option in the list is
+shifted onto its neighbour, and two options end up reading identically, so an
+interviewer choosing "months" sees the same Marathi as "doesn't know". Every
+other workbook's `units_5` is correct, so it is isolated to this one column.
+
+The Kannada row is a missing translation disguised as a present one:
+`split_packed` has no second line to take, so English is stored and served as
+though translated — and counted in coverage.
+
+The Tamil and Bangla pairs are structurally identical but may be defensible
+catch-alls; a reader of each language should say whether the two options are
+meant to be distinguishable.
 
 ## What to do
 

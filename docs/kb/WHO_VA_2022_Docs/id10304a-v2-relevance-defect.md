@@ -136,12 +136,26 @@ V1.1's condition for `Id10304_a` as a recorded `DEVIATION`. Tracked as
 Re-check any newly released workbook with:
 
 ```
-python3 tooling/who-va-2022/check-id10304a-relevance.py [workbook-dir]
+uv run tooling/who-va-2022/check-id10304a-relevance.py [workbook-dir]
 ```
 
 It exits 0 when every workbook can ask `Id10304_a`, 1 when one cannot, and 2
 when one carries a rule the analysis does not cover -- so a future WHO release
-that changes this logic again reports `UNKNOWN` rather than a false all-clear.
-Inside this repo it also re-runs each verdict through
-`app/services/xform_expression_evaluator`, the evaluator the application judges
-submissions with; outside it, it runs on openpyxl alone.
+that changes this logic again, or that moves `Id10334`'s relevance, reports
+`UNKNOWN` rather than a false all-clear.
+
+It is deliberately free of any dependency on this repository, so the same file
+is what goes to WHO as the reproducible test case: it declares `openpyxl` in a
+PEP 723 header, needs no checkout, no configuration and no application code,
+and runs anywhere `uv` does. It writes `id10304a-states-v1.1.csv` and
+`id10304a-states-v2.0.csv`, each holding all 78,125 states with that release's
+reachability, so every figure above can be recomputed from the files instead of
+taken on trust.
+
+An earlier version cross-checked its hand-written predicates against
+`app/services/xform_expression_evaluator`, the evaluator this application
+judges submissions with. That agreed on all twelve workbooks (8,245 states
+under V1.1, 0 under V2.0), which is recorded here because the check was worth
+running once; it was then dropped rather than kept, because a script whose
+value is that it runs anywhere should not carry an import of this application.
+A self-check on the expected counts guards the logic instead.

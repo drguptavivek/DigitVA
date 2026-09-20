@@ -195,8 +195,59 @@ Tamil against `PY01_ICMRVA_WHOVA2022.xlsx`, Marathi against
 only; the WHO multilingual form V2.0 (`2022whova_xls_form_for_odk_multilingual.xlsx`,
 form version `2026081401`) carries the same 479 question names with full
 French, Portuguese, Arabic, Swahili and Spanish labels and hints, and is the
-source for those five. It is a translation source only: whether the
-reference form itself moves from V1.1 to V2.0 is a separate decision.
+source for those five. It is a translation source only; the reference form's
+own move from V1.1 to V2.0 is decided separately, below.
+
+### The curated reference form moves to V2.0, English only
+
+Decided 2026-09-20 by the owner (`digitva-13x`). The reference form becomes
+`2022whova_xls_form_for_odk_multilingual.xlsx` (V2.0, `2026081401`), rebuilt
+through `app/services/xlsform_instrument_builder.py`, with three decisions
+fixed here because each was a judgement call rather than a mechanical
+consequence.
+
+**The instrument carries English only. Every other language comes from the
+translation engine.** A rebuild from V2.0 would otherwise write WHO's French,
+Portuguese, Arabic, Swahili and Spanish into the instrument itself, a second
+copy of text `map_instrument_translations` already serves — and serves better.
+Those five locales were imported from this same workbook, are approved and
+active, and `applyTranslations` (`app/static/js/intake/translations.js`)
+writes the payload over the bundle, so the database copy already wins wherever
+it has a key. Measured before deciding: the shipped instrument's inline French
+covers 144 choice labels, the engine covers 260 of them plus 476 question
+labels and 207 hints, and of the 142 keys in both, 53 differ — with the engine
+holding the newer V2.0 text. The inline copy is therefore stale, narrower, and
+shadowed. The two keys only it carries, `select_32/parent` ("Parent") and
+`select_501/stridor` ("Stridor"), are spelled identically in English, which is
+why the equal-to-English rule dropped them at import; falling back to English
+shows the same word. One cost, accepted: if a translation request fails, a
+French interviewer now sees English rather than French for those 144 choice
+labels. Every other locale already behaves that way, so this makes French
+consistent rather than adding a weakness.
+
+**`Id10304_a` keeps V1.1's relevance**, `selected(${Id10304},'yes')`, as a
+recorded `DEVIATION`. V2.0's rule is unsatisfiable and would silently drop the
+question. See `docs/kb/WHO_VA_2022_Docs/id10304a-v2-relevance-defect.md` and
+[SwissTPH/WHO-VA#94](https://github.com/SwissTPH/WHO-VA/issues/94).
+
+**`Id10230` keeps `agegroup` `C_A`**, also as a `DEVIATION`. V2.0 narrows it to
+`a` — adult-only, and the only lowercase value among 508. The restriction is
+clinically arguable (the question's guidance names "the elderly and in
+diabetics"), but it was applied to one cell and nowhere else: the question's
+own relevance still reads `selected(${isChild}, '1') or selected(${isAdult},
+'1')`, its five follow-up rows (`Id10231`, `Id10232_units`, `Id10232_a`,
+`Id10232_b`, `Id10232`) are all still `C_A`, and the sibling `Id10227` is
+`C_A` with identical relevance. The owner chose the wider value deliberately:
+asking a child one more question costs a question, while not asking loses the
+observation irrecoverably. Reported to WHO; if WHO confirms adult-only and
+publishes the matching relevance and chain changes, take their version rather
+than keep diverging.
+
+`Id10191`'s `agegroup` correction (`N` to `C_A`, resolving V1.1's own
+contradiction with `${isNeonatal} != '1'`) is accepted, as are V2.0's fifteen
+English label and hint changes — which include two more V1.1 self-corrections,
+the `Id10167_units` hint naming the wrong symptom and the `age_group` hint
+leaving twelve-year-olds in no age band.
 
 ### Packed cells: a workbook cell carrying English and the translation together
 

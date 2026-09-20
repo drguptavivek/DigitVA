@@ -239,9 +239,10 @@ own relevance still reads `selected(${isChild}, '1') or selected(${isAdult},
 `Id10232_b`, `Id10232`) are all still `C_A`, and the sibling `Id10227` is
 `C_A` with identical relevance. The owner chose the wider value deliberately:
 asking a child one more question costs a question, while not asking loses the
-observation irrecoverably. Reported to WHO; if WHO confirms adult-only and
-publishes the matching relevance and chain changes, take their version rather
-than keep diverging.
+observation irrecoverably. Reported to WHO as
+[SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95); if WHO
+confirms adult-only and publishes the matching relevance and chain changes,
+take their version rather than keep diverging.
 
 `Id10191`'s `agegroup` correction (`N` to `C_A`, resolving V1.1's own
 contradiction with `${isNeonatal} != '1'`) is accepted, as are V2.0's fifteen

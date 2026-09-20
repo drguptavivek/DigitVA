@@ -126,6 +126,34 @@ dataset, so `Id10304_a` was rare under V1.1 here too, and the field data
 cannot quantify what V2.0 would cost. The structural argument above is the
 evidence.
 
+## A second defect in the same release
+
+Auditing V2.0 for changes of this same class -- metadata disagreeing with the
+form's own logic -- turned up one more, reported separately as
+[SwissTPH/WHO-VA#95](https://github.com/SwissTPH/WHO-VA/issues/95).
+
+`Id10230` ("Did (s)he have an ulcer on the foot?", `survey` row 289) has its
+`agegroup` narrowed from `C_A` to `a`: adult-only, and the only lowercase value
+among the 508 rows that carry one. The restriction is clinically arguable --
+the question's guidance names "the elderly and in diabetics" -- but it reached
+one cell and neither of the two places that govern behaviour. Its own relevance
+still reads `selected(${isChild}, '1') or selected(${isAdult}, '1')`, its five
+follow-up rows (`Id10231`, `Id10232_units`, `Id10232_a`, `Id10232_b`,
+`Id10232`) are all still `C_A`, and the sibling `Id10227` is `C_A` with
+identical relevance.
+
+Unlike `Id10304_a` this costs no interview a question: nothing in DigitVA
+branches on `ageGroup`, and relevance does the real age gating. DigitVA keeps
+`C_A` as a recorded `DEVIATION` -- wider beats narrower, because an extra
+question costs a question while a missing one loses the observation. See
+`docs/policy/va-form-project-configuration.md`.
+
+The same audit found V2.0 **fixing** V1.1's only agegroup/relevance
+contradiction: `Id10191` ("Was there blood in the vomit?", row 242) was marked
+`N` while its relevance carries `${isNeonatal} != '1'`. V2.0 makes it `C_A`.
+After both changes V2.0 has no agegroup/relevance contradictions left -- only
+the single non-canonical value above.
+
 ## Status
 
 Reported to WHO by the owner on **2026-09-20** and filed upstream as

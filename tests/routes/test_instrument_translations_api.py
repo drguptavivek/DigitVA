@@ -42,10 +42,10 @@ def _locale(code, *, active, version=1, name="Hindi", lifecycle_state=None):
     return row
 
 
-def _string(code, item_key, text, *, field="label", kind="question"):
+def _string(code, item_key, text, *, field="label", kind="question", source="imported"):
     row = MapInstrumentTranslations(
         instrument_code=INSTRUMENT, locale_code=code, item_kind=kind,
-        item_key=item_key, field=field, text=text, source="imported",
+        item_key=item_key, field=field, text=text, source=source,
         updated_at=datetime.now(UTC),
     )
     db.session.add(row)
@@ -426,6 +426,57 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    # -- accept-as-is (digitva-4kj) -------------------------------------
+
+    def test_accept_promotes_a_machine_row_to_edited(self):
+        _string("hi", "machine_q", "मशीन अनुवाद", source="machine")
+        db.session.commit()
+        self._login(self.base_admin_id)
+
+        response = self.client.post(
+            self._api("/strings/accept"),
+            json={"item_kind": "question", "item_key": "machine_q", "field": "label"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        body = response.get_json()
+        self.assertEqual(body["source"], "edited")
+        self.assertEqual(body["text"], "मशीन अनुवाद")
+
+        db.session.expire_all()
+        row = db.session.get(
+            MapInstrumentTranslations,
+            (INSTRUMENT, "hi", "question", "machine_q", "label"),
+        )
+        self.assertEqual(row.source, "edited")
+
+    def test_accept_on_a_non_machine_row_is_refused(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            self._api("/strings/accept"),
+            json={"item_kind": "question", "item_key": self.item_key, "field": "label"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_accept_requires_csrf_and_admin(self):
+        _string("hi", "machine_q", "मशीन अनुवाद", source="machine")
+        db.session.commit()
+        payload = {"item_kind": "question", "item_key": "machine_q", "field": "label"}
+
+        anon = self.client.post(self._api("/strings/accept"), json=payload)
+        self.assertIn(anon.status_code, (302, 400, 401))
+
+        self._login(self.base_admin_id)
+        no_csrf = self.client.post(self._api("/strings/accept"), json=payload)
+        self.assertEqual(no_csrf.status_code, 400)
+
+        self._login(str(self.plain_user.user_id))
+        as_plain = self.client.post(
+            self._api("/strings/accept"), json=payload, headers=self._csrf_headers(),
+        )
+        self.assertIn(as_plain.status_code, (302, 403))
+
     # -- export and import --------------------------------------------------
 
     def test_export_returns_the_serving_payload(self):
@@ -433,6 +484,16 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         payload = self.client.get(self._api("/export")).get_json()
         self.assertEqual(payload["locale"], "hi")
         self.assertEqual(payload["questions"][self.item_key]["label"], "पहला प्रश्न")
+
+    def test_export_excludes_a_machine_row(self):
+        """digitva-4kj: export_translations must omit 'machine' rows so the
+        client falls back to English for exactly those strings."""
+        _string("hi", "machine_q", "मशीन अनुवाद", source="machine")
+        db.session.commit()
+        self._login(self.base_admin_id)
+        payload = self.client.get(self._api("/export")).get_json()
+        self.assertIn(self.item_key, payload["questions"])
+        self.assertNotIn("machine_q", payload["questions"])
 
     # -- XLIFF 2.0 interchange ---------------------------------------------
 

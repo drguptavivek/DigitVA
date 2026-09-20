@@ -94,7 +94,10 @@ question `name` and by `list_name`/`name` for choices (against the WHO base
 workbook **and** the DigitVA layer questions from the committed
 `vendor/who-va-2022/src/generated/digitva-layers.reference.json` artifact),
 splits cells packing English and the target language, keeps rows an
-administrator has edited, and never creates a question. A workbook path is
+administrator has edited, overwrites a `machine`-sourced row (an LLM draft
+awaiting review, decided 2026-09-20 — see "Machine-translated strings are not
+served" in `docs/policy/va-form-project-configuration.md`) exactly as it
+overwrites an `imported` one, and never creates a question. A workbook path is
 still checked for containment: it must resolve under the workbook directory
 (`docs/kb/WHO_VA_2022_Docs/`), the repository, or the process's temp
 directory (where an admin upload writes its file); anything else is refused.

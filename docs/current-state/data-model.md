@@ -321,7 +321,13 @@ pre-built and immutable.
   Migration `a3f7c1d9e6b4` backfills every existing row to `in_review` and
   forces `is_active` to `false` — a deliberate mass-deactivation, not a
   no-op (see the migration's docstring and "Instrument Translations Panel" in
-  `docs/current-state/admin-and-setup.md`).
+  `docs/current-state/admin-and-setup.md`). `a3f7c1d9e6b4` and the model both
+  passed the naming convention's already-prefixed name, which doubled the
+  prefix and Postgres truncated the stored name to
+  `ck_mas_instrument_locales_ck_mas_instrument_locales_act_5121`
+  (digitva-we0); migration `d2b5c7f9e4a3` renames the live constraint to the
+  name above, and the model now passes only the discriminator so a fresh
+  database gets the same name directly.
 - `version` is bumped by every import and every edit; clients cache a locale by
   it and revalidate against `translation_versions` in the form-options payload
   or the serving endpoint's `ETag`
@@ -339,8 +345,14 @@ pre-built and immutable.
 - `item_kind` is `question` or `choice`; `item_key` is the question `name` or
   `list_name` + `/` + the choice `name`; `field` is `label`, `hint` or
   `guidance_hint`
-- `source` is `imported` or `edited`; a re-import overwrites `imported` rows and
-  keeps `edited` ones. `updated_by` FK `va_users`, `updated_at`
+- `source` is `imported`, `edited` or `machine` (added 2026-09-20, digitva-4kj:
+  an LLM-authored draft awaiting human review, e.g. migration `b6d2f4a9c1e7`'s
+  214 seeded rows, relabelled from `imported` by migration `c1a4b6e8d3f2`).
+  Precedence highest first: `edited` > `imported` > `machine` — a re-import or
+  bulk XLIFF hand-back overwrites `imported` and `machine` rows alike and
+  never an `edited` one. `export_translations` and coverage both exclude a
+  `machine` row; the panel's **Accept** action promotes it straight to
+  `edited`. `updated_by` FK `va_users`, `updated_at`
 - FK `(instrument_code, locale_code)` -> `mas_instrument_locales`, ON DELETE
   CASCADE
 - roughly 2,800 rows per fully translated locale of `WHO_2022_VA`

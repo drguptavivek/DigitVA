@@ -43,9 +43,15 @@ FIELD_HINT = "hint"
 FIELD_GUIDANCE = "guidance_hint"
 
 #: ``source`` values. ``imported`` rows are overwritten by a re-import;
-#: ``edited`` rows are an administrator's correction and are kept.
+#: ``edited`` rows are an administrator's correction and are kept. ``machine``
+#: rows are LLM-authored drafts awaiting a speaker's review (decided
+#: 2026-09-20): they are overwritten by a re-import exactly like ``imported``
+#: ones, excluded from what :func:`app.services.instrument_translation_service.export_translations`
+#: serves, and excluded from coverage, until an administrator promotes one to
+#: ``edited`` (accept-as-is) or edits its text.
 SOURCE_IMPORTED = "imported"
 SOURCE_EDITED = "edited"
+SOURCE_MACHINE = "machine"
 
 #: ``lifecycle_state`` values (decided 2026-09-20: a locale must not be served
 #: to interviewers unless a human has approved it, and that approval must be
@@ -64,7 +70,11 @@ class MasInstrumentLocales(db.Model):
     __table_args__ = (
         sa.CheckConstraint(
             "is_active = false OR lifecycle_state = 'approved'",
-            name="ck_mas_instrument_locales_active_requires_approved",
+            # The naming convention (app/__init__.py) already prefixes this
+            # with "ck_%(table_name)s_"; passing the already-prefixed full
+            # name here doubles it and Postgres truncates the result at 63
+            # characters (digitva-we0). Pass only the discriminator.
+            name="active_requires_approved",
         ),
     )
 

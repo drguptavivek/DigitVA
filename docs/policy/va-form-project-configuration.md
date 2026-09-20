@@ -503,6 +503,61 @@ state from). See "Instrument Translations Panel" in
 [Admin & Setup](../current-state/admin-and-setup.md) for the operator
 checklist and the estimated translation work remaining per locale.
 
+### Machine-translated strings are not served (decided 2026-09-20)
+
+`map_instrument_translations.source` carries a third value alongside
+`imported` (workbook-sourced) and `edited` (an administrator's correction):
+`machine` -- a string an LLM drafted, not a speaker, awaiting human review.
+Migration `b6d2f4a9c1e7` seeded 214 such rows for twelve locales as
+`imported`, the same value a workbook-sourced string carries, which meant
+approving a locale (per-locale, not per-row) blessed both at once. Migration
+`c1a4b6e8d3f2` relabels exactly those seeded rows `machine`, matching on
+locale, item, field **and text** so a row an administrator already corrected
+or that no longer matches the literal seeded is left untouched.
+
+**Precedence, highest first: `edited` > `imported` (workbook) > `machine`.**
+A re-import (`import_translations`) and a bulk XLIFF hand-back
+(`import_xliff`) both overwrite `imported` and `machine` rows alike and never
+touch an `edited` one -- a real workbook or a reviewed hand-back beats a
+machine draft exactly as it beats a stale workbook import.
+
+**In XLIFF a `machine` row is `initial`, not `translated`.** It exports with
+`state="initial"` and `subState="digitva:machine"`, carrying its draft in
+`<target>` so a translator corrects rather than retypes -- which is what
+`initial` with a non-empty target means in XLIFF 2.0 and is ordinary
+machine-pretranslation practice. Labelling it `translated`, as the export
+briefly did, showed a CAT tool finished work and invited the reviewer to skip
+the one thing that most needed looking at. A `source` value this module has no
+mapping for exports as `initial` too: understating progress makes a reviewer
+look, overstating it does the opposite.
+
+**Known caveat.** A machine draft exported and handed back *untouched* with
+`--as imported` becomes an `imported` row and is served, because the importer
+judges the hand-back, not each segment's state. That is the same trust the
+`--as` flag always carried -- the administrator asserts a translator handled
+the file -- but with machine drafts in play it is now a way for unreviewed text
+to become servable without anyone reading it. Use `--as edited` only for a file
+a reviewer genuinely worked through, and prefer the panel's per-string
+**Accept** for drafts.
+
+A `machine` row stays visible and editable in the admin string editor (the
+panel marks it distinctly) and is included in `list_strings`, but:
+
+* `export_translations` -- the one delivery contract every frontend reads --
+  **excludes** it. The served payload simply omits that item, the identical
+  shape an untranslated string already has, so the client's existing
+  per-string English fallback (see "Purpose" above) covers it with no new
+  mechanism.
+* Coverage (`locale_status`, and per-extension coverage on an import report)
+  **does not count** a `machine` row as translated, so a locale is never
+  reported complete on strings it is not actually serving.
+
+An administrator reviews a `machine` string in the panel and either edits its
+text (`update_string`, which sets `edited` as it always has) or, if it reads
+correctly as-is, clicks **Accept** (`accept_machine_translation`), which
+promotes `machine` straight to `edited` without retyping. Either action makes
+the string servable on the locale's next version bump.
+
 ## Sign-off on a configuration change (P2, decided 2026-09-19)
 
 **The admin who saves the setting is the sign-off.** There is no pending

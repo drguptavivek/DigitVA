@@ -31,6 +31,7 @@ from app.services.instrument_translation_service import (
     XLIFF_EXTENSIONS,
     XLIFF_MEDIA_TYPE,
     InstrumentTranslationError,
+    accept_machine_translation,
     export_translations,
     export_xliff,
     import_translations,
@@ -253,6 +254,33 @@ def admin_instrument_translation_put_string(instrument_code, locale):
             item_key=fields["item_key"],
             field=fields["field"],
             text=fields["text"],
+            actor_id=current_user.user_id,
+        )
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    return jsonify(result)
+
+
+@admin.post(f"{_API}/<instrument_code>/<locale>/strings/accept")
+@role_required("admin")
+def admin_instrument_translation_accept_string(instrument_code, locale):
+    """Promote one machine-translated string to 'edited' without retyping it."""
+    if err := _guard():
+        return err
+    payload = request.get_json(silent=True) or {}
+    fields = {key: payload.get(key) for key in ("item_kind", "item_key", "field")}
+    for key, value in fields.items():
+        if not isinstance(value, str) or not value.strip():
+            return _json_error(f"{key} is required.", 400)
+    try:
+        result = accept_machine_translation(
+            instrument_code,
+            locale,
+            item_kind=fields["item_kind"],
+            item_key=fields["item_key"],
+            field=fields["field"],
             actor_id=current_user.user_id,
         )
     except InstrumentTranslationError as exc:

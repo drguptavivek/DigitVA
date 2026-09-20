@@ -76,6 +76,7 @@ from app.models.mas_instrument_locales import (
     LIFECYCLE_IN_REVIEW,
     SOURCE_EDITED,
     SOURCE_IMPORTED,
+    SOURCE_MACHINE,
     MapInstrumentTranslations,
     MasInstrumentLocales,
 )
@@ -692,7 +693,12 @@ def import_translations(
         row.updated_at = now
         report.written += 1
 
-    translated = {key for key, row in existing.items() if row.text}
+    # A 'machine' row this import left untouched (the workbook has nothing
+    # for that item) is not served and must not count as translated here
+    # either -- same rule as _translated_label_keys_by_locale.
+    translated = {
+        key for key, row in existing.items() if row.text and row.source != SOURCE_MACHINE
+    }
     report.translated_labels = len(label_keys & translated)
     report.extension_coverage = _extension_coverage(instrument_code, translated)
 
@@ -769,6 +775,12 @@ def export_translations(instrument_code: str, locale_code: str) -> dict:
         sa.select(MapInstrumentTranslations).where(
             MapInstrumentTranslations.instrument_code == instrument_code,
             MapInstrumentTranslations.locale_code == locale_code,
+            # 'machine' rows are LLM drafts awaiting human review (decided
+            # 2026-09-20) and must not reach a form. Omitting them here -- the
+            # same "absent from the payload" shape an untranslated item
+            # already has -- is the whole enforcement: the client falls back
+            # to English for exactly these strings, nothing else changes.
+            MapInstrumentTranslations.source != SOURCE_MACHINE,
         )
     ):
         bucket = questions if item.item_kind == ITEM_KIND_QUESTION else choices
@@ -789,7 +801,10 @@ def _translated_label_keys_by_locale(
 
     Keys, not counts: a count alone cannot tell a WHO base label from a layer
     label apart, and both base and per-extension coverage need to intersect
-    against their own subset of keys.
+    against their own subset of keys. A ``machine`` row is excluded, the same
+    as it is from :func:`export_translations`: it is not served, so counting
+    it here would report a locale as complete on strings a form does not
+    actually show (decided 2026-09-20).
     """
     rows = db.session.execute(
         sa.select(
@@ -799,6 +814,7 @@ def _translated_label_keys_by_locale(
             MapInstrumentTranslations.instrument_code == instrument_code,
             MapInstrumentTranslations.item_kind == ITEM_KIND_QUESTION,
             MapInstrumentTranslations.field == FIELD_LABEL,
+            MapInstrumentTranslations.source != SOURCE_MACHINE,
         )
     ).all()
     out: dict[str, set[tuple[str, str, str]]] = {}
@@ -1060,6 +1076,70 @@ def update_string(
     }
 
 
+def accept_machine_translation(
+    instrument_code: str,
+    locale_code: str,
+    *,
+    item_kind: str,
+    item_key: str,
+    field: str,
+    actor_id=None,
+) -> dict:
+    """Promote one ``machine`` row to ``edited`` without retyping its text.
+
+    An administrator who edits a machine-drafted string is already covered by
+    :func:`update_string`, which sets ``edited`` on any write; this is the
+    other half -- accepting a good draft unchanged so it starts being served
+    (``export_translations`` excludes ``machine`` but not ``edited``).
+    Refuses anything that is not currently ``machine``: it is not this
+    action's job to re-mark an already-reviewed or already-imported row.
+    """
+    instrument_code = (instrument_code or "").strip().upper()
+    locale_code = (locale_code or "").strip()
+    if locale_code == BASE_LOCALE:
+        raise InstrumentTranslationError(
+            f"{BASE_LOCALE!r} is the instrument's own language and is not edited here."
+        )
+    locale_row = get_locale(instrument_code, locale_code)
+    if locale_row is None:
+        raise InstrumentTranslationError(
+            f"No {locale_code!r} translation exists for {instrument_code}."
+        )
+    row = db.session.get(
+        MapInstrumentTranslations,
+        (instrument_code, locale_code, item_kind, item_key, field),
+    )
+    if row is None:
+        raise InstrumentTranslationError(
+            f"{item_kind} {item_key!r} has no {field} for {locale_code!r}."
+        )
+    if row.source != SOURCE_MACHINE:
+        raise InstrumentTranslationError(
+            f"{item_kind} {item_key!r} {field} is {row.source!r}, not "
+            f"{SOURCE_MACHINE!r}; nothing to accept."
+        )
+    row.source = SOURCE_EDITED
+    row.updated_by = actor_id
+    row.updated_at = datetime.now(UTC)
+    locale_row.version = (locale_row.version or 0) + 1
+    locale_row.updated_at = row.updated_at
+    db.session.flush()
+
+    log.info(
+        "instrument translation accepted as-is | %s/%s | item=%s:%s:%s | by=%s | version=%d",
+        instrument_code, locale_code, item_kind, item_key, field, actor_id,
+        locale_row.version,
+    )
+    return {
+        "item_kind": item_kind,
+        "item_key": item_key,
+        "field": field,
+        "text": row.text,
+        "source": row.source,
+        "version": locale_row.version,
+    }
+
+
 def set_locale_active(
     instrument_code: str, locale_code: str, active: bool, *, actor_id=None,
 ) -> dict:
@@ -1214,8 +1294,24 @@ XLIFF_VERSION = "2.0"
 #: correction, which is what XLIFF calls ``reviewed``; an absent row is
 #: ``initial`` with an empty target, which is how a translator's tool shows
 #: "not started" -- and is exactly the item the form falls back to English for.
-_STATE_BY_SOURCE = {SOURCE_IMPORTED: "translated", SOURCE_EDITED: "reviewed"}
+#:
+#: A ``machine`` row is ``initial`` too, because nobody has translated it: it is
+#: a machine draft this application does not serve. Its target text is still
+#: written, so a translator sees the draft and can correct it rather than
+#: starting from nothing -- which is what ``initial`` with a non-empty target
+#: means in XLIFF 2.0, and is ordinary machine-pretranslation practice. Calling
+#: it ``translated`` (as an unmapped source used to, via the old default) showed
+#: a CAT tool finished work and invited the reviewer to skip it.
+_STATE_BY_SOURCE = {
+    SOURCE_IMPORTED: "translated",
+    SOURCE_EDITED: "reviewed",
+    SOURCE_MACHINE: "initial",
+}
 _STATE_UNTRANSLATED = "initial"
+
+#: ``<segment subState>``: the reason an ``initial`` segment is not started.
+#: XLIFF 2.0 requires a prefix on a custom subState value.
+_SUBSTATE_BY_SOURCE = {SOURCE_MACHINE: "digitva:machine"}
 
 #: Longest field first, so ``.guidance_hint`` is never read as ``.hint``.
 _FIELD_SUFFIXES = tuple(
@@ -1435,8 +1531,18 @@ def export_xliff(instrument_code: str, locale_code: str) -> str:
             )
             note.text = note_text
         row = stored.get(key)
-        state = _STATE_BY_SOURCE.get(row.source, "translated") if row else _STATE_UNTRANSLATED
-        segment = ET.SubElement(unit, "segment", {"state": state})
+        # An unmapped source falls back to "initial", never to "translated":
+        # understating a segment's progress makes a reviewer look at it, while
+        # overstating it invites them to skip something nobody has checked.
+        state = (
+            _STATE_BY_SOURCE.get(row.source, _STATE_UNTRANSLATED)
+            if row
+            else _STATE_UNTRANSLATED
+        )
+        attrs = {"state": state}
+        if row is not None and row.source in _SUBSTATE_BY_SOURCE:
+            attrs["subState"] = _SUBSTATE_BY_SOURCE[row.source]
+        segment = ET.SubElement(unit, "segment", attrs)
         ET.SubElement(segment, "source").text = reference[key]
         target = ET.SubElement(segment, "target")
         if row:

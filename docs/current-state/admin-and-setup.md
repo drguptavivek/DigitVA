@@ -327,6 +327,15 @@ re-import and bumps the locale version), export JSON, and exchange the
 language as **XLIFF 2.0**. All state changes go through JSON routes under
 `/admin/api/instrument-translations/` with `X-CSRFToken`.
 
+A row whose `source` is `machine` (an LLM draft, never a workbook or a
+reviewer — decided 2026-09-20, see "Machine-translated strings are not
+served" in `docs/policy/va-form-project-configuration.md`) is highlighted in
+the string editor and carries an **Accept** button alongside **Save**:
+Accept promotes it to `edited` without retyping
+(`POST .../<instrument_code>/<locale>/strings/accept`), which is what makes
+it start being served. `export_translations` and coverage both exclude a
+`machine` row until then.
+
 **Approval before activation (decided 2026-09-20).** The Approval column
 shows a badge for the locale's `lifecycle_state` (Draft, In review,
 Approved) and, once approved, who approved it (rendered from
@@ -353,24 +362,40 @@ docstring). After upgrading, **all locales are deactivated pending
 approval** until an administrator approves and reactivates each one;
 interviewers fall back to English per string in the meantime. Sizing for that
 re-approval pass, measured 2026-09-20 against the 80 DigitVA layer
-question-label items, after both a plain re-import of each language's own
-workbook and migration `b6d2f4a9c1e7` (which seeds the DigitVA-authored
-strings no workbook carries):
+question-label items, counting only what a plain re-import of each language's
+own workbook supplies. Machine-translated rows are **not** counted: they exist
+in the panel awaiting review and are not served (see "Machine-translated
+strings are not served" in
+[VA Form Project Configuration Policy](../policy/va-form-project-configuration.md)),
+so they are shown here as a separate column — accepting a draft as-is closes
+that much of the gap immediately.
 
-| Locale | Short by | What remains |
-| --- | --- | --- |
-| Hindi | 3 | social autopsy section headings ND01 left in English |
-| Odia | 4 | social autopsy headings |
-| Marathi | 8 | death summary 7, one social autopsy heading |
-| Khasi | 8 | all of it — Khasi is deliberately absent from the seed |
-| Bangla, Kannada, Malayalam, Tamil | 34 each | the whole social autopsy layer; their DS workbooks lack it |
-| Arabic, French, Portuguese, Spanish, Swahili | 75 each | the WHO multilingual workbook carries no DigitVA layer |
+| Locale | Short by | Of which a machine draft awaits acceptance | What remains after that |
+| --- | --- | --- | --- |
+| Hindi | 8 of 80 | 5 | social autopsy section headings ND01 left in English |
+| Khasi | 8 of 80 | 0 | all of it — Khasi is deliberately absent from the seed |
+| Odia | 9 of 80 | 5 | social autopsy headings |
+| Marathi | 14 of 80 | 6 | death summary, one social autopsy heading |
+| Bangla, Kannada, Malayalam, Tamil | 39 of 80 each | 5 each | the whole social autopsy layer; their DS workbooks lack it |
+| Arabic, French, Portuguese, Spanish, Swahili | 80 of 80 each | 5 each | the WHO multilingual workbook carries no DigitVA layer at all |
+
+These counts are against **question labels only**, which is what coverage
+reports today; hints, guidance notes and choice labels are translatable too and
+are not in this measure (`digitva-o3s`).
 
 ABHA is seeded for the seven Indian locales only, since Ayushman Bharat
 Health Account is an Indian scheme and other locales' projects do not enable
 the `abha` extension. This is sizing information for the admin doing the
 re-approval work, not a programmatic gate — coverage still decides nothing
 (2026-09-19 decision stands).
+
+**Stale as of digitva-4kj (2026-09-20).** The table above was measured
+counting migration `b6d2f4a9c1e7`'s seeded strings as translated. That
+migration's rows are unreviewed machine drafts (see "Machine-translated
+strings are not served" in `docs/policy/va-form-project-configuration.md`);
+coverage now excludes a `machine` row until an administrator edits it or
+accepts it as-is, so the "Short by" counts above will have moved back toward
+their pre-`b6d2f4a9c1e7` size. Not recomputed here.
 
 The reference a language is translated against is the WHO base workbook plus
 the DigitVA layer questions from the committed

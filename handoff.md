@@ -1,5 +1,32 @@
 # Handoff
 
+Updated 2026-09-20. Two commits today; the second is described first because
+it corrects the first.
+
+**Machine drafts are no longer served** (`digitva-4kj`, `digitva-we0`, both
+closed). `b6d2f4a9c1e7` seeded 214 LLM-authored strings as `source='imported'`,
+indistinguishable from workbook-sourced text, so approving a locale blessed
+both at once. `source` gains a third value `machine`; `c1a4b6e8d3f2` relabels
+exactly those rows, matching on text so an administrator's correction is left
+alone; `export_translations` and coverage exclude them, so the form falls back
+to English per string while the panel still lists them with an **Accept**
+button that promotes one to `edited`. Precedence `edited` > workbook
+`imported` > `machine` needed no importer change: only `SOURCE_EDITED` was ever
+special-cased. In XLIFF a machine row is `initial` with
+`subState="digitva:machine"` carrying its draft, not `translated` — review
+caught that it was being handed to CAT tools as finished work. An unmapped
+`source` now understates rather than claiming translated. `d2b5c7f9e4a3`
+renames the CHECK constraint, which the naming convention had doubled and
+truncated to `ck_mas_instrument_locales_ck_mas_instrument_locales_act_5121`.
+Verified: 32/32 seeded rows relabelled in a two-locale fixture, an `edited` row
+survived a relabel round-trip while 31 returned to `machine`, a locale with 19
+machine + 1 edited row served exactly 1 item with zero leakage, `pg_constraint`
+reports the intended name. Full suite **1,656 passed**, `PYTEST_EXIT=0`.
+
+One caveat written into policy: a machine draft exported and handed back
+*untouched* with `--as imported` becomes servable, because the importer judges
+the hand-back rather than each segment. Prefer the panel's per-string Accept.
+
 Updated 2026-09-20 (translation management: de-gating, approval lifecycle,
 seeded layer strings). Three related changes, all on `e1b6c9a3d7f4`.
 

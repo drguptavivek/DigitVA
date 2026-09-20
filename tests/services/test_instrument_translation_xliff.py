@@ -32,6 +32,7 @@ from app.models.mas_instrument_locales import (
     LIFECYCLE_APPROVED,
     SOURCE_EDITED,
     SOURCE_IMPORTED,
+    SOURCE_MACHINE,
     MapInstrumentTranslations,
     MasInstrumentLocales,
 )
@@ -371,6 +372,77 @@ class InstrumentTranslationXliffTests(BaseTestCase):
 
         self.assertGreaterEqual(report["kept_edited"], 1)
         self.assertEqual(self._row("question", "Q1", "label").text, "व्यवस्थापक का पाठ")
+
+    def test_a_bulk_hand_back_overwrites_a_machine_row(self):
+        """digitva-4kj: a machine-drafted row is not an administrator's
+        correction, so a bulk hand-back must overwrite it exactly as it
+        overwrites an 'imported' one -- only 'edited' is protected."""
+        row = self._row("question", "Q1", "label")
+        row.source = SOURCE_MACHINE
+        db.session.flush()
+
+        document = self._retarget(
+            svc.export_xliff(INSTRUMENT, "hi"), "question.Q1.label", "समीक्षित पाठ"
+        )
+        report = svc.import_xliff(INSTRUMENT, "hi", document, mark_as=SOURCE_IMPORTED)
+        db.session.flush()
+
+        self.assertEqual(report["kept_edited"], 0)
+        row = self._row("question", "Q1", "label")
+        self.assertEqual(row.text, "समीक्षित पाठ")
+        self.assertEqual(row.source, SOURCE_IMPORTED)
+
+    def test_a_machine_row_exports_as_initial_with_its_draft_target(self):
+        """digitva-4kj: a machine draft must not reach a CAT tool looking done.
+
+        It exports as ``initial`` (nobody has translated it) carrying a
+        ``digitva:machine`` subState that says why, with the draft still in
+        ``<target>`` so a translator corrects rather than retypes. Asserted
+        against a genuine ``imported`` row in the same document, so the test
+        fails if the two are ever labelled the same.
+        """
+        machine = self._row("question", "Q1", "label")
+        machine.source = SOURCE_MACHINE
+        db.session.flush()
+
+        root = ET.fromstring(svc.export_xliff(INSTRUMENT, "hi"))
+        ns = {"x": "urn:oasis:names:tc:xliff:document:2.0"}
+        segments = {
+            unit.get("id"): unit.find("x:segment", ns)
+            for unit in root.iter(f"{{{ns['x']}}}unit")
+        }
+
+        drafted = segments["question.Q1.label"]
+        self.assertEqual(drafted.get("state"), "initial")
+        self.assertEqual(drafted.get("subState"), "digitva:machine")
+        self.assertEqual(
+            drafted.find("x:target", ns).text,
+            "पहला प्रश्न",
+            "the draft must still be handed over, not withheld",
+        )
+
+        # A real import in the same document is still "translated" and carries
+        # no subState -- the point is that the two are distinguishable.
+        imported_id = next(
+            uid for uid, seg in segments.items()
+            if uid != "question.Q1.label" and seg.get("state") == "translated"
+        )
+        self.assertIsNone(segments[imported_id].get("subState"))
+
+    def test_an_unmapped_source_understates_rather_than_claiming_translated(self):
+        """A source this module does not know must not export as finished."""
+        row = self._row("question", "Q1", "label")
+        row.source = "future"  # a value this module has no mapping for
+        db.session.flush()
+
+        root = ET.fromstring(svc.export_xliff(INSTRUMENT, "hi"))
+        ns = {"x": "urn:oasis:names:tc:xliff:document:2.0"}
+        segment = next(
+            unit.find("x:segment", ns)
+            for unit in root.iter(f"{{{ns['x']}}}unit")
+            if unit.get("id") == "question.Q1.label"
+        )
+        self.assertEqual(segment.get("state"), "initial")
 
     def test_an_over_long_target_is_skipped_and_reported_never_truncated(self):
         document = self._retarget(

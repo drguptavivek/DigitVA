@@ -962,6 +962,176 @@ class LocaleApprovalLifecycleTests(BaseTestCase):
             svc.set_locale_lifecycle_state(self.INSTRUMENT, "hi", "not_a_state")
 
 
+class MachineSourceTests(BaseTestCase):
+    """digitva-4kj: a 'machine' row is a draft awaiting human review. It must
+    stay visible and editable, but a form must fall back to English for
+    exactly those strings (the same mechanism an untranslated string already
+    uses), and it must not count toward coverage.
+    """
+
+    INSTRUMENT = "MACHINE_VA"
+
+    def setUp(self):
+        super().setUp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+        self.reference = _write_workbook(
+            self.tmp / "reference.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question"},
+                {"type": "text", "name": "Q2", "label::English (en)": "Second question"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        self.layers = _write_layer_reference(self.tmp / "layers.json")
+        self._clear_reference_caches()
+        self.addCleanup(self._clear_reference_caches)
+        self._patch(svc, "REFERENCE_WORKBOOK", self.reference)
+        self._patch(svc, "LAYER_REFERENCE_PATH", self.layers)
+        self._patch(svc, "BASE_INSTRUMENT_CODE", self.INSTRUMENT)
+
+        self.locale_row = MasInstrumentLocales(
+            instrument_code=self.INSTRUMENT, locale_code="hi",
+            language_name="Hindi", is_active=True,
+            lifecycle_state=svc.LIFECYCLE_APPROVED, version=1,
+        )
+        db.session.add(self.locale_row)
+        db.session.flush()
+        # Q1 is a reviewed workbook translation; Q2 is an unreviewed machine
+        # draft -- exactly the shape b6d2f4a9c1e7 seeded.
+        db.session.add(MapInstrumentTranslations(
+            instrument_code=self.INSTRUMENT, locale_code="hi",
+            item_kind="question", item_key="Q1", field="label",
+            text="पहला प्रश्न", source=svc.SOURCE_IMPORTED,
+        ))
+        db.session.add(MapInstrumentTranslations(
+            instrument_code=self.INSTRUMENT, locale_code="hi",
+            item_kind="question", item_key="Q2", field="label",
+            text="मशीन अनुवाद", source=svc.SOURCE_MACHINE,
+        ))
+        db.session.flush()
+
+    def _clear_reference_caches(self):
+        svc._reference_items_cached.cache_clear()
+        svc._reference_extensions_cached.cache_clear()
+        svc._layer_entries_cached.cache_clear()
+
+    def _patch(self, module, name, value):
+        old = getattr(module, name)
+        setattr(module, name, value)
+        self.addCleanup(setattr, module, name, old)
+
+    def _row(self, item_key):
+        return db.session.get(
+            MapInstrumentTranslations,
+            (self.INSTRUMENT, "hi", "question", item_key, "label"),
+        )
+
+    # -- serving --------------------------------------------------------
+
+    def test_export_serves_english_for_machine_items_and_its_own_text_for_the_rest(self):
+        payload = svc.export_translations(self.INSTRUMENT, "hi")
+        # Present first: the reviewed translation really is served.
+        self.assertEqual(payload["questions"]["Q1"]["label"], "पहला प्रश्न")
+        # Absent, not empty: the same shape an untranslated string has, so the
+        # client's existing per-string English fallback covers it too.
+        self.assertNotIn("Q2", payload["questions"])
+
+    def test_a_machine_row_stays_visible_and_editable_in_list_strings(self):
+        listed = svc.list_strings(self.INSTRUMENT, "hi")
+        by_key = {item["item_key"]: item for item in listed["items"]}
+        self.assertEqual(by_key["Q2"]["source"], svc.SOURCE_MACHINE)
+        self.assertEqual(by_key["Q2"]["text"], "मशीन अनुवाद")
+
+    # -- coverage ---------------------------------------------------------
+
+    def test_coverage_does_not_count_machine_rows_as_translated(self):
+        statuses = {row["locale_code"]: row for row in svc.locale_status(self.INSTRUMENT)}
+        hi = statuses["hi"]
+        # Only Q1 (imported) counts; Q2 (machine) does not, even though it
+        # carries text.
+        self.assertEqual(hi["translated_labels"], 1)
+        self.assertEqual(hi["reference_labels"], 2)
+
+    # -- accept-as-is -------------------------------------------------------
+
+    def test_accepting_a_machine_row_promotes_it_to_edited_without_changing_text(self):
+        result = svc.accept_machine_translation(
+            self.INSTRUMENT, "hi", item_kind="question", item_key="Q2", field="label",
+        )
+        self.assertEqual(result["source"], svc.SOURCE_EDITED)
+        self.assertEqual(result["text"], "मशीन अनुवाद")
+        row = self._row("Q2")
+        self.assertEqual(row.source, svc.SOURCE_EDITED)
+        self.assertEqual(row.text, "मशीन अनुवाद")
+
+        # Now served, and now counted -- accepting is the human review this
+        # bead requires before either happens.
+        payload = svc.export_translations(self.INSTRUMENT, "hi")
+        self.assertEqual(payload["questions"]["Q2"]["label"], "मशीन अनुवाद")
+        statuses = {row["locale_code"]: row for row in svc.locale_status(self.INSTRUMENT)}
+        self.assertEqual(statuses["hi"]["translated_labels"], 2)
+
+    def test_accepting_a_non_machine_row_is_refused(self):
+        with self.assertRaises(svc.InstrumentTranslationError):
+            svc.accept_machine_translation(
+                self.INSTRUMENT, "hi", item_kind="question", item_key="Q1", field="label",
+            )
+        self.assertEqual(self._row("Q1").source, svc.SOURCE_IMPORTED)
+
+    def test_accepting_an_unknown_item_is_refused(self):
+        with self.assertRaises(svc.InstrumentTranslationError):
+            svc.accept_machine_translation(
+                self.INSTRUMENT, "hi", item_kind="question", item_key="NoSuchQ", field="label",
+            )
+
+    # -- re-import overwrites machine, never edited --------------------------
+
+    def test_reimport_overwrites_a_machine_row(self):
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "Q2", "label::English (en)": "Second question",
+                 "label::Hindi (hi)": "समीक्षित अनुवाद"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        report = svc.import_translations(self.INSTRUMENT, "hi", workbook)
+        db.session.flush()
+        row = self._row("Q2")
+        self.assertEqual(row.text, "समीक्षित अनुवाद")
+        self.assertEqual(row.source, svc.SOURCE_IMPORTED)
+        self.assertEqual(report.kept_edited, 0)
+
+    def test_reimport_never_overwrites_an_edited_row_even_if_it_was_once_machine(self):
+        svc.update_string(
+            self.INSTRUMENT, "hi", item_kind="question", item_key="Q2", field="label",
+            text="व्यवस्थापक का सुधार",
+        )
+        db.session.flush()
+        self.assertEqual(self._row("Q2").source, svc.SOURCE_EDITED)
+
+        workbook = _write_workbook(
+            self.tmp / "source_hi.xlsx",
+            [
+                {"type": "text", "name": "Q1", "label::English (en)": "First question",
+                 "label::Hindi (hi)": "पहला प्रश्न"},
+                {"type": "text", "name": "Q2", "label::English (en)": "Second question",
+                 "label::Hindi (hi)": "वर्कबुक पाठ"},
+            ],
+            [{"list_name": "yes_no", "name": "yes", "label::English (en)": "Yes"}],
+        )
+        report = svc.import_translations(self.INSTRUMENT, "hi", workbook)
+        db.session.flush()
+        row = self._row("Q2")
+        self.assertEqual(row.text, "व्यवस्थापक का सुधार")
+        self.assertEqual(row.source, svc.SOURCE_EDITED)
+        self.assertEqual(report.kept_edited, 1)
+
+
 class RealWorkbookCoverageTests(unittest.TestCase):
     """Slow: reads the nine committed workbooks.
 

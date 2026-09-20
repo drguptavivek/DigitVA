@@ -156,7 +156,7 @@ class InstrumentTranslationImportTests(BaseTestCase):
         self.assertIn("question:Q2:label", report.missing_from_workbook)
         self.assertEqual(report.reference_labels, 2)
         self.assertEqual(report.translated_labels, 1)
-        self.assertAlmostEqual(report.coverage, 0.5)
+        self.assertAlmostEqual(report.label_coverage, 0.5)
 
     def test_a_cell_packing_english_and_the_target_language_is_split(self):
         workbook = _write_workbook(
@@ -492,7 +492,9 @@ class InstrumentTranslationImportTests(BaseTestCase):
     def test_a_full_import_does_not_activate_the_locale(self):
         report = self._import(self._full_workbook())
         db.session.flush()
-        self.assertEqual(report.coverage, 1.0)
+        # _full_workbook translates every label but not Q1's hint or the "no"
+        # choice, so the label breakdown -- not the item headline -- is 1.0.
+        self.assertEqual(report.label_coverage, 1.0)
         # Present first: the row exists (the import created it)...
         row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
         self.assertIsNotNone(row)
@@ -512,8 +514,10 @@ class InstrumentTranslationImportTests(BaseTestCase):
         )
         report = self._import(half)
         db.session.flush()
-        # Present first: the partial coverage is reported accurately.
-        self.assertAlmostEqual(report.coverage, 0.5)
+        # Present first: the partial coverage is reported accurately (label
+        # breakdown: 1 of the 2 labels; the item headline also counts the
+        # untranslated hint and second choice, so it is lower).
+        self.assertAlmostEqual(report.label_coverage, 0.5)
         # An import never activates or refuses to activate; that decision
         # belongs to set_locale_active alone.
         self.assertFalse(db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi")).is_active)
@@ -738,12 +742,12 @@ class LayerReferenceMergeTests(BaseTestCase):
         )
         self.assertIn(("choice", "CONSENT_MODE/in_person", "label"), reference)
 
-    def test_base_label_keys_exclude_layer_labels(self):
-        """Base coverage keeps its original meaning as layers are added."""
+    def test_label_keys_include_layer_labels(self):
+        """The label breakdown covers WHO base and DigitVA layer labels alike."""
         label_keys = svc.reference_label_keys(self.INSTRUMENT)
         self.assertIn(("question", "Q1", "label"), label_keys)
-        self.assertNotIn(("question", "consent_mode", "label"), label_keys)
-        self.assertNotIn(("question", "md_available", "label"), label_keys)
+        self.assertIn(("question", "consent_mode", "label"), label_keys)
+        self.assertIn(("question", "md_available", "label"), label_keys)
 
     def test_reference_item_extensions_maps_layer_and_base_items(self):
         extensions = svc.reference_item_extensions(self.INSTRUMENT)
@@ -818,12 +822,18 @@ class LayerReferenceMergeTests(BaseTestCase):
         # Present first: the layer item's translation really landed...
         self.assertIn(("question", "consent_mode", "label"), rows)
         self.assertEqual(rows[("question", "consent_mode", "label")].text, "सहमति का तरीका")
-        # ...and it is not double-counted into base coverage (base is 1/1: Q1
-        # only), even though a layer item was also written.
-        self.assertEqual(report.reference_labels, 1)
-        self.assertEqual(report.translated_labels, 1)
+        # ...and it counts toward the label breakdown like any other label.
+        # The fixture's reference has 3 question labels (Q1, consent_mode,
+        # md_available); this workbook only translates Q1 and consent_mode.
+        self.assertEqual(report.reference_labels, 3)
+        self.assertEqual(report.translated_labels, 2)
+        # digitva_core's item total is 2 (consent_mode label + the
+        # CONSENT_MODE/in_person choice label); the workbook only translates
+        # the question label, so only 1 of those 2 items is translated, while
+        # the label breakdown (1/1) is fully covered.
         self.assertEqual(
-            report.extension_coverage["digitva_core"], {"translated": 1, "total": 1}
+            report.extension_coverage["digitva_core"],
+            {"translated": 1, "total": 2, "label_translated": 1, "label_total": 1},
         )
 
 
@@ -1178,7 +1188,47 @@ class RealWorkbookCoverageTests(unittest.TestCase):
             with self.subTest(locale=locale):
                 self.assertTrue((svc.WORKBOOK_DIR / workbook).exists())
 
-    def test_every_deployed_language_reaches_the_threshold(self):
+    @staticmethod
+    def _who_base_label_coverage(locale, workbook):
+        """WHO base label coverage of one source workbook, read directly.
+
+        digitva-o3s widened ``label_coverage`` to WHO base + DigitVA layer
+        labels together, which is the right headline for what the app
+        serves. But these thirteen source workbooks are WHO/ICMR-reviewed
+        forms downloaded and reviewed on 2026-09-19 (see SOURCE_WORKBOOKS),
+        before the DigitVA layer questions (``consent_mode``, ``md_im*``,
+        ``ds_*``...) existed as translatable items at all -- no external WHO
+        or site workbook was ever going to carry their translations, so
+        holding these specific fixed workbooks to a 0.95 bar on the widened
+        label set would not be testing anything real about them. This
+        recomputes the same "near-complete" quality bar the test always
+        held, scoped to the WHO base labels these workbooks are actually
+        sourced against, using only public helpers (no service-internal
+        parsing of report.missing_from_workbook's display strings).
+        """
+        reference = svc.reference_items("WHO_2022_VA")
+        extensions = svc.reference_item_extensions("WHO_2022_VA")
+        base_labels = {
+            key for key in reference
+            if key[0] == "question" and key[2] == "label" and not extensions.get(key)
+        }
+        workbook_items, _names = svc.read_workbook_items(svc.WORKBOOK_DIR / workbook)
+        incoming_raw = workbook_items.get(locale, {})
+        translated = {
+            key
+            for key, value in incoming_raw.items()
+            if key in base_labels
+            and (text := svc.split_packed(value, reference.get(key)))
+            and text != reference[key]
+        }
+        return len(translated) / len(base_labels)
+
+    def test_every_deployed_language_is_near_complete_on_who_base_labels(self):
+        """Scoped to the WHO base labels deliberately -- see the helper above.
+
+        The name says which measure because digitva-o3s exists precisely
+        because a narrow coverage number was read as a whole-reference one.
+        """
         for locale, workbook in self.SOURCE_WORKBOOKS.items():
             with self.subTest(locale=locale):
                 report = svc.import_translations(
@@ -1187,11 +1237,12 @@ class RealWorkbookCoverageTests(unittest.TestCase):
                     cross_check=True,
                 )
                 self.assertGreater(report.reference_labels, 400)
+                base_coverage = self._who_base_label_coverage(locale, workbook)
                 self.assertGreaterEqual(
-                    report.coverage,
+                    base_coverage,
                     self.EXPECTED_COVERAGE,
-                    f"{locale} covers only {report.coverage:.1%} of the "
-                    "reference's survey labels",
+                    f"{locale} covers only {base_coverage:.1%} of the WHO "
+                    "base survey labels",
                 )
 
     def test_the_reference_form_alone_cannot_source_french(self):
@@ -1208,7 +1259,25 @@ class RealWorkbookCoverageTests(unittest.TestCase):
             cross_check=True,
         )
         self.assertEqual(report.translated_labels, 0)
-        self.assertLess(report.coverage, self.EXPECTED_COVERAGE)
+        self.assertLess(report.label_coverage, self.EXPECTED_COVERAGE)
+
+
+class ReferenceDenominatorTests(unittest.TestCase):
+    """Pins the headline and breakdown denominators against the real reference.
+
+    A future change to the reference or to a helper must not silently narrow
+    either count again -- that is exactly the bug this bead fixes (coverage
+    was quietly computed against a stale, label-only, base-only denominator).
+    No mocking: the real committed WHO base workbook plus the real DigitVA
+    layer reference, same fixtures :class:`InstrumentTranslationXliffRealWorkbookTests`
+    uses.
+    """
+
+    def test_the_real_reference_totals_1435_items_and_556_labels(self):
+        item_keys = svc.reference_item_keys(svc.BASE_INSTRUMENT_CODE)
+        label_keys = svc.reference_label_keys(svc.BASE_INSTRUMENT_CODE)
+        self.assertEqual(len(item_keys), 1435)
+        self.assertEqual(len(label_keys), 556)
 
 
 class NoPolicyDocReadDuringImportTests(unittest.TestCase):

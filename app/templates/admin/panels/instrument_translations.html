@@ -236,7 +236,10 @@
       var extBadges = Object.keys(l.extension_coverage || {}).map(function (name) {
         var c = l.extension_coverage[name];
         return '<span class="badge text-bg-' + coverageBadge(c.coverage) + ' border me-1" '
-          + 'title="' + esc(c.translated) + '/' + esc(c.total) + ' labels">'
+          + 'title="' + esc(c.translated) + '/' + esc(c.total) + ' strings'
+          + (c.label_total === undefined ? '' :
+             ', ' + esc(c.label_translated) + '/' + esc(c.label_total) + ' labels')
+          + '">'
           + esc(name) + ' ' + pct(c.coverage) + '</span>';
       }).join('');
       var lifecycleCell = l.is_base
@@ -251,7 +254,9 @@
         + '<td class="align-middle py-2 small">' + esc(l.language_name) + '</td>'
         + '<td class="align-middle py-2 small text-center"><span class="badge text-bg-'
         + coverageBadge(l.coverage) + '">' + pct(l.coverage) + '</span> '
-        + '<span class="text-muted">' + l.translated_labels + '/' + l.reference_labels + '</span>'
+        + '<span class="text-muted">' + l.translated_items + '/' + l.reference_items + '</span>'
+        + '<div class="text-muted small">labels ' + pct(l.label_coverage) + ' ('
+        + l.translated_labels + '/' + l.reference_labels + ')</div>'
         + (extBadges ? '<div class="mt-1">' + extBadges + '</div>' : '') + '</td>'
         + '<td class="align-middle py-2 small text-center">' + esc(l.version) + '</td>'
         + '<td class="align-middle py-2 small">' + esc(l.source_document || '—') + '</td>'
@@ -361,6 +366,8 @@
     var lines = [
       '<strong>' + esc(report.locale_code) + '</strong> from <code>' + esc(report.workbook) + '</code>',
       'coverage <strong>' + pct(report.coverage) + '</strong> ('
+        + report.translated_items + '/' + report.reference_items + ' translatable items)',
+      'labels ' + pct(report.label_coverage) + ' ('
         + report.translated_labels + '/' + report.reference_labels + ' survey labels)',
       'written ' + report.written + ', kept edited ' + report.kept_edited,
       'reference items the workbook lacks: ' + report.missing_from_workbook_count,
@@ -368,7 +375,8 @@
     ];
     Object.keys(report.extension_coverage || {}).forEach(function (name) {
       var c = report.extension_coverage[name];
-      lines.push(esc(name) + ' coverage ' + pct(c.coverage) + ' (' + c.translated + '/' + c.total + ')');
+      lines.push(esc(name) + ' coverage ' + pct(c.coverage) + ' (' + c.translated + '/' + c.total + ') -- '
+        + 'labels ' + pct(c.label_coverage) + ' (' + c.label_translated + '/' + c.label_total + ')');
     });
     if (report.cross_check) lines.push('<em>Cross-check only — nothing was written.</em>');
     else lines.push('<em>Import does not activate a locale — use Activate below once ready.</em>');

@@ -683,7 +683,7 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             )
         self.assertEqual(response.status_code, 200, response.get_json())
         report = response.get_json()["report"]
-        self.assertGreaterEqual(report["coverage"], 0.95)
+        self.assertGreaterEqual(report["label_coverage"], 0.95)
         self.assertNotIn("activated", report)
         self.assertGreater(report["written"], 400)
         self.assertIn("extension_coverage", report)

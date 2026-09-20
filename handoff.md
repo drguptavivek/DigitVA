@@ -244,7 +244,9 @@ translation (landed 2026-09-20)" below. One thing recorded here earlier was
 wrong and is worth correcting rather than deleting: ND01 does NOT lack a
 Hindi column and did not need a general parser. It has `label::Hindi (hi)`,
 whose cells pack `English\nHindi`, and `split_packed` already handled that --
-which is how Hindi reached 100 percent on the base instrument. What was
+which is how Hindi reached close to full coverage on the base instrument's
+survey labels (98.6% of the label breakdown once layer labels are counted
+too; digitva-o3s widened the measure, see below). What was
 genuinely missing was narrower: two other packing conventions and a
 reference source that included the layers at all. Also `digitva-aiy`:
 relevance is purely
@@ -364,9 +366,16 @@ docs/kb/WHO_VA_2022_Docs/<workbook>`, then
 `flask instrument-translations lifecycle WHO_2022_VA <locale> approved
 --approved-by <admin>`, then `activate`. Since 2026-09-20 activation alone is
 refused: only an approved locale may be served. Nothing serves Hindi until all
-three are done. All thirteen documented languages reach 100 percent coverage on the
-survey labels (eight from the deployed Indian forms, five from WHO's
-multilingual V2.0 form). Translators exchange a locale as XLIFF 2.0 through
+three are done. digitva-o3s (2026-09-20) widened coverage from a base-only
+survey-label percentage to translated/all translatable reference items
+(labels, hints, guidance hints, choice labels), with a label breakdown
+(base + layer) reported alongside; none of the thirteen documented languages
+reaches 100 percent under either measure now that layer labels count -- the
+label breakdown ranges 85.6%-98.6% (eight from the deployed Indian forms,
+five from WHO's multilingual V2.0 form; the eight Indian forms cluster around
+93-98.6%, the five WHO multilingual locales around 85.6%), and the headline
+item coverage is lower still, 65.7%-74.6%. Translators exchange a locale as
+XLIFF 2.0 through
 the panel or `flask instrument-translations export-xliff` / `import-xliff`;
 where a string has no translation the form shows English. Whether the
 curated reference form itself moves from V1.1 to V2.0 is `digitva-13x`.

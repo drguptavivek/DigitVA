@@ -113,9 +113,12 @@ refuses a locale that is not `approved`, naming its current state; leaving
 CLI has no logged-in session, so approving from here requires
 `--approved-by <user id or email>`, resolved to a `va_users.user_id` and
 recorded as `approved_by_user_id`/`approved_at`; it is not accepted (and not
-recorded) for `draft` or `in_review`. `status --extensions` also prints each
-locale's per-extension coverage, and `status`'s own table now carries a
-`lifecycle` column between `active` and `ver`.
+recorded) for `draft` or `in_review`. `status`'s `coverage` column is against
+all translatable reference items now (labels, hints, guidance hints, choice
+labels), with a label breakdown printed alongside it; `status --extensions`
+also prints each locale's per-extension coverage, item and label breakdown
+both, and `status`'s own table now carries a `lifecycle` column between
+`active` and `ver`.
 
 `export-xliff` writes the locale as an **XLIFF 2.0** document — the standard a
 translator's CAT tool reads — with one `<unit>` per reference item: `<source>`

@@ -310,9 +310,12 @@ dashboard's history.
 ## Instrument Translations Panel
 
 Admin-only. Lists each instrument locale from `mas_instrument_locales`:
-language, locale code, base coverage (WHO survey labels, informational —
-decided 2026-09-19 it never gates activation) alongside per-extension
-(layer) coverage badges, version, the workbook it was actually imported from
+language, locale code, headline coverage (all translatable reference items —
+labels, hints, guidance hints, choice labels — informational, decided
+2026-09-19 it never gates activation) with a label breakdown (WHO base +
+layer question labels) shown alongside it, plus per-extension (layer)
+coverage badges carrying the same item/label split, version, the workbook it
+was actually imported from
 (`source_document`, recorded on the row), the active flag, and an
 **Approval** column (below). Importing a questionnaire source is a reviewed
 one-time activity, not something the panel gates (decided 2026-09-20): any
@@ -379,9 +382,12 @@ that much of the gap immediately.
 | Bangla, Kannada, Malayalam, Tamil | 39 of 80 each | 5 each | the whole social autopsy layer; their DS workbooks lack it |
 | Arabic, French, Portuguese, Spanish, Swahili | 80 of 80 each | 5 each | the WHO multilingual workbook carries no DigitVA layer at all |
 
-These counts are against **question labels only**, which is what coverage
-reports today; hints, guidance notes and choice labels are translatable too and
-are not in this measure (`digitva-o3s`).
+These counts are against **question labels only**, which is the panel's
+*breakdown* figure, not its headline. Since `digitva-o3s` the headline counts
+every translatable string -- 1,435 of them against 556 question labels -- so
+hints, guidance notes and choice labels are outside this table's scope but
+inside the number the panel leads with. A locale therefore reads lower overall
+than this table's gaps alone would suggest.
 
 ABHA is seeded for the seven Indian locales only, since Ayushman Bharat
 Health Account is an Indian scheme and other locales' projects do not enable
@@ -401,9 +407,13 @@ The reference a language is translated against is the WHO base workbook plus
 the DigitVA layer questions from the committed
 `vendor/who-va-2022/src/generated/digitva-layers.reference.json` artifact
 (`app/services/instrument_translation_service.py` reads it; production
-happens in `tooling/who-va-2022/build-layer-reference.mjs`). Base coverage
-excludes layer labels, so it keeps its original meaning as layers are added;
-each extension's own coverage is reported alongside it.
+happens in `tooling/who-va-2022/build-layer-reference.mjs`). Both coverage
+figures span the WHO base and the DigitVA layers together: the headline counts
+every translatable string (question labels, hints, guidance notes and choice
+labels) and the breakdown counts question labels alone. Before `digitva-o3s`
+the label figure excluded layer labels, which is why every locale reported 100
+percent while a third of its translatable text was untranslated. Each
+extension's own coverage is reported alongside, on the same two measures.
 
 A workbook cell that packs English and the target language together
 (newline-, `" / "`- or `English (Translation)`-separated) is unpacked on

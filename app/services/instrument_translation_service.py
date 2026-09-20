@@ -158,18 +158,29 @@ class ImportReport:
     workbook: str
     sha256: str
     cross_check: bool
+    reference_items: int = 0
+    translated_items: int = 0
     reference_labels: int = 0
     translated_labels: int = 0
     written: int = 0
     kept_edited: int = 0
     missing_from_workbook: list[str] = dataclass_field(default_factory=list)
     unknown_in_workbook: list[str] = dataclass_field(default_factory=list)
-    #: ``{extension: {"translated": n, "total": n}}`` for the layer question
-    #: labels this locale carries. Empty when the reference has no layers yet.
+    #: ``{extension: {"translated", "total", "label_translated", "label_total"}}``
+    #: for the layer items this locale carries. Empty when the reference has
+    #: no layers yet.
     extension_coverage: dict[str, dict[str, int]] = dataclass_field(default_factory=dict)
 
     @property
     def coverage(self) -> float:
+        """Headline: translated / all translatable reference items."""
+        if not self.reference_items:
+            return 0.0
+        return self.translated_items / self.reference_items
+
+    @property
+    def label_coverage(self) -> float:
+        """Breakdown: translated / all question labels (base + layer)."""
         if not self.reference_labels:
             return 0.0
         return self.translated_labels / self.reference_labels
@@ -182,6 +193,9 @@ class ImportReport:
             "sha256": self.sha256,
             "cross_check": self.cross_check,
             "coverage": round(self.coverage, 4),
+            "reference_items": self.reference_items,
+            "translated_items": self.translated_items,
+            "label_coverage": round(self.label_coverage, 4),
             "reference_labels": self.reference_labels,
             "translated_labels": self.translated_labels,
             "written": self.written,
@@ -192,16 +206,7 @@ class ImportReport:
             "missing_from_workbook_count": len(self.missing_from_workbook),
             "unknown_in_workbook": self.unknown_in_workbook[:50],
             "unknown_in_workbook_count": len(self.unknown_in_workbook),
-            "extension_coverage": {
-                name: {
-                    "translated": counts["translated"],
-                    "total": counts["total"],
-                    "coverage": round(counts["translated"] / counts["total"], 4)
-                    if counts["total"]
-                    else 0.0,
-                }
-                for name, counts in sorted(self.extension_coverage.items())
-            },
+            "extension_coverage": _with_extension_ratios(self.extension_coverage),
         }
 
 
@@ -389,20 +394,26 @@ def reference_item_extensions(
 def reference_label_keys(
     instrument_code: str = BASE_INSTRUMENT_CODE,
 ) -> set[tuple[str, str, str]]:
-    """The WHO base survey-label items coverage is measured over.
+    """Every question-label item -- WHO base and DigitVA layer alike.
 
-    Deliberately excludes layer question labels -- base coverage keeps its
-    original meaning even though ``reference_items`` now also carries layers.
-    Per-layer coverage is reported separately (:func:`extension_label_keys`).
+    This is the denominator the label breakdown headline coverage is checked
+    against. :func:`extension_label_keys` still gives the per-extension
+    slice of it, and :func:`reference_item_keys` gives the wider,
+    whole-instrument denominator (labels, hints, guidance hints and choice
+    labels together).
     """
-    extensions = reference_item_extensions(instrument_code)
     return {
         key
         for key in reference_items(instrument_code)
-        if key[0] == ITEM_KIND_QUESTION
-        and key[2] == FIELD_LABEL
-        and not extensions.get(key)
+        if key[0] == ITEM_KIND_QUESTION and key[2] == FIELD_LABEL
     }
+
+
+def reference_item_keys(
+    instrument_code: str = BASE_INSTRUMENT_CODE,
+) -> set[tuple[str, str, str]]:
+    """Every translatable item -- any kind or field. Headline denominator."""
+    return set(reference_items(instrument_code))
 
 
 def extension_label_keys(
@@ -411,8 +422,8 @@ def extension_label_keys(
     """``{extension name: {question-label keys it owns}}``.
 
     An item belonging to more than one extension (the generator allows it)
-    counts toward each. Used to compute per-extension coverage alongside the
-    base coverage from :func:`reference_label_keys`.
+    counts toward each. Used to compute the per-extension label breakdown
+    alongside :func:`reference_label_keys`.
     """
     out: dict[str, set[tuple[str, str, str]]] = {}
     for key, extensions in reference_item_extensions(instrument_code).items():
@@ -423,17 +434,69 @@ def extension_label_keys(
     return out
 
 
+def extension_item_keys(
+    instrument_code: str = BASE_INSTRUMENT_CODE,
+) -> dict[str, set[tuple[str, str, str]]]:
+    """``{extension name: {every item key it owns}}`` -- any kind or field.
+
+    The per-extension counterpart of :func:`reference_item_keys`, the same
+    way :func:`extension_label_keys` is the per-extension counterpart of
+    :func:`reference_label_keys`.
+    """
+    out: dict[str, set[tuple[str, str, str]]] = {}
+    for key, extensions in reference_item_extensions(instrument_code).items():
+        for name in extensions:
+            out.setdefault(name, set()).add(key)
+    return out
+
+
 def _extension_coverage(
     instrument_code: str, translated: set[tuple[str, str, str]]
 ) -> dict[str, dict[str, int]]:
-    """``{extension: {"translated": n, "total": n}}`` for one locale.
+    """``{extension: {"translated", "total", "label_translated", "label_total"}}``.
 
-    ``translated`` is the locale's set of question-label keys that carry
-    text; each extension's count is how many of its own labels are in it.
+    ``translated`` is the locale's full set of translated items (any kind
+    or field, source != machine already applied by the caller). Item counts
+    are the headline per-extension figure; label counts are the breakdown.
+    """
+    item_keys = extension_item_keys(instrument_code)
+    label_keys = extension_label_keys(instrument_code)
+    names = set(item_keys) | set(label_keys)
+    return {
+        name: {
+            "translated": len(item_keys.get(name, set()) & translated),
+            "total": len(item_keys.get(name, set())),
+            "label_translated": len(label_keys.get(name, set()) & translated),
+            "label_total": len(label_keys.get(name, set())),
+        }
+        for name in names
+    }
+
+
+def _with_extension_ratios(raw: dict[str, dict[str, int]]) -> dict[str, dict]:
+    """Turn ``_extension_coverage``'s raw counts into the serialized shape.
+
+    ``{extension: {translated, total, coverage, label_translated,
+    label_total, label_coverage}}``, sorted by extension name. The one place
+    that computes this shape -- used for both :meth:`ImportReport.as_dict`
+    and :func:`locale_status`, which used to build it inline, duplicated.
     """
     return {
-        name: {"translated": len(keys & translated), "total": len(keys)}
-        for name, keys in extension_label_keys(instrument_code).items()
+        name: {
+            "translated": counts["translated"],
+            "total": counts["total"],
+            "coverage": round(counts["translated"] / counts["total"], 4)
+            if counts["total"]
+            else 0.0,
+            "label_translated": counts.get("label_translated", 0),
+            "label_total": counts.get("label_total", 0),
+            "label_coverage": round(
+                counts["label_translated"] / counts["label_total"], 4
+            )
+            if counts.get("label_total")
+            else 0.0,
+        }
+        for name, counts in sorted(raw.items())
     }
 
 
@@ -606,6 +669,7 @@ def import_translations(
         raise InstrumentTranslationError(f"Workbook not found: {path}")
 
     reference = reference_items(instrument_code)
+    item_keys = reference_item_keys(instrument_code)
     label_keys = reference_label_keys(instrument_code)
     workbook_items, names = read_workbook_items(path)
     incoming_raw = workbook_items.get(locale_code, {})
@@ -617,6 +681,7 @@ def import_translations(
         sha256=_sha256(path),
         cross_check=cross_check,
     )
+    report.reference_items = len(item_keys)
     report.reference_labels = len(label_keys)
     report.unknown_in_workbook = sorted(
         f"{kind}:{key}:{fld}" for (kind, key, fld) in incoming_raw if (kind, key, fld) not in reference
@@ -643,6 +708,7 @@ def import_translations(
     )
 
     if cross_check:
+        report.translated_items = len(item_keys & set(incoming))
         report.translated_labels = len(label_keys & set(incoming))
         report.extension_coverage = _extension_coverage(instrument_code, set(incoming))
         log.info(
@@ -695,10 +761,11 @@ def import_translations(
 
     # A 'machine' row this import left untouched (the workbook has nothing
     # for that item) is not served and must not count as translated here
-    # either -- same rule as _translated_label_keys_by_locale.
+    # either -- same rule as _translated_item_keys_by_locale.
     translated = {
         key for key, row in existing.items() if row.text and row.source != SOURCE_MACHINE
     }
+    report.translated_items = len(item_keys & translated)
     report.translated_labels = len(label_keys & translated)
     report.extension_coverage = _extension_coverage(instrument_code, translated)
 
@@ -794,33 +861,35 @@ def export_translations(instrument_code: str, locale_code: str) -> dict:
     }
 
 
-def _translated_label_keys_by_locale(
+def _translated_item_keys_by_locale(
     instrument_code: str,
 ) -> dict[str, set[tuple[str, str, str]]]:
-    """``{locale: {question-label keys with text}}`` in one grouped query.
+    """``{locale: {item keys with text}}`` in one grouped query, any kind/field.
 
-    Keys, not counts: a count alone cannot tell a WHO base label from a layer
-    label apart, and both base and per-extension coverage need to intersect
-    against their own subset of keys. A ``machine`` row is excluded, the same
-    as it is from :func:`export_translations`: it is not served, so counting
-    it here would report a locale as complete on strings a form does not
-    actually show (decided 2026-09-20).
+    Keys, not counts: a count alone cannot tell one item apart from another,
+    and headline, label-breakdown and per-extension coverage each need to
+    intersect against their own subset of keys. One query serves all three --
+    the headline intersects it with :func:`reference_item_keys`, the
+    breakdown with :func:`reference_label_keys`. A ``machine`` row is
+    excluded, the same as it is from :func:`export_translations`: it is not
+    served, so counting it here would report a locale as complete on strings
+    a form does not actually show (decided 2026-09-20).
     """
     rows = db.session.execute(
         sa.select(
             MapInstrumentTranslations.locale_code,
+            MapInstrumentTranslations.item_kind,
             MapInstrumentTranslations.item_key,
+            MapInstrumentTranslations.field,
         ).where(
             MapInstrumentTranslations.instrument_code == instrument_code,
-            MapInstrumentTranslations.item_kind == ITEM_KIND_QUESTION,
-            MapInstrumentTranslations.field == FIELD_LABEL,
             MapInstrumentTranslations.source != SOURCE_MACHINE,
         )
     ).all()
     out: dict[str, set[tuple[str, str, str]]] = {}
     for row in rows:
         out.setdefault(row.locale_code, set()).add(
-            (ITEM_KIND_QUESTION, row.item_key, FIELD_LABEL)
+            (row.item_kind, row.item_key, row.field)
         )
     return out
 
@@ -834,10 +903,11 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
     One query regardless of how many locales exist.
     """
     instrument_code = (instrument_code or "").strip().upper()
+    item_keys = reference_item_keys(instrument_code)
+    reference_item_total = len(item_keys)
     label_keys = reference_label_keys(instrument_code)
-    reference_labels = len(label_keys)
-    ext_keys = extension_label_keys(instrument_code)
-    translated_by_locale = _translated_label_keys_by_locale(instrument_code)
+    reference_label_total = len(label_keys)
+    translated_by_locale = _translated_item_keys_by_locale(instrument_code)
     rows = db.session.scalars(
         sa.select(MasInstrumentLocales)
         .where(MasInstrumentLocales.instrument_code == instrument_code)
@@ -850,12 +920,16 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
             "is_active": True,
             "version": 0,
             "coverage": 1.0,
-            "translated_labels": reference_labels,
-            "reference_labels": reference_labels,
-            "extension_coverage": {
-                name: {"translated": len(keys), "total": len(keys), "coverage": 1.0}
-                for name, keys in ext_keys.items()
-            },
+            "translated_items": reference_item_total,
+            "reference_items": reference_item_total,
+            "label_coverage": 1.0,
+            "translated_labels": reference_label_total,
+            "reference_labels": reference_label_total,
+            # Base locale is 100% translated by definition: passing the full
+            # item-key set as "translated" gets that for free.
+            "extension_coverage": _with_extension_ratios(
+                _extension_coverage(instrument_code, item_keys)
+            ),
             "source_document": REFERENCE_WORKBOOK.name,
             "source_sha256": None,
             "imported_at": None,
@@ -883,30 +957,27 @@ def locale_status(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[dict]:
         if row.locale_code == BASE_LOCALE:
             continue
         translated = translated_by_locale.get(row.locale_code, set())
-        count = len(label_keys & translated)
-        extension_coverage = {
-            name: {"translated": len(keys & translated), "total": len(keys)}
-            for name, keys in ext_keys.items()
-        }
+        item_count = len(item_keys & translated)
+        label_count = len(label_keys & translated)
         out.append(
             {
                 "locale_code": row.locale_code,
                 "language_name": row.language_name,
                 "is_active": row.is_active,
                 "version": row.version,
-                "coverage": round(count / reference_labels, 4) if reference_labels else 0.0,
-                "translated_labels": count,
-                "reference_labels": reference_labels,
-                "extension_coverage": {
-                    name: {
-                        "translated": counts["translated"],
-                        "total": counts["total"],
-                        "coverage": round(counts["translated"] / counts["total"], 4)
-                        if counts["total"]
-                        else 0.0,
-                    }
-                    for name, counts in sorted(extension_coverage.items())
-                },
+                "coverage": round(item_count / reference_item_total, 4)
+                if reference_item_total
+                else 0.0,
+                "translated_items": item_count,
+                "reference_items": reference_item_total,
+                "label_coverage": round(label_count / reference_label_total, 4)
+                if reference_label_total
+                else 0.0,
+                "translated_labels": label_count,
+                "reference_labels": reference_label_total,
+                "extension_coverage": _with_extension_ratios(
+                    _extension_coverage(instrument_code, translated)
+                ),
                 "source_document": row.source_document,
                 "source_sha256": row.source_sha256,
                 "imported_at": row.imported_at.isoformat() if row.imported_at else None,
@@ -1171,13 +1242,13 @@ def set_locale_active(
             f"{locale_code!r} is {row.lifecycle_state!r}, not approved; a "
             "locale must be approved before it can be activated."
         )
-    label_keys = reference_label_keys(instrument_code)
-    reference_labels = len(label_keys)
-    locale_translated = _translated_label_keys_by_locale(instrument_code).get(
+    item_keys = reference_item_keys(instrument_code)
+    reference_item_total = len(item_keys)
+    locale_translated = _translated_item_keys_by_locale(instrument_code).get(
         locale_code, set()
     )
-    translated = len(label_keys & locale_translated)
-    coverage = translated / reference_labels if reference_labels else 0.0
+    translated = len(item_keys & locale_translated)
+    coverage = translated / reference_item_total if reference_item_total else 0.0
     row.is_active = bool(active)
     row.updated_at = datetime.now(UTC)
     db.session.flush()

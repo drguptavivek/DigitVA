@@ -105,15 +105,24 @@ def import_workbook(instrument_code, locale, workbook, cross_check, language_nam
     click.echo(
         f"{report.instrument_code}/{report.locale_code} from {report.workbook}: "
         f"coverage={report.coverage:.1%} "
-        f"({report.translated_labels}/{report.reference_labels} survey labels), "
+        f"({report.translated_items}/{report.reference_items} translatable items), "
         f"written={report.written}, kept_edited={report.kept_edited}, "
         f"missing={len(report.missing_from_workbook)}, "
         f"unknown={len(report.unknown_in_workbook)}"
     )
+    click.echo(
+        f"  labels={report.label_coverage:.1%} "
+        f"({report.translated_labels}/{report.reference_labels} survey labels)"
+    )
     for name, counts in sorted(report.extension_coverage.items()):
         total = counts["total"]
         pct = (counts["translated"] / total) if total else 0.0
-        click.echo(f"  {name}: {pct:.1%} ({counts['translated']}/{total} labels)")
+        label_total = counts["label_total"]
+        label_pct = (counts["label_translated"] / label_total) if label_total else 0.0
+        click.echo(
+            f"  {name}: {pct:.1%} ({counts['translated']}/{total}) -- "
+            f"labels {label_pct:.1%} ({counts['label_translated']}/{label_total})"
+        )
     if report.cross_check:
         click.echo("Cross-check only: nothing was written.")
     else:
@@ -277,13 +286,16 @@ def status(instrument_code, extensions):
             f"{row['lifecycle_state']:<11}"
             f"{row['version']:<5}"
             f"{coverage:>9}  "
+            f"labels {row['label_coverage']:.1%}  "
             f"{row['source_document'] or '-'}"
         )
         if extensions:
             for name, counts in sorted(row.get("extension_coverage", {}).items()):
                 click.echo(
                     f"    {name}: {counts['coverage']:.1%} "
-                    f"({counts['translated']}/{counts['total']})"
+                    f"({counts['translated']}/{counts['total']}) -- "
+                    f"labels {counts['label_coverage']:.1%} "
+                    f"({counts['label_translated']}/{counts['label_total']})"
                 )
 
 

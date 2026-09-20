@@ -592,8 +592,8 @@ class LayerXliffTests(BaseTestCase):
         # Present first: the layer target really landed...
         self.assertIsNotNone(row)
         self.assertEqual(row.text, "सहमति का तरीका")
-        # ...and base coverage (Q1 only) is untouched by writing a layer item.
-        self.assertEqual(len(svc.reference_label_keys(self.INSTRUMENT)), 1)
+        # ...and the label breakdown counts it too, alongside Q1 (base).
+        self.assertEqual(len(svc.reference_label_keys(self.INSTRUMENT)), 2)
 
 
 class InstrumentTranslationXliffRealWorkbookTests(BaseTestCase):

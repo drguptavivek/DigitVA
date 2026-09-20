@@ -340,11 +340,16 @@ A layer item is translated, exported to XLIFF and edited exactly like a
 workbook item, and round-trips through the same resource-id scheme
 (`resource_id`/`parse_resource_id`).
 
-Base coverage (the survey-label percentage shown everywhere) keeps its
-original meaning — the WHO base question labels only — precisely so it does
-not silently shrink as layers are added; layer coverage is reported
-separately, per extension (`{extension: translated/total}`), computed the
-same way but scoped to the labels that extension owns.
+Headline coverage (shown everywhere) is translated / all translatable
+reference items — question labels, hints, guidance hints and choice labels
+together, WHO base and DigitVA layers alike, computed live from the reference
+rather than hardcoded. A label breakdown is reported alongside it: translated
+/ all question labels, base and layer together (not base-only — layer
+question labels count once an extension makes them translatable). Layer
+coverage is reported the same two ways per extension
+(`{extension: translated/total}` for items, `{extension: label_translated/
+label_total}` for the label breakdown). Coverage decides nothing about
+serving (see the next section); it is informational at every level.
 
 ### Activation is explicit, not gated on coverage (decided 2026-09-19)
 

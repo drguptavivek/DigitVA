@@ -249,7 +249,13 @@ though translated — and counted in coverage.
 
 The Tamil and Bangla pairs are structurally identical but may be defensible
 catch-alls; a reader of each language should say whether the two options are
-meant to be distinguishable.
+meant to be distinguishable. Kannada renders the same heart pair correctly and
+distinctly (ಹೃದಯಾಘಾತ / ಹೃದಯ ಸಮಸ್ಯೆ), which is evidence the distinction is meant
+to survive translation.
+
+Per-option corrections for all of these, sourced from each workbook's own
+correct usage wherever possible, are in
+`translation-semantic-defects.md` under "Suggested corrections".
 
 ## What to do
 

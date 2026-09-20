@@ -111,6 +111,85 @@ surfaced in the 2% checkable by mechanical means (numerals, references,
 dropped instructions). Serving text nobody has reviewed is what the lifecycle
 exists to prevent.
 
+## Suggested corrections
+
+Most corrections do not need a translator: the same English option is already
+rendered correctly elsewhere in the same workbook, so the fix is sourced from
+the file's own usage. Where that is not true it is marked **needs a speaker** —
+those are proposals, not evidence.
+
+### Marathi — `KA01_DS` and `KEM_VAADU` unit lists
+
+Every option is shifted onto its neighbour. `units_2` (13 live questions) is
+correct and is the source for most of these.
+
+| List | Option | English | Currently shows | Correct to | Sourced from |
+| --- | --- | --- | --- | --- | --- |
+| `units_5` | `days` | Days | तास (hours) | **दिवस** | `units_2` row 87 |
+| `units_5` | `weeks` | Weeks | दिवस (days) | **आठवडे** | **needs a speaker** — no correct use in the workbook |
+| `units_5` | `months` | Months | माहीत नाही (doesn't know) | **महिने** | `units_2` row 88 |
+| `units_4` | `months` | Months | तास (hours) | **महिने** | `units_2` row 88 |
+| `units_4` | `years` | Years | दिवस (days) | **वर्ष** | used for "Years" elsewhere |
+| `M_H_M_DK` | `minutes` | Minutes | तास (hours) | **मिनिटे** | used for "Minutes" elsewhere |
+| `M_H_M_DK` | `hours` | Hours | दिवस (days) | **तास** | used for "Hours" elsewhere |
+
+Only `units_5` is live (`Id10262_units`); `units_4` and `M_H_M_DK` are
+referenced by no question. Fix all three anyway — a dead list is one form
+revision away from being live.
+
+### Marathi — `select_510` (`Id10477`), the two heart options are crossed
+
+| Option | English | Currently shows | Correct to |
+| --- | --- | --- | --- |
+| `Heart_attack` | Heart attack | हृदयविकार (heart disease) | **हृदयाचा झटका** |
+| `Heart_problem` | Heart problem | हृदयाचा झटका (heart attack) | **हृदयविकार** |
+
+The two strings simply swap. Both already exist in the file, so this needs no
+new translation. Kannada renders the same pair correctly and distinctly
+(ಹೃದಯಾಘಾತ / ಹೃದಯ ಸಮಸ್ಯೆ), which confirms the distinction is meant to be kept.
+
+### Kannada — two isolated cells
+
+| List / question | English | Currently shows | Correct to | Sourced from |
+| --- | --- | --- | --- | --- |
+| `select_531` `dk` (`Id10484`) | Don't know | `Don't know` — English, untranslated | **ಗೊತ್ತಿಲ್ಲ** | used for "Don't know" elsewhere in this workbook |
+| `select_510` `Suicide` (`Id10477`) | Suicide | ಮೂತ್ರಪಿಂಡ ದುರವಸ್ಥೆ (kidney disorder) | **ಆತ್ಮಹತ್ಯೆ** | **needs a speaker** — no correct use in the workbook |
+
+### Bangla — `TR01_DS`
+
+| List / question | English | Currently shows | Correct to | Sourced from |
+| --- | --- | --- | --- | --- |
+| `YES_NO_REF` `yes` (4 questions) | Yes | ഉയർന്ന — Malayalam | **হ্যাঁ** | used for "Yes" elsewhere in this workbook |
+| `select_512` `asphyxia` / `respiratory_distress` | Asphyxia / Respiratory distress | both শ্বাসকষ্ট | two distinct terms required | **needs a speaker** |
+
+### Tamil — `select_510` (`Id10477`)
+
+| Option | English | Currently shows | Correct to |
+| --- | --- | --- | --- |
+| `Heart_attack` | Heart attack | மாரடைப்பு | **மாரடைப்பு** (correct, leave) |
+| `Heart_problem` | Heart problem | மாரடைப்பு | a distinct term — **needs a speaker** |
+
+### Odia — the `Id10191`–`Id10195` shift corrects itself
+
+Every correct Odia string is still in the file, one row below where it belongs,
+because the run was pasted down by one. No new translation is needed:
+
+| Question | Currently shows | Correct text is the one currently in |
+| --- | --- | --- |
+| `Id10192` "Was the vomit black?" | Id10191's text | `Id10194`'s cell |
+| `Id10194` "Did (s)he have abdominal pain?" | Id10192's text | `Id10195`'s cell |
+| `Id10195` "Was the abdominal pain severe?" | Id10194's text | `abdominal_pain`'s cell |
+
+Apply from the bottom up, or the first move overwrites the next one's source.
+
+### Where no correction can be sourced
+
+For the Hindi maternal-death block, the Kannada chest/heart pair, the
+birth-versus-death-year questions and the Khasi items, the correct wording does
+not exist anywhere in the corpus — the cell was overwritten rather than
+displaced. Those must be translated afresh against the English in the same
+cell, then reviewed. This page deliberately does not invent them.
+
 ## Remediation
 
 1. **Upstream, in the workbooks — this is the one that matters.** The defects

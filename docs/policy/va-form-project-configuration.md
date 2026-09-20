@@ -43,16 +43,22 @@ is — is wrong for every deployment but one.
 The WHO base is a subset; everything else is a layer on top. A project records
 which layers it collects:
 
-| Extension | Questions |
+The column says **what the layer contributes**, which is not always a question
+an interviewer answers. Two layers contribute no instrument questions at all,
+and the table used to list ODK field names for them as though they did — which
+invited someone to author server-injected context as questions and entangle app
+identifiers with ODK ones. Corrected 2026-09-20 (`digitva-c48`).
+
+| Extension | What it contributes |
 |---|---|
-| `digitva_core` (always on) | `unique_id`, `Site`, `comment`, `consent_mode` |
-| `social_autopsy` | the social-autopsy sections |
-| `intake_screen` | `introduction`, `instructions`, `confirm_inst` — project setting `web_intake_intake_note` (2026-09-19) |
-| `geography` | `survey_state`, `survey_district`, `survey_block`, `site_individual_id` |
-| `narration_language` | `narr_language`, `imagenarr` |
-| `death_summary` | `ds_available`, `ds_count`, `ds_im1..5` — project setting `web_intake_death_summary_enabled`, on by default (2026-09-19) |
-| `medical_records` | `md_available`, `md_count`, `md_im1..30` |
-| `abha` | `abha_number`, `abha_address` (web intake only) |
+| `digitva_core` (always on) | Questions: `unique_id`, `Site`, `comment`, `consent_mode`, `custom_medical_certificate_upload` |
+| `social_autopsy` | Questions: the social-autopsy sections (`sa01`–`sa19`, `sa_tu13`–`sa_tu19`, `sas01`–`sas07`) |
+| `intake_screen` | **No instrument questions.** A single admin-configured welcome card, from the project setting `web_intake_intake_note`, rendered client-side (`app/templates/va_frontpages/va_intake_form.html`). It deliberately *replaces* ND01's three-item `begin_screen` group (`introduction`, `instructions`, `confirm_inst`) rather than reproducing it (2026-09-19). |
+| `geography` | **No instrument questions.** `survey_state`, `survey_district`, `survey_block` and `site_individual_id` are server-injected into the payload after validation (`app/services/web_intake_service.py`) from the death register and the interviewer's organization unit, per decision **O4** — they are never asked. The flag is derived and served but currently has no consumer (`digitva-ybt`). |
+| `narration_language` | Questions: `narr_language`, `imagenarr` |
+| `death_summary` | Questions: `ds_available`, `ds_count`, `ds_im1..5` — project setting `web_intake_death_summary_enabled`, on by default (2026-09-19) |
+| `medical_records` | Questions: `md_available`, `md_count`, `md_im1..30` |
+| `abha` | Questions: `abha_number`, `abha_address` (web intake only) |
 
 A project picks layers; it does not pick a whole form. The deployed forms
 decompose exactly this way — KEM_VAADU is the base plus `social_autopsy`; the

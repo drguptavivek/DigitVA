@@ -191,7 +191,17 @@ The 2026 revision's payload is
 
 | Command | Description |
 |---------|-------------|
+| `cod-buckets import-who-2022-va` | Import or re-import the `WHO_2022_VA` COD bucket scheme from its derived workbook (`--path`), then reapply the frozen admin-editor overrides CSV (`--overrides-path` overrides the default). |
 | `cod-buckets import-who-2022-va-2026` | Import or re-import the `WHO_2022_VA_2026` COD bucket scheme from its derived workbook (`--path` overrides the default). |
+
+`import-who-2022-va` replaces the scheme from the workbook, then layers in
+`WHO_2022_VA_Bucket_Mapping_admin_overrides.csv` (34 ICD codes added through
+the admin bucket editor that the WHO derivation missed) so a fresh clone
+reaches the same 2,414 mappings a long-lived deployment has, not the
+workbook's 2,380. If an administrator has since repointed one of those codes
+to a different bucket through the editor, that live choice wins over the
+frozen CSV value on re-import; see `_apply_who_2022_va_admin_overrides` in
+`app/services/cod_bucket_mapping_service.py`.
 
 `WHO_2022_VA_2026` is the WHO 2026 annex revision of the WHO 2022 VA cause
 list. It coexists with `WHO_2022_VA`, which is unchanged: it adds the 109 annex
@@ -383,3 +393,26 @@ The admin equivalent is *Back up now* in the Database backups block of the
 Attachment Management panel, which queues the `run_db_backup` Celery task — the
 same task the daily beat entry runs. Backup objects are never presigned and
 never served. Runbook: [Backup And Restore](backup.md).
+
+## `schema` — Live-database drift against the migration chain
+
+digitva-88e: `tests/migrations/test_schema_drift.py` and `flask db check`
+both validate the migration chain against the models, on a throwaway
+database built from nothing but the chain. Neither ever looks at a database
+anyone actually runs, so a live database (dev, prod) can drift from its own
+migration history — by an out-of-band `ALTER`, a hand-run fix, anything —
+and nothing notices. Alembic's autogenerate also does not compare CHECK
+constraint text at all, so it would not catch this class of drift either.
+
+| Command | Description |
+|---------|-------------|
+| `schema drift-check` | Builds a scratch database with `flask db upgrade` alone, diffs it against this process's own live database (`DATABASE_URL`) on CHECK constraint names and text, column defaults, and enum member lists — the categories autogenerate silently ignores — then drops the scratch database. Prints every difference and exits non-zero if there is at least one. Read-only on the target: it only ever `SELECT`s there. |
+
+```
+docker compose exec minerva_app_service uv run flask schema drift-check
+```
+
+Deliberately not compared: table/column/index presence and types (already
+covered by `flask db check`), row data, and celery's or Flask-Session's own
+tables. See [Migration Chaining Policy](../policy/migration-chaining.md#8-a-valid-boot-tested-chain-can-still-be-wrong-on-the-database-you-run)
+for why the two checks answer different questions and when to run this one.

@@ -141,6 +141,18 @@ Purpose:
 
 - stores versioned COD reporting schemes such as `SRS India` and `CMEA10`
 
+Current schemes:
+
+| `scheme_code` | Source | Notes |
+| --- | --- | --- |
+| `SRS_INDIA` | `icd-10-CODES_SRS_India.xlsx` | |
+| `CMEA10` | `icd-10-CODES_CMEA10_mapped.xlsx` | |
+| `WHO_2022_VA` | `WHO_2022_VA_Bucket_Mapping_document_derived.xlsx` plus `WHO_2022_VA_Bucket_Mapping_admin_overrides.csv` | The CSV holds 34 ICD codes the WHO derivation missed, added through the admin bucket editor and frozen so a fresh install reaches the same mapping count as a long-lived one. An administrator's later repointing of one of those codes wins over the frozen value. |
+| `WHO_2022_VA_2026` | `WHO_2022_VA_Bucket_Mapping_document_derived_2026_revision.xlsx` | The WHO 2026 annex ranges. Sixteen codes deliberately depart from the annex; those departures are documented and pinned by a file-based test. Migration `c5f2a8d1e9b3`. |
+
+`mapping_version` moves when a scheme's mappings are re-imported, so a
+consumer can tell that a scheme's content changed without diffing its rows.
+
 ### `mas_cod_bucket_scheme_age_bands`
 
 Purpose:
@@ -551,6 +563,27 @@ Key fields:
 - `va_allocation_for`
 - `va_allocation_status`
 - timestamps
+
+### `va_submission_payload_versions`
+
+Purpose:
+
+- holds every version of a submission's answers, one row per version, with
+  `version_status` in `active`, `pending_upstream`, `superseded` or `rejected`
+  and a unique-active index per `va_sid`
+
+Current behavior:
+
+- `payload_data` is the answers as stored; `va_submissions.active_payload_version_id`
+  names the version in force
+- `validation_err` (JSONB, `NOT NULL DEFAULT '[]'`) records the server's own
+  disagreements with the client's `valid: true` for that version --
+  `{"question", "rule"}` where `rule` is `relevant`, `constraint` or
+  `evaluation_error`. **Never enforced and never carries an answer value**: it
+  exists so the disagreement rate can be measured before anyone decides whether
+  to start refusing submissions. Per-version deliberately, so a resubmission
+  carries its own record rather than overwriting its predecessor's. Migration
+  `f2031819b3aa`; policy: `docs/policy/va-web-form-options.md`.
 
 ### `va_submission_workflow`
 

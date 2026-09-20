@@ -247,6 +247,9 @@ def create_app(config_class=None):
     from app.commands.web_intake import init_app as init_web_intake_commands
     init_web_intake_commands(app)
 
+    from app.commands.schema_drift import init_app as init_schema_drift_commands
+    init_schema_drift_commands(app)
+
     @app.context_processor
     def inject_template_globals():
         from app.services.site_maintenance_service import get_site_maintenance_banner_context

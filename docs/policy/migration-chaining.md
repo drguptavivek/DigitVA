@@ -3,7 +3,7 @@ title: Migration Chaining Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 # Migration Chaining Policy
@@ -141,6 +141,31 @@ Its pairing check is `tests/migrations/test_schema_drift.py`, which replays
 the whole chain into a throwaway empty database and compares the result with
 the models. That one proves the chain still runs; rule 7's test proves it
 still means what it said.
+
+### 8. A valid, boot-tested chain can still be wrong on the database you run
+
+digitva-88e: `va_user_access_grants`' `role_scope` CHECK constraint on the
+dev database omitted `collaborator_pii` although two committed migrations
+add it and dev is stamped past both. The chain was correct and the models
+agreed with it; the *running database* had simply been altered outside the
+chain at some point, and nothing ever compared the two.
+
+`test_schema_drift.py` and `flask db check` cannot catch this by
+construction — both build a throwaway database from the chain and compare it
+to `db.metadata`, so they only ever validate migrations against models, never
+against a live database. Alembic's autogenerate also does not compare CHECK
+constraint text at all (rule 7's neighbour, fd232fab5987), so this class of
+drift is invisible to both.
+
+`flask schema drift-check` (`app/commands/schema_drift.py`) answers the
+other question: it builds the same throwaway migration-chain database and
+diffs it against whatever database it is actually pointed at (its own
+`DATABASE_URL`) on CHECK constraint names and text, column defaults, and
+enum member lists -- the categories autogenerate silently ignores. It is
+read-only on the target and exits non-zero on any difference, so it can gate
+a deploy. Run it after any incident like digitva-88e, and periodically
+against production, to catch drift `test_schema_drift.py` structurally
+cannot see.
 
 ## What a healthy chain looks like
 
